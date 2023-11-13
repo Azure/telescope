@@ -1,0 +1,117 @@
+#!/bin/bash
+
+sudo mkdir -p /etc/ssl/certs/jmeter
+
+cat <<EOF > /etc/ssl/certs/jmeter/client.crt
+-----BEGIN CERTIFICATE-----
+MIIDfTCCAmUCFBRG+yBOCB85DmI71r4FgZcIirSsMA0GCSqGSIb3DQEBCwUAMHsx
+CzAJBgNVBAYTAlVTMREwDwYDVQQIDAhOZXcgWW9yazERMA8GA1UEBwwITmV3IFlv
+cmsxFDASBgNVBAoMC0V4YW1wbGUgT3JnMRYwFAYDVQQLDA1JVCBEZXBhcnRtZW50
+MRgwFgYDVQQDDA93d3cuZXhhbXBsZS5jb20wHhcNMjMxMDExMjEzMDQ5WhcNMjQx
+MDEwMjEzMDQ5WjB7MQswCQYDVQQGEwJVUzERMA8GA1UECAwITmV3IFlvcmsxETAP
+BgNVBAcMCE5ldyBZb3JrMRQwEgYDVQQKDAtFeGFtcGxlIE9yZzEWMBQGA1UECwwN
+SVQgRGVwYXJ0bWVudDEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMIIBIjANBgkq
+hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwiNpIVM94F13/+bIp5L/97WMfg07m4XG
+YQC8WN5Zr9zoj1mvOI8f56n1FH1xTUdOaHpxfSAMiYenzasqBpSgfjYFHmGxogXr
+6USuKBycmoQ804VG6DDTUBlIXiopzzqwStG/kiJixEAoo9m5KCF7/IxOAtoiDlp+
+EaiWEa03FI3xhX+4ude4lc1uGz1312Q8sfxmbgG+W80ufAci2prCWFxVIzwmSe/a
+cxx2OkBW//bGwrhk46lzCnpA1gHH0zQ3/kHrDPXMnBMYXTao7wd7VzmT/oWT/RgH
+GgOuO9mjSZu/mQykw91YKtpGvDw8U6g7EU7iBK1WJa9vr8Jbtcb7KQIDAQABMA0G
+CSqGSIb3DQEBCwUAA4IBAQACJG1CXXhkkG2/OPNH1wOJYeUxyiuEQ9DH74gkO9sc
+UvX8TfQqwTunRUb3OvkWGgg13cb2cTUrFCoEzb+9u9P6BkZ3TplLZiHKOLcErnlK
+HM2EItyHxw2X+YJL1Daqig81CPgDNOJHNk9fmAFNOwPF3aZNIu3e105D7i8fz395
+NOS3cyLJd3CnyTRr1FzXO2Oo7xMky7B3eJGYLdrhJ+FOvPPMBZMVFbxZXYf8E+ra
+92geceLeG5pNkjzik3HYnElEdVn8Biq4Be4awuGkQozWjJuyxIlWeznYaFD9Y1rM
+2RdgM/a0glax972j9j6O5ExL2Oni/wcjGzCqATpkMBV/
+-----END CERTIFICATE-----
+EOF
+
+cat <<EOF > /etc/ssl/certs/jmeter/server.crt
+-----BEGIN CERTIFICATE-----
+MIIDfTCCAmUCFBRG+yBOCB85DmI71r4FgZcIirSrMA0GCSqGSIb3DQEBCwUAMHsx
+CzAJBgNVBAYTAlVTMREwDwYDVQQIDAhOZXcgWW9yazERMA8GA1UEBwwITmV3IFlv
+cmsxFDASBgNVBAoMC0V4YW1wbGUgT3JnMRYwFAYDVQQLDA1JVCBEZXBhcnRtZW50
+MRgwFgYDVQQDDA93d3cuZXhhbXBsZS5jb20wHhcNMjMxMDExMjEzMDQ5WhcNMjQx
+MDEwMjEzMDQ5WjB7MQswCQYDVQQGEwJVUzERMA8GA1UECAwITmV3IFlvcmsxETAP
+BgNVBAcMCE5ldyBZb3JrMRQwEgYDVQQKDAtFeGFtcGxlIE9yZzEWMBQGA1UECwwN
+SVQgRGVwYXJ0bWVudDEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMIIBIjANBgkq
+hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArrgfx6vVvRyvLLXb+FHrmS2y5tiBaHkE
+B5aJQmSk3+lj8bFmbbKJ814YcqKPQSGkVnnb2ZFO7+YyCWGCgmRYlca2jIbWVvst
+r3ISFB457uybon7gTpG/O09v/pzHhylEW1PsbcHrRlY6fgVRA3CgT76ru3iLYFG7
+mUCQTHLJNoRYhoSMdEJ8j9y1L2THTzle664DMTQm/g8VMLT4beuEJfZxzXkF3nI/
+sHH3sjwwevPYC5LDMNtjlFW8V5gpgG+P11q0hSd7YHPVlNhq31r0KZmEm/DQ1/UA
+nV5gLGY1YEP8r+uU13cBRHwICvNaVv6LA4Zqjx26Kwf2wgDWQ51lFQIDAQABMA0G
+CSqGSIb3DQEBCwUAA4IBAQAK0HbK/YZkmpahuk+cB2Avnfm9UFKYa17HM3surIQn
+JN1jt2ga6tkVZneTS917KVhcNSXV26+NMoskg2Ue1DcBOTMFJQZe3sYyfA8bYDqc
+vAOp7KexaRqJckYDCUYd6EGTsI7roirh/kxcjUq75i6WMD2L1MfdrGygZ0/ZAVK6
+D6dM4KzdxAdC7vL4RkvWWQG/jnlZifkStoxS5PjF1xaD9i3s7AIxLG3KtK0oXQJs
+T5vT8WaHqln7eKa2DloliSxjsuOhBTvC7dawRgahO8GWq3LbnZzQRKlnNu+w73QL
+sUNp1INsO0lIhshBwmKE4arysOrT8/bwyX5uI5TWeMk1
+-----END CERTIFICATE-----
+EOF
+
+cat <<EOF > /etc/ssl/certs/jmeter/server.key
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCuuB/Hq9W9HK8s
+tdv4UeuZLbLm2IFoeQQHlolCZKTf6WPxsWZtsonzXhhyoo9BIaRWedvZkU7v5jIJ
+YYKCZFiVxraMhtZW+y2vchIUHjnu7JuifuBOkb87T2/+nMeHKURbU+xtwetGVjp+
+BVEDcKBPvqu7eItgUbuZQJBMcsk2hFiGhIx0QnyP3LUvZMdPOV7rrgMxNCb+DxUw
+tPht64Ql9nHNeQXecj+wcfeyPDB689gLksMw22OUVbxXmCmAb4/XWrSFJ3tgc9WU
+2GrfWvQpmYSb8NDX9QCdXmAsZjVgQ/yv65TXdwFEfAgK81pW/osDhmqPHborB/bC
+ANZDnWUVAgMBAAECggEAJ3QegQk1f7nNeMwsOvvMts9R+bzkJAJHvarpndt6O7HJ
+RtenaJgLfLA/1wsMTEnbgUeNNKkSaSvTGrkxLl6YfmHb8Qm1tviLTXX1zSMyM9is
+IFqELlnNFAiRIq6mg8f2zqS52+MRTNXF6ZUrwRoaqUdGIlRLLNnoAehJbWnyM+P5
+PEgil1/LghDIvFn8rf+giF+/o/BqAzDsXqPFu9NwI1SmnS+ZVLtWi4PqgJeaOi3c
+HINHtUPhcs19C1SzHVteqs2vs/42BUN6ZlwsOREWoGp3KkEKqz78vwHKcC3SsmTC
+s8kBD7at6vjzas9xii1fpvUQj5LmfzTitUzpYwJEgQKBgQDchNj2W+GFGFjS5cGP
+dI++pEBd6DIykDKbUiL908Ju63V1p2FAshwmLJpSVtarfKXYHNNOfE37WIkDgMTx
+mvE9jjCWJkTdJp26RYkkQknxmRI1+Jk6t7QQNtGlRqBiFPCJzpgSG9M7XQGZ43d7
+NkqeQcnpxXhMJ+9UgTnsEbDIYQKBgQDK1MqoE6q6t5D7eMxIwUfLSHGtClEqUhkq
+qtP7wDbRiyuVWMp9METQT3jQwAUZ2beIW/JB9Z536VbIosLYpm6hnRLBxwpwXAbc
+DVc5GWtzostMIncJT75wh8nAWNrcyY/wmJLt9CiHIlR0Ew6KCwvxP6giQgA+1lsU
+JJZLU8iJNQKBgBNfBCQYDCaB7gOQtUEhzyLDEPhu1kIE0r08KOC9Ql42Btpv+qYR
+P1HHJ0NGZ5Mm3vauCY3ic4M50sdg/2vt3XU30WLPN8tpgf+D7jkmLZKwjJ37GZLD
+4mhuOFpZautSxZKFeGxWz2ZulB5tkehb65AdXVxQwXGHLIny1CC9qRbhAoGALmSJ
+jfQhot+Fy98Pary6vSZuydOISRPKKdY08mo+n6Mjbt+GQSgfNT5YNfcVs5n2vru5
+J5kUi/zVGsMPqho3R8PznFr4akbCUubCQo8r4qEjuuBPNdQFjRuh69rnBIUd5Twg
+r0ifVHlns70AIFbyflW/EUbjY3wIDQ1pSwV44tkCgYEAo5QJzHniellXUcZvl+J2
+6UQTFzX1g4F+0J4NN1TQ1mi6gJ3C8zHWsmYscNWqeTv+D/EMxiFF1jvhx5aaaZOP
+pNcrpzKDjv6uoE6E8D+V9KJX8CcAO0ky8fFiHOK9PmB31ESIPxpdmnCvvL0lXRC5
+cBJXrVrYX4pHLWT+3bIulFw=
+-----END PRIVATE KEY-----
+EOF
+
+sudo chmod 644 /etc/ssl/certs/jmeter/*.crt
+sudo chmod 600 /etc/ssl/certs/jmeter/*.key
+
+# install nginx
+sudo apt update && sudo apt install nginx -y
+nginx -v
+
+cat <<EOF > /etc/nginx/sites-available/default
+server {
+  listen 80;
+	listen 443 ssl;
+
+  server_name www.example.com;
+	
+	# SSL/TLS certificate and key files
+	ssl_certificate /etc/ssl/certs/jmeter/server.crt;
+	ssl_certificate_key /etc/ssl/certs/jmeter/server.key;
+	ssl_client_certificate /etc/ssl/certs/jmeter/client.crt;
+	ssl_verify_client on;
+	ssl_verify_depth 2;
+	
+	root /var/www/html;
+
+	index index.html index.htm index.nginx-debian.html;
+
+	location / {
+		try_files \$uri \$uri/ =404;
+	}
+}
+EOF
+
+sudo nginx -t
+sudo ufw allow 443/tcp
+sudo systemctl reload nginx

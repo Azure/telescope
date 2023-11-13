@@ -1,0 +1,50 @@
+###
+Repository Bloat Risks
+###
+*.exe
+*.dll
+*.lib
+*.pdb
+*.wim
+*.zip
+*.gz
+bin/
+debug/
+
+# *.pfx
+*.[Pp][Ff][Xx]
+
+# *.key
+*.[Kk][Ee][Yy]
+
+# *.sst
+*.[Ss][Ss][Tt]
+
+# *.p12
+*.[Pp]12
+
+# *.pvk
+*.[Pp][Vv][Kk]
+
+/images/*/shared/*
+*.pem
+
+# local dev files
+.vscode/*
+**/.vscode
+*.un~
+*.log
+go.work
+go.work.sum
+*.code-workspace
+# Provide developers with a local directory to store their own scripts
+/dev/
+
+# dep
+vendor.orig
+
+# terraform
+terraform.*
+.terraform*
+darwin-amd64/
+linux-amd64/
