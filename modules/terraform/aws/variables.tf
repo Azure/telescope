@@ -1,25 +1,13 @@
-variable "region" {
-  description = "Value of the region"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "az" {
-  description = "Value of the availability zone"
-  type        = string
-  default     = "us-east-1b"
-}
-
-variable "instance_type" {
-  description = "Value of the instance type"
-  type        = string
-  default     = "m5.4xlarge"
-}
-
-variable "job_id" {
-  description = "Value of the job id"
-  type        = string
-  default     = ""
+variable "json_input" {
+  description = "value of the json input"
+  type = object({
+    region         = string
+    az             = string
+    instance_type  = string
+    job_id         = string
+    user_data_path = string
+    owner          = string
+  })
 }
 
 variable "scenario_name" {
@@ -32,11 +20,6 @@ variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
   default     = "2h"
-}
-
-variable "user_data_path" {
-  description = "value of the user data path"
-  type        = string
 }
 
 variable "network_config_list" {

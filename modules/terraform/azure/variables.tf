@@ -1,31 +1,14 @@
-variable "resource_group_name" {
-  description = "Value of the resource group name"
-  type        = string
-  default     = "rg"
-}
-
-variable "location" {
-  description = "Value of the location"
-  type        = string
-  default     = "East US"
-}
-
-variable "vm_sku" {
-  description = "Value of the VM SKU"
-  type        = string
-  default     = "Standard_D2ds_v5"
-}
-
-variable "accelerated_networking" {
-  description = "Value of the accelerated networking"
-  type        = bool
-  default     = true
-}
-
-variable "job_id" {
-  description = "Value of the job id"
-  type        = string
-  default     = "123456"
+variable "json_input" {
+  description = "value of the json input"
+  type = object({
+    resource_group_name    = string
+    location               = string
+    vm_sku                 = string
+    accelerated_networking = bool
+    job_id                 = string
+    user_data_path         = string
+    owner                  = string
+  })
 }
 
 variable "scenario_name" {
@@ -38,12 +21,6 @@ variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
   default     = "2h"
-}
-
-variable "user_data_path" {
-  description = "value of the user data path"
-  type        = string
-  default     = ""
 }
 
 variable "public_ip_names" {
@@ -155,19 +132,19 @@ variable "nic_backend_pool_association_list" {
 variable "data_disk_config_list" {
   description = "List of configuration for data disks"
   type = list(object({
-    disk_name              = string
-    zone                   = number
+    disk_name = string
+    zone      = number
   }))
-  default     = []
+  default = []
 }
 
 variable "data_disk_association_list" {
   description = "List of configuration for data_disk associations"
   type = list(object({
-    data_disk_name         = string
-    vm_name                = string
+    data_disk_name = string
+    vm_name        = string
   }))
-  default     = []
+  default = []
 }
 
 variable "data_disk_storage_account_type" {
