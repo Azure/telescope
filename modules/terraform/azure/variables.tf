@@ -32,7 +32,7 @@ variable "public_ip_names" {
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    name_prefix                 = string
+    role                 = string
     vnet_name                   = string
     vnet_address_space          = string
     subnet_names                = list(string)
@@ -61,7 +61,7 @@ variable "network_config_list" {
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
-    name_prefix           = string
+    role           = string
     loadbalance_name      = string
     public_ip_name        = string
     loadbalance_pool_name = string
@@ -70,7 +70,7 @@ variable "loadbalancer_config_list" {
     probe_request_path    = string
     lb_rules = list(object({
       type                    = string
-      name_prefix             = string
+      role             = string
       frontend_port           = number
       backend_port            = number
       protocol                = string
@@ -84,7 +84,7 @@ variable "loadbalancer_config_list" {
 variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
-    name_prefix    = string
+    role           = string
     vm_name        = string
     nic_name       = string
     admin_username = string
@@ -102,7 +102,7 @@ variable "vm_config_list" {
 variable "vmss_config_list" {
   description = "List of configuration for virtual machine scale sets"
   type = list(object({
-    name_prefix            = string
+    role            = string
     vmss_name              = string
     admin_username         = string
     nic_name               = string

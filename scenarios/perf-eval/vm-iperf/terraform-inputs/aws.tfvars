@@ -2,7 +2,7 @@ scenario_name  = "perf_eval_vm_aws"
 deletion_delay = "2h"
 network_config_list = [
   {
-    name_prefix            = "same"
+    role                   = "network"
     vpc_name               = "same-vpc"
     vpc_cidr_block         = "10.2.0.0/16"
     subnet_names           = ["same-subnet"]
@@ -44,14 +44,14 @@ network_config_list = [
 loadbalancer_config_list = []
 vm_config_list = [{
     vm_name                     = "client-vm"
-    name_prefix                 = "client"
+    role                        = "client"
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
   },
   {
     vm_name                     = "server-vm"
-    name_prefix                 = "server"
+    role                        = "server"
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true

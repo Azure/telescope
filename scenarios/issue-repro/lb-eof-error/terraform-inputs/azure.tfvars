@@ -3,7 +3,7 @@ deletion_delay  = "4h"
 public_ip_names = ["ingress-pip", "egress-pip"]
 network_config_list = [
   {
-    name_prefix                 = "server"
+    role                        = "server"
     vnet_name                   = "server-vnet"
     vnet_address_space          = "10.1.0.0/16"
     subnet_names                = ["server-subnet"]
@@ -47,13 +47,13 @@ network_config_list = [
     ]
   },
   {
-    name_prefix                 = "client"
+    role                        = "client"
     vnet_name                   = "client-vnet"
     vnet_address_space          = "10.0.0.0/16"
     subnet_names                = ["client-subnet"]
     subnet_address_prefixes     = ["10.0.1.0/24"]
     network_security_group_name = "client-nsg"
-    nic_public_ip_associations = [
+    nic_public_ip_associations  = [
       {
         nic_name              = "client-nic"
         subnet_name           = "client-subnet"
@@ -75,7 +75,7 @@ network_config_list = [
 ]
 loadbalancer_config_list = [
   {
-    name_prefix           = "ingress"
+    role                  = "ingress"
     loadbalance_name      = "ingress-lb"
     public_ip_name        = "ingress-pip"
     loadbalance_pool_name = "ingress-lb-pool"
@@ -85,7 +85,7 @@ loadbalancer_config_list = [
     lb_rules = [{
       type                    = "Inbound"
       rule_count              = 1
-      name_prefix             = "ingress-lb-rule"
+      role                    = "ingress-lb-rule"
       protocol                = "Tcp"
       frontend_port           = 443
       backend_port            = 4443
@@ -95,7 +95,7 @@ loadbalancer_config_list = [
       {
         type                    = "Outbound"
         rule_count              = 1
-        name_prefix             = "ingress-lb-outbound-rule"
+        role                    = "ingress-lb-outbound-rule"
         protocol                = "All"
         frontend_port           = 0
         backend_port            = 0
@@ -103,7 +103,7 @@ loadbalancer_config_list = [
         idle_timeout_in_minutes = 66
     }]
     }, {
-    name_prefix           = "egress"
+    role                  = "egress"
     loadbalance_name      = "egress-lb"
     public_ip_name        = "egress-pip"
     loadbalance_pool_name = "egress-lb-pool"
@@ -113,7 +113,7 @@ loadbalancer_config_list = [
     lb_rules = [{
       type                    = "Inbound"
       rule_count              = 1
-      name_prefix             = "egress-lb-rule"
+      role                    = "egress-lb-rule"
       protocol                = "Tcp"
       frontend_port           = 22
       backend_port            = 22
@@ -123,7 +123,7 @@ loadbalancer_config_list = [
       {
         type                    = "Outbound"
         rule_count              = 1
-        name_prefix             = "egress-lb-outbound-rule"
+        role                    = "egress-lb-outbound-rule"
         protocol                = "All"
         frontend_port           = 0
         backend_port            = 0
@@ -133,7 +133,7 @@ loadbalancer_config_list = [
   }
 ]
 vm_config_list = [{
-  name_prefix    = "client"
+  role    = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "adminuser"
@@ -147,7 +147,7 @@ vm_config_list = [{
   }
 ]
 vmss_config_list = [{
-  name_prefix            = "server"
+  role            = "server"
   vmss_name              = "server-vmss"
   nic_name               = "server-nic"
   subnet_name            = "server-subnet"

@@ -1,11 +1,11 @@
 variable "loadbalancer_config" {
   description = "Configuration for the load balancer."
   type = object({
-    name_prefix        = string
+    role               = string
     subnet_name        = string
     load_balancer_type = string
     lb_target_group = list(object({
-      name_prefix = string
+      role        = string
       tg_suffix   = string
       port        = number
       protocol    = string

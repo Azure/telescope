@@ -1,4 +1,4 @@
-variable "name_prefix" {
+variable "role" {
   description = "Prefix for the lb-rule name."
   type        = string
 }
@@ -58,7 +58,7 @@ variable "idle_timeout_in_minutes" {
   default     = 4
 }
 
-variable "frontend_ip_config_name_prefix" {
+variable "frontend_ip_config_role" {
   description = "value for frontend_ip_configuration_name prefix."
   type        = string
   default     = "ingress"

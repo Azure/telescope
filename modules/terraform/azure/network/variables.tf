@@ -23,7 +23,7 @@ variable "accelerated_networking" {
 
 variable "network_config" {
   type = object({
-    name_prefix                 = string
+    role                 = string
     vnet_name                   = string
     vnet_address_space          = string
     subnet_names                = list(string)

@@ -14,13 +14,13 @@ locals {
     "job_id"            = local.job_id
   }
 
-  network_config_map                     = { for network in var.network_config_list : network.name_prefix => network }
-  loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.name_prefix => loadbalancer }
+  network_config_map                     = { for network in var.network_config_list : network.role => network }
+  loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
-  all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.name_prefix].nics]...)
-  all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.name_prefix].subnets]...)
+  all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
+  all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   disk_association_map                   = { for config in var.data_disk_association_list : config.vm_name => config }
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }

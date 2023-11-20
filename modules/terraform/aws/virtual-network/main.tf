@@ -1,5 +1,5 @@
 locals {
-  name_prefix          = var.network_config.name_prefix
+  role                 = var.network_config.role
   ingress_sg_rules_map = { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
   egress_sg_rules_map  = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
   vpc_name             = var.network_config.vpc_name
@@ -64,7 +64,7 @@ resource "aws_internet_gateway" "internet_gateway" {
   vpc_id = aws_vpc.vpc.id
 
   tags = merge(var.tags, {
-    Name = "${local.name_prefix}-igw-${var.job_id}"
+    Name = "${local.role}-igw-${var.job_id}"
   })
 }
 
@@ -77,7 +77,7 @@ resource "aws_route_table" "route_table" {
   }
 
   tags = merge(var.tags, {
-    Name = "${local.name_prefix}-rtb-${var.job_id}"
+    Name = "${local.role}-rtb-${var.job_id}"
   })
 }
 

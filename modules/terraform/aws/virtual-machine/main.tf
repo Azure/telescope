@@ -40,9 +40,9 @@ resource "aws_instance" "vm" {
 
   key_name = var.admin_key_pair_name
 
-  user_data = file("${var.user_data_path}/${var.vm_config.name_prefix}-userdata.sh")
+  user_data = file("${var.user_data_path}/${var.vm_config.role}-userdata.sh")
 
   tags = merge(var.tags, {
-    Name = "${var.vm_config.vm_name}-${var.job_id}"
+    role = "${var.vm_config.role}"
   })
 }

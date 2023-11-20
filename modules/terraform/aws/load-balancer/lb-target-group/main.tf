@@ -15,7 +15,7 @@ data "aws_instance" "vm_instance" {
 resource "aws_lb_target_group" "target_group" {
   count = var.lb_tg_config.rule_count
 
-  name     =  var.lb_tg_config.rule_count > 1 ? "${var.lb_tg_config.name_prefix}-${var.job_id}-${var.lb_tg_config.tg_suffix}-${count.index + 1}" : "${var.lb_tg_config.name_prefix}-${var.job_id}-${var.lb_tg_config.tg_suffix}"
+  name     = var.lb_tg_config.rule_count > 1 ? "${var.lb_tg_config.role}-${var.job_id}-${var.lb_tg_config.tg_suffix}-${count.index + 1}" : "${var.lb_tg_config.role}-${var.job_id}-${var.lb_tg_config.tg_suffix}"
   port     = var.lb_tg_config.rule_count > 1 ? var.lb_tg_config.port + count.index + 1 : var.lb_tg_config.port
   protocol = var.lb_tg_config.protocol
   vpc_id   = data.aws_vpc.vpc.id

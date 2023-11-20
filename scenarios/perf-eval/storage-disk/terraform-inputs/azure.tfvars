@@ -3,7 +3,7 @@ deletion_delay  = "2h"
 public_ip_names = ["egress-pip"]
 network_config_list = [
   {
-    name_prefix                 = "client"
+    role                        = "network"
     vnet_name                   = "client-vnet"
     vnet_address_space          = "10.0.0.0/16"
     subnet_names                = ["client-subnet"]
@@ -37,7 +37,7 @@ data_disk_config_list = [{
 }]
 
 vm_config_list = [{
-  name_prefix    = "client"
+  role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "ubuntu"
