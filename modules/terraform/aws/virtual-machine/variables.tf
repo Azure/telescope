@@ -3,6 +3,7 @@ variable "vm_config" {
   type = object({
     vm_name                     = string
     role                        = string
+    network_role                = string
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool

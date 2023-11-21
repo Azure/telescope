@@ -45,6 +45,7 @@ loadbalancer_config_list = []
 vm_config_list = [{
     vm_name                     = "client-vm"
     role                        = "client"
+    network_role                = "network"
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
@@ -52,6 +53,7 @@ vm_config_list = [{
   {
     vm_name                     = "server-vm"
     role                        = "server"
+    network_role                = "network"
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
