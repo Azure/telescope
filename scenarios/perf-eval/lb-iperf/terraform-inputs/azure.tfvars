@@ -104,7 +104,7 @@ network_config_list = [
 ]
 loadbalancer_config_list = [{
   role                  = "ingress"
-  loadbalance_name      = "server-lb"
+  loadbalance_name      = "ingress-lb"
   public_ip_name        = "lb-pip"
   loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
@@ -113,18 +113,18 @@ loadbalancer_config_list = [{
   lb_rules = [{
     type                     = "Inbound"
     rule_count               = 1
-    role                     = "server-lb-tcp-rule"
+    role                     = "ingress-lb-tcp-rule"
     protocol                 = "Tcp"
     frontend_port            = 20001
     backend_port             = 20001
-    fronend_ip_config_prefix = "server"
+    fronend_ip_config_prefix = "ingress"
     enable_tcp_reset         = false
     idle_timeout_in_minutes  = 4
     },
     {
       type                    = "Inbound"
       rule_count              = 1
-      role                    = "server-lb-udp-rule"
+      role                    = "ingress-lb-udp-rule"
       protocol                = "Udp"
       frontend_port           = 20002
       backend_port            = 20002
