@@ -23,8 +23,13 @@ data "aws_security_group" "security_group" {
 
 data "aws_subnet" "subnet" {
   filter {
-    name   = "tag:Name"
-    values = ["${var.vm_config.subnet_name}-${var.job_id}"]
+    name   = "tag:job_id"
+    values = ["${var.job_id}"]
+  }
+
+  filter {
+    name   = "tag:role"
+    values = ["${var.vm_config.role}"]
   }
 }
 

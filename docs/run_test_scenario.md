@@ -11,6 +11,7 @@ Set environment variables for testing
 ```
 SCENARIO_NAME=perf-eval/vm-iperf
 JOB_ID=10312023
+OWNER=$(whoami)
 RESULT_PATH=/tmp/$JOB_ID
 RESOURCE_GROUP=test-$JOB_ID
 CLOUD=azure
@@ -54,9 +55,19 @@ az login --service-principal --username <appId> --password <password> --tenant <
 
 Provision test resources using terraform
 ```
+INPUT_JSON=$(jq -n \
+--arg owner $OWNER \
+--arg job_id $JOB_ID \
+--arg location $REGION \
+--arg resource_group_name $RESOURCE_GROUP \
+--arg vm_sku $MACHINE_TYPE \
+--arg accelerated_networking $ACCERLATED_NETWORKING \
+--arg user_data_path $USER_DATA_PATH \
+'{owner: $owner, job_id: $job_id, location: $location, resource_group_name: $resource_group_name, vm_sku: $vm_sku, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform apply -var resource_group_name=$RESOURCE_GROUP -var location=$REGION -var vm_sku=$MACHINE_TYPE -var accelerated_networking=$ACCERLATED_NETWORKING -var job_id=$JOB_ID -var user_data_path=$USER_DATA_PATH -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
@@ -83,7 +94,7 @@ check_iperf_setup $CLIENT_PUBLIC_IP $IPERF_VERSION $SSH_KEY_PATH
 ```
 
 ### Execute Tests
-Run iperf for both TCP and UDP test traffic with target bandwidth at 100Mbps, 1Gbps, 2Gbps, 4Gbps 
+Run iperf for both TCP and UDP test traffic with target bandwidth at 100Mbps, 1Gbps, 2Gbps, 4Gbps
 ```
 run_iperf2 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $TCP_THREAD_MODE $UDP_THREAD_MODE $SSH_KEY_PATH $SERVER_PUBLIC_IP $RESULT_PATH
 ```

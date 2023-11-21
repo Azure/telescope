@@ -9,13 +9,17 @@ locals {
 
 data "aws_subnet" "subnet" {
   filter {
-    name   = "tag:Name"
-    values = ["${var.loadbalancer_config.subnet_name}-${var.job_id}"]
+    name   = "tag:job_id"
+    values = ["${var.job_id}"]
+  }
+
+  filter {
+    name   = "tag:role"
+    values = ["server"]
   }
 }
 
 resource "aws_lb" "nlb" {
-  name               = "${local.role}-${var.job_id}"
   internal           = false
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = [data.aws_subnet.subnet.id]
