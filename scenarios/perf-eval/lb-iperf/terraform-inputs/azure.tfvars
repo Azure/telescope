@@ -106,7 +106,7 @@ loadbalancer_config_list = [{
   role                  = "ingress"
   loadbalance_name      = "server-lb"
   public_ip_name        = "lb-pip"
-  loadbalance_pool_name = "server-lb-pool"
+  loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
   probe_port            = 20000
   probe_request_path    = null,
@@ -164,7 +164,7 @@ vmss_config_list = []
 nic_backend_pool_association_list = [
   {
     nic_name              = "server-nic"
-    backend_pool_name     = "server-lb-pool"
+    backend_pool_name     = "ingress-lb-pool"
     vm_name               = "server-vm"
     ip_configuration_name = "server-ipconfig"
   }
