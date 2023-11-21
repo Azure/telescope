@@ -43,7 +43,7 @@ variable "user_data_path" {
 variable "vm_config" {
   description = "Configuration for virtual machine"
   type = object({
-    name_prefix    = string
+    role           = string
     vm_name        = string
     nic_name       = string
     admin_username = string

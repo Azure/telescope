@@ -1,5 +1,5 @@
 locals {
-  name_prefix          = var.network_config.name_prefix
+  role                 = var.network_config.role
   ingress_sg_rules_map = { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
   egress_sg_rules_map  = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
   vpc_name             = var.network_config.vpc_name
@@ -12,9 +12,12 @@ locals {
 resource "aws_vpc" "vpc" {
   cidr_block = var.network_config.vpc_cidr_block
 
-  tags = merge(var.tags, {
-    Name = "${local.vpc_name}-${var.job_id}"
-  })
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 }
 
 resource "aws_subnet" "subnets" {
@@ -25,15 +28,16 @@ resource "aws_subnet" "subnets" {
 
   availability_zone = var.az
 
-  tags = merge(var.tags, {
-    Name = "${local.subnet_names[count.index]}-${var.job_id}"
-  })
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 }
 
 
 resource "aws_security_group" "security_group" {
-  name = "${local.security_group_name}-${var.job_id}"
-
   dynamic "ingress" {
     for_each = local.ingress_sg_rules_map
     content {
@@ -57,15 +61,23 @@ resource "aws_security_group" "security_group" {
 
   vpc_id = aws_vpc.vpc.id
 
-  tags = var.tags
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 }
 
 resource "aws_internet_gateway" "internet_gateway" {
   vpc_id = aws_vpc.vpc.id
 
-  tags = merge(var.tags, {
-    Name = "${local.name_prefix}-igw-${var.job_id}"
-  })
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 }
 
 resource "aws_route_table" "route_table" {
@@ -76,9 +88,12 @@ resource "aws_route_table" "route_table" {
     gateway_id = aws_internet_gateway.internet_gateway.id
   }
 
-  tags = merge(var.tags, {
-    Name = "${local.name_prefix}-rtb-${var.job_id}"
-  })
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 }
 
 resource "aws_route_table_association" "route_table_association" {

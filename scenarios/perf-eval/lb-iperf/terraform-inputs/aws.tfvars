@@ -2,7 +2,7 @@ scenario_name  = "perf_eval_lb_aws"
 deletion_delay = "2h"
 network_config_list = [
   {
-    name_prefix            = "server"
+    role            = "server"
     vpc_name               = "server-vpc"
     vpc_cidr_block         = "10.1.0.0/16"
     subnet_names           = ["server-subnet"]
@@ -47,7 +47,7 @@ network_config_list = [
     }
   },
   {
-    name_prefix            = "client"
+    role                   = "client"
     vpc_name               = "client-vpc"
     vpc_cidr_block         = "10.0.0.0/16"
     subnet_names           = ["client-subnet"]
@@ -75,13 +75,13 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = [{
-  name_prefix        = "nlb"
+  role               = "ingress"
   vpc_name           = "server-vpc"
   subnet_name        = "server-subnet"
   load_balancer_type = "network"
   lb_target_group = [{
-    name_prefix = "nlb-tg"
-    tg_suffix = "tcp"
+    role        = "nlb-tg"
+    tg_suffix   = "tcp"
     port        = 20001
     protocol    = "TCP"
     rule_count  = 1
@@ -104,8 +104,8 @@ loadbalancer_config_list = [{
     }
     },
     {
-      name_prefix = "nlb-tg"
-      tg_suffix = "udp"
+      role        = "nlb-tg"
+      tg_suffix   = "udp"
       port        = 20002
       protocol    = "UDP"
       rule_count  = 1
@@ -132,14 +132,14 @@ loadbalancer_config_list = [{
 
 vm_config_list = [{
   vm_name                     = "client-vm"
-  name_prefix                 = "client"
+  role                        = "client"
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
   },
   {
     vm_name                     = "server-vm"
-    name_prefix                 = "server"
+    role                        = "server"
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true

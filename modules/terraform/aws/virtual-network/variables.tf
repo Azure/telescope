@@ -1,6 +1,6 @@
 variable "network_config" {
   type = object({
-    name_prefix            = string
+    role            = string
     vpc_name               = string
     vpc_cidr_block         = string
     subnet_names           = list(string)

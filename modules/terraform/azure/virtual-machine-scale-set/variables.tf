@@ -60,7 +60,7 @@ variable "user_data_path" {
 variable "vmss_config" {
   description = "Configuration for virtual machine scale set"
   type = object({
-    name_prefix            = string
+    role                   = string
     vmss_name              = string
     admin_username         = string
     nic_name               = string

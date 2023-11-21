@@ -3,7 +3,7 @@ deletion_delay  = "2h"
 public_ip_names = ["ingress-pip", "egress-pip"]
 network_config_list = [
   {
-    name_prefix                 = "server"
+    role                        = "server"
     vnet_name                   = "server-vnet"
     vnet_address_space          = "10.1.0.0/16"
     subnet_names                = ["server-subnet"]
@@ -42,7 +42,7 @@ network_config_list = [
     ]
   },
   {
-    name_prefix                 = "client"
+    role                        = "client"
     vnet_name                   = "client-vnet"
     vnet_address_space          = "10.0.0.0/16"
     subnet_names                = ["client-subnet"]
@@ -91,7 +91,7 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = [{
-  name_prefix           = "ingress"
+  role                  = "ingress"
   loadbalance_name      = "ingress-lb"
   public_ip_name        = "ingress-pip"
   loadbalance_pool_name = "ingress-lb-pool"
@@ -101,7 +101,7 @@ loadbalancer_config_list = [{
   lb_rules = [{
     type                     = "Inbound"
     rule_count               = 1
-    name_prefix              = "ingress-lb-http-rule"
+    role                     = "ingress-lb-http-rule"
     protocol                 = "Tcp"
     frontend_port            = 80
     backend_port             = 80
@@ -112,7 +112,7 @@ loadbalancer_config_list = [{
     {
       type                    = "Inbound"
       rule_count              = 1
-      name_prefix             = "ingress-lb-https-rule"
+      role                    = "ingress-lb-https-rule"
       protocol                = "Tcp"
       frontend_port           = 443
       backend_port            = 443
@@ -122,7 +122,7 @@ loadbalancer_config_list = [{
     {
       type                    = "Outbound"
       rule_count              = 1
-      name_prefix             = "ingress-lb-outbound-rule"
+      role                    = "ingress-lb-outbound-rule"
       protocol                = "All"
       frontend_port           = 0
       backend_port            = 0
@@ -132,7 +132,7 @@ loadbalancer_config_list = [{
 }]
 
 vm_config_list = [{
-  name_prefix    = "client"
+  role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "ubuntu"
@@ -145,7 +145,7 @@ vm_config_list = [{
   create_vm_extension = true
   },
   {
-    name_prefix    = "server"
+    role           = "server"
     vm_name        = "server-vm"
     nic_name       = "server-nic"
     admin_username = "ubuntu"

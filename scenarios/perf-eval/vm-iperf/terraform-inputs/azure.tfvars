@@ -3,7 +3,7 @@ deletion_delay  = "2h"
 public_ip_names = ["ingress-pip", "egress-pip"]
 network_config_list = [
   {
-    name_prefix                 = "same"
+    role                        = "network"
     vnet_name                   = "same-vnet"
     vnet_address_space          = "10.2.0.0/16"
     subnet_names                = ["same-subnet"]
@@ -61,7 +61,7 @@ network_config_list = [
 ]
 loadbalancer_config_list = []
 vm_config_list = [{
-  name_prefix    = "client"
+  role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "ubuntu"
@@ -74,7 +74,7 @@ vm_config_list = [{
   create_vm_extension = true
   },
   {
-    name_prefix    = "server"
+    role           = "server"
     vm_name        = "server-vm"
     nic_name       = "server-nic"
     admin_username = "ubuntu"

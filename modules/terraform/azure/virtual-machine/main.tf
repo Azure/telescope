@@ -30,7 +30,12 @@ resource "azurerm_linux_virtual_machine" "vm" {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
   }
-  tags = var.tags
+  tags = merge(
+    var.tags,
+    {
+      "role" = var.vm_config.role
+    },
+  )
 
   zone = var.vm_config.zone
 
@@ -41,14 +46,14 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
 resource "azurerm_virtual_machine_extension" "vm_ext" {
   count                = var.vm_config.create_vm_extension ? 1 : 0
-  name                 = "${var.vm_config.name_prefix}-vm-ext"
+  name                 = "${var.vm_config.role}-vm-ext"
   virtual_machine_id   = azurerm_linux_virtual_machine.vm.id
   publisher            = "Microsoft.Azure.Extensions"
   type                 = "CustomScript"
   type_handler_version = "2.0"
   protected_settings   = <<PROT
   {
-    "script" : "${base64encode(file("${var.user_data_path}/${var.vm_config.name_prefix}-userdata.sh"))}"
+    "script" : "${base64encode(file("${var.user_data_path}/${var.vm_config.role}-userdata.sh"))}"
   }
 PROT
   depends_on           = [azurerm_linux_virtual_machine.vm]

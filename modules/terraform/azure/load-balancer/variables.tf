@@ -19,7 +19,7 @@ variable "pip_id" {
 variable "loadbalancer_config" {
   description = "Configuration for the load balancer."
   type = object({
-    name_prefix           = string
+    role                  = string
     loadbalance_name      = string
     public_ip_name        = string
     loadbalance_pool_name = string
@@ -28,7 +28,7 @@ variable "loadbalancer_config" {
     probe_request_path    = string
     lb_rules = list(object({
       type                    = string
-      name_prefix             = string
+      role                    = string
       frontend_port           = number
       backend_port            = number
       protocol                = string

@@ -25,7 +25,7 @@ variable "deletion_delay" {
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    name_prefix            = string
+    role                   = string
     vpc_name               = string
     vpc_cidr_block         = string
     subnet_names           = list(string)
@@ -52,12 +52,12 @@ variable "network_config_list" {
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
-    name_prefix        = string
+    role               = string
     vpc_name           = string
     subnet_name        = string
     load_balancer_type = string
     lb_target_group = list(object({
-      name_prefix = string
+      role        = string
       tg_suffix   = string
       port        = number
       protocol    = string
@@ -87,7 +87,7 @@ variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
     vm_name                     = string
-    name_prefix                 = string
+    role                        = string
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool

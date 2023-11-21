@@ -13,8 +13,8 @@ locals {
     "job_id"            = local.job_id
   }
 
-  network_config_map      = { for network in var.network_config_list : network.name_prefix => network }
-  loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.name_prefix => loadbalancer }
+  network_config_map      = { for network in var.network_config_list : network.role => network }
+  loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   vm_config_map           = { for vm in var.vm_config_list : vm.vm_name => vm }
 }
 
