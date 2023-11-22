@@ -3,7 +3,7 @@ deletion_delay  = "2h"
 public_ip_names = ["client-pip", "server-pip", "lb-pip"]
 network_config_list = [
   {
-    role                 = "server"
+    role                        = "server"
     vnet_name                   = "server-vnet"
     vnet_address_space          = "10.1.0.0/16"
     subnet_names                = ["server-subnet"]
@@ -54,7 +54,7 @@ network_config_list = [
     ]
   },
   {
-    role                 = "client"
+    role                        = "client"
     vnet_name                   = "client-vnet"
     vnet_address_space          = "10.0.0.0/16"
     subnet_names                = ["client-subnet"]
@@ -103,28 +103,28 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = [{
-  role           = "server"
-  loadbalance_name      = "server-lb"
+  role                  = "ingress"
+  loadbalance_name      = "ingress-lb"
   public_ip_name        = "lb-pip"
-  loadbalance_pool_name = "server-lb-pool"
+  loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
   probe_port            = 20000
   probe_request_path    = null,
   lb_rules = [{
     type                     = "Inbound"
     rule_count               = 1
-    role              = "server-lb-tcp-rule"
+    role                     = "ingress-lb-tcp-rule"
     protocol                 = "Tcp"
     frontend_port            = 20001
     backend_port             = 20001
-    fronend_ip_config_prefix = "server"
+    fronend_ip_config_prefix = "ingress"
     enable_tcp_reset         = false
     idle_timeout_in_minutes  = 4
     },
     {
       type                    = "Inbound"
       rule_count              = 1
-      role             = "server-lb-udp-rule"
+      role                    = "ingress-lb-udp-rule"
       protocol                = "Udp"
       frontend_port           = 20002
       backend_port            = 20002
@@ -134,7 +134,7 @@ loadbalancer_config_list = [{
 }]
 
 vm_config_list = [{
-  role    = "client"
+  role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "ubuntu"
@@ -147,7 +147,7 @@ vm_config_list = [{
   create_vm_extension = true
   },
   {
-    role    = "server"
+    role           = "server"
     vm_name        = "server-vm"
     nic_name       = "server-nic"
     admin_username = "ubuntu"
@@ -164,7 +164,7 @@ vmss_config_list = []
 nic_backend_pool_association_list = [
   {
     nic_name              = "server-nic"
-    backend_pool_name     = "server-lb-pool"
+    backend_pool_name     = "ingress-lb-pool"
     vm_name               = "server-vm"
     ip_configuration_name = "server-ipconfig"
   }

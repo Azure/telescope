@@ -119,15 +119,17 @@ loadbalancer_config_list = [{
 }]
 
 vm_config_list = [{
-  vm_name                     = "client-vm"
-  role                        = "client"
-  subnet_name                 = "client-subnet"
-  security_group_name         = "client-sg"
-  associate_public_ip_address = true
+    vm_name                     = "client-vm"
+    role                        = "client"
+    network_role                = "client"
+    subnet_name                 = "client-subnet"
+    security_group_name         = "client-sg"
+    associate_public_ip_address = true
   },
   {
     vm_name                     = "server-vm"
     role                        = "server"
+    network_role                = "server"
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
