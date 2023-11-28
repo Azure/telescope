@@ -3,7 +3,7 @@ locals {
   location               = lookup(var.json_input, "location", "East US")
   vm_sku                 = lookup(var.json_input, "vm_sku", "Standard_D2ds_v5")
   accelerated_networking = lookup(var.json_input, "accelerated_networking", true)
-  job_id                 = lookup(var.json_input, "job_id", "123456")
+  run_id                 = lookup(var.json_input, "run_id", "123456")
   user_data_path         = lookup(var.json_input, "user_data_path", "")
 
   tags = {
@@ -11,7 +11,7 @@ locals {
     "scenario"          = var.scenario_name
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
-    "job_id"            = local.job_id
+    "run_id"            = local.run_id
   }
 
   network_config_map                     = { for network in var.network_config_list : network.role => network }

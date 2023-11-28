@@ -1,5 +1,5 @@
-variable "job_id" {
-  description = "The job id for the load balancer."
+variable "run_id" {
+  description = "The run id for the load balancer."
   type        = string
 }
 

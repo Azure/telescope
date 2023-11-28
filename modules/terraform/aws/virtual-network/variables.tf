@@ -29,8 +29,8 @@ variable "az" {
   type        = string
 }
 
-variable "job_id" {
-  description = "Value of the job id"
+variable "run_id" {
+  description = "Value of the run id"
   type        = string
   default     = ""
 }
