@@ -16,8 +16,8 @@ data "aws_ami" "ubuntu" {
 
 data "aws_security_group" "security_group" {
   filter {
-    name   = "tag:job_id"
-    values = ["${var.job_id}"]
+    name   = "tag:run_id"
+    values = ["${var.run_id}"]
   }
 
   filter {
@@ -28,8 +28,8 @@ data "aws_security_group" "security_group" {
 
 data "aws_subnet" "subnet" {
   filter {
-    name   = "tag:job_id"
-    values = ["${var.job_id}"]
+    name   = "tag:run_id"
+    values = ["${var.run_id}"]
   }
 
   filter {

@@ -2,7 +2,7 @@ locals {
   region         = lookup(var.json_input, "region", "us-east-1")
   az             = lookup(var.json_input, "az", "us-east-1b")
   instance_type  = lookup(var.json_input, "instance_type", "m5.4xlarge")
-  job_id         = lookup(var.json_input, "job_id", "123456")
+  run_id         = lookup(var.json_input, "run_id", "123456")
   user_data_path = lookup(var.json_input, "user_data_path", "")
 
   tags = {
@@ -10,7 +10,7 @@ locals {
     "scenario"          = var.scenario_name
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
-    "job_id"            = local.job_id
+    "run_id"            = local.run_id
   }
 
   network_config_map      = { for network in var.network_config_list : network.role => network }
@@ -37,7 +37,7 @@ resource "local_file" "ssh_private_key" {
 }
 
 resource "aws_key_pair" "admin_key_pair" {
-  key_name   = "admin-key-pair-${local.job_id}"
+  key_name   = "admin-key-pair-${local.run_id}"
   public_key = tls_private_key.admin_ssh_key.public_key_openssh
   tags       = local.tags
 }
@@ -48,7 +48,7 @@ module "virtual_network" {
   source         = "./virtual-network"
   network_config = each.value
   az             = local.az
-  job_id         = local.job_id
+  run_id         = local.run_id
   tags           = local.tags
 }
 
@@ -59,7 +59,7 @@ module "virtual_machine" {
   vm_config           = each.value
   admin_key_pair_name = aws_key_pair.admin_key_pair.key_name
   tags                = local.tags
-  job_id              = local.job_id
+  run_id              = local.run_id
   instance_type       = local.instance_type
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
@@ -70,7 +70,7 @@ module "load_balancer" {
 
   source              = "./load-balancer"
   loadbalancer_config = each.value
-  job_id              = local.job_id
+  run_id              = local.run_id
   tags                = local.tags
   depends_on          = [module.virtual_machine, module.virtual_network]
 }

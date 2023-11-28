@@ -9,8 +9,8 @@ locals {
 
 data "aws_subnet" "subnet" {
   filter {
-    name   = "tag:job_id"
-    values = ["${var.job_id}"]
+    name   = "tag:run_id"
+    values = ["${var.run_id}"]
   }
 
   filter {
@@ -38,7 +38,7 @@ module "lb_target_group" {
 
   lb_tg_config      = each.value
   load_balancer_arn = aws_lb.nlb.arn
-  job_id            = var.job_id
+  run_id            = var.run_id
   tags = merge(
     var.tags,
     {

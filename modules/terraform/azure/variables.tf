@@ -5,7 +5,7 @@ variable "json_input" {
     location               = string
     vm_sku                 = string
     accelerated_networking = bool
-    job_id                 = string
+    run_id                 = string
     user_data_path         = string
     owner                  = string
   })

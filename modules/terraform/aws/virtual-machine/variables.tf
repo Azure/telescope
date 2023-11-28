@@ -21,8 +21,8 @@ variable "instance_type" {
   default     = "m5.4xlarge"
 }
 
-variable "job_id" {
-  description = "Value of the job id"
+variable "run_id" {
+  description = "Value of the run id"
   type        = string
   default     = "123456"
 }

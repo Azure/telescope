@@ -1,7 +1,7 @@
 data "aws_vpc" "vpc" {
   filter {
-    name   = "tag:job_id"
-    values = ["${var.job_id}"]
+    name   = "tag:run_id"
+    values = ["${var.run_id}"]
   }
 
   filter {
@@ -12,8 +12,8 @@ data "aws_vpc" "vpc" {
 
 data "aws_instance" "vm_instance" {
   filter {
-    name   = "tag:job_id"
-    values = ["${var.job_id}"]
+    name   = "tag:run_id"
+    values = ["${var.run_id}"]
   }
 
   filter {

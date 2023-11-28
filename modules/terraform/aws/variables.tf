@@ -4,7 +4,7 @@ variable "json_input" {
     region         = string
     az             = string
     instance_type  = string
-    job_id         = string
+    run_id         = string
     user_data_path = string
     owner          = string
   })
