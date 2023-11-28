@@ -1,12 +1,20 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    region         = string
-    az             = string
-    instance_type  = string
-    job_id         = string
-    user_data_path = string
-    owner          = string
+    owner                     = string
+    run_id                    = string
+    region                    = string
+    machine_type              = string
+    zone                      = string
+    user_data_path            = optional(string)
+    data_disk_volume_type     = optional(string)
+    data_disk_size_gb         = optional(number)
+    data_disk_tier            = optional(string)
+    data_disk_iops_read_only  = optional(number)
+    data_disk_iops_read_write = optional(number)
+    data_disk_mbps_read_only  = optional(number)
+    data_disk_mbps_read_write = optional(number)
+    ultra_ssd_enabled         = optional(bool)
   })
 }
 

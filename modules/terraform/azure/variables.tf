@@ -1,13 +1,21 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    resource_group_name    = string
-    location               = string
-    vm_sku                 = string
-    accelerated_networking = bool
-    job_id                 = string
-    user_data_path         = string
-    owner                  = string
+    owner                          = string
+    run_id                         = string
+    region                         = string
+    machine_type                   = string
+    accelerated_networking         = optional(bool)
+    user_data_path                 = optional(string)
+    data_disk_storage_account_type = optional(string)
+    data_disk_size_gb              = optional(string)
+    data_disk_tier                 = optional(string)
+    data_disk_iops_read_write      = optional(number)
+    data_disk_mbps_read_write      = optional(number)
+    data_disk_iops_read_only       = optional(number)
+    data_disk_mbps_read_only       = optional(number)
+    data_disk_caching              = optional(string)
+    ultra_ssd_enabled              = optional(bool)
   })
 }
 
@@ -32,7 +40,7 @@ variable "public_ip_names" {
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    role                 = string
+    role                        = string
     vnet_name                   = string
     vnet_address_space          = string
     subnet_names                = list(string)
@@ -61,7 +69,7 @@ variable "network_config_list" {
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
-    role           = string
+    role                  = string
     loadbalance_name      = string
     public_ip_name        = string
     loadbalance_pool_name = string
@@ -70,7 +78,7 @@ variable "loadbalancer_config_list" {
     probe_request_path    = string
     lb_rules = list(object({
       type                    = string
-      role             = string
+      role                    = string
       frontend_port           = number
       backend_port            = number
       protocol                = string
@@ -102,7 +110,7 @@ variable "vm_config_list" {
 variable "vmss_config_list" {
   description = "List of configuration for virtual machine scale sets"
   type = list(object({
-    role            = string
+    role                   = string
     vmss_name              = string
     admin_username         = string
     nic_name               = string

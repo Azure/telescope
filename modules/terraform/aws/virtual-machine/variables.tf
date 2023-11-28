@@ -15,14 +15,14 @@ variable "user_data_path" {
   type        = string
 }
 
-variable "instance_type" {
+variable "machine_type" {
   description = "value of instance type"
   type        = string
   default     = "m5.4xlarge"
 }
 
-variable "job_id" {
-  description = "Value of the job id"
+variable "run_id" {
+  description = "Value of the run id"
   type        = string
   default     = "123456"
 }

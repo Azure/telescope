@@ -5,12 +5,12 @@ variable "loadbalancer_config" {
     subnet_name        = string
     load_balancer_type = string
     lb_target_group = list(object({
-      role        = string
-      tg_suffix   = string
-      port        = number
-      protocol    = string
-      rule_count  = number
-      vpc_name    = string
+      role       = string
+      tg_suffix  = string
+      port       = number
+      protocol   = string
+      rule_count = number
+      vpc_name   = string
       health_check = object({
         port                = number
         protocol            = string
@@ -31,8 +31,8 @@ variable "loadbalancer_config" {
   })
 }
 
-variable "job_id" {
-  description = "The job id for the load balancer."
+variable "run_id" {
+  description = "The run id for the load balancer."
   type        = string
 }
 
