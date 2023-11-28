@@ -47,7 +47,7 @@ module "virtual_network" {
 
   source         = "./virtual-network"
   network_config = each.value
-  zone          = local.zone
+  zone           = local.zone
   tags           = local.tags
 }
 
