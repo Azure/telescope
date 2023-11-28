@@ -85,11 +85,11 @@ run_iperf2_helper() {
   local bandwidthList=(100 1000 2000 4000)
 
   echo "Wait for 4 minutes before running all tests"
-  sleep 240
+  # sleep 240
 
   for bandwidth in "${bandwidthList[@]}"
   do
-    local command="iperf --enhancedreports --client $destination_ip_address --format m --time 60"
+    local command="iperf --enhancedreports --client $destination_ip_address --format m --time 10"
     
     if [ "$protocol" = "udp" ]; then
       port=20002
@@ -113,7 +113,7 @@ run_iperf2_helper() {
     command="$command --parallel $parallel --bandwidth ${run_bandwidth}M"
 
     echo "Wait for 1 minutes before running"
-    sleep 60
+    # sleep 60
 
     echo "fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol"
     fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
