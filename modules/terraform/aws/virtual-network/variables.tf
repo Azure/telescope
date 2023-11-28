@@ -29,12 +29,6 @@ variable "zone" {
   type        = string
 }
 
-variable "run_id" {
-  description = "Value of the run id"
-  type        = string
-  default     = ""
-}
-
 variable "tags" {
   type = map(string)
   default = {
