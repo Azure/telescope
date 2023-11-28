@@ -77,7 +77,7 @@ fetch_proc_net() {
   max_drops=0
   source="/proc/net/${protocol}"
   destination="/tmp/proc-net-${protocol}"
-  for i in {1..60}; do
+  for i in {1..10}; do
     run_ssh $privatekey_path ubuntu $ip_address "cat $source" > $destination
     total_drops=0
     while read line; do
