@@ -187,12 +187,11 @@ publish_result_iperf3() {
 
 collect_result_iperf2() {
   local result_dir=$1
-  local region=$2
-  local machine_type=$3
-  local egress_ip_address=$4
-  local ingress_ip_address=$5
+  local egress_ip_address=$2
+  local ingress_ip_address=$3
+  local cloud_info=$4
+  local run_id=$5
   local run_url=$6
-  local cloud_info=$7
 
   touch $result_dir/results.json
 
@@ -222,12 +221,11 @@ collect_result_iperf2() {
         --arg iperf_info "$iperf_info" \
         --arg os_info "$os_info" \
         --arg cloud_info "$cloud_info" \
-        --arg region "$region" \
-        --arg machine_type "$machine_type" \
         --arg egress_ip "$egress_ip_address" \
         --arg ingress_ip "$ingress_ip_address" \
+        --arg run_id "$run_id" \
         --arg run_url "$run_url" \
-        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, region: $region, machine_type: $machine_type, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_url: $run_url}')
+        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, region: $region, machine_type: $machine_type, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
 
       echo $data >> $result_dir/results.json
     done
