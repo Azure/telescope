@@ -4,10 +4,10 @@ locals {
   accelerated_networking = lookup(var.json_input, "accelerated_networking", true)
   run_id                 = lookup(var.json_input, "run_id", "123456")
   user_data_path         = lookup(var.json_input, "user_data_path", "")
-  resource_group_name    = "${var.scenario_name}-${local.run_id}"
+  resource_group_name    = "${var.scenario_type}-${var.scenario_name}-${local.run_id}"
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
-    "scenario"          = var.scenario_name
+    "scenario"          = "${var.scenario_type}-${var.scenario_name}"
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
     "run_id"            = local.run_id

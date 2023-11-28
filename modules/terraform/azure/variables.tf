@@ -25,6 +25,12 @@ variable "scenario_name" {
   default     = ""
 }
 
+variable "scenario_type" {
+  description = "value of the scenario type"
+  type        = string
+  default     = ""
+}
+
 variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
