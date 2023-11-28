@@ -10,10 +10,10 @@ This guide covers how to run competitive tests manually, using vm-to-vm performn
 Set environment variables for testing
 ```
 SCENARIO_NAME=perf-eval/vm-iperf
-JOB_ID=10312023
+RUN_ID=10312023
 OWNER=$(whoami)
-RESULT_PATH=/tmp/$JOB_ID
-RESOURCE_GROUP=test-$JOB_ID
+RESULT_PATH=/tmp/$RUN_ID
+RESOURCE_GROUP=test-$RUN_ID
 CLOUD=azure
 REGION=eastus
 MACHINE_TYPE=standard_D16_v3
@@ -57,13 +57,13 @@ Provision test resources using terraform
 ```
 INPUT_JSON=$(jq -n \
 --arg owner $OWNER \
---arg job_id $JOB_ID \
+--arg run_id $RUN_ID \
 --arg location $REGION \
 --arg resource_group_name $RESOURCE_GROUP \
 --arg vm_sku $MACHINE_TYPE \
 --arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, job_id: $job_id, location: $location, resource_group_name: $resource_group_name, vm_sku: $vm_sku, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, location: $location, resource_group_name: $resource_group_name, vm_sku: $vm_sku, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
@@ -103,7 +103,7 @@ run_iperf2 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $TCP_THREAD_MODE $UDP_THREAD_MOD
 ### Collect Results
 Collect and parse iperf output and Linux counters, merge into a single result JSON file
 ```
-collect_result_iperf2 $RESULT_PATH $RESOURCE_GROUP $REGION $MACHINE_TYPE $CLIENT_PRIVATE_IP $SERVER_PRIVATE_IP $JOB_ID
+collect_result_iperf2 $RESULT_PATH $RESOURCE_GROUP $REGION $MACHINE_TYPE $CLIENT_PRIVATE_IP $SERVER_PRIVATE_IP $RUN_ID
 ```
 
 Check the results
@@ -115,6 +115,6 @@ cat $RESULT_PATH/results.json | jq .
 Cleanup test resources using terraform
 ```
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var resource_group_name=$RESOURCE_GROUP -var location=$REGION -var vm_sku=$MACHINE_TYPE -var accelerated_networking=$ACCERLATED_NETWORKING -var job_id=$JOB_ID -var user_data_path=$USER_DATA_PATH -var-file $TERRAFORM_INPUT_FILE
+terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
