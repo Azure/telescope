@@ -11,41 +11,7 @@ network_config_list = [
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
     network_security_group_name = "aksNetwork-nsg"
     nic_public_ip_associations  = []
-    nsr_rules = [
-      {
-        name                       = "server-nsr-ssh"
-        priority                   = 100
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "22"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "server-nsr-http"
-        priority                   = 110
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "8080"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "server-nsr-https"
-        priority                   = 120
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "4443"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      }
-    ]
+    nsr_rules = []
   }
 ]
 loadbalancer_config_list = []
