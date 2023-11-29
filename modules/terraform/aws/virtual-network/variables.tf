@@ -1,6 +1,6 @@
 variable "network_config" {
   type = object({
-    role            = string
+    role                   = string
     vpc_name               = string
     vpc_cidr_block         = string
     subnet_names           = list(string)
@@ -24,15 +24,9 @@ variable "network_config" {
   })
 }
 
-variable "az" {
+variable "zone" {
   description = "value of availability zone"
   type        = string
-}
-
-variable "run_id" {
-  description = "Value of the run id"
-  type        = string
-  default     = ""
 }
 
 variable "tags" {

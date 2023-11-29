@@ -17,12 +17,12 @@ variable "load_balancer_arn" {
 variable "lb_tg_config" {
   description = "Configuration for the load balancer."
   type = object({
-    role        = string
-    tg_suffix   = string
-    port        = number
-    protocol    = string
-    rule_count  = number
-    vpc_name    = string
+    role       = string
+    tg_suffix  = string
+    port       = number
+    protocol   = string
+    rule_count = number
+    vpc_name   = string
     health_check = object({
       port                = number
       protocol            = string

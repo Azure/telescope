@@ -1,4 +1,5 @@
-scenario_name   = "perf_eval_lb_azure"
+scenario_type  = "perf-eval"
+scenario_name  = "lb-iperf"
 deletion_delay  = "2h"
 public_ip_names = ["client-pip", "server-pip", "lb-pip"]
 network_config_list = [

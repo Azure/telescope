@@ -1,4 +1,5 @@
-scenario_name  = "perf_eval_vm_aws"
+scenario_type  = "perf-eval"
+scenario_name  = "vm-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
