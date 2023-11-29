@@ -13,39 +13,6 @@ network_config_list = [
     nic_public_ip_associations  = []
     nsr_rules = [
       {
-        name                       = "server-nsr-ssh"
-        priority                   = 100
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "22"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "server-nsr-http"
-        priority                   = 110
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "8080"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "server-nsr-https"
-        priority                   = 120
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "4443"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
         name                       = "appGateway"
         priority                   = 130
         direction                  = "Inbound"
