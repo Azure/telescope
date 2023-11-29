@@ -1,4 +1,5 @@
 scenario_name   = "aks_502_lb_https"
+scenario_type = "issue-repro"
 deletion_delay  = "4h"
 public_ip_names = ["appGateway-pip"]
 network_config_list = [
