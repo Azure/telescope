@@ -225,7 +225,7 @@ collect_result_iperf2() {
         --arg ingress_ip "$ingress_ip_address" \
         --arg run_id "$run_id" \
         --arg run_url "$run_url" \
-        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, region: $region, machine_type: $machine_type, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
+        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
 
       echo $data >> $result_dir/results.json
     done
