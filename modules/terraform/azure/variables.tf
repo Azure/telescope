@@ -78,6 +78,7 @@ variable "appgateway_config_list" {
     role                  = string
     appgateway_name      = string
     public_ip_name        = string
+    subnet_name           = string
   }))
   }
 
