@@ -6,7 +6,7 @@ network_config_list = [
   {
     role                        = "aksNetwork"
     vnet_name                   = "repro502-vnet"
-    vnet_address_space          = "10.1.0.0/16"
+    vnet_address_space          = "10.10.0.0/16"
     subnet_names                = ["aksNetwork-ingress", "aksNetwork-aks"]
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
     network_security_group_name = "aksNetwork-nsg"
