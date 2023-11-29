@@ -72,6 +72,15 @@ variable "network_config_list" {
   }))
 }
 
+variable "appgateway_config_list" {
+  description = "List of Loadbalancer configurations"
+  type = list(object({
+    role                  = string
+    appgateway_name      = string
+    public_ip_name        = string
+  }))
+  }
+
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
