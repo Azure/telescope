@@ -28,9 +28,9 @@ resource "azurerm_application_gateway" "appgateway" {
     public_ip_address_id = var.public_ip_id
   }
 
- backend_address_pool {
-    name         = "aks-direct"
-    ip_addresses = ["10.10.1.7", "10.10.1.8", "10.10.1.9"]
+  backend_address_pool {
+    name         = "aks-lb"
+    ip_addresses = ["10.10.1.250"]
   }
 
  backend_http_settings {
