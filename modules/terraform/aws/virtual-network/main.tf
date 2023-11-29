@@ -26,7 +26,7 @@ resource "aws_subnet" "subnets" {
   vpc_id     = aws_vpc.vpc.id
   cidr_block = local.subnet_cidr_blocks[count.index]
 
-  availability_zone = var.az
+  availability_zone = var.zone
 
   tags = merge(
     var.tags,

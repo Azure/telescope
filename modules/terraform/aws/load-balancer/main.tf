@@ -1,6 +1,6 @@
 locals {
-  role                = var.loadbalancer_config.role
-  lb_target_group     = var.loadbalancer_config.lb_target_group
+  role            = var.loadbalancer_config.role
+  lb_target_group = var.loadbalancer_config.lb_target_group
   lb_target_group_map = {
     for tg in local.lb_target_group :
     "${tg.vpc_name}-${tg.tg_suffix}" => tg

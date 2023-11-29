@@ -1,14 +1,13 @@
 locals {
-  resource_group_name    = lookup(var.json_input, "resource_group_name", "rg")
-  location               = lookup(var.json_input, "location", "East US")
-  vm_sku                 = lookup(var.json_input, "vm_sku", "Standard_D2ds_v5")
+  region                 = lookup(var.json_input, "region", "East US")
+  machine_type           = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
   accelerated_networking = lookup(var.json_input, "accelerated_networking", true)
   run_id                 = lookup(var.json_input, "run_id", "123456")
   user_data_path         = lookup(var.json_input, "user_data_path", "")
-
+  resource_group_name    = "${var.scenario_type}-${var.scenario_name}-${local.run_id}"
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
-    "scenario"          = var.scenario_name
+    "scenario"          = "${var.scenario_type}-${var.scenario_name}"
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
     "run_id"            = local.run_id
@@ -40,14 +39,14 @@ resource "tls_private_key" "admin-ssh-key" {
 module "resource_group" {
   source              = "./resource-group"
   resource_group_name = local.resource_group_name
-  location            = local.location
+  location            = local.region
   tags                = local.tags
 }
 
 module "public_ips" {
   source              = "./public-ip"
   resource_group_name = module.resource_group.name
-  location            = local.location
+  location            = local.region
   public_ip_names     = var.public_ip_names
   tags                = local.tags
 }
@@ -58,7 +57,7 @@ module "virtual_network" {
   source                 = "./network"
   network_config         = each.value
   resource_group_name    = module.resource_group.name
-  location               = local.location
+  location               = local.region
   accelerated_networking = local.accelerated_networking
   public_ips             = module.public_ips.pip_ids
   tags                   = local.tags
@@ -69,7 +68,7 @@ module "load_balancer" {
 
   source              = "./load-balancer"
   resource_group_name = module.resource_group.name
-  location            = local.location
+  location            = local.region
   loadbalancer_config = each.value
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
   tags                = local.tags
@@ -80,7 +79,7 @@ module "data_disk" {
 
   source                         = "./data-disk"
   resource_group_name            = module.resource_group.name
-  location                       = local.location
+  location                       = local.region
   data_disk_name                 = each.value.disk_name
   tags                           = local.tags
   data_disk_storage_account_type = var.data_disk_storage_account_type
@@ -99,8 +98,8 @@ module "virtual_machine" {
   source              = "./virtual-machine"
   name                = each.value.vm_name
   resource_group_name = module.resource_group.name
-  location            = local.location
-  vm_sku              = local.vm_sku
+  location            = local.region
+  vm_sku              = local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
   vm_config           = each.value
   public_key          = tls_private_key.admin-ssh-key.public_key_openssh
@@ -115,8 +114,8 @@ module "virtual_machine_scale_set" {
   source                = "./virtual-machine-scale-set"
   name                  = each.value.vmss_name
   resource_group_name   = module.resource_group.name
-  location              = local.location
-  vm_sku                = local.vm_sku
+  location              = local.region
+  vm_sku                = local.machine_type
   subnet_id             = local.all_subnets[each.value.subnet_name]
   lb_pool_id            = local.all_loadbalancer_backend_address_pools[each.value.loadbalancer_pool_name]
   ip_configuration_name = each.value.ip_configuration_name

@@ -15,7 +15,7 @@ variable "user_data_path" {
   type        = string
 }
 
-variable "instance_type" {
+variable "machine_type" {
   description = "value of instance type"
   type        = string
   default     = "m5.4xlarge"

@@ -1,4 +1,5 @@
-scenario_name  = "perf_eval_lb_https_aws"
+scenario_type  = "perf-eval"
+scenario_name  = "lb-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {

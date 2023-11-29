@@ -1,13 +1,13 @@
 locals {
   region         = lookup(var.json_input, "region", "us-east-1")
-  az             = lookup(var.json_input, "az", "us-east-1b")
-  instance_type  = lookup(var.json_input, "instance_type", "m5.4xlarge")
+  zone           = lookup(var.json_input, "zone", "us-east-1b")
+  machine_type   = lookup(var.json_input, "machine_type", "m5.4xlarge")
   run_id         = lookup(var.json_input, "run_id", "123456")
   user_data_path = lookup(var.json_input, "user_data_path", "")
 
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
-    "scenario"          = var.scenario_name
+    "scenario"          = "${var.scenario_type}-${var.scenario_name}"
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
     "run_id"            = local.run_id
@@ -47,8 +47,7 @@ module "virtual_network" {
 
   source         = "./virtual-network"
   network_config = each.value
-  az             = local.az
-  run_id         = local.run_id
+  zone           = local.zone
   tags           = local.tags
 }
 
@@ -60,7 +59,7 @@ module "virtual_machine" {
   admin_key_pair_name = aws_key_pair.admin_key_pair.key_name
   tags                = local.tags
   run_id              = local.run_id
-  instance_type       = local.instance_type
+  machine_type        = local.machine_type
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
 }

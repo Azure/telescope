@@ -9,11 +9,11 @@ This guide covers how to run competitive tests manually, using vm-to-vm performn
 ### Define Test Variables
 Set environment variables for testing
 ```
-SCENARIO_NAME=perf-eval/vm-iperf
+SCENARIO_TYPE=perf-eval
+SCENARIO_NAME=vm-iperf
 RUN_ID=10312023
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
-RESOURCE_GROUP=test-$RUN_ID
 CLOUD=azure
 REGION=eastus
 MACHINE_TYPE=standard_D16_v3
@@ -58,12 +58,11 @@ Provision test resources using terraform
 INPUT_JSON=$(jq -n \
 --arg owner $OWNER \
 --arg run_id $RUN_ID \
---arg location $REGION \
---arg resource_group_name $RESOURCE_GROUP \
---arg vm_sku $MACHINE_TYPE \
+--arg region $REGION \
+--arg machine_type $MACHINE_TYPE \
 --arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, location: $location, resource_group_name: $resource_group_name, vm_sku: $vm_sku, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
