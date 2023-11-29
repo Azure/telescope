@@ -73,7 +73,7 @@ variable "network_config_list" {
 }
 
 variable "appgateway_config_list" {
-  description = "List of Loadbalancer configurations"
+  description = "List of app gateway configurations"
   type = list(object({
     role                  = string
     appgateway_name      = string
