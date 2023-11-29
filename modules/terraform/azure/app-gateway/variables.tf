@@ -1,8 +1,3 @@
-variable "subnet_id" {
-  description = "Subnet ID"
-  type        = string
-  default     = ""
-}
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
@@ -29,4 +24,10 @@ variable "appgateway_config" {
     public_ip_name        = string
     subnet_name           = string
   })
+}
+
+variable "public_ip_id" {
+  description = "Value of the public IP id"
+  type     = string
+  default = null
 }

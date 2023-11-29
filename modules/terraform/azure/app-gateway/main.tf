@@ -25,7 +25,7 @@ resource "azurerm_application_gateway" "appgateway" {
 
   frontend_ip_configuration {
     name                 = "public"
-    public_ip_address_id = var.public_ips[locals.role]
+    public_ip_address_id = var.public_ip_id
   }
 
    http_listener {
