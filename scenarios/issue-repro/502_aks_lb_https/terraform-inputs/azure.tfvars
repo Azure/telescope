@@ -51,7 +51,7 @@ loadbalancer_config_list = []
 vm_config_list = []
 vmss_config_list = []
 nic_backend_pool_association_list = []
-appGateway_config_list = [
+appgateway_config_list = [
   {
     role = "aksNetwork"
     appgateway_name = "error_502"
