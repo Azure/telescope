@@ -89,7 +89,7 @@ run_iperf2_helper() {
 
   for bandwidth in "${bandwidthList[@]}"
   do
-    local command="iperf --enhancedreports --client $destination_ip_address --format m --time 10"
+    local command="iperf --enhancedreports --client $destination_ip_address --format m --time 60"
     
     if [ "$protocol" = "udp" ]; then
       port=20002
