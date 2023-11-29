@@ -15,6 +15,7 @@ locals {
 
   network_config_map                     = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
+  appgateway_config_map                  = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
   vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
@@ -72,6 +73,17 @@ module "load_balancer" {
   loadbalancer_config = each.value
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
   tags                = local.tags
+}
+
+module "appgateway" {
+  for_each = local.appgateway_config_map
+
+  source              = "./app-gateway"
+  appgateway_config =  each.value
+  resource_group_name = module.resource_group.name
+  location            = local.region
+  subnet_id            = local.all_subnets[each.value.subnet_name]
+  public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
 }
 
 module "data_disk" {
