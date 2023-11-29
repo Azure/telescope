@@ -187,13 +187,11 @@ publish_result_iperf3() {
 
 collect_result_iperf2() {
   local result_dir=$1
-  local resource_group=$2
-  local region=$3
-  local machine_type=$4
-  local egress_ip_address=$5
-  local ingress_ip_address=$6
-  local run_link=$7
-  local extra_info=$8
+  local egress_ip_address=$2
+  local ingress_ip_address=$3
+  local cloud_info=$4
+  local run_id=$5
+  local run_url=$6
 
   touch $result_dir/results.json
 
@@ -206,11 +204,11 @@ collect_result_iperf2() {
     do
       iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
       cat $iperf_result
-      info=$(python3 ./modules/python/parse-iperf2.py $protocol $iperf_result)
+      iperf_info=$(python3 ./modules/python/parse-iperf2.py $protocol $iperf_result)
 
       proc_net_result="$result_dir/proc-net-${protocol}-${bandwidth}.log"
       read proc_net_rx_queue proc_net_drops < $proc_net_result
-      end_info=$(jq --null-input \
+      os_info=$(jq --null-input \
         --arg pnrq "$proc_net_rx_queue" \
         --arg pnd "$proc_net_drops" \
         '{"proc_net_rx_queue": $pnrq, "proc_net_drops": $pnd}')
@@ -220,16 +218,14 @@ collect_result_iperf2() {
         --arg metric "$protocol" \
         --arg target_bw "$bandwidth" \
         --arg unit "Mbits/sec" \
-        --arg start_info "$info" \
-        --arg end_info "$end_info" \
-        --arg resource_group "$resource_group" \
-        --arg location "$region" \
-        --arg vm_size "$machine_type" \
+        --arg iperf_info "$iperf_info" \
+        --arg os_info "$os_info" \
+        --arg cloud_info "$cloud_info" \
         --arg egress_ip "$egress_ip_address" \
         --arg ingress_ip "$ingress_ip_address" \
-        --arg run_url "$run_link" \
-        --arg extra_info "$extra_info" \
-        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, start_info: $start_info, end_info: $end_info, resource_group: $resource_group, location: $location, vm_size: $vm_size, egress_ip: $egress_ip, ingress_ip: $ingress_ip, extra_info: $extra_info, run_url: $run_url}')
+        --arg run_id "$run_id" \
+        --arg run_url "$run_url" \
+        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
 
       echo $data >> $result_dir/results.json
     done
