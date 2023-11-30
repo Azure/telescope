@@ -36,5 +36,15 @@ appgateway_config_list = [
     appgateway_name = "error_502"
     public_ip_name        = "appGateway-pip"
     subnet_name           = "aksNetwork-aks"
+    appgateway_probes = [
+      {
+        name = "aks-https"
+        protocol = "Https"
+      },
+      {
+        name = "aks-http"
+        protocol = "Http"
+      }
+      ]
   }
 ]

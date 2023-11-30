@@ -23,6 +23,10 @@ variable "appgateway_config" {
     appgateway_name       = string
     public_ip_name        = string
     subnet_name           = string
+    appgateway_probes =  list(object({
+      name                    = string
+      protocol                    = string
+    }))
   })
 }
 
