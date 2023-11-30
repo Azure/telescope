@@ -4,7 +4,7 @@ locals {
   health_probes  =   var.appgateway_config.appgateway_probes
   frontend_port = var.appgateway_config.appgateway_frontendport
   backend_address_pool  = var.appgateway_config.appgateway_backend_address_pool 
-  backend_http_settings = var.appgateway_config.appgateway_backend_http_settings
+  backendhttp_settings = var.appgateway_config.appgateway_backend_http_settings
   http_listeners = var.appgateway_config.appgateway_http_listeners 
   request_routing_rules  = var.appgateway_config.appgateway_request_routing_rules
 }
@@ -44,7 +44,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 
 dynamic "backend_http_settings" {
-  for_each = backend_http_settings
+  for_each = backendhttp_settings
   content {
     name                           = backend_http_settings.value.name
     host_name                      = backend_http_settings.value.host_name
