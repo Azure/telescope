@@ -44,7 +44,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 
 dynamic "backend_http_settings" {
-  for_each = backendhttp_settings
+  for_each = local.backendhttp_settings
   content {
     name                           = backend_http_settings.value.name
     host_name                      = backend_http_settings.value.host_name
