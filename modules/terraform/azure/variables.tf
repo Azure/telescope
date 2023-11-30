@@ -83,7 +83,7 @@ variable "appgateway_config_list" {
       name                    = string
       protocol                    = string
     }))
-     appgateway_backend_address_pool = list(object({
+    appgateway_backend_address_pool = list(object({
       name                    = string
       ip_addresses                    = list(string)
     }))
@@ -91,6 +91,30 @@ variable "appgateway_config_list" {
       name                    = string
       port                    = string
     })
+    appgateway_backend_http_settings = list(object({
+      name                           = string
+      host_name                      = string
+      cookie_based_affinity          = string
+      port                           = number
+      protocol                       = string
+      request_timeout                = number        
+      probe_name                     = string
+    }))
+    appgateway_http_listeners = list(object({
+      name                           = string
+      frontend_ip_configuration_name = string
+      frontend_port_name             = string
+      protocol                       = string
+      host_name                      = string
+    }))
+    appgateway_request_routing_rules = list(object({      
+      name                       = string
+      priority                   = number
+      rule_type                  = string
+      http_listener_name         = string
+      backend_address_pool_name  = string
+      backend_http_settings_name = string
+    }))
   }))
   }
 

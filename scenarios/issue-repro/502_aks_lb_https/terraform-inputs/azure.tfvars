@@ -60,5 +60,107 @@ appgateway_config_list = [
       name = "http"
       port = 80
     }
+    appgateway_backend_http_settings  = [
+      {
+        name                           = "aks-https-lb"
+        host_name                      = "test.contoso.com"
+        cookie_based_affinity          = "Disabled"
+        port                           = 443
+        protocol                       = "Https"
+        request_timeout                = 60        
+        probe_name                     = "aks-https"
+      },
+      {
+        name                  = "aks-http-lb"
+        host_name             = "test.contoso.com"
+        cookie_based_affinity = "Disabled"
+        port                  = 80
+        protocol              = "Http"
+        request_timeout       = 60
+        probe_name            = "aks-http"
+      },
+      {
+          name                           = "aks-https-direct"
+          host_name                      = "test.contoso.com"
+          cookie_based_affinity          = "Disabled"
+          port                           = 31291
+          protocol                       = "Https"
+          request_timeout                = 60          
+          probe_name                     = "aks-https"
+      },
+      {
+        name                  = "aks-http-direct"
+        host_name             = "test.contoso.com"
+        cookie_based_affinity = "Disabled"
+        port                  = 31701
+        protocol              = "Http"
+        request_timeout       = 60
+        probe_name            = "aks-http"
+      }
+    ]
+    appgateway_http_listeners = [
+      {
+        name                           = "https-backend-contoso-com-lb"
+        frontend_ip_configuration_name = "public"
+        frontend_port_name             = "http"
+        protocol                       = "Http"
+        host_name                      = "https-backend-lb.contoso.com"
+      },
+      {
+        name                           = "http-backend-contoso-com-lb"
+        frontend_ip_configuration_name = "public"
+        frontend_port_name             = "http"
+        protocol                       = "Http"
+        host_name                      = "http-backend-lb.contoso.com"
+      },
+      {
+        name                           = "https-backend-contoso-com-direct"
+        frontend_ip_configuration_name = "public"
+        frontend_port_name             = "http"
+        protocol                       = "Http"
+        host_name                      = "https-backend-direct.contoso.com"
+      },
+      {
+        name                           = "http-backend-contoso-com-direct"
+        frontend_ip_configuration_name = "public"
+        frontend_port_name             = "http"
+        protocol                       = "Http"
+        host_name                      = "http-backend-direct.contoso.com"
+      }      
+    ]
+    appgateway_request_routing_rules = [
+      {
+        name                       = "https-backend-contoso-com-lb"
+        priority                   = 1000
+        rule_type                  = "Basic"
+        http_listener_name         = "https-backend-contoso-com-lb"
+        backend_address_pool_name  = "aks-lb"
+        backend_http_settings_name = "aks-https-lb"
+      },
+      {
+        name                       = "http-backend-contoso-com-lb"
+        priority                   = 1010
+        rule_type                  = "Basic"
+        http_listener_name         = "http-backend-contoso-com-lb"
+        backend_address_pool_name  = "aks-lb"
+        backend_http_settings_name = "aks-http-lb"
+      },
+      {
+        name                       = "https-backend-contoso-com-direct"
+        priority                   = 1020
+        rule_type                  = "Basic"
+        http_listener_name         = "https-backend-contoso-com-direct"
+        backend_address_pool_name  = "aks-direct"
+        backend_http_settings_name = "aks-https-direct"
+      },
+      {
+        name                       = "http-backend-contoso-com-direct"
+        priority                   = 1030
+        rule_type                  = "Basic"
+        http_listener_name         = "http-backend-contoso-com-direct"
+        backend_address_pool_name  = "aks-direct"
+        backend_http_settings_name = "aks-http-direct"
+      }
+    ]
   }
 ]
