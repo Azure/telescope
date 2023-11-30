@@ -83,6 +83,14 @@ variable "appgateway_config_list" {
       name                    = string
       protocol                    = string
     }))
+     appgateway_backend_address_pool = list(object({
+      name                    = string
+      ip_addresses                    = list(string)
+    }))
+    appgateway_frontendport = object({
+      name                    = string
+      port                    = string
+    })
   }))
   }
 
