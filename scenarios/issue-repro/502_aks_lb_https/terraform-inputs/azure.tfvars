@@ -45,6 +45,21 @@ appgateway_config_list = [
         name = "aks-http"
         protocol = "Http"
       }
-      ]
+    ]
+    appgateway_backend_address_pool = [
+      {
+        name         = "aks-lb"
+        ip_addresses = ["10.10.1.250"]
+      },
+      {
+        name         = "aks-direct"
+        ip_addresses = ["10.10.1.7", "10.10.1.8", "10.10.1.9"]
+      }
+    ]
+    appgateway_frontendport = 
+    {
+      name = "http"
+      port = 80
+    }
   }
 ]

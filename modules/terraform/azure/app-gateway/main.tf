@@ -2,6 +2,8 @@ locals {
   role                  = var.appgateway_config.role
   appgateway_name      = var.appgateway_config.appgateway_name  
   health_probes  =   var.appgateway_config.appgateway_probes
+  frontend_port = var.appgateway_config.appgateway_frontendport
+  backend_address_pool  = var.appgateway_config.appgateway_backend_address_pool 
 }
 
 resource "azurerm_application_gateway" "appgateway" {
@@ -21,17 +23,21 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 
   frontend_port {
-    name = "http"
-    port = 80
+    name = local.frontend_port.name
+    port = local.frontend_port.port
   }
+
  frontend_ip_configuration {
     name                 = "public"
     public_ip_address_id = var.public_ip_id
   }
 
-  backend_address_pool {
-    name         = "aks-lb"
-    ip_addresses = ["10.10.1.250"]
+  dynamic "backend_address_pool" {
+    for_each = local.backend_address_pool
+    content {
+      name = backend_address_pool.value.name
+      ip_addresses = backend_address_pool.value.ip_addresses
+    }
   }
 
  backend_http_settings {
