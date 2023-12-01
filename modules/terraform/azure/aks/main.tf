@@ -23,7 +23,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_plugin      = "azure"
     network_plugin_mode = "overlay"
   }  
-
+ identity {
+    type = "SystemAssigned"
+  }
   
 }
 
