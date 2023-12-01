@@ -29,11 +29,11 @@ func main() {
 		port = os.Args[2]
 	}
 	// Replace the URL with your WebSocket server's URL.
-	protocl := "http"
+	protocol := "http"
 	if port == "443" {
-		protocl = "https"
+		protocol = "https"
 	}
-	url := fmt.Sprintf("%s://%s:%s/readyz", protocl, hostname, port)
+	url := fmt.Sprintf("%s://%s:%s/readyz", protocol, hostname, port)
 	fmt.Println("Connecting to", url)
 
 	durationMap := map[string]int{
@@ -52,25 +52,25 @@ func main() {
 	}
 	keys := []string{"<1s", "1s-2s", "2s-5s", "5s-10s", "10s-30s", "30s-60s", "60s-120s", "120s-180s", "180s-240s", "240s-300s", ">300s", "error"}
 
-	var count, total, limit uint64
-	count = 0
-	total = 1000000
+	var actualConns, totalConns, parallelConns uint64
+	actualConns = 0
+	totalConns = 1000000
 	if len(os.Args) > 3 {
-		total, _ = strconv.ParseUint(os.Args[3], 10, 64)
+		totalConns, _ = strconv.ParseUint(os.Args[3], 10, 64)
 	}
-	fmt.Printf("%v total connections to be established\n", total)
+	fmt.Printf("%v total connections to be established\n", totalConns)
 
-	limit = 100
+	parallelConns = 100
 	if len(os.Args) > 4 {
-		limit, _ = strconv.ParseUint(os.Args[4], 10, 64)
+		parallelConns, _ = strconv.ParseUint(os.Args[4], 10, 64)
 	}
-	fmt.Printf("%v parallel connections to be established\n", limit)
+	fmt.Printf("%v parallel connections to be established\n", parallelConns)
 
-	var handshakeTimeout int64
+	var tlsHandshakeTimeout int64
 	if len(os.Args) > 5 {
-		handshakeTimeout, _ = strconv.ParseInt(os.Args[5], 10, 64)
+		tlsHandshakeTimeout, _ = strconv.ParseInt(os.Args[5], 10, 64)
 	}
-	fmt.Print("Set handshake timeout to ", handshakeTimeout, " seconds\n")
+	fmt.Print("Set handshake timeout to ", tlsHandshakeTimeout, " seconds\n")
 
 	var disableKeepAlives bool
 	if len(os.Args) > 6 {
@@ -89,13 +89,13 @@ func main() {
 
 	// Create an errgroup with derived context
 	eg, ctx := errgroup.WithContext(ctx)
-	eg.SetLimit(int(limit))
+	eg.SetLimit(int(parallelConns))
 
 	mu := sync.Mutex{}
 
-	for atomic.LoadUint64(&count) < total {
+	for atomic.LoadUint64(&actualConns) < totalConns {
 		eg.Go(func() error {
-			duration, isErr := connect(config, url, time.Duration(handshakeTimeout)*time.Second, disableKeepAlives)
+			duration, isErr := connect(config, url, time.Duration(tlsHandshakeTimeout)*time.Second, disableKeepAlives)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -129,7 +129,7 @@ func main() {
 				durationMap[">300s"]++
 			}
 
-			v := atomic.AddUint64(&count, 1)
+			v := atomic.AddUint64(&actualConns, 1)
 			if v%10000 == 0 {
 				fmt.Printf("%v times %v\n", v, time.Now())
 				fmt.Printf("Duration distribution:\n")
