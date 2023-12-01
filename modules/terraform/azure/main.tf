@@ -16,6 +16,7 @@ locals {
   network_config_map                     = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   appgateway_config_map                  = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  aks_config_map                         =  { for aks in var.aks_config_list : aks.role => aks }
   vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
@@ -62,6 +63,18 @@ module "virtual_network" {
   accelerated_networking = local.accelerated_networking
   public_ips             = module.public_ips.pip_ids
   tags                   = local.tags
+}
+
+module "aks" {
+  for_each = local.aks_config_map
+
+  source = ".aks"
+  resource_group_name = module.resource_group.name
+  location            = local.region
+  vm_sku              = local.machine_type
+  subnet_id            = local.all_subnets[each.value.subnet_name]
+  aks_config    =  each.value
+
 }
 
 module "load_balancer" {

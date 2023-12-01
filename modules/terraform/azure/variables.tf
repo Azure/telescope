@@ -118,6 +118,26 @@ variable "appgateway_config_list" {
   }))
   }
 
+variable "aks_config_list" {
+  type = list(object({
+    role = string
+    aks_name = string
+    subnet_name = string
+    dns_prefix = string
+    default_node_pool = object({
+      name                         = string
+      node_count                   = number            
+      os_disk_type                 = string
+      only_critical_addons_enabled = bool
+      temporary_name_for_rotation  = string
+      })
+    extra_node_pool = list(object({
+       name                         = string
+       node_count                   = number
+    }))    
+  }))
+}
+
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({

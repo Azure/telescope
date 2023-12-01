@@ -35,7 +35,7 @@ appgateway_config_list = [
     role = "aksNetwork"
     appgateway_name = "error_502"
     public_ip_name        = "appGateway-pip"
-    subnet_name           = "aksNetwork-aks"
+    subnet_name           = "aksNetwork-ingress"
     appgateway_probes = [
       {
         name = "aks-https"
@@ -161,6 +161,27 @@ appgateway_config_list = [
         backend_address_pool_name  = "aks-direct"
         backend_http_settings_name = "aks-http-direct"
       }
+    ]
+  }
+]
+aks_config_list = [
+  {
+    role = "aksNetwork"
+    aks_name = "aksInstance"
+    dns_prefix = "repro-502"
+    subnet_name = "aksNetwork-aks"
+    default_node_pool = {
+      name                         = "default"
+      node_count                   = 3 
+      os_disk_type                 = "Managed"
+      only_critical_addons_enabled = true
+      temporary_name_for_rotation  = "defaulttmp"
+      }
+    extra_node_pool = [
+      {
+      name                         = "user"
+       node_count                   = 3
+    }
     ]
   }
 ]
