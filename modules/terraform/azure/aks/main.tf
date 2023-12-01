@@ -37,6 +37,6 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   name                  = each.value.name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
   vm_size               = var.vm_sku
-  node_count            = each.value.count
+  node_count            = each.value.node_count
   os_disk_type          = var.aks_config.default_node_pool.os_disk_type
 }
