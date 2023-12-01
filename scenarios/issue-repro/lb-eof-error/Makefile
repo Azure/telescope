@@ -7,7 +7,7 @@ CLIENT_IMAGE_NAME = slb-eof-error-client
 SERVER_DOCKERFILE = $(SERVER_DIR)/Dockerfile
 CLIENT_DOCKERFILE = $(CLIENT_DIR)/Dockerfile
 GIT_TAG = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-IMAGE_REPO=telescope.azurecr.io/network-issue-repro
+IMAGE_REPO=telescope.azurecr.io/issue-repro
 
 .PHONY: all gen-certs clean-certs build-server push-server build-client push-client release
 
@@ -39,5 +39,5 @@ push-client: build-client
 	docker tag $(CLIENT_IMAGE_NAME):${GIT_TAG} $(IMAGE_REPO)/$(CLIENT_IMAGE_NAME):$(GIT_TAG)
 	docker push $(IMAGE_REPO)/$(CLIENT_IMAGE_NAME):$(GIT_TAG)
 
-release: gen_certs push-server push-client
-	@echo "Release"
+release: gen-certs push-server push-client
+	@echo "Release finished"
