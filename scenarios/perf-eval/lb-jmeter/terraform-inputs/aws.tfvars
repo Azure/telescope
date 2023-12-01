@@ -69,12 +69,12 @@ loadbalancer_config_list = [{
   subnet_name        = "server-subnet"
   load_balancer_type = "network"
   lb_target_group = [{
-    role        = "nlb-tg"
-    tg_suffix   = "http"
-    port        = 80
-    protocol    = "TCP"
-    rule_count  = 1
-    vpc_name    = "server-vpc"
+    role       = "nlb-tg"
+    tg_suffix  = "http"
+    port       = 80
+    protocol   = "TCP"
+    rule_count = 1
+    vpc_name   = "server-vpc"
     health_check = {
       port                = "80"
       protocol            = "TCP"
@@ -93,12 +93,12 @@ loadbalancer_config_list = [{
     }
     },
     {
-      role        = "nlb-tg"
-      tg_suffix   = "https"
-      port        = 443
-      protocol    = "TCP"
-      rule_count  = 1
-      vpc_name    = "server-vpc"
+      role       = "nlb-tg"
+      tg_suffix  = "https"
+      port       = 443
+      protocol   = "TCP"
+      rule_count = 1
+      vpc_name   = "server-vpc"
       health_check = {
         port                = "443"
         protocol            = "TCP"
@@ -120,12 +120,12 @@ loadbalancer_config_list = [{
 }]
 
 vm_config_list = [{
-    vm_name                     = "client-vm"
-    role                        = "client"
-    network_role                = "client"
-    subnet_name                 = "client-subnet"
-    security_group_name         = "client-sg"
-    associate_public_ip_address = true
+  vm_name                     = "client-vm"
+  role                        = "client"
+  network_role                = "client"
+  subnet_name                 = "client-subnet"
+  security_group_name         = "client-sg"
+  associate_public_ip_address = true
   },
   {
     vm_name                     = "server-vm"

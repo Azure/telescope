@@ -1,4 +1,4 @@
-scenario_type = "issue-repro"
+scenario_type   = "issue-repro"
 scenario_name   = "lb-eof-error"
 deletion_delay  = "4h"
 public_ip_names = ["ingress-pip", "egress-pip"]
@@ -54,7 +54,7 @@ network_config_list = [
     subnet_names                = ["client-subnet"]
     subnet_address_prefixes     = ["10.0.1.0/24"]
     network_security_group_name = "client-nsg"
-    nic_public_ip_associations  = [
+    nic_public_ip_associations = [
       {
         nic_name              = "client-nic"
         subnet_name           = "client-subnet"
@@ -134,7 +134,7 @@ loadbalancer_config_list = [
   }
 ]
 vm_config_list = [{
-  role    = "client"
+  role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "adminuser"
@@ -148,7 +148,7 @@ vm_config_list = [{
   }
 ]
 vmss_config_list = [{
-  role            = "server"
+  role                   = "server"
   vmss_name              = "server-vmss"
   nic_name               = "server-nic"
   subnet_name            = "server-subnet"
