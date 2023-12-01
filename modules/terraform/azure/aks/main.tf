@@ -1,6 +1,8 @@
 locals {  
   role      = var.aks_config.role
   name      = var.aks_config.aks_name    
+  extra_pool_map          = { for pool in var.aks_config.extra_node_pool : pool.name => name }
+
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -30,7 +32,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
-  for_each = var.aks_config.extra_node_pool
+  for_each = local.extra_pool_map 
 
   name                  = each.value.name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
