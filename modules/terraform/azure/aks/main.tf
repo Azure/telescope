@@ -1,7 +1,7 @@
 locals {  
   role      = var.aks_config.role
   name      = var.aks_config.aks_name    
-  extra_pool_map          = { for pool in var.aks_config.extra_node_pool : pool.name => name }
+  extra_pool_map          = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
 
 }
 
