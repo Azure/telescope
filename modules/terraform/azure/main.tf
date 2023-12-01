@@ -68,7 +68,7 @@ module "virtual_network" {
 module "aks" {
   for_each = local.aks_config_map
 
-  source = ".aks"
+  source = "./aks"
   resource_group_name = module.resource_group.name
   location            = local.region
   vm_sku              = local.machine_type
