@@ -24,20 +24,20 @@ variable "vm_sku" {
 
 variable "aks_config" {
   type = object({
-    role                = string
-    aks_name            = string
-    dns_prefix          = string
-    subnet_name         = string
+    role        = string
+    aks_name    = string
+    dns_prefix  = string
+    subnet_name = string
     default_node_pool = object({
       name                         = string
       node_count                   = number
       os_disk_type                 = string
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
-      })
+    })
     extra_node_pool = list(object({
-      name        = string
-      node_count  = number
-    }))    
+      name       = string
+      node_count = number
+    }))
   })
 }

@@ -1,12 +1,12 @@
-locals {  
+locals {
   role                  = var.appgateway_config.role
-  appgateway_name      = var.appgateway_config.appgateway_name  
-  health_probes  =   var.appgateway_config.appgateway_probes
-  frontend_port = var.appgateway_config.appgateway_frontendport
-  backend_address_pool  = var.appgateway_config.appgateway_backend_address_pool 
-  backendhttp_settings = var.appgateway_config.appgateway_backend_http_settings
-  http_listeners = var.appgateway_config.appgateway_http_listeners 
-  request_routing_rules  = var.appgateway_config.appgateway_request_routing_rules
+  appgateway_name       = var.appgateway_config.appgateway_name
+  health_probes         = var.appgateway_config.appgateway_probes
+  frontend_port         = var.appgateway_config.appgateway_frontendport
+  backend_address_pool  = var.appgateway_config.appgateway_backend_address_pool
+  backendhttp_settings  = var.appgateway_config.appgateway_backend_http_settings
+  http_listeners        = var.appgateway_config.appgateway_http_listeners
+  request_routing_rules = var.appgateway_config.appgateway_request_routing_rules
 }
 
 resource "azurerm_application_gateway" "appgateway" {
@@ -20,7 +20,7 @@ resource "azurerm_application_gateway" "appgateway" {
     capacity = 10
   }
 
- gateway_ip_configuration {
+  gateway_ip_configuration {
     name      = "my-gateway-ip-configuration"
     subnet_id = var.subnet_id
   }
@@ -30,7 +30,7 @@ resource "azurerm_application_gateway" "appgateway" {
     port = local.frontend_port.port
   }
 
- frontend_ip_configuration {
+  frontend_ip_configuration {
     name                 = "public"
     public_ip_address_id = var.public_ip_id
   }
@@ -38,24 +38,24 @@ resource "azurerm_application_gateway" "appgateway" {
   dynamic "backend_address_pool" {
     for_each = local.backend_address_pool
     content {
-      name = backend_address_pool.value.name
+      name         = backend_address_pool.value.name
       ip_addresses = backend_address_pool.value.ip_addresses
     }
   }
 
-dynamic "backend_http_settings" {
-  for_each = local.backendhttp_settings
-  content {
-    name                           = backend_http_settings.value.name
-    host_name                      = backend_http_settings.value.host_name
-    cookie_based_affinity          = backend_http_settings.value.cookie_based_affinity
-    port                           = backend_http_settings.value.port
-    protocol                       = backend_http_settings.value.protocol
-    request_timeout                = backend_http_settings.value.request_timeout
-    trusted_root_certificate_names = backend_http_settings.value.protocol == "Htps" ? ["self-signed-root"] : []
-    probe_name                     = backend_http_settings.value.probe_name
+  dynamic "backend_http_settings" {
+    for_each = local.backendhttp_settings
+    content {
+      name                           = backend_http_settings.value.name
+      host_name                      = backend_http_settings.value.host_name
+      cookie_based_affinity          = backend_http_settings.value.cookie_based_affinity
+      port                           = backend_http_settings.value.port
+      protocol                       = backend_http_settings.value.protocol
+      request_timeout                = backend_http_settings.value.request_timeout
+      trusted_root_certificate_names = backend_http_settings.value.protocol == "Htps" ? ["self-signed-root"] : []
+      probe_name                     = backend_http_settings.value.probe_name
+    }
   }
-}
 
   dynamic "probe" {
     for_each = local.health_probes
@@ -73,7 +73,7 @@ dynamic "backend_http_settings" {
   dynamic "http_listener" {
     for_each = local.http_listeners
     content {
-      name                           = http_listener.value.name  
+      name                           = http_listener.value.name
       frontend_ip_configuration_name = http_listener.value.frontend_ip_configuration_name
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol

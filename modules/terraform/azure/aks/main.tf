@@ -1,11 +1,11 @@
-locals {  
-  role      = var.aks_config.role
-  name      = var.aks_config.aks_name    
-  extra_pool_map          = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
+locals {
+  role           = var.aks_config.role
+  name           = var.aks_config.aks_name
+  extra_pool_map = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
-  name                =  local.name
+  name                = local.name
   location            = var.location
   resource_group_name = var.resource_group_name
   dns_prefix          = var.aks_config.dns_prefix
@@ -23,14 +23,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
   network_profile {
     network_plugin      = "azure"
     network_plugin_mode = "overlay"
-  }  
- identity {
+  }
+  identity {
     type = "SystemAssigned"
-  }  
+  }
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
-  for_each = local.extra_pool_map 
+  for_each = local.extra_pool_map
 
   name                  = each.value.name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id

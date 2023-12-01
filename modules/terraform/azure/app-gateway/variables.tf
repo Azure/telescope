@@ -19,30 +19,30 @@ variable "subnet_id" {
 variable "appgateway_config" {
   description = "Configuration for the load balancer."
   type = object({
-    role                  = string
-    appgateway_name       = string
-    public_ip_name        = string
-    subnet_name           = string
-    appgateway_probes =  list(object({
-      name                    = string
-      protocol                    = string
+    role            = string
+    appgateway_name = string
+    public_ip_name  = string
+    subnet_name     = string
+    appgateway_probes = list(object({
+      name     = string
+      protocol = string
     }))
-     appgateway_backend_address_pool = list(object({
-      name                    = string
-      ip_addresses                    = list(string)
+    appgateway_backend_address_pool = list(object({
+      name         = string
+      ip_addresses = list(string)
     }))
     appgateway_frontendport = object({
-      name                    = string
-      port                    = string
+      name = string
+      port = string
     })
-     appgateway_backend_http_settings = list(object({
-      name                           = string
-      host_name                      = string
-      cookie_based_affinity          = string
-      port                           = number
-      protocol                       = string
-      request_timeout                = number        
-      probe_name                     = string
+    appgateway_backend_http_settings = list(object({
+      name                  = string
+      host_name             = string
+      cookie_based_affinity = string
+      port                  = number
+      protocol              = string
+      request_timeout       = number
+      probe_name            = string
     }))
     appgateway_http_listeners = list(object({
       name                           = string
@@ -51,7 +51,7 @@ variable "appgateway_config" {
       protocol                       = string
       host_name                      = string
     }))
-    appgateway_request_routing_rules = list(object({      
+    appgateway_request_routing_rules = list(object({
       name                       = string
       priority                   = number
       rule_type                  = string
@@ -64,6 +64,6 @@ variable "appgateway_config" {
 
 variable "public_ip_id" {
   description = "Value of the public IP id"
-  type     = string
-  default = null
+  type        = string
+  default     = null
 }

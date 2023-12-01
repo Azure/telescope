@@ -1,5 +1,5 @@
 scenario_name   = "aks_502_lb_https"
-scenario_type = "issue-repro"
+scenario_type   = "issue-repro"
 deletion_delay  = "4h"
 public_ip_names = ["appGateway-pip"]
 network_config_list = [
@@ -26,23 +26,23 @@ network_config_list = [
     ]
   }
 ]
-loadbalancer_config_list = []
-vm_config_list = []
-vmss_config_list = []
+loadbalancer_config_list          = []
+vm_config_list                    = []
+vmss_config_list                  = []
 nic_backend_pool_association_list = []
 appgateway_config_list = [
   {
-    role = "aksNetwork"
+    role            = "aksNetwork"
     appgateway_name = "error_502"
-    public_ip_name        = "appGateway-pip"
-    subnet_name           = "aksNetwork-ingress"
+    public_ip_name  = "appGateway-pip"
+    subnet_name     = "aksNetwork-ingress"
     appgateway_probes = [
       {
-        name = "aks-https"
+        name     = "aks-https"
         protocol = "Https"
       },
       {
-        name = "aks-http"
+        name     = "aks-http"
         protocol = "Http"
       }
     ]
@@ -60,15 +60,15 @@ appgateway_config_list = [
       name = "http"
       port = 80
     }
-    appgateway_backend_http_settings  = [
+    appgateway_backend_http_settings = [
       {
-        name                           = "aks-https-lb"
-        host_name                      = "test.contoso.com"
-        cookie_based_affinity          = "Disabled"
-        port                           = 443
-        protocol                       = "Https"
-        request_timeout                = 60        
-        probe_name                     = "aks-https"
+        name                  = "aks-https-lb"
+        host_name             = "test.contoso.com"
+        cookie_based_affinity = "Disabled"
+        port                  = 443
+        protocol              = "Https"
+        request_timeout       = 60
+        probe_name            = "aks-https"
       },
       {
         name                  = "aks-http-lb"
@@ -80,13 +80,13 @@ appgateway_config_list = [
         probe_name            = "aks-http"
       },
       {
-          name                           = "aks-https-direct"
-          host_name                      = "test.contoso.com"
-          cookie_based_affinity          = "Disabled"
-          port                           = 31291
-          protocol                       = "Https"
-          request_timeout                = 60          
-          probe_name                     = "aks-https"
+        name                  = "aks-https-direct"
+        host_name             = "test.contoso.com"
+        cookie_based_affinity = "Disabled"
+        port                  = 31291
+        protocol              = "Https"
+        request_timeout       = 60
+        probe_name            = "aks-https"
       },
       {
         name                  = "aks-http-direct"
@@ -126,7 +126,7 @@ appgateway_config_list = [
         frontend_port_name             = "http"
         protocol                       = "Http"
         host_name                      = "http-backend-direct.contoso.com"
-      }      
+      }
     ]
     appgateway_request_routing_rules = [
       {
@@ -166,22 +166,22 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role = "aksNetwork"
-    aks_name = "aksInstance"
-    dns_prefix = "repro-502"
+    role        = "aksNetwork"
+    aks_name    = "aksInstance"
+    dns_prefix  = "repro-502"
     subnet_name = "aksNetwork-aks"
     default_node_pool = {
       name                         = "default"
-      node_count                   = 3 
+      node_count                   = 3
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
-      }
+    }
     extra_node_pool = [
       {
-      name                         = "user"
-       node_count                   = 3
-    }
+        name       = "user"
+        node_count = 3
+      }
     ]
   }
 ]
