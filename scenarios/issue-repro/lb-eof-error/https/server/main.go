@@ -43,11 +43,7 @@ func getLocalIP() string {
 }
 
 func main() {
-	var readHeaderTimeout uint64 = 32
-	readHeaderTimeout = 32
-	if len(os.Args) > 1 {
-		readHeaderTimeout, _ = strconv.ParseUint(os.Args[1], 10, 64)
-	}
+	readHeaderTimeout, _ := strconv.ParseUint(os.Getenv("READ_HEADER_TIMEOUT"), 10, 64)
 	fmt.Printf("Set read header timeout to %v seconds\n", readHeaderTimeout)
 
 	// Serve the healthz endpoint.

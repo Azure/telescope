@@ -24,5 +24,5 @@ COPY https/server.key /home/server.key
 EXPOSE 8080
 EXPOSE 443
 
-ENV READ_HEADER_TIMEOUT=""
-CMD ["./server", "${READ_HEADER_TIMEOUT}"]
+ENV READ_HEADER_TIMEOUT="32"
+CMD ["./server"]
