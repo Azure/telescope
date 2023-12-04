@@ -19,16 +19,12 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
+	hostname := os.Getenv("SERVER_ADDRESS")
+	if hostname == "" {
 		fmt.Println("Please provide the load balancer URL or IP address.")
 		return
 	}
-	hostname := os.Args[1]
-	port := "443"
-	if len(os.Args) > 2 {
-		port = os.Args[2]
-	}
-	// Replace the URL with your WebSocket server's URL.
+	port := os.Getenv("SERVER_PORT")
 	protocol := "http"
 	if port == "443" {
 		protocol = "https"
@@ -52,30 +48,17 @@ func main() {
 	}
 	keys := []string{"<1s", "1s-2s", "2s-5s", "5s-10s", "10s-30s", "30s-60s", "60s-120s", "120s-180s", "180s-240s", "240s-300s", ">300s", "error"}
 
-	var actualConns, totalConns, parallelConns uint64
-	actualConns = 0
-	totalConns = 1000000
-	if len(os.Args) > 3 {
-		totalConns, _ = strconv.ParseUint(os.Args[3], 10, 64)
-	}
+	var actualConns uint64
+	totalConns, _ := strconv.ParseUint(os.Getenv("TOTAL_CONNECTIONS"), 10, 64)
 	fmt.Printf("%v total connections to be established\n", totalConns)
 
-	parallelConns = 100
-	if len(os.Args) > 4 {
-		parallelConns, _ = strconv.ParseUint(os.Args[4], 10, 64)
-	}
+	parallelConns, _ := strconv.ParseUint(os.Getenv("PARALELL_CONNECTIONS"), 10, 64)
 	fmt.Printf("%v parallel connections to be established\n", parallelConns)
 
-	var tlsHandshakeTimeout int64
-	if len(os.Args) > 5 {
-		tlsHandshakeTimeout, _ = strconv.ParseInt(os.Args[5], 10, 64)
-	}
+	tlsHandshakeTimeout, _ := strconv.ParseInt(os.Getenv("TLS_HANDSHAKE_TIMEOUT"), 10, 64)
 	fmt.Print("Set handshake timeout to ", tlsHandshakeTimeout, " seconds\n")
 
-	var disableKeepAlives bool
-	if len(os.Args) > 6 {
-		disableKeepAlives, _ = strconv.ParseBool(os.Args[6])
-	}
+	disableKeepAlives, _ := strconv.ParseBool(os.Getenv("DISALBE_KEEP_ALIVES"))
 	fmt.Print("Set disable keep alives to ", disableKeepAlives, "\n")
 
 	var config *tls.Config
