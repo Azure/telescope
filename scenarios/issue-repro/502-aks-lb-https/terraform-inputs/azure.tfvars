@@ -166,10 +166,11 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role        = "aksNetwork"
-    aks_name    = "aksInstance"
-    dns_prefix  = "repro-502"
-    subnet_name = "aksNetwork-aks"
+    role           = "aksNetwork"
+    aks_name       = "aksInstance"
+    dns_prefix     = "repro-502"
+    subnet_name    = "aksNetwork-aks"
+    network_plugin = "azure"
     default_node_pool = {
       name                         = "default"
       node_count                   = 3
