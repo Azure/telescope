@@ -1,4 +1,4 @@
-name: Terraform Checks
+name: Terraform Configuration Checks
 
 on:
   pull_request:

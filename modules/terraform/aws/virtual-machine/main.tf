@@ -14,7 +14,7 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-data "aw_security_group" "security_group" {
+data "aws_security_group" "security_group" {
   filter {
     name   = "tag:run_id"
     values = ["${var.run_id}"]
