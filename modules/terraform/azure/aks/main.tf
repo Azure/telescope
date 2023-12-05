@@ -21,8 +21,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   network_profile {
-    network_plugin      = var.aks_config.network_profile
-    network_plugin_mode = var.aks_config.network_profile == "azure" ? "overlay" : null
+    network_plugin      = var.aks_config.network_plugin
+    network_plugin_mode = var.aks_config.network_plugin == "azure" ? "overlay" : null
   }
   identity {
     type = "SystemAssigned"
