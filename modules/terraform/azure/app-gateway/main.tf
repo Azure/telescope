@@ -1,5 +1,4 @@
 locals {
-  role                  = var.appgateway_config.role
   appgateway_name       = var.appgateway_config.appgateway_name
   health_probes         = var.appgateway_config.appgateway_probes
   frontend_port         = var.appgateway_config.appgateway_frontendport
