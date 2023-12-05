@@ -21,8 +21,8 @@ data "aws_security_group" "security_group" {
   }
 
   filter {
-    name   = "tag:role"
-    values = ["${var.vm_config.network_role}"]
+    name   = "group-name"
+    values = ["${var.vm_config.security_group_name}"]
   }
 }
 
@@ -33,8 +33,8 @@ data "aws_subnet" "subnet" {
   }
 
   filter {
-    name   = "tag:role"
-    values = ["${var.vm_config.network_role}"]
+    name   = "tag:Name"
+    values = ["${var.vm_config.subnet_name}"]
   }
 }
 

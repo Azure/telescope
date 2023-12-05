@@ -5,8 +5,8 @@ data "aws_vpc" "vpc" {
   }
 
   filter {
-    name   = "tag:role"
-    values = ["server"]
+    name   = "tag:Name"
+    values = ["${var.lb_tg_config.vpc_name}"]
   }
 }
 
@@ -17,8 +17,8 @@ data "aws_instance" "vm_instance" {
   }
 
   filter {
-    name   = "tag:role"
-    values = ["server"]
+    name   = "tag:Name"
+    values = ["${var.lb_tg_config.lb_target_group_attachment.vm_name}"]
   }
 
   filter {
@@ -43,7 +43,9 @@ resource "aws_lb_target_group" "target_group" {
     unhealthy_threshold = var.lb_tg_config.health_check.unhealthy_threshold
   }
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Name = var.lb_tg_config.rule_count > 1 ? "${var.lb_tg_config.role}-${var.lb_tg_config.tg_suffix}-${count.index + 1}" : "${var.lb_tg_config.role}-${var.lb_tg_config.tg_suffix}"
+  })
 }
 
 resource "aws_lb_listener" "nlb_listener" {
