@@ -1,5 +1,5 @@
 scenario_type = "issue-repro"
-scenario_name   = "lb-eof-error"
+scenario_name   = "lb-tls-error"
 deletion_delay  = "4h"
 public_ip_names = ["ingress-pip", "egress-pip"]
 network_config_list = [
