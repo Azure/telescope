@@ -10,6 +10,12 @@ variable "location" {
   default     = "East US"
 }
 
+variable "tags" {
+  type = map(string)
+  default = {
+  }
+}
+
 variable "subnet_id" {
   description = "Subnet ID"
   type        = string
@@ -24,10 +30,10 @@ variable "vm_sku" {
 
 variable "aks_config" {
   type = object({
-    role        = string
-    aks_name    = string
-    dns_prefix  = string
-    subnet_name = string
+    role           = string
+    aks_name       = string
+    dns_prefix     = string
+    subnet_name    = string
     network_plugin = string
     default_node_pool = object({
       name                         = string
