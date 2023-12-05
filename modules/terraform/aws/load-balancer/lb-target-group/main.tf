@@ -44,7 +44,7 @@ resource "aws_lb_target_group" "target_group" {
   }
 
   tags = merge(var.tags, {
-    Name = var.lb_tg_config.rule_count > 1 ? "${var.lb_tg_config.role}-${var.lb_tg_config.tg_suffix}-${count.index + 1}" : "${var.lb_tg_config.role}-${var.lb_tg_config.tg_suffix}"
+    "Name" = var.lb_tg_config.rule_count > 1 ? "${var.lb_tg_config.role}-${var.lb_tg_config.tg_suffix}-${count.index + 1}" : "${var.lb_tg_config.role}-${var.lb_tg_config.tg_suffix}"
   })
 }
 

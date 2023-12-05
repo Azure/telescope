@@ -53,6 +53,7 @@ resource "aws_instance" "vm" {
   user_data = file("${var.user_data_path}/${var.vm_config.role}-userdata.sh")
 
   tags = merge(var.tags, {
-    role = "${var.vm_config.role}"
+    "role" = "${var.vm_config.role}",
+    "Name" = "${var.vm_config.vm_name}"
   })
 }
