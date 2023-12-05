@@ -23,4 +23,4 @@ docker --version
 
 # Pull image
 docker pull -q telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.5
-docker run -d --name server -e READ_HEADER_TIMEOUT=32 telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.5
+docker run -d --name server -e READ_HEADER_TIMEOUT=32 -p 4443:4443 -p 8080:8080 telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.5
