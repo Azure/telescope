@@ -124,6 +124,7 @@ variable "aks_config_list" {
     aks_name    = string
     subnet_name = string
     dns_prefix  = string
+    network_plugin = string
     default_node_pool = object({
       name                         = string
       node_count                   = number

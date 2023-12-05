@@ -28,6 +28,7 @@ variable "aks_config" {
     aks_name    = string
     dns_prefix  = string
     subnet_name = string
+    network_plugin = string
     default_node_pool = object({
       name                         = string
       node_count                   = number
