@@ -10,6 +10,12 @@ variable "location" {
   default     = "East US"
 }
 
+variable "tags" {
+  type = map(string)
+  default = {
+  }
+}
+
 variable "subnet_id" {
   description = "Subnet ID"
   type        = string

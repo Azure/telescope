@@ -1,4 +1,5 @@
 locals {
+  role           = var.aks_config.role
   name           = var.aks_config.aks_name
   extra_pool_map = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
 }
@@ -8,7 +9,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
   location            = var.location
   resource_group_name = var.resource_group_name
   dns_prefix          = var.aks_config.dns_prefix
-
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count

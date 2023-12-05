@@ -74,6 +74,7 @@ module "aks" {
   vm_sku              = local.machine_type
   subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
+  tags                = local.tags
 }
 
 module "load_balancer" {
@@ -96,6 +97,7 @@ module "appgateway" {
   location            = local.region
   subnet_id           = local.all_subnets[each.value.subnet_name]
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
+  tags                = local.tags
 }
 
 module "data_disk" {

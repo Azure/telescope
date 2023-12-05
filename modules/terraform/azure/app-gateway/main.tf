@@ -1,4 +1,5 @@
 locals {
+  role                  = var.appgateway_config.role
   appgateway_name       = var.appgateway_config.appgateway_name
   health_probes         = var.appgateway_config.appgateway_probes
   frontend_port         = var.appgateway_config.appgateway_frontendport
@@ -12,6 +13,12 @@ resource "azurerm_application_gateway" "appgateway" {
   name                = local.appgateway_name
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 
   sku {
     name     = "Standard_v2"
