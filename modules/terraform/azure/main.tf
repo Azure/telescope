@@ -74,7 +74,6 @@ module "aks" {
   vm_sku              = local.machine_type
   subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
-
 }
 
 module "load_balancer" {
