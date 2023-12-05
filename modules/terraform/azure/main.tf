@@ -92,7 +92,7 @@ module "data_disk" {
   zone                           = each.value.zone
 }
 
-module "virtual_machine" {
+module "irtual_machine" {
   for_each = local.vm_config_map
 
   source              = "./virtual-machine"
