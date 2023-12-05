@@ -21,7 +21,7 @@ data "aws_security_group" "security_group" {
   }
 
   filter {
-    name   = "group-name"
+    name   = "Name"
     values = ["${var.vm_config.security_group_name}"]
   }
 }
