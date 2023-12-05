@@ -1,6 +1,6 @@
-scenario_type = "perf-eval"
-scenario_name = "vm-iperf"
-deletion_dela = "2h"
+scenario_type  = "perf-eval"
+scenario_name  = "vm-iperf"
+deletion_delay = "2h"
 network_config_list = [
   {
     role                   = "network"
