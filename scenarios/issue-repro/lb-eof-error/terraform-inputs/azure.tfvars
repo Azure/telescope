@@ -144,7 +144,7 @@ vm_config_list = [{
     sku       = "22_04-lts"
     version   = "latest"
   }
-  create_vm_extension = false
+  create_vm_extension = true
   }
 ]
 vmss_config_list = [{
