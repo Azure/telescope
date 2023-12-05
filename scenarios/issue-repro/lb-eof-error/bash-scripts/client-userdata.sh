@@ -1,6 +1,25 @@
 #!/bin/bash
 
-cd /home/adminuser
-curl -L -s -o client.tar.gz https://github.com/anson627/cloud-lb-evaluator/releases/download/v1.0.4/client.tar.gz
-tar -xzvf client.tar.gz
-rm client.tar.gz
+set -e
+
+sudo apt-get -qq update
+sudo apt-get -qq install ca-certificates curl gnupg
+
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add the repository to apt sources:
+echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install the latest version
+sudo apt-get -qq update
+sudo apt-get -qq install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Verify docker has been installed
+docker --version
+
+# Pull image
+docker pull -q telescope.azurecr.io/issue-repro/slb-eof-error-client:v1.0.5

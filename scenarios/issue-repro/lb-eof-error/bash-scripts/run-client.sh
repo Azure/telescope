@@ -1,11 +1,10 @@
-#!/bin/bash
+docker run -d --name client -e SERVER_ADDRESS=$public_ip telescope.azurecr.io/issue-repro/slb-eof-error-client:v1.0.5 &> /dev/null
 
-tag=$1
-public_ip=${2:-''}
-iteration=${3:-1000000}
-limit=${4:-100}
-
-cd client_build
-echo "Running client"
-./client $public_ip $iteration $limit &> logs.txt &
-ps -ef | grep $side
+code=$(docker wait client)
+if [[ $code -eq 0 ]]; then
+  tls_count=$(docker logs client | grep "TLS handshake timeout" | wc -l)
+  echo "TLS handshake timeout count: $tls_count"
+else
+  echo "Client exited with error"
+fi
+exit $code
