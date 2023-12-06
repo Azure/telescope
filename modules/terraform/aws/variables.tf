@@ -16,6 +16,7 @@ variable "json_input" {
     data_disk_mbps_read_write = optional(number)
     ultra_ssd_enabled         = optional(bool)
   })
+  default = []
 }
 
 variable "scenario_name" {
@@ -61,6 +62,7 @@ variable "network_config_list" {
       }))
     })
   }))
+  default = []
 }
 
 variable "loadbalancer_config_list" {
@@ -95,6 +97,7 @@ variable "loadbalancer_config_list" {
       })
     }))
   }))
+  default = []
 }
 
 variable "vm_config_list" {
@@ -107,4 +110,5 @@ variable "vm_config_list" {
     security_group_name         = string
     associate_public_ip_address = bool
   }))
+  default = []
 }
