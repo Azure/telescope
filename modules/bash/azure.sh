@@ -72,3 +72,11 @@ azure_get_vm_info() {
   res=$(az vm show --resource-group $resource_group --name $vm_name --query "{id:id, vmId:vmId}" --output json)
   echo $res
 }
+
+azure_aks_get_cred()
+{
+  local resource_group=$1
+  local aksName=$2
+
+  az aks get-credentials -n $resource_group  -g $aksName
+}
