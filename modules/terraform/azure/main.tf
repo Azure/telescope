@@ -126,7 +126,7 @@ module "virtual_machine" {
   name                = each.value.vm_name
   resource_group_name = module.resource_group.name
   location            = local.region
-  vm_sku              = local.machine_type
+  vm_sku              = contains(keys(local.vm_machine_type_map), each.value.vm_name) ? local.vm_machine_type_map[each.value.vm_name] : local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
   vm_config           = each.value
   public_key          = tls_private_key.admin-ssh-key.public_key_openssh

@@ -1,7 +1,7 @@
 scenario_name   = "aks-502-lb-https"
 scenario_type   = "issue-repro"
 deletion_delay  = "4h"
-public_ip_names = ["appGateway-pip"]
+public_ip_names = ["appGateway-pip", "client-pip"]
 network_config_list = [
   {
     role                        = "aksNetwork"
@@ -10,7 +10,13 @@ network_config_list = [
     subnet_names                = ["aksNetwork-ingress", "aksNetwork-aks"]
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
     network_security_group_name = "aksNetwork-nsg"
-    nic_public_ip_associations  = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "client-nic"
+        subnet_name           = "aksNetwork-aks"
+        ip_configuration_name = "client-ipconfig"
+        public_ip_name        = "client-pip"
+    }]
     nsr_rules = [
       {
         name                       = "appGateway"
