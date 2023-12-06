@@ -3,6 +3,7 @@ provider "azurerm" {
 }
 # Apply run block to create the bucket
 run "create_resource_group" {
+  command = plan
   variables {
    resource_group_name = "azure-rg-unit-test"
     location            = "eastus"
@@ -10,7 +11,7 @@ run "create_resource_group" {
       owner = "github_actions"
     }
   }
-
+ 
   # Check that the resource group name is correct
   assert {
     condition     = azurerm_resource_group.rg.name == "azure-rg-unit-test"
