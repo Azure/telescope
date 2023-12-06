@@ -6,6 +6,7 @@ locals {
   subnet_address_prefixes     = var.network_config.subnet_address_prefixes
   network_security_group_name = var.network_config.network_security_group_name
   nic_association_map         = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
+  tags                        = merge(var.tags, { "role" = var.network_config.role })
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -13,7 +14,7 @@ resource "azurerm_virtual_network" "vnet" {
   address_space       = [var.network_config.vnet_address_space]
   location            = var.location
   resource_group_name = var.resource_group_name
-  tags                = var.tags
+  tags                = local.tags
 }
 
 resource "azurerm_subnet" "subnets" {
@@ -30,7 +31,7 @@ resource "azurerm_network_security_group" "nsg" {
   name                = local.network_security_group_name
   location            = var.location
   resource_group_name = var.resource_group_name
-  tags                = var.tags
+  tags                = local.tags
 }
 
 
@@ -48,7 +49,7 @@ resource "azurerm_network_interface" "nic" {
   location                      = var.location
   resource_group_name           = var.resource_group_name
   enable_accelerated_networking = var.accelerated_networking
-  tags                          = var.tags
+  tags                          = local.tags
 
   ip_configuration {
     name                          = each.value.ip_configuration_name

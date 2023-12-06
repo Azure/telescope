@@ -142,7 +142,6 @@ vm_config_list = [{
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    network_role                = "server"
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
