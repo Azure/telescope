@@ -10,8 +10,8 @@ chmod 700 get_helm.sh
 ./get_helm.sh
 
 
-kubectl apply -f tls.yml
-kubectl apply -f contoso.yml
+kubectl apply -f nginxCert.yml
+kubectl apply -f aksSetup.yml
 
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
