@@ -70,6 +70,7 @@ variable "network_config_list" {
       destination_address_prefix = string
     }))
   }))
+  default = []
 }
 
 variable "appgateway_config_list" {
