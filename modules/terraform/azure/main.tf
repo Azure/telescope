@@ -19,6 +19,7 @@ locals {
   aks_config_map                         = { for aks in var.aks_config_list : aks.role => aks }
   vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
+  vm_machine_type_map                    = { for vmType in var.vm_machine_type : vmType.vm_name => vmType.machine_type }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
   all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
@@ -125,7 +126,7 @@ module "virtual_machine" {
   name                = each.value.vm_name
   resource_group_name = module.resource_group.name
   location            = local.region
-  vm_sku              = local.machine_type
+  vm_sku              = contains(keys(locals.vm_machine_type_map), each.value.vm_name) ? locals.vm_machine_type_map[each.value.vm_name] : local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
   vm_config           = each.value
   public_key          = tls_private_key.admin-ssh-key.public_key_openssh

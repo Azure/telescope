@@ -120,10 +120,10 @@ variable "appgateway_config_list" {
 
 variable "aks_config_list" {
   type = list(object({
-    role        = string
-    aks_name    = string
-    subnet_name = string
-    dns_prefix  = string
+    role           = string
+    aks_name       = string
+    subnet_name    = string
+    dns_prefix     = string
     network_plugin = string
     default_node_pool = object({
       name                         = string
@@ -276,3 +276,13 @@ variable "ultra_ssd_enabled" {
   type        = bool
   default     = false
 }
+
+variable "vm_machine_type" {
+  description = "override machine sku"
+  type = list(object({
+    vm_name      = string
+    machine_type = string
+  }))
+  default = []
+}
+

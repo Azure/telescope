@@ -186,3 +186,25 @@ aks_config_list = [
     ]
   }
 ]
+
+vm_config_list = [{
+  role    = "client"
+  vm_name        = "client-vm"
+  nic_name       = "client-nic"
+  admin_username = "adminuser"
+  source_image_reference = {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = true
+  }
+]
+
+vm_machine_type = [
+  {
+    vm_name        = "client-vm"
+    machine_type   = "Standard_D4s_v5"
+  }
+]
