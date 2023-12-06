@@ -29,7 +29,13 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.admissionWebhooks.enabled=false
 
 
-kubectl get service -n ingress-nginx
+result=$(kubectl get service -n ingress-nginx)
+regex="80:([0-9]+).*443:([0-9]+)"
+ [[ $result =~ $regex ]]
+httpPort=${BASH_REMATCH[1]}
+httpsPort=${BASH_REMATCH[1]}
+
+
 
 
 
