@@ -14,8 +14,8 @@ data "aws_subnet" "subnet" {
   }
 
   filter {
-    name   = "tag:role"
-    values = ["server"]
+    name   = "tag:Name"
+    values = ["${var.loadbalancer_config.subnet_name}"]
   }
 }
 
