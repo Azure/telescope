@@ -27,7 +27,6 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list          = []
-vm_config_list                    = []
 vmss_config_list                  = []
 nic_backend_pool_association_list = []
 appgateway_config_list = [
@@ -188,7 +187,7 @@ aks_config_list = [
 ]
 
 vm_config_list = [{
-  role    = "client"
+  role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "adminuser"
@@ -204,7 +203,7 @@ vm_config_list = [{
 
 vm_machine_type = [
   {
-    vm_name        = "client-vm"
-    machine_type   = "Standard_D4s_v5"
+    vm_name      = "client-vm"
+    machine_type = "Standard_D4s_v5"
   }
 ]
