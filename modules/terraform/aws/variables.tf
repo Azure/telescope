@@ -16,7 +16,6 @@ variable "json_input" {
     data_disk_mbps_read_write = optional(number)
     ultra_ssd_enabled         = optional(bool)
   })
-  default = []
 }
 
 variable "scenario_name" {
