@@ -73,6 +73,8 @@ azure_get_vm_info() {
   echo $res
 }
 
+
+
 azure_aks_get_cred()
 {
   local resource_group=$1

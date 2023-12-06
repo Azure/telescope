@@ -1,3 +1,16 @@
+# install java
+sudo apt update
+sudo sudo apt install default-jre -y
+java -version
+
+# install jmeter
+jmeter_version="5.6.2"
+wget https://downloads.apache.org/jmeter/binaries/apache-jmeter-${jmeter_version}.tgz
+tar -xvf apache-jmeter-${jmeter_version}.tgz
+sudo mv apache-jmeter-${jmeter_version} /opt/jmeter
+sudo ln -s /opt/jmeter/bin/jmeter /usr/local/bin/jmeter
+jmeter -v
+
 #dowloading kubctl
 curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
 chmod +x ./kubectl
@@ -29,11 +42,17 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.admissionWebhooks.enabled=false
 
 
-result=$(kubectl get service -n ingress-nginx)
-regex="80:([0-9]+).*443:([0-9]+)"
- [[ $result =~ $regex ]]
-httpPort=${BASH_REMATCH[1]}
-httpsPort=${BASH_REMATCH[1]}
+
+
+
+#result=$(kubectl get service -n ingress-nginx)
+#regex="80:([0-9]+).*443:([0-9]+)"
+# [[ $result =~ $regex ]]
+#httpPort=${BASH_REMATCH[1]}
+#httpsPort=${BASH_REMATCH[1]}
+
+
+
 
 
 
