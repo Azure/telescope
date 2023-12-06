@@ -72,6 +72,73 @@ variable "network_config_list" {
   }))
 }
 
+variable "appgateway_config_list" {
+  description = "List of app gateway configurations"
+  type = list(object({
+    role            = string
+    appgateway_name = string
+    public_ip_name  = string
+    subnet_name     = string
+    appgateway_probes = list(object({
+      name     = string
+      protocol = string
+    }))
+    appgateway_backend_address_pool = list(object({
+      name         = string
+      ip_addresses = list(string)
+    }))
+    appgateway_frontendport = object({
+      name = string
+      port = string
+    })
+    appgateway_backend_http_settings = list(object({
+      name                  = string
+      host_name             = string
+      cookie_based_affinity = string
+      port                  = number
+      protocol              = string
+      request_timeout       = number
+      probe_name            = string
+    }))
+    appgateway_http_listeners = list(object({
+      name                           = string
+      frontend_ip_configuration_name = string
+      frontend_port_name             = string
+      protocol                       = string
+      host_name                      = string
+    }))
+    appgateway_request_routing_rules = list(object({
+      name                       = string
+      priority                   = number
+      rule_type                  = string
+      http_listener_name         = string
+      backend_address_pool_name  = string
+      backend_http_settings_name = string
+    }))
+  }))
+}
+
+variable "aks_config_list" {
+  type = list(object({
+    role        = string
+    aks_name    = string
+    subnet_name = string
+    dns_prefix  = string
+    network_plugin = string
+    default_node_pool = object({
+      name                         = string
+      node_count                   = number
+      os_disk_type                 = string
+      only_critical_addons_enabled = bool
+      temporary_name_for_rotation  = string
+    })
+    extra_node_pool = list(object({
+      name       = string
+      node_count = number
+    }))
+  }))
+}
+
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
