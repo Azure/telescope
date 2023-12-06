@@ -117,6 +117,7 @@ variable "appgateway_config_list" {
       backend_http_settings_name = string
     }))
   }))
+  default = []
 }
 
 variable "aks_config_list" {
@@ -138,6 +139,7 @@ variable "aks_config_list" {
       node_count = number
     }))
   }))
+  default = []
 }
 
 variable "loadbalancer_config_list" {
@@ -161,6 +163,7 @@ variable "loadbalancer_config_list" {
       idle_timeout_in_minutes = number
     }))
   }))
+  default = []
 }
 
 variable "vm_config_list" {
@@ -179,6 +182,7 @@ variable "vm_config_list" {
     })
     create_vm_extension = bool
   }))
+  default = []
 }
 
 variable "vmss_config_list" {
@@ -199,6 +203,7 @@ variable "vmss_config_list" {
       version   = string
     })
   }))
+  default = []
 }
 
 variable "nic_backend_pool_association_list" {
@@ -209,6 +214,7 @@ variable "nic_backend_pool_association_list" {
     vm_name               = string
     ip_configuration_name = string
   }))
+  default = []
 }
 
 variable "data_disk_config_list" {
