@@ -3,7 +3,7 @@ scenario_name  = "lb-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role            = "server"
+    role                   = "server"
     vpc_name               = "server-vpc"
     vpc_cidr_block         = "10.1.0.0/16"
     subnet_names           = ["server-subnet"]
@@ -81,12 +81,12 @@ loadbalancer_config_list = [{
   subnet_name        = "server-subnet"
   load_balancer_type = "network"
   lb_target_group = [{
-    role        = "nlb-tg"
-    tg_suffix   = "tcp"
-    port        = 20001
-    protocol    = "TCP"
-    rule_count  = 1
-    vpc_name    = "server-vpc"
+    role       = "nlb-tg"
+    tg_suffix  = "tcp"
+    port       = 20001
+    protocol   = "TCP"
+    rule_count = 1
+    vpc_name   = "server-vpc"
     health_check = {
       port                = "20000"
       protocol            = "TCP"
@@ -105,12 +105,12 @@ loadbalancer_config_list = [{
     }
     },
     {
-      role        = "nlb-tg"
-      tg_suffix   = "udp"
-      port        = 20002
-      protocol    = "UDP"
-      rule_count  = 1
-      vpc_name    = "server-vpc"
+      role       = "nlb-tg"
+      tg_suffix  = "udp"
+      port       = 20002
+      protocol   = "UDP"
+      rule_count = 1
+      vpc_name   = "server-vpc"
       health_check = {
         port                = "20000"
         protocol            = "TCP"
@@ -132,17 +132,16 @@ loadbalancer_config_list = [{
 }]
 
 vm_config_list = [{
-    vm_name                     = "client-vm"
-    role                        = "client"
-    network_role                = "client"
-    subnet_name                 = "client-subnet"
-    security_group_name         = "client-sg"
-    associate_public_ip_address = true
+  vm_name                     = "client-vm"
+  role                        = "client"
+  network_role                = "client"
+  subnet_name                 = "client-subnet"
+  security_group_name         = "client-sg"
+  associate_public_ip_address = true
   },
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    network_role                = "server"
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true

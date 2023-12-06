@@ -1,5 +1,5 @@
-scenario_type  = "perf-eval"
-scenario_name  = "lb-iperf"
+scenario_type   = "perf-eval"
+scenario_name   = "lb-iperf"
 deletion_delay  = "2h"
 public_ip_names = ["client-pip", "server-pip", "lb-pip"]
 network_config_list = [
@@ -131,7 +131,7 @@ loadbalancer_config_list = [{
       backend_port            = 20002
       enable_tcp_reset        = false
       idle_timeout_in_minutes = 4
-    }]
+  }]
 }]
 
 vm_config_list = [{
