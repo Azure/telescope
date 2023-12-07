@@ -1,19 +1,19 @@
 scenario_name   = "aks-502-lb-https"
 scenario_type   = "issue-repro"
 deletion_delay  = "4h"
-public_ip_names = ["appGateway-pip", "client-pip"]
+public_ip_names = ["app-gateway-pip", "client-pip"]
 network_config_list = [
   {
-    role                        = "aksNetwork"
+    role                        = "aks-network"
     vnet_name                   = "repro502-vnet"
     vnet_address_space          = "10.10.0.0/16"
-    subnet_names                = ["aksNetwork-ingress", "aksNetwork-aks"]
+    subnet_names                = ["aks-network-ingress", "aks-network-aks"]
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
-    network_security_group_name = "aksNetwork-nsg"
+    network_security_group_name = "aks-network-nsg"
     nic_public_ip_associations = [
       {
         nic_name              = "client-nic"
-        subnet_name           = "aksNetwork-aks"
+        subnet_name           = "aks-network-aks"
         ip_configuration_name = "client-ipconfig"
         public_ip_name        = "client-pip"
     }]
@@ -39,8 +39,8 @@ appgateway_config_list = [
   {
     role            = "ingress"
     appgateway_name = "error_502"
-    public_ip_name  = "appGateway-pip"
-    subnet_name     = "aksNetwork-ingress"
+    public_ip_name  = "app-gateway-pip"
+    subnet_name     = "aks-network-ingress"
     appgateway_probes = [
       {
         name     = "aks-https"
@@ -172,9 +172,9 @@ appgateway_config_list = [
 aks_config_list = [
   {
     role           = "ingress"
-    aks_name       = "aksInstance"
+    aks_name       = "aks-instance"
     dns_prefix     = "repro-502"
-    subnet_name    = "aksNetwork-aks"
+    subnet_name    = "aks-network-aks"
     network_plugin = "azure"
     default_node_pool = {
       name                         = "default"
