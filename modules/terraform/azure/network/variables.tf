@@ -12,7 +12,7 @@ variable "location" {
 
 variable "public_ips" {
   description = "Map of public IP names to IDs"
-  type = map(string)
+  type        = map(string)
 }
 
 variable "accelerated_networking" {
@@ -23,7 +23,7 @@ variable "accelerated_networking" {
 
 variable "network_config" {
   type = object({
-    role                 = string
+    role                        = string
     vnet_name                   = string
     vnet_address_space          = string
     subnet_names                = list(string)

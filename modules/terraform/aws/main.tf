@@ -1,9 +1,13 @@
 locals {
-  region         = lookup(var.json_input, "region", "us-east-1")
-  zone           = lookup(var.json_input, "zone", "us-east-1b")
-  machine_type   = lookup(var.json_input, "machine_type", "m5.4xlarge")
-  run_id         = lookup(var.json_input, "run_id", "123456")
-  user_data_path = lookup(var.json_input, "user_data_path", "")
+  region                    = lookup(var.json_input, "region", "us-east-1")
+  zone                      = lookup(var.json_input, "zone", "us-east-1b")
+  machine_type              = lookup(var.json_input, "machine_type", "m5.4xlarge")
+  run_id                    = lookup(var.json_input, "run_id", "123456")
+  user_data_path            = lookup(var.json_input, "user_data_path", "")
+  data_disk_size_gb         = lookup(var.json_input, "data_disk_size_gb", null)
+  data_disk_volume_type     = lookup(var.json_input, "data_disk_volume_type", "")
+  data_disk_iops_read_write = lookup(var.json_input, "data_disk_iops_read_write", null)
+  data_disk_mbps_read_write = lookup(var.json_input, "data_disk_mbps_read_write", null)
 
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
@@ -54,8 +58,15 @@ module "virtual_network" {
 module "virtual_machine" {
   for_each = local.vm_config_map
 
-  source              = "./virtual-machine"
-  vm_config           = each.value
+  source = "./virtual-machine"
+  vm_config = merge(each.value, {
+    data_disk_config = (local.data_disk_volume_type == null || local.user_data_path == "") ? null : {
+      data_disk_volume_type     = local.data_disk_volume_type
+      data_disk_size_gb         = tonumber(local.data_disk_size_gb)
+      data_disk_iops_read_write = tonumber(local.data_disk_iops_read_write)
+      data_disk_mbps_read_write = tonumber(local.data_disk_mbps_read_write)
+    }
+  })
   admin_key_pair_name = aws_key_pair.admin_key_pair.key_name
   tags                = local.tags
   run_id              = local.run_id

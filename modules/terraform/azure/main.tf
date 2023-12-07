@@ -1,11 +1,23 @@
 locals {
-  region                 = lookup(var.json_input, "region", "East US")
-  machine_type           = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
+  region                           = lookup(var.json_input, "region", "East US")
+  machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
   aks_machine_type       = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
-  accelerated_networking = lookup(var.json_input, "accelerated_networking", true)
-  run_id                 = lookup(var.json_input, "run_id", "123456")
-  user_data_path         = lookup(var.json_input, "user_data_path", "")
-  resource_group_name    = "${var.scenario_type}-${var.scenario_name}-${local.run_id}"
+  accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
+  run_id                           = lookup(var.json_input, "run_id", "123456")
+  resource_group_name              = "${var.scenario_type}-${var.scenario_name}-${local.run_id}"
+  user_data_path                   = lookup(var.json_input, "user_data_path", "")
+  data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
+  data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")
+  data_disk_iops_read_write        = lookup(var.json_input, "data_disk_iops_read_write", null)
+  data_disk_mbps_read_write        = lookup(var.json_input, "data_disk_mbps_read_write", null)
+  ultra_ssd_enabled                = lookup(var.json_input, "ultra_ssd_enabled", false)
+  data_disk_iops_read_only         = lookup(var.json_input, "data_disk_iops_read_only", null)
+  data_disk_mbps_read_only         = lookup(var.json_input, "data_disk_mbps_read_only", null)
+  data_disk_tier                   = lookup(var.json_input, "data_disk_tier", null)
+  data_disk_caching                = lookup(var.json_input, "data_disk_caching", "ReadOnly")
+  storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
+  storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
+  storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
@@ -109,13 +121,13 @@ module "data_disk" {
   location                       = local.region
   data_disk_name                 = each.value.disk_name
   tags                           = local.tags
-  data_disk_storage_account_type = var.data_disk_storage_account_type
-  data_disk_size_gb              = var.data_disk_size_gb
-  data_disk_iops_read_write      = var.data_disk_iops_read_write
-  data_disk_mbps_read_write      = var.data_disk_mbps_read_write
-  data_disk_iops_read_only       = var.data_disk_iops_read_only
-  data_disk_mbps_read_only       = var.data_disk_mbps_read_only
-  data_disk_tier                 = var.data_disk_tier
+  data_disk_storage_account_type = local.data_disk_storage_account_type
+  data_disk_size_gb              = local.data_disk_size_gb
+  data_disk_iops_read_write      = local.data_disk_iops_read_write
+  data_disk_mbps_read_write      = local.data_disk_mbps_read_write
+  data_disk_iops_read_only       = local.data_disk_iops_read_only
+  data_disk_mbps_read_only       = local.data_disk_mbps_read_only
+  data_disk_tier                 = local.data_disk_tier
   zone                           = each.value.zone
 }
 
@@ -132,7 +144,7 @@ module "virtual_machine" {
   public_key          = tls_private_key.admin-ssh-key.public_key_openssh
   user_data_path      = local.user_data_path
   tags                = local.tags
-  ultra_ssd_enabled   = var.ultra_ssd_enabled
+  ultra_ssd_enabled   = local.ultra_ssd_enabled
 }
 
 module "virtual_machine_scale_set" {

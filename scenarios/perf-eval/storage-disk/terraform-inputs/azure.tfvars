@@ -1,5 +1,5 @@
-scenario_type  = "perf-eval"
-scenario_name  = "storage-disk"
+scenario_type   = "perf-eval"
+scenario_name   = "storage-disk"
 deletion_delay  = "2h"
 public_ip_names = ["egress-pip"]
 network_config_list = [
@@ -27,7 +27,7 @@ network_config_list = [
       destination_port_range     = "2222"
       source_address_prefix      = "*"
       destination_address_prefix = "*"
-      }]
+    }]
   }
 ]
 loadbalancer_config_list = []
@@ -52,7 +52,7 @@ vm_config_list = [{
   create_vm_extension = true
   }
 ]
-vmss_config_list = []
+vmss_config_list                  = []
 nic_backend_pool_association_list = []
 
 data_disk_association_list = [{

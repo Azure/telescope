@@ -41,8 +41,8 @@ variable "loadbalancer_config" {
 
 variable "public_ip_id" {
   description = "Value of the public IP id"
-  type     = string
-  default = null
+  type        = string
+  default     = null
 }
 
 variable "tags" {

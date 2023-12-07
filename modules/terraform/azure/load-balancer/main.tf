@@ -40,15 +40,15 @@ module "lb-rule" {
   source   = "./lb-rule"
   for_each = local.lb_rules_map
 
-  role                           = each.key
-  type                           = each.value.type
-  protocol                       = each.value.protocol
-  frontend_port                  = each.value.frontend_port
-  backend_port                   = each.value.backend_port
-  lb_id                          = azurerm_lb.lb.id
-  lb_pool_id                     = azurerm_lb_backend_address_pool.lb-pool.id
-  probe_id                       = azurerm_lb_probe.lb-probe.id
-  rule_count                     = each.value.rule_count
-  enable_tcp_reset               = each.value.enable_tcp_reset
-  frontend_ip_config_role        = local.role
+  role                    = each.key
+  type                    = each.value.type
+  protocol                = each.value.protocol
+  frontend_port           = each.value.frontend_port
+  backend_port            = each.value.backend_port
+  lb_id                   = azurerm_lb.lb.id
+  lb_pool_id              = azurerm_lb_backend_address_pool.lb-pool.id
+  probe_id                = azurerm_lb_probe.lb-probe.id
+  rule_count              = each.value.rule_count
+  enable_tcp_reset        = each.value.enable_tcp_reset
+  frontend_ip_config_role = local.role
 }
