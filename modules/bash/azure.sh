@@ -77,9 +77,11 @@ azure_aks_start_nginx()
 {
   local resource_group=$1
   local aksName=$2
-  local yml_file=$3
-  az aks get-credentials -n $resource_group  -g $aksName
-  kubectl apply -f $yml_file
+
+  az aks get-credentials -n $aksName -g $resource_group
+  kubectl apply -f "nginxCert.yml"
+  kubectl apply -f "aksSetup.yml"
+
 
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
