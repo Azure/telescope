@@ -64,7 +64,7 @@ INPUT_JSON=$(jq -n \
 --arg aks_machine_type $AKS_MACHINE_TYPE \
 --arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path, aks_machine_type: $aks_machine_type}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
