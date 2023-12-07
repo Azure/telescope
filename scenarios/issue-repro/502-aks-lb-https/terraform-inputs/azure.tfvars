@@ -37,7 +37,7 @@ vmss_config_list                  = []
 nic_backend_pool_association_list = []
 appgateway_config_list = [
   {
-    role            = "aksNetwork"
+    role            = "ingress"
     appgateway_name = "error_502"
     public_ip_name  = "appGateway-pip"
     subnet_name     = "aksNetwork-ingress"
@@ -171,7 +171,7 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role           = "aksNetwork"
+    role           = "ingress"
     aks_name       = "aksInstance"
     dns_prefix     = "repro-502"
     subnet_name    = "aksNetwork-aks"
