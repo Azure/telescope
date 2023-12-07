@@ -63,6 +63,26 @@ run_jmeter() {
   done
 }
 
+run_jmeter_appgateway_aks()
+{
+  local ingress_ip_address=$1
+  local egress_ip_address=$2
+  local scenario_name=$3
+  local privatekey_path=$4
+  #you can have lb or direct 
+  local backend_type=$5
+
+  local jmeter_file_source=./scenarios/${scenario_name}/bash-scripts
+  local jmeter_file_dest=/tmp/jmeter
+
+  echo "Make temp directory"
+  run_ssh $privatekey_path ubuntu $egress_ip_address "mkdir -p $jmeter_file_dest"
+  echo "Copy properties and jmx files"
+  run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/jmeter.properties" "${jmeter_file_dest}/jmeter.properties"
+  run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/https_test.jmx" "${jmeter_file_dest}/https_test.jmx"
+
+}
+
 collect_result_jmeter() {
   local result_dir=$1
   local result_file=$2
