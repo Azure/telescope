@@ -1,0 +1,45 @@
+scenario_type  = "perf-eval"
+scenario_name  = "storage-blob"
+deletion_delay = "2h"
+network_config_list = [
+  {
+    name_prefix            = "client"
+    vpc_name               = "client-vpc"
+    vpc_cidr_block         = "10.0.0.0/16"
+    subnet_names           = ["client-subnet"]
+    subnet_cidr_block      = ["10.0.0.0/24"]
+    security_group_name    = "client-sg"
+    route_table_cidr_block = "0.0.0.0/0"
+    sg_rules = {
+      ingress = [
+        {
+          from_port  = 2222
+          to_port    = 2222
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        }
+      ]
+      egress = [
+        {
+          from_port  = 0
+          to_port    = 0
+          protocol   = "-1"
+          cidr_block = "0.0.0.0/0"
+        }
+      ]
+    }
+  }
+]
+
+vm_config_list = [{
+  vm_name                     = "client-vm"
+  name_prefix                 = "client"
+  subnet_name                 = "client-subnet"
+  security_group_name         = "client-sg"
+  associate_public_ip_address = true
+  }
+]
+
+loadbalancer_config_list = []
+
+bucket_name_prefix = "perfevalblob" # should be same with $BUCKET_NAME_PREFIX in the script

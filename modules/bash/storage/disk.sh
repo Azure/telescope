@@ -36,6 +36,22 @@ mount_disk_on_remote_vm() {
       local command="sudo chmod 777 $mount_point"
       echo "Run command: $command"
       run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+  elif [ "$CLOUD" == "aws" ]; then
+      local command="sudo mkfs.ext4 -E nodiscard /dev/nvme1n1"
+      echo "Run command: $command"
+      run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+
+      local command="sudo mkdir $mount_point"
+      echo "Run command: $command"
+      run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+
+      local command="sudo mount /dev/nvme1n1 $mount_point"
+      echo "Run command: $command"
+      run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+
+      local command="sudo chmod 777 $mount_point"
+      echo "Run command: $command"
+      run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
   else
       echo "Unsupported cloud provider: $CLOUD"
       exit 1
