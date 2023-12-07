@@ -17,13 +17,14 @@ RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
 REGION=eastus
 MACHINE_TYPE=standard_D16_v3
+AKS_MACHINE_TYPE=standard_D16_v3
 ACCERLATED_NETWORKING=true
 SERVER_NAME=server-vm
 CLIENT_NAME=client-vm
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 SCRIPT_MODULES_DIR=modules/bash
 USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_NAME/bash-scripts
-TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
+TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 SSH_KEY_PATH=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 TCP_THREAD_MODE=multi
 UDP_THREAD_MODE=single
@@ -60,9 +61,10 @@ INPUT_JSON=$(jq -n \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --arg machine_type $MACHINE_TYPE \
+--arg aks_machine_type $AKS_MACHINE_TYPE \
 --arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path, aks_machine_type: $aks_machine_type}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
