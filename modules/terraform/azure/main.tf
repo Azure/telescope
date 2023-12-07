@@ -72,7 +72,7 @@ module "aks" {
   source              = "./aks"
   resource_group_name = module.resource_group.name
   location            = local.region
-  vm_sku              = local.sku_machine_type
+  vm_sku              = local.aks_machine_type
   subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
   tags                = local.tags
