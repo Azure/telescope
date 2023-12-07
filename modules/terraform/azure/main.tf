@@ -1,7 +1,7 @@
 locals {
   region                           = lookup(var.json_input, "region", "East US")
   machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
-  aks_machine_type       = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
+  aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   resource_group_name              = "${var.scenario_type}-${var.scenario_name}-${local.run_id}"
