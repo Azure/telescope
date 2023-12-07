@@ -3,7 +3,7 @@
 set -e
 
 sudo apt-get -qq update
-sudo apt-get -qq install ca-certificates curl gnupg
+sudo apt-get -qq install ca-certificates curl gnupg jq
 
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
