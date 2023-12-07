@@ -40,7 +40,7 @@ variable "deletion_delay" {
 variable "public_ip_names" {
   description = "A list of public IP names"
   type        = list(string)
-  default     = ["ingress-pip", "egress-pip"]
+  default     = []
 }
 
 variable "network_config_list" {
