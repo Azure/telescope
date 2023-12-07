@@ -276,13 +276,3 @@ variable "ultra_ssd_enabled" {
   type        = bool
   default     = false
 }
-
-variable "vm_machine_type" {
-  description = "override machine sku"
-  type = list(object({
-    vm_name      = string
-    machine_type = string
-  }))
-  default = []
-}
-

@@ -206,10 +206,3 @@ vm_config_list = [{
   create_vm_extension = true
   }
 ]
-
-vm_machine_type = [
-  {
-    vm_name      = "client-vm"
-    machine_type = "Standard_D4s_v5"
-  }
-]
