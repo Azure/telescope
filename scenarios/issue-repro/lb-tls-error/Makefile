@@ -15,7 +15,7 @@ all: build-server build-client
 
 gen-certs:
 	@echo "Generating certificates..."
-	@(cd $(BASE_DIR) && ./gen_certs.sh)
+	@(cd $(BASE_DIR) && ./gen-certs.sh)
 
 clean-certs:
 	@echo "Cleaning certs..."
