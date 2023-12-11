@@ -9,7 +9,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
   location            = var.location
   resource_group_name = var.resource_group_name
   dns_prefix          = var.aks_config.dns_prefix
-  node_resource_group = "MC_${var.resource_group_name}"
   tags = merge(
     var.tags,
     {
