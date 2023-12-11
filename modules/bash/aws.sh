@@ -72,6 +72,8 @@ aws_instance_ip_address() {
   local instance_id=$1
   local ip_type=$2
   
+  echo instance_id: $instance_id
+  echo ip_type: $ip_type
   if [ "$ip_type" == "public" ]; then
     ip_address=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
   elif [ "$ip_type" == "private" ]; then
