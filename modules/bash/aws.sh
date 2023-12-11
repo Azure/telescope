@@ -88,8 +88,9 @@ aws_lb_dns_name() {
   local RUN_ID=$2
 
   lb_arn=$(aws resourcegroupstaggingapi get-resources --tag-filters Key=run_id,Values=$RUN_ID Key=role,Values=$ROLE --resource-type-filters elasticloadbalancing:loadbalancer --query ResourceTagMappingList[].ResourceARN --output text)
-  echo "Load balancer ARN: $lb_arn"
+  echo "Load balancer ARN: $lb_arn" >&2
 
   lb_dns_name=$(aws elbv2 describe-load-balancers --load-balancer-arns $lb_arn --query LoadBalancers[].DNSName --output text)
+  echo "$PREFIX Public IP Address: $lb_dns_name" >&2
   echo  $lb_dns_name
 }
