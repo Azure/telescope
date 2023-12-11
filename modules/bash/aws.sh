@@ -91,6 +91,6 @@ aws_lb_dns_name() {
   echo "Load balancer ARN: $lb_arn" >&2
 
   lb_dns_name=$(aws elbv2 describe-load-balancers --load-balancer-arns $lb_arn --query LoadBalancers[].DNSName --output text)
-  echo "$PREFIX Public IP Address: $lb_dns_name" >&2
+  echo "$ROLE Public IP Address: $lb_dns_name" >&2
   echo  $lb_dns_name
 }
