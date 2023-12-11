@@ -1,7 +1,7 @@
 provider "azurerm" {
   features {}
 }
-# Apply run block to create the bucket
+# Apply run block to create the resource group
 run "create_resource_group" {
   command = plan
   variables {

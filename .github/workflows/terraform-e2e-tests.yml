@@ -1,0 +1,92 @@
+name: Terraform E2E tests
+
+on:
+  pull_request:
+
+env:
+  OWNER: terraform_e2e_testing
+  AZURE_REGION: eastus
+  AWS_REGION: us-east-1
+  ZONE: us-east1-b
+  MACHINE_TYPE: Standard_D2s_v5
+  SCENARIO_TYPE: tests
+  SCENARIO_NAME: e2e
+  TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
+  TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
+  TERRAFORM_INPUT_FILE: $GITHUB_WORKSPACE/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs
+  USER_DATA_PATH: $GITHUB_WORKSPACE/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+jobs:
+  Terraform-e2e-testing:
+    permissions: read-all
+    strategy:
+      max-parallel: 3
+      matrix:
+        cloud: [azure, aws]
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Get job id and set env
+          run: |
+            job_name="E2E testing for ${{ matrix.cloud }}"
+            id=$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r --arg jobName "$job_name" '.jobs[] | select(.name==$jobName)' | jq .id)
+            echo "RUN_ID=$id" >> "$GITHUB_ENV"
+            echo "RESULT_PATH=/tmp/$id" >> "$GITHUB_ENV"
+            echo "REGION=${{ matrix.cloud == 'azure' ? env.AZURE_REGION : env.AWS_REGION }}" >> "$GITHUB_ENV"
+            echo "TERRAFORM_MODULES_DIR=${{ matrix.cloud == 'azure' ? env.TERRAFORM_AZURE_MODULES_DIR : env.TERRAFORM_AWS_MODULES_DIR }}" >> "$GITHUB_ENV"
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        - name: Create JSON Input
+          run: |
+            INPUT_JSON_OBJECT=$(jq -n \
+            --arg owner "${{ env.OWNER }}" \
+            --arg run_id "$RUN_ID" \
+            --arg region "$REGION" \
+            --arg machine_type "$MACHINE_TYPE" \
+            --arg accelerated_networking false \
+            --arg user_data_path "${{ env.USER_DATA_PATH }}" \
+            --arg zone "${{ env.ZONE }}
+            '{
+            owner: $owner, 
+            run_id: $run_id, 
+            region: $region, 
+            machine_type: $machine_type, 
+            accelerated_networking: $accelerated_networking, 
+            user_data_path: $user_data_path
+            } + (if $is_aws then { zone: $zone } else {} end)')
+            INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
+            echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Azure login
+          if: ${{ matrix.cloud == 'azure' }}
+          uses: azure/login@v1
+          with:
+            creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+        - name: AWS login
+          if: ${{ matrix.cloud == 'aws' }}
+          uses: aws-actions/configure-aws-credentials@v2
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ env.AWS_REGION }}
+
+        - name: Setup Terraform
+          uses: hashicorp/setup-terraform@v2
+          with:
+            terraform_version: 1.5.6
+            
+        - name: Terraform Init
+          working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+          run: terraform init
+        
+        - name: Terraform Apply 
+          if: always()
+          working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
+          run: terraform apply -var-file "${{ env.TERRAFORM_INPUT_FILE}}/${{ matrix.cloud }}.tfvars" -var="json_input=$INPUT_JSON" --auto-approve
+          
+        - name: Terraform Destroy
+          if: always()
+          working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
+          run: terraform destroy -var-file "${{ env.TERRAFORM_INPUT_FILE}}/${{ matrix.cloud }}.tfvars" -var="json_input=$INPUT_JSON" --auto-approve
