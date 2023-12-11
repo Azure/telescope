@@ -3,44 +3,45 @@
 source ./modules/bash/utils.sh
 
 aws_check_target() {
-  local target_group_name=$1; shift
-  local target_suffix_array=("$@")
+  local ROLE=$1
+  local RUN_ID=$2
 
   echo "Check target health"
-  for target in "${target_suffix_array[@]}"
+  target_group_arns=($(aws resourcegroupstaggingapi get-resources --tag-filters Key=run_id,Values=$RUN_ID Key=role,Values=$ROLE --resource-type-filters elasticloadbalancing:targetgroup --query ResourceTagMappingList[].ResourceARN --output text))
+
+  for target in "${target_group_arns[@]}"
   do
     max_retries=10
     i=0
-    name="${target_group_name}-$target"
-    echo "Target group name: $name"
+    echo "Target group ARN: $target"
 
     while true
     do
-      nlb_target_group_arn=$(aws elbv2 describe-target-groups --names $name --query 'TargetGroups[0].TargetGroupArn' --output text)
-      echo "Target group ARN: $nlb_target_group_arn"
-      nlb_target_group_health=$(aws elbv2 describe-target-health --target-group-arn $nlb_target_group_arn --query 'TargetHealthDescriptions[0].TargetHealth' --output text)
-      echo "Target group health: $nlb_target_group_health"
+      target_group_health=$(aws elbv2 describe-target-health --target-group-arn $target --query 'TargetHealthDescriptions[0].TargetHealth.State' --output text)
+      echo "Target group health: $target_group_health"
       i=$((i+1))
 
-      if [ "$nlb_target_group_health" = "healthy" ]; then
+      if [ "$target_group_health" = "healthy" ]; then
         break
       elif [ "$i" -eq "$max_retries" ]; then
-        echo "Target group $name not healthy after $max_retries retries"
+        echo "Target group $target not healthy after $max_retries retries"
         exit 1
       fi
-      
+
       sleep 30
     done
   done
 }
 
 aws_check_ec2() {
-  local instance_name=$1
+  local ROLE=$1
+  local RUN_ID=$2
 
-  echo "Check ec2 health for $instance_name"
-  instance_id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$instance_name" --query "Reservations[].Instances[].InstanceId[]" --output text)
+  echo "Check ec2 health for instance with role $ROLE and tag $RUN_ID"
+  instance_id=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:run_id,Values=$RUN_ID" "Name=tag:role,Values=$ROLE" --query "Reservations[].Instances[].InstanceId[]" --output text)
+  echo "Instance ID: $instance_id"
   if [ -z "$instance_id" ]; then
-    echo "No instance with name $instance_name found."
+    echo "No instance with role $ROLE and tag $RUN_ID found."
     exit 1
   fi
 
@@ -64,16 +65,17 @@ aws_check_ec2() {
       fi
       i=$((i+1))
   done
+  echo $instance_id
 }
 
 aws_instance_ip_address() {
-  local instance_name=$1
+  local instance_id=$1
   local ip_type=$2
-
+  
   if [ "$ip_type" == "public" ]; then
-    ip_address=$(aws ec2 describe-instances --filters Name=tag:Name,Values=$instance_name --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+    ip_address=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
   elif [ "$ip_type" == "private" ]; then
-    ip_address=$(aws ec2 describe-instances --filters Name=tag:Name,Values=$instance_name --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+    ip_address=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
   else
     ip_address="invalid ip type $ip_type"
   fi
@@ -82,8 +84,12 @@ aws_instance_ip_address() {
 }
 
 aws_lb_dns_name() {
-  local load_balancer_name=$1
+  local ROLE=$1
+  local RUN_ID=$2
 
-  dns_name=$(aws elbv2 describe-load-balancers --names $load_balancer_name --query 'LoadBalancers[0].DNSName' --output text)
-  echo $dns_name
+  lb_arn=$(aws resourcegroupstaggingapi get-resources --tag-filters Key=run_id,Values=$RUN_ID Key=role,Values=$ROLE --resource-type-filters elasticloadbalancing:loadbalancer --query ResourceTagMappingList[].ResourceARN --output text)
+  echo "Load balancer ARN: $lb_arn"
+
+  lb_dns_name=$(aws elbv2 describe-load-balancers --load-balancer-arns $lb_arn --query LoadBalancers[].DNSName --output text)
+  echo  $lb_dns_name
 }
