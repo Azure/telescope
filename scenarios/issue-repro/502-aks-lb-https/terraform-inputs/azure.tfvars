@@ -28,6 +28,17 @@ network_config_list = [
         destination_port_range     = "65200-65535"
         source_address_prefix      = "GatewayManager"
         destination_address_prefix = "*"
+      },
+      {
+        name                       = "server-nsr-ssh"
+        priority                   = 102
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "2222"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
       }
     ]
   }
