@@ -1,6 +1,7 @@
 locals {
   region                           = lookup(var.json_input, "region", "East US")
   machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
+  aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
@@ -16,7 +17,6 @@ locals {
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
-
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
@@ -83,7 +83,7 @@ module "aks" {
   source              = "./aks"
   resource_group_name = module.resource_group.name
   location            = local.region
-  vm_sku              = local.machine_type
+  vm_sku              = local.aks_machine_type
   subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
   tags                = local.tags

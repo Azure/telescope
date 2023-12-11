@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: contoso
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: contoso
+    app.kubernetes.io/name: contoso
+  name: contoso
+  namespace: contoso
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: contoso
+      app.kubernetes.io/name: contoso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: contoso
+        app.kubernetes.io/name: contoso
+    spec:
+      containers:
+      - image: nginx:1.16.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: contoso
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: default
+      serviceAccountName: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: contoso
+    app.kubernetes.io/name: contoso
+  name: contoso
+  namespace: contoso
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/instance: contoso
+    app.kubernetes.io/name: contoso
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  labels:
+    app.kubernetes.io/instance: contoso
+    app.kubernetes.io/name: contoso
+  name: contoso
+  namespace: contoso
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: test.contoso.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: contoso
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  - host: backend-http.contoso.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: contoso
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  - host: backend-https.contoso.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: contoso
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - test.contoso.com
+    - backend-http.contoso.com
+    - backend-https.contoso.com

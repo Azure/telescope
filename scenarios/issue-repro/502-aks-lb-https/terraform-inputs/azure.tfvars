@@ -1,16 +1,22 @@
 scenario_name   = "aks-502-lb-https"
 scenario_type   = "issue-repro"
 deletion_delay  = "4h"
-public_ip_names = ["appGateway-pip"]
+public_ip_names = ["app-gateway-pip", "client-pip"]
 network_config_list = [
   {
-    role                        = "aksNetwork"
+    role                        = "aks-network"
     vnet_name                   = "repro502-vnet"
     vnet_address_space          = "10.10.0.0/16"
-    subnet_names                = ["aksNetwork-ingress", "aksNetwork-aks"]
+    subnet_names                = ["aks-network-ingress", "aks-network-aks"]
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
-    network_security_group_name = "aksNetwork-nsg"
-    nic_public_ip_associations  = []
+    network_security_group_name = "aks-network-nsg"
+    nic_public_ip_associations = [
+      {
+        nic_name              = "client-nic"
+        subnet_name           = "aks-network-aks"
+        ip_configuration_name = "client-ipconfig"
+        public_ip_name        = "client-pip"
+    }]
     nsr_rules = [
       {
         name                       = "appGateway"
@@ -27,15 +33,14 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list          = []
-vm_config_list                    = []
 vmss_config_list                  = []
 nic_backend_pool_association_list = []
 appgateway_config_list = [
   {
-    role            = "aksNetwork"
+    role            = "ingress"
     appgateway_name = "error_502"
-    public_ip_name  = "appGateway-pip"
-    subnet_name     = "aksNetwork-ingress"
+    public_ip_name  = "app-gateway-pip"
+    subnet_name     = "aks-network-ingress"
     appgateway_probes = [
       {
         name     = "aks-https"
@@ -166,10 +171,10 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role           = "aksNetwork"
-    aks_name       = "aksInstance"
+    role           = "ingress"
+    aks_name       = "aks-instance"
     dns_prefix     = "repro-502"
-    subnet_name    = "aksNetwork-aks"
+    subnet_name    = "aks-network-aks"
     network_plugin = "azure"
     default_node_pool = {
       name                         = "default"
@@ -184,5 +189,20 @@ aks_config_list = [
         node_count = 3
       }
     ]
+  }
+]
+
+vm_config_list = [{
+  role           = "client"
+  vm_name        = "client-vm"
+  nic_name       = "client-nic"
+  admin_username = "adminuser"
+  source_image_reference = {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = true
   }
 ]
