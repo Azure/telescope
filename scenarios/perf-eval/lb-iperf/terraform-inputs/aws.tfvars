@@ -134,6 +134,7 @@ loadbalancer_config_list = [{
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
+  network_role                = "client"
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true

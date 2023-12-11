@@ -40,7 +40,7 @@ variable "deletion_delay" {
 variable "public_ip_names" {
   description = "A list of public IP names"
   type        = list(string)
-  default     = ["ingress-pip", "egress-pip"]
+  default     = []
 }
 
 variable "network_config_list" {
@@ -70,6 +70,76 @@ variable "network_config_list" {
       destination_address_prefix = string
     }))
   }))
+  default = []
+}
+
+variable "appgateway_config_list" {
+  description = "List of app gateway configurations"
+  type = list(object({
+    role            = string
+    appgateway_name = string
+    public_ip_name  = string
+    subnet_name     = string
+    appgateway_probes = list(object({
+      name     = string
+      protocol = string
+    }))
+    appgateway_backend_address_pool = list(object({
+      name         = string
+      ip_addresses = list(string)
+    }))
+    appgateway_frontendport = object({
+      name = string
+      port = string
+    })
+    appgateway_backend_http_settings = list(object({
+      name                  = string
+      host_name             = string
+      cookie_based_affinity = string
+      port                  = number
+      protocol              = string
+      request_timeout       = number
+      probe_name            = string
+    }))
+    appgateway_http_listeners = list(object({
+      name                           = string
+      frontend_ip_configuration_name = string
+      frontend_port_name             = string
+      protocol                       = string
+      host_name                      = string
+    }))
+    appgateway_request_routing_rules = list(object({
+      name                       = string
+      priority                   = number
+      rule_type                  = string
+      http_listener_name         = string
+      backend_address_pool_name  = string
+      backend_http_settings_name = string
+    }))
+  }))
+  default = []
+}
+
+variable "aks_config_list" {
+  type = list(object({
+    role           = string
+    aks_name       = string
+    subnet_name    = string
+    dns_prefix     = string
+    network_plugin = string
+    default_node_pool = object({
+      name                         = string
+      node_count                   = number
+      os_disk_type                 = string
+      only_critical_addons_enabled = bool
+      temporary_name_for_rotation  = string
+    })
+    extra_node_pool = list(object({
+      name       = string
+      node_count = number
+    }))
+  }))
+  default = []
 }
 
 variable "loadbalancer_config_list" {
@@ -93,6 +163,7 @@ variable "loadbalancer_config_list" {
       idle_timeout_in_minutes = number
     }))
   }))
+  default = []
 }
 
 variable "vm_config_list" {
@@ -111,6 +182,7 @@ variable "vm_config_list" {
     })
     create_vm_extension = bool
   }))
+  default = []
 }
 
 variable "vmss_config_list" {
@@ -131,6 +203,7 @@ variable "vmss_config_list" {
       version   = string
     })
   }))
+  default = []
 }
 
 variable "nic_backend_pool_association_list" {
@@ -141,6 +214,7 @@ variable "nic_backend_pool_association_list" {
     vm_name               = string
     ip_configuration_name = string
   }))
+  default = []
 }
 
 variable "data_disk_config_list" {
@@ -159,53 +233,4 @@ variable "data_disk_association_list" {
     vm_name        = string
   }))
   default = []
-}
-
-variable "data_disk_storage_account_type" {
-  description = "Value of the storage_account_type"
-  type        = string
-  default     = "" # Standard_LRS, StandardSSD_ZRS, Premium_LRS, PremiumV2_LRS, Premium_ZRS, StandardSSD_LRS or UltraSSD_LRS
-}
-
-variable "data_disk_size_gb" {
-  description = "Value of the disk_size_gb"
-  type        = string
-  default     = ""
-}
-
-
-variable "data_disk_iops_read_write" {
-  description = "Value of the disk_iops_read_write"
-  type        = number
-  default     = null
-}
-
-variable "data_disk_mbps_read_write" {
-  description = "Value of the disk_mbps_read_write"
-  type        = number
-  default     = null
-}
-
-variable "data_disk_iops_read_only" {
-  description = "Value of the isk_iops_read_only"
-  type        = number
-  default     = null
-}
-
-variable "data_disk_mbps_read_only" {
-  description = "Value of the disk_mbps_read_only"
-  type        = number
-  default     = null
-}
-
-variable "data_disk_tier" {
-  description = "Value of the tier"
-  type        = string
-  default     = null
-}
-
-variable "ultra_ssd_enabled" {
-  description = "Value of ultra_ssd_enabled, only for ultar ssd sku"
-  type        = bool
-  default     = false
 }

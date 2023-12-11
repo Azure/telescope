@@ -1,5 +1,5 @@
-scenario_type  = "perf-eval"
-scenario_name  = "lb-jmeter"
+scenario_type   = "perf-eval"
+scenario_name   = "lb-jmeter"
 deletion_delay  = "2h"
 public_ip_names = ["ingress-pip", "egress-pip"]
 network_config_list = [
