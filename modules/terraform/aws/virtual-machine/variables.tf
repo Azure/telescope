@@ -2,7 +2,7 @@ variable "vm_config" {
   description = "Configuration for virtual machine"
   type = object({
     vm_name                     = string
-    name_prefix                 = string
+    role                        = string
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
