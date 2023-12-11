@@ -4,7 +4,6 @@ locals {
   aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
-  resource_group_name              = "${var.scenario_type}-${var.scenario_name}-${local.run_id}"
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
   data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
   data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")
@@ -53,7 +52,7 @@ resource "tls_private_key" "admin-ssh-key" {
 
 module "resource_group" {
   source              = "./resource-group"
-  resource_group_name = local.resource_group_name
+  resource_group_name = local.run_id
   location            = local.region
   tags                = local.tags
 }
