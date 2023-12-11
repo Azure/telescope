@@ -37,15 +37,15 @@ aws_check_ec2() {
   local ROLE=$1
   local RUN_ID=$2
 
-  echo "Check ec2 health for instance with role $ROLE and tag $RUN_ID"
+  echo "Check ec2 health for instance with role $ROLE and tag $RUN_ID"  >&2
   instance_id=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:run_id,Values=$RUN_ID" "Name=tag:role,Values=$ROLE" --query "Reservations[].Instances[].InstanceId[]" --output text)
-  echo "Instance ID: $instance_id"
+  echo "Instance ID: $instance_id"  >&2
   if [ -z "$instance_id" ]; then
-    echo "No instance with role $ROLE and tag $RUN_ID found."
+    echo "No instance with role $ROLE and tag $RUN_ID found."  >&2
     exit 1
   fi
 
-  echo "Waiting for EC2 instance $instance_id to be running..."
+  echo "Waiting for EC2 instance $instance_id to be running..."  >&2
   aws ec2 wait instance-running --instance-ids $instance_id
 
   max_retries=10
@@ -54,27 +54,24 @@ aws_check_ec2() {
       instance_status=$(aws ec2 describe-instance-status --instance-ids $instance_id --query 'InstanceStatuses[*].InstanceStatus.Status' --output text)
 
       if [ "$instance_status" = "ok" ]; then
-        echo "EC2 instance $instance_id is healthy."
+        echo "EC2 instance $instance_id is healthy."  >&2
+        echo $instance_id
         break
       elif [ "$i" -eq "$max_retries" ]; then
-        echo "EC2 instance $instance_id not healthy after $max_retries retries"
+        echo "EC2 instance $instance_id not healthy after $max_retries retries"  >&2
         exit 1
       else
-        echo "EC2 instance $instance_id is not healthy yet. Waiting for 30 seconds before checking again..."
+        echo "EC2 instance $instance_id is not healthy yet. Waiting for 30 seconds before checking again..."  >&2
         sleep 30
       fi
       i=$((i+1))
   done
-
-  echo $instance_id
 }
 
 aws_instance_ip_address() {
   local instance_id=$1
   local ip_type=$2
   
-  echo instance_id: $instance_id
-  echo ip_type: $ip_type
   if [ "$ip_type" == "public" ]; then
     ip_address=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
   elif [ "$ip_type" == "private" ]; then
