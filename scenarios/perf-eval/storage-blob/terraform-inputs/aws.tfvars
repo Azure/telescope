@@ -3,7 +3,7 @@ scenario_name  = "storage-blob"
 deletion_delay = "2h"
 network_config_list = [
   {
-    name_prefix            = "client"
+    role                   = "client"
     vpc_name               = "client-vpc"
     vpc_cidr_block         = "10.0.0.0/16"
     subnet_names           = ["client-subnet"]
@@ -33,7 +33,7 @@ network_config_list = [
 
 vm_config_list = [{
   vm_name                     = "client-vm"
-  name_prefix                 = "client"
+  role                        = "client"
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
