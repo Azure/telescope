@@ -55,6 +55,7 @@ aws_check_ec2() {
 
       if [ "$instance_status" = "ok" ]; then
         echo "EC2 instance $instance_id is healthy."
+        echo $instance_id
         break
       elif [ "$i" -eq "$max_retries" ]; then
         echo "EC2 instance $instance_id not healthy after $max_retries retries"
@@ -65,7 +66,6 @@ aws_check_ec2() {
       fi
       i=$((i+1))
   done
-  echo $instance_id
 }
 
 aws_instance_ip_address() {
