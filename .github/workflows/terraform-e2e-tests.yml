@@ -31,8 +31,17 @@ jobs:
             id=$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r --arg jobName "$job_name" '.jobs[] | select(.name==$jobName)' | jq .id)
             echo "RUN_ID=$id" >> "$GITHUB_ENV"
             echo "RESULT_PATH=/tmp/$id" >> "$GITHUB_ENV"
-            echo "REGION=${{ matrix.cloud == 'azure' ? env.AZURE_REGION : env.AWS_REGION }}" >> "$GITHUB_ENV"
-            echo "TERRAFORM_MODULES_DIR=${{ matrix.cloud == 'azure' ? env.TERRAFORM_AZURE_MODULES_DIR : env.TERRAFORM_AWS_MODULES_DIR }}" >> "$GITHUB_ENV"
+            if [ "${{ matrix.cloud }}" == 'azure' ]; then
+             echo "REGION=${{ env.AZURE_REGION }}" >> "$GITHUB_ENV
+             echo "TERRAFORM_MODULES_DIR=${{ env.TERRAFORM_AZURE_MODULES_DIR }}" >> "$GITHUB_ENV"
+             echo "TERRAFORM_INPUT_FILE=${{ env.TERRAFORM_INPUT_FILE }}/azure.tfvars" >> "$GITHUB_ENV"
+            else
+             echo "REGION=${{ env.AWS_REGION }}" >> "$GITHUB_ENV"
+             echo "TERRAFORM_MODULES_DIR=${{ env.TERRAFORM_AWS_MODULES_DIR }}"
+             echo "TERRAFORM_INPUT_FILE=${{ env.TERRAFORM_INPUT_FILE }}/aws.tfvars" >> "$GITHUB_ENV"
+            fi
+            echo "REGION=$REGION"
+            echo "TERRAFORM_MODULES_DIR=" >> "$GITHUB_ENV"
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         - name: Create JSON Input
@@ -84,9 +93,9 @@ jobs:
         - name: Terraform Apply 
           if: always()
           working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
-          run: terraform apply -var-file "${{ env.TERRAFORM_INPUT_FILE}}/${{ matrix.cloud }}.tfvars" -var="json_input=$INPUT_JSON" --auto-approve
+          run: terraform apply -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON" --auto-approve
           
         - name: Terraform Destroy
           if: always()
           working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
-          run: terraform destroy -var-file "${{ env.TERRAFORM_INPUT_FILE}}/${{ matrix.cloud }}.tfvars" -var="json_input=$INPUT_JSON" --auto-approve
+          run: terraform destroy -var-file "$TERRAFORM_INPUT_FILE"  -var="json_input=$INPUT_JSON" --auto-approve
