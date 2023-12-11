@@ -37,7 +37,7 @@ jobs:
              echo "TERRAFORM_INPUT_FILE=${{ env.TERRAFORM_INPUT_FILE }}/azure.tfvars" >> "$GITHUB_ENV"
             else
              echo "REGION=${{ env.AWS_REGION }}" >> "$GITHUB_ENV"
-             echo "TERRAFORM_MODULES_DIR=${{ env.TERRAFORM_AWS_MODULES_DIR }}"
+             echo "TERRAFORM_MODULES_DIR=${{ env.TERRAFORM_AWS_MODULES_DIR }}" >> "$GITHUB_ENV"
              echo "TERRAFORM_INPUT_FILE=${{ env.TERRAFORM_INPUT_FILE }}/aws.tfvars" >> "$GITHUB_ENV"
             fi
           env:
