@@ -6,6 +6,13 @@ variable "vm_config" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+
+    data_disk_config = optional(object({
+      data_disk_size_gb         = number
+      data_disk_volume_type     = string
+      data_disk_iops_read_write = optional(number)
+      data_disk_mbps_read_write = optional(number)
+    }))
   })
 }
 
@@ -35,4 +42,9 @@ variable "admin_key_pair_name" {
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+variable "zone" {
+  description = "value of availability zone"
+  type        = string
 }

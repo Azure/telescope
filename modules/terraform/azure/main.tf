@@ -177,7 +177,7 @@ resource "azurerm_virtual_machine_data_disk_attachment" "disk-association" {
   managed_disk_id    = local.all_data_disks[each.value.data_disk_name].id
   virtual_machine_id = local.all_vms[each.key].id
   lun                = 0
-  caching            = "ReadOnly"
+  caching            = (local.data_disk_caching == null || local.data_disk_caching == "") ? "ReadOnly" : local.data_disk_caching
 }
 
 resource "local_file" "ssh-private-key" {
@@ -186,3 +186,25 @@ resource "local_file" "ssh-private-key" {
   file_permission = "0600"
 }
 
+resource "random_string" "storage_account_random_suffix" {
+  count            = var.storage_account_name_prefix != null ? 1 : 0
+  length           = 8
+  special          = false
+  upper            = false
+  numeric          = true
+  override_special = "_-"
+}
+
+
+module "storage_account" {
+  source = "./storage-account"
+
+  count                            = var.storage_account_name_prefix != null ? 1 : 0
+  storage_account_name             = "${var.storage_account_name_prefix}${random_string.storage_account_random_suffix[0].result}"
+  resource_group_name              = module.resource_group.name
+  location                         = local.region
+  storage_account_tier             = local.storage_account_tier
+  storage_account_kind             = local.storage_account_kind
+  storage_account_replication_type = local.storage_account_replication_type
+  tags                             = local.tags
+}

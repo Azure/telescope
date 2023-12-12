@@ -55,7 +55,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "vmss" {
 }
 
 resource "azurerm_virtual_machine_scale_set_extension" "vmss_ext" {
-  count                        = var.user_data_path != "" ? 1 : 0
+  count                        = (var.user_data_path != "" || var.user_data_path != null) ? 1 : 0
   name                         = "${var.vmss_config.role}-vmss-ext"
   virtual_machine_scale_set_id = azurerm_linux_virtual_machine_scale_set.vmss.id
   publisher                    = "Microsoft.Azure.Extensions"

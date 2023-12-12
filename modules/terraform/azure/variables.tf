@@ -1,21 +1,24 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    owner                          = string
-    run_id                         = string
-    region                         = string
-    machine_type                   = string
-    accelerated_networking         = optional(bool)
-    user_data_path                 = optional(string)
-    data_disk_storage_account_type = optional(string)
-    data_disk_size_gb              = optional(string)
-    data_disk_tier                 = optional(string)
-    data_disk_iops_read_write      = optional(number)
-    data_disk_mbps_read_write      = optional(number)
-    data_disk_iops_read_only       = optional(number)
-    data_disk_mbps_read_only       = optional(number)
-    data_disk_caching              = optional(string)
-    ultra_ssd_enabled              = optional(bool)
+    owner                            = string
+    run_id                           = string
+    region                           = string
+    machine_type                     = string
+    accelerated_networking           = optional(bool)
+    user_data_path                   = optional(string)
+    data_disk_storage_account_type   = optional(string)
+    data_disk_size_gb                = optional(string)
+    data_disk_tier                   = optional(string)
+    data_disk_iops_read_write        = optional(number)
+    data_disk_mbps_read_write        = optional(number)
+    data_disk_iops_read_only         = optional(number)
+    data_disk_mbps_read_only         = optional(number)
+    data_disk_caching                = optional(string)
+    ultra_ssd_enabled                = optional(bool)
+    storage_account_tier             = optional(string)
+    storage_account_kind             = optional(string)
+    storage_account_replication_type = optional(string)
   })
 }
 
@@ -233,4 +236,9 @@ variable "data_disk_association_list" {
     vm_name        = string
   }))
   default = []
+}
+
+variable "storage_account_name_prefix" {
+  type    = string
+  default = null
 }
