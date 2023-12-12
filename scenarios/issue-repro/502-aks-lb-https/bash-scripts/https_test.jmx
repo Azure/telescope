@@ -9,6 +9,7 @@
         <collectionProp name="Arguments.arguments"/>
       </elementProp>
     </TestPlan>
+    </hashTree>
     <hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
