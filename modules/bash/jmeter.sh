@@ -85,6 +85,8 @@ run_jmeter_appgateway_lb()
   for i in "${!protocol[@]}"
   do
     jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -l results.log -Jbackend_type=lb -Jbackend_protocol=${protocol[i]} -Jip_address="${ingress_ip_address}" -S "${jmeter_file_dest}/jmeter.properties""
+    echo "Run test command: $jmeterCommand"
+    run_ssh $privatekey_path adminuser $egress_ip_address "$jmeterCommand"
   done
 }
 
