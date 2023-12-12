@@ -53,13 +53,14 @@ run_jmeter() {
       echo "Run test command: $jmeterCommand"
       run_ssh $privatekey_path adminuser $egress_ip_address "$jmeterCommand"
       
-      aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv --input-jtl ${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv --plugin-type AggregateReport"
-      echo "Run aggregate command: $aggregateCommand"
-      run_ssh $privatekey_path adminuser $egress_ip_address "$aggregateCommand"
+      #aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv --input-jtl ${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv --plugin-type AggregateReport"
+      #echo "Run aggregate command: $aggregateCommand"
+      #run_ssh $privatekey_path adminuser $egress_ip_address "$aggregateCommand"
 
-      echo "Copy result files to local"
-      run_scp_local $privatekey_path adminuser $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv" "/tmp/aggregate-${protocol[i]}-${concurrency[j]}.csv"
-      run_scp_local $privatekey_path adminuser $egress_ip_address "${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv" "/tmp/result-${protocol[i]}-${concurrency[j]}.csv"
+      #echo "Copy result files to local"
+      #run_scp_local $privatekey_path adminuser $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv" "/tmp/aggregate-${protocol[i]}-${concurrency[j]}.csv"
+      
+      #run_scp_local $privatekey_path adminuser $egress_ip_address "${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv" "/tmp/result-${protocol[i]}-${concurrency[j]}.csv"
     done
   done
 }
