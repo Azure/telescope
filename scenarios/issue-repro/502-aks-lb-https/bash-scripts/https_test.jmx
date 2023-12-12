@@ -66,6 +66,7 @@
           </collectionProp>
         </Arguments>
         <hashTree/>
+        <hashTree>
         <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
           <collectionProp name="CookieManager.cookies"/>
           <boolProp name="CookieManager.clearEachIteration">true</boolProp>
