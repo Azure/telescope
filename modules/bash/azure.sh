@@ -83,7 +83,7 @@ azure_aks_start_nginx()
   az aks get-credentials -n $aksName -g $resource_group
   
   
-  local file_source=./scenarios/${scenario_type}/${scenario_name}
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
   kubectl apply -f "${file_source}/nginxCert.yml"
   kubectl apply -f "${file_source}/aksSetup.yml"
 
