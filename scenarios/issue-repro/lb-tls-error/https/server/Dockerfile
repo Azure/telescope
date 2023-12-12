@@ -22,7 +22,7 @@ COPY https/server.csr /home/server.csr
 COPY https/server.key /home/server.key
 
 EXPOSE 8080
-EXPOSE 443
+EXPOSE 4443
 
 ENV READ_HEADER_TIMEOUT="32"
 CMD ["./server"]
