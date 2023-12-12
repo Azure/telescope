@@ -26,7 +26,7 @@ run_jmeter() {
   local scenario_name=$4
   local privatekey_path=$5
 
-  local jmeter_file_source=./scenarios/${scenario_name}/bash-scripts
+  local jmeter_file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
   local jmeter_file_dest=/tmp/jmeter
 
   echo "Make temp directory"
