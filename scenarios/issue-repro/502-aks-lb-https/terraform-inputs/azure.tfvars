@@ -30,7 +30,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-ssh"
+        name                       = "client-nsr-ssh"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
