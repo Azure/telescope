@@ -46,6 +46,6 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
   role_definition_name = "Network Contributor"
-  scope                = var.vnetId
+  scope                = var.vnet_id
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
