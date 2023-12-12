@@ -77,10 +77,15 @@ azure_aks_start_nginx()
 {
   local resource_group=$1
   local aksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
 
   az aks get-credentials -n $aksName -g $resource_group
-  kubectl apply -f "nginxCert.yml"
-  kubectl apply -f "aksSetup.yml"
+  
+  
+  local file_source=./scenarios/${scenario_type}/${scenario_name}
+  kubectl apply -f "${file_source}/nginxCert.yml"
+  kubectl apply -f "${file_source}/aksSetup.yml"
 
 
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
