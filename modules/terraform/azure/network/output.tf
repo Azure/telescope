@@ -11,3 +11,8 @@ output "subnets" {
   description = "Map of subnet names to subnet objects"
   value       = { for subnet in azurerm_subnet.subnets : subnet.name => subnet.id }
 }
+
+output "vnet_id" {
+  description = "vnet id"
+  value       = azurerm_virtual_network.vnet.id
+}

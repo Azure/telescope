@@ -87,7 +87,7 @@ module "aks" {
   subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
   tags                = local.tags
-  vnet_id             = module.virtual_network[each.value.role].id
+  vnet_id             = module.virtual_network[each.value.role].vnet_id
 }
 
 module "load_balancer" {
