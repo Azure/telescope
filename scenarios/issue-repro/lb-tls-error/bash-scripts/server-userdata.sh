@@ -22,5 +22,5 @@ sudo apt-get -qq install docker-ce docker-ce-cli containerd.io docker-buildx-plu
 docker --version
 
 # Pull image
-docker pull -q telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.8
-docker run -d --name server -e READ_HEADER_TIMEOUT=32 -p 4443:4443 -p 8080:8080 telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.8
+docker pull -q telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.9
+docker run -d --name server -e READ_HEADER_TIMEOUT=32 -p 4443:4443 -p 8080:8080 telescope.azurecr.io/issue-repro/slb-eof-error-server:v1.0.9
