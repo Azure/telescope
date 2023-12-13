@@ -84,9 +84,12 @@ run_jmeter_appgateway_lb()
   protocol=("http" "https")
   for i in "${!protocol[@]}"
   do
-    jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -l results.log -Jbackend_type=lb -Jbackend_protocol=${protocol[i]} -Jip_address="${ingress_ip_address}" -S "${jmeter_file_dest}/jmeter.properties""
+    jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -l "results_${protocol[i]}.log" -Jbackend_type=lb -Jbackend_protocol=${protocol[i]} -Jip_address="${ingress_ip_address}" -S "${jmeter_file_dest}/jmeter.properties""
     echo "Run test command: $jmeterCommand"
     run_ssh $privatekey_path adminuser $egress_ip_address "$jmeterCommand"
+
+    echo "Copy result files to local"
+    run_scp_local $privatekey_path adminuser $egress_ip_address "results_${protocol[i]}.log" "results_${protocol[i]}.log"
   done
 }
 
