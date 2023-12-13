@@ -37,8 +37,7 @@ resource "azurerm_network_security_group" "nsg" {
 
 
 resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
-  count    = local.network_security_group_name != "" ? 1 : 0
-  for_each = local.subnets_map
+  for_each = local.network_security_group_name != "" ? local.subnets_map : {}
 
   subnet_id                 = each.value.id
   network_security_group_id = azurerm_network_security_group.nsg.id
