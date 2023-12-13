@@ -108,7 +108,7 @@
           </elementProp>
           <elementProp name="loop_count" elementType="Argument">
             <stringProp name="Argument.name">loop_count</stringProp>
-            <stringProp name="Argument.value">15000</stringProp>
+            <stringProp name="Argument.value">5000</stringProp>
             <stringProp name="Argument.desc">loop count</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
@@ -121,7 +121,7 @@
           <stringProp name="LoopController.loops">${__P(loop_count,5000)}</stringProp>
           <boolProp name="LoopController.continue_forever">false</boolProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">${__P(threads,20)}</stringProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(no_threads,20)}</stringProp>
         <stringProp name="ThreadGroup.ramp_time">${__P(ramp_up,10)}</stringProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
         <stringProp name="ThreadGroup.duration"></stringProp>
