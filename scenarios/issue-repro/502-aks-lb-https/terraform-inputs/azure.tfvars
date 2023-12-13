@@ -9,7 +9,7 @@ network_config_list = [
     vnet_address_space          = "10.10.0.0/16"
     subnet_names                = ["aks-network-ingress", "aks-network-aks"]
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
-    network_security_group_name = "aks-network-nsg"
+    network_security_group_name = ""
     nic_public_ip_associations = [
       {
         nic_name              = "client-nic"
@@ -17,18 +17,22 @@ network_config_list = [
         ip_configuration_name = "client-ipconfig"
         public_ip_name        = "client-pip"
     }]
-    nsr_rules = [
+  },
+  {
+    role                        = "client"
+    vnet_name                   = "client_vnet"
+    vnet_address_space          = "10.10.0.0/16"
+    subnet_names                = ["client-network"]
+    subnet_address_prefixes     = ["10.10.0.0/24"]
+    network_security_group_name = "clientnsg"
+    nic_public_ip_associations = [
       {
-        name                       = "appGateway"
-        priority                   = 130
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "65200-65535"
-        source_address_prefix      = "GatewayManager"
-        destination_address_prefix = "*"
-      },
+        nic_name              = "client-nic"
+        subnet_name           = "client-network"
+        ip_configuration_name = "client-ipconfig"
+        public_ip_name        = "client-pip"
+    }]
+    nsr_rules = [
       {
         name                       = "client-nsr-ssh"
         priority                   = 102
