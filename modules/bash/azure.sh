@@ -81,7 +81,7 @@ azure_aks_start_nginx()
   local scenario_name=$4
 
   az aks get-credentials -n $aksName -g $resource_group
-  
+  subnet_name=$(kubectl get nodes -o json | jq -r '.items[0].metadata.labels."kubernetes.azure.com/network-subnet"')
   
   local file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
   kubectl apply -f "${file_source}/nginxCert.yml"
@@ -99,7 +99,7 @@ azure_aks_start_nginx()
     --set controller.replicaCount=3 \
     --set controller.service.loadBalancerIP=10.10.1.250 \
     --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal"=true \
-    --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal-subnet"="AksSubnet" \
+    --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal-subnet"="${subnet_name}" \
     --set controller.extraArgs.default-ssl-certificate="ingress-nginx/ingress-tls" \
     --set controller.admissionWebhooks.enabled=false
 }
