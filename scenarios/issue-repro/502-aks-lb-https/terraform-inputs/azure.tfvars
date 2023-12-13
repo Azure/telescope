@@ -10,14 +10,8 @@ network_config_list = [
     subnet_names                = ["aks-network-ingress", "aks-network-aks"]
     subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
     network_security_group_name = ""
-    nic_public_ip_associations = [
-      {
-        nic_name              = "client-nic"
-        subnet_name           = "aks-network-aks"
-        ip_configuration_name = "client-ipconfig"
-        public_ip_name        = "client-pip"
-    }]
-    nsr_rules = []
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
   },
   {
     role                        = "client"
