@@ -49,7 +49,7 @@ run_jmeter() {
       echo "Wait for 5 minutes before running"
       #sleep 300
 
-      jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S "${jmeter_file_dest}/jmeter.properties" -Jprotocol=${protocol[i]} -Jport=${port[i]} -Jip_address=${ingress_ip_address} #-Jthread_num=${concurrency[j]} -Jloop_count=${loop[j]} -Jresult_file_name=${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]} -j ${jmeter_file_dest}/jmeter-${protocol[i]}-${concurrency[j]}.log"
+      jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S "${jmeter_file_dest}/jmeter.properties" -Jprotocol=${protocol[i]} -Jport=${port[i]} -Jip_address=${ingress_ip_address} -Jthread_num=${concurrency[j]} -Jloop_count=${loop[j]} -Jresult_file_name=${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]} -j ${jmeter_file_dest}/jmeter-${protocol[i]}-${concurrency[j]}.log"
       echo "Run test command: $jmeterCommand"
       run_ssh $privatekey_path adminuser $egress_ip_address "$jmeterCommand"
       
