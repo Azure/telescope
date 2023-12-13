@@ -1,5 +1,5 @@
 output "network_security_group_name" {
-  value = azurerm_network_security_group.count == 1 ? azurerm_network_security_group.nsg[0].name : ""
+  value = try(azurerm_network_security_group.nsg[0].name, "")
 }
 
 output "nics" {
