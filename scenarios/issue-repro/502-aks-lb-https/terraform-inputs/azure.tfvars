@@ -17,6 +17,7 @@ network_config_list = [
         ip_configuration_name = "client-ipconfig"
         public_ip_name        = "client-pip"
     }]
+    nsr_rules = []
   },
   {
     role                        = "client"
