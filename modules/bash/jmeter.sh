@@ -10,8 +10,8 @@ check_jmeter_setup() {
   commands=("java -version" "jmeter -v" "ls /opt/jmeter/lib/cmdrunner-2.2.jar" "ls /opt/jmeter/lib/ext/jmeter-plugins-manager-1.7.jar" "ls /opt/jmeter/bin/JMeterPluginsCMD.sh" "ls /opt/jmeter/lib/ext/jmeter-plugins-synthesis-2.2.jar") 
   for command in "${commands[@]}"
   do
-    echo "run_ssh $privatekey_path adminuser $egress_ip_address $command"
-    run_ssh $privatekey_path adminuser $egress_ip_address "$command"
+    echo "run_ssh $privatekey_path ubuntu $egress_ip_address $command"
+    run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
     if [ "$?" -ne 0 ]; then
       echo "Command $command failed with exit code $?"
       exit 1
