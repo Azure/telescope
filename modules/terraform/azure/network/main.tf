@@ -40,7 +40,7 @@ resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associa
   for_each = local.network_security_group_name != "" ? local.subnets_map : {}
 
   subnet_id                 = each.value.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
+  network_security_group_id = azurerm_network_security_group.nsg.id[0]
 }
 
 resource "azurerm_network_interface" "nic" {
@@ -63,7 +63,7 @@ resource "azurerm_network_interface" "nic" {
 
 module "nsr" {
   source   = "./network-security-rule"
-  for_each = local.nsr_rules_map
+  for_each = local.network_security_group_name != "" ? local.nsr_rules_map : {}
 
   name                        = each.value.name
   priority                    = each.value.priority
