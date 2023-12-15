@@ -181,7 +181,7 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role           = "aks-network"
+    role           = "ingress"
     aks_name       = "aks-instance"
     dns_prefix     = "repro-502"
     subnet_name    = "aks-network-aks"
