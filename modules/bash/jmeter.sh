@@ -75,23 +75,23 @@ run_jmeter_appgateway_lb()
   local jmeter_file_dest=/tmp/jmeter
 
   echo "Make temp directory"
-  run_ssh $privatekey_path adminuser $egress_ip_address "mkdir -p $jmeter_file_dest"
+  run_ssh $privatekey_path ubuntu $egress_ip_address "mkdir -p $jmeter_file_dest"
   echo "Copy properties and jmx files"
-  run_scp_remote $privatekey_path adminuser $egress_ip_address "${jmeter_file_source}/jmeter.properties" "${jmeter_file_dest}/jmeter.properties"
-  run_scp_remote $privatekey_path adminuser $egress_ip_address "${jmeter_file_source}/https_test.jmx" "${jmeter_file_dest}/https_test.jmx"
+  run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/jmeter.properties" "${jmeter_file_dest}/jmeter.properties"
+  run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/https_test.jmx" "${jmeter_file_dest}/https_test.jmx"
   protocol=("http" "https")
   for i in "${!protocol[@]}"
   do
     jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -l "${jmeter_file_dest}/results_${protocol[i]}.csv" -Jbackend_type=lb -Jbackend_protocol=${protocol[i]} -Jip_address="${ingress_ip_address}" -S "${jmeter_file_dest}/jmeter.properties""
     echo "Run test command: $jmeterCommand"
-    run_ssh $privatekey_path adminuser $egress_ip_address "$jmeterCommand"
+    run_ssh $privatekey_path ubuntu $egress_ip_address "$jmeterCommand"
 
     aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol[i]}.csv --input-jtl ${jmeter_file_dest}/results_${protocol[i]}.csv --plugin-type AggregateReport"
     echo "Run aggregate command: $aggregateCommand"
-    run_ssh $privatekey_path adminuser $egress_ip_address "$aggregateCommand"
+    run_ssh $privatekey_path ubuntu $egress_ip_address "$aggregateCommand"
 
     echo "Copy result files to local"
-    run_scp_local $privatekey_path adminuser $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol[i]}.csv" "aggregate-${protocol[i]}.csv"
+    run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol[i]}.csv" "aggregate-${protocol[i]}.csv"
   done
 }
 
