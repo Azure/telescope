@@ -4,7 +4,7 @@ deletion_delay  = "4h"
 public_ip_names = ["app-gateway-pip", "client-pip"]
 network_config_list = [
   {
-    role                        = "aks-network"
+    role                        = "ingress"
     vnet_name                   = "repro502-vnet"
     vnet_address_space          = "10.10.0.0/16"
     subnet_names                = ["aks-network-ingress", "aks-network-aks"]
