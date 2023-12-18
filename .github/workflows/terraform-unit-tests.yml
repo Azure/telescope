@@ -28,11 +28,11 @@ jobs:
               scenario_type: issue-repro
               scenario_name: 502-aks-lb-https
     runs-on: ubuntu-latest
+    name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }}
 
     steps:
         - name: Get job id and set env
-          run: |
-            job_name="Unit testing for (${{ matrix.cloud }}, ${{ matrix.scenario_type }}, ${{ matrix.scenario_name }})"            
+          run: |                    
             echo "RUN_ID=123456789" >> "$GITHUB_ENV"            
             echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.cloud }}.tfvars" >> "$GITHUB_ENV"
             echo "USER_DATA_PATH=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/bash-scripts" >> "$GITHUB_ENV"
