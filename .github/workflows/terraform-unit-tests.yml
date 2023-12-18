@@ -23,7 +23,10 @@ jobs:
         include:
             - cloud: azure
               scenario_type: issue-repro
-              scenario_name: [lb-tls-error, 502-aks-lb-https]
+              scenario_name: lb-tls-error
+            - cloud: azure
+              scenario_type: issue-repro
+              scenario_name: 502-aks-lb-https
     runs-on: ubuntu-latest
 
     steps:
