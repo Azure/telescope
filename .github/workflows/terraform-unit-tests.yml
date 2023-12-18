@@ -98,5 +98,5 @@ jobs:
           run: terraform init
 
         - name: Terraform Plan 
-          working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
+          working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
           run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
