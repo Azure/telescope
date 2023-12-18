@@ -9,8 +9,6 @@ env:
   AWS_REGION: us-east-1
   ZONE: us-east1-b
   MACHINE_TYPE: Standard_D2s_v5
-  SCENARIO_TYPE: tests
-  SCENARIO_NAME: e2e
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 jobs:
@@ -60,15 +58,15 @@ jobs:
             --arg machine_type "$MACHINE_TYPE" \
             --arg accelerated_networking false \
             --arg user_data_path "$USER_DATA_PATH" \
-            --arg zone $zone
+            --arg zone $zone \
             '{
-            owner: $owner, 
-            run_id: $run_id, 
-            region: $region, 
-            machine_type: $machine_type, 
-            accelerated_networking: $accelerated_networking, 
-            user_data_path: $user_data_path,
-            zone: $zone
+                owner: $owner, 
+                run_id: $run_id, 
+                region: $region, 
+                machine_type: $machine_type, 
+                accelerated_networking: $accelerated_networking, 
+                user_data_path: $user_data_path,
+                zone: $zone
             }' | jq 'with_entries(select(.value != null and .value != ""))')
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
