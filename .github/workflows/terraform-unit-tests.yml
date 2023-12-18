@@ -51,7 +51,7 @@ jobs:
             fi
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            
+
         - name: Create JSON Input
           run: |
             INPUT_JSON_OBJECT=$(jq -n \
@@ -61,7 +61,7 @@ jobs:
             --arg machine_type "$MACHINE_TYPE" \
             --arg accelerated_networking false \
             --arg user_data_path "$USER_DATA_PATH" \
-            --arg zone "${{ env.ZONE }}
+            --arg zone "${{ env.ZONE }}"
             '{
             owner: $owner, 
             run_id: $run_id, 
