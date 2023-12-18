@@ -40,7 +40,7 @@ jobs:
             if [ "${{ matrix.cloud }}" == "azure" ]; then
               echo "REGION=$AZURE_REGION" >> "$GITHUB_ENV"
               echo "TERRAFORM_MODULES_DIR=$TERRAFORM_AZURE_MODULES_DIR" >> "$GITHUB_ENV"
-              echo "zone=" >> "$GITHUB_ENV"
+              echo "zone=null" >> "$GITHUB_ENV"
             else
               echo "REGION=$AWS_REGION" >> "$GITHUB_ENV"
               echo "TERRAFORM_MODULES_DIR=$TERRAFORM_AWS_MODULES_DIR" >> "$GITHUB_ENV"
@@ -67,7 +67,7 @@ jobs:
                 accelerated_networking: $accelerated_networking, 
                 user_data_path: $user_data_path,
                 zone: $zone
-            }' | jq 'with_entries(select(.value != null and .value != ""))')
+            }' | jq 'with_entries(select(.value != null and .value != "null" and .value != ""))')
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
