@@ -15,7 +15,7 @@ jobs:
   Terraform-unit-testing:
     permissions: read-all
     strategy:
-      max-parallel: 3
+      max-parallel: 6
       matrix:
         cloud: [azure, aws]
         scenario_type: [perf-eval]
@@ -59,7 +59,7 @@ jobs:
             INPUT_JSON_OBJECT=$(jq -n \
             --arg owner "${{ env.OWNER }}" \
             --arg run_id "$RUN_ID" \
-            --arg region "$REGION" \
+            --arg region ${{ env.AZURE_REGION }} \
             --arg machine_type "$MACHINE_TYPE" \
             --arg accelerated_networking false \
             --arg user_data_path "$USER_DATA_PATH" \
@@ -73,7 +73,7 @@ jobs:
             '{
                 owner: $owner, 
                 run_id: $run_id, 
-                region: ${{ env.AZURE_REGION }}, 
+                region: $region, 
                 machine_type: $machine_type, 
                 accelerated_networking: $accelerated_networking, 
                 user_data_path: $user_data_path,
