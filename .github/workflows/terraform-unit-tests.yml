@@ -19,14 +19,11 @@ jobs:
       matrix:
         cloud: [azure, aws]
         scenario_type: [perf-eval]
-        scenario_name: [lb-iperf]
-        # cloud: [azure, aws]
-        # scenario_type: [perf-eval]
-        # scenario_name: [lb-iperf, lb-jmeter, storage-blob, storage-disk, vm-iperf]
-        # include:
-        #     - cloud: azure
-        #       scenario_type: issue-repro
-        #       scenario_name: lb-tls-error
+        scenario_name: [lb-iperf, lb-jmeter, storage-blob, storage-disk, vm-iperf]
+        include:
+            - cloud: azure
+              scenario_type: issue-repro
+              scenario_name: [lb-tls-error, 502-aks-lb-https]
     runs-on: ubuntu-latest
 
     steps:
