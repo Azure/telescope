@@ -37,7 +37,7 @@ jobs:
             job_name="Unit testing for (${{ matrix.cloud }}, ${{ matrix.scenario_type }}, ${{ matrix.scenario_name }})"
             id=$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r --arg jobName "$job_name" '.jobs[] | select(.name==$jobName)' | jq .id)
             echo "RUN_ID=$id" >> "$GITHUB_ENV"            
-            echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}terraform-inputs/${{ matrix.cloud }}" >> "$GITHUB_ENV"
+            echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.cloud }}.tfvars" >> "$GITHUB_ENV"
             echo "USER_DATA_PATH=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/bash-scripts" >> "$GITHUB_ENV"
             
             if [ "${{ matrix.cloud }}" == "azure" ]; then
@@ -51,6 +51,7 @@ jobs:
             fi
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            
         - name: Create JSON Input
           run: |
             INPUT_JSON_OBJECT=$(jq -n \
@@ -71,7 +72,7 @@ jobs:
             } + (if $is_aws then { zone: $zone } else {} end)')
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
-            
+
         - name: Checkout Repository
           uses: actions/checkout@v4
 
