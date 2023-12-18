@@ -15,7 +15,8 @@ jobs:
   Terraform-unit-testing:
     permissions: read-all
     strategy:
-      max-parallel: 6
+      fail-fast: false
+      max-parallel: 3
       matrix:
         cloud: [azure, aws]
         scenario_type: [perf-eval]
