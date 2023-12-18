@@ -40,7 +40,7 @@ jobs:
             if [ "${{ matrix.cloud }}" == "azure" ]; then
               echo "REGION=$AZURE_REGION" >> "$GITHUB_ENV"
               echo "TERRAFORM_MODULES_DIR=$TERRAFORM_AZURE_MODULES_DIR" >> "$GITHUB_ENV"
-              echo "zone=null" >> "$GITHUB_ENV"
+              echo "zone=" >> "$GITHUB_ENV"
             else
               echo "REGION=$AWS_REGION" >> "$GITHUB_ENV"
               echo "TERRAFORM_MODULES_DIR=$TERRAFORM_AWS_MODULES_DIR" >> "$GITHUB_ENV"
