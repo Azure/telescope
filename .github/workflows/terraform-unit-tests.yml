@@ -16,7 +16,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup matrix scenarios
+      - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |               
            matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $11); print "{\"cloud\": \"" $11 "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
@@ -24,6 +24,7 @@ jobs:
            matrix="${matrix//$'\n'/'%0A'}"
            matrix="${matrix//$'\r'/'%0D'}"
            echo "matrix-combinations={\"include\": [${matrix%?}']}" >> "$GITHUB_OUTPUT"
+           echo "$matrix-combinations"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix-combinations }}          
 
