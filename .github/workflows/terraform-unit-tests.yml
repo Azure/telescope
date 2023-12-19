@@ -11,7 +11,7 @@ env:
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
-    name: Get Scenario Names
+    name: Setup matrix scenarios
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -19,10 +19,10 @@ jobs:
       - name: Setup matrix scenarios
         id: setup-matrix-scenarios
         run: |        
-            matrix-combinations=(find scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $5); print "{\"cloud\": \"" $5 "\", \"scenario_type\": \"" $2 "\", \"scenario_name\": \"" $3 "\"},"}' | sort | uniq | sed 's/,$/,/' )
-            echo "::set-output name=matrix-combinations::$matrix-combinations"
+            matrix_combinations="$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $5); print "{\"cloud\": \"" $5 "\", \"scenario_type\": \"" $2 "\", \"scenario_name\": \"" $3 "\"},"}' | sort | uniq | sed 's/,$/,/' )"            
+            echo "::set-output name=matrix_combinations::$matrix_combinations"
     outputs:
-        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix-combinations }}          
+        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}          
 
   Terraform-unit-testing:
     permissions: read-all
