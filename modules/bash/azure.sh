@@ -101,5 +101,6 @@ azure_aks_start_nginx()
     --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal"=true \
     --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal-subnet"="${subnet_name}" \
     --set controller.extraArgs.default-ssl-certificate="ingress-nginx/ingress-tls" \
-    --set controller.admissionWebhooks.enabled=false
+    --set controller.admissionWebhooks.enabled=false \
+    --wait-for-jobs
 }
