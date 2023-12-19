@@ -11,7 +11,7 @@ env:
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
-    name: Setup matrix scenarios
+    name: Setup test matrix scenarios
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -24,7 +24,6 @@ jobs:
            matrix="${matrix//$'\n'/''}"
            matrix="${matrix//$'\r'/''}"
            echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
-           echo "$matrix_combinations"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}          
 
