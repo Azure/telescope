@@ -18,13 +18,11 @@ jobs:
 
       - name: Setup matrix scenarios
         id: setup-matrix-scenarios
-        run: |
-            echo "$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json")"        
-            matrix_combinations="$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $11); print "{\"cloud\": \"" $11 "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/' )"
-            echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_ENV"            
-            echo "::set-output name=matrix_combinations::{\"include\": [$matrix_combinations]}"
+        run: |               
+            matrix-combinations="$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $11); print "{\"cloud\": \"" $11 "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/' )"          
+            echo "matrix-combinations={\"include\": [$matrix-combinations]}" >> "$GITHUB_OUTPUT"
     outputs:
-        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}          
+        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix-combinations }}          
 
   Terraform-unit-testing:
     permissions: read-all
