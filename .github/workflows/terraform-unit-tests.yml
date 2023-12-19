@@ -19,8 +19,8 @@ jobs:
       - name: Setup matrix scenarios
         id: setup-matrix-scenarios
         run: |               
-            echo "matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $11); print "{\"cloud\": \"" $11 "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/' )"            
-            echo "{matrix-combinations}={\"include\": [${matrix}]}" >> "$GITHUB_OUTPUT"
+           matrix='$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $11); print "{\"cloud\": \"" $11 "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/' )'
+           echo "{matrix-combinations}={\"include\": [${matrix}]}" >> "$GITHUB_OUTPUT"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix-combinations }}          
 
