@@ -4,7 +4,6 @@ on:
   pull_request:
 
 env:
-  OWNER: terraform_unit_tests
   AWS_REGION: us-east-1
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
@@ -20,9 +19,7 @@ jobs:
         id: setup-matrix-scenarios
         run: |               
            matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $11); print "{\"cloud\": \"" $11 "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
-           matrix="${matrix//'%'/''}"
            matrix="${matrix//$'\n'/''}"
-           matrix="${matrix//$'\r'/''}"
            echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}          
