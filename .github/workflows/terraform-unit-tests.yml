@@ -16,10 +16,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Find All scenarios paths that contains azure.json and aws.json files inside terraform-test-inputs folder
+      - name: Setup matrix scenarios
         id: setup-matrix-scenarios
         run: |        
-            matrix-combinations=$(find scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $5); print "{\"cloud\": \"" $5 "\", \"scenario_type\": \"" $2 "\", \"scenario_name\": \"" $3 "\"},"}' | sort | uniq | sed 's/,$/,/' )
+            matrix-combinations=(find scenarios/ -name "azure.json" -o -name "aws.json" | awk -F'/' '{gsub(".json", "", $5); print "{\"cloud\": \"" $5 "\", \"scenario_type\": \"" $2 "\", \"scenario_name\": \"" $3 "\"},"}' | sort | uniq | sed 's/,$/,/' )
             echo "::set-output name=matrix-combinations::$matrix-combinations"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix-combinations }}          
