@@ -42,15 +42,15 @@ jobs:
             fi
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+            
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+          
         - name: Create JSON Input
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
-
-        - name: Checkout Repository
-          uses: actions/checkout@v4
 
         - name: Azure login
           if: ${{ matrix.cloud == 'azure' }}
