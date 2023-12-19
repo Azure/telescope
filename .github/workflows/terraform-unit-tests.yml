@@ -5,6 +5,7 @@ on:
 
 env:
   OWNER: terraform_unit_tests
+  AWS_REGION: us-east-1
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 jobs:
@@ -45,7 +46,7 @@ jobs:
             
         - name: Checkout Repository
           uses: actions/checkout@v4
-          
+
         - name: Create JSON Input
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
