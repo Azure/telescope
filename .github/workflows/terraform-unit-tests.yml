@@ -23,10 +23,10 @@ jobs:
            matrix="${matrix//'%'/'%25'}"
            matrix="${matrix//$'\n'/'%0A'}"
            matrix="${matrix//$'\r'/'%0D'}"
-           echo "matrix-combinations={\"include\": [${matrix%?}']}" >> "$GITHUB_OUTPUT"
-           echo "$matrix-combinations"
+           echo "matrix_combinations={\"include\": [${matrix%?}']}" >> "$GITHUB_OUTPUT"
+           echo "$matrix_combinations"
     outputs:
-        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix-combinations }}          
+        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}          
 
   Terraform-unit-testing:
     permissions: read-all
