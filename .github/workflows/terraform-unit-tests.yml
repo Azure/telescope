@@ -5,10 +5,6 @@ on:
 
 env:
   OWNER: terraform_unit_tests
-  AZURE_REGION: eastus
-  AWS_REGION: us-east-1
-  ZONE: us-east1-b
-  MACHINE_TYPE: Standard_D2s_v5
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 jobs:
@@ -36,90 +32,20 @@ jobs:
           run: |                    
             echo "RUN_ID=123456789" >> "$GITHUB_ENV"            
             echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.cloud }}.tfvars" >> "$GITHUB_ENV"
+            echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.cloud }}.json" >> "$GITHUB_ENV"
             echo "USER_DATA_PATH=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/bash-scripts" >> "$GITHUB_ENV"
             
             if [ "${{ matrix.cloud }}" == "azure" ]; then
               echo "TERRAFORM_MODULES_DIR=$TERRAFORM_AZURE_MODULES_DIR" >> "$GITHUB_ENV"
-              echo "STORAGE_TIER=Standard" >> "$GITHUB_ENV"
-              echo "STORAGE_KIND=BlobStorage" >> "$GITHUB_ENV"
-              echo "STORAGE_REPLICATION=LRS" >> "$GITHUB_ENV"
-              echo "DATA_DISK_TYPE=Premium_LRS" >> "$GITHUB_ENV"
-              echo "DATA_DISK_SIZE_GB=1024" >> "$GITHUB_ENV"
-              echo "DATA_DISK_TIER=P30" >> "$GITHUB_ENV"
-              echo "DATA_DISK_CACHING=ReadWrite" >> "$GITHUB_ENV"
             else
               echo "TERRAFORM_MODULES_DIR=$TERRAFORM_AWS_MODULES_DIR" >> "$GITHUB_ENV"
-              echo "DATA_DISK_TYPE=gp3" >> "$GITHUB_ENV"
-              echo "DATA_DISK_SIZE_GB=1024" >> "$GITHUB_ENV"
-              echo "DATA_DISK_IOPS_READ_WRITE=3000" >> "$GITHUB_ENV"
-              echo "DATA_DISK_MBPS_READ_WRITE=200" >> "$GITHUB_ENV"
             fi
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Create Azure JSON Input
-          if: ${{ matrix.cloud == 'azure' }}
+        - name: Create JSON Input
           run: |
-            INPUT_JSON_OBJECT=$(jq -n \
-            --arg owner "${{ env.OWNER }}" \
-            --arg run_id "$RUN_ID" \
-            --arg region ${{ env.AZURE_REGION }} \
-            --arg machine_type "$MACHINE_TYPE" \
-            --arg accelerated_networking false \
-            --arg user_data_path "$USER_DATA_PATH" \
-            --arg storage_account_tier "$STORAGE_TIER" \
-            --arg storage_account_kind "$STORAGE_KIND" \
-            --arg storage_account_replication_type "$STORAGE_REPLICATION" \
-            --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
-            --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
-            --arg data_disk_tier "${DATA_DISK_TIER}" \
-            --arg data_disk_caching "${DATA_DISK_CACHING}" \
-            '{
-                owner: $owner, 
-                run_id: $run_id, 
-                region: $region, 
-                machine_type: $machine_type, 
-                accelerated_networking: $accelerated_networking, 
-                user_data_path: $user_data_path,
-                storage_account_tier: $storage_account_tier, 
-                storage_account_kind: $storage_account_kind, 
-                storage_account_replication_type: $storage_account_replication_type, 
-                data_disk_storage_account_type: $data_disk_storage_account_type, 
-                data_disk_size_gb: $data_disk_size_gb, 
-                data_disk_tier: $data_disk_tier, 
-                data_disk_caching: $data_disk_caching,
-            }' | jq 'with_entries(select(.value != null and .value != "null" and .value != ""))')
-            INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
-            echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
-
-        - name: Create AWS JSON Input
-          if: ${{ matrix.cloud == 'aws' }}        
-          run: |
-            INPUT_JSON_OBJECT=$(jq -n \
-            --arg owner "${{ env.OWNER }}" \
-            --arg run_id "$RUN_ID" \
-            --arg region "${{ env.AWS_REGION }}" \
-            --arg zone ${{ env.ZONE }} \
-            --arg machine_type "$MACHINE_TYPE" \
-            --arg accelerated_networking false \
-            --arg user_data_path "$USER_DATA_PATH" \
-            --arg data_disk_volume_type "$DATA_DISK_TYPE" \
-            --arg data_disk_size_gb $DATA_DISK_SIZE_GB \
-            --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
-            --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
-            '{
-                owner: $owner, 
-                run_id: $run_id, 
-                region: $region,
-                zone: $zone, 
-                machine_type: $machine_type, 
-                accelerated_networking: $accelerated_networking, 
-                user_data_path: $user_data_path,
-                data_disk_volume_type: $data_disk_volume_type, 
-                data_disk_size_gb: $data_disk_size_gb,
-                data_disk_iops_read_write: $data_disk_iops_read_write, 
-                data_disk_mbps_read_write: $data_disk_mbps_read_write,
-            }' | jq 'with_entries(select(.value != null and .value != "null" and .value != ""))')
+            INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": ${{ env.USER_DATA_PATH }} }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
