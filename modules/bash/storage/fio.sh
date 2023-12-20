@@ -151,10 +151,9 @@ collect_result_disk_fio() {
 
 collect_result_blob_fio() {
   local result_dir=$1
+  local run_link=$2
 
   echo "collecting fio results from $result_dir/fio-*.log into $result_dir/result.json"
-
-  run_link="https://github.com/azure-management-and-platforms/cloud-network-evaluator/actions/runs/${GITHUB_RUN_ID}/job/${RUN_ID}"
 
   local methods=("randread" "randrw" "read" "rw")
   # temporary disable rw for case common_s3_bucket, we have problem with rw right now
