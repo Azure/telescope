@@ -7,7 +7,7 @@ env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 jobs:
-  Terraform-Configuration-checks:
+  terraform-validate:
     runs-on: ubuntu-latest
 
     steps:
