@@ -39,7 +39,7 @@ run_jmeter() {
   protocol=("http" "https")
   port=(80 443)
   concurrency=(100 500 1000)
-  loop=(10 10 10)
+  loop=(200 50 10)
 
   echo "Run evaluation"
   for i in "${!protocol[@]}"
