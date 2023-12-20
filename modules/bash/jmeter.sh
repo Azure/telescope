@@ -22,10 +22,11 @@ check_jmeter_setup() {
 run_jmeter() {
   local ingress_ip_address=$1
   local egress_ip_address=$2
-  local scenario_name=$3
-  local privatekey_path=$4
+  local scenario_type=$3
+  local scenario_name=$4
+  local privatekey_path=$5
 
-  local jmeter_file_source=./scenarios/${scenario_name}/bash-scripts
+  local jmeter_file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
   local jmeter_file_dest=/tmp/jmeter
 
   echo "Make temp directory"
