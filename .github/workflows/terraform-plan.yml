@@ -22,7 +22,7 @@ jobs:
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
-  Terraform-unit-testing:
+  terraform-plan:
     permissions: read-all
     needs: setup-matrix
     strategy:
