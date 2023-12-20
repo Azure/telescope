@@ -1,6 +1,6 @@
-scenario_name   = "aks-502-lb-https"
+scenario_name   = "appgateway-lb-aks-https-502"
 scenario_type   = "issue-repro"
-deletion_delay  = "4h"
+deletion_delay  = "6h"
 public_ip_names = ["app-gateway-pip", "client-pip"]
 network_config_list = [
   {
