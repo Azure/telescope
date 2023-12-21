@@ -1,6 +1,6 @@
 ## Run Test Scenario
 
-This guide covers how to run competitive tests manually, using vm-to-vm performnace evaluation on Azure as an example
+This guide covers how to manually run vm iperf test on Azure
 
 ### Prerequisite
 * Install Terraform (https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
