@@ -27,8 +27,8 @@ run_jmeter() {
   local privatekey_path=$5
   local protocol=$6
   local port=$7
-  local concurrency=$7
-  local loop=$8
+  local concurrency=$8
+  local loop=$9
 
   local jmeter_file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
   local jmeter_file_dest=/tmp/jmeter  
