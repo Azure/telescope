@@ -25,9 +25,13 @@ run_jmeter() {
   local scenario_type=$3
   local scenario_name=$4
   local privatekey_path=$5
+  local protocol=$6
+  local port=$7
+  local concurrency=$7
+  local loop=$8
 
   local jmeter_file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
-  local jmeter_file_dest=/tmp/jmeter
+  local jmeter_file_dest=/tmp/jmeter  
 
   echo "Make temp directory"
   run_ssh $privatekey_path ubuntu $egress_ip_address "mkdir -p $jmeter_file_dest"
@@ -36,32 +40,17 @@ run_jmeter() {
   run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/https_test.jmx" "${jmeter_file_dest}/https_test.jmx"
   run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/alias.csv" "${jmeter_file_dest}/alias.csv"
 
-  protocol=("http" "https")
-  port=(80 443)
-  concurrency=(100 500 1000)
-  loop=(10000 2000 1000)
+  jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S "${jmeter_file_dest}/jmeter.properties" -Jprotocol=${protocol} -Jport=${port} -Jip_address=${ingress_ip_address} -Jthread_num=${concurrency} -Jloop_count=${loop} -Jresult_file_name=${jmeter_file_dest}/result-${protocol}-${concurrency[j]} -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log"
+  echo "Run test command: $jmeterCommand"
+  run_ssh $privatekey_path ubuntu $egress_ip_address "$jmeterCommand"
+  
+  aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol}-${concurrency}.csv --input-jtl ${jmeter_file_dest}/result-${protocol}-${concurrency}.csv --plugin-type AggregateReport"
+  echo "Run aggregate command: $aggregateCommand"
+  run_ssh $privatekey_path ubuntu $egress_ip_address "$aggregateCommand"
 
-  echo "Run evaluation"
-  for i in "${!protocol[@]}"
-  do
-    for j in "${!concurrency[@]}"
-    do
-      echo "Wait for 5 minutes before running"
-      sleep 300
-
-      jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S "${jmeter_file_dest}/jmeter.properties" -Jprotocol=${protocol[i]} -Jport=${port[i]} -Jip_address=${ingress_ip_address} -Jthread_num=${concurrency[j]} -Jloop_count=${loop[j]} -Jresult_file_name=${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]} -j ${jmeter_file_dest}/jmeter-${protocol[i]}-${concurrency[j]}.log"
-      echo "Run test command: $jmeterCommand"
-      run_ssh $privatekey_path ubuntu $egress_ip_address "$jmeterCommand"
-      
-      aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv --input-jtl ${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv --plugin-type AggregateReport"
-      echo "Run aggregate command: $aggregateCommand"
-      run_ssh $privatekey_path ubuntu $egress_ip_address "$aggregateCommand"
-
-      echo "Copy result files to local"
-      run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv" "/tmp/aggregate-${protocol[i]}-${concurrency[j]}.csv"
-      run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv" "/tmp/result-${protocol[i]}-${concurrency[j]}.csv"
-    done
-  done
+  echo "Copy result files to local"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol}-${concurrency}.csv" "/tmp/aggregate-${protocol}-${concurrency}.csv"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/result-${protocol}-${concurrency}.csv" "/tmp/result-${protocol}-${concurrency}.csv"
 }
 
 collect_result_jmeter() {
