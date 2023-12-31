@@ -1,4 +1,4 @@
-name: Terraform Configuration Checks
+name: Terraform Validate
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 jobs:
-  Terraform-Configuration-checks:
+  terraform-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,11 +18,11 @@ jobs:
       uses: hashicorp/setup-terraform@v2
       with:
         terraform_version: 1.5.6
-    
+
     - name: Terraform Format Check
       if: always()
       run: terraform fmt --check -recursive
-    
+
     - name: Terraform Azure Validation Check
       if: always()
       working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
