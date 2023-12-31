@@ -57,3 +57,22 @@ resource "aws_instance" "vm" {
     "Name" = "${var.vm_config.vm_name}"
   })
 }
+
+resource "aws_ebs_volume" "data_disk" {
+  count = var.vm_config.data_disk_config == null ? 0 : 1
+
+  availability_zone = var.zone
+
+  size       = var.vm_config.data_disk_config.data_disk_size_gb
+  type       = var.vm_config.data_disk_config.data_disk_volume_type
+  iops       = var.vm_config.data_disk_config.data_disk_iops_read_write
+  throughput = var.vm_config.data_disk_config.data_disk_mbps_read_write
+}
+
+resource "aws_volume_attachment" "attach" {
+  count = var.vm_config.data_disk_config == null ? 0 : 1
+
+  device_name = "/dev/sdh"
+  instance_id = aws_instance.vm.id
+  volume_id   = aws_ebs_volume.data_disk[0].id
+}

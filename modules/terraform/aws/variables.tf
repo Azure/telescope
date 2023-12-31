@@ -110,3 +110,9 @@ variable "vm_config_list" {
   }))
   default = []
 }
+
+variable "bucket_name_prefix" {
+  description = "Value of the bucket name prefix"
+  type        = string
+  default     = ""
+}

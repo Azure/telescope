@@ -73,6 +73,7 @@ module "virtual_machine" {
   machine_type        = local.machine_type
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
+  zone                = local.zone
 }
 
 module "load_balancer" {
@@ -83,4 +84,13 @@ module "load_balancer" {
   run_id              = local.run_id
   tags                = local.tags
   depends_on          = [module.virtual_machine, module.virtual_network]
+}
+
+module "bucket" {
+  source = "./bucket"
+
+  count              = var.bucket_name_prefix != "" ? 1 : 0
+  bucket_name_prefix = var.bucket_name_prefix
+  run_id             = local.run_id
+  tags               = local.tags
 }

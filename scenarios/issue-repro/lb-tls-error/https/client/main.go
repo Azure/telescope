@@ -52,7 +52,7 @@ func main() {
 	totalConns, _ := strconv.ParseUint(os.Getenv("TOTAL_CONNECTIONS"), 10, 64)
 	fmt.Printf("%v total connections to be established\n", totalConns)
 
-	parallelConns, _ := strconv.ParseUint(os.Getenv("PARALELL_CONNECTIONS"), 10, 64)
+	parallelConns, _ := strconv.ParseUint(os.Getenv("PARALLEL_CONNECTIONS"), 10, 64)
 	fmt.Printf("%v parallel connections to be established\n", parallelConns)
 
 	tlsHandshakeTimeout, _ := strconv.ParseInt(os.Getenv("TLS_HANDSHAKE_TIMEOUT"), 10, 64)
