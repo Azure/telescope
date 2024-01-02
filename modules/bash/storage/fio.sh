@@ -85,7 +85,7 @@ collect_result_disk_fio() {
   local result_dir=$1
   local run_link=$2
 
-  echo "collecting fio results from $result_dir/fio-*.log into $result_dir/result.json"
+  echo "collecting fio results from $result_dir/fio-*.log"
 
   local methods=("randread" "randrw" "read" "rw")
 
@@ -153,7 +153,7 @@ collect_result_blob_fio() {
   local result_dir=$1
   local run_link=$2
 
-  echo "collecting fio results from $result_dir/fio-*.log into $result_dir/result.json"
+  echo "collecting fio results from $result_dir/fio-*.log"
 
   local methods=("randread" "randrw" "read" "rw")
   # temporary disable rw for case common_s3_bucket, we have problem with rw right now
@@ -212,7 +212,7 @@ collect_result_fileshare_fio() {
   local result_dir=$1
   local run_link=$2
 
-  echo "collecting small file results from $result_dir/worldpress.log into $result_dir/result.json"
+  echo "collecting small file results from $result_dir/worldpress.log"
   local worldpress_log="$result_dir/worldpress.log"
   cat $worldpress_log
   small_file_rw=$(cat $worldpress_log | grep real | awk '{print $2}')
@@ -221,8 +221,9 @@ collect_result_fileshare_fio() {
     small_file_rw="0"
   fi
 
-  echo "collecting fio results from $result_dir/fio-*.log into $result_dir/result.json"
+  echo "collecting fio results from $result_dir/fio-*.log"
 
+  local methods=("randread" "randrw" "read" "rw")
   for method in "${methods[@]}"
   do
     result="$result_dir/fio-${method}.log"

@@ -15,6 +15,10 @@ variable "json_input" {
     data_disk_mbps_read_only  = optional(number)
     data_disk_mbps_read_write = optional(number)
     ultra_ssd_enabled         = optional(bool)
+
+    efs_performance_mode                = optional(string)
+    efs_throughput_mode                 = optional(string)
+    efs_provisioned_throughput_in_mibps = optional(number)
   })
 }
 
@@ -112,6 +116,12 @@ variable "vm_config_list" {
 }
 
 variable "bucket_name_prefix" {
+  description = "Value of the bucket name prefix"
+  type        = string
+  default     = ""
+}
+
+variable "efs_name_prefix" {
   description = "Value of the bucket name prefix"
   type        = string
   default     = ""

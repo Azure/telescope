@@ -123,11 +123,90 @@ run_small_file_perf_on_remote_vm() {
   echo "Getting small file"
 
   set +x # disable debug output because it will mess up the output of fio
-  local command="((time -p ( wget -qO- https://wordpress.org/latest.tar.gz | tar xvz -C $mount_point )) 2>&1)"
+  local command="((time -p (sudo wget -qO- https://wordpress.org/latest.tar.gz | sudo tar xvz -C $mount_point )) 2>&1)"
   echo "Run command: $command"
   run_ssh $privatekey_path ubuntu $egress_ip_address "$command" | tee $result_dir/worldpress.log
 
   if $DEBUG; then # re-enable debug output if DEBUG is set
     set -x
   fi
+}
+
+aws_get_1st_efs_id_by_tag() {
+  local tag_key=$1
+  local tag_value=$2
+
+  efs_id=$(aws efs describe-file-systems --query "FileSystems[?Tags[?Key=='$tag_key' && Value=='$tag_value']].FileSystemId" --output text | head -n 1)
+  echo $efs_id
+}
+
+aws_get_1st_subnet_id_by_tag() {
+  local tag_key=$1
+  local tag_value=$2
+
+  subnet_id=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='$tag_key' && Value=='$tag_value']].SubnetId" --output text | head -n 1)
+  echo $subnet_id
+}
+
+aws_get_1st_security_group_id_by_tag() {
+  local tag_key=$1
+  local tag_value=$2
+
+  security_group_id=$(aws ec2 describe-security-groups --query "SecurityGroups[?Tags[?Key=='$tag_key' && Value=='$tag_value']].GroupId" --output text | head -n 1)
+  echo $security_group_id
+}
+
+aws_create_efs_mount_target() {
+  local efs_id=$1
+  local subnet_id=$2
+  local security_group_id=$3
+
+  aws efs create-mount-target \
+    --file-system-id $efs_id \
+    --subnet-id $subnet_id \
+    --security-groups $security_group_id
+}
+
+aws_delete_existing_efs_mount_targets() {
+  local efs_id=$1
+
+  mount_target_ids=$(aws efs describe-mount-targets \
+    --file-system-id $efs_id \
+    --query "MountTargets[].MountTargetId" \
+    --output text)
+
+  for mount_target_id in $mount_target_ids; do
+    echo "Deleting mount target $mount_target_id"
+    aws efs delete-mount-target \
+      --mount-target-id $mount_target_id
+  done
+}
+
+aws_get_ip_of_efs_mount_target() {
+  local efs_id=$1
+  local subnet_id=$2
+
+  aws efs describe-mount-targets \
+    --file-system-id $efs_id \
+    --query "MountTargets[?SubnetId=='$subnet_id'].IpAddress" \
+    --output text
+}
+
+aws_mount_efs_on_remote_vm() {
+  local egress_ip_address=$1
+  local privatekey_path=$2
+  local mount_point=$3
+  local efs_ip_address=$4
+
+  local cmds=(
+    "sudo mkdir ${mount_point} -p"
+    "sudo mount -t nfs4 ${efs_ip_address}:/ ${mount_point} -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+    "sleep 5"
+    "sudo df -lh & sudo mount"
+  )
+
+  for cmd in "${cmds[@]}"; do
+    echo "Running: $cmd"
+    run_ssh $privatekey_path ubuntu $egress_ip_address "$cmd"
+  done
 }
