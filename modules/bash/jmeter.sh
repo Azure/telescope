@@ -54,51 +54,37 @@ run_jmeter() {
   run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/result-${protocol}-${concurrency}.csv" "/tmp/result-${protocol}-${concurrency}.csv"
 }
 
-collect_result_jmeter() {
-  local result_dir=$1
-  local result_file=$2
-  local run_link=$3
-  local cloud=$4
-  local region=$5
-  local resource_group=$6
-  local machine_type=$7
-  local extra_info=$8
+collect_result_jmeter
+{
+  local PROTOCOL=$1
+  local CONCURRENCY=$2
+  local result_dir=$3
+  local RUN_ID=$4
+  local RUN_URL=$5
+
+  echo "Collect result for $PROTOCOL with $CONCURRENCY concurrency"
+  result=$(cat "/tmp/aggregate-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
 
   create_file $result_dir $result_file
-
-  protocolList=("http" "https")
-  concurrencyList=(100 500 1000)
-
-  for protocol in "${protocolList[@]}"
-  do
-    for concurrency in "${concurrencyList[@]}"
-    do
-      echo "Collect result for $protocol with $concurrency concurrency"
-      result=$(cat "/tmp/aggregate-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
-
-      head -n 1 "/tmp/result-${protocol}-${concurrency}.csv" | cut -d "," -f 4,5 > "/tmp/error-${protocol}-${concurrency}.csv"
-      tail -n +2 "/tmp/result-${protocol}-${concurrency}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${protocol}-${concurrency}.csv"
-      count=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | wc -l)
+      head -n 1 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | cut -d "," -f 4,5 > "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
+      tail -n +2 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
+      count=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | wc -l)
       error=""
       if [ "$count" -gt 1 ]; then
-        error=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+        error=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
       fi
-      
+
       data=$(jq --null-input \
         --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-        --arg metric "$protocol" \
-        --arg concurrency "$concurrency" \
+        --arg protocol "$PROTOCOL" \
+        --arg concurrency "$CONCURRENCY" \
+        --arg cloud_info "$CLOUD_INFO" \
         --arg result "$result" \
         --arg error "$error" \
-        --arg cloud "$cloud" \
-        --arg location "$region" \
-        --arg resource_group "$resource_group" \
-        --arg vm_size "$machine_type" \
-        --arg run_url "$run_link" \
-        --arg extra_info "$extra_info" \
-        '{timestamp: $timestamp, metric: $metric, concurrency: $concurrency, result: $result, error: $error, cloud: $cloud, resource_group: $resource_group, location: $location, vm_size: $vm_size, extra_info: $extra_info, run_url: $run_url}')
-
-      echo $data >> $result_file
-    done
-  done
+        --arg run_id "$RUN_ID" \
+        --arg run_url "$RUN_URL" \
+        '{timestamp: $timestamp, protocol: $protocol, cloud_info: $cloud_info, result: $result, error: $error, run_id: $run_id, run_url: $run_url, concurrency: $concurrency}')
+      
+      touch $RESULT_DIR/results.json
+      echo $data >> $RESULT_DIR/results.json
 }
