@@ -95,7 +95,7 @@ az vm run-command create --name dockerCommand -g ${RUN_ID} --vm-name ${CLIENT_NA
   "runAsUser": null,
   "source": {
     "commandId": null,
-    "script": "docker run -e SERVER_ADDRESS=20.163.235.127 -e TOTAL_CONNECTIONS 10000 telescope.azurecr.io/issue-repro/slb-eof-error-client:v1.0.9",
+    "script": "docker run -e SERVER_ADDRESS=20.163.235.127 telescope.azurecr.io/issue-repro/slb-eof-error-client:v1.0.9",
     "scriptUri": null
   },
   "tags": null,
@@ -112,6 +112,16 @@ az vm run-command wait -g ${RUN_ID} --vm-name ${CLIENT_NAME} --run-command-name 
 Get the test execution by running command as below:
 ```
 az vm run-command show -g ${RUN_ID} --vm-name ${CLIENT_NAME} --run-command-name dockerCommand --instance-view --query instanceView
+{
+  "endTime": "2024-01-09T21:23:23+00:00",
+  "error": "",
+  "executionMessage": "Execution completed",
+  "executionState": "Succeeded",
+  "exitCode": 0,
+  "output": "{\n  \"error_count\": \"205\",\n  \"server_address\": \"20.163.235.127\",\n  \"server_port\": \"443\",\n  \"total_connections\": \"1000000\",\n  \"parallel_connections\": \"100\",\n  \"tls_handshake_timeout\": \"10\",\n  \"disable_keep_alives\": \"false\"\n}\n",
+  "startTime": "2024-01-09T19:41:49+00:00",
+  "statuses": null
+}
 ```
 if executionState field is succeeded, check output field for test results
 
