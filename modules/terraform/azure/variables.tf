@@ -246,8 +246,3 @@ variable "storage_account_name_prefix" {
   type    = string
   default = null
 }
-
-variable "storage_account_file_share_name" {
-  type    = string
-  default = null
-}

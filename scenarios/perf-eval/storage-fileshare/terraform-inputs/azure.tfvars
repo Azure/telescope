@@ -54,4 +54,3 @@ vmss_config_list                  = []
 nic_backend_pool_association_list = []
 
 storage_account_name_prefix = "perfevalfile"
-storage_account_file_share_name = "fileshare"
