@@ -1,4 +1,4 @@
-## Run Test Scenario
+## Overview
 
 This guide covers how to manually run vm iperf test on Azure
 
@@ -6,24 +6,23 @@ This guide covers how to manually run vm iperf test on Azure
 * Install Terraform (https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 * Install Azure CLI (https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
 
-### Define Test Variables
+### Define Variables
 Set environment variables for testing
 ```
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=vm-iperf
-RUN_ID=10312023
+RUN_ID=01042024
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
 REGION=eastus
 MACHINE_TYPE=standard_D16_v3
-AKS_MACHINE_TYPE=standard_D16_v3
 ACCERLATED_NETWORKING=true
-SERVER_NAME=server-vm
-CLIENT_NAME=client-vm
+SERVER_ROLE=server
+CLIENT_ROLE=client
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
-SCRIPT_MODULES_DIR=modules/bash
-USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_NAME/bash-scripts
+TEST_MODULES_DIR=modules/bash
+USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 SSH_KEY_PATH=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 TCP_THREAD_MODE=multi
@@ -61,10 +60,9 @@ INPUT_JSON=$(jq -n \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --arg machine_type $MACHINE_TYPE \
---arg aks_machine_type $AKS_MACHINE_TYPE \
 --arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path, aks_machine_type: $aks_machine_type}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
@@ -73,30 +71,24 @@ popd
 ```
 
 ### Validate Resources
-Import bash module:
-```
-source ./${SCRIPT_MODULES_DIR}/utils.sh
-source ./${SCRIPT_MODULES_DIR}/azure.sh
-source ./${SCRIPT_MODULES_DIR}/iperf.sh
-```
-
 Validate server VM is running and ready for iperf traffic
 ```
-SERVER_PUBLIC_IP=$(azure_vm_ip_address $RESOURCE_GROUP $SERVER_NAME "public")
-SERVER_PRIVATE_IP=$(azure_vm_ip_address $RESOURCE_GROUP $SERVER_NAME "private")
-check_iperf_setup $SERVER_PUBLIC_IP $IPERF_VERSION $SSH_KEY_PATH
+SERVER_VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${SERVER_ROLE}')].id" --output tsv)
+SERVER_PUBLIC_IP=$(az vm list-ip-addresses --ids $SERVER_VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
+SERVER_PRIVATE_IP=$(az vm list-ip-addresses --ids $SERVER_VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
 ```
 
 Validate client VM is running and ready for iperf traffic
 ```
-CLIENT_PUBLIC_IP=$(azure_vm_ip_address $RESOURCE_GROUP $CLIENT_NAME "public")
-CLIENT_PRIVATE_IP=$(azure_vm_ip_address $RESOURCE_GROUP $CLIENT_NAME "private")
-check_iperf_setup $CLIENT_PUBLIC_IP $IPERF_VERSION $SSH_KEY_PATH
+CLIENT_VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${CLIENT_ROLE}')].id" --output tsv)
+CLIENT_PUBLIC_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
+CLIENT_PRIVATE_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
 ```
 
 ### Execute Tests
 Run iperf for both TCP and UDP test traffic with target bandwidth at 100Mbps, 1Gbps, 2Gbps, 4Gbps
 ```
+source ./${TEST_MODULES_DIR}/iperf.sh
 run_iperf2 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $TCP_THREAD_MODE $UDP_THREAD_MODE $SSH_KEY_PATH $SERVER_PUBLIC_IP $RESULT_PATH
 ```
 
