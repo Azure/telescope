@@ -1,4 +1,5 @@
 import json
+import sys
 
 def generate_kusto_table_creation(schema_path, table_name):
     with open(schema_path, 'r') as schema_file:
