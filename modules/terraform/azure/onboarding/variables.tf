@@ -1,33 +1,96 @@
 
-variable "onboarding_input" {
-  description = "values for onboarding new test scenario"
-  type = object({
-    owner                       = string
-    resource_group_name         = string
-    storage_account_name        = string
-    storage_container_name      = string
-    kusto_cluster_name          = string
-    kusto_database_name         = string
-    kusto_table_name            = string
-    eventhub_namespace_name     = string
-    eventhub_name               = string
-    eventgrid_topic_name        = string
-    eventgrid_subscription_name = string
-    data_connection_name        = string
-    table_creation_script_path  = string
-  })
-  default = {
-    owner                       = "azure_devops"
-    resource_group_name         = "sumanth-onboarding-automation"
-    storage_account_name        = "sumanthtelescope"
-    storage_container_name      = "sumanthtest"
-    kusto_cluster_name          = "sumanthtelescope"
-    kusto_database_name         = "sumanthtestdb"
-    kusto_table_name            = "sumanthtable"
-    eventhub_namespace_name     = "sumanthtelescope"
-    eventhub_name               = "sumanthtesteventhub"
-    eventgrid_topic_name        = "sumanthtelescope"
-    eventgrid_subscription_name = "sumanthtestsubscription"
-    data_connection_name        = "sumanthtestconnection"
-  }
+variable "owner" {
+  description = "owner of the test scenario"
+  type        = string
+  default     = "azure_devops"
+}
+
+variable "scenario_name" {
+  description = "name of the test scenario"
+  type        = string
+  default     = null
+}
+
+variable "scenario_type" {
+  description = "type of the test scenario"
+  type        = string
+  default     = null
+}
+
+variable "scenario_version" {
+  description = "version of the test scenario"
+  type        = string
+  default     = null
+}
+
+variable "resource_group_name" {
+  description = "resource group name"
+  type        = string
+  default     = null
+}
+
+variable "storage_account_name" {
+  description = "storage account name"
+  type        = string
+  default     = null
+}
+
+variable "storage_container_name" {
+  description = "storage container name"
+  type        = string
+  default     = null
+}
+
+variable "kusto_cluster_name" {
+  description = "kusto cluster name"
+  type        = string
+  default     = null
+}
+
+variable "kusto_database_name" {
+  description = "kusto database name"
+  type        = string
+  default     = null
+}
+
+variable "kusto_table_name" {
+  description = "kusto table name"
+  type        = string
+  default     = null
+}
+
+variable "eventhub_namespace_name" {
+  description = "eventhub namespace name"
+  type        = string
+  default     = null
+}
+
+variable "eventhub_name" {
+  description = "eventhub name"
+  type        = string
+  default     = null
+}
+
+variable "eventgrid_topic_name" {
+  description = "eventgrid topic name"
+  type        = string
+  default     = null
+}
+
+variable "eventgrid_subscription_name" {
+  description = "eventgrid subscription name"
+  type        = string
+  default     = null
+}
+
+variable "data_connection_name" {
+  description = "data connection name"
+  type        = string
+  default     = null
+}
+
+variable "table_creation_script_path" {
+  description = "table creation script path"
+  type        = string
+  default     = null
 }

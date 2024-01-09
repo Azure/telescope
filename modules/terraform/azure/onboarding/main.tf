@@ -4,18 +4,18 @@ provider "azurerm" {
 
 # Resource Group
 data "azurerm_resource_group" "rg" {
-  name = var.onboarding_input.resource_group_name
+  name = var.resource_group_name
 }
 
 # Storage Account
 data "azurerm_storage_account" "storage" {
-  name                = var.onboarding_input.storage_account_name
+  name                = var.storage_account_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 # Storage Container
 resource "azurerm_storage_container" "container" {
-  name                  = var.onboarding_input.storage_container_name
+  name                  = var.storage_container_name
   storage_account_name  = data.azurerm_storage_account.storage.name
   container_access_type = "private"
 }
@@ -25,7 +25,7 @@ resource "azurerm_storage_blob" "blob" {
   storage_account_name   = data.azurerm_storage_account.storage.name
   storage_container_name = azurerm_storage_container.container.name
   type                   = "Block"
-  source_content         = file("${var.onboarding_input.table_creation_script}/table_creation_script.txt")
+  source_content         = file("${var.table_creation_script_path}/table_creation_script.txt")
 }
 
 data "azurerm_storage_account_blob_container_sas" "sas" {
@@ -47,14 +47,14 @@ data "azurerm_storage_account_blob_container_sas" "sas" {
 }
 
 data "azurerm_kusto_cluster" "cluster" {
-  name                = var.onboarding_input.kusto_cluster_name
+  name                = var.kusto_cluster_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 
 # Azure Data Explorer Database
 resource "azurerm_kusto_database" "database" {
-  name                = var.onboarding_input.kusto_database_name
+  name                = var.kusto_database_name
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   cluster_name        = data.azurerm_kusto_cluster.cluster.name
@@ -72,12 +72,12 @@ resource "azurerm_kusto_script" "script" {
 
 
 data "azurerm_eventhub_namespace" "eventhub_ns" {
-  name                = var.onboarding_input.eventhub_namespace_name
+  name                = var.eventhub_namespace_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_eventhub" "eventhub" {
-  name                = var.onboarding_input.eventhub_name
+  name                = var.eventhub_name
   namespace_name      = data.azurerm_eventhub_namespace.eventhub_ns.name
   resource_group_name = data.azurerm_resource_group.rg.name
   partition_count     = 8
@@ -85,7 +85,7 @@ resource "azurerm_eventhub" "eventhub" {
 }
 
 data "azuread_service_principal" "kusto_sp" {
-  display_name = var.onboarding_input.kusto_cluster_name
+  display_name = var.kusto_cluster_name
 }
 
 resource "azurerm_role_assignment" "storage_role_assignment" {
@@ -102,19 +102,19 @@ resource "azurerm_eventhub_consumer_group" "consumer_group" {
 }
 
 data "azurerm_eventgrid_system_topic" "topic" {
-  name                = var.onboarding_input.eventgrid_topic_name
+  name                = var.eventgrid_topic_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
-  name                  = var.onboarding_input.eventgrid_subscription_name
+  name                  = var.eventgrid_subscription_name
   system_topic          = data.azurerm_eventgrid_system_topic.topic.name
   resource_group_name   = data.azurerm_resource_group.rg.name
   event_delivery_schema = "EventGridSchema"
   eventhub_endpoint_id  = azurerm_eventhub.eventhub.id
   included_event_types  = ["Microsoft.Storage.BlobCreated"]
   subject_filter {
-    subject_begins_with = "/blobServices/default/containers/${var.onboarding_input.storage_container_name}/blobs/sumanth-test"
+    subject_begins_with = "/blobServices/default/containers/${var.storage_container_name}/blobs/sumanth-test"
   }
   advanced_filtering_on_arrays_enabled = true
   depends_on                           = [azurerm_storage_container.container]
@@ -122,7 +122,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
 
 
 resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
-  name                         = var.onboarding_input.data_connection_name
+  name                         = var.data_connection_name
   resource_group_name          = data.azurerm_resource_group.rg.name
   location                     = data.azurerm_resource_group.rg.location
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name
@@ -131,6 +131,6 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   eventhub_id                  = azurerm_eventhub.eventhub.id
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
-  table_name                   = var.onboarding_input.kusto_table_name
+  table_name                   = var.kusto_table_name
   depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.example]
 }
