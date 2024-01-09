@@ -1,0 +1,13 @@
+[
+  {"ColumnName": "timestamp", "DataType": "datetime"},
+  {"ColumnName": "metric", "DataType": "string"},
+  {"ColumnName": "target_bandwidth", "DataType": "long"},
+  {"ColumnName": "unit", "DataType": "string"},
+  {"ColumnName": "iperf_info", "DataType": "dynamic"},
+  {"ColumnName": "os_info", "DataType": "dynamic"},
+  {"ColumnName": "cloud_info", "DataType": "dynamic"},
+  {"ColumnName": "egress_ip", "DataType": "string"},
+  {"ColumnName": "ingress_ip", "DataType": "string"},
+  {"ColumnName": "run_id", "DataType": "string"},
+  {"ColumnName": "run_url", "DataType": "string"}
+]

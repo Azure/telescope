@@ -52,7 +52,7 @@ resource "tls_private_key" "admin-ssh-key" {
 
 module "resource_group" {
   source              = "./resource-group"
-  resource_group_name = local.run_i
+  resource_group_name = local.run_id
   location            = local.region
   tags                = local.tags
 }
