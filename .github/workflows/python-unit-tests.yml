@@ -19,10 +19,8 @@ jobs:
         python-version: '3.10'
 
     - name: Python Version Check
-      if: always()
       run: python --version
 
     - name: Run Python Unit Tests
-      if: always()
       working-directory: ${{ env.PYTHON_MODULES_DIR }}
       run:  python -m unittest discover
