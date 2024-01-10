@@ -54,7 +54,7 @@ run_jmeter() {
   run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/result-${protocol}-${concurrency}.csv" "/tmp/result-${protocol}-${concurrency}.csv"
 }
 
-collect_result_jmeter
+collect_result_jmeter()
 {
   local PROTOCOL=$1
   local CONCURRENCY=$2
