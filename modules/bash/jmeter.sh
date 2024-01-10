@@ -65,26 +65,25 @@ collect_result_jmeter()
   echo "Collect result for $PROTOCOL with $CONCURRENCY concurrency"
   result=$(cat "/tmp/aggregate-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
 
-  create_file $result_dir $result_file
-      head -n 1 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | cut -d "," -f 4,5 > "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
-      tail -n +2 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
-      count=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | wc -l)
-      error=""
-      if [ "$count" -gt 1 ]; then
-        error=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
-      fi
+  head -n 1 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | cut -d "," -f 4,5 > "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
+  tail -n +2 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
+  count=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | wc -l)
+  error=""
+  if [ "$count" -gt 1 ]; then
+    error=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+  fi
 
-      data=$(jq --null-input \
-        --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-        --arg protocol "$PROTOCOL" \
-        --arg concurrency "$CONCURRENCY" \
-        --arg cloud_info "$CLOUD_INFO" \
-        --arg result "$result" \
-        --arg error "$error" \
-        --arg run_id "$RUN_ID" \
-        --arg run_url "$RUN_URL" \
-        '{timestamp: $timestamp, protocol: $protocol, cloud_info: $cloud_info, result: $result, error: $error, run_id: $run_id, run_url: $run_url, concurrency: $concurrency}')
-      
-      touch $RESULT_DIR/results.json
-      echo $data >> $RESULT_DIR/results.json
+  data=$(jq --null-input \
+    --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+    --arg protocol "$PROTOCOL" \
+    --arg concurrency "$CONCURRENCY" \
+    --arg cloud_info "$CLOUD_INFO" \
+    --arg result "$result" \
+    --arg error "$error" \
+    --arg run_id "$RUN_ID" \
+    --arg run_url "$RUN_URL" \
+    '{timestamp: $timestamp, protocol: $protocol, cloud_info: $cloud_info, result: $result, error: $error, run_id: $run_id, run_url: $run_url, concurrency: $concurrency}')
+  
+  touch $RESULT_DIR/results.json
+  echo $data >> $RESULT_DIR/results.json
 }
