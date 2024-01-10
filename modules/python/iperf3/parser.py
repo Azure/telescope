@@ -1,5 +1,4 @@
 import sys
-import re
 import json
 
 def parse_tcp_output(stdout):
