@@ -29,7 +29,7 @@ run_iperf3() {
 
   local protocolList=("tcp" "udp")
   local bandwidthList=(100 1000 2000 4000)
-  
+
   echo "Run evaluation"
   for protocol in "${protocolList[@]}"
   do
@@ -50,8 +50,8 @@ run_iperf3() {
           fullCommand+="$command --port 2000$i &> /tmp/${protocol}-${bandwidth}-thread$i.json & "
         done
         echo "Run iperf3 command: $fullCommand"
-        run_ssh $privatekey_path ubuntu $egress_ip_address "$fullCommand" 
-        
+        run_ssh $privatekey_path ubuntu $egress_ip_address "$fullCommand"
+
         while true
         do
           count=$(run_ssh $privatekey_path ubuntu $egress_ip_address "ps -ef | grep iperf3 | grep -v grep | wc -l")
@@ -64,7 +64,7 @@ run_iperf3() {
 
         echo "Merging results"
         run_ssh $privatekey_path ubuntu $egress_ip_address "jq -s '.' /tmp/${protocol}-${bandwidth}-thread*.json" > /tmp/iperf3-${protocol}-${bandwidth}.json
-      else 
+      else
         fullCommand="$command --bandwidth ${bandwidth}M --port 20001"
         echo "Run iperf3 command: $fullCommand"
         run_ssh $privatekey_path ubuntu $egress_ip_address "$fullCommand" > /tmp/iperf3-${protocol}-${bandwidth}.json
@@ -90,7 +90,7 @@ run_iperf2_helper() {
   for bandwidth in "${bandwidthList[@]}"
   do
     local command="iperf --enhancedreports --client $destination_ip_address --format m --time 60"
-    
+
     if [ "$protocol" = "udp" ]; then
       port=20002
       command="$command --udp --port $port"
@@ -105,7 +105,7 @@ run_iperf2_helper() {
       parallel=$(echo "$bandwidth / 1000" | bc)
       if [ "$parallel" -eq 0 ]; then
         parallel=1
-      else 
+      else
         run_bandwidth=1000
       fi
     fi
@@ -145,10 +145,10 @@ publish_result_iperf3() {
   local job_id=$2
 
   publish_common $job_id $run_id
-  
+
   local protocolList=("tcp" "udp")
   local bandwidthList=(100 1000 2000 4000)
-  
+
   for protocol in "${protocolList[@]}"
   do
     for bandwidth in "${bandwidthList[@]}"
@@ -161,7 +161,7 @@ publish_result_iperf3() {
         start_info=$(jq '[ .start ]' $result)
         end_info=$(jq '[ .end ]' $result)
       fi
-      
+
       data=$(jq --null-input \
         --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
         --arg metric "$protocol" \
@@ -204,7 +204,7 @@ collect_result_iperf2() {
     do
       iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
       cat $iperf_result
-      iperf_info=$(python3 ./modules/python/parse-iperf2.py $protocol $iperf_result)
+      iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
 
       proc_net_result="$result_dir/proc-net-${protocol}-${bandwidth}.log"
       read proc_net_rx_queue proc_net_drops < $proc_net_result
