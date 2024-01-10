@@ -6,7 +6,7 @@ on:
 env:
   PYTHON_MODULES_DIR: modules/python
 jobs:
-  unit-tests:
+  python-unit-tests:
     runs-on: ubuntu-latest
 
     steps:
