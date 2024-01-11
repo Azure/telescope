@@ -4,6 +4,7 @@ locals {
   subnet_names                = var.network_config.subnet_names
   subnets_map                 = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
   subnet_address_prefixes     = var.network_config.subnet_address_prefixes
+  subnet_service_endpoints    = var.network_config.subnet_service_endpoints
   network_security_group_name = var.network_config.network_security_group_name
   nic_association_map         = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
   tags                        = merge(var.tags, { "role" = var.network_config.role })
@@ -24,6 +25,7 @@ resource "azurerm_subnet" "subnets" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [local.subnet_address_prefixes[count.index]]
+  service_endpoints    = local.subnet_service_endpoints
 }
 
 

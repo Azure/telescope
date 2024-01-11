@@ -28,6 +28,7 @@ variable "network_config" {
     vnet_address_space          = string
     subnet_names                = list(string)
     subnet_address_prefixes     = list(string)
+    subnet_service_endpoints    = optional(list(string))
     network_security_group_name = string
     nic_public_ip_associations = list(object({
       nic_name              = string

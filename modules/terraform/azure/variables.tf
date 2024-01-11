@@ -20,6 +20,9 @@ variable "json_input" {
     storage_account_tier             = optional(string)
     storage_account_kind             = optional(string)
     storage_account_replication_type = optional(string)
+    storage_share_quota              = optional(number)
+    storage_share_access_tier        = optional(string)
+    storage_share_enabled_protocol   = optional(string)
   })
 }
 
@@ -55,6 +58,7 @@ variable "network_config_list" {
     vnet_address_space          = string
     subnet_names                = list(string)
     subnet_address_prefixes     = list(string)
+    subnet_service_endpoints    = optional(list(string))
     network_security_group_name = string
     nic_public_ip_associations = list(object({
       nic_name              = string

@@ -34,6 +34,32 @@ variable "storage_account_replication_type" {
   default     = ""
 }
 
+variable "storage_share_config" {
+  description = "storage share config"
+  type = object({
+    name             = string
+    quota            = number
+    access_tier      = string
+    enabled_protocol = string
+  })
+  default = null
+}
+
+variable "storage_network_rules_config" {
+  description = "storage network rules config"
+  type = object({
+    default_action             = string
+    virtual_network_subnet_ids = list(string)
+  })
+  default = null
+}
+
+variable "enable_https_traffic_only" {
+  description = "enable https traffic only"
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   type = map(string)
   default = {

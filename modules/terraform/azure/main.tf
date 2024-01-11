@@ -17,6 +17,9 @@ locals {
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
+  storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
+  storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
+  storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
@@ -207,5 +210,14 @@ module "storage_account" {
   storage_account_tier             = local.storage_account_tier
   storage_account_kind             = local.storage_account_kind
   storage_account_replication_type = local.storage_account_replication_type
+  enable_https_traffic_only        = local.storage_share_enabled_protocol == "NFS" ? false : true
   tags                             = local.tags
+
+  # don't use terraform to create fileshare now, we are not able to delete the fileshare when it has network_rule set
+  # storage_share_config = var.storage_account_file_share_name == null ? null : {
+  #   name             = var.storage_account_file_share_name
+  #   quota            = local.storage_share_quota
+  #   access_tier      = local.storage_share_access_tier
+  #   enabled_protocol = local.storage_share_enabled_protocol
+  # }
 }
