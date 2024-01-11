@@ -59,10 +59,9 @@ data "azurerm_kusto_database" "database" {
   cluster_name        = data.azurerm_kusto_cluster.cluster.name
 }
 
-
 resource "azurerm_kusto_script" "script" {
   name                               = "kusto-script"
-  database_id                        = azurerm_kusto_database.database.id
+  database_id                        = data.azurerm_kusto_database.database.id
   url                                = azurerm_storage_blob.blob.id
   sas_token                          = data.azurerm_storage_account_blob_container_sas.sas.sas
   continue_on_errors_enabled         = true
@@ -125,11 +124,12 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   resource_group_name          = data.azurerm_resource_group.rg.name
   location                     = data.azurerm_resource_group.rg.location
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name
-  database_name                = azurerm_kusto_database.database.name
+  database_name                = data.azurerm_kusto_database.database.name
   storage_account_id           = data.azurerm_storage_account.storage.id
   eventhub_id                  = azurerm_eventhub.eventhub.id
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
   table_name                   = var.kusto_table_name
+  mapping_rule_name            = "${var.kusto_table_name}_mapping"
   depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.example]
 }
