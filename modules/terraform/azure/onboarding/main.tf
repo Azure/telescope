@@ -25,7 +25,7 @@ resource "azurerm_storage_blob" "blob" {
   storage_account_name   = data.azurerm_storage_account.storage.name
   storage_container_name = azurerm_storage_container.container.name
   type                   = "Block"
-  source_content         = file("${var.table_creation_script_path}/table_creation_script.txt")
+  source_content         = var.table_creation_script
 }
 
 data "azurerm_storage_account_blob_container_sas" "sas" {
@@ -53,10 +53,9 @@ data "azurerm_kusto_cluster" "cluster" {
 
 
 # Azure Data Explorer Database
-resource "azurerm_kusto_database" "database" {
+data "azurerm_kusto_database" "database" {
   name                = var.kusto_database_name
   resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
   cluster_name        = data.azurerm_kusto_cluster.cluster.name
 }
 

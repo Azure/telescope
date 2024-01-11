@@ -89,8 +89,8 @@ variable "data_connection_name" {
   default     = null
 }
 
-variable "table_creation_script_path" {
-  description = "table creation script path"
+variable "table_creation_script" {
+  description = "table creation script"
   type        = string
   default     = null
 }
