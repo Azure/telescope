@@ -1,5 +1,4 @@
 owner                       = "azure_devops"
-region                      = "eastus"
 scenario_name               = "test-onboarding"
 scenario_type               = "perf-eval"
 scenario_version            = "sumanth/Onboarding-Automation"
