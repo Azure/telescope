@@ -15,7 +15,7 @@ check_iperf_setup() {
   fi
 
   echo "run_ssh $privatekey_path ubuntu $ip_address $command"
-  run_ssh $privatekey_path ubuntu $ip_address "$command"
+  run_ssh $privatekey_path ubuntu $ip_address 2222 "$command"
   if [ "$?" -ne 0 ]; then
     echo "Command $command failed with exit code $?"
     exit 1
@@ -26,8 +26,9 @@ run_iperf3() {
   local ingress_ip_address=$1
   local egress_ip_address=$2
   local user_name=$3
-  local privatekey_path=$4
-  local result_dir=$5
+  local ssh_port=$4
+  local privatekey_path=$5
+  local result_dir=$6
 
   local protocolList=("tcp" "udp")
   local bandwidthList=(100 1000 2000 4000)
@@ -54,7 +55,7 @@ run_iperf3() {
       sleep 60
       local fullCommand="$command --bandwidth ${bandwidth}M --port $port"
       echo "Run iperf3 command: $fullCommand"
-      run_ssh $privatekey_path $user_name $egress_ip_address "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
+      run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
     done
   done
 }
@@ -106,7 +107,7 @@ run_iperf2_helper() {
     PID1=$!
 
     echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log &
+    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log &
     PID2=$!
     wait $PID1 $PID2
   done
