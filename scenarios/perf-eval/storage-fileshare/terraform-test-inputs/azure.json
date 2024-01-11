@@ -1,0 +1,10 @@
+{
+    "owner"                            : "terraform_unit_tests",
+    "run_id"                           : "123456789",
+    "region"                           : "eastus",
+    "machine_type"                     : "Standard_D2s_v5",
+    "accelerated_networking"           : true,
+    "storage_account_tier"             : "Premium",
+    "storage_account_kind"             : "FileStorage",
+    "storage_account_replication_type" : "LRS"
+  }
