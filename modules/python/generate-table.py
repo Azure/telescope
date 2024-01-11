@@ -71,6 +71,7 @@ if __name__ == "__main__":
     with open(schema_path, 'r') as schema_file:             
         json_data = schema_file.readline()       
     # json_data = read_json_from_storage_sas(sas_url
+    print(json_data)
     json_object = json.loads(json_data)
     table_command, mapping_command = generate_kusto_commands(json_object, table_name)
 
