@@ -80,4 +80,6 @@ if __name__ == "__main__":
 
     # Write commands to the output file
     write_to_file(output_file_path, table_command, mapping_command)
+    print(table_command)
+    print(mapping_command)
        
