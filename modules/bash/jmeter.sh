@@ -56,34 +56,34 @@ run_jmeter() {
 
 collect_result_jmeter()
 {
-  local PROTOCOL=$1
-  local CONCURRENCY=$2
+  local protocol=$1
+  local concurrency=$2
   local result_dir=$3
-  local RUN_ID=$4
-  local RUN_URL=$5
+  local run_id=$4
+  local run_url=$5
 
-  echo "Collect result for $PROTOCOL with $CONCURRENCY concurrency"
-  result=$(cat "/tmp/aggregate-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+  echo "Collect result for $protocol with $concurrency concurrency"
+  result=$(cat "/tmp/aggregate-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
 
-  head -n 1 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | cut -d "," -f 4,5 > "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
-  tail -n +2 "/tmp/result-${PROTOCOL}-${CONCURRENCY}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv"
-  count=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | wc -l)
+  head -n 1 "/tmp/result-${protocol}-${concurrency}.csv" | cut -d "," -f 4,5 > "/tmp/error-${protocol}-${concurrency}.csv"
+  tail -n +2 "/tmp/result-${protocol}-${concurrency}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${protocol}-${concurrency}.csv"
+  count=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | wc -l)
   error=""
   if [ "$count" -gt 1 ]; then
-    error=$(cat "/tmp/error-${PROTOCOL}-${CONCURRENCY}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+    error=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
   fi
 
   data=$(jq --null-input \
     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-    --arg protocol "$PROTOCOL" \
-    --arg concurrency "$CONCURRENCY" \
-    --arg cloud_info "$CLOUD_INFO" \
+    --arg protocol "$protocol" \
+    --arg concurrency "$concurrency" \
+    --arg cloud_info "$cloud_info" \
     --arg result "$result" \
     --arg error "$error" \
-    --arg run_id "$RUN_ID" \
-    --arg run_url "$RUN_URL" \
+    --arg run_id "$run_id" \
+    --arg run_url "$run_url" \
     '{timestamp: $timestamp, protocol: $protocol, cloud_info: $cloud_info, result: $result, error: $error, run_id: $run_id, run_url: $run_url, concurrency: $concurrency}')
   
-  touch $RESULT_DIR/results.json
-  echo $data >> $RESULT_DIR/results.json
+  touch $result_dir/results.json
+  echo $data >> $result_dir/results.json
 }
