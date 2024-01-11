@@ -207,3 +207,71 @@ collect_result_blob_fio() {
     echo $data >> $result_dir/results.json
   done
 }
+
+collect_result_fileshare_fio() {
+  local result_dir=$1
+  local run_link=$2
+
+  echo "collecting small file results from $result_dir/worldpress.log into $result_dir/result.json"
+  local worldpress_log="$result_dir/worldpress.log"
+  cat $worldpress_log
+  small_file_rw=$(cat $worldpress_log | grep real | awk '{print $2}')
+  if [ -z "$small_file_rw" ]; then
+    echo "small_file_rw is empty, set to 0"
+    small_file_rw="0"
+  fi
+
+  echo "collecting fio results from $result_dir/fio-*.log into $result_dir/result.json"
+
+  for method in "${methods[@]}"
+  do
+    result="$result_dir/fio-${method}.log"
+    echo "========= collecting ${result} ==========="
+    cat $result
+
+    read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
+    read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+    write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
+    write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+
+    data=$(jq --null-input \
+      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --arg method "$method" \
+      --arg location "$REGION" \
+      --arg vm_size "$MACHINE_TYPE" \
+      --arg run_url "$run_link" \
+      --arg cloud "$CLOUD" \
+      --arg case_name "$CASE_NAME" \
+      --arg storage_tier "$STORAGE_TIER" \
+      --arg storage_kind "$STORAGE_KIND" \
+      --arg storage_replication "$STORAGE_REPLICATION" \
+      --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
+      --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
+      --arg read_iops_avg "$read_iops_avg" \
+      --arg read_bw_avg "$read_bw_avg" \
+      --arg write_iops_avg "$write_iops_avg" \
+      --arg write_bw_avg "$write_bw_avg" \
+      --arg small_file_rw "$small_file_rw" \
+      '{
+        timestamp: $timestamp,
+        method: $method,
+        location: $location,
+        vm_size: $vm_size,
+        run_url: $run_url,
+        cloud: $cloud,
+        case_name: $case_name,
+        storage_tier: $storage_tier,
+        storage_kind: $storage_kind,
+        storage_replication: $storage_replication,
+        storage_share_quota: $storage_share_quota,
+        storage_share_enabled_protocol: $storage_share_enabled_protocol,
+        read_iops_avg: $read_iops_avg,
+        read_bw_avg: $read_bw_avg,
+        write_iops_avg: $write_iops_avg,
+        write_bw_avg: $write_bw_avg,
+        small_file_rw: $small_file_rw
+      }')
+
+    echo $data >> $result_dir/results.json
+  done
+}
