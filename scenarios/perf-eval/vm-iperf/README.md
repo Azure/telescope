@@ -11,7 +11,7 @@ Set environment variables for testing
 ```
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=vm-iperf
-RUN_ID=01102024
+RUN_ID=01042024
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
