@@ -130,7 +130,7 @@ collect_result_iperf3() {
   local result_dir=$1
   local egress_ip_address=$2
   local ingress_ip_address=$3
-  local run_id=$5
+  local run_id=$4
 
   touch $result_dir/results.json
 
