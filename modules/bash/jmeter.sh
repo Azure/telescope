@@ -22,11 +22,16 @@ check_jmeter_setup() {
 run_jmeter() {
   local ingress_ip_address=$1
   local egress_ip_address=$2
-  local scenario_name=$3
-  local privatekey_path=$4
+  local scenario_type=$3
+  local scenario_name=$4
+  local privatekey_path=$5
+  local protocol=$6
+  local port=$7
+  local concurrency=$8
+  local loop=$9
 
-  local jmeter_file_source=./scenarios/${scenario_name}/bash-scripts
-  local jmeter_file_dest=/tmp/jmeter
+  local jmeter_file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
+  local jmeter_file_dest=/tmp/jmeter  
 
   echo "Make temp directory"
   run_ssh $privatekey_path ubuntu $egress_ip_address "mkdir -p $jmeter_file_dest"
@@ -35,79 +40,50 @@ run_jmeter() {
   run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/https_test.jmx" "${jmeter_file_dest}/https_test.jmx"
   run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/alias.csv" "${jmeter_file_dest}/alias.csv"
 
-  protocol=("http" "https")
-  port=(80 443)
-  concurrency=(100 500 1000)
-  loop=(10000 2000 1000)
+  sleep 5m
+  jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -p ${jmeter_file_dest}/jmeter.properties -Jprotocol=${protocol} -Jport=${port} -Jip_address=${ingress_ip_address} -Jthread_num=${concurrency} -Jloop_count=${loop} -Jresult_file_name=${jmeter_file_dest}/result-${protocol}-${concurrency} -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log"
+  echo "Run test command: $jmeterCommand"
+  run_ssh $privatekey_path ubuntu $egress_ip_address "$jmeterCommand"
+  
+  aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol}-${concurrency}.csv --input-jtl ${jmeter_file_dest}/result-${protocol}-${concurrency}.csv --plugin-type AggregateReport"
+  echo "Run aggregate command: $aggregateCommand"
+  run_ssh $privatekey_path ubuntu $egress_ip_address "$aggregateCommand"
 
-  echo "Run evaluation"
-  for i in "${!protocol[@]}"
-  do
-    for j in "${!concurrency[@]}"
-    do
-      echo "Wait for 5 minutes before running"
-      sleep 300
-
-      jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S "${jmeter_file_dest}/jmeter.properties" -Jprotocol=${protocol[i]} -Jport=${port[i]} -Jip_address=${ingress_ip_address} -Jthread_num=${concurrency[j]} -Jloop_count=${loop[j]} -Jresult_file_name=${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]} -j ${jmeter_file_dest}/jmeter-${protocol[i]}-${concurrency[j]}.log"
-      echo "Run test command: $jmeterCommand"
-      run_ssh $privatekey_path ubuntu $egress_ip_address "$jmeterCommand"
-      
-      aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv --input-jtl ${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv --plugin-type AggregateReport"
-      echo "Run aggregate command: $aggregateCommand"
-      run_ssh $privatekey_path ubuntu $egress_ip_address "$aggregateCommand"
-
-      echo "Copy result files to local"
-      run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol[i]}-${concurrency[j]}.csv" "/tmp/aggregate-${protocol[i]}-${concurrency[j]}.csv"
-      run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/result-${protocol[i]}-${concurrency[j]}.csv" "/tmp/result-${protocol[i]}-${concurrency[j]}.csv"
-    done
-  done
+  echo "Copy result files to local"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/aggregate-${protocol}-${concurrency}.csv" "/tmp/aggregate-${protocol}-${concurrency}.csv"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_file_dest}/result-${protocol}-${concurrency}.csv" "/tmp/result-${protocol}-${concurrency}.csv"
 }
 
-collect_result_jmeter() {
-  local result_dir=$1
-  local result_file=$2
-  local run_link=$3
-  local cloud=$4
-  local region=$5
-  local resource_group=$6
-  local machine_type=$7
-  local extra_info=$8
+collect_result_jmeter()
+{
+  local protocol=$1
+  local concurrency=$2
+  local result_dir=$3
+  local run_id=$4
+  local run_url=$5
 
-  create_file $result_dir $result_file
+  echo "Collect result for $protocol with $concurrency concurrency"
+  result=$(cat "/tmp/aggregate-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
 
-  protocolList=("http" "https")
-  concurrencyList=(100 500 1000)
+  head -n 1 "/tmp/result-${protocol}-${concurrency}.csv" | cut -d "," -f 4,5 > "/tmp/error-${protocol}-${concurrency}.csv"
+  tail -n +2 "/tmp/result-${protocol}-${concurrency}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${protocol}-${concurrency}.csv"
+  count=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | wc -l)
+  error=""
+  if [ "$count" -gt 1 ]; then
+    error=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+  fi
 
-  for protocol in "${protocolList[@]}"
-  do
-    for concurrency in "${concurrencyList[@]}"
-    do
-      echo "Collect result for $protocol with $concurrency concurrency"
-      result=$(cat "/tmp/aggregate-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
-
-      head -n 1 "/tmp/result-${protocol}-${concurrency}.csv" | cut -d "," -f 4,5 > "/tmp/error-${protocol}-${concurrency}.csv"
-      tail -n +2 "/tmp/result-${protocol}-${concurrency}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${protocol}-${concurrency}.csv"
-      count=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | wc -l)
-      error=""
-      if [ "$count" -gt 1 ]; then
-        error=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
-      fi
-      
-      data=$(jq --null-input \
-        --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-        --arg metric "$protocol" \
-        --arg concurrency "$concurrency" \
-        --arg result "$result" \
-        --arg error "$error" \
-        --arg cloud "$cloud" \
-        --arg location "$region" \
-        --arg resource_group "$resource_group" \
-        --arg vm_size "$machine_type" \
-        --arg run_url "$run_link" \
-        --arg extra_info "$extra_info" \
-        '{timestamp: $timestamp, metric: $metric, concurrency: $concurrency, result: $result, error: $error, cloud: $cloud, resource_group: $resource_group, location: $location, vm_size: $vm_size, extra_info: $extra_info, run_url: $run_url}')
-
-      echo $data >> $result_file
-    done
-  done
+  data=$(jq --null-input \
+    --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+    --arg protocol "$protocol" \
+    --arg concurrency "$concurrency" \
+    --arg cloud_info "$cloud_info" \
+    --arg result "$result" \
+    --arg error "$error" \
+    --arg run_id "$run_id" \
+    --arg run_url "$run_url" \
+    '{timestamp: $timestamp, protocol: $protocol, cloud_info: $cloud_info, result: $result, error: $error, run_id: $run_id, run_url: $run_url, concurrency: $concurrency}')
+  
+  touch $result_dir/results.json
+  echo $data >> $result_dir/results.json
 }
