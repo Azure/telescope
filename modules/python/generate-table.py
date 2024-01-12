@@ -60,5 +60,5 @@ if __name__ == "__main__":
         json_data = schema_file.readline()       
     json_object = json.loads(json_data)
     table_command, mapping_command = generate_kusto_commands(json_object, table_name)
-    print(table_command,mapping_command)
+    print(table_command +"\n \n", mapping_command)
        

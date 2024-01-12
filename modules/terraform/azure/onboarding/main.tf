@@ -33,8 +33,8 @@ data "azurerm_storage_account_blob_container_sas" "sas" {
   container_name    = azurerm_storage_container.container.name
   https_only        = true
 
-  start  = "2023-12-20"
-  expiry = "2023-12-31"
+  start  = formatdate("YYYY-MM-DD", timestamp())
+  expiry = formatdate("YYYY-MM-DD", timestamp() + 86400)
 
   permissions {
     read   = true
@@ -60,7 +60,7 @@ data "azurerm_kusto_database" "database" {
 }
 
 resource "azurerm_kusto_script" "script" {
-  name                               = "kusto-script"
+  name                               = "kusto"
   database_id                        = data.azurerm_kusto_database.database.id
   url                                = azurerm_storage_blob.blob.id
   sas_token                          = data.azurerm_storage_account_blob_container_sas.sas.sas
