@@ -100,8 +100,10 @@ collect_result_disk_fio() {
 
     read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
     read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+    read_lat_avg=$(cat $result | jq '.jobs[0].read.lat_ns.mean')
     write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
     write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+    write_lat_avg=$(cat $result | jq '.jobs[0].write.lat_ns.mean')
 
     data=$(jq --null-input \
       --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -110,6 +112,7 @@ collect_result_disk_fio() {
       --arg vm_size "$MACHINE_TYPE" \
       --arg run_url "$run_link" \
       --arg cloud "$CLOUD" \
+      --arg target_iops "$TARGET_IOPS" \
       --arg case_name "$CASE_NAME" \
       --arg data_disk_type "$DATA_DISK_TYPE" \
       --arg data_disk_size "$DATA_DISK_SIZE_GB" \
@@ -121,8 +124,10 @@ collect_result_disk_fio() {
       --arg data_disk_price_per_month "$DATA_DISK_PRICE_PER_MONTH" \
       --arg read_iops_avg "$read_iops_avg" \
       --arg read_bw_avg "$read_bw_avg" \
+      --arg read_lat_avg "$read_lat_avg" \
       --arg write_iops_avg "$write_iops_avg" \
       --arg write_bw_avg "$write_bw_avg" \
+      --arg write_lat_avg "$write_lat_avg" \
       '{
         timestamp: $timestamp,
         method: $method,
@@ -130,6 +135,7 @@ collect_result_disk_fio() {
         vm_size: $vm_size,
         run_url: $run_url,
         cloud: $cloud,
+        target_iops: $target_iops,
         case_name: $case_name,
         data_disk_type: $data_disk_type,
         data_disk_size: $data_disk_size,
@@ -141,8 +147,10 @@ collect_result_disk_fio() {
         data_disk_price_per_month: $data_disk_price_per_month,
         read_iops_avg: $read_iops_avg,
         read_bw_avg: $read_bw_avg,
+        read_lat_avg: $read_lat_avg,
         write_iops_avg: $write_iops_avg,
-        write_bw_avg: $write_bw_avg
+        write_bw_avg: $write_bw_avg,
+        write_lat_avg: $write_lat_avg
       }')
 
     echo $data >> $result_dir/results.json
