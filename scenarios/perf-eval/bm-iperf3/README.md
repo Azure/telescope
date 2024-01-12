@@ -26,6 +26,7 @@ USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 SSH_KEY_PATH=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 SSH_PORT=2222
+ADMIN_USERNAME=azureuser
 ```
 
 ### Provision Resources
@@ -88,7 +89,7 @@ CLIENT_PRIVATE_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virt
 Run iperf for both TCP and UDP test traffic with target bandwidth at 100Mbps, 1Gbps, 2Gbps, 4Gbps
 ```
 source ./${TEST_MODULES_DIR}/iperf.sh
-run_iperf3 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP azureuser $SSH_PORT $SSH_KEY_PATH $RESULT_PATH
+run_iperf3 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $ADMIN_USERNAME $SSH_PORT $SSH_KEY_PATH $RESULT_PATH
 ```
 
 ### Collect Results
