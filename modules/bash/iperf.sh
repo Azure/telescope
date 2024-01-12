@@ -36,9 +36,6 @@ run_iperf3() {
   mkdir -p $result_dir
   echo "Run evaluation on $egress_ip_address with user name $user_name and ssh key $privatekey_path and result path $result_dir"
 
-  echo "Wait for 4 minutes before running all tests"
-  sleep 240
-
   for protocol in "${protocolList[@]}"
   do
     for bandwidth in "${bandwidthList[@]}"
@@ -103,7 +100,7 @@ run_iperf2_helper() {
     sleep 60
 
     echo "fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol"
-    fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
+    fetch_proc_net $server_public_ip_address 2222 $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
     PID1=$!
 
     echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"

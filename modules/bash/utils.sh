@@ -72,16 +72,17 @@ create_file() {
 
 fetch_proc_net() {
   local ip_address=$1
-  local privatekey_path=$2
-  local port_num=$3
-  local protocol=$4
+  local ssh_port=$2
+  local privatekey_path=$3
+  local port_num=$4
+  local protocol=$5
 
   max_rx_queue=0
   max_drops=0
   source="/proc/net/${protocol}"
   destination="/tmp/proc-net-${protocol}"
   for i in {1..60}; do
-    run_ssh $privatekey_path ubuntu $ip_address "cat $source" > $destination
+    run_ssh $privatekey_path ubuntu $ip_address $ssh_port "cat $source" > $destination
     total_drops=0
     while read line; do
       port_hex=$(printf "%X" $port_num)
