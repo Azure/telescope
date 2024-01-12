@@ -82,15 +82,15 @@ resource "azurerm_eventhub" "eventhub" {
   message_retention   = 7
 }
 
-data "azuread_service_principal" "kusto_sp" {
-  display_name = var.kusto_cluster_name
-}
+# data "azuread_service_principal" "kusto_sp" {
+#   display_name = var.kusto_cluster_name
+# }
 
-resource "azurerm_role_assignment" "storage_role_assignment" {
-  scope                = data.azurerm_storage_account.storage.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azuread_service_principal.kusto_sp.object_id
-}
+# resource "azurerm_role_assignment" "storage_role_assignment" {
+#   scope                = data.azurerm_storage_account.storage.id
+#   role_definition_name = "Storage Blob Data Contributor"
+#   principal_id         = data.azuread_service_principal.kusto_sp.object_id
+# }
 
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
   name                = "default"
