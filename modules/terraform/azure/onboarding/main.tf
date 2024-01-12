@@ -14,37 +14,11 @@ data "azurerm_storage_account" "storage" {
 }
 
 # Storage Container
-resource "azurerm_storage_container" "container" {
-  name                  = var.storage_container_name
-  storage_account_name  = data.azurerm_storage_account.storage.name
-  container_access_type = "private"
+data "azurerm_storage_container" "container" {
+  name                 = var.storage_container_name
+  storage_account_name = data.azurerm_storage_account.storage.name
 }
 
-resource "azurerm_storage_blob" "blob" {
-  name                   = "script.txt"
-  storage_account_name   = data.azurerm_storage_account.storage.name
-  storage_container_name = azurerm_storage_container.container.name
-  type                   = "Block"
-  source_content         = var.table_creation_script
-}
-
-data "azurerm_storage_account_blob_container_sas" "sas" {
-  connection_string = data.azurerm_storage_account.storage.primary_connection_string
-  container_name    = azurerm_storage_container.container.name
-  https_only        = true
-
-  start  = formatdate("YYYY-MM-DD", timestamp())
-  expiry = formatdate("YYYY-MM-DD", timestamp() + 86400)
-
-  permissions {
-    read   = true
-    add    = false
-    create = false
-    write  = true
-    delete = false
-    list   = true
-  }
-}
 
 data "azurerm_kusto_cluster" "cluster" {
   name                = var.kusto_cluster_name
@@ -60,12 +34,11 @@ data "azurerm_kusto_database" "database" {
 }
 
 resource "azurerm_kusto_script" "script" {
-  name                               = "kusto"
+  name                               = "kusto-new"
   database_id                        = data.azurerm_kusto_database.database.id
-  url                                = azurerm_storage_blob.blob.id
-  sas_token                          = data.azurerm_storage_account_blob_container_sas.sas.sas
-  continue_on_errors_enabled         = true
+  continue_on_errors_enabled         = false
   force_an_update_when_value_changed = "first"
+  script_content                     = var.table_creation_script
 }
 
 
@@ -115,7 +88,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
     subject_begins_with = "/blobServices/default/containers/${var.storage_container_name}/blobs/sumanth-test"
   }
   advanced_filtering_on_arrays_enabled = true
-  depends_on                           = [azurerm_storage_container.container]
+  depends_on                           = [data.azurerm_storage_container.container]
 }
 
 
@@ -130,6 +103,6 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
   table_name                   = var.kusto_table_name
-  mapping_rule_name            = "${var.kusto_table_name}_mapping"
+  mapping_rule_name            = "${var.data_connection_name}_mapping"
   depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.example]
 }
