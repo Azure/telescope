@@ -60,12 +60,5 @@ if __name__ == "__main__":
         json_data = schema_file.readline()       
     json_object = json.loads(json_data)
     table_command, mapping_command = generate_kusto_commands(json_object, table_name)
-
-    # # Specify the path to the output file
-    # output_file_path = f"{table_name}_commands.txt"
-
-    # Write commands to the output file
-    #write_to_file(output_file_path, table_command, mapping_command)
-    print(table_command)
-    print(mapping_command)
+    print(table_command,mapping_command)
        
