@@ -14,7 +14,7 @@ check_fio_setup_on_remote_vm() {
   local command="fio --version"
 
   echo "run_ssh $privatekey_path ubuntu $ip_address $command"
-  run_ssh $privatekey_path ubuntu $ip_address "$command"
+  run_ssh $privatekey_path ubuntu $ip_address 2222 "$command"
   if [ "$?" -ne 0 ]; then
     echo "Command $command failed with exit code $?"
     exit 1
@@ -30,17 +30,17 @@ run_fio_on_remote_vm() {
   mkdir -p $result_dir
 
   local command="sudo df -hT $mount_point"
-  run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
 
   # prepare files for fio, when the method is/has read, we need to create a file before that
   local file_size="1G"
   local file_path="/${mount_point}/benchtest"
   local command="sudo dd if=/dev/zero of=$file_path bs=$file_size count=1"
   echo "Run command: $command"
-  run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
   local command="sudo ls -l $file_path"
   echo "Run command: $command"
-  run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
   sleep 30 # wait to clean any potential throttle / cache
 
   local methods=("randread" "randrw" "read" "rw")
@@ -72,7 +72,7 @@ run_fio_on_remote_vm() {
   do
     local command="sudo fio --name=benchtest --size=800m --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=4k --iodepth=16 --numjobs=8 --time_based --runtime=60 --output-format=json --group_reporting"
     echo "Run command: $command"
-    run_ssh $privatekey_path ubuntu $egress_ip_address "$command" | tee $result_dir/fio-${method}.log
+    run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command" | tee $result_dir/fio-${method}.log
     sleep 30 # wait to clean any potential throttle / cache
   done
   if $DEBUG; then # re-enable debug output if DEBUG is set

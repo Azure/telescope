@@ -96,7 +96,7 @@ run_iperf2 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $TCP_THREAD_MODE $UDP_THREAD_MOD
 ### Collect Results
 Collect and parse iperf output and Linux counters, merge into a single result JSON file
 ```
-collect_result_iperf2 $RESULT_PATH $RESOURCE_GROUP $REGION $MACHINE_TYPE $CLIENT_PRIVATE_IP $SERVER_PRIVATE_IP $RUN_ID
+collect_result_iperf2 $RESULT_PATH $CLIENT_PRIVATE_IP $SERVER_PRIVATE_IP $CLOUD $RUN_ID
 ```
 
 Check the results
