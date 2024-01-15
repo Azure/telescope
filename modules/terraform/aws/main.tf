@@ -9,6 +9,10 @@ locals {
   data_disk_iops_read_write = lookup(var.json_input, "data_disk_iops_read_write", null)
   data_disk_mbps_read_write = lookup(var.json_input, "data_disk_mbps_read_write", null)
 
+  efs_performance_mode                = lookup(var.json_input, "efs_performance_mode", null)
+  efs_throughput_mode                 = lookup(var.json_input, "efs_throughput_mode", null)
+  efs_provisioned_throughput_in_mibps = lookup(var.json_input, "efs_provisioned_throughput_in_mibps", null)
+
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
@@ -93,4 +97,16 @@ module "bucket" {
   bucket_name_prefix = var.bucket_name_prefix
   run_id             = local.run_id
   tags               = local.tags
+}
+
+module "efs" {
+  source = "./efs"
+
+  count                           = var.efs_name_prefix != "" ? 1 : 0
+  efs_name_prefix                 = var.efs_name_prefix
+  run_id                          = local.run_id
+  performance_mode                = local.efs_performance_mode
+  throughput_mode                 = local.efs_throughput_mode
+  provisioned_throughput_in_mibps = local.efs_provisioned_throughput_in_mibps
+  tags                            = local.tags
 }
