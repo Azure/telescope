@@ -4,9 +4,10 @@ run_ssh() {
   local privatekey_path=$1
   local user=$2
   local ip=$3
-  local command=$4
+  local port=$4
+  local command=$5
 
-  sshCommand="ssh -i $privatekey_path -A -p 2222 $user@$ip -2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $command"
+  sshCommand="ssh -i $privatekey_path -A -p $port $user@$ip -2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $command"
   $sshCommand
 }
 
@@ -14,10 +15,11 @@ run_scp_remote() {
   local privatekey_path=$1
   local user=$2
   local ip=$3
-  local source=$4
-  local destination=$5
+  local port=$4
+  local source=$5
+  local destination=$6
 
-  scpCommand="scp -i $privatekey_path -P 2222 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $source $user@$ip:$destination"
+  scpCommand="scp -i $privatekey_path -P $port -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $source $user@$ip:$destination"
   $scpCommand
 }
 
@@ -25,10 +27,11 @@ run_scp_local() {
   local privatekey_path=$1
   local user=$2
   local ip=$3
-  local source=$4
-  local destination=$5
+  local port=$4
+  local source=$5
+  local destination=$6
 
-  scpCommand="scp -i $privatekey_path -P 2222 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $user@$ip:$source $destination"
+  scpCommand="scp -i $privatekey_path -P $port -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $user@$ip:$source $destination"
   $scpCommand
 }
 
@@ -69,16 +72,17 @@ create_file() {
 
 fetch_proc_net() {
   local ip_address=$1
-  local privatekey_path=$2
-  local port_num=$3
-  local protocol=$4
+  local ssh_port=$2
+  local privatekey_path=$3
+  local port_num=$4
+  local protocol=$5
 
   max_rx_queue=0
   max_drops=0
   source="/proc/net/${protocol}"
   destination="/tmp/proc-net-${protocol}"
   for i in {1..60}; do
-    run_ssh $privatekey_path ubuntu $ip_address "cat $source" > $destination
+    run_ssh $privatekey_path ubuntu $ip_address $ssh_port "cat $source" > $destination
     total_drops=0
     while read line; do
       port_hex=$(printf "%X" $port_num)
@@ -103,7 +107,7 @@ fetch_proc_net() {
         max_drops=$total_drops
     fi
     sleep 1
-  done 
-  
+  done
+
   echo "$max_rx_queue $max_drops"
 }

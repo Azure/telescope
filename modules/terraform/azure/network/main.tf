@@ -30,6 +30,7 @@ resource "azurerm_subnet" "subnets" {
 
 
 resource "azurerm_network_security_group" "nsg" {
+  count               = local.network_security_group_name != "" ? 1 : 0
   name                = local.network_security_group_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -38,10 +39,10 @@ resource "azurerm_network_security_group" "nsg" {
 
 
 resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
-  for_each = local.subnets_map
+  for_each = local.network_security_group_name != "" ? local.subnets_map : {}
 
   subnet_id                 = each.value.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
+  network_security_group_id = azurerm_network_security_group.nsg[0].id
 }
 
 resource "azurerm_network_interface" "nic" {
@@ -76,5 +77,5 @@ module "nsr" {
   source_address_prefix       = each.value.source_address_prefix
   destination_address_prefix  = each.value.destination_address_prefix
   resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.nsg.name
+  network_security_group_name = azurerm_network_security_group.nsg[0].name
 }

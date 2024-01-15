@@ -28,6 +28,12 @@ variable "vm_sku" {
   default     = "Standard_D2ds_v5"
 }
 
+variable "vnet_id" {
+  description = "Vnet id"
+  type        = string
+  default     = ""
+}
+
 variable "aks_config" {
   type = object({
     role           = string

@@ -15,7 +15,7 @@ check_iperf_setup() {
   fi
 
   echo "run_ssh $privatekey_path ubuntu $ip_address $command"
-  run_ssh $privatekey_path ubuntu $ip_address "$command"
+  run_ssh $privatekey_path ubuntu $ip_address 2222 "$command"
   if [ "$?" -ne 0 ]; then
     echo "Command $command failed with exit code $?"
     exit 1
@@ -25,50 +25,34 @@ check_iperf_setup() {
 run_iperf3() {
   local ingress_ip_address=$1
   local egress_ip_address=$2
-  local privatekey_path=$3
+  local user_name=$3
+  local ssh_port=$4
+  local privatekey_path=$5
+  local result_dir=$6
 
   local protocolList=("tcp" "udp")
   local bandwidthList=(100 1000 2000 4000)
 
-  echo "Run evaluation"
+  mkdir -p $result_dir
+  echo "Run evaluation on $egress_ip_address with user name $user_name and ssh key $privatekey_path and result path $result_dir"
+
   for protocol in "${protocolList[@]}"
   do
     for bandwidth in "${bandwidthList[@]}"
     do
       local command="iperf3 --client $ingress_ip_address --time 60 --json"
 
+      port=20001
       if [ "$protocol" = "udp" ]; then
         command="$command --udp"
+        port=20002
       fi
 
-      local fullCommand=""
-      local parallel=$(echo "$bandwidth / 1000" | bc)
-      if [ "$parallel" -gt 1 ]; then
-        command="$command --bandwidth 1000M"
-        for i in $(seq 1 $parallel)
-        do
-          fullCommand+="$command --port 2000$i &> /tmp/${protocol}-${bandwidth}-thread$i.json & "
-        done
-        echo "Run iperf3 command: $fullCommand"
-        run_ssh $privatekey_path ubuntu $egress_ip_address "$fullCommand"
-
-        while true
-        do
-          count=$(run_ssh $privatekey_path ubuntu $egress_ip_address "ps -ef | grep iperf3 | grep -v grep | wc -l")
-          if [ "$count" -eq 0 ]; then
-            break
-          fi
-          echo "Waiting for $count iperf3 processes to finish"
-          sleep 5
-        done
-
-        echo "Merging results"
-        run_ssh $privatekey_path ubuntu $egress_ip_address "jq -s '.' /tmp/${protocol}-${bandwidth}-thread*.json" > /tmp/iperf3-${protocol}-${bandwidth}.json
-      else
-        fullCommand="$command --bandwidth ${bandwidth}M --port 20001"
-        echo "Run iperf3 command: $fullCommand"
-        run_ssh $privatekey_path ubuntu $egress_ip_address "$fullCommand" > /tmp/iperf3-${protocol}-${bandwidth}.json
-      fi
+      echo "Wait for 1 minutes before running"
+      sleep 60
+      local fullCommand="$command --bandwidth ${bandwidth}M --port $port"
+      echo "Run iperf3 command: $fullCommand"
+      run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
     done
   done
 }
@@ -116,11 +100,11 @@ run_iperf2_helper() {
     sleep 60
 
     echo "fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol"
-    fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
+    fetch_proc_net $server_public_ip_address 2222 $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
     PID1=$!
 
     echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log &
+    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log &
     PID2=$!
     wait $PID1 $PID2
   done
@@ -140,11 +124,13 @@ run_iperf2() {
   run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $privatekey_path $server_public_ip_address $result_dir
 }
 
-publish_result_iperf3() {
-  local blob_subfolder_name=$1
-  local job_id=$2
+collect_result_iperf3() {
+  local result_dir=$1
+  local egress_ip_address=$2
+  local ingress_ip_address=$3
+  local run_id=$4
 
-  publish_common $job_id $run_id
+  touch $result_dir/results.json
 
   local protocolList=("tcp" "udp")
   local bandwidthList=(100 1000 2000 4000)
@@ -153,36 +139,24 @@ publish_result_iperf3() {
   do
     for bandwidth in "${bandwidthList[@]}"
     do
-      result="/tmp/iperf3-${protocol}-${bandwidth}.json"
-      if [ "$bandwidth" -gt 1000 ]; then
-        start_info=$(jq '[ .[].start ]' $result)
-        end_info=$(jq '[ .[].end ]' $result)
-      else
-        start_info=$(jq '[ .start ]' $result)
-        end_info=$(jq '[ .end ]' $result)
-      fi
+      iperf_result="$result_dir/iperf3-${protocol}-${bandwidth}.json"
+      cat $iperf_result
+      iperf_info=$(python3 ./modules/python/iperf3/parser.py $protocol $iperf_result)
 
       data=$(jq --null-input \
         --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
         --arg metric "$protocol" \
         --arg target_bw "$bandwidth" \
         --arg unit "Mbits/sec" \
-        --arg start_info "$start_info" \
-        --arg end_info "$end_info" \
-        --arg resource_group "" \
-        --arg location "$REGION" \
-        --arg vm_size "$MACHINE_TYPE" \
-        --arg egress_ip "$EGRESS_IP_ADDRESS" \
-        --arg ingress_ip "$INGRESS_IP_ADDRESS" \
-        --arg run_url "$run_link" \
-        --arg extra_info "$extra_info" \
-        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, start_info: $start_info, end_info: $end_info, resource_group: $resource_group, location: $location, vm_size: $vm_size, egress_ip: $egress_ip, ingress_ip: $ingress_ip, extra_info: $extra_info, run_url: $run_url}')
+        --arg iperf_info "$iperf_info" \
+        --arg egress_ip "$egress_ip_address" \
+        --arg ingress_ip "$ingress_ip_address" \
+        --arg run_id "$run_id" \
+        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
 
-      echo $data >> /tmp/${job_id}/result.json
+      echo $data >> $result_dir/results.json
     done
   done
-
-  az_blob_upload /tmp/${job_id}/result.json ${job_id}.json "${blob_subfolder_name}"
 }
 
 collect_result_iperf2() {
