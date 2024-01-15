@@ -5,6 +5,7 @@ variable "json_input" {
     run_id                           = string
     region                           = string
     machine_type                     = string
+    aks_machine_type                 = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
     data_disk_storage_account_type   = optional(string)

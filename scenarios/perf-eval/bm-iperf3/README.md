@@ -10,13 +10,13 @@ This guide covers how to manually run vm iperf test on Azure
 Set environment variables for testing
 ```
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=vm-iperf
-RUN_ID=01042024
+SCENARIO_NAME=bm-iperf3
+RUN_ID=01102024
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
-REGION=eastus
-MACHINE_TYPE=standard_D16_v3
+REGION=eastus2
+MACHINE_TYPE=Standard_E112iads_v5
 ACCERLATED_NETWORKING=true
 SERVER_ROLE=server
 CLIENT_ROLE=client
@@ -25,8 +25,8 @@ TEST_MODULES_DIR=modules/bash
 USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 SSH_KEY_PATH=$(pwd)/modules/terraform/$CLOUD/private_key.pem
-TCP_THREAD_MODE=multi
-UDP_THREAD_MODE=single
+SSH_PORT=2222
+ADMIN_USERNAME=azureuser
 ```
 
 ### Provision Resources
@@ -89,14 +89,13 @@ CLIENT_PRIVATE_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virt
 Run iperf for both TCP and UDP test traffic with target bandwidth at 100Mbps, 1Gbps, 2Gbps, 4Gbps
 ```
 source ./${TEST_MODULES_DIR}/iperf.sh
-run_iperf2 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $TCP_THREAD_MODE $UDP_THREAD_MODE $SSH_KEY_PATH $SERVER_PUBLIC_IP $RESULT_PATH
+run_iperf3 $SERVER_PRIVATE_IP $CLIENT_PUBLIC_IP $ADMIN_USERNAME $SSH_PORT $SSH_KEY_PATH $RESULT_PATH
 ```
-
 
 ### Collect Results
 Collect and parse iperf output and Linux counters, merge into a single result JSON file
 ```
-collect_result_iperf2 $RESULT_PATH $CLIENT_PRIVATE_IP $SERVER_PRIVATE_IP $CLOUD $RUN_ID
+collect_result_iperf3 $RESULT_PATH $CLIENT_PRIVATE_IP $SERVER_PRIVATE_IP $RUN_ID
 ```
 
 Check the results

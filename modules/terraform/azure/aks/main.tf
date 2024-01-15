@@ -43,3 +43,9 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   node_count            = each.value.node_count
   os_disk_type          = var.aks_config.default_node_pool.os_disk_type
 }
+
+resource "azurerm_role_assignment" "aks_on_subnet" {
+  role_definition_name = "Network Contributor"
+  scope                = var.vnet_id
+  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+}

@@ -105,7 +105,7 @@ mount_azure_storage_fileshare_on_remote_vm() {
 
   for cmd in "${cmds[@]}"; do
     echo "Running: $cmd"
-    run_ssh $privatekey_path ubuntu $egress_ip_address "$cmd"
+    run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$cmd"
   done
 }
 
@@ -118,14 +118,14 @@ run_small_file_perf_on_remote_vm() {
   mkdir -p $result_dir
 
   local command="sudo df -hT $mount_point & sudo mount"
-  run_ssh $privatekey_path ubuntu $egress_ip_address "$command"
+  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
 
   echo "Getting small file"
 
   set +x # disable debug output because it will mess up the output of fio
   local command="((time -p (sudo wget -qO- https://wordpress.org/latest.tar.gz | sudo tar xvz -C $mount_point )) 2>&1)"
   echo "Run command: $command"
-  run_ssh $privatekey_path ubuntu $egress_ip_address "$command" | tee $result_dir/worldpress.log
+  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command" | tee $result_dir/worldpress.log
 
   if $DEBUG; then # re-enable debug output if DEBUG is set
     set -x

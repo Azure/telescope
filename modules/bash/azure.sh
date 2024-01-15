@@ -77,10 +77,15 @@ azure_aks_start_nginx()
 {
   local resource_group=$1
   local aksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
 
   az aks get-credentials -n $aksName -g $resource_group
-  kubectl apply -f "nginxCert.yml"
-  kubectl apply -f "aksSetup.yml"
+  subnet_name=$(kubectl get nodes -o json | jq -r '.items[0].metadata.labels."kubernetes.azure.com/network-subnet"')
+  
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
+  kubectl apply -f "${file_source}/nginxCert.yml"
+  kubectl apply -f "${file_source}/aksSetup.yml"
 
 
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
@@ -94,7 +99,8 @@ azure_aks_start_nginx()
     --set controller.replicaCount=3 \
     --set controller.service.loadBalancerIP=10.10.1.250 \
     --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal"=true \
-    --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal-subnet"="AksSubnet" \
+    --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-internal-subnet"="${subnet_name}" \
     --set controller.extraArgs.default-ssl-certificate="ingress-nginx/ingress-tls" \
-    --set controller.admissionWebhooks.enabled=false
+    --set controller.admissionWebhooks.enabled=false \
+    --wait-for-jobs
 }

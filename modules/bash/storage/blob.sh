@@ -52,7 +52,7 @@ mount_azure_storage_accont_container_on_remote_vm() {
 
   for cmd in "${cmds[@]}"; do
     echo "Running: $cmd"
-    run_ssh $privatekey_path ubuntu $egress_ip_address "$cmd"
+    run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$cmd"
   done
 }
 
@@ -67,7 +67,7 @@ mount_s3_bucket_on_remote_vm() {
   local mount_point=$6
 
   echo $aws_access_key_id:$aws_secret_access_key > /tmp/passwd-s3fs
-  run_scp_remote $privatekey_path ubuntu $egress_ip_address /tmp/passwd-s3fs /tmp/passwd-s3fs
+  run_scp_remote $privatekey_path ubuntu $egress_ip_address 2222 /tmp/passwd-s3fs /tmp/passwd-s3fs
 
   # notice: please assign AmazonS3FullAccess policy to the IAM user to make this work
   echo "current aws access key id: $aws_access_key_id"
@@ -82,7 +82,7 @@ mount_s3_bucket_on_remote_vm() {
 
   for cmd in "${cmds[@]}"; do
     echo "Running: $cmd"
-    run_ssh $privatekey_path ubuntu $egress_ip_address "$cmd"
+    run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$cmd"
   done
 
   check_mount_point $egress_ip_address $privatekey_path $mount_point s3fs
@@ -102,7 +102,7 @@ check_mount_point() {
   while true
   do
     echo "run_ssh $privatekey_path ubuntu $ip_address sudo df -hT $mount_point"
-    run_ssh $privatekey_path ubuntu $ip_address "sudo df -hT $mount_point" | grep $expected_fs
+    run_ssh $privatekey_path ubuntu $ip_address 2222 "sudo df -hT $mount_point" | grep $expected_fs
     status=$?
     i=$((i+1))
 
@@ -110,8 +110,8 @@ check_mount_point() {
       break
     elif [ "$i" -eq "$max_retries" ]; then
       echo "not find mount point with expected fs after $max_retries retries, check df & syslog for more details"
-      run_ssh $privatekey_path ubuntu $ip_address "sudo df -hT $mount_point"
-      run_ssh $privatekey_path ubuntu $ip_address "sudo tail -n 50 /var/log/syslog"
+      run_ssh $privatekey_path ubuntu $ip_address 2222 "sudo df -hT $mount_point"
+      run_ssh $privatekey_path ubuntu $ip_address 2222 "sudo tail -n 50 /var/log/syslog"
       exit 1
     fi
 
