@@ -46,7 +46,8 @@ def generate_kusto_commands(data, table_name):
         mapping_command += f"{{\"column\":\"{key}\", \"Properties\":{{\"Path\":\"$[\\'{key}\\']\"}}}},"
     mapping_command = mapping_command.rstrip(", ") + "]'"
 
-    return table_command, mapping_command
+    kusto_commands = f"{table_command}\n\n{mapping_command}"
+    return kusto_commands
 
 def write_to_file(file_path, *commands):
     with open(file_path, 'w') as file:
@@ -59,6 +60,6 @@ if __name__ == "__main__":
     with open(schema_path, 'r') as schema_file:             
         json_data = schema_file.readline()       
     json_object = json.loads(json_data)
-    table_command, mapping_command = generate_kusto_commands(json_object, table_name)
-    print(table_command, mapping_command)
+    kusto_commands = generate_kusto_commands(json_object, table_name)
+    print(kusto_commands)
        
