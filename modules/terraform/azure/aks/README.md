@@ -43,7 +43,11 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
   - `dns_prefix`: DNS prefix for the AKS cluster
   - `subnet_name`: Name of the subnet
   - `sku_tier`: The type of pricing tiers
-  - `network_plugin`: Network plugin used by the AKS cluster
+  - `network_profile `: Network profile for the AKS cluster
+    - `network_plugin`: Network plugin used by the AKS cluster
+    - `network_policy`: Network policy used by the AKS cluster
+    - `outbound_type`: Outbound type used by the AKS cluster
+    - `pod_cidr`: Pod cidr used by the AKS cluster
   - `default_node_pool`: Configuration for the default node pool
   - `extra_node_pool`: Additional node pools for the AKS cluster
     - `name`: Name of the node pool
@@ -65,7 +69,10 @@ module "aks" {
     aks_name        = "my-aks-cluster"
     dns_prefix      = "myaksdns"
     subnet_name     = "my-subnet"
-    network_plugin  = "kubenet"
+    network_profile = {
+      network_plugin = "kubenet"
+      pod_cidr       = "125.4.0.0/14"
+    }
     default_node_pool = {
       name                         = "default-pool"
       vm_size                      = "Standard_D2s_v3"
