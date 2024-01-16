@@ -1,6 +1,6 @@
 owner                   = "azure_devops"
 scenario_name           = "onboarding"
-scenario_type           = "perf-eval"
+scenario_type           = "perf"
 scenario_version        = "onboarding-automation"
 resource_group_name     = "sumanth-onboarding-automation"
 storage_account_name    = "sumanthtelescope"
