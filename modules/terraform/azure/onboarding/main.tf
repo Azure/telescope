@@ -25,7 +25,6 @@ data "azurerm_kusto_cluster" "cluster" {
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
-
 # Azure Data Explorer Database
 data "azurerm_kusto_database" "database" {
   name                = var.kusto_database_name
@@ -55,15 +54,11 @@ resource "azurerm_eventhub" "eventhub" {
   message_retention   = 7
 }
 
-# data "azuread_service_principal" "kusto_sp" {
-#   display_name = var.kusto_cluster_name
-# }
-
-# resource "azurerm_role_assignment" "storage_role_assignment" {
-#   scope                = data.azurerm_storage_account.storage.id
-#   role_definition_name = "Storage Blob Data Contributor"
-#   principal_id         = data.azuread_service_principal.kusto_sp.object_id
-# }
+resource "azurerm_role_assignment" "eventhub_role_assignment" {
+  scope                = azurerm_eventhub.eventhub.id
+  role_definition_name = "Azure Event Hubs Data Receiver"
+  principal_id         = data.azurerm_kusto_cluster.cluster.identity[0].principal_id
+}
 
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
   name                = "default"
@@ -103,5 +98,7 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
   table_name                   = var.kusto_table_name
+  data_format                  = "JSON"
+  mapping_rule_name            = "${var.kusto_table_name}_mapping"
   depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.example]
 }
