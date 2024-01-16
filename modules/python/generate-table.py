@@ -46,17 +46,14 @@ def generate_kusto_commands(data, table_name):
     mapping_command = f".create table ['{table_name}'] ingestion json mapping '{table_name}_mapping' '["
     for key in data.keys():
         mapping_command += f"{{\"column\":\"{key}\", \"Properties\":{{\"Path\":\"$[\\'{key}\\']\"}}}},"
-    mapping_command = mapping_command.rstrip(", ") + "]'"
+    mapping_command = mapping_command.rstrip(", ") + "]'"   
 
-    ingestion_command = f".ingest into {table_name} ingestion json '{table_name}_mapping' '{storage_account}', 'sumanthtest', '/v1.10.0/' "
-
-    kusto_commands = f"{table_command}\n\n{mapping_command}\n\n{ingestion_command}"
+    kusto_commands = f"{table_command}\n\n{mapping_command}"
     return kusto_commands
     
 if __name__ == "__main__":
     table_name = sys.argv[1]
     schema_path = sys.argv[2]
-    storage_account = sys.argv[3]
     with open(schema_path, 'r') as schema_file:             
         json_data = schema_file.readline()       
     json_object = json.loads(json_data)
