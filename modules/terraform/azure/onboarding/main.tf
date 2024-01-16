@@ -34,7 +34,7 @@ data "azurerm_kusto_database" "database" {
 }
 
 resource "azurerm_kusto_script" "script" {
-  name                               = "kusto-new"
+  name                               = "kusto-script-${timestamp()}"
   database_id                        = data.azurerm_kusto_database.database.id
   continue_on_errors_enabled         = false
   force_an_update_when_value_changed = "first"
@@ -48,7 +48,7 @@ data "azurerm_eventhub_namespace" "eventhub_ns" {
 }
 
 resource "azurerm_eventhub" "eventhub" {
-  name                = var.eventhub_name
+  name                = "adx-${var.scenario_type}-${var.scenario_name}-${var.scenario_version}"
   namespace_name      = data.azurerm_eventhub_namespace.eventhub_ns.name
   resource_group_name = data.azurerm_resource_group.rg.name
   partition_count     = 8
@@ -78,7 +78,7 @@ data "azurerm_eventgrid_system_topic" "topic" {
 }
 
 resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
-  name                  = var.eventgrid_subscription_name
+  name                  = "adx-${var.scenario_type}-${var.scenario_name}-${var.scenario_version}-subscription"
   system_topic          = data.azurerm_eventgrid_system_topic.topic.name
   resource_group_name   = data.azurerm_resource_group.rg.name
   event_delivery_schema = "EventGridSchema"
@@ -93,7 +93,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
 
 
 resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
-  name                         = var.data_connection_name
+  name                         = "${var.scenario_type}-${var.scenario_name}-${var.scenario_version}"
   resource_group_name          = data.azurerm_resource_group.rg.name
   location                     = data.azurerm_resource_group.rg.location
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name

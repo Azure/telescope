@@ -65,29 +65,12 @@ variable "eventhub_namespace_name" {
   default     = null
 }
 
-variable "eventhub_name" {
-  description = "eventhub name"
-  type        = string
-  default     = null
-}
-
 variable "eventgrid_topic_name" {
   description = "eventgrid topic name"
   type        = string
   default     = null
 }
 
-variable "eventgrid_subscription_name" {
-  description = "eventgrid subscription name"
-  type        = string
-  default     = null
-}
-
-variable "data_connection_name" {
-  description = "data connection name"
-  type        = string
-  default     = null
-}
 
 variable "table_creation_script" {
   description = "table creation script"
