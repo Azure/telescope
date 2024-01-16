@@ -38,7 +38,7 @@ resource "azurerm_kusto_script" "script" {
   database_id                        = data.azurerm_kusto_database.database.id
   continue_on_errors_enabled         = false
   force_an_update_when_value_changed = "first"
-  script_content                     = var.table_creation_script
+  script_content                     = base64decode(var.table_creation_script)
 }
 
 

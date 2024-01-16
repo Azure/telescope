@@ -1,6 +1,8 @@
 import json
 from datetime import datetime
 import sys
+import base64
+
 def infer_type(value):
     # Check if it's a boolean
     if value.lower() in ['true', 'false']:
@@ -48,11 +50,6 @@ def generate_kusto_commands(data, table_name):
 
     kusto_commands = f"{table_command}\n\n{mapping_command}"
     return kusto_commands
-
-def write_to_file(file_path, *commands):
-    with open(file_path, 'w') as file:
-        for command in commands:
-            file.write(f"////////////////////////////////////////////////////////////\n{command}\n\n")
     
 if __name__ == "__main__":
     table_name = sys.argv[1]
@@ -60,6 +57,6 @@ if __name__ == "__main__":
     with open(schema_path, 'r') as schema_file:             
         json_data = schema_file.readline()       
     json_object = json.loads(json_data)
-    kusto_commands = generate_kusto_commands(json_object, table_name)
+    kusto_commands = base64.b64encode(generate_kusto_commands(json_object, table_name).encode('utf-8'))
     print(kusto_commands)
        
