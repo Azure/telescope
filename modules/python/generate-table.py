@@ -57,6 +57,6 @@ if __name__ == "__main__":
     with open(schema_path, 'r') as schema_file:             
         json_data = schema_file.readline()       
     json_object = json.loads(json_data)
-    kusto_commands = base64.b64encode(generate_kusto_commands(json_object, table_name).encode('utf-8'))
+    kusto_commands = base64.b64encode(generate_kusto_commands(json_object, table_name))[2:-1]
     print(kusto_commands)
        
