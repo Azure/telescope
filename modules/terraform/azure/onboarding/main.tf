@@ -34,7 +34,7 @@ data "azurerm_kusto_database" "database" {
 }
 
 resource "azurerm_kusto_script" "script" {
-  name                               = "kusto-script-${format("%s", timestamp())}"
+  name                               = "kusto-script-${formatdate("MM-DD-YYYY", timestamp())}"
   database_id                        = data.azurerm_kusto_database.database.id
   continue_on_errors_enabled         = false
   force_an_update_when_value_changed = "first"
