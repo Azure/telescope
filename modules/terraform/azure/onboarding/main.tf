@@ -103,6 +103,5 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
   table_name                   = var.kusto_table_name
-  mapping_rule_name            = "${var.kusto_table_name}_mapping"
   depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.example]
 }
