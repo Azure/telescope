@@ -177,8 +177,10 @@ collect_result_blob_fio() {
 
     read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
     read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+    read_lat_avg=$(cat $result | jq '.jobs[0].read.lat_ns.mean')
     write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
     write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+    write_lat_avg=$(cat $result | jq '.jobs[0].write.lat_ns.mean')
 
     data=$(jq --null-input \
       --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -193,8 +195,10 @@ collect_result_blob_fio() {
       --arg storage_replication "$STORAGE_REPLICATION" \
       --arg read_iops_avg "$read_iops_avg" \
       --arg read_bw_avg "$read_bw_avg" \
+      --arg read_lat_avg "$read_lat_avg" \
       --arg write_iops_avg "$write_iops_avg" \
       --arg write_bw_avg "$write_bw_avg" \
+      --arg write_lat_avg "$write_lat_avg" \
       '{
         timestamp: $timestamp,
         method: $method,
@@ -208,8 +212,10 @@ collect_result_blob_fio() {
         storage_replication: $storage_replication,
         read_iops_avg: $read_iops_avg,
         read_bw_avg: $read_bw_avg,
+        read_lat_avg: $read_lat_avg,
         write_iops_avg: $write_iops_avg,
-        write_bw_avg: $write_bw_avg
+        write_bw_avg: $write_bw_avg,
+        write_lat_avg: $write_lat_avg
       }')
 
     echo $data >> $result_dir/results.json
@@ -240,8 +246,10 @@ collect_result_fileshare_fio() {
 
     read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
     read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+    read_lat_avg=$(cat $result | jq '.jobs[0].read.lat_ns.mean')
     write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
     write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+    write_lat_avg=$(cat $result | jq '.jobs[0].write.lat_ns.mean')
 
     data=$(jq --null-input \
       --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -258,8 +266,10 @@ collect_result_fileshare_fio() {
       --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
       --arg read_iops_avg "$read_iops_avg" \
       --arg read_bw_avg "$read_bw_avg" \
+      --arg read_lat_avg "$read_lat_avg" \
       --arg write_iops_avg "$write_iops_avg" \
       --arg write_bw_avg "$write_bw_avg" \
+      --arg write_lat_avg "$write_lat_avg" \
       --arg small_file_rw "$small_file_rw" \
       '{
         timestamp: $timestamp,
@@ -276,8 +286,10 @@ collect_result_fileshare_fio() {
         storage_share_enabled_protocol: $storage_share_enabled_protocol,
         read_iops_avg: $read_iops_avg,
         read_bw_avg: $read_bw_avg,
+        read_lat_avg: $read_lat_avg,
         write_iops_avg: $write_iops_avg,
         write_bw_avg: $write_bw_avg,
+        write_lat_avg: $write_lat_avg,
         small_file_rw: $small_file_rw
       }')
 
