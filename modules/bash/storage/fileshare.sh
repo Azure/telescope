@@ -207,6 +207,6 @@ aws_mount_efs_on_remote_vm() {
 
   for cmd in "${cmds[@]}"; do
     echo "Running: $cmd"
-    run_ssh $privatekey_path ubuntu $egress_ip_address "$cmd"
+    run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$cmd"
   done
 }
