@@ -33,12 +33,9 @@ run_jmeter() {
   local jmeter_file_source=./scenarios/${scenario_type}/${scenario_name}/bash-scripts
   local jmeter_file_dest=/tmp/jmeter
 
-  echo "Make temp directory"
-  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "mkdir -p $jmeter_file_dest"
   echo "Copy properties and jmx files"
   run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/jmeter.properties" "${jmeter_file_dest}/jmeter.properties"
   run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/https_test.jmx" "${jmeter_file_dest}/https_test.jmx"
-  run_scp_remote $privatekey_path ubuntu $egress_ip_address "${jmeter_file_source}/alias.csv" "${jmeter_file_dest}/alias.csv"
 
   sleep 5m
   jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -p ${jmeter_file_dest}/jmeter.properties -Jprotocol=${protocol} -Jport=${port} -Jip_address=${ingress_ip_address} -Jthread_num=${concurrency} -Jloop_count=${loop} -Jresult_file_name=${jmeter_file_dest}/result-${protocol}-${concurrency} -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log"
