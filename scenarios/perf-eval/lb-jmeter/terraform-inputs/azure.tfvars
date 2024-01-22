@@ -1,7 +1,7 @@
 scenario_type   = "perf-eval"
 scenario_name   = "lb-jmeter"
 deletion_delay  = "2h"
-public_ip_names = ["ingress-pip", "egress-pip"]
+public_ip_names = ["client-pip", "server-pip", "lb-pip"]
 network_config_list = [
   {
     role                        = "server"
@@ -15,7 +15,7 @@ network_config_list = [
         nic_name              = "server-nic"
         subnet_name           = "server-subnet"
         ip_configuration_name = "server-ipconfig"
-        public_ip_name        = null
+        public_ip_name        = "server-pip"
     }]
     nsr_rules = [
       {
@@ -54,7 +54,7 @@ network_config_list = [
         nic_name              = "client-nic"
         subnet_name           = "client-subnet"
         ip_configuration_name = "client-ipconfig"
-        public_ip_name        = "egress-pip"
+        public_ip_name        = "client-pip"
     }]
     nsr_rules = [{
       name                       = "client-nsr-ssh"
@@ -94,7 +94,7 @@ network_config_list = [
 loadbalancer_config_list = [{
   role                  = "ingress"
   loadbalance_name      = "ingress-lb"
-  public_ip_name        = "ingress-pip"
+  public_ip_name        = "lb-pip"
   loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
   probe_port            = 80
@@ -119,17 +119,7 @@ loadbalancer_config_list = [{
       backend_port            = 443
       enable_tcp_reset        = false
       idle_timeout_in_minutes = 4
-    },
-    {
-      type                    = "Outbound"
-      rule_count              = 1
-      role                    = "ingress-lb-outbound-rule"
-      protocol                = "All"
-      frontend_port           = 0
-      backend_port            = 0
-      enable_tcp_reset        = false
-      idle_timeout_in_minutes = 4
-  }]
+    }]
 }]
 
 vm_config_list = [{
