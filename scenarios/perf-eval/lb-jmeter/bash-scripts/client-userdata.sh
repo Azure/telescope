@@ -102,3 +102,5 @@ cat <<EOF > /tmp/jmeter/alias.csv
 cert_name
 1
 EOF
+
+chown -R ubuntu:ubuntu /tmp/jmeter

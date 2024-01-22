@@ -14,18 +14,17 @@ run_jmeter() {
   local result_dir=$9
 
   # sleep 5m
-  cd $jmeter_file_dest
-  jmeterCommand="jmeter -n -t https_test.jmx -f -p jmeter.properties -j ${jmeter_log_file}.log ${jmeter_properties}"
+  jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -p ${jmeter_file_dest}/jmeter.properties -j ${jmeter_file_dest}/${jmeter_log_file}.log ${jmeter_properties}"
   echo "Run test command: $jmeterCommand"
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$jmeterCommand"
 
-  aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_aggregate_file}.csv --input-jtl ${jmeter_result_file}.csv --plugin-type AggregateReport"
+  aggregateCommand="java -jar /opt/jmeter/lib/cmdrunner-2.2.jar --tool Reporter --generate-csv ${jmeter_file_dest}/${jmeter_aggregate_file}.csv --input-jtl ${jmeter_file_dest}/${jmeter_result_file}.csv --plugin-type AggregateReport"
   echo "Run aggregate command: $aggregateCommand"
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$aggregateCommand"
 
   echo "Copy result files to local"
-  run_scp_local $privatekey_path ubuntu $egress_ip_address 2222 "${jmeter_aggregate_file}.csv" "${result_dir}/${jmeter_aggregate_file}.csv"
-  run_scp_local $privatekey_path ubuntu $egress_ip_address 2222 "${jmeter_result_file}.csv" "${result_dir}/${jmeter_result_file}.csv"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address 2222 "${jmeter_file_dest}/${jmeter_aggregate_file}.csv" "${result_dir}/${jmeter_aggregate_file}.csv"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address 2222 "${jmeter_file_dest}/${jmeter_result_file}.csv" "${result_dir}/${jmeter_result_file}.csv"
 }
 
 collect_result_jmeter()
