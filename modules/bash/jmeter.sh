@@ -24,8 +24,8 @@ run_jmeter() {
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$aggregateCommand"
 
   echo "Copy result files to local"
-  run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_aggregate_file}.csv" "${result_dir}/${jmeter_aggregate_file}.csv"
-  run_scp_local $privatekey_path ubuntu $egress_ip_address "${jmeter_result_file}.csv" "${result_dir}/${jmeter_result_file}.csv"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address 2222 "${jmeter_aggregate_file}.csv" "${result_dir}/${jmeter_aggregate_file}.csv"
+  run_scp_local $privatekey_path ubuntu $egress_ip_address 2222 "${jmeter_result_file}.csv" "${result_dir}/${jmeter_result_file}.csv"
 }
 
 collect_result_jmeter()
