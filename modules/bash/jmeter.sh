@@ -6,14 +6,14 @@ run_jmeter() {
   local ingress_ip_address=$1
   local egress_ip_address=$2
   local privatekey_path=$3
-  local jmeter_file_dest=$4
-  local jmeter_protocol=$5
-  local jmeter_concurrency=$6
-  local jmeter_properties=$7
+  local protocol=$4
+  local concurrency=$5
+  local user_properties=$6
+  local jmeter_file_dest=$7
   local result_dir=$8
 
   # sleep 5m
-  jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S ${jmeter_file_dest}/jmeter.properties -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log ${jmeter_properties}"
+  jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S ${jmeter_file_dest}/jmeter.properties -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log ${user_properties}"
   echo "Run test command: $jmeterCommand"
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$jmeterCommand"
 
