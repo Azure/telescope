@@ -25,3 +25,5 @@ cd /opt/jmeter/lib
 plugin_version="2.2"
 java -jar cmdrunner-${cmdrunner_version}.jar --tool org.jmeterplugins.repository.PluginManagerCMD install jpgc-synthesis,jpgc-cmd=${plugin_version}
 
+mkdir -p /tmp/jmeter
+chown -R ubuntu:ubuntu /tmp/jmeter
