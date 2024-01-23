@@ -130,7 +130,7 @@ loadbalancer_config_list = [{
       backend_port            = 443
       enable_tcp_reset        = false
       idle_timeout_in_minutes = 4
-    }]
+  }]
 }]
 
 vm_config_list = [{
