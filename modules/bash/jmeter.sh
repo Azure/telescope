@@ -36,14 +36,14 @@ collect_result_jmeter()
   local cloud_info=$6
 
   echo "Collect result for $protocol with $concurrency concurrency"
-  result=$(cat "/tmp/aggregate-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+  result=$(cat "${result_dir}/aggregate-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
 
-  head -n 1 "/tmp/result-${protocol}-${concurrency}.csv" | cut -d "," -f 4,5 > "/tmp/error-${protocol}-${concurrency}.csv"
-  tail -n +2 "/tmp/result-${protocol}-${concurrency}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "/tmp/error-${protocol}-${concurrency}.csv"
-  count=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | wc -l)
+  head -n 1 "${result_dir}/result-${protocol}-${concurrency}.csv" | cut -d "," -f 4,5 > "${result_dir}/error-${protocol}-${concurrency}.csv"
+  tail -n +2 "${result_dir}/result-${protocol}-${concurrency}.csv" | grep -v OK | cut -d "," -f 4,5 | sort -u >> "${result_dir}/error-${protocol}-${concurrency}.csv"
+  count=$(cat "${result_dir}/error-${protocol}-${concurrency}.csv" | wc -l)
   error=""
   if [ "$count" -gt 1 ]; then
-    error=$(cat "/tmp/error-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
+    error=$(cat "${result_dir}/error-${protocol}-${concurrency}.csv" | python3 -c 'import csv, json, sys; print(json.dumps([dict(r) for r in csv.DictReader(sys.stdin)]))')
   fi
 
   data=$(jq --null-input \
