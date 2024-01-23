@@ -128,7 +128,16 @@ collect_result_iperf3() {
   local result_dir=$1
   local egress_ip_address=$2
   local ingress_ip_address=$3
-  local run_id=$4
+  local cloud_info=$4
+  local run_id=$5
+
+  if [ -z "$cloud_info" ]; then
+    cloud_info='{
+      "cloud": "azure",
+      "region": "eastus",
+      "machine_type": "WCS-G8-a14g"
+    }'
+  fi
 
   touch $result_dir/results.json
 
@@ -143,16 +152,23 @@ collect_result_iperf3() {
       cat $iperf_result
       iperf_info=$(python3 ./modules/python/iperf3/parser.py $protocol $iperf_result)
 
+      if echo "$iperf_info" | jq '.timestamp' > /dev/null; then
+        timestamp=$(echo "$iperf_info" | jq -r '.timestamp')
+      else
+	timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"      
+      fi
+
       data=$(jq --null-input \
-        --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        --arg timestamp "$timestamp" \
         --arg metric "$protocol" \
         --arg target_bw "$bandwidth" \
         --arg unit "Mbits/sec" \
         --arg iperf_info "$iperf_info" \
+        --arg cloud_info "$cloud_info" \
         --arg egress_ip "$egress_ip_address" \
         --arg ingress_ip "$ingress_ip_address" \
         --arg run_id "$run_id" \
-        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
+        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
 
       echo $data >> $result_dir/results.json
     done
