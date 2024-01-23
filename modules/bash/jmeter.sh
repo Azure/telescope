@@ -3,14 +3,13 @@
 source ./modules/bash/utils.sh
 
 run_jmeter() {
-  local ingress_ip_address=$1
-  local egress_ip_address=$2
-  local privatekey_path=$3
-  local protocol=$4
-  local concurrency=$5
-  local user_properties=$6
-  local jmeter_file_dest=$7
-  local result_dir=$8
+  local egress_ip_address=$1
+  local privatekey_path=$2
+  local protocol=$3
+  local concurrency=$4
+  local user_properties=$5
+  local jmeter_file_dest=$6
+  local result_dir=$7
 
   sleep 1m
   jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S ${jmeter_file_dest}/jmeter.properties -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log -l ${jmeter_file_dest}/result-${protocol}-${concurrency}.csv ${user_properties}"
