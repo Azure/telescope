@@ -131,14 +131,6 @@ collect_result_iperf3() {
   local cloud_info=$4
   local run_id=$5
 
-  if [ -z "$cloud_info" ]; then
-    cloud_info='{
-      "cloud": "azure",
-      "region": "eastus",
-      "machine_type": "WCS-G8-a14g"
-    }'
-  fi
-
   touch $result_dir/results.json
 
   local protocolList=("tcp" "udp")
@@ -155,7 +147,7 @@ collect_result_iperf3() {
       if echo "$iperf_info" | jq '.timestamp' > /dev/null; then
         timestamp=$(echo "$iperf_info" | jq -r '.timestamp')
       else
-	timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"      
+	timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
       fi
 
       data=$(jq --null-input \
