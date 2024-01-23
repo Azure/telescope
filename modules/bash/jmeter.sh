@@ -12,7 +12,7 @@ run_jmeter() {
   local jmeter_file_dest=$7
   local result_dir=$8
 
-  sleep 10
+  sleep 1m
   jmeterCommand="jmeter -n -t ${jmeter_file_dest}/https_test.jmx -f -S ${jmeter_file_dest}/jmeter.properties -j ${jmeter_file_dest}/jmeter-${protocol}-${concurrency}.log -l ${jmeter_file_dest}/result-${protocol}-${concurrency}.csv ${user_properties}"
   echo "Run test command: $jmeterCommand"
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$jmeterCommand"
