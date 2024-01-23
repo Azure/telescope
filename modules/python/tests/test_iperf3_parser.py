@@ -8,7 +8,10 @@ class TestIperf3Parser(unittest.TestCase):
 	"start": {
 		"test_start": {
 			"num_streams": 1
-		}
+		},
+        "timestamp": {
+			"timesecs": 1585574400
+        }
 	},
 	"end": {
 		"streams": [
@@ -51,11 +54,13 @@ class TestIperf3Parser(unittest.TestCase):
 }
         """
         expected_result = {
-            'throughput': 20771488780.53307,
+            'timestamp': '2020-03-30T13:20:00Z',
+            'total_throughput': 20771.48878053307,
             'retransmits': 1,
             'max_rtt': 117,
             'min_rtt': 46,
-            'mean_rtt': 76,
+            'rtt': 76,
+            'rtt_unit': 'us',
             'cpu_usage_client': 49.681522294439162,
             'cpu_usage_server': 50.0066564627557,
         }
@@ -65,6 +70,11 @@ class TestIperf3Parser(unittest.TestCase):
     def test_parse_udp_output(self):
         stdout = """
 {
+	"start": {
+        "timestamp": {
+			"timesecs": 1585574400
+        }
+	},
 	"end":	{
 		"sum":	{
 			"start":	0,
@@ -90,10 +100,12 @@ class TestIperf3Parser(unittest.TestCase):
 }
 """
         expected_result = {
-            'throughput': 1048546.1164356816,
-            'jitter_ms': 0.015205598777989252,
-            'lost_packets': 0,
-            'total_packets': 40,
+            'timestamp': '2020-03-30T13:20:00Z',
+            'total_throughput': 1.0485461164356815,
+            'jitter': 0.015205598777989252,
+            'jitter_unit': 'ms',
+            'lost_datagrams': 0,
+            'total_datagrams': 40,
             'lost_percent': 0,
             'cpu_usage_client': 2.16911029122016,
             'cpu_usage_server': 0.021418732011064947
