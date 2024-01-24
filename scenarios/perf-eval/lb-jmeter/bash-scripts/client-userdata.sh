@@ -95,3 +95,12 @@ openssl pkcs12 -export -out /etc/ssl/certs/jmeter/client.p12 -inkey /etc/ssl/cer
 # create keystore
 keytool -importkeystore -srckeystore /etc/ssl/certs/jmeter/client.p12 -srcstoretype PKCS12 -srcstorepass 123456 -keystore /etc/ssl/certs/jmeter/client.keystore -storepass 123456
 sudo chmod 644 /etc/ssl/certs/jmeter/client.keystore
+
+# create alias file
+mkdir -p /tmp/jmeter
+cat <<EOF > /tmp/jmeter/alias.csv
+cert_name
+1
+EOF
+
+chown -R ubuntu:ubuntu /tmp/jmeter
