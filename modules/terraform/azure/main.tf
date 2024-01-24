@@ -224,7 +224,7 @@ module "storage_account" {
   # }
 }
 
-module "prviatelink" {
+module "privatelink" {
   source = "./private-link"
 
   count = var.private_link_conf == null ? 0 : 1
