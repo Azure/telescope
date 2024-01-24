@@ -24,6 +24,8 @@ locals {
   network_config_map      = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   vm_config_map           = { for vm in var.vm_config_list : vm.vm_name => vm }
+
+  all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
 }
 
 provider "aws" {
@@ -111,4 +113,18 @@ module "efs" {
   throughput_mode                 = local.efs_throughput_mode
   provisioned_throughput_in_mibps = local.efs_provisioned_throughput_in_mibps
   tags                            = local.tags
+}
+
+module "privatelink" {
+  source = "./private-link"
+
+  count                      = var.private_link_conf == null ? 0 : 1
+  run_id                     = local.run_id
+  client_vpc_name            = var.private_link_conf.client_vpc_name
+  client_subnet_name         = var.private_link_conf.client_subnet_name
+  client_security_group_name = var.private_link_conf.client_security_group_name
+  service_lb_arn             = local.all_lb_arns[var.private_link_conf.service_lb_role]
+  tags                       = local.tags
+
+  depends_on = [module.load_balancer]
 }
