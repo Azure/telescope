@@ -23,13 +23,14 @@ variable "accelerated_networking" {
 
 variable "network_config" {
   type = object({
-    role                        = string
-    vnet_name                   = string
-    vnet_address_space          = string
-    subnet_names                = list(string)
-    subnet_address_prefixes     = list(string)
-    subnet_service_endpoints    = optional(list(string))
-    network_security_group_name = string
+    role                         = string
+    vnet_name                    = string
+    vnet_address_space           = string
+    subnet_names                 = list(string)
+    subnet_address_prefixes      = list(string)
+    subnet_service_endpoints     = optional(list(string))
+    pls_network_policies_enabled = optional(bool)
+    network_security_group_name  = string
     nic_public_ip_associations = list(object({
       nic_name              = string
       subnet_name           = string
