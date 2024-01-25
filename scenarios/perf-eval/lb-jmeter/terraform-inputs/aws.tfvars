@@ -13,6 +13,12 @@ network_config_list = [
     sg_rules = {
       ingress = [
         {
+          from_port  = 2222
+          to_port    = 2222
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
           from_port  = 80
           to_port    = 80
           protocol   = "tcp"
