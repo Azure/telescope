@@ -12,8 +12,10 @@ resource "azurerm_lb" "lb" {
   sku                 = "Standard"
 
   frontend_ip_configuration {
-    name                 = "${local.role}-lb-frontend-ip"
-    public_ip_address_id = var.public_ip_id
+    name                          = "${local.role}-lb-frontend-ip"
+    public_ip_address_id          = var.is_internal_lb ? null : var.public_ip_id
+    private_ip_address_allocation = var.is_internal_lb ? "Dynamic" : null
+    subnet_id                     = var.is_internal_lb ? var.subnet_id : null
   }
   tags = merge(
     var.tags,

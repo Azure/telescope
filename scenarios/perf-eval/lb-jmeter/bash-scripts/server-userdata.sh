@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# change ssh port
+sudo perl -pi -e 's/^#?Port 22$/Port 2222/' /etc/ssh/sshd_config
+sudo service ssh restart
+
 sudo mkdir -p /etc/ssl/certs/jmeter
 
 cat <<EOF > /etc/ssl/certs/jmeter/client.crt

@@ -100,7 +100,9 @@ module "load_balancer" {
   resource_group_name = module.resource_group.name
   location            = local.region
   loadbalancer_config = each.value
-  public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
+  public_ip_id        = each.value.public_ip_name == null ? null : module.public_ips.pip_ids[each.value.public_ip_name]
+  is_internal_lb      = each.value.is_internal_lb == null ? false : each.value.is_internal_lb
+  subnet_id           = each.value.is_internal_lb == null ? "" : local.all_subnets[each.value.subnet_name]
   tags                = local.tags
 }
 
@@ -220,4 +222,22 @@ module "storage_account" {
   #   access_tier      = local.storage_share_access_tier
   #   enabled_protocol = local.storage_share_enabled_protocol
   # }
+}
+
+module "privatelink" {
+  source = "./private-link"
+
+  count = var.private_link_conf == null ? 0 : 1
+
+  resource_group_name = module.resource_group.name
+  location            = local.region
+
+  pls_name       = var.private_link_conf.pls_name
+  pls_subnet_id  = local.all_subnets[var.private_link_conf.pls_subnet_name]
+  pls_lb_fipc_id = module.load_balancer[var.private_link_conf.pls_loadbalance_role].lb_fipc_id
+
+  pe_name      = var.private_link_conf.pe_name
+  pe_subnet_id = local.all_subnets[var.private_link_conf.pe_subnet_name]
+
+  tags = local.tags
 }
