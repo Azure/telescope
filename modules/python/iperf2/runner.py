@@ -1,8 +1,8 @@
 import argparse
+import os
 import sys
 import time
 
-sys.path.append("./modules/python")
 from ssh.runner import generate_ssh_command, execute_ssh_command
 
 def generate_iperf2_command(protocol, ip_address, port, bandwidth, parallel, duration=60):
@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--startup', required=False, default=0, help='Startup delay in seconds')
     parser.add_argument('--interval', required=False, default=0, help='Interval in seconds')
     parser.add_argument('--duration', required=False, default=60, help='Duration to run iperf')
-    parser.add_argument('--output', required=False, default='output.txt', help='Output file name')
+    parser.add_argument('--output', required=False, default='/tmp/', help='Output file path')
 
     args = parser.parse_args()
 
@@ -50,7 +50,8 @@ def main():
         iperf_command = generate_iperf2_command(args.protocol, args.server_ip, args.server_port, bandwidth, parallel, args.duration)
         ssh_command = generate_ssh_command(args.ssh_user, args.client_ip, args.ssh_port, iperf_command)
         output, error, returncode = execute_ssh_command(ssh_command)
-        file = open(args.output, 'w')
+        name = os.path.join(args.output, f'iperf2_{args.protocol}_{bandwidth}M_{parallel}.txt')
+        file = open(name, 'w')
         file.write(output)
         if returncode != 0:
             print('Error: ', error, file=sys.stderr)
