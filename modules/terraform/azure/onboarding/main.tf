@@ -36,7 +36,7 @@ data "azurerm_kusto_cluster" "cluster" {
 
 # Azure Data Explorer Database
 data "azurerm_kusto_database" "database" {
-  name                = var.json_input.scenario_type
+  name                = var.json_input.kusto_database_name
   resource_group_name = data.azurerm_resource_group.rg.name
   cluster_name        = data.azurerm_kusto_cluster.cluster.name
 }
@@ -49,14 +49,13 @@ resource "azurerm_kusto_script" "script" {
   script_content                     = base64decode(var.json_input.table_creation_script)
 }
 
-
 data "azurerm_eventhub_namespace" "eventhub_ns" {
   name                = var.json_input.eventhub_namespace_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_eventhub" "eventhub" {
-  name                = "adx-${local.formatted_scenario_name}"
+  name                = local.formatted_scenario_name
   namespace_name      = data.azurerm_eventhub_namespace.eventhub_ns.name
   resource_group_name = data.azurerm_resource_group.rg.name
   partition_count     = 8
@@ -76,7 +75,7 @@ data "azurerm_eventgrid_system_topic" "topic" {
 }
 
 resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription" {
-  name                  = "adx-${local.formatted_scenario_name}-subscription"
+  name                  = local.formatted_scenario_name
   system_topic          = data.azurerm_eventgrid_system_topic.topic.name
   resource_group_name   = data.azurerm_resource_group.rg.name
   event_delivery_schema = "EventGridSchema"
@@ -88,7 +87,6 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription
   advanced_filtering_on_arrays_enabled = true
   depends_on                           = [data.azurerm_storage_container.container]
 }
-
 
 resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   name                         = local.formatted_scenario_name

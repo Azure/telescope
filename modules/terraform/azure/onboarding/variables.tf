@@ -9,6 +9,7 @@ variable "json_input" {
     resource_group_name     = string
     storage_account_name    = string
     kusto_cluster_name      = string
+    kusto_database_name     = string
     kusto_table_name        = string
     eventhub_namespace_name = string
     eventgrid_topic_name    = string
