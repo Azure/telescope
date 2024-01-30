@@ -17,6 +17,9 @@ locals {
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
+  storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
+  storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
+  storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
@@ -87,6 +90,7 @@ module "aks" {
   subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
   tags                = local.tags
+  vnet_id             = module.virtual_network[each.value.role].vnet_id
 }
 
 module "load_balancer" {
@@ -96,7 +100,9 @@ module "load_balancer" {
   resource_group_name = module.resource_group.name
   location            = local.region
   loadbalancer_config = each.value
-  public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
+  public_ip_id        = each.value.public_ip_name == null ? null : module.public_ips.pip_ids[each.value.public_ip_name]
+  is_internal_lb      = each.value.is_internal_lb == null ? false : each.value.is_internal_lb
+  subnet_id           = each.value.is_internal_lb == null ? "" : local.all_subnets[each.value.subnet_name]
   tags                = local.tags
 }
 
@@ -206,5 +212,32 @@ module "storage_account" {
   storage_account_tier             = local.storage_account_tier
   storage_account_kind             = local.storage_account_kind
   storage_account_replication_type = local.storage_account_replication_type
+  enable_https_traffic_only        = local.storage_share_enabled_protocol == "NFS" ? false : true
   tags                             = local.tags
+
+  # don't use terraform to create fileshare now, we are not able to delete the fileshare when it has network_rule set
+  # storage_share_config = var.storage_account_file_share_name == null ? null : {
+  #   name             = var.storage_account_file_share_name
+  #   quota            = local.storage_share_quota
+  #   access_tier      = local.storage_share_access_tier
+  #   enabled_protocol = local.storage_share_enabled_protocol
+  # }
+}
+
+module "privatelink" {
+  source = "./private-link"
+
+  count = var.private_link_conf == null ? 0 : 1
+
+  resource_group_name = module.resource_group.name
+  location            = local.region
+
+  pls_name       = var.private_link_conf.pls_name
+  pls_subnet_id  = local.all_subnets[var.private_link_conf.pls_subnet_name]
+  pls_lb_fipc_id = module.load_balancer[var.private_link_conf.pls_loadbalance_role].lb_fipc_id
+
+  pe_name      = var.private_link_conf.pe_name
+  pe_subnet_id = local.all_subnets[var.private_link_conf.pe_subnet_name]
+
+  tags = local.tags
 }

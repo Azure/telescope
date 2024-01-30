@@ -5,6 +5,7 @@ variable "json_input" {
     run_id                           = string
     region                           = string
     machine_type                     = string
+    aks_machine_type                 = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
     data_disk_storage_account_type   = optional(string)
@@ -19,6 +20,9 @@ variable "json_input" {
     storage_account_tier             = optional(string)
     storage_account_kind             = optional(string)
     storage_account_replication_type = optional(string)
+    storage_share_quota              = optional(number)
+    storage_share_access_tier        = optional(string)
+    storage_share_enabled_protocol   = optional(string)
   })
 }
 
@@ -49,12 +53,14 @@ variable "public_ip_names" {
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    role                        = string
-    vnet_name                   = string
-    vnet_address_space          = string
-    subnet_names                = list(string)
-    subnet_address_prefixes     = list(string)
-    network_security_group_name = string
+    role                         = string
+    vnet_name                    = string
+    vnet_address_space           = string
+    subnet_names                 = list(string)
+    subnet_address_prefixes      = list(string)
+    subnet_service_endpoints     = optional(list(string))
+    pls_network_policies_enabled = optional(bool)
+    network_security_group_name  = string
     nic_public_ip_associations = list(object({
       nic_name              = string
       subnet_name           = string
@@ -150,11 +156,13 @@ variable "loadbalancer_config_list" {
   type = list(object({
     role                  = string
     loadbalance_name      = string
-    public_ip_name        = string
+    public_ip_name        = optional(string)
     loadbalance_pool_name = string
     probe_protocol        = string
     probe_port            = string
     probe_request_path    = string
+    subnet_name           = optional(string)
+    is_internal_lb        = optional(bool)
     lb_rules = list(object({
       type                    = string
       role                    = string
@@ -240,5 +248,18 @@ variable "data_disk_association_list" {
 
 variable "storage_account_name_prefix" {
   type    = string
+  default = null
+}
+
+variable "private_link_conf" {
+  description = "configuration for private link service and private endpoint"
+  type = object({
+    pls_name             = string
+    pls_loadbalance_role = string
+    pls_subnet_name      = string
+
+    pe_name        = string
+    pe_subnet_name = string
+  })
   default = null
 }

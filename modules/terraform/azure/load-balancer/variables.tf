@@ -45,6 +45,18 @@ variable "public_ip_id" {
   default     = null
 }
 
+variable "is_internal_lb" {
+  description = "Is the load balancer internal?"
+  type        = bool
+  default     = false
+}
+
+variable "subnet_id" {
+  description = "ID of the subnet"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   type = map(string)
   default = {
