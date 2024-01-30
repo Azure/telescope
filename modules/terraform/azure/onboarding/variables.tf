@@ -5,6 +5,12 @@ variable "owner" {
   default     = "azure_devops"
 }
 
+variable "run_id" {
+  description = "run id of the test scenario"
+  type        = string
+  default     = "023456789"
+}
+
 variable "scenario_name" {
   description = "name of the test scenario"
   type        = string
@@ -35,20 +41,8 @@ variable "storage_account_name" {
   default     = null
 }
 
-variable "storage_container_name" {
-  description = "storage container name"
-  type        = string
-  default     = null
-}
-
 variable "kusto_cluster_name" {
   description = "kusto cluster name"
-  type        = string
-  default     = null
-}
-
-variable "kusto_database_name" {
-  description = "kusto database name"
   type        = string
   default     = null
 }

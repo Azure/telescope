@@ -15,10 +15,9 @@ data "azurerm_storage_account" "storage" {
 
 # Storage Container
 data "azurerm_storage_container" "container" {
-  name                 = var.storage_container_name
+  name                 = var.scenario_type
   storage_account_name = data.azurerm_storage_account.storage.name
 }
-
 
 data "azurerm_kusto_cluster" "cluster" {
   name                = var.kusto_cluster_name
@@ -27,7 +26,7 @@ data "azurerm_kusto_cluster" "cluster" {
 
 # Azure Data Explorer Database
 data "azurerm_kusto_database" "database" {
-  name                = var.kusto_database_name
+  name                = var.scenario_type
   resource_group_name = data.azurerm_resource_group.rg.name
   cluster_name        = data.azurerm_kusto_cluster.cluster.name
 }
@@ -66,7 +65,7 @@ data "azurerm_eventgrid_system_topic" "topic" {
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
-resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
+resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription" {
   name                  = "adx-${var.scenario_type}-${var.scenario_name}-${var.scenario_version}-subscription"
   system_topic          = data.azurerm_eventgrid_system_topic.topic.name
   resource_group_name   = data.azurerm_resource_group.rg.name
@@ -74,7 +73,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "example" {
   eventhub_endpoint_id  = azurerm_eventhub.eventhub.id
   included_event_types  = ["Microsoft.Storage.BlobCreated"]
   subject_filter {
-    subject_begins_with = "/blobServices/default/containers/${var.storage_container_name}/blobs/sumanth-test"
+    subject_begins_with = "/blobServices/default/containers/${var.scenario_type}/blobs/${var.scenario_name}/${var.scenario_version}"
   }
   advanced_filtering_on_arrays_enabled = true
   depends_on                           = [data.azurerm_storage_container.container]
@@ -94,5 +93,5 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   table_name                   = var.kusto_table_name
   data_format                  = "JSON"
   mapping_rule_name            = "${var.kusto_table_name}_mapping"
-  depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.example]
+  depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.event_subscription]
 }
