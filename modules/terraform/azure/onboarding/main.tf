@@ -5,7 +5,7 @@ locals {
     "creation_time" = timestamp()
     "run_id"        = lookup(var.json_input, "run_id", "github_actions")
   }
-  formatted_scenario_name = "${var.json_input.scenario_type}-${var.json_input.scenario_name}-${var.json_input.scenario_version}"
+  formatted_scenario_name = "${var.json_input.scenario_name}-${var.json_input.scenario_version}"
 }
 provider "azurerm" {
   features {}
