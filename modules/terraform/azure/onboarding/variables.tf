@@ -1,73 +1,17 @@
-
-variable "owner" {
-  description = "owner of the test scenario"
-  type        = string
-  default     = "azure_devops"
-}
-
-variable "run_id" {
-  description = "run id of the test scenario"
-  type        = string
-  default     = "023456789"
-}
-
-variable "scenario_name" {
-  description = "name of the test scenario"
-  type        = string
-  default     = null
-}
-
-variable "scenario_type" {
-  description = "type of the test scenario"
-  type        = string
-  default     = null
-}
-
-variable "scenario_version" {
-  description = "version of the test scenario"
-  type        = string
-  default     = null
-}
-
-variable "resource_group_name" {
-  description = "resource group name"
-  type        = string
-  default     = null
-}
-
-variable "storage_account_name" {
-  description = "storage account name"
-  type        = string
-  default     = null
-}
-
-variable "kusto_cluster_name" {
-  description = "kusto cluster name"
-  type        = string
-  default     = null
-}
-
-variable "kusto_table_name" {
-  description = "kusto table name"
-  type        = string
-  default     = null
-}
-
-variable "eventhub_namespace_name" {
-  description = "eventhub namespace name"
-  type        = string
-  default     = null
-}
-
-variable "eventgrid_topic_name" {
-  description = "eventgrid topic name"
-  type        = string
-  default     = null
-}
-
-
-variable "table_creation_script" {
-  description = "table creation script"
-  type        = string
-  default     = null
+variable "json_input" {
+  description = "value of the json input for onboarding automation"
+  type = object({
+    owner                   = string
+    run_id                  = string
+    scenario_name           = string
+    scenario_type           = string
+    scenario_version        = string
+    resource_group_name     = string
+    storage_account_name    = string
+    kusto_cluster_name      = string
+    kusto_table_name        = string
+    eventhub_namespace_name = string
+    eventgrid_topic_name    = string
+    table_creation_script   = string
+  })
 }
