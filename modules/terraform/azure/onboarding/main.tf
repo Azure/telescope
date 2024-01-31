@@ -47,13 +47,13 @@ resource "azurerm_kusto_script" "script" {
 }
 
 data "azurerm_eventhub_namespace" "eventhub_ns" {
-  count               = var.json_input.create_eventhub_namespace ? 0 : 1
+  count               = tobool(var.json_input.create_eventhub_namespace) ? 0 : 1
   name                = var.json_input.eventhub_namespace_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_eventhub_namespace" "eventhub_ns" {
-  count               = var.json_input.create_eventhub_namespace ? 1 : 0
+  count               = tobool(var.json_input.create_eventhub_namespace) ? 1 : 0
   name                = "ADX-EG-akstelescope-${formatdate("MM-DD-YYYY", timestamp())}"
   location            = data.azurerm_resource_group.rg.location
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -63,14 +63,14 @@ resource "azurerm_eventhub_namespace" "eventhub_ns" {
 }
 
 data "azurerm_eventhub" "eventhub" {
-  count               = var.json_input.create_eventhub_instance ? 0 : 1
+  count               = tobool(var.json_input.create_eventhub_instance) ? 0 : 1
   name                = var.json_input.eventhub_instance_name
   namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_eventhub" "eventhub" {
-  count               = var.json_input.create_eventhub_instance ? 1 : 0
+  count               = tobool(var.json_input.create_eventhub_instance) ? 1 : 0
   name                = var.json_input.eventhub_instance_name
   namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -80,7 +80,7 @@ resource "azurerm_eventhub" "eventhub" {
 
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
   name                = local.formatted_scenario_name
-  namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
+  namespace_name      = tobool(var.json_input.create_eventhub_namespace) ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   eventhub_name       = var.json_input.eventhub_instance_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
@@ -95,7 +95,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription
   system_topic          = data.azurerm_eventgrid_system_topic.topic.name
   resource_group_name   = data.azurerm_resource_group.rg.name
   event_delivery_schema = "EventGridSchema"
-  eventhub_endpoint_id  = var.json_input.create_eventhub_instance ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
+  eventhub_endpoint_id  = tobool(var.json_input.create_eventhub_instance) ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
   included_event_types  = ["Microsoft.Storage.BlobCreated"]
   subject_filter {
     subject_begins_with = "/blobServices/default/containers/${var.json_input.scenario_type}/blobs/${var.json_input.scenario_name}/${var.json_input.scenario_version}"
@@ -111,7 +111,7 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name
   database_name                = data.azurerm_kusto_database.database.name
   storage_account_id           = data.azurerm_storage_account.storage.id
-  eventhub_id                  = var.json_input.create_eventhub_instance ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
+  eventhub_id                  = tobool(var.json_input.create_eventhub_instance) ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
   table_name                   = var.json_input.kusto_table_name
