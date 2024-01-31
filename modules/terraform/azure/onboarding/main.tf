@@ -1,5 +1,9 @@
 locals {
   formatted_scenario_name = "${var.json_input.scenario_name}-${var.json_input.scenario_version}"
+  tags = {
+    owner  = var.json_input.owner
+    run_id = var.json_input.run_id
+  }
 }
 provider "azurerm" {
   features {}
@@ -43,21 +47,32 @@ resource "azurerm_kusto_script" "script" {
 }
 
 data "azurerm_eventhub_namespace" "eventhub_ns" {
+  count               = var.json_input.create_eventhub_namespace ? 0 : 1
   name                = var.json_input.eventhub_namespace_name
   resource_group_name = data.azurerm_resource_group.rg.name
+}
+
+resource "azurerm_eventhub_namespace" "eventhub_ns" {
+  count               = var.json_input.create_eventhub_namespace ? 1 : 0
+  name                = "ADX-EG-akstelescope-${formatdate("MM-DD-YYYY", timestamp())}"
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
+  sku                 = "Standard"
+  capacity            = 1
+  tags                = local.tags
 }
 
 data "azurerm_eventhub" "eventhub" {
   count               = var.json_input.create_eventhub_instance ? 0 : 1
   name                = var.json_input.eventhub_instance_name
-  namespace_name      = data.azurerm_eventhub_namespace.eventhub_ns.name
+  namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_eventhub" "eventhub" {
   count               = var.json_input.create_eventhub_instance ? 1 : 0
   name                = var.json_input.eventhub_instance_name
-  namespace_name      = data.azurerm_eventhub_namespace.eventhub_ns.name
+  namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   resource_group_name = data.azurerm_resource_group.rg.name
   partition_count     = 8
   message_retention   = 7
@@ -65,7 +80,7 @@ resource "azurerm_eventhub" "eventhub" {
 
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
   name                = local.formatted_scenario_name
-  namespace_name      = data.azurerm_eventhub_namespace.eventhub_ns.name
+  namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   eventhub_name       = var.json_input.eventhub_instance_name
   resource_group_name = data.azurerm_resource_group.rg.name
 }
@@ -102,5 +117,5 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   table_name                   = var.json_input.kusto_table_name
   data_format                  = "JSON"
   mapping_rule_name            = "${var.json_input.kusto_table_name}_mapping"
-  depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.event_subscription, azurerm_kusto_script.script]
+  depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.event_subscription, azurerm_kusto_script.script, azurerm_eventhub_consumer_group.consumer_group]
 }
