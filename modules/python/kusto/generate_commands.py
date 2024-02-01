@@ -51,7 +51,9 @@ def generate_kusto_commands(data, table_name):
     kusto_commands = f"{table_command}\n\n{mapping_command}"
     return kusto_commands
     
-if __name__ == "__main__":
+
+
+def main():
     table_name = sys.argv[1]
     schema_path = sys.argv[2]
     with open(schema_path, 'r') as schema_file:             
@@ -59,4 +61,6 @@ if __name__ == "__main__":
     json_object = json.loads(json_data)
     kusto_commands = base64.b64encode(generate_kusto_commands(json_object, table_name).encode("utf-8"))
     print(kusto_commands.decode("utf-8"))
-       
+
+if __name__ == "__main__":
+    main()
