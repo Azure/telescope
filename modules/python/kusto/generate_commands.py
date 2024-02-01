@@ -51,8 +51,6 @@ def generate_kusto_commands(data, table_name):
     kusto_commands = f"{table_command}\n\n{mapping_command}"
     return kusto_commands
     
-
-
 def main():
     table_name = sys.argv[1]
     schema_path = sys.argv[2]
