@@ -41,3 +41,9 @@ variable "tags" {
   default = {
   }
 }
+
+variable "is_internal_lb" {
+  description = "Is the load balancer internal?"
+  type        = bool
+  default     = false
+}
