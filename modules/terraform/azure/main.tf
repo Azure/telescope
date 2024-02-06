@@ -133,7 +133,7 @@ module "data_disk" {
   data_disk_iops_read_only       = local.data_disk_iops_read_only
   data_disk_mbps_read_only       = local.data_disk_mbps_read_only
   data_disk_tier                 = local.data_disk_tier
-  zone                           = each.value.zone
+  zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : each.value.zone
 }
 
 module "virtual_machine" {
