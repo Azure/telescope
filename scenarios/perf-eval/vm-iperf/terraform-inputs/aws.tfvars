@@ -45,6 +45,7 @@ network_config_list = [
 loadbalancer_config_list = []
 vm_config_list = [{
   vm_name                     = "client-vm"
+  zone                        = "us-east1-b"
   role                        = "client"
   subnet_name                 = "same-subnet"
   security_group_name         = "same-sg"
@@ -52,6 +53,7 @@ vm_config_list = [{
   },
   {
     vm_name                     = "server-vm"
+    zone                        = "us-east1-c"
     role                        = "server"
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"

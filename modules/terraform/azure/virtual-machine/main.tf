@@ -9,6 +9,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name                  = var.name
   resource_group_name   = var.resource_group_name
   location              = var.location
+  zone                  = var.vm_config.zone
   size                  = var.vm_sku
   network_interface_ids = [var.nic]
 
@@ -36,8 +37,6 @@ resource "azurerm_linux_virtual_machine" "vm" {
       "role" = var.vm_config.role
     },
   )
-
-  zone = var.vm_config.zone
 
   additional_capabilities {
     ultra_ssd_enabled = var.ultra_ssd_enabled
