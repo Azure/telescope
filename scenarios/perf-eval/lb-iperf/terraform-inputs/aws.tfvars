@@ -75,11 +75,16 @@ network_config_list = [
     }
   }
 ]
-loadbalancer_config_list = [{
+loadbalancer_config_list = [{  
   role               = "ingress"
   vpc_name           = "server-vpc"
   subnet_name        = "server-subnet"
   load_balancer_type = "network"
+  Is_internal_lb = [{
+    description = "Is the load balancer internal?"
+    type        = bool
+    default     = false
+  }]
   lb_target_group = [{
     role       = "nlb-tg"
     tg_suffix  = "tcp"
