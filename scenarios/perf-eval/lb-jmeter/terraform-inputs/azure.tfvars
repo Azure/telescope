@@ -1,7 +1,17 @@
-scenario_type   = "perf-eval"
-scenario_name   = "lb-jmeter"
-deletion_delay  = "2h"
-public_ip_names = ["client-pip", "server-pip", "lb-pip"]
+scenario_type  = "perf-eval"
+scenario_name  = "lb-jmeter"
+deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "client-pip"
+  },
+  {
+    name = "server-pip"
+  },
+  {
+    name = "lb-pip"
+  }
+]
 network_config_list = [
   {
     role               = "server"

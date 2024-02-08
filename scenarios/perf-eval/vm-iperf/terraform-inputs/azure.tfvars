@@ -1,7 +1,14 @@
-scenario_type   = "perf-eval"
-scenario_name   = "vm-iperf"
-deletion_delay  = "2h"
-public_ip_names = ["ingress-pip", "egress-pip"]
+scenario_type  = "perf-eval"
+scenario_name  = "vm-iperf"
+deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "ingress-pip"
+  },
+  {
+    name = "egress-pip"
+  }
+]
 network_config_list = [
   {
     role               = "network"

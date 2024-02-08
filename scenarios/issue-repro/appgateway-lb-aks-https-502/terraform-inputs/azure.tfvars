@@ -1,7 +1,17 @@
-scenario_name   = "appgateway-lb-aks-https-502"
-scenario_type   = "issue-repro"
-deletion_delay  = "6h"
-public_ip_names = ["app-gateway-pip", "client-pip"]
+scenario_name  = "appgateway-lb-aks-https-502"
+scenario_type  = "issue-repro"
+deletion_delay = "6h"
+public_ip_config_list = [
+  {
+    name = "app-gateway-pip"
+  },
+  {
+    name = "client-pip"
+  },
+  {
+    name = "lb-pip"
+  }
+]
 network_config_list = [
   {
     role               = "ingress"

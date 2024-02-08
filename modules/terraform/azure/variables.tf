@@ -44,10 +44,15 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
-variable "public_ip_names" {
+variable "public_ip_config_list" {
   description = "A list of public IP names"
-  type        = list(string)
-  default     = []
+  type = list(object({
+    name              = string
+    allocation_method = optional(string, "Static")
+    sku               = optional(string, "Standard")
+    zones             = optional(list(string), ["Zone-Redundant"])
+  }))
+  default = []
 }
 
 variable "network_config_list" {

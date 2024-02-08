@@ -1,7 +1,11 @@
-scenario_type   = "perf-eval"
-scenario_name   = "storage-disk"
-deletion_delay  = "2h"
-public_ip_names = ["egress-pip"]
+scenario_type  = "perf-eval"
+scenario_name  = "storage-disk"
+deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "egress-pip"
+  }
+]
 network_config_list = [
   {
     role               = "network"
