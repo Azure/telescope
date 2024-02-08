@@ -40,10 +40,7 @@ resource "local_file" "ssh_private_key" {
   filename = "private_key.pem"
 
   provisioner "local-exec" {
-    command = <<-EOT
-      echo ${tls_private_key.admin_ssh_key.private_key_pem} | Out-File -FilePath private_key.pem -Encoding UTF8
-      attrib +R private_key.pem
-    EOT
+    command = "chmod 600 private_key.pem"
   }
 }
 
