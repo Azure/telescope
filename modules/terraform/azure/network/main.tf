@@ -1,12 +1,8 @@
 locals {
-  nsr_rules_map    = { for rule in var.network_config.nsr_rules : rule.name => rule }
-  vnet_name        = var.network_config.vnet_name
-  input_subnet_map = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  # subnet_names                 = var.network_config.subnet_names
-  subnets_map = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
-  # subnet_address_prefixes      = var.network_config.subnet_address_prefixes
-  # subnet_service_endpoints     = var.network_config.subnet_service_endpoints
-  # pls_network_policies_enabled = var.network_config.pls_network_policies_enabled
+  nsr_rules_map               = { for rule in var.network_config.nsr_rules : rule.name => rule }
+  vnet_name                   = var.network_config.vnet_name
+  input_subnet_map            = { for subnet in var.network_config.subnet : subnet.name => subnet }
+  subnets_map                 = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
   network_security_group_name = var.network_config.network_security_group_name
   nic_association_map         = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
   tags                        = merge(var.tags, { "role" = var.network_config.role })
