@@ -1,14 +1,15 @@
 locals {
-  nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
-  vnet_name                    = var.network_config.vnet_name
-  subnet_names                 = var.network_config.subnet_names
-  subnets_map                  = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
-  subnet_address_prefixes      = var.network_config.subnet_address_prefixes
-  subnet_service_endpoints     = var.network_config.subnet_service_endpoints
-  pls_network_policies_enabled = var.network_config.pls_network_policies_enabled
-  network_security_group_name  = var.network_config.network_security_group_name
-  nic_association_map          = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
-  tags                         = merge(var.tags, { "role" = var.network_config.role })
+  nsr_rules_map    = { for rule in var.network_config.nsr_rules : rule.name => rule }
+  vnet_name        = var.network_config.vnet_name
+  input_subnet_map = { for subnet in var.network_config.subnet : subnet.name => subnet }
+  # subnet_names                 = var.network_config.subnet_names
+  subnets_map = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
+  # subnet_address_prefixes      = var.network_config.subnet_address_prefixes
+  # subnet_service_endpoints     = var.network_config.subnet_service_endpoints
+  # pls_network_policies_enabled = var.network_config.pls_network_policies_enabled
+  network_security_group_name = var.network_config.network_security_group_name
+  nic_association_map         = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
+  tags                        = merge(var.tags, { "role" = var.network_config.role })
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -20,14 +21,14 @@ resource "azurerm_virtual_network" "vnet" {
 }
 
 resource "azurerm_subnet" "subnets" {
-  count = length(local.subnet_names)
+  for_each = local.input_subnet_map
 
-  name                                          = local.subnet_names[count.index]
+  name                                          = each.value.name
   resource_group_name                           = var.resource_group_name
   virtual_network_name                          = azurerm_virtual_network.vnet.name
-  address_prefixes                              = [local.subnet_address_prefixes[count.index]]
-  service_endpoints                             = local.subnet_service_endpoints
-  private_link_service_network_policies_enabled = local.pls_network_policies_enabled
+  address_prefixes                              = [each.value.address_prefix]
+  service_endpoints                             = count(each.value.service_endpoints) > 0 ? each.value.service_endpoints : []
+  private_link_service_network_policies_enabled = each.value.pls_network_policies_enabled != null ? each.value.pls_network_policies_enabled : true
 }
 
 
@@ -62,7 +63,6 @@ resource "azurerm_network_interface" "nic" {
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name] : null
   }
-
 }
 
 module "nsr" {

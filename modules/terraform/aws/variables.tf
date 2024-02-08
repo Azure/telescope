@@ -43,12 +43,14 @@ variable "deletion_delay" {
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    role                   = string
-    vpc_name               = string
-    vpc_cidr_block         = string
-    subnet_names           = list(string)
-    subnet_cidr_block      = list(string)
-    subnet_zones           = optional(list(string))
+    role           = string
+    vpc_name       = string
+    vpc_cidr_block = string
+    subnet = list(object({
+      name       = string
+      cidr_block = string
+      zone       = optional(string)
+    }))
     security_group_name    = string
     route_table_cidr_block = string
     sg_rules = object({
