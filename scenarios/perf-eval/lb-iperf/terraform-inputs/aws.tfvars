@@ -81,8 +81,8 @@ loadbalancer_config_list = [{
   subnet_name        = "server-subnet"
   load_balancer_type = "network"
   Is_internal_lb = [{
-    description = "Is the load balancer internal?"
     type        = bool
+    description = "Is the load balancer internal?"    
     default     = false
   }]
   lb_target_group = [{
