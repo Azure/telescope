@@ -4,11 +4,13 @@ deletion_delay  = "4h"
 public_ip_names = ["ingress-pip", "egress-pip"]
 network_config_list = [
   {
-    role                        = "server"
-    vnet_name                   = "server-vnet"
-    vnet_address_space          = "10.1.0.0/16"
-    subnet_names                = ["server-subnet"]
-    subnet_address_prefixes     = ["10.1.1.0/24"]
+    role               = "server"
+    vnet_name          = "server-vnet"
+    vnet_address_space = "10.1.0.0/16"
+    subnet = [{
+      name           = "server-subnet"
+      address_prefix = "10.1.1.0/24"
+    }]
     network_security_group_name = "server-nsg"
     nic_public_ip_associations  = []
     nsr_rules = [

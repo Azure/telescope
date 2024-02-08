@@ -28,15 +28,15 @@ locals {
     "run_id"            = local.run_id
   }
 
-  network_config_map               = { for network in var.network_config_list : network.role => network }
-  loadbalancer_config_map          = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
-  appgateway_config_map            = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
-  aks_config_map                   = { for aks in var.aks_config_list : aks.role => aks }
-  vm_config_map                    = { for vm in var.vm_config_list : vm.vm_name => vm }
-  vmss_config_map                  = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
-  nic_backend_pool_association_map = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
-  all_nics                         = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
-  //all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  network_config_map                     = { for network in var.network_config_list : network.role => network }
+  loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
+  appgateway_config_map                  = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  aks_config_map                         = { for aks in var.aks_config_list : aks.role => aks }
+  vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
+  vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
+  nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
+  all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
+  all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   disk_association_map                   = { for config in var.data_disk_association_list : config.vm_name => config }
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
@@ -87,7 +87,7 @@ module "aks" {
   resource_group_name = module.resource_group.name
   location            = local.region
   vm_sku              = local.aks_machine_type
-  subnet_id           = module.virtual_network.subnets[each.value.subnet_name]
+  subnet_id           = local.all_subnets[each.value.subnet_name]
   aks_config          = each.value
   tags                = local.tags
   vnet_id             = module.virtual_network[each.value.role].vnet_id
@@ -102,7 +102,7 @@ module "load_balancer" {
   loadbalancer_config = each.value
   public_ip_id        = each.value.public_ip_name == null ? null : module.public_ips.pip_ids[each.value.public_ip_name]
   is_internal_lb      = each.value.is_internal_lb == null ? false : each.value.is_internal_lb
-  subnet_id           = each.value.is_internal_lb == null ? "" : module.virtual_network.subnets[each.value.subnet_name]
+  subnet_id           = each.value.is_internal_lb == null ? "" : local.all_subnets[each.value.subnet_name]
   tags                = local.tags
 }
 
@@ -113,7 +113,7 @@ module "appgateway" {
   appgateway_config   = each.value
   resource_group_name = module.resource_group.name
   location            = local.region
-  subnet_id           = module.virtual_network.subnets[each.value.subnet_name]
+  subnet_id           = local.all_subnets[each.value.subnet_name]
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
   tags                = local.tags
 }
@@ -160,7 +160,7 @@ module "virtual_machine_scale_set" {
   resource_group_name   = module.resource_group.name
   location              = local.region
   vm_sku                = local.machine_type
-  subnet_id             = module.virtual_network.subnets[each.value.subnet_name]
+  subnet_id             = local.all_subnets[each.value.subnet_name]
   lb_pool_id            = local.all_loadbalancer_backend_address_pools[each.value.loadbalancer_pool_name]
   ip_configuration_name = each.value.ip_configuration_name
   vmss_config           = each.value
@@ -233,11 +233,11 @@ module "privatelink" {
   location            = local.region
 
   pls_name       = var.private_link_conf.pls_name
-  pls_subnet_id  = module.virtual_network.subnets[var.private_link_conf.pls_subnet_name]
+  pls_subnet_id  = local.all_subnets[var.private_link_conf.pls_subnet_name]
   pls_lb_fipc_id = module.load_balancer[var.private_link_conf.pls_loadbalance_role].lb_fipc_id
 
   pe_name      = var.private_link_conf.pe_name
-  pe_subnet_id = module.virtual_network.subnets[var.private_link_conf.pe_subnet_name]
+  pe_subnet_id = local.all_subnets[var.private_link_conf.pe_subnet_name]
 
   tags = local.tags
 }

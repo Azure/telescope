@@ -42,11 +42,13 @@ network_config_list = [
     }
   },
   {
-    role                   = "client"
-    vpc_name               = "client-vpc"
-    vpc_cidr_block         = "10.0.0.0/16"
-    subnet_names           = ["client-subnet"]
-    subnet_cidr_block      = ["10.0.0.0/24"]
+    role           = "client"
+    vpc_name       = "client-vpc"
+    vpc_cidr_block = "10.0.0.0/16"
+    subnet = [{
+      name       = "client-subnet"
+      cidr_block = "10.0.0.0/24"
+    }]
     security_group_name    = "client-sg"
     route_table_cidr_block = "0.0.0.0/0"
     sg_rules = {

@@ -58,11 +58,13 @@ network_config_list = [
     ]
   },
   {
-    role                        = "client"
-    vnet_name                   = "client-vnet"
-    vnet_address_space          = "10.0.0.0/16"
-    subnet_names                = ["client-subnet"]
-    subnet_address_prefixes     = ["10.0.0.0/24"]
+    role               = "client"
+    vnet_name          = "client-vnet"
+    vnet_address_space = "10.0.0.0/16"
+    subnet = [{
+      name           = "client-subnet"
+      address_prefix = "10.0.0.0/24"
+    }]
     network_security_group_name = "client-nsg"
     nic_public_ip_associations = [
       {

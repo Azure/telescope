@@ -59,7 +59,7 @@ variable "network_config_list" {
     subnet = list(object({
       name                         = string
       address_prefix               = string
-      service_endpoints            = optional(string)
+      service_endpoints            = optional(list(string))
       pls_network_policies_enabled = optional(bool)
     }))
     network_security_group_name = string

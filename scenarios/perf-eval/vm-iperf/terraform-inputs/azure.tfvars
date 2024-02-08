@@ -66,7 +66,6 @@ loadbalancer_config_list = []
 vm_config_list = [{
   role           = "client"
   vm_name        = "client-vm"
-  zone           = 3
   nic_name       = "client-nic"
   admin_username = "ubuntu"
   source_image_reference = {
@@ -80,7 +79,6 @@ vm_config_list = [{
   {
     role           = "server"
     vm_name        = "server-vm"
-    zone           = 2
     nic_name       = "server-nic"
     admin_username = "ubuntu"
     source_image_reference = {

@@ -9,12 +9,6 @@ network_config_list = [
     subnet = [{
       name       = "same-subnet"
       cidr_block = "10.2.1.0/24"
-      zone       = "us-east-1b"
-      },
-      {
-        name       = "different-subnet"
-        cidr_block = "10.2.2.0/24"
-        zone       = "us-east-1c"
     }]
     security_group_name    = "same-sg"
     route_table_cidr_block = "0.0.0.0/0"
