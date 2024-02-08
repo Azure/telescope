@@ -3,11 +3,9 @@ locals {
   egress_sg_rules_map  = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
   vpc_name             = var.network_config.vpc_name
   subnet_map           = { for subnet in var.network_config.subnet : subnet.name => subnet }
-
-  security_group_name = var.network_config.security_group_name
-  tags                = merge(var.tags, { "role" = var.network_config.role })
+  security_group_name  = var.network_config.security_group_name
+  tags                 = merge(var.tags, { "role" = var.network_config.role })
 }
-
 
 resource "aws_vpc" "vpc" {
   cidr_block = var.network_config.vpc_cidr_block

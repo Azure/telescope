@@ -3,11 +3,13 @@ scenario_name  = "lb-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role                   = "server"
-    vpc_name               = "server-vpc"
-    vpc_cidr_block         = "10.1.0.0/16"
-    subnet_names           = ["server-subnet"]
-    subnet_cidr_block      = ["10.1.1.0/24"]
+    role           = "server"
+    vpc_name       = "server-vpc"
+    vpc_cidr_block = "10.1.0.0/16"
+    subnet = [{
+      name       = "server-subnet"
+      cidr_block = "10.1.1.0/24"
+    }]
     security_group_name    = "server-sg"
     route_table_cidr_block = "0.0.0.0/0"
     sg_rules = {

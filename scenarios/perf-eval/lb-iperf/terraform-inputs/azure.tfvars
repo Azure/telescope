@@ -7,9 +7,11 @@ public_ip_config_list = [
   },
   {
     name = "server-pip"
+  },
+  {
+    name = "lb-pip"
   }
 ]
-public_ip_names = ["client-pip", "server-pip", "lb-pip"]
 network_config_list = [
   {
     role               = "server"

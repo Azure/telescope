@@ -7,9 +7,6 @@ public_ip_config_list = [
   },
   {
     name = "client-pip"
-  },
-  {
-    name = "lb-pip"
   }
 ]
 network_config_list = [
