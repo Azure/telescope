@@ -50,7 +50,7 @@ variable "public_ip_config_list" {
     name              = string
     allocation_method = optional(string, "Static")
     sku               = optional(string, "Standard")
-    zones             = optional(list(string), ["Zone-Redundant"])
+    zones             = optional(list(string), [])
   }))
   default = []
 }
