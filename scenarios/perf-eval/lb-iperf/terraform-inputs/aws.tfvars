@@ -80,8 +80,7 @@ loadbalancer_config_list = [{
   vpc_name           = "server-vpc"
   subnet_name        = "server-subnet"
   load_balancer_type = "network"
-  Is_internal_lb = [{
-    type        = bool
+  Is_internal_lb = [{    
     description = "Is the load balancer internal?"    
     default     = false
   }]
