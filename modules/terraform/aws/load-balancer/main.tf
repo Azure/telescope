@@ -20,7 +20,7 @@ data "aws_subnet" "subnet" {
 }
 
 resource "aws_lb" "nlb" {
-  internal           = var.is_internal_lb ? true : false
+  internal           = true
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = [data.aws_subnet.subnet.id]
 
