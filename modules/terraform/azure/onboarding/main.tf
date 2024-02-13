@@ -1,5 +1,5 @@
 locals {
-  formatted_scenario_name = "${var.json_input.scenario_name}-${var.json_input.scenario_version}"
+  formatted_scenario_name = var.json_input.formatted_resource_name
   tags = {
     owner  = var.json_input.owner
     run_id = var.json_input.run_id

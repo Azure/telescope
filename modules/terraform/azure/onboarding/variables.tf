@@ -3,6 +3,7 @@ variable "json_input" {
   type = object({
     owner                     = string
     run_id                    = string
+    formatted_resource_name   = string
     scenario_name             = string
     scenario_type             = string
     scenario_version          = string
