@@ -1,5 +1,4 @@
 locals {
-  formatted_scenario_name = "${var.json_input.scenario_name}-${var.json_input.scenario_version}"
   tags = {
     owner  = var.json_input.owner
     run_id = var.json_input.run_id
@@ -79,7 +78,7 @@ resource "azurerm_eventhub" "eventhub" {
 }
 
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
-  name                = local.formatted_scenario_name
+  name                = "ADX-CG-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   namespace_name      = tobool(var.json_input.create_eventhub_namespace) ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   eventhub_name       = var.json_input.eventhub_instance_name
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -91,7 +90,7 @@ data "azurerm_eventgrid_system_topic" "topic" {
 }
 
 resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription" {
-  name                  = local.formatted_scenario_name
+  name                  = "ADX-EG-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   system_topic          = data.azurerm_eventgrid_system_topic.topic.name
   resource_group_name   = data.azurerm_resource_group.rg.name
   event_delivery_schema = "EventGridSchema"
@@ -105,7 +104,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription
 }
 
 resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
-  name                         = local.formatted_scenario_name
+  name                         = var.json_input.data_connection_name
   resource_group_name          = data.azurerm_resource_group.rg.name
   location                     = data.azurerm_resource_group.rg.location
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name
