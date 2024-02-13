@@ -78,7 +78,7 @@ resource "azurerm_eventhub" "eventhub" {
 }
 
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
-  name                = substr(var.json_input.formatted_resource_name, 0, min(length(var.json_input.formatted_resource_name), 50))
+  name                = "ADX-CG-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   namespace_name      = tobool(var.json_input.create_eventhub_namespace) ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   eventhub_name       = var.json_input.eventhub_instance_name
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -104,7 +104,7 @@ resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription
 }
 
 resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
-  name                         = substr(var.json_input.formatted_resource_name, 0, min(length(var.json_input.formatted_resource_name), 40))
+  name                         = var.json_input.data_connection_name
   resource_group_name          = data.azurerm_resource_group.rg.name
   location                     = data.azurerm_resource_group.rg.location
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name

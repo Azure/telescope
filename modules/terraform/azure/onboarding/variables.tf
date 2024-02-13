@@ -3,7 +3,6 @@ variable "json_input" {
   type = object({
     owner                     = string
     run_id                    = string
-    formatted_resource_name   = string
     scenario_name             = string
     scenario_type             = string
     scenario_version          = string
@@ -12,6 +11,7 @@ variable "json_input" {
     kusto_cluster_name        = string
     kusto_database_name       = string
     kusto_table_name          = string
+    data_connection_name      = string
     create_eventhub_namespace = bool
     eventhub_namespace_name   = optional(string)
     eventhub_instance_name    = optional(string)
