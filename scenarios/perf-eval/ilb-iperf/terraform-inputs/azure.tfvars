@@ -64,7 +64,6 @@ loadbalancer_config_list = [{
   role                  = "ingress"
   loadbalance_name      = "ingress-lb"
   loadbalance_pool_name = "ingress-lb-pool"
-  public_ip_name        = "lb-pip"
   probe_protocol        = "Tcp"
   probe_port            = 20000
   probe_request_path    = null,
