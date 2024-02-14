@@ -6,6 +6,7 @@ variable "vm_config" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+    zone_suffix                 = optional(string, "a")
 
     data_disk_config = optional(object({
       data_disk_size_gb         = number
@@ -42,6 +43,11 @@ variable "admin_key_pair_name" {
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+variable "region" {
+  description = "value of region"
+  type        = string
 }
 
 variable "zone" {
