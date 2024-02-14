@@ -61,11 +61,11 @@ module "resource_group" {
 }
 
 module "public_ips" {
-  source              = "./public-ip"
-  resource_group_name = module.resource_group.name
-  location            = local.region
-  public_ip_names     = var.public_ip_names
-  tags                = local.tags
+  source                = "./public-ip"
+  resource_group_name   = module.resource_group.name
+  location              = local.region
+  public_ip_config_list = var.public_ip_config_list
+  tags                  = local.tags
 }
 
 module "virtual_network" {
