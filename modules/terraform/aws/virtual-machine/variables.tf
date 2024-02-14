@@ -52,4 +52,5 @@ variable "region" {
 variable "zone_suffix" {
   description = "value of availability zone"
   type        = string
+  default     = "a"
 }
