@@ -1,24 +1,39 @@
-scenario_name   = "appgateway-lb-aks-https-502"
-scenario_type   = "issue-repro"
-deletion_delay  = "6h"
-public_ip_names = ["app-gateway-pip", "client-pip"]
+scenario_name  = "appgateway-lb-aks-https-502"
+scenario_type  = "issue-repro"
+deletion_delay = "6h"
+public_ip_config_list = [
+  {
+    name = "app-gateway-pip"
+  },
+  {
+    name = "client-pip"
+  }
+]
 network_config_list = [
   {
-    role                        = "ingress"
-    vnet_name                   = "repro502-vnet"
-    vnet_address_space          = "10.10.0.0/16"
-    subnet_names                = ["aks-network-ingress", "aks-network-aks"]
-    subnet_address_prefixes     = ["10.10.0.0/24", "10.10.1.0/24"]
+    role               = "ingress"
+    vnet_name          = "repro502-vnet"
+    vnet_address_space = "10.10.0.0/16"
+    subnet = [{
+      name           = "aks-network-ingress"
+      address_prefix = "10.10.0.0/24"
+      },
+      {
+        name           = "aks-network-aks"
+        address_prefix = "10.10.1.0/24"
+    }]
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
   },
   {
-    role                        = "client"
-    vnet_name                   = "client_vnet"
-    vnet_address_space          = "10.10.0.0/16"
-    subnet_names                = ["client-network"]
-    subnet_address_prefixes     = ["10.10.0.0/24"]
+    role               = "client"
+    vnet_name          = "client_vnet"
+    vnet_address_space = "10.10.0.0/16"
+    subnet = [{
+      name           = "client-network"
+      address_prefix = "10.10.0.0/24"
+    }]
     network_security_group_name = "clientnsg"
     nic_public_ip_associations = [
       {

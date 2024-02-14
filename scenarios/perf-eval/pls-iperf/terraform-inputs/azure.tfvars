@@ -1,16 +1,28 @@
-scenario_type   = "perf-eval"
-scenario_name   = "pls-iperf"
-deletion_delay  = "2h"
-public_ip_names = ["client-pip", "server-pip", "lb-pip"]
+scenario_type  = "perf-eval"
+scenario_name  = "pls-iperf"
+deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "client-pip"
+  },
+  {
+    name = "server-pip"
+  },
+  {
+    name = "lb-pip"
+  }
+]
 network_config_list = [
   {
-    role                         = "server"
-    vnet_name                    = "server-vnet"
-    vnet_address_space           = "10.1.0.0/16"
-    subnet_names                 = ["server-subnet"]
-    subnet_address_prefixes      = ["10.1.1.0/24"]
-    network_security_group_name  = "server-nsg"
-    pls_network_policies_enabled = false
+    role               = "server"
+    vnet_name          = "server-vnet"
+    vnet_address_space = "10.1.0.0/16"
+    subnet = [{
+      name                         = "server-subnet"
+      address_prefix               = "10.1.1.0/24"
+      pls_network_policies_enabled = false
+    }]
+    network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
       {
         nic_name              = "server-nic"
@@ -56,11 +68,13 @@ network_config_list = [
     ]
   },
   {
-    role                        = "client"
-    vnet_name                   = "client-vnet"
-    vnet_address_space          = "10.0.0.0/16"
-    subnet_names                = ["client-subnet"]
-    subnet_address_prefixes     = ["10.0.0.0/24"]
+    role               = "client"
+    vnet_name          = "client-vnet"
+    vnet_address_space = "10.0.0.0/16"
+    subnet = [{
+      name           = "client-subnet"
+      address_prefix = "10.0.0.0/24"
+    }]
     network_security_group_name = "client-nsg"
     nic_public_ip_associations = [
       {
