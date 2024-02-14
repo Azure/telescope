@@ -7,8 +7,9 @@ network_config_list = [
     vpc_name       = "same-vpc"
     vpc_cidr_block = "10.2.0.0/16"
     subnet = [{
-      name       = "same-subnet"
-      cidr_block = "10.2.1.0/24"
+      name        = "same-subnet"
+      cidr_block  = "10.2.1.0/24"
+      zone_suffix = "b"
     }]
     security_group_name    = "same-sg"
     route_table_cidr_block = "0.0.0.0/0"
@@ -51,7 +52,7 @@ vm_config_list = [{
   subnet_name                 = "same-subnet"
   security_group_name         = "same-sg"
   associate_public_ip_address = true
-  zone                        = "us-east-1a"
+  zone_suffix                 = "b"
   },
   {
     vm_name                     = "server-vm"
@@ -59,6 +60,6 @@ vm_config_list = [{
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
-    zone                        = "us-east-1a"
+    zone_suffix                 = "b"
   }
 ]

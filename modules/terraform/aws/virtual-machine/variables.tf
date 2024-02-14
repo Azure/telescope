@@ -44,7 +44,12 @@ variable "tags" {
   default = {}
 }
 
-variable "zone" {
+variable "region" {
+  description = "value of region"
+  type        = string
+}
+
+variable "zone_suffix" {
   description = "value of availability zone"
   type        = string
 }

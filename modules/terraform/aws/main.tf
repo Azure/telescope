@@ -40,7 +40,10 @@ resource "local_file" "ssh_private_key" {
   filename = "private_key.pem"
 
   provisioner "local-exec" {
-    command = "chmod 600 private_key.pem"
+    command = <<-EOT
+      echo ${tls_private_key.admin_ssh_key.private_key_pem} | Out-File -FilePath private_key.pem -Encoding UTF8
+      attrib +R private_key.pem
+    EOT
   }
 }
 
@@ -55,6 +58,7 @@ module "virtual_network" {
 
   source         = "./virtual-network"
   network_config = each.value
+  region         = local.region
   zone           = local.zone
   tags           = local.tags
 }
@@ -77,7 +81,8 @@ module "virtual_machine" {
   machine_type        = local.machine_type
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
-  zone                = (each.value.zone == null || each.value.zone == "") ? local.zone : each.value.zone
+  region              = local.region
+  zone_suffix         = (each.value.zone_suffix == null || each.value.zone_suffix == "") ? local.zone : each.value.zone_suffix
 }
 
 module "load_balancer" {
