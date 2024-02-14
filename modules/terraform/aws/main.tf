@@ -55,6 +55,7 @@ module "virtual_network" {
 
   source         = "./virtual-network"
   network_config = each.value
+  region         = local.region
   zone           = local.zone
   tags           = local.tags
 }
@@ -77,7 +78,8 @@ module "virtual_machine" {
   machine_type        = local.machine_type
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
-  zone                = (each.value.zone == null || each.value.zone == "") ? local.zone : each.value.zone
+  region              = local.region
+  zone                = local.zone
 }
 
 module "load_balancer" {
