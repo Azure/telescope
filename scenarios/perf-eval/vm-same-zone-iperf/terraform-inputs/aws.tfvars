@@ -51,7 +51,7 @@ vm_config_list = [{
   subnet_name                 = "same-subnet"
   security_group_name         = "same-sg"
   associate_public_ip_address = true
-  zone                        = "us-east-1a"
+  zone                        = "us-east-2a"
   },
   {
     vm_name                     = "server-vm"
@@ -59,6 +59,6 @@ vm_config_list = [{
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
-    zone                        = "us-east-1a"
+    zone                        = "us-east-2a"
   }
 ]
