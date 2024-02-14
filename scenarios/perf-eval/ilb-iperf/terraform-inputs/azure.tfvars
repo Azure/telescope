@@ -1,14 +1,23 @@
-scenario_type   = "perf-eval"
-scenario_name   = "ilb-iperf"
-deletion_delay  = "2h"
-public_ip_names = ["ingress-pip", "egress-pip"]
+scenario_type  = "perf-eval"
+scenario_name  = "ilb-iperf"
+deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "ingress-pip"
+  },
+  {
+    name = "egress-pip"
+  }
+]
 network_config_list = [
   {
-    role                        = "network"
-    vnet_name                   = "same-vnet"
-    vnet_address_space          = "10.2.0.0/16"
-    subnet_names                = ["same-subnet"]
-    subnet_address_prefixes     = ["10.2.1.0/24"]
+    role               = "network"
+    vnet_name          = "same-vnet"
+    vnet_address_space = "10.2.0.0/16"
+    subnet = [{
+      name           = "same-subnet"
+      address_prefix = "10.2.1.0/24"
+    }]
     network_security_group_name = "same-nsg"
     nic_public_ip_associations = [
       {
@@ -63,7 +72,7 @@ network_config_list = [
 loadbalancer_config_list = [{
   role                  = "ingress"
   loadbalance_name      = "ingress-lb"
-  loadbalance_pool_name = "ingress-lb-pool"
+  loadbalance_pool_name = "ingress-lb-pool"  
   probe_protocol        = "Tcp"
   probe_port            = 20000
   probe_request_path    = null,
