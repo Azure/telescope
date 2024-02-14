@@ -1,21 +1,7 @@
-<<<<<<< Updated upstream:scenarios/perf-eval/vm-diff-zone-iperf/terraform-inputs/azure.tfvars
-scenario_type  = "perf-eval"
-scenario_name  = "vm-diff-zone-iperf"
-deletion_delay = "2h"
-public_ip_config_list = [
-  {
-    name = "ingress-pip"
-  },
-  {
-    name = "egress-pip"
-  }
-]
-=======
 scenario_type   = "perf-eval"
 scenario_name   = "ilb-iperf"
 deletion_delay  = "2h"
 public_ip_names = ["client-pip", "server-pip", "lb-pip"]
->>>>>>> Stashed changes:scenarios/perf-eval/ilb-iperf/terraform-inputs/azure.tfvars
 network_config_list = [
   {
     role                        = "server"
@@ -117,14 +103,11 @@ network_config_list = [
     }]
   }
 ]
-<<<<<<< Updated upstream:scenarios/perf-eval/vm-diff-zone-iperf/terraform-inputs/azure.tfvars
-loadbalancer_config_list = []
-=======
 loadbalancer_config_list = [{
   role                  = "ingress"
   loadbalance_name      = "ingress-lb"
   loadbalance_pool_name = "ingress-lb-pool"
-  public_ip_name        = "lb-pip"
+  public_ip_name        = "lb-pip"  
   probe_protocol        = "Tcp"
   probe_port            = 20000
   probe_request_path    = null,
@@ -153,13 +136,11 @@ loadbalancer_config_list = [{
   }]
 }]
 
->>>>>>> Stashed changes:scenarios/perf-eval/ilb-iperf/terraform-inputs/azure.tfvars
 vm_config_list = [{
   role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "ubuntu"
-  zone           = "1"
   source_image_reference = {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
@@ -173,7 +154,6 @@ vm_config_list = [{
     vm_name        = "server-vm"
     nic_name       = "server-nic"
     admin_username = "ubuntu"
-    zone           = "2"
     source_image_reference = {
       publisher = "Canonical"
       offer     = "0001-com-ubuntu-server-focal"

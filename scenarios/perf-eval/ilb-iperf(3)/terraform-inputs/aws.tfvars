@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf"
+scenario_name  = "ilb-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -75,15 +75,12 @@ network_config_list = [
     }
   }
 ]
-<<<<<<< Updated upstream:scenarios/perf-eval/vm-same-zone-iperf/terraform-inputs/aws.tfvars
-loadbalancer_config_list = []
-=======
 loadbalancer_config_list = [{
   role               = "ingress"
   vpc_name           = "server-vpc"
   subnet_name        = "server-subnet"
   load_balancer_type = "network",
-  is_internal_lb     = true,
+  is_internal_lb        = true,
   lb_target_group = [{
     role       = "nlb-tg"
     tg_suffix  = "tcp"
@@ -135,7 +132,6 @@ loadbalancer_config_list = [{
   ]
 }]
 
->>>>>>> Stashed changes:scenarios/perf-eval/ilb-iperf/terraform-inputs/aws.tfvars
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
@@ -143,7 +139,6 @@ vm_config_list = [{
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
-  zone                        = "us-east-2a"
   },
   {
     vm_name                     = "server-vm"
@@ -151,6 +146,5 @@ vm_config_list = [{
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
-    zone                        = "us-east-2a"
   }
 ]

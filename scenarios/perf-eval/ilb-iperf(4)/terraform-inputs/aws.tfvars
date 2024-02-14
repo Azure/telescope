@@ -1,26 +1,20 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf"
+scenario_name  = "ilb-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role                   = "server"
-    vpc_name               = "server-vpc"
-    vpc_cidr_block         = "10.1.0.0/16"
-    subnet_names           = ["server-subnet"]
-    subnet_cidr_block      = ["10.1.1.0/24"]
-    security_group_name    = "server-sg"
+    role                   = "network"
+    vpc_name               = "same-vpc"
+    vpc_cidr_block         = "10.2.0.0/16"
+    subnet_names           = ["same-subnet"]
+    subnet_cidr_block      = ["10.2.1.0/24"]
+    security_group_name    = "same-sg"
     route_table_cidr_block = "0.0.0.0/0"
     sg_rules = {
       ingress = [
         {
           from_port  = 2222
           to_port    = 2222
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        },
-        {
-          from_port  = 20000
-          to_port    = 20000
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
@@ -47,41 +41,11 @@ network_config_list = [
       ]
     }
   },
-  {
-    role                   = "client"
-    vpc_name               = "client-vpc"
-    vpc_cidr_block         = "10.0.0.0/16"
-    subnet_names           = ["client-subnet"]
-    subnet_cidr_block      = ["10.0.0.0/24"]
-    security_group_name    = "client-sg"
-    route_table_cidr_block = "0.0.0.0/0"
-    sg_rules = {
-      ingress = [
-        {
-          from_port  = 2222
-          to_port    = 2222
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        }
-      ]
-      egress = [
-        {
-          from_port  = 0
-          to_port    = 0
-          protocol   = "-1"
-          cidr_block = "0.0.0.0/0"
-        }
-      ]
-    }
-  }
 ]
-<<<<<<< Updated upstream:scenarios/perf-eval/vm-same-zone-iperf/terraform-inputs/aws.tfvars
-loadbalancer_config_list = []
-=======
 loadbalancer_config_list = [{
   role               = "ingress"
   vpc_name           = "server-vpc"
-  subnet_name        = "server-subnet"
+  subnet_name        = "same-subnet"
   load_balancer_type = "network",
   is_internal_lb     = true,
   lb_target_group = [{
@@ -134,23 +98,18 @@ loadbalancer_config_list = [{
     }
   ]
 }]
-
->>>>>>> Stashed changes:scenarios/perf-eval/ilb-iperf/terraform-inputs/aws.tfvars
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  network_role                = "client"
-  subnet_name                 = "client-subnet"
-  security_group_name         = "client-sg"
+  subnet_name                 = "same-subnet"
+  security_group_name         = "same-sg"
   associate_public_ip_address = true
-  zone                        = "us-east-2a"
   },
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    subnet_name                 = "server-subnet"
-    security_group_name         = "server-sg"
+    subnet_name                 = "same-subnet"
+    security_group_name         = "same-sg"
     associate_public_ip_address = true
-    zone                        = "us-east-2a"
   }
 ]
