@@ -47,9 +47,9 @@ variable "network_config_list" {
     vpc_name       = string
     vpc_cidr_block = string
     subnet = list(object({
-      name       = string
-      cidr_block = string
-      zone       = optional(string)
+      name        = string
+      cidr_block  = string
+      zone_suffix = optional(string, "a")
     }))
     security_group_name    = string
     route_table_cidr_block = string
@@ -110,7 +110,7 @@ variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
     vm_name                     = string
-    zone                        = optional(string)
+    zone_suffix                 = optional(string, "a")
     role                        = string
     subnet_name                 = string
     security_group_name         = string

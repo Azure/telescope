@@ -3,12 +3,15 @@ scenario_name  = "vm-same-zone-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role                   = "server"
-    vpc_name               = "server-vpc"
-    vpc_cidr_block         = "10.1.0.0/16"
-    subnet_names           = ["server-subnet"]
-    subnet_cidr_block      = ["10.1.1.0/24"]
-    security_group_name    = "server-sg"
+    role           = "network"
+    vpc_name       = "same-vpc"
+    vpc_cidr_block = "10.2.0.0/16"
+    subnet = [{
+      name        = "same-subnet"
+      cidr_block  = "10.2.1.0/24"
+      zone_suffix = "a"
+    }]
+    security_group_name    = "same-sg"
     route_table_cidr_block = "0.0.0.0/0"
     sg_rules = {
       ingress = [
@@ -143,7 +146,7 @@ vm_config_list = [{
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
-  zone                        = "us-east-2a"
+  zone_suffix                 = "a"
   },
   {
     vm_name                     = "server-vm"
@@ -151,6 +154,6 @@ vm_config_list = [{
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
-    zone                        = "us-east-2a"
+    zone_suffix                 = "a"
   }
 ]
