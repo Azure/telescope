@@ -89,10 +89,9 @@ data "azurerm_eventgrid_system_topic" "topic" {
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
-resource "azurerm_eventgrid_system_topic_event_subscription" "event_subscription" {
+resource "azurerm_eventgrid_event_subscription" "event_subscription" {
   name                  = "ADX-EG-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
-  system_topic          = data.azurerm_eventgrid_system_topic.topic.name
-  resource_group_name   = data.azurerm_resource_group.rg.name
+  scope                 = data.azurerm_storage_account.storage.id
   event_delivery_schema = "EventGridSchema"
   eventhub_endpoint_id  = tobool(var.json_input.create_eventhub_instance) ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
   included_event_types  = ["Microsoft.Storage.BlobCreated"]
@@ -110,11 +109,13 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   cluster_name                 = data.azurerm_kusto_cluster.cluster.name
   database_name                = data.azurerm_kusto_database.database.name
   storage_account_id           = data.azurerm_storage_account.storage.id
+  blob_storage_event_type      = "Microsoft.Storage.BlobCreated"
+  eventgrid_resource_id        = azurerm_eventgrid_event_subscription.event_subscription.id
   eventhub_id                  = tobool(var.json_input.create_eventhub_instance) ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
   table_name                   = var.json_input.kusto_table_name
   data_format                  = "JSON"
   mapping_rule_name            = "${var.json_input.kusto_table_name}_mapping"
-  depends_on                   = [azurerm_eventgrid_system_topic_event_subscription.event_subscription, azurerm_kusto_script.script, azurerm_eventhub_consumer_group.consumer_group]
+  depends_on                   = [azurerm_eventgrid_event_subscription.event_subscription, azurerm_kusto_script.script, azurerm_eventhub_consumer_group.consumer_group]
 }
