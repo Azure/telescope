@@ -16,7 +16,6 @@ variable "json_input" {
     eventhub_namespace_name   = optional(string)
     eventhub_instance_name    = optional(string)
     create_eventhub_instance  = bool
-    eventgrid_topic_name      = string
     table_creation_script     = string
   })
 }

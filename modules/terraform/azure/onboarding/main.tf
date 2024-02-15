@@ -84,11 +84,6 @@ resource "azurerm_eventhub_consumer_group" "consumer_group" {
   resource_group_name = data.azurerm_resource_group.rg.name
 }
 
-data "azurerm_eventgrid_system_topic" "topic" {
-  name                = var.json_input.eventgrid_topic_name
-  resource_group_name = data.azurerm_resource_group.rg.name
-}
-
 resource "azurerm_eventgrid_event_subscription" "event_subscription" {
   name                  = "ADX-EG-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   scope                 = data.azurerm_storage_account.storage.id
