@@ -4,8 +4,9 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 
 ### Prerequisite
 
-* Install Terraform (https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-* Install Azure CLI (https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
+* Install [Terraform](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
+* Install [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
+* Install [jq](https://stedolan.github.io/jq/download/)
 
 ### Define Variables
 
