@@ -36,8 +36,8 @@ Create access key and secret key for AWS CLI following the instructions [here](h
 Login using the access key and secret key
 ```
 aws configure set aws_access_key_id <access-key>
-  aws configure set aws_secret_access_key <secret-access-key>
-  aws configure set default.region <test-region>
+aws configure set aws_secret_access_key <secret-access-key>
+aws configure set region <test-region>
 ```
 
 **Note**: Make sure you configure the region to be the same as where you want to provision the resources. Otherwise, you might get an error.
@@ -50,9 +50,8 @@ INPUT_JSON=$(jq -n \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --arg machine_type $MACHINE_TYPE \
---arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, user_data_path:$user_data_path}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
@@ -70,3 +69,8 @@ pushd $TERRAFORM_MODULES_DIR
 terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
+
+### References
+- [Terraform AWS Provider](https://www.terraform.io/docs/providers/aws/index.html)
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/)
+- [AWS Console](https://aws.amazon.com/console/)
