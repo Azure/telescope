@@ -107,7 +107,7 @@ INPUT_VARIABLES=$(jq -n \
   }' | jq 'with_entries(select(.value != null and .value != ""))')
 ```
 
-**Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable with surrounded by double quotes means it is optional and can be removed if not needed.
+**Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
 
 Provision resources using Terraform:
 
