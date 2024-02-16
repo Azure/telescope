@@ -19,6 +19,7 @@ RUN_ID=123456789
 OWNER=$(whoami)
 CLOUD=aws
 REGION=us-east-2
+ZONE=us-east-2b
 MACHINE_TYPE=m5.4xlarge
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
@@ -42,20 +43,22 @@ aws configure set region <test-region>
 
 **Note**: Make sure you configure the region to be the same as where you want to provision the resources. Otherwise, you might get an error.
 
-Provision resources using Terraform. Again, this `INPUT_JSON` is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/azure/variables.tf`
+Provision resources using Terraform. Again, this `INPUT_JSON` is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/aws/variables.tf`
 
 ```
 INPUT_JSON=$(jq -n \
 --arg owner $OWNER \
 --arg run_id $RUN_ID \
 --arg region $REGION \
+--arg zone $ZONE \
 --arg machine_type $MACHINE_TYPE \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, region: $region, zone: $zone, machine_type: $machine_type, user_data_path:$user_data_path}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
 popd
 ```
 

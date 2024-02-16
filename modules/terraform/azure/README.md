@@ -65,11 +65,12 @@ INPUT_JSON=$(jq -n \
 --arg machine_type $MACHINE_TYPE \
 --arg accelerated_networking $ACCERLATED_NETWORKING \
 --arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking,user_data_path:$user_data_path}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking, user_data_path:$user_data_path}')
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
 popd
 ```
 
