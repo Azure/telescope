@@ -89,7 +89,7 @@ sudo chmod 644 /etc/ssl/certs/jmeter/*.crt
 sudo chmod 600 /etc/ssl/certs/jmeter/*.key
 
 # install nginx
-sudo apt update && sudo apt install nginx -y
+sudo apt-get update && sudo apt-get install nginx -y
 nginx -v
 
 cat <<EOF > /etc/nginx/sites-available/default
