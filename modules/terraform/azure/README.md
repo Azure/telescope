@@ -22,7 +22,7 @@ REGION=eastus
 MACHINE_TYPE=standard_D16_v3
 ACCERLATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
-USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 ```
 
@@ -58,7 +58,7 @@ az account set --subscription <subscriptionId>
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/azure/variables.tf`](../../../modules/terraform/azure/variables.tf) as the list will keep changing as we add more features.
 
 ```
-INPUT_VARIABLES=$(jq -n \
+INPUT_JSON=$(jq -n \
   --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
