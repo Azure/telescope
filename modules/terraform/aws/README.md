@@ -43,18 +43,50 @@ aws configure set region <test-region>
 
 **Note**: Make sure you configure the region to be the same as where you want to provision the resources. Otherwise, you might get an error.
 
-Provision resources using Terraform. Again, this `INPUT_JSON` is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/aws/variables.tf`
+Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/aws/variables.tf` as the list will keep changing as we add more features.
 
 ```
-INPUT_JSON=$(jq -n \
---arg owner $OWNER \
---arg run_id $RUN_ID \
---arg region $REGION \
---arg zone $ZONE \
---arg machine_type $MACHINE_TYPE \
---arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, zone: $zone, machine_type: $machine_type, user_data_path:$user_data_path}')
+INPUT_VARIABLES=$(jq -n \
+  --arg owner azure_devops \
+  --arg run_id $RUN_ID \
+  --arg region $REGION \
+  --arg zone $ZONE \
+  --arg machine_type "$MACHINE_TYPE" \
+  --arg data_disk_volume_type "$DATA_DISK_TYPE" \
+  --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
+  --arg data_disk_tier "$DATA_DISK_TIER" \
+  --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
+  --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
+  --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
+  --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
+  --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
+  --arg user_data_path $TERRAFORM_USER_DATA_PATH \
+  --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
+  --arg efs_throughput_mode "$EFS_THROUGHPUT_MODE" \
+  --arg efs_provisioned_throughput_in_mibps "$EFS_PROVISIONED_THROUGHPUT_IN_MIBPS" \
+  '{
+  owner: $owner, 
+  run_id: $run_id, 
+  region: $region, 
+  zone: $zone, 
+  machine_type: $machine_type, 
+  data_disk_volume_type: $data_disk_volume_type, 
+  data_disk_size_gb: $data_disk_size_gb,
+  data_disk_tier: $data_disk_tier, 
+  data_disk_iops_read_write: $data_disk_iops_read_write, 
+  data_disk_iops_read_only: $data_disk_iops_read_only, 
+  data_disk_mbps_read_write: $data_disk_mbps_read_write, 
+  data_disk_mbps_read_only: $data_disk_mbps_read_only,
+  ultra_ssd_enabled: $ultra_ssd_enabled,
+  user_data_path: $user_data_path,
+  efs_performance_mode: $efs_performance_mode,
+  efs_throughput_mode: $efs_throughput_mode,
+  efs_provisioned_throughput_in_mibps: $efs_provisioned_throughput_in_mibps
+  }' | jq 'with_entries(select(.value != null and .value != ""))')
+```
 
+Provision resources using Terraform:
+```
 pushd $TERRAFORM_MODULES_DIR
 terraform init
 terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE

@@ -55,18 +55,63 @@ Set subscription for testing
 az account set --subscription <subscriptionId>
 ```
 
-Provision resources using Terraform. Again, this `INPUT_JSON` is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/azure/variables.tf`
+Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/azure/variables.tf` as the list will keep changing as we add more features.
 
 ```
-INPUT_JSON=$(jq -n \
---arg owner $OWNER \
---arg run_id $RUN_ID \
---arg region $REGION \
---arg machine_type $MACHINE_TYPE \
---arg accelerated_networking $ACCERLATED_NETWORKING \
---arg user_data_path $USER_DATA_PATH \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking, user_data_path:$user_data_path}')
+INPUT_VARIABLES=$(jq -n \
+  --arg owner $OWNER \
+  --arg run_id $RUN_ID \
+  --arg region $REGION \
+  --arg machine_type "$MACHINE_TYPE" \
+  --arg aks_machine_type "$AKS_MACHINE_TYPE" \
+  --arg accelerated_networking "$ACCELERATED_NETWORKING" \
+  --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
+  --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
+  --arg data_disk_tier "$DATA_DISK_TIER" \
+  --arg data_disk_caching "$DATA_DISK_CACHING" \
+  --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
+  --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
+  --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
+  --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
+  --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
+  --arg storage_account_tier "$STORAGE_TIER" \
+  --arg storage_account_kind "$STORAGE_KIND" \
+  --arg storage_account_replication_type "$STORAGE_REPLICATION" \
+  --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
+  --arg storage_share_access_tier "$STORAGE_SHARE_ACCESS_TIER" \
+  --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
+  --arg user_data_path $TERRAFORM_USER_DATA_PATH \
+  '{
+    owner: $owner,
+    run_id: $run_id,
+    region: $region,
+    machine_type: $machine_type,
+    aks_machine_type: $aks_machine_type,
+    accelerated_networking: $accelerated_networking,
+    data_disk_storage_account_type: $data_disk_storage_account_type,
+    data_disk_size_gb: $data_disk_size_gb,
+    data_disk_tier: $data_disk_tier,
+    data_disk_caching: $data_disk_caching,
+    data_disk_iops_read_write: $data_disk_iops_read_write,
+    data_disk_iops_read_only: $data_disk_iops_read_only,
+    data_disk_mbps_read_write: $data_disk_mbps_read_write,
+    data_disk_mbps_read_only: $data_disk_mbps_read_only,
+    ultra_ssd_enabled: $ultra_ssd_enabled,
+    storage_account_tier: $storage_account_tier,
+    storage_account_kind: $storage_account_kind,
+    storage_account_replication_type: $storage_account_replication_type,
+    storage_share_quota: $storage_share_quota,
+    storage_share_access_tier: $storage_share_access_tier,
+    storage_share_enabled_protocol: $storage_share_enabled_protocol,
+    user_data_path: $user_data_path
+  }' | jq 'with_entries(select(.value != null and .value != ""))')
+```
 
+**Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable with surrounded by double quotes means it is optional and can be removed if not needed.
+
+Provision resources using Terraform:
+
+```
 pushd $TERRAFORM_MODULES_DIR
 terraform init
 terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
