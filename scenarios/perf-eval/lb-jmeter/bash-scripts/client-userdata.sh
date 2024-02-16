@@ -5,8 +5,8 @@ sudo perl -pi -e 's/^#?Port 22$/Port 2222/' /etc/ssh/sshd_config
 sudo service ssh restart
 
 # install java
-sudo apt update
-sudo sudo apt install default-jre -y
+sudo apt-get update
+sudo apt-get install default-jre -y
 java -version
 
 # install jmeter
