@@ -109,6 +109,7 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   eventhub_id                  = tobool(var.json_input.create_eventhub_instance) ? azurerm_eventhub.eventhub[0].id : data.azurerm_eventhub.eventhub[0].id
   eventhub_consumer_group_name = azurerm_eventhub_consumer_group.consumer_group.name
   managed_identity_resource_id = data.azurerm_kusto_cluster.cluster.id
+  database_routing_type        = "Single"
   table_name                   = var.json_input.kusto_table_name
   data_format                  = "JSON"
   mapping_rule_name            = "${var.json_input.kusto_table_name}_mapping"
