@@ -55,7 +55,7 @@ Set subscription for testing
 az account set --subscription <subscriptionId>
 ```
 
-Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file `modules/terraform/azure/variables.tf` as the list will keep changing as we add more features.
+Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/azure/variables.tf`](../../../modules/terraform/azure/variables.tf) as the list will keep changing as we add more features.
 
 ```
 INPUT_VARIABLES=$(jq -n \
