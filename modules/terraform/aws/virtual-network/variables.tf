@@ -6,7 +6,7 @@ variable "network_config" {
     subnet = list(object({
       name        = string
       cidr_block  = string
-      zone_suffix = optional(string)
+      zone_suffix = optional(string, "a")
     }))
     security_group_name    = string
     route_table_cidr_block = string

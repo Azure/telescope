@@ -6,6 +6,7 @@ variable "vm_config" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+    zone_suffix                 = optional(string, "a")
 
     data_disk_config = optional(object({
       data_disk_size_gb         = number
@@ -13,6 +14,20 @@ variable "vm_config" {
       data_disk_iops_read_write = optional(number)
       data_disk_mbps_read_write = optional(number)
     }))
+
+    ami_config = optional(object({
+      most_recent         = bool
+      name                = string
+      virtualization_type = string
+      architecture        = string
+      owners              = list(string)
+      }), {
+      most_recent         = true
+      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
+      virtualization_type = "hvm"
+      architecture        = "x86_64"
+      owners              = ["099720109477"]
+    })
   })
 }
 

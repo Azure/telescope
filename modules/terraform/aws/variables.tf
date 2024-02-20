@@ -49,7 +49,7 @@ variable "network_config_list" {
     subnet = list(object({
       name        = string
       cidr_block  = string
-      zone_suffix = optional(string)
+      zone_suffix = optional(string, "a")
     }))
     security_group_name    = string
     route_table_cidr_block = string
@@ -110,11 +110,19 @@ variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
     vm_name                     = string
-    zone_suffix                 = optional(string)
+    zone_suffix                 = optional(string, "a")
     role                        = string
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+
+    ami_config = optional(object({
+      most_recent         = bool
+      name                = string
+      virtualization_type = string
+      architecture        = string
+      owners              = list(string)
+    }))
   }))
   default = []
 }
