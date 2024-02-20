@@ -55,8 +55,8 @@ network_config_list = [
     vpc_name       = "client-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [{
-      name       = "client-subnet"
-      cidr_block = "10.0.0.0/24"
+      name        = "client-subnet"
+      cidr_block  = "10.0.0.0/24"
       zone_suffix = "a"      
     }]
     security_group_name    = "client-sg"
