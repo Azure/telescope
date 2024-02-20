@@ -8,7 +8,7 @@ network_config_list = [
     vpc_cidr_block = "10.1.0.0/16"
     subnet = [{
       name       = "server-subnet"
-      cidr_block = "10.1.1.0/24"
+      cidr_block = "10.1.1.0/16"
       zone_suffix = "a"
     }]
     security_group_name    = "server-sg"
