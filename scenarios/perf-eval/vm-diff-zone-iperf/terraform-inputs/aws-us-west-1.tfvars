@@ -11,11 +11,6 @@ network_config_list = [
         name        = "us-west-1-server-subnet"
         cidr_block  = "10.2.2.0/24"
         zone_suffix = "c"
-      },
-      {
-        name        = "us-west-1-client-subnet"
-        cidr_block  = "10.2.1.0/24"
-        zone_suffix = "a"
       }
     ]
     security_group_name    = "us-west-1-sg"
@@ -61,13 +56,5 @@ vm_config_list = [
     security_group_name         = "us-west-1-sg"
     associate_public_ip_address = true
     zone_suffix                 = "c"
-  },
-  {
-    vm_name                     = "client-vm"
-    role                        = "client"
-    subnet_name                 = "us-west-1-client-subnet"
-    security_group_name         = "us-west-1-sg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
   }
 ]
