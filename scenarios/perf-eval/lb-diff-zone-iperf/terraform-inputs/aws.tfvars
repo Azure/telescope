@@ -6,10 +6,18 @@ network_config_list = [
     role           = "server"
     vpc_name       = "server-vpc"
     vpc_cidr_block = "10.1.0.0/16"
-    subnet = [{
-      name       = "server-subnet"
-      cidr_block = "10.1.1.0/24"
-    }]
+    subnet = [      
+      {
+        name        = "client-subnet"
+        cidr_block  = "10.2.1.0/24"
+        zone_suffix = "a"
+      },
+      {
+        name        = "server-subnet"
+        cidr_block  = "10.2.2.0/24"
+        zone_suffix = "b"
+      }
+    ]
     security_group_name    = "server-sg"
     route_table_cidr_block = "0.0.0.0/0"
     sg_rules = {
