@@ -9,12 +9,12 @@ network_config_list = [
     subnet = [
       {
         name        = "client-subnet"
-        cidr_block  = "10.2.1.0/16"
+        cidr_block  = "10.2.1.0/24"
         zone_suffix = "a"
       },
       {
         name        = "server-subnet"
-        cidr_block  = "10.2.2.0/16"
+        cidr_block  = "10.2.2.0/24"
         zone_suffix = "b"
       }
     ]
