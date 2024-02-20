@@ -8,7 +8,7 @@ network_config_list = [
     vpc_cidr_block = "10.1.0.0/16"
     subnet = [{
       name       = "server-subnet"
-      cidr_block = "10.1.1.0/16"
+      cidr_block = "10.1.1.0/24"
       zone_suffix = "a"
     }]
     security_group_name    = "server-sg"
@@ -57,6 +57,7 @@ network_config_list = [
     subnet = [{
       name       = "client-subnet"
       cidr_block = "10.0.0.0/24"
+      zone_suffix = "a"      
     }]
     security_group_name    = "client-sg"
     route_table_cidr_block = "0.0.0.0/0"
