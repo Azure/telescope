@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-iperf"
+scenario_name  = "lb-same-zone-iperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -153,6 +153,7 @@ vm_config_list = [{
   vm_name        = "client-vm"
   nic_name       = "client-nic"
   admin_username = "ubuntu"
+  zone           = "1"
   source_image_reference = {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
@@ -166,6 +167,7 @@ vm_config_list = [{
     vm_name        = "server-vm"
     nic_name       = "server-nic"
     admin_username = "ubuntu"
+    zone           = "1"
     source_image_reference = {
       publisher = "Canonical"
       offer     = "0001-com-ubuntu-server-focal"
