@@ -46,7 +46,7 @@ data "aws_subnet" "subnet" {
 resource "aws_instance" "vm" {
   ami               = data.aws_ami.ubuntu.id
   instance_type     = var.machine_type
-  availability_zone = "${var.region}${var.vm_config.zone_suffix == null ? var.zone : "${var.region}${var.vm_config.zone_suffix}"
+  availability_zone = var.vm_config.zone_suffix == null ? var.zone : "${var.region}${var.vm_config.zone_suffix}"
   subnet_id         = data.aws_subnet.subnet.id
 
   vpc_security_group_ids = [data.aws_security_group.security_group.id]

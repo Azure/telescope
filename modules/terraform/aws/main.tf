@@ -79,7 +79,7 @@ module "virtual_machine" {
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
   region              = local.region
-  zone_suffix         = (each.value.zone_suffix == null || each.value.zone_suffix == "") ? local.zone : each.value.zone_suffix
+  zone                = local.zone
 }
 
 module "load_balancer" {

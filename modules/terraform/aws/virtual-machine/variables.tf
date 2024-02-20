@@ -64,7 +64,7 @@ variable "region" {
   type        = string
 }
 
-variable "zone_suffix" {
+variable "zone" {
   description = "value of availability zone"
   type        = string
 }
