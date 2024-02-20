@@ -57,7 +57,7 @@ network_config_list = [
     subnet = [{
       name        = "client-subnet"
       cidr_block  = "10.0.0.0/24"
-      zone_suffix = "a"      
+      zone_suffix = "a"
     }]
     security_group_name    = "client-sg"
     route_table_cidr_block = "0.0.0.0/0"
