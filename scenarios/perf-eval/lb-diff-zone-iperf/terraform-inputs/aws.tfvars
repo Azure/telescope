@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-iperf"
+scenario_name  = "lb-diff-zone-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
