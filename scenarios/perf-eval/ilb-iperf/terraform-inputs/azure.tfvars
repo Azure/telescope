@@ -128,4 +128,11 @@ vm_config_list = [{
   }
 ]
 vmss_config_list                  = []
-nic_backend_pool_association_list = []
+nic_backend_pool_association_list = [
+  {
+    nic_name              = "server-nic"
+    backend_pool_name     = "ingress-lb-pool"
+    vm_name               = "server-vm"
+    ip_configuration_name = "server-ipconfig"
+  }
+]
