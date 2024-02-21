@@ -127,7 +127,7 @@ vm_config_list = [{
     create_vm_extension = true
   }
 ]
-vmss_config_list                  = []
+vmss_config_list = []
 nic_backend_pool_association_list = [
   {
     nic_name              = "server-nic"
