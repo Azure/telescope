@@ -1,17 +1,22 @@
 data "aws_ami" "ubuntu" {
-  most_recent = true
+  most_recent = var.vm_config.ami_config.most_recent
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+    values = ["${var.vm_config.ami_config.name}"]
   }
 
   filter {
     name   = "virtualization-type"
-    values = ["hvm"]
+    values = ["${var.vm_config.ami_config.virtualization_type}"]
   }
 
-  owners = ["099720109477"] # Canonical
+  filter {
+    name   = "architecture"
+    values = ["${var.vm_config.ami_config.architecture}"]
+  }
+
+  owners = var.vm_config.ami_config.owners
 }
 
 data "aws_security_group" "security_group" {
