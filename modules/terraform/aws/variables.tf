@@ -115,6 +115,14 @@ variable "vm_config_list" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+
+    ami_config = optional(object({
+      most_recent         = bool
+      name                = string
+      virtualization_type = string
+      architecture        = string
+      owners              = list(string)
+    }))
   }))
   default = []
 }

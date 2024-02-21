@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-iperf"
+scenario_name  = "lb-diff-zone-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -7,8 +7,9 @@ network_config_list = [
     vpc_name       = "server-vpc"
     vpc_cidr_block = "10.1.0.0/16"
     subnet = [{
-      name       = "server-subnet"
-      cidr_block = "10.1.1.0/24"
+      name        = "server-subnet"
+      cidr_block  = "10.1.1.0/24"
+      zone_suffix = "b"
     }]
     security_group_name    = "server-sg"
     route_table_cidr_block = "0.0.0.0/0"
@@ -54,8 +55,9 @@ network_config_list = [
     vpc_name       = "client-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [{
-      name       = "client-subnet"
-      cidr_block = "10.0.0.0/24"
+      name        = "client-subnet"
+      cidr_block  = "10.0.0.0/24"
+      zone_suffix = "a"
     }]
     security_group_name    = "client-sg"
     route_table_cidr_block = "0.0.0.0/0"
@@ -142,6 +144,7 @@ vm_config_list = [{
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
+  zone_suffix                 = "a"
   },
   {
     vm_name                     = "server-vm"
@@ -149,5 +152,6 @@ vm_config_list = [{
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
+    zone_suffix                 = "b"
   }
 ]
