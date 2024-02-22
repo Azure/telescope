@@ -47,7 +47,7 @@ network_config_list = [
 ]
 loadbalancer_config_list = [{
   role               = "ingress"
-  vpc_name           = "server-vpc"
+  vpc_name           = "same-vpc"
   subnet_name        = "same-subnet"
   load_balancer_type = "network",
   is_internal_lb     = true,
