@@ -38,7 +38,7 @@ resource "tls_private_key" "admin_ssh_key" {
 resource "local_file" "ssh_private_key" {
   filename = "private_key.pem"
 
-  content = fileexists(local_file.ssh_private_key.filename) ? file(local_file.ssh_private_key.filename) : tls_private_key.admin_ssh_key.private_key_pem
+  content = fileexists("$pwd/private_key.pem") ? file("$pwd/private_key.pem") : tls_private_key.admin_ssh_key.private_key_pem
 
   provisioner "local-exec" {
     command = "chmod 600 private_key.pem"
