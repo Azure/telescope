@@ -4,6 +4,7 @@ locals {
   aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
+  public_key                       = lookup(var.json_input, "public_key", "")
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
   data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
   data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")
@@ -46,11 +47,6 @@ locals {
 
 provider "azurerm" {
   features {}
-}
-
-resource "tls_private_key" "admin-ssh-key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
 }
 
 module "resource_group" {
@@ -146,7 +142,7 @@ module "virtual_machine" {
   vm_sku              = local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
   vm_config           = each.value
-  public_key          = tls_private_key.admin-ssh-key.public_key_openssh
+  public_key          = local.public_key
   user_data_path      = local.user_data_path
   tags                = local.tags
   ultra_ssd_enabled   = local.ultra_ssd_enabled
@@ -164,7 +160,7 @@ module "virtual_machine_scale_set" {
   lb_pool_id            = local.all_loadbalancer_backend_address_pools[each.value.loadbalancer_pool_name]
   ip_configuration_name = each.value.ip_configuration_name
   vmss_config           = each.value
-  public_key            = tls_private_key.admin-ssh-key.public_key_openssh
+  public_key            = local.public_key
   user_data_path        = local.user_data_path
   tags                  = local.tags
 }
@@ -184,12 +180,6 @@ resource "azurerm_virtual_machine_data_disk_attachment" "disk-association" {
   virtual_machine_id = local.all_vms[each.key].id
   lun                = 0
   caching            = (local.data_disk_caching == null || local.data_disk_caching == "") ? "ReadOnly" : local.data_disk_caching
-}
-
-resource "local_file" "ssh-private-key" {
-  content         = tls_private_key.admin-ssh-key.private_key_pem
-  filename        = "${path.module}/private_key.pem"
-  file_permission = "0600"
 }
 
 resource "random_string" "storage_account_random_suffix" {
