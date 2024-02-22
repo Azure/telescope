@@ -6,6 +6,7 @@ variable "json_input" {
     region                    = string
     machine_type              = string
     zone                      = string
+    public_key                = string
     user_data_path            = optional(string)
     data_disk_volume_type     = optional(string)
     data_disk_size_gb         = optional(number)

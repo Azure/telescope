@@ -3,6 +3,7 @@ locals {
   zone                      = lookup(var.json_input, "zone", "us-east-1b")
   machine_type              = lookup(var.json_input, "machine_type", "m5.4xlarge")
   run_id                    = lookup(var.json_input, "run_id", "123456")
+  public_key                = lookup(var.json_input, "public_key", "")
   user_data_path            = lookup(var.json_input, "user_data_path", "")
   data_disk_size_gb         = lookup(var.json_input, "data_disk_size_gb", null)
   data_disk_volume_type     = lookup(var.json_input, "data_disk_volume_type", "")
@@ -30,24 +31,9 @@ provider "aws" {
   region = local.region
 }
 
-resource "tls_private_key" "admin_ssh_key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-resource "local_file" "ssh_private_key" {
-  filename = "private_key.pem"
-
-  content = fileexists("$pwd/private_key.pem") ? file("$pwd/private_key.pem") : tls_private_key.admin_ssh_key.private_key_pem
-
-  provisioner "local-exec" {
-    command = "chmod 600 private_key.pem"
-  }
-}
-
 resource "aws_key_pair" "admin_key_pair" {
   key_name   = "admin-key-pair-${local.run_id}-${terraform.workspace}"
-  public_key = tls_private_key.admin_ssh_key.public_key_openssh
+  public_key = local.public_key
   tags       = local.tags
 }
 
