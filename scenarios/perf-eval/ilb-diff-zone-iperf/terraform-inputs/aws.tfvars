@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "ilb-iperf"
+scenario_name  = "ilb-diff-zone-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -125,7 +125,7 @@ vm_config_list = [{
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    subnet_name                 = "sserver-subnet"
+    subnet_name                 = "server-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
     zone_suffix                 = "b"
