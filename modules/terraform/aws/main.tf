@@ -45,7 +45,7 @@ resource "local_file" "ssh_private_key" {
 }
 
 resource "aws_key_pair" "admin_key_pair" {
-  key_name   = "admin-key-pair-${local.run_id}"
+  key_name   = "admin-key-pair-${local.run_id}-${terraform.workspace}"
   public_key = tls_private_key.admin_ssh_key.public_key_openssh
   tags       = local.tags
 }
