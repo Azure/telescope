@@ -3,7 +3,7 @@ locals {
   zone                      = lookup(var.json_input, "zone", "us-east-1b")
   machine_type              = lookup(var.json_input, "machine_type", "m5.4xlarge")
   run_id                    = lookup(var.json_input, "run_id", "123456")
-  public_key                = lookup(var.json_input, "public_key", "")
+  public_key_path           = lookup(var.json_input, "public_key_path", "")
   user_data_path            = lookup(var.json_input, "user_data_path", "")
   data_disk_size_gb         = lookup(var.json_input, "data_disk_size_gb", null)
   data_disk_volume_type     = lookup(var.json_input, "data_disk_volume_type", "")
@@ -33,7 +33,7 @@ provider "aws" {
 
 resource "aws_key_pair" "admin_key_pair" {
   key_name   = "admin-key-pair-${local.run_id}-${terraform.workspace}"
-  public_key = local.public_key
+  public_key = file(local.public_key_path)
   tags       = local.tags
 }
 

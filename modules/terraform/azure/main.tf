@@ -4,7 +4,7 @@ locals {
   aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
-  public_key                       = lookup(var.json_input, "public_key", "")
+  public_key_path                  = lookup(var.json_input, "public_key_path", "")
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
   data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
   data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")
@@ -142,7 +142,7 @@ module "virtual_machine" {
   vm_sku              = local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
   vm_config           = each.value
-  public_key          = local.public_key
+  public_key          = file(local.public_key_path)
   user_data_path      = local.user_data_path
   tags                = local.tags
   ultra_ssd_enabled   = local.ultra_ssd_enabled
@@ -160,7 +160,7 @@ module "virtual_machine_scale_set" {
   lb_pool_id            = local.all_loadbalancer_backend_address_pools[each.value.loadbalancer_pool_name]
   ip_configuration_name = each.value.ip_configuration_name
   vmss_config           = each.value
-  public_key            = local.public_key
+  public_key            = file(local.public_key_path)
   user_data_path        = local.user_data_path
   tags                  = local.tags
 }
