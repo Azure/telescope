@@ -121,12 +121,19 @@ run_iperf2() {
 
   mkdir -p $result_dir
   run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
-  # if aws private link, ignore udp
-  # │ Error: creating EC2 VPC Endpoint Service: InvalidParameter: Network load balancer with arn "arn:aws:elasticloadbalancing:us-east-1:891516228446:loadbalancer/net/tf-lb-20240124063535848400000005/ff3cefe6adcb11cd" has UDP listeners. Privatelink does not support UDP.
-│ #      status code: 400, request id: fe4c2ceb-f8bf-4845-9fe3-ef40a31cb1f0
-  if [ "$test_udp" = "true" ]; then
-    run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $privatekey_path $server_public_ip_address $result_dir
-  fi
+  run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $privatekey_path $server_public_ip_address $result_dir
+}
+
+run_iperf2_tcp() {
+  local destination_ip_address=$1
+  local client_public_ip_address=$2
+  local tcp_mode=$3
+  local privatekey_path=$4
+  local server_public_ip_address=$5
+  local result_dir=$6
+
+  mkdir -p $result_dir
+  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
 }
 
 collect_result_iperf3() {
