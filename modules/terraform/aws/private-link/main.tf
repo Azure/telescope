@@ -39,7 +39,6 @@ data "aws_security_group" "security_group" {
 resource "aws_vpc_endpoint_service" "server_service" {
   acceptance_required        = false
   network_load_balancer_arns = [var.service_lb_arn]
-  # private_dns_name = var.run_id
 
   tags = var.tags
 }
