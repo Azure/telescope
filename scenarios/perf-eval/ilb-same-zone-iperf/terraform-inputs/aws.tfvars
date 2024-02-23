@@ -1,16 +1,24 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-iperf"
+scenario_name  = "ilb-same-zone-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role           = "server"
-    vpc_name       = "server-vpc"
-    vpc_cidr_block = "10.1.0.0/16"
-    subnet = [{
-      name       = "server-subnet"
-      cidr_block = "10.1.1.0/24"
-    }]
-    security_group_name    = "server-sg"
+    role           = "network"
+    vpc_name       = "same-vpc"
+    vpc_cidr_block = "10.2.0.0/16"
+    subnet = [
+      {
+        name        = "client-subnet"
+        cidr_block  = "10.2.1.0/24"
+        zone_suffix = "a"
+      },
+      {
+        name        = "server-subnet"
+        cidr_block  = "10.2.2.0/24"
+        zone_suffix = "a"
+      }
+    ]
+    security_group_name    = "same-sg"
     route_table_cidr_block = "0.0.0.0/0"
     sg_rules = {
       ingress = [
@@ -49,48 +57,20 @@ network_config_list = [
       ]
     }
   },
-  {
-    role           = "client"
-    vpc_name       = "client-vpc"
-    vpc_cidr_block = "10.0.0.0/16"
-    subnet = [{
-      name       = "client-subnet"
-      cidr_block = "10.0.0.0/24"
-    }]
-    security_group_name    = "client-sg"
-    route_table_cidr_block = "0.0.0.0/0"
-    sg_rules = {
-      ingress = [
-        {
-          from_port  = 2222
-          to_port    = 2222
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        }
-      ]
-      egress = [
-        {
-          from_port  = 0
-          to_port    = 0
-          protocol   = "-1"
-          cidr_block = "0.0.0.0/0"
-        }
-      ]
-    }
-  }
 ]
 loadbalancer_config_list = [{
   role               = "ingress"
-  vpc_name           = "server-vpc"
+  vpc_name           = "same-vpc"
   subnet_name        = "server-subnet"
-  load_balancer_type = "network"
+  load_balancer_type = "network",
+  is_internal_lb     = true,
   lb_target_group = [{
     role       = "nlb-tg"
     tg_suffix  = "tcp"
     port       = 20001
     protocol   = "TCP"
     rule_count = 1
-    vpc_name   = "server-vpc"
+    vpc_name   = "same-vpc"
     health_check = {
       port                = "20000"
       protocol            = "TCP"
@@ -114,7 +94,7 @@ loadbalancer_config_list = [{
       port       = 20002
       protocol   = "UDP"
       rule_count = 1
-      vpc_name   = "server-vpc"
+      vpc_name   = "same-vpc"
       health_check = {
         port                = "20000"
         protocol            = "TCP"
@@ -134,20 +114,20 @@ loadbalancer_config_list = [{
     }
   ]
 }]
-
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  network_role                = "client"
   subnet_name                 = "client-subnet"
-  security_group_name         = "client-sg"
+  security_group_name         = "same-sg"
   associate_public_ip_address = true
+  zone_suffix                 = "a"
   },
   {
     vm_name                     = "server-vm"
     role                        = "server"
     subnet_name                 = "server-subnet"
-    security_group_name         = "server-sg"
+    security_group_name         = "same-sg"
     associate_public_ip_address = true
+    zone_suffix                 = "a"
   }
 ]
