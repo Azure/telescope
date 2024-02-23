@@ -3,9 +3,9 @@ scenario_name  = "pls-iperf"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role                   = "server"
-    vpc_name               = "server-vpc"
-    vpc_cidr_block         = "10.1.0.0/16"
+    role           = "server"
+    vpc_name       = "server-vpc"
+    vpc_cidr_block = "10.1.0.0/16"
     subnet = [{
       name       = "server-subnet"
       cidr_block = "10.1.1.0/24"
@@ -50,9 +50,9 @@ network_config_list = [
     }
   },
   {
-    role                   = "client"
-    vpc_name               = "client-vpc"
-    vpc_cidr_block         = "10.0.0.0/16"
+    role           = "client"
+    vpc_name       = "client-vpc"
+    vpc_cidr_block = "10.0.0.0/16"
     subnet = [{
       name       = "client-subnet"
       cidr_block = "10.0.0.0/24"
