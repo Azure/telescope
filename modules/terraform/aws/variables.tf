@@ -139,3 +139,15 @@ variable "efs_name_prefix" {
   type        = string
   default     = ""
 }
+
+variable "private_link_conf" {
+  description = "configuration for private link"
+  type = object({
+    service_lb_role = string
+
+    client_vpc_name            = string
+    client_subnet_name         = string
+    client_security_group_name = string
+  })
+  default = null
+}
