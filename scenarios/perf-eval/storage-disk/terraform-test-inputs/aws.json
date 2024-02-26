@@ -8,6 +8,5 @@
     "data_disk_storage_account_type"   : "gp3",
     "data_disk_size_gb"                : 4096,
     "data_disk_iops_read_write"        : 7500,
-    "data_disk_mbps_read_write"        : 250,
-    "public_key_path"                  : "/path/to/public/key.pub"
+    "data_disk_mbps_read_write"        : 250
   }

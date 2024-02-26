@@ -7,6 +7,5 @@
     "data_disk_storage_account_type"   : "Premium_LRS",
     "data_disk_size_gb"                : 1024,
     "data_disk_tier"                   : "P30",
-    "data_disk_caching"                : "ReadWrite",
-    "public_key_path"                  : "/path/to/public/key.pub"
+    "data_disk_caching"                : "ReadWrite"
   }

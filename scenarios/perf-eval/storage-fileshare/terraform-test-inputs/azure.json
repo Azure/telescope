@@ -6,6 +6,5 @@
     "accelerated_networking"           : true,
     "storage_account_tier"             : "Premium",
     "storage_account_kind"             : "FileStorage",
-    "storage_account_replication_type" : "LRS",
-    "public_key_path"                  : "/path/to/public/key.pub"
+    "storage_account_replication_type" : "LRS"
   }
