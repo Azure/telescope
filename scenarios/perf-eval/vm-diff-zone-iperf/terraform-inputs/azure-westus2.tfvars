@@ -4,33 +4,24 @@ deletion_delay = "2h"
 public_ip_config_list = [
   {
     name = "ingress-pip"
-  },
-  {
-    name = "egress-pip"
   }
 ]
 network_config_list = [
   {
     role               = "network"
-    vnet_name          = "same-vnet"
+    vnet_name          = "westus2-vnet"
     vnet_address_space = "10.2.0.0/16"
     subnet = [{
-      name           = "same-subnet"
+      name           = "westus2-subnet"
       address_prefix = "10.2.1.0/24"
     }]
-    network_security_group_name = "same-nsg"
+    network_security_group_name = "westus2-nsg"
     nic_public_ip_associations = [
       {
         nic_name              = "server-nic"
-        subnet_name           = "same-subnet"
+        subnet_name           = "westus2-subnet"
         ip_configuration_name = "server-ipconfig"
         public_ip_name        = "ingress-pip"
-      },
-      {
-        nic_name              = "client-nic"
-        subnet_name           = "same-subnet"
-        ip_configuration_name = "client-ipconfig"
-        public_ip_name        = "egress-pip"
       }
     ]
     nsr_rules = [{
@@ -70,20 +61,7 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = []
-vm_config_list = [{
-  role           = "client"
-  vm_name        = "client-vm"
-  nic_name       = "client-nic"
-  admin_username = "ubuntu"
-  zone           = "1"
-  source_image_reference = {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-focal"
-    sku       = "20_04-lts"
-    version   = "latest"
-  }
-  create_vm_extension = true
-  },
+vm_config_list = [
   {
     role           = "server"
     vm_name        = "server-vm"

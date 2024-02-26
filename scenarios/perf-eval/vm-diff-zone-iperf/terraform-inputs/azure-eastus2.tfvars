@@ -3,32 +3,23 @@ scenario_name  = "vm-diff-zone-iperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
-    name = "ingress-pip"
-  },
-  {
     name = "egress-pip"
   }
 ]
 network_config_list = [
   {
     role               = "network"
-    vnet_name          = "same-vnet"
+    vnet_name          = "eastus2-vnet"
     vnet_address_space = "10.2.0.0/16"
     subnet = [{
-      name           = "same-subnet"
+      name           = "eastus2-subnet"
       address_prefix = "10.2.1.0/24"
     }]
-    network_security_group_name = "same-nsg"
+    network_security_group_name = "eastus2-nsg"
     nic_public_ip_associations = [
       {
-        nic_name              = "server-nic"
-        subnet_name           = "same-subnet"
-        ip_configuration_name = "server-ipconfig"
-        public_ip_name        = "ingress-pip"
-      },
-      {
         nic_name              = "client-nic"
-        subnet_name           = "same-subnet"
+        subnet_name           = "eastus2-subnet"
         ip_configuration_name = "client-ipconfig"
         public_ip_name        = "egress-pip"
       }
@@ -83,20 +74,6 @@ vm_config_list = [{
     version   = "latest"
   }
   create_vm_extension = true
-  },
-  {
-    role           = "server"
-    vm_name        = "server-vm"
-    nic_name       = "server-nic"
-    admin_username = "ubuntu"
-    zone           = "2"
-    source_image_reference = {
-      publisher = "Canonical"
-      offer     = "0001-com-ubuntu-server-focal"
-      sku       = "20_04-lts"
-      version   = "latest"
-    }
-    create_vm_extension = true
   }
 ]
 vmss_config_list                  = []
