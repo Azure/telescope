@@ -4,5 +4,6 @@
     "region"                           : "eastus",
     "machine_type"                     : "Standard_D16_v5",
     "zone"                             : "1",
-    "accelerated_networking"           : true
+    "accelerated_networking"           : true,
+    "public_key_path"                  : "/path/to/public/key.pub"
   }

@@ -3,5 +3,6 @@
     "run_id"                           : "123456789",
     "region"                           : "eastus",
     "machine_type"                     : "Standard_D2s_v5",
-    "accelerated_networking"           : false
+    "accelerated_networking"           : false,
+    "public_key_path"                  : "/path/to/public/key.pub"
   }

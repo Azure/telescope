@@ -3,5 +3,6 @@
     "run_id"                           : "123456789",
     "region"                           : "us-east-1",
     "zone"                             : "us-east-1a",
-    "machine_type"                     : "m5.4xlarge"
+    "machine_type"                     : "m5.4xlarge",
+    "public_key_path"                  : "/path/to/public/key.pub"
   }

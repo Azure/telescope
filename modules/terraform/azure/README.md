@@ -8,6 +8,14 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 * Install [Azure CLI - 2.57.0](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 
+### Generate SSH public and Private key using SSH-Keygen
+```
+CLOUD=azure
+ssh_key_path=modules/terraform/$CLOUD/private_key.pem
+ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
+SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
+```
+
 ### Define Variables
 
 Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/vm-same-zone-iperf` scenario as the example and set the following variables:
@@ -63,6 +71,7 @@ INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
   --arg machine_type "$MACHINE_TYPE" \
+  --arg public_key_path: $SSH_PUBLIC_KEY_PATH \
   --arg aks_machine_type "$AKS_MACHINE_TYPE" \
   --arg accelerated_networking "$ACCELERATED_NETWORKING" \
   --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
@@ -86,6 +95,7 @@ INPUT_JSON=$(jq -n \
     run_id: $run_id,
     region: $region,
     machine_type: $machine_type,
+    public_key_path: $public_key_path, 
     aks_machine_type: $aks_machine_type,
     accelerated_networking: $accelerated_networking,
     data_disk_storage_account_type: $data_disk_storage_account_type,
