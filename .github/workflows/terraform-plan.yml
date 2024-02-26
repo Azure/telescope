@@ -40,9 +40,9 @@ jobs:
             echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.cloud }}.json" >> "$GITHUB_ENV"
             echo "USER_DATA_PATH=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/bash-scripts" >> "$GITHUB_ENV"
             echo "TERRAFORM_MODULES_DIR=modules/terraform/${{ matrix.cloud }}" >> "$GITHUB_ENV"
-            ssh_key_path=modules/terraform/${{ matrix.cloud }}/private_key.pem
+            ssh_key_path=$GITHUB_WORKSPACE/modules/terraform/${{ matrix.cloud }}
             ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
-            public_key_path="${ssh_key_path}.pub"
+            public_key_path="${ssh_key_path}/private_key.pem.pub"
             echo "SSH_KEY_PATH=$public_key_path" >> "$GITHUB_ENV"
             chmod 600 $ssh_key_path
           env:
