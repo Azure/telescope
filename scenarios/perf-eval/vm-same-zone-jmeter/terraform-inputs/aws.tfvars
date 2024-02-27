@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf"
+scenario_name  = "vm-same-zone-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
