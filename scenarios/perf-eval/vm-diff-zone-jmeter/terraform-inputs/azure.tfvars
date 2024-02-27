@@ -34,39 +34,60 @@ network_config_list = [
       }
     ]
     nsr_rules = [{
-      name                       = "nsr-ssh"
+      name                       = "inbound-nsr-http"
       priority                   = 100
       direction                  = "Inbound"
       access                     = "Allow"
       protocol                   = "Tcp"
       source_port_range          = "*"
-      destination_port_range     = "2222"
+      destination_port_range     = "80-80"
       source_address_prefix      = "*"
       destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-tcp"
+        name                       = "inbound-nsr-https"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20001"
+        destination_port_range     = "443-443"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-udp"
+        name                       = "nsr-ssh"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
-        protocol                   = "Udp"
+        protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "2222"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
-      }
-    ]
+      },
+      {
+        name                       = "outbound-nsr-http"
+        priority                   = 101
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "80-80"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "outbound-nsr-https"
+        priority                   = 102
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "443-443"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+    }]
   }
 ]
 loadbalancer_config_list = []
