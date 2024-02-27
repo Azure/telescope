@@ -50,10 +50,11 @@ provider "azurerm" {
 }
 
 module "resource_group" {
-  source              = "./resource-group"
-  resource_group_name = local.run_id
-  location            = local.region
-  tags                = local.tags
+  source                       = "./resource-group"
+  resource_group_name          = local.run_id
+  location                     = local.region
+  tags                         = local.tags
+  skip_resource_group_creation = var.skip_resource_group_creation
 }
 
 module "public_ips" {
