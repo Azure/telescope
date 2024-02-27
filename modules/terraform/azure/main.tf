@@ -51,7 +51,7 @@ provider "azurerm" {
 
 module "resource_group" {
   source              = "./resource-group"
-  resource_group_name = "${local.run_id}-${local.region}"
+  resource_group_name = local.run_id
   location            = local.region
   tags                = local.tags
 }
@@ -62,6 +62,7 @@ module "public_ips" {
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
   tags                  = local.tags
+
 }
 
 module "virtual_network" {

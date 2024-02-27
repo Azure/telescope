@@ -10,6 +10,12 @@ variable "location" {
   default     = "East US"
 }
 
+variable "skip_resource_group_creation" {
+  description = "Flag to skip the resource group creation"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   type = map(string)
   default = {
