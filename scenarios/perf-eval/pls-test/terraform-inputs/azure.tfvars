@@ -145,7 +145,7 @@ nic_backend_pool_association_list = [
 private_link_conf = {
   pls_name             = "ingress-pls"
   pls_loadbalance_role = "ingress"
-  pls_subnet_name      = "server-subnet"
+  pls_subnet_name      = "same-subnet"
 
   pe_name        = "client-pe"
   pe_subnet_name = "same-subnet"
