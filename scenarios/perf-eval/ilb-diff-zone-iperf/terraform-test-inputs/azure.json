@@ -4,4 +4,4 @@
     "region"                           : "eastus",
     "machine_type"                     : "Standard_D2s_v5",
     "accelerated_networking"           : false
-  }
+}

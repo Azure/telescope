@@ -4,4 +4,4 @@
     "region"                           : "us-east-1",
     "zone"                             : "us-east-1a",
     "machine_type"                     : "m5.4xlarge"
-  }
+}
