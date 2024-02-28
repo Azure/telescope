@@ -63,6 +63,11 @@ Set subscription for testing
 az account set --subscription <subscriptionId>
 ```
 
+Create Resource Group for testing
+```
+az group create --name $RUN_ID --location $REGION
+```
+
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/azure/variables.tf`](../../../modules/terraform/azure/variables.tf) as the list will keep changing as we add more features.
 
 ```
@@ -138,6 +143,10 @@ Once your test is done, you can destroy the resources using Terraform.
 pushd $TERRAFORM_MODULES_DIR
 terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
+```
+After terraformn destroys all the resources delete resource group manually.
+```
+az group delete --name $RUN_ID
 ```
 
 ### References
