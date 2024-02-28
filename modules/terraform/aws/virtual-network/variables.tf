@@ -32,11 +32,6 @@ variable "region" {
   type        = string
 }
 
-variable "zone" {
-  description = "value of availability zone"
-  type        = string
-}
-
 variable "tags" {
   type = map(string)
   default = {

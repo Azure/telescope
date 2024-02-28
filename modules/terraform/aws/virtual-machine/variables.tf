@@ -63,8 +63,3 @@ variable "region" {
   description = "value of region"
   type        = string
 }
-
-variable "zone" {
-  description = "value of availability zone"
-  type        = string
-}
