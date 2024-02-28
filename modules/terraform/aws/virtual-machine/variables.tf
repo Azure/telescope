@@ -6,7 +6,7 @@ variable "vm_config" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
-    zone_suffix                 = optional(string, "a")
+    zone_suffix                 = string
 
     data_disk_config = optional(object({
       data_disk_size_gb         = number
