@@ -18,6 +18,7 @@ network_config_list = [
     subnet = [{
       name           = "same-subnet"
       address_prefix = "10.2.1.0/24"
+      pls_network_policies_enabled = false
     }]
     network_security_group_name = "same-nsg"
     nic_public_ip_associations = [
