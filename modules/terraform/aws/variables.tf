@@ -5,7 +5,6 @@ variable "json_input" {
     run_id                    = string
     region                    = string
     machine_type              = string
-    zone                      = string
     public_key_path           = string
     user_data_path            = optional(string)
     data_disk_volume_type     = optional(string)
@@ -50,7 +49,7 @@ variable "network_config_list" {
     subnet = list(object({
       name        = string
       cidr_block  = string
-      zone_suffix = optional(string, "a")
+      zone_suffix = string
     }))
     security_group_name    = string
     route_table_cidr_block = string
@@ -112,7 +111,7 @@ variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
     vm_name                     = string
-    zone_suffix                 = optional(string, "a")
+    zone_suffix                 = string
     role                        = string
     subnet_name                 = string
     security_group_name         = string
