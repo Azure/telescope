@@ -234,11 +234,5 @@ module "private_endpoint" {
   
   pe_name                = var.pe_config.pe_name
   pe_subnet_id           = var.pe_config.pe_subnet_name
-
-  private_service_connection = {
-    name                           = var.pe_config.psc_name
-    private_connection_resource_id = local.storage_account_name
-    is_manual_connection           = false
-    subresource_names              = ["blob"]
-  }
+  
 }
