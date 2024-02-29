@@ -226,20 +226,14 @@ module "privatelink" {
   tags = local.tags
 }
 
-module "privateendpoint" {
+module "private_endpoint" {
   source = "./private-endpoint"
 
-  count = var.pe_config == null ? 0 : 1
-
-  name                   = var.pe_config.pe_name
   resource_group_name    = local.run_id
   location               = local.region
-  subnet_id              = var.pe_config.pe_subnet_name
+  
+  pe_name                = var.pe_config.pe_name
+  pe_subnet_id           = var.pe_config.pe_subnet_name
 
-  private_service_connection {
-    name                           = var.pe_config.psc_name
-    is_manual_connection           = false
-    private_connection_resource_id = local.storage_account_name
-    subresource_names              = ["blob"]
-  }
+  psc_name               = var.private_service_connection.name
 }

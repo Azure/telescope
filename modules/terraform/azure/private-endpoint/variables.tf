@@ -26,7 +26,7 @@ variable "pe_subnet_id" {
 }
 
 
-variable "psc_config" {
+variable "private_service_connection" {
   description = "Configuration for the private endpoint using a storage account"
   type = object({
     name                           = string

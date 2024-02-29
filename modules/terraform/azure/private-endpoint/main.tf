@@ -8,7 +8,7 @@ resource "azurerm_private_endpoint" "pe" {
   subnet_id = var.pe_subnet_name
 
   private_service_connection {
-    name                           = var.pe_name
+    name                           = var.private_service_connection.name
     private_connection_resource_id = var.storage_account_name
     is_manual_connection           = false
     subresource_names              = ["blob"]
