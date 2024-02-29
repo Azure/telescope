@@ -8,6 +8,14 @@ This guide covers how to manually run Terraform for AWS. All commands should be 
 * Install [AWS CLI - 2.15.19](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 
+### Generate SSH public and Private key using SSH-Keygen
+```
+CLOUD=aws
+ssh_key_path=modules/terraform/$CLOUD/private_key.pem
+ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
+SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
+```
+
 ### Define Variables
 
 Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/vm-same-zone-iperf` scenario as the example and set the following variables:
@@ -19,7 +27,6 @@ RUN_ID=123456789
 OWNER=$(whoami)
 CLOUD=aws
 REGION=us-east-2
-ZONE=us-east-2b
 MACHINE_TYPE=m5.4xlarge
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
@@ -50,7 +57,7 @@ INPUT_JSON=$(jq -n \
   --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg zone $ZONE \
+  --arg public_key_path: $SSH_PUBLIC_KEY_PATH \
   --arg machine_type "$MACHINE_TYPE" \
   --arg data_disk_volume_type "$DATA_DISK_TYPE" \
   --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
@@ -68,7 +75,7 @@ INPUT_JSON=$(jq -n \
   owner: $owner, 
   run_id: $run_id, 
   region: $region, 
-  zone: $zone, 
+  public_key_path: $public_key_path,  
   machine_type: $machine_type, 
   data_disk_volume_type: $data_disk_volume_type, 
   data_disk_size_gb: $data_disk_size_gb,
