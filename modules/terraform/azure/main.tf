@@ -190,7 +190,7 @@ resource "azurerm_private_endpoint" "pe_config" {
   name                   = var.pe_config.pe_name
   resource_group_name    = local.run_id
   location               = local.region
-  subnet_id              = local.all_subnets[var.pe_config.pe_subnet_name]
+  subnet_id              = var.pe_config.pe_subnet_name
 
   private_service_connection {
     name                           = var.pe_config.psc_name
