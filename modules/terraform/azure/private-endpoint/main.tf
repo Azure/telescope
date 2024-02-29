@@ -7,8 +7,8 @@ resource "azurerm_private_endpoint" "private_endpoint" {
 
   subnet_id = var.pe_subnet_id
 
-  private_service_connection = {
-    name                           = var.pe_config.psc_name
+  private_service_connection {
+    name                           = var.pe_name
     private_connection_resource_id = local.storage_account_name
     is_manual_connection           = false
     subresource_names              = ["blob"]

@@ -24,10 +24,3 @@ variable "pe_subnet_id" {
   type        = string
   default     = ""
 }
-
-
-variable "psc_name" {
-  description = "name of the private service connection"
-  type        = string
-  default     = ""
-}
