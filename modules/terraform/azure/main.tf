@@ -15,6 +15,7 @@ locals {
   data_disk_mbps_read_only         = lookup(var.json_input, "data_disk_mbps_read_only", null)
   data_disk_tier                   = lookup(var.json_input, "data_disk_tier", null)
   data_disk_caching                = lookup(var.json_input, "data_disk_caching", "ReadOnly")
+  storage_account_name             = lookup(var.json_input, "storage_account_name", "")
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
@@ -185,6 +186,19 @@ resource "random_string" "storage_account_random_suffix" {
   override_special = "_-"
 }
 
+resource "private_endpoint" {
+  pe_name                = var.pe_config.pe_name
+  resource_group_name    = local.run_id
+  location               = local.region
+  pe_subnet_id           = local.all_subnets[var.pe_config.pe_subnet_name]
+
+  psc_config = {
+    name                           = var.psc_name
+    is_manual_connection           = false
+    private_connection_resource_id = local.storage_account_name
+    subresource_names              = ["blob"]
+  }
+}
 
 module "storage_account" {
   source = "./storage-account"
@@ -224,22 +238,4 @@ module "privatelink" {
   pe_subnet_id = local.all_subnets[var.private_link_conf.pe_subnet_name]
 
   tags = local.tags
-}
-
-module "privateendpoint" {
-  source = "./private-endpoint"
-
-  count = var.pe_config == null ? 0 : 1
-
-  pe_name                = var.pe_config.pe_name
-  resource_group_name    = module.resource_group_name
-  location               = local.region
-  pe_subnet_id         = local.all_subnets[var.pe_config.pe_subnet_name]
-
-  psc_config = psc_config == null? null : {
-    name                           = var.psc_name
-    is_manual_connection           = false
-    private_connection_resource_id = locals.storage_account_name
-    subresource_names              = ["blob"]
-  }
 }
