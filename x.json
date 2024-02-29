@@ -1,0 +1,971 @@
+{
+  "$schema": "https://dataexplorer.azure.com/static/d/schema/49/dashboard.json",
+  "id": "585b86a1-351c-4024-8b4a-768006fa2fe3",
+  "eTag": "b4733f7a-b939-48b0-a147-c920f4c85170",
+  "schema_version": "49",
+  "title": "Telescope Performance Evaluation Network",
+  "baseQueries": [],
+  "tiles": [
+    {
+      "id": "90c95b6f-cea5-46d5-b3b6-f45e881eabb8",
+      "title": "Average TCP RTT (us)",
+      "visualType": "bar",
+      "pageId": "5621abc0-396b-4f67-baa2-7e4494da3fb9",
+      "layout": { "x": 0, "y": 0, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| extend \n    rtt = tolong(iperf_info.rtt),\n    rtt_unit = iperf_info.rtt_unit,\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, rtt, rtt_unit, accel_net, overlake\n| summarize rtt = avg(rtt) by cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "Average TCP RTT (us)",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "cloud",
+        "yColumns": ["rtt"],
+        "seriesColumns": ["accel_net", "overlake"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "c50e0bce-ef3f-4b2a-a6a8-545903298844",
+      "title": "Average Throughput (Mbits/sec)",
+      "visualType": "line",
+      "pageId": "5621abc0-396b-4f67-baa2-7e4494da3fb9",
+      "layout": { "x": 0, "y": 9, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| where target_bandwidth == _bandwidth\n| extend \n    throughput = tolong(iperf_info.total_throughput),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, throughput, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "timestamp",
+        "yColumns": ["throughput"],
+        "seriesColumns": ["accel_net", "overlake", "cloud"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "e0e800cb-268d-4b74-95d6-2ed7739788ab",
+      "title": "Standard Deviation TCP RTT (us)",
+      "visualType": "bar",
+      "pageId": "5621abc0-396b-4f67-baa2-7e4494da3fb9",
+      "layout": { "x": 11, "y": 0, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| extend \n    rtt = tolong(iperf_info.rtt),\n    rtt_unit = iperf_info.rtt_unit,\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, rtt, rtt_unit, accel_net, overlake\n| summarize rtt = stdev(rtt) by cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "Standard Deviation TCP RTT (us)",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "cloud",
+        "yColumns": ["rtt"],
+        "seriesColumns": ["overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "469090f8-a685-4095-9f04-73ceed8b86f8",
+      "title": "Average TCP RTT (us)",
+      "visualType": "bar",
+      "pageId": "f66f61ba-a2e7-4541-8484-0e2c6c241bc7",
+      "layout": { "x": 0, "y": 0, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| extend \n    rtt = tolong(iperf_info.rtt),\n    rtt_unit = iperf_info.rtt_unit,\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, rtt, rtt_unit, accel_net, overlake\n| summarize rtt = avg(rtt) by cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "Average TCP RTT (us)",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "cloud",
+        "yColumns": ["rtt"],
+        "seriesColumns": ["accel_net", "overlake"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "336f6f6c-ceed-4c28-8cda-7700498f8edf",
+      "title": "Average Throughput (Mbits/sec)",
+      "visualType": "line",
+      "pageId": "f66f61ba-a2e7-4541-8484-0e2c6c241bc7",
+      "layout": { "x": 0, "y": 9, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| where target_bandwidth == _bandwidth\n| extend \n    throughput = tolong(iperf_info.total_throughput),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, throughput, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": 0,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "timestamp",
+        "yColumns": ["throughput"],
+        "seriesColumns": ["accel_net", "overlake", "cloud"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "f70f217c-1fa2-426b-a068-da66a091273e",
+      "title": "Standard Deviation TCP RTT (us)",
+      "visualType": "bar",
+      "pageId": "f66f61ba-a2e7-4541-8484-0e2c6c241bc7",
+      "layout": { "x": 11, "y": 0, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| extend \n    rtt = tolong(iperf_info.rtt),\n    rtt_unit = iperf_info.rtt_unit,\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, rtt, rtt_unit, accel_net, overlake\n| summarize rtt = stdev(rtt) by cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "Standard Deviation TCP RTT (us)",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "cloud",
+        "yColumns": ["rtt"],
+        "seriesColumns": ["overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "3f0680b8-e2bc-4da6-b1b0-bed12b7b5912",
+      "title": "Average Packet Drop Rate End-to-End (%)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "ed8e68a3-b8d3-498f-b741-d9105856e1cc",
+      "layout": { "x": 0, "y": 0, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| extend \n    lost_packets = tolong(iperf_info.lost_datagrams),\n    total_packets = tolong(iperf_info.total_datagrams),\n    target_bandwidth = tostring(target_bandwidth),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| extend lost_percent = lost_packets * 100.0 / total_packets\n| project timestamp, cloud, target_bandwidth, lost_percent, lost_packets, total_packets, accel_net, overlake\n| summarize rate=avg(lost_percent) by target_bandwidth, cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "d79a7b26-aac7-45e0-967e-e6fdb070d5e5",
+      "title": "Average Throughput (Mbits/sec)",
+      "description": "",
+      "visualType": "line",
+      "pageId": "ed8e68a3-b8d3-498f-b741-d9105856e1cc",
+      "layout": { "x": 0, "y": 9, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| where target_bandwidth == _bandwidth\n| extend \n    throughput = tolong(iperf_info.total_throughput),\n    cloud = cloud_info.cloud,\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, throughput, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": 0,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": "timestamp",
+        "yColumns": ["throughput"],
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "20a9520b-fec4-4fd8-b66c-43019461b978",
+      "title": "Standard Deviation Packet Drop Rate (%)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "ed8e68a3-b8d3-498f-b741-d9105856e1cc",
+      "layout": { "x": 11, "y": 0, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| extend \n    lost_packets = tolong(iperf_info.lost_datagrams),\n    total_packets = tolong(iperf_info.total_datagrams),\n    target_bandwidth = tostring(target_bandwidth),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| extend lost_percent = lost_packets * 100.0 / total_packets\n| project timestamp, cloud, target_bandwidth, lost_percent, lost_packets, total_packets, accel_net, overlake\n| summarize rate=stdev(lost_percent) by target_bandwidth, cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "e61bf637-d5d2-46c8-ac8b-92c2d3fd0cb9",
+      "title": "Average Packet Drop Rate End-to-End (%)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "ba4c7eb4-ec1a-4692-a487-7a39639feaa3",
+      "layout": { "x": 0, "y": 0, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| extend \n    lost_packets = tolong(iperf_info.lost_datagrams),\n    total_packets = tolong(iperf_info.total_datagrams),\n    target_bandwidth = tostring(target_bandwidth),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| extend lost_percent = lost_packets * 100.0 / total_packets\n| project timestamp, cloud, target_bandwidth, lost_percent, lost_packets, total_packets, accel_net, overlake\n| summarize rate=avg(lost_percent) by target_bandwidth, cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "8fb49bc3-39f6-4858-94b9-e110df0c09fb",
+      "title": "Average Throughput (Mbits/sec)",
+      "description": "",
+      "visualType": "line",
+      "pageId": "ba4c7eb4-ec1a-4692-a487-7a39639feaa3",
+      "layout": { "x": 0, "y": 9, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| where target_bandwidth == _bandwidth\n| extend \n    throughput = tolong(iperf_info.total_throughput),\n    cloud = cloud_info.cloud,\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, throughput, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": 0,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": "timestamp",
+        "yColumns": ["throughput"],
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "27e7596c-ac7f-4e47-85a1-8149dbd61754",
+      "title": "Standard Deviation Packet Drop Rate (%)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "ba4c7eb4-ec1a-4692-a487-7a39639feaa3",
+      "layout": { "x": 11, "y": 0, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| extend \n    lost_packets = tolong(iperf_info.lost_datagrams),\n    total_packets = tolong(iperf_info.total_datagrams),\n    target_bandwidth = tostring(target_bandwidth),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| extend lost_percent = lost_packets * 100.0 / total_packets\n| project timestamp, cloud, target_bandwidth, lost_percent, lost_packets, total_packets, accel_net, overlake\n| summarize rate=stdev(lost_percent) by target_bandwidth, cloud, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "8b30bd7d-57ec-407a-b8bb-995503a339c9",
+      "title": "Packet Drop Rate Over Time (%)",
+      "description": "",
+      "visualType": "line",
+      "pageId": "ba4c7eb4-ec1a-4692-a487-7a39639feaa3",
+      "layout": { "x": 11, "y": 9, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| where target_bandwidth == _bandwidth\n| extend \n    lost_packets = tolong(iperf_info.lost_datagrams),\n    total_packets = tolong(iperf_info.total_datagrams),\n    target_bandwidth = tostring(target_bandwidth),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| extend lost_percent = lost_packets * 100.0 / total_packets\n| project timestamp, cloud, target_bandwidth, lost_percent, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": 0,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": "timestamp",
+        "yColumns": ["lost_percent"],
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "428f9c36-830d-496f-b0e0-8714ba545a94",
+      "title": "RTT Over Time (us)",
+      "visualType": "line",
+      "pageId": "5621abc0-396b-4f67-baa2-7e4494da3fb9",
+      "layout": { "x": 11, "y": 9, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "vm_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| where target_bandwidth == _bandwidth\n| extend \n    rtt = tolong(iperf_info.rtt),\n    rtt_unit = iperf_info.rtt_unit,\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, rtt, rtt_unit, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "timestamp",
+        "yColumns": ["rtt"],
+        "seriesColumns": ["accel_net", "overlake", "cloud"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "3467de9d-f04f-4ab8-bcc9-e1e0a2a2dd5b",
+      "title": "RTT Over Time (us)",
+      "visualType": "line",
+      "pageId": "f66f61ba-a2e7-4541-8484-0e2c6c241bc7",
+      "layout": { "x": 11, "y": 9, "width": 11, "height": 9 },
+      "description": "",
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"tcp\"\n| where target_bandwidth == _bandwidth\n| extend \n    rtt = tolong(iperf_info.rtt),\n    rtt_unit = iperf_info.rtt_unit,\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| project timestamp, cloud, target_bandwidth, rtt, rtt_unit, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": 0,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Cloud",
+        "xColumn": "timestamp",
+        "yColumns": ["rtt"],
+        "seriesColumns": ["accel_net", "overlake", "cloud"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "7a0f215a-21c3-4c37-8b26-b2996dba7932",
+      "title": "Packet Drop Rate Over Time (%)",
+      "description": "",
+      "visualType": "line",
+      "pageId": "ed8e68a3-b8d3-498f-b741-d9105856e1cc",
+      "layout": { "x": 11, "y": 9, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_bandwidth", "_endTime", "_region", "_startTime"],
+        "text": "lb_iperf_v1_0_10\n| where timestamp between (_startTime .. _endTime)\n| where cloud_info.region contains _region\n| where metric == \"udp\"\n| where target_bandwidth == _bandwidth\n| extend \n    lost_packets = tolong(iperf_info.lost_datagrams),\n    total_packets = tolong(iperf_info.total_datagrams),\n    target_bandwidth = tostring(target_bandwidth),\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking)\n| extend overlake = case(\n    cloud == \"AWS\", \"\",\n    cloud_info.machine_type endswith \"v5\", \"true\",\n    \"false\")\n| extend lost_percent = lost_packets * 100.0 / total_packets\n| project timestamp, cloud, target_bandwidth, lost_percent, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": 0,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "",
+        "xColumn": "timestamp",
+        "yColumns": ["lost_percent"],
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "ee5cab32-55a7-40de-9e07-a73f9a5917e4",
+      "title": "Average Request Throughput",
+      "description": "",
+      "visualType": "column",
+      "pageId": "073951e6-e6f1-45e2-885d-0808381bc36e",
+      "layout": { "x": 0, "y": 0, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_protocol", "_startTime"],
+        "text": "lb_jmeter_v1_0_11 \n| where timestamp between (_startTime .. _endTime)\n| where protocol == _protocol\n| extend \n    concurrency = tostring(concurrency),\n    throughput = todecimal(result[0].Throughput),\n    throughput_unit = \"requests/second\",\n    received_kbs = result[0][\"Received KB/sec\"], \n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking),\n    overlake = iff(tostring(cloud_info.machine_type) endswith \"v5\", \"true\", \"false\")\n| extend overlake = iff(cloud == \"aws\", \"\", overlake)\n| summarize value = avg(throughput) by cloud, concurrency, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "requests/sec",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Concurrency (# of parallel requests)",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "a5fb6e90-9e72-4641-99d5-8ec5d1fe2bd9",
+      "title": "P50 Request Latency (ms)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "073951e6-e6f1-45e2-885d-0808381bc36e",
+      "layout": { "x": 11, "y": 9, "width": 10, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_protocol", "_startTime"],
+        "text": "lb_jmeter_v1_0_11 \n| where timestamp between (_startTime .. _endTime)\n| where protocol == _protocol\n| extend \n    concurrency = tostring(concurrency),\n    average = todecimal(result[0].Average),\n    median = todecimal(result[0].Median),\n    per_90 = todecimal(result[0][\"90% Line\"]),\n    per_99 = todecimal(result[0][\"99% Line\"]),\n    max = todecimal(result[0].Max),\n    unit = \"milliseconds\",\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking),\n    overlake = iff(tostring(cloud_info.machine_type) endswith \"v5\", \"true\", \"false\")\n| extend overlake = iff(cloud == \"aws\", \"\", overlake)\n| summarize value = avg(median) by cloud, concurrency, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "ms",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Concurrency (# of parallel requests)",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "9de91a62-25db-4572-8308-b55d8160555b",
+      "title": "P90 Request Latency (ms)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "073951e6-e6f1-45e2-885d-0808381bc36e",
+      "layout": { "x": 0, "y": 9, "width": 11, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_protocol", "_startTime"],
+        "text": "lb_jmeter_v1_0_11 \n| where timestamp between (_startTime .. _endTime)\n| where protocol == _protocol\n| extend \n    concurrency = tostring(concurrency),\n    average = todecimal(result[0].Average),\n    median = todecimal(result[0].Median),\n    per_90 = todecimal(result[0][\"90% Line\"]),\n    per_99 = todecimal(result[0][\"99% Line\"]),\n    max = todecimal(result[0].Max),\n    unit = \"milliseconds\",\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking),\n    overlake = iff(tostring(cloud_info.machine_type) endswith \"v5\", \"true\", \"false\")\n| extend overlake = iff(cloud == \"aws\", \"\", overlake)\n| summarize value = avg(per_90) by cloud, concurrency, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "ms",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Concurrency (# of parallel requests)",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    },
+    {
+      "id": "b3762323-3dc1-4f71-af45-b84903f27050",
+      "title": "P99 Request Latency (ms)",
+      "description": "",
+      "visualType": "column",
+      "pageId": "073951e6-e6f1-45e2-885d-0808381bc36e",
+      "layout": { "x": 11, "y": 0, "width": 10, "height": 9 },
+      "query": {
+        "kind": "inline",
+        "dataSource": {
+          "kind": "inline",
+          "dataSourceId": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b"
+        },
+        "usedVariables": ["_endTime", "_protocol", "_startTime"],
+        "text": "lb_jmeter_v1_0_11 \n| where timestamp between (_startTime .. _endTime)\n| where protocol == _protocol\n| extend \n    concurrency = tostring(concurrency),\n    average = todecimal(result[0].Average),\n    median = todecimal(result[0].Median),\n    per_90 = todecimal(result[0][\"90% Line\"]),\n    per_99 = todecimal(result[0][\"99% Line\"]),\n    max = todecimal(result[0].Max),\n    unit = \"milliseconds\",\n    cloud = tostring(cloud_info.cloud),\n    accel_net = tostring(cloud_info.accelerated_networking),\n    overlake = iff(tostring(cloud_info.machine_type) endswith \"v5\", \"true\", \"false\")\n| extend overlake = iff(cloud == \"aws\", \"\", overlake)\n| summarize value = avg(per_99) by cloud, concurrency, accel_net, overlake"
+      },
+      "visualOptions": {
+        "multipleYAxes": {
+          "base": {
+            "id": "-1",
+            "label": "ms",
+            "columns": [],
+            "yAxisMaximumValue": null,
+            "yAxisMinimumValue": null,
+            "yAxisScale": "linear",
+            "horizontalLines": []
+          },
+          "additional": [],
+          "showMultiplePanels": false
+        },
+        "hideLegend": false,
+        "xColumnTitle": "Concurrency (# of parallel requests)",
+        "xColumn": null,
+        "yColumns": null,
+        "seriesColumns": ["cloud", "overlake", "accel_net"],
+        "xAxisScale": "linear",
+        "verticalLine": "",
+        "crossFilterDisabled": false,
+        "drillthroughDisabled": false,
+        "crossFilter": [],
+        "drillthrough": []
+      }
+    }
+  ],
+  "parameters": [
+    {
+      "kind": "int",
+      "id": "f73ed5fa-11a8-4bfc-8401-4d75ba610c62",
+      "displayName": "Bandwidth",
+      "description": "",
+      "variableName": "_bandwidth",
+      "selectionType": "scalar",
+      "includeAllOption": true,
+      "defaultValue": { "kind": "value", "value": 4000 },
+      "dataSource": {
+        "kind": "static",
+        "values": [
+          { "value": 100 },
+          { "value": 1000 },
+          { "value": 2000 },
+          { "value": 4000 }
+        ]
+      },
+      "showOnPages": {
+        "kind": "selection",
+        "pageIds": [
+          "5621abc0-396b-4f67-baa2-7e4494da3fb9",
+          "f66f61ba-a2e7-4541-8484-0e2c6c241bc7",
+          "ed8e68a3-b8d3-498f-b741-d9105856e1cc",
+          "ba4c7eb4-ec1a-4692-a487-7a39639feaa3"
+        ]
+      }
+    },
+    {
+      "kind": "duration",
+      "id": "9876adef-410f-4036-870c-177976132bdd",
+      "displayName": "Time range",
+      "description": "",
+      "beginVariableName": "_startTime",
+      "endVariableName": "_endTime",
+      "defaultValue": { "kind": "dynamic", "count": 24, "unit": "hours" },
+      "showOnPages": { "kind": "all" }
+    },
+    {
+      "kind": "string",
+      "id": "687a3f9c-8c2f-452e-b438-305943b5981d",
+      "displayName": "Region",
+      "description": "",
+      "variableName": "_region",
+      "selectionType": "scalar",
+      "includeAllOption": false,
+      "defaultValue": { "kind": "value", "value": "east" },
+      "dataSource": {
+        "kind": "static",
+        "values": [{ "value": "east" }, { "value": "west" }]
+      },
+      "showOnPages": {
+        "kind": "selection",
+        "pageIds": [
+          "5621abc0-396b-4f67-baa2-7e4494da3fb9",
+          "f66f61ba-a2e7-4541-8484-0e2c6c241bc7",
+          "ed8e68a3-b8d3-498f-b741-d9105856e1cc",
+          "ba4c7eb4-ec1a-4692-a487-7a39639feaa3"
+        ]
+      }
+    },
+    {
+      "kind": "string",
+      "id": "db3092aa-596d-43fb-a006-c5704b7512fd",
+      "displayName": "Protocol",
+      "description": "",
+      "variableName": "_protocol",
+      "selectionType": "scalar",
+      "includeAllOption": false,
+      "defaultValue": { "kind": "value", "value": "https" },
+      "dataSource": {
+        "kind": "static",
+        "values": [{ "value": "http" }, { "value": "https" }]
+      },
+      "showOnPages": {
+        "kind": "selection",
+        "pageIds": ["073951e6-e6f1-45e2-885d-0808381bc36e"]
+      }
+    }
+  ],
+  "dataSources": [
+    {
+      "id": "ba80f7c9-28fc-4932-a67d-b567bd1a6f9b",
+      "name": "telescope",
+      "clusterUri": "https://akstelescope.eastus.kusto.windows.net/",
+      "database": "perf_eval",
+      "kind": "manual-kusto",
+      "scopeId": "kusto"
+    }
+  ],
+  "pages": [
+    {
+      "id": "ba4c7eb4-ec1a-4692-a487-7a39639feaa3",
+      "name": "1a (VM-to-VM Same VNet) UDP"
+    },
+    {
+      "name": "1a (VM-to-VM Same VNet) TCP",
+      "id": "5621abc0-396b-4f67-baa2-7e4494da3fb9"
+    }
+  ]
+}
