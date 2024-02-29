@@ -16,9 +16,9 @@ Steps and inputs to run this pipeline:
 Example:
 
     - SCENARIO_TYPE: perf-eval
-    - SCENARIO_NAME: storage-blob
+    - SCENARIO_NAME: vm-iperf
     - SCENARIO_VERSION: v.1.0.15
-    - BLOB_STORAGE_URL:https://akstelescope.blob.core.windows.net/perf-eval/storage-blob/v1.0.15/4d15e25a-311d-5c04-78c1-58ba63a0465e-88432383.json
+    - BLOB_STORAGE_URL:https://akstelescope.blob.core.windows.net/perf-eval/vm-iperf/v1.0.12/4505c447-da6a-59b7-9f10-90274aba8350-87494640.json
 
 - Click on Run to create the data connections and tables based on the result data from storage account.
 
