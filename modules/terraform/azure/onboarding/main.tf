@@ -61,16 +61,8 @@ resource "azurerm_eventhub_namespace" "eventhub_ns" {
   tags                = local.tags
 }
 
-data "azurerm_eventhub" "eventhub" {
-  count               = tobool(var.json_input.create_eventhub_instance) ? 0 : 1
-  name                = var.json_input.eventhub_instance_name
-  namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
-  resource_group_name = data.azurerm_resource_group.rg.name
-}
-
 resource "azurerm_eventhub" "eventhub" {
-  count               = tobool(var.json_input.create_eventhub_instance) ? 1 : 0
-  name                = var.json_input.eventhub_instance_name
+  name                = "adx-eg-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   namespace_name      = var.json_input.create_eventhub_namespace ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
   resource_group_name = data.azurerm_resource_group.rg.name
   partition_count     = 8

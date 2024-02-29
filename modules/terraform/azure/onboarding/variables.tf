@@ -14,8 +14,6 @@ variable "json_input" {
     data_connection_name      = string
     create_eventhub_namespace = bool
     eventhub_namespace_name   = optional(string)
-    eventhub_instance_name    = optional(string)
-    create_eventhub_instance  = bool
     table_creation_script     = string
   })
 }
