@@ -83,7 +83,7 @@ storage_account_name_prefix = "plssinglevm"
 
 pe_config = {
   pe_name = "private-endpoint"
-  pe_subnet_name = "same-subnet"
+  pe_subnet_id = "same-subnet"
 
   psc_config = {
     psc_name = "private-service-connection"

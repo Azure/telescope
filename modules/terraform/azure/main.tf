@@ -234,7 +234,7 @@ module "privateendpoint" {
   pe_name                = var.pe_config.pe_name
   resource_group_name    = module.resource_group_name
   location               = local.region
-  pe_subnet_name         = local.all_subnets[var.pe_config.pe_subnet_name]
+  pe_subnet_id         = local.all_subnets[var.pe_config.pe_subnet_name]
 
   psc_config = psc_config == null? null : {
     name                           = var.psc_name
