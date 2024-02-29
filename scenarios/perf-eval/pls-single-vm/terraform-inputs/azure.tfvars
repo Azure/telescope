@@ -86,6 +86,6 @@ pe_config = {
   pe_subnet_name = "same-subnet"
 
   psc_config = {
-    name = "private-service-connection"
+    psc_name = "private-service-connection"
   }
 }
