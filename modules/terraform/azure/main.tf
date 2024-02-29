@@ -186,7 +186,7 @@ resource "random_string" "storage_account_random_suffix" {
   override_special = "_-"
 }
 
-resource "private_endpoint" {
+resource "azurerm_private_endpoint" "pe_config" {
   pe_name                = var.pe_config.pe_name
   resource_group_name    = local.run_id
   location               = local.region
