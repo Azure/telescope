@@ -1,4 +1,4 @@
-# create private endpoint 
+# create private endpoint for storage account connection
 
 resource "azurerm_private_endpoint" "pe" {
   name                = var.pe_name

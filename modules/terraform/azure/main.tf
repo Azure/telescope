@@ -235,5 +235,7 @@ module "private_endpoint" {
   pe_name                = var.pe_config.pe_name
   pe_subnet_id           = var.pe_config.pe_subnet_name
 
-  psc_name               = var.private_service_connection.name
+  private_service_connection = {
+    name = var.psc_name
+  }
 }
