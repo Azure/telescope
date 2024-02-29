@@ -124,6 +124,18 @@ run_iperf2() {
   run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $privatekey_path $server_public_ip_address $result_dir
 }
 
+run_iperf2_tcp() {
+  local destination_ip_address=$1
+  local client_public_ip_address=$2
+  local tcp_mode=$3
+  local privatekey_path=$4
+  local server_public_ip_address=$5
+  local result_dir=$6
+
+  mkdir -p $result_dir
+  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
+}
+
 collect_result_iperf3() {
   local result_dir=$1
   local egress_ip_address=$2

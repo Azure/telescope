@@ -5,7 +5,7 @@ variable "json_input" {
     run_id                    = string
     region                    = string
     machine_type              = string
-    zone                      = string
+    public_key_path           = string
     user_data_path            = optional(string)
     data_disk_volume_type     = optional(string)
     data_disk_size_gb         = optional(number)
@@ -49,7 +49,7 @@ variable "network_config_list" {
     subnet = list(object({
       name        = string
       cidr_block  = string
-      zone_suffix = optional(string, "a")
+      zone_suffix = string
     }))
     security_group_name    = string
     route_table_cidr_block = string
@@ -78,6 +78,7 @@ variable "loadbalancer_config_list" {
     vpc_name           = string
     subnet_name        = string
     load_balancer_type = string
+    is_internal_lb     = optional(bool, false)
     lb_target_group = list(object({
       role       = string
       tg_suffix  = string
@@ -110,11 +111,19 @@ variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
     vm_name                     = string
-    zone_suffix                 = optional(string, "a")
+    zone_suffix                 = string
     role                        = string
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+
+    ami_config = optional(object({
+      most_recent         = bool
+      name                = string
+      virtualization_type = string
+      architecture        = string
+      owners              = list(string)
+    }))
   }))
   default = []
 }
@@ -129,4 +138,16 @@ variable "efs_name_prefix" {
   description = "Value of the bucket name prefix"
   type        = string
   default     = ""
+}
+
+variable "private_link_conf" {
+  description = "configuration for private link"
+  type = object({
+    service_lb_role = string
+
+    client_vpc_name            = string
+    client_subnet_name         = string
+    client_security_group_name = string
+  })
+  default = null
 }

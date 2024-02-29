@@ -32,49 +32,41 @@ run_fio_on_remote_vm() {
   local command="sudo df -hT $mount_point"
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
 
-  # prepare files for fio, when the method is/has read, we need to create a file before that
-  local file_size="1G"
-  local file_path="/${mount_point}/benchtest"
-  local command="sudo dd if=/dev/zero of=$file_path bs=$file_size count=1"
-  echo "Run command: $command"
-  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
-  local command="sudo ls -l $file_path"
-  echo "Run command: $command"
-  run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command"
-  sleep 30 # wait to clean any potential throttle / cache
+  local file_size=$((10*1024*1024*1024))
 
-  local methods=("randread" "randrw" "read" "rw")
-  # temporary disable rw for case common_s3_bucket, we have problem with rw right now, error:
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Transport endpoint is not connected: write offset=24621056, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Software caused connection abort: read offset=24285184, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Software caused connection abort: write offset=23252992, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Transport endpoint is not connected: write offset=25751552, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Transport endpoint is not connected: write offset=24768512, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Transport endpoint is not connected: write offset=24227840, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Transport endpoint is not connected: write offset=24907776, buflen=4096
-  # fio: io_u error on file //tmp/mnt/blob/benchtest: Transport endpoint is not connected: write offset=25550848, buflen=4096
-  # fio: pid=14694, err=107/file:io_u.c:1787, func=io_u error, error=Transport endpoint is not connected
-  # fio: pid=14701, err=103/file:io_u.c:1787, func=io_u error, error=Software caused connection abort
-  # fio: pid=14695, err=103/file:io_u.c:1787, func=io_u error, error=Software caused connection abort
-  # fio: pid=14698, err=107/file:io_u.c:1787, func=io_u error, error=Transport endpoint is not connected
-  # fio: pid=14700, err=107/file:io_u.c:1787, func=io_u error, error=Transport endpoint is not connected
-  # fio: pid=14697, err=107/file:io_u.c:1787, func=io_u error, error=Transport endpoint is not connected
-  # fio: pid=14699, err=107/file:io_u.c:1787, func=io_u error, error=Transport endpoint is not connected
-  # fio: pid=14696, err=107/file:io_u.c:1787, func=io_u error, error=Transport endpoint is not connected
-  if [ "$CASE_NAME" == "common_s3_bucket" ]; then
-    methods=("randread" "randrw" "read")
-  fi
+  local file_path="${mount_point}/benchtest"
+
+  local methods=("randread" "read" "randwrite" "write")
+  local iodepths=(1 4 8 16)
+  local blocksizes=("4k" "256k")
 
   echo "Run fio"
 
   set +x # disable debug output because it will mess up the output of fio
   for method in "${methods[@]}"
   do
-    local command="sudo fio --name=benchtest --size=800m --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=4k --iodepth=16 --numjobs=8 --time_based --runtime=60 --output-format=json --group_reporting"
-    echo "Run command: $command"
-    run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command" | tee $result_dir/fio-${method}.log
-    sleep 30 # wait to clean any potential throttle / cache
+    for iodepth in "${iodepths[@]}"
+    do
+      for bs in "${blocksizes[@]}"
+      do
+        metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\"}"
+        echo "$metadata_json" > $result_dir/metadata-${method}-${iodepth}-${bs}.log
+        local command="sudo fio --name=benchtest --size=$file_size --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=$bs --iodepth=$iodepth --time_based --runtime=60 --output-format=json"
+
+        # prepare files for the actual run using fio option --create_only=1
+        setup_command="${command} --create_only=1"
+        echo "Run command: $setup_command"
+        run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$setup_command"
+        sleep 30 # wait to clean any potential throttle / cache
+
+        # execute the actual run for metrics collection
+        echo "Run command: $command"
+        run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command" | tee $result_dir/fio-${method}-${iodepth}-${bs}.log
+        sleep 30 # wait to clean any potential throttle / cache
+      done
+    done
   done
+
   if $DEBUG; then # re-enable debug output if DEBUG is set
     set -x
   fi
@@ -87,73 +79,102 @@ collect_result_disk_fio() {
 
   echo "collecting fio results from $result_dir/fio-*.log"
 
-  local methods=("randread" "randrw" "read" "rw")
+  local methods=("randread" "read" "randwrite" "write")
+  local iodepths=(1 4 8 16)
+  local blocksizes=("4k" "256k")
 
   # TODO(@guwe): add pricing
   DATA_DISK_PRICE_PER_MONTH="${DATA_DISK_PRICE_PER_MONTH:=0}"
 
   for method in "${methods[@]}"
   do
-    result="$result_dir/fio-${method}.log"
-    echo "========= collecting ${result} ==========="
-    cat $result
+    for iodepth in "${iodepths[@]}"
+    do
+      for bs in "${blocksizes[@]}"
+      do
+        metadata="$(cat $result_dir/metadata-${method}-${iodepth}-${bs}.log)"
+        result="$result_dir/fio-${method}-${iodepth}-${bs}.log"
+        echo "========= collecting ${result} ==========="
+        cat $result
 
-    read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
-    read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
-    read_lat_avg=$(cat $result | jq '.jobs[0].read.lat_ns.mean')
-    write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
-    write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
-    write_lat_avg=$(cat $result | jq '.jobs[0].write.lat_ns.mean')
+        read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
+        read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+        read_lat_avg=$(cat $result | jq '.jobs[0].read.clat_ns.mean')
+        write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
+        write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+        write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
+        read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
+        read_lat_p99=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.000000"')
+        read_lat_p999=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.900000"')
+        write_lat_p50=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."50.000000"')
+        write_lat_p99=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.000000"')
+        write_lat_p999=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.900000"')
 
-    data=$(jq --null-input \
-      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-      --arg method "$method" \
-      --arg location "$REGION" \
-      --arg vm_size "$MACHINE_TYPE" \
-      --arg run_url "$run_link" \
-      --arg cloud "$CLOUD" \
-      --arg target_iops "$TARGET_IOPS" \
-      --arg case_name "$CASE_NAME" \
-      --arg data_disk_type "$DATA_DISK_TYPE" \
-      --arg data_disk_size "$DATA_DISK_SIZE_GB" \
-      --arg data_disk_tier "$DATA_DISK_TIER" \
-      --arg data_disk_iops_rw "$DATA_DISK_IOPS_READ_WRITE" \
-      --arg data_disk_iops_r "$DATA_DISK_IOPS_READ_ONLY" \
-      --arg data_disk_mbps_rw "$DATA_DISK_MBPS_READ_WRITE" \
-      --arg data_disk_mbps_r "$DATA_DISK_MBPS_READ_ONLY" \
-      --arg data_disk_price_per_month "$DATA_DISK_PRICE_PER_MONTH" \
-      --arg read_iops_avg "$read_iops_avg" \
-      --arg read_bw_avg "$read_bw_avg" \
-      --arg read_lat_avg "$read_lat_avg" \
-      --arg write_iops_avg "$write_iops_avg" \
-      --arg write_bw_avg "$write_bw_avg" \
-      --arg write_lat_avg "$write_lat_avg" \
-      '{
-        timestamp: $timestamp,
-        method: $method,
-        location: $location,
-        vm_size: $vm_size,
-        run_url: $run_url,
-        cloud: $cloud,
-        target_iops: $target_iops,
-        case_name: $case_name,
-        data_disk_type: $data_disk_type,
-        data_disk_size: $data_disk_size,
-        data_disk_tier: $data_disk_tier,
-        data_disk_iops_rw: $data_disk_iops_rw,
-        data_disk_iops_r: $data_disk_iops_r,
-        data_disk_mbps_rw: $data_disk_mbps_rw,
-        data_disk_mbps_r: $data_disk_mbps_r,
-        data_disk_price_per_month: $data_disk_price_per_month,
-        read_iops_avg: $read_iops_avg,
-        read_bw_avg: $read_bw_avg,
-        read_lat_avg: $read_lat_avg,
-        write_iops_avg: $write_iops_avg,
-        write_bw_avg: $write_bw_avg,
-        write_lat_avg: $write_lat_avg
-      }')
+        data=$(jq --null-input \
+          --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+          --arg method "${method}" \
+          --arg location "$REGION" \
+          --arg vm_size "$MACHINE_TYPE" \
+          --arg run_url "$run_link" \
+          --arg cloud "$CLOUD" \
+          --arg target_iops "$TARGET_IOPS" \
+          --arg case_name "$CASE_NAME" \
+          --arg data_disk_type "$DATA_DISK_TYPE" \
+          --arg data_disk_size "$DATA_DISK_SIZE_GB" \
+          --arg data_disk_tier "$DATA_DISK_TIER" \
+          --arg data_disk_iops_rw "$DATA_DISK_IOPS_READ_WRITE" \
+          --arg data_disk_iops_r "$DATA_DISK_IOPS_READ_ONLY" \
+          --arg data_disk_mbps_rw "$DATA_DISK_MBPS_READ_WRITE" \
+          --arg data_disk_mbps_r "$DATA_DISK_MBPS_READ_ONLY" \
+          --arg data_disk_price_per_month "$DATA_DISK_PRICE_PER_MONTH" \
+          --arg read_iops_avg "$read_iops_avg" \
+          --arg read_bw_avg "$read_bw_avg" \
+          --arg read_lat_avg "$read_lat_avg" \
+          --arg write_iops_avg "$write_iops_avg" \
+          --arg write_bw_avg "$write_bw_avg" \
+          --arg write_lat_avg "$write_lat_avg" \
+          --arg read_lat_p50 "$read_lat_p50" \
+          --arg read_lat_p99 "$read_lat_p99" \
+          --arg read_lat_p999 "$read_lat_p999" \
+          --arg write_lat_p50 "$write_lat_p50" \
+          --arg write_lat_p99 "$write_lat_p99" \
+          --arg write_lat_p999 "$write_lat_p999" \
+          --arg metadata "$metadata" \
+          '{
+            timestamp: $timestamp,
+            method: $method,
+            location: $location,
+            vm_size: $vm_size,
+            run_url: $run_url,
+            cloud: $cloud,
+            target_iops: $target_iops,
+            case_name: $case_name,
+            data_disk_type: $data_disk_type,
+            data_disk_size: $data_disk_size,
+            data_disk_tier: $data_disk_tier,
+            data_disk_iops_rw: $data_disk_iops_rw,
+            data_disk_iops_r: $data_disk_iops_r,
+            data_disk_mbps_rw: $data_disk_mbps_rw,
+            data_disk_mbps_r: $data_disk_mbps_r,
+            data_disk_price_per_month: $data_disk_price_per_month,
+            read_iops_avg: $read_iops_avg,
+            read_bw_avg: $read_bw_avg,
+            read_lat_avg: $read_lat_avg,
+            write_iops_avg: $write_iops_avg,
+            write_bw_avg: $write_bw_avg,
+            write_lat_avg: $write_lat_avg,
+            read_lat_p50: $read_lat_p50,
+            read_lat_p99: $read_lat_p99,
+            read_lat_p999: $read_lat_p999,
+            write_lat_p50: $write_lat_p50,
+            write_lat_p99: $write_lat_p99,
+            write_lat_p999: $write_lat_p999,
+            metadata: $metadata
+          }')
 
-    echo $data >> $result_dir/results.json
+        echo $data >> $result_dir/results.json
+      done
+    done
   done
 }
 
@@ -163,62 +184,81 @@ collect_result_blob_fio() {
 
   echo "collecting fio results from $result_dir/fio-*.log"
 
-  local methods=("randread" "randrw" "read" "rw")
-  # temporary disable rw for case common_s3_bucket, we have problem with rw right now
-  if [ "$CASE_NAME" == "common_s3_bucket" ]; then
-    methods=("randread" "randrw" "read")
-  fi
+  local methods=("randread" "read" "randwrite" "write")
+  local iodepths=(1 4 8 16)
+  local blocksizes=("4k" "256k")
 
   for method in "${methods[@]}"
   do
-    result="$result_dir/fio-${method}.log"
-    echo "========= collecting ${result} ==========="
-    cat $result
+    for iodepth in "${iodepths[@]}"
+    do
+      for bs in "${blocksizes[@]}"
+      do
+        metadata="$(cat $result_dir/metadata-${method}-${iodepth}-${bs}.log)"
+        result="$result_dir/fio-${method}-${iodepth}-${bs}.log"
+        echo "========= collecting ${result} ==========="
+        cat $result
 
-    read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
-    read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
-    read_lat_avg=$(cat $result | jq '.jobs[0].read.lat_ns.mean')
-    write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
-    write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
-    write_lat_avg=$(cat $result | jq '.jobs[0].write.lat_ns.mean')
+        read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
+        read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+        read_lat_avg=$(cat $result | jq '.jobs[0].read.clat_ns.mean')
+        write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
+        write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+        write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
 
-    data=$(jq --null-input \
-      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-      --arg method "$method" \
-      --arg location "$REGION" \
-      --arg vm_size "$MACHINE_TYPE" \
-      --arg run_url "$run_link" \
-      --arg cloud "$CLOUD" \
-      --arg case_name "$CASE_NAME" \
-      --arg storage_tier "$STORAGE_TIER" \
-      --arg storage_kind "$STORAGE_KIND" \
-      --arg storage_replication "$STORAGE_REPLICATION" \
-      --arg read_iops_avg "$read_iops_avg" \
-      --arg read_bw_avg "$read_bw_avg" \
-      --arg read_lat_avg "$read_lat_avg" \
-      --arg write_iops_avg "$write_iops_avg" \
-      --arg write_bw_avg "$write_bw_avg" \
-      --arg write_lat_avg "$write_lat_avg" \
-      '{
-        timestamp: $timestamp,
-        method: $method,
-        location: $location,
-        vm_size: $vm_size,
-        run_url: $run_url,
-        cloud: $cloud,
-        case_name: $case_name,
-        storage_tier: $storage_tier,
-        storage_kind: $storage_kind,
-        storage_replication: $storage_replication,
-        read_iops_avg: $read_iops_avg,
-        read_bw_avg: $read_bw_avg,
-        read_lat_avg: $read_lat_avg,
-        write_iops_avg: $write_iops_avg,
-        write_bw_avg: $write_bw_avg,
-        write_lat_avg: $write_lat_avg
-      }')
+        data=$(jq --null-input \
+          --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+          --arg method "$method" \
+          --arg location "$REGION" \
+          --arg vm_size "$MACHINE_TYPE" \
+          --arg run_url "$run_link" \
+          --arg cloud "$CLOUD" \
+          --arg case_name "$CASE_NAME" \
+          --arg storage_tier "$STORAGE_TIER" \
+          --arg storage_kind "$STORAGE_KIND" \
+          --arg storage_replication "$STORAGE_REPLICATION" \
+          --arg read_iops_avg "$read_iops_avg" \
+          --arg read_bw_avg "$read_bw_avg" \
+          --arg read_lat_avg "$read_lat_avg" \
+          --arg write_iops_avg "$write_iops_avg" \
+          --arg write_bw_avg "$write_bw_avg" \
+          --arg write_lat_avg "$write_lat_avg" \
+          --arg read_lat_p50 "$read_lat_p50" \
+          --arg read_lat_p99 "$read_lat_p99" \
+          --arg read_lat_p999 "$read_lat_p999" \
+          --arg write_lat_p50 "$write_lat_p50" \
+          --arg write_lat_p99 "$write_lat_p99" \
+          --arg write_lat_p999 "$write_lat_p999" \
+          --arg metadata "$metadata" \
+          '{
+            timestamp: $timestamp,
+            method: $method,
+            location: $location,
+            vm_size: $vm_size,
+            run_url: $run_url,
+            cloud: $cloud,
+            case_name: $case_name,
+            storage_tier: $storage_tier,
+            storage_kind: $storage_kind,
+            storage_replication: $storage_replication,
+            read_iops_avg: $read_iops_avg,
+            read_bw_avg: $read_bw_avg,
+            read_lat_avg: $read_lat_avg,
+            write_iops_avg: $write_iops_avg,
+            write_bw_avg: $write_bw_avg,
+            write_lat_avg: $write_lat_avg,
+            read_lat_p50: $read_lat_p50,
+            read_lat_p99: $read_lat_p99,
+            read_lat_p999: $read_lat_p999,
+            write_lat_p50: $write_lat_p50,
+            write_lat_p99: $write_lat_p99,
+            write_lat_p999: $write_lat_p999,
+            metadata: $metadata
+          }')
 
-    echo $data >> $result_dir/results.json
+        echo $data >> $result_dir/results.json
+      done
+    done
   done
 }
 
@@ -237,62 +277,86 @@ collect_result_fileshare_fio() {
 
   echo "collecting fio results from $result_dir/fio-*.log"
 
-  local methods=("randread" "randrw" "read" "rw")
+  local methods=("randread" "read" "randwrite" "write")
+  local iodepths=(1 4 8 16)
+  local blocksizes=("4k" "256k")
+
   for method in "${methods[@]}"
   do
-    result="$result_dir/fio-${method}.log"
-    echo "========= collecting ${result} ==========="
-    cat $result
+    for iodepth in "${iodepths[@]}"
+    do
+      for bs in "${blocksizes[@]}"
+      do
+        metadata="$(cat $result_dir/metadata-${method}-${iodepth}-${bs}.log)"
+        result="$result_dir/fio-${method}-${iodepth}-${bs}.log"
+        echo "========= collecting ${result} ==========="
+        cat $result
 
-    read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
-    read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
-    read_lat_avg=$(cat $result | jq '.jobs[0].read.lat_ns.mean')
-    write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
-    write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
-    write_lat_avg=$(cat $result | jq '.jobs[0].write.lat_ns.mean')
+        read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
+        read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+        read_lat_avg=$(cat $result | jq '.jobs[0].read.clat_ns.mean')
+        write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
+        write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+        write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
 
-    data=$(jq --null-input \
-      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-      --arg method "$method" \
-      --arg location "$REGION" \
-      --arg vm_size "$MACHINE_TYPE" \
-      --arg run_url "$run_link" \
-      --arg cloud "$CLOUD" \
-      --arg case_name "$CASE_NAME" \
-      --arg storage_tier "$STORAGE_TIER" \
-      --arg storage_kind "$STORAGE_KIND" \
-      --arg storage_replication "$STORAGE_REPLICATION" \
-      --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
-      --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
-      --arg read_iops_avg "$read_iops_avg" \
-      --arg read_bw_avg "$read_bw_avg" \
-      --arg read_lat_avg "$read_lat_avg" \
-      --arg write_iops_avg "$write_iops_avg" \
-      --arg write_bw_avg "$write_bw_avg" \
-      --arg write_lat_avg "$write_lat_avg" \
-      --arg small_file_rw "$small_file_rw" \
-      '{
-        timestamp: $timestamp,
-        method: $method,
-        location: $location,
-        vm_size: $vm_size,
-        run_url: $run_url,
-        cloud: $cloud,
-        case_name: $case_name,
-        storage_tier: $storage_tier,
-        storage_kind: $storage_kind,
-        storage_replication: $storage_replication,
-        storage_share_quota: $storage_share_quota,
-        storage_share_enabled_protocol: $storage_share_enabled_protocol,
-        read_iops_avg: $read_iops_avg,
-        read_bw_avg: $read_bw_avg,
-        read_lat_avg: $read_lat_avg,
-        write_iops_avg: $write_iops_avg,
-        write_bw_avg: $write_bw_avg,
-        write_lat_avg: $write_lat_avg,
-        small_file_rw: $small_file_rw
-      }')
+        data=$(jq --null-input \
+          --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+          --arg method "$method" \
+          --arg location "$REGION" \
+          --arg vm_size "$MACHINE_TYPE" \
+          --arg run_url "$run_link" \
+          --arg cloud "$CLOUD" \
+          --arg case_name "$CASE_NAME" \
+          --arg storage_tier "$STORAGE_TIER" \
+          --arg storage_kind "$STORAGE_KIND" \
+          --arg storage_replication "$STORAGE_REPLICATION" \
+          --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
+          --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
+          --arg read_iops_avg "$read_iops_avg" \
+          --arg read_bw_avg "$read_bw_avg" \
+          --arg read_lat_avg "$read_lat_avg" \
+          --arg write_iops_avg "$write_iops_avg" \
+          --arg write_bw_avg "$write_bw_avg" \
+          --arg write_lat_avg "$write_lat_avg" \
+          --arg small_file_rw "$small_file_rw" \
+          --arg read_lat_p50 "$read_lat_p50" \
+          --arg read_lat_p99 "$read_lat_p99" \
+          --arg read_lat_p999 "$read_lat_p999" \
+          --arg write_lat_p50 "$write_lat_p50" \
+          --arg write_lat_p99 "$write_lat_p99" \
+          --arg write_lat_p999 "$write_lat_p999" \
+          --arg metadata "$metadata" \
+          '{
+            timestamp: $timestamp,
+            method: $method,
+            location: $location,
+            vm_size: $vm_size,
+            run_url: $run_url,
+            cloud: $cloud,
+            case_name: $case_name,
+            storage_tier: $storage_tier,
+            storage_kind: $storage_kind,
+            storage_replication: $storage_replication,
+            storage_share_quota: $storage_share_quota,
+            storage_share_enabled_protocol: $storage_share_enabled_protocol,
+            read_iops_avg: $read_iops_avg,
+            read_bw_avg: $read_bw_avg,
+            read_lat_avg: $read_lat_avg,
+            write_iops_avg: $write_iops_avg,
+            write_bw_avg: $write_bw_avg,
+            write_lat_avg: $write_lat_avg,
+            small_file_rw: $small_file_rw,
+            read_lat_p50: $read_lat_p50,
+            read_lat_p99: $read_lat_p99,
+            read_lat_p999: $read_lat_p999,
+            write_lat_p50: $write_lat_p50,
+            write_lat_p99: $write_lat_p99,
+            write_lat_p999: $write_lat_p999,
+            metadata: $metadata
+          }')
 
-    echo $data >> $result_dir/results.json
+        echo $data >> $result_dir/results.json
+      done
+    done
   done
 }
