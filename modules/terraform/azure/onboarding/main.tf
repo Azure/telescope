@@ -69,6 +69,12 @@ resource "azurerm_eventhub" "eventhub" {
   message_retention   = 7
 }
 
+resource "azurerm_role_assignment" "eventhub_role_assignment" {
+  scope                = azurerm_eventhub.eventhub.id
+  role_definition_name = "Azure Event Hubs Data Receiver"
+  principal_id         = data.azurerm_kusto_cluster.cluster.identity[0].principal_id
+}
+
 resource "azurerm_eventhub_consumer_group" "consumer_group" {
   name                = "default"
   namespace_name      = tobool(var.json_input.create_eventhub_namespace) ? azurerm_eventhub_namespace.eventhub_ns[0].name : data.azurerm_eventhub_namespace.eventhub_ns[0].name
