@@ -237,7 +237,7 @@ module "private_endpoint" {
 
   private_service_connection = {
     name                           = var.pe_config.psc_name
-    private_connection_resource_id = var.storage_account_name
+    private_connection_resource_id = local.storage_account_name
     is_manual_connection           = false
     subresource_names              = ["blob"]
   }
