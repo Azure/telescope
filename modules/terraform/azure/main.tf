@@ -192,12 +192,12 @@ resource "azurerm_private_endpoint" "pe_config" {
   location               = local.region
   subnet_id              = local.all_subnets[var.pe_config.pe_subnet_name]
 
-  private_service_connection = object({
+  private_service_connection = {
     name                           = var.psc_config.name
     is_manual_connection           = false
     private_connection_resource_id = local.storage_account_name
     subresource_names              = ["blob"]
-  })
+  }
 }
 
 module "storage_account" {
