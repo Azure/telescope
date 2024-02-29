@@ -4,6 +4,7 @@ locals {
   aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
+  public_key_path                  = lookup(var.json_input, "public_key_path", "")
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
   data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
   data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")
@@ -48,24 +49,13 @@ provider "azurerm" {
   features {}
 }
 
-resource "tls_private_key" "admin-ssh-key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-module "resource_group" {
-  source              = "./resource-group"
-  resource_group_name = local.run_id
-  location            = local.region
-  tags                = local.tags
-}
-
 module "public_ips" {
-  source              = "./public-ip"
-  resource_group_name = module.resource_group.name
-  location            = local.region
-  public_ip_names     = var.public_ip_names
-  tags                = local.tags
+  source                = "./public-ip"
+  resource_group_name   = local.run_id
+  location              = local.region
+  public_ip_config_list = var.public_ip_config_list
+  tags                  = local.tags
+
 }
 
 module "virtual_network" {
@@ -73,7 +63,7 @@ module "virtual_network" {
 
   source                 = "./network"
   network_config         = each.value
-  resource_group_name    = module.resource_group.name
+  resource_group_name    = local.run_id
   location               = local.region
   accelerated_networking = local.accelerated_networking
   public_ips             = module.public_ips.pip_ids
@@ -84,7 +74,7 @@ module "aks" {
   for_each = local.aks_config_map
 
   source              = "./aks"
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   vm_sku              = local.aks_machine_type
   subnet_id           = local.all_subnets[each.value.subnet_name]
@@ -97,7 +87,7 @@ module "load_balancer" {
   for_each = local.loadbalancer_config_map
 
   source              = "./load-balancer"
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   loadbalancer_config = each.value
   public_ip_id        = each.value.public_ip_name == null ? null : module.public_ips.pip_ids[each.value.public_ip_name]
@@ -111,7 +101,7 @@ module "appgateway" {
 
   source              = "./app-gateway"
   appgateway_config   = each.value
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   subnet_id           = local.all_subnets[each.value.subnet_name]
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
@@ -122,7 +112,7 @@ module "data_disk" {
   for_each = local.data_disk_config_map
 
   source                         = "./data-disk"
-  resource_group_name            = module.resource_group.name
+  resource_group_name            = local.run_id
   location                       = local.region
   data_disk_name                 = each.value.disk_name
   tags                           = local.tags
@@ -141,12 +131,12 @@ module "virtual_machine" {
 
   source              = "./virtual-machine"
   name                = each.value.vm_name
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   vm_sku              = local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
   vm_config           = each.value
-  public_key          = tls_private_key.admin-ssh-key.public_key_openssh
+  public_key          = file(local.public_key_path)
   user_data_path      = local.user_data_path
   tags                = local.tags
   ultra_ssd_enabled   = local.ultra_ssd_enabled
@@ -157,14 +147,14 @@ module "virtual_machine_scale_set" {
 
   source                = "./virtual-machine-scale-set"
   name                  = each.value.vmss_name
-  resource_group_name   = module.resource_group.name
+  resource_group_name   = local.run_id
   location              = local.region
   vm_sku                = local.machine_type
   subnet_id             = local.all_subnets[each.value.subnet_name]
   lb_pool_id            = local.all_loadbalancer_backend_address_pools[each.value.loadbalancer_pool_name]
   ip_configuration_name = each.value.ip_configuration_name
   vmss_config           = each.value
-  public_key            = tls_private_key.admin-ssh-key.public_key_openssh
+  public_key            = file(local.public_key_path)
   user_data_path        = local.user_data_path
   tags                  = local.tags
 }
@@ -186,12 +176,6 @@ resource "azurerm_virtual_machine_data_disk_attachment" "disk-association" {
   caching            = (local.data_disk_caching == null || local.data_disk_caching == "") ? "ReadOnly" : local.data_disk_caching
 }
 
-resource "local_file" "ssh-private-key" {
-  content         = tls_private_key.admin-ssh-key.private_key_pem
-  filename        = "${path.module}/private_key.pem"
-  file_permission = "0600"
-}
-
 resource "random_string" "storage_account_random_suffix" {
   count            = var.storage_account_name_prefix != null ? 1 : 0
   length           = 8
@@ -207,7 +191,7 @@ module "storage_account" {
 
   count                            = var.storage_account_name_prefix != null ? 1 : 0
   storage_account_name             = "${var.storage_account_name_prefix}${random_string.storage_account_random_suffix[0].result}"
-  resource_group_name              = module.resource_group.name
+  resource_group_name              = local.run_id
   location                         = local.region
   storage_account_tier             = local.storage_account_tier
   storage_account_kind             = local.storage_account_kind
@@ -229,7 +213,7 @@ module "privatelink" {
 
   count = var.private_link_conf == null ? 0 : 1
 
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
 
   pls_name       = var.private_link_conf.pls_name

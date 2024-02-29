@@ -1,8 +1,8 @@
 locals {
   region                    = lookup(var.json_input, "region", "us-east-1")
-  zone                      = lookup(var.json_input, "zone", "us-east-1b")
   machine_type              = lookup(var.json_input, "machine_type", "m5.4xlarge")
   run_id                    = lookup(var.json_input, "run_id", "123456")
+  public_key_path           = lookup(var.json_input, "public_key_path", "")
   user_data_path            = lookup(var.json_input, "user_data_path", "")
   data_disk_size_gb         = lookup(var.json_input, "data_disk_size_gb", null)
   data_disk_volume_type     = lookup(var.json_input, "data_disk_volume_type", "")
@@ -24,29 +24,17 @@ locals {
   network_config_map      = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   vm_config_map           = { for vm in var.vm_config_list : vm.vm_name => vm }
+
+  all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
 }
 
 provider "aws" {
   region = local.region
 }
 
-resource "tls_private_key" "admin_ssh_key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-resource "local_file" "ssh_private_key" {
-  content  = tls_private_key.admin_ssh_key.private_key_pem
-  filename = "private_key.pem"
-
-  provisioner "local-exec" {
-    command = "chmod 600 private_key.pem"
-  }
-}
-
 resource "aws_key_pair" "admin_key_pair" {
-  key_name   = "admin-key-pair-${local.run_id}"
-  public_key = tls_private_key.admin_ssh_key.public_key_openssh
+  key_name   = "admin-key-pair-${local.run_id}-${terraform.workspace}"
+  public_key = file(local.public_key_path)
   tags       = local.tags
 }
 
@@ -55,7 +43,7 @@ module "virtual_network" {
 
   source         = "./virtual-network"
   network_config = each.value
-  zone           = local.zone
+  region         = local.region
   tags           = local.tags
 }
 
@@ -77,7 +65,7 @@ module "virtual_machine" {
   machine_type        = local.machine_type
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
-  zone                = local.zone
+  region              = local.region
 }
 
 module "load_balancer" {
@@ -109,4 +97,18 @@ module "efs" {
   throughput_mode                 = local.efs_throughput_mode
   provisioned_throughput_in_mibps = local.efs_provisioned_throughput_in_mibps
   tags                            = local.tags
+}
+
+module "privatelink" {
+  source = "./private-link"
+
+  count                      = var.private_link_conf == null ? 0 : 1
+  run_id                     = local.run_id
+  client_vpc_name            = var.private_link_conf.client_vpc_name
+  client_subnet_name         = var.private_link_conf.client_subnet_name
+  client_security_group_name = var.private_link_conf.client_security_group_name
+  service_lb_arn             = local.all_lb_arns[var.private_link_conf.service_lb_role]
+  tags                       = local.tags
+
+  depends_on = [module.load_balancer]
 }

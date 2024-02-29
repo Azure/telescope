@@ -10,10 +10,14 @@ variable "location" {
   default     = "East US"
 }
 
-variable "public_ip_names" {
-  description = "A list of public IP names"
-  type        = list(string)
-  default     = ["client-pip", "server-pip"]
+variable "public_ip_config_list" {
+  description = "Configuration for public Ip's."
+  type = list(object({
+    name              = string
+    allocation_method = optional(string, "Static")
+    sku               = optional(string, "Standard")
+    zones             = optional(list(string), [])
+  }))
 }
 
 variable "tags" {

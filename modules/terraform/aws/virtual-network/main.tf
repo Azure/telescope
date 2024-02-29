@@ -2,12 +2,10 @@ locals {
   ingress_sg_rules_map = { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
   egress_sg_rules_map  = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
   vpc_name             = var.network_config.vpc_name
-  subnet_names         = var.network_config.subnet_names
-  subnet_cidr_blocks   = var.network_config.subnet_cidr_block
+  subnet_map           = { for subnet in var.network_config.subnet : subnet.name => subnet }
   security_group_name  = var.network_config.security_group_name
   tags                 = merge(var.tags, { "role" = var.network_config.role })
 }
-
 
 resource "aws_vpc" "vpc" {
   cidr_block = var.network_config.vpc_cidr_block
@@ -18,15 +16,15 @@ resource "aws_vpc" "vpc" {
 }
 
 resource "aws_subnet" "subnets" {
-  count = length(local.subnet_names)
+  for_each = local.subnet_map
 
   vpc_id     = aws_vpc.vpc.id
-  cidr_block = local.subnet_cidr_blocks[count.index]
+  cidr_block = each.value.cidr_block
 
-  availability_zone = var.zone
+  availability_zone = "${var.region}${each.value.zone_suffix}"
 
   tags = merge(local.tags, {
-    "Name" = local.subnet_names[count.index]
+    "Name" = each.value.name
   })
 }
 
@@ -82,8 +80,8 @@ resource "aws_route_table" "route_table" {
 }
 
 resource "aws_route_table_association" "route_table_association" {
-  count = length(local.subnet_names)
+  for_each = local.subnet_map
 
-  subnet_id      = aws_subnet.subnets[count.index].id
+  subnet_id      = aws_subnet.subnets[each.key].id
   route_table_id = aws_route_table.route_table.id
 }

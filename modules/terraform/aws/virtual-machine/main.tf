@@ -1,17 +1,22 @@
 data "aws_ami" "ubuntu" {
-  most_recent = true
+  most_recent = var.vm_config.ami_config.most_recent
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+    values = ["${var.vm_config.ami_config.name}"]
   }
 
   filter {
     name   = "virtualization-type"
-    values = ["hvm"]
+    values = ["${var.vm_config.ami_config.virtualization_type}"]
   }
 
-  owners = ["099720109477"] # Canonical
+  filter {
+    name   = "architecture"
+    values = ["${var.vm_config.ami_config.architecture}"]
+  }
+
+  owners = var.vm_config.ami_config.owners
 }
 
 data "aws_security_group" "security_group" {
@@ -39,10 +44,10 @@ data "aws_subnet" "subnet" {
 }
 
 resource "aws_instance" "vm" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.machine_type
-
-  subnet_id = data.aws_subnet.subnet.id
+  ami               = data.aws_ami.ubuntu.id
+  instance_type     = var.machine_type
+  availability_zone = "${var.region}${var.vm_config.zone_suffix}"
+  subnet_id         = data.aws_subnet.subnet.id
 
   vpc_security_group_ids = [data.aws_security_group.security_group.id]
 
@@ -61,7 +66,7 @@ resource "aws_instance" "vm" {
 resource "aws_ebs_volume" "data_disk" {
   count = var.vm_config.data_disk_config == null ? 0 : 1
 
-  availability_zone = var.zone
+  availability_zone = "${var.region}${var.vm_config.zone_suffix}"
 
   size       = var.vm_config.data_disk_config.data_disk_size_gb
   type       = var.vm_config.data_disk_config.data_disk_volume_type

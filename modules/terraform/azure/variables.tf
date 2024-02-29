@@ -5,6 +5,7 @@ variable "json_input" {
     run_id                           = string
     region                           = string
     machine_type                     = string
+    public_key_path                  = string
     aks_machine_type                 = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
@@ -44,23 +45,30 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
-variable "public_ip_names" {
+variable "public_ip_config_list" {
   description = "A list of public IP names"
-  type        = list(string)
-  default     = []
+  type = list(object({
+    name              = string
+    allocation_method = optional(string, "Static")
+    sku               = optional(string, "Standard")
+    zones             = optional(list(string), [])
+  }))
+  default = []
 }
 
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    role                         = string
-    vnet_name                    = string
-    vnet_address_space           = string
-    subnet_names                 = list(string)
-    subnet_address_prefixes      = list(string)
-    subnet_service_endpoints     = optional(list(string))
-    pls_network_policies_enabled = optional(bool)
-    network_security_group_name  = string
+    role               = string
+    vnet_name          = string
+    vnet_address_space = string
+    subnet = list(object({
+      name                         = string
+      address_prefix               = string
+      service_endpoints            = optional(list(string))
+      pls_network_policies_enabled = optional(bool)
+    }))
+    network_security_group_name = string
     nic_public_ip_associations = list(object({
       nic_name              = string
       subnet_name           = string
