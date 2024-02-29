@@ -278,8 +278,6 @@ variable "pe_config" {
     pe_name = string
     pe_subnet_name = string
 
-    psc_config = object({
-      name = string
-    })
+    psc_name = string
   })
 }
