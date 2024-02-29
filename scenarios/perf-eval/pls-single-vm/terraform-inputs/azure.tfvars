@@ -79,7 +79,7 @@ vm_config_list =[{
     create_vm_extension = true
 }]
 
-storage_account_name_prefix = plssinglevm
+storage_account_name_prefix = "plssinglevm"
 
 pe_config = {
   pe_name = "private-endpoint"
