@@ -271,3 +271,15 @@ variable "private_link_conf" {
   })
   default = null
 }
+
+variable "pe_config" {
+  description = "configuration for a private endpoint"
+  type = object({
+    pe_name = string
+    pe_subnet_name = string
+
+    psc_config = object({
+      name = string
+    })
+  })
+}
