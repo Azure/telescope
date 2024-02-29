@@ -26,12 +26,8 @@ variable "pe_subnet_id" {
 }
 
 
-variable "private_service_connection" {
-  description = "Configuration for the private endpoint using a storage account"
-  type = object({
-    name                           = string
-    private_connection_resource_id = string
-    is_manual_connection           = bool
-    subresource_names              = list(string)
-  })
+variable "psc_name" {
+  description = "name of the private service connection"
+  type        = string
+  default     = ""
 }
