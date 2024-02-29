@@ -29,9 +29,9 @@ variable "pe_subnet_id" {
 variable "psc_config" {
   description = "Configuration for the private endpoint using a storage account"
   type = object({
-    name                           = var.pe_name
-    private_connection_resource_id = var.storage_account_name
-    is_manual_connection           = false
-    subresource_names = ["blob"]
+    name                           = string
+    private_connection_resource_id = string
+    is_manual_connection           = bool
+    subresource_names              = list(string)
   })
 }
