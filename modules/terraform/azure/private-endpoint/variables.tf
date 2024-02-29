@@ -24,3 +24,9 @@ variable "pe_subnet_id" {
   type        = string
   default     = ""
 }
+
+variable "storage_account_name" {
+  description = "storage account name"
+  type        = string
+  default     = "0003plssinglevm"
+}
