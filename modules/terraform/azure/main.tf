@@ -186,20 +186,6 @@ resource "random_string" "storage_account_random_suffix" {
   override_special = "_-"
 }
 
-resource "azurerm_private_endpoint" "pe_config" {
-  name                   = var.pe_config.pe_name
-  resource_group_name    = local.run_id
-  location               = local.region
-  subnet_id              = var.pe_config.pe_subnet_name
-
-  private_service_connection {
-    name                           = var.pe_config.psc_name
-    is_manual_connection           = false
-    private_connection_resource_id = local.storage_account_name
-    subresource_names              = ["blob"]
-  }
-}
-
 module "storage_account" {
   source = "./storage-account"
 
@@ -238,4 +224,22 @@ module "privatelink" {
   pe_subnet_id = local.all_subnets[var.private_link_conf.pe_subnet_name]
 
   tags = local.tags
+}
+
+module "privateendpoint" {
+  source = "./private-endpoint"
+
+  count = var.pe_config == null ? 0 : 1
+
+  name                   = var.pe_config.pe_name
+  resource_group_name    = local.run_id
+  location               = local.region
+  subnet_id              = var.pe_config.pe_subnet_name
+
+  private_service_connection {
+    name                           = var.pe_config.psc_name
+    is_manual_connection           = false
+    private_connection_resource_id = local.storage_account_name
+    subresource_names              = ["blob"]
+  }
 }
