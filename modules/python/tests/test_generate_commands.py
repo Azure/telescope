@@ -8,7 +8,9 @@ class TestInferType(unittest.TestCase):
         self.assertEqual(infer_type('false'), 'bool')
 
     def test_infer_long(self):
-        self.assertEqual(infer_type('123'), 'long')
+        self.assertEqual(infer_type('123'), 'real')
+        self.assertEqual(infer_type('4.077777777777777777777'), 'real')
+        self.assertEqual(infer_type('92233720368547758088888'), 'real')
 
     def test_infer_dynamic(self):
         self.assertEqual(infer_type('{"key": "value"}'), 'dynamic')
@@ -27,16 +29,20 @@ class TestGenerateKustoCommands(unittest.TestCase):
             'column2': '123',
             'column3': '{"key": "value"}',
             'column4': '2022-01-01T12:00:00Z',
+            'column5': '4.077777777777777777777',
+            'column6': '92233720368547758088888',
         }
         table_name = 'test_table'
         expected_result = (
-            ".create table ['test_table'] (['column1']:string, ['column2']:long, "
-            "['column3']:dynamic, ['column4']:datetime)\n\n"
+            ".create table ['test_table'] (['column1']:string, ['column2']:real, "
+            "['column3']:dynamic, ['column4']:datetime, ['column5']:real, ['column6']:real)\n\n"
             ".create table ['test_table'] ingestion json mapping 'test_table_mapping' '["
             "{\"column\":\"column1\", \"Properties\":{\"Path\":\"$[\\'column1\\']\"}},"
             "{\"column\":\"column2\", \"Properties\":{\"Path\":\"$[\\'column2\\']\"}},"
             "{\"column\":\"column3\", \"Properties\":{\"Path\":\"$[\\'column3\\']\"}},"
-            "{\"column\":\"column4\", \"Properties\":{\"Path\":\"$[\\'column4\\']\"}}"
+            "{\"column\":\"column4\", \"Properties\":{\"Path\":\"$[\\'column4\\']\"}},"
+            "{\"column\":\"column5\", \"Properties\":{\"Path\":\"$[\\'column5\\']\"}},"
+            "{\"column\":\"column6\", \"Properties\":{\"Path\":\"$[\\'column6\\']\"}}"
             "]'"
         )
 
