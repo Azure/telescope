@@ -11,7 +11,7 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 ### Generate SSH public and Private key using SSH-Keygen
 ```
 CLOUD=azure
-ssh_key_path=modules/terraform/$CLOUD/private_key.pem
+ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```
@@ -76,7 +76,7 @@ INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
   --arg machine_type "$MACHINE_TYPE" \
-  --arg public_key_path: $SSH_PUBLIC_KEY_PATH \
+  --arg public_key_path $SSH_PUBLIC_KEY_PATH \
   --arg aks_machine_type "$AKS_MACHINE_TYPE" \
   --arg accelerated_networking "$ACCELERATED_NETWORKING" \
   --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
