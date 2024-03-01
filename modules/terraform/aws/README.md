@@ -11,7 +11,7 @@ This guide covers how to manually run Terraform for AWS. All commands should be 
 ### Generate SSH public and Private key using SSH-Keygen
 ```
 CLOUD=aws
-ssh_key_path=modules/terraform/$CLOUD/private_key.pem
+ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```
@@ -57,7 +57,7 @@ INPUT_JSON=$(jq -n \
   --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg public_key_path: $SSH_PUBLIC_KEY_PATH \
+  --arg public_key_path $SSH_PUBLIC_KEY_PATH \
   --arg machine_type "$MACHINE_TYPE" \
   --arg data_disk_volume_type "$DATA_DISK_TYPE" \
   --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
