@@ -47,8 +47,8 @@ locals {
 
 terraform {
   required_providers {
-    aws = {
-      version = "<= 3.94.0"
+    azurerm = {
+      version = "<= 3.93.0"
     }
   }
 }
