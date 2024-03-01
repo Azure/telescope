@@ -45,6 +45,14 @@ locals {
   all_data_disks                         = { for disk in var.data_disk_config_list : disk.disk_name => module.data_disk[disk.disk_name].data_disk }
 }
 
+terraform {
+  required_providers {
+    aws = {
+      version = "<= 3.94.0"
+    }
+  }
+}
+
 provider "azurerm" {
   features {}
 }

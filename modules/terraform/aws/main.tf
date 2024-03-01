@@ -28,6 +28,14 @@ locals {
   all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
 }
 
+terraform {
+  required_providers {
+    aws = {
+      version = "<= 5.38"
+    }
+  }
+}
+
 provider "aws" {
   region = local.region
 }
