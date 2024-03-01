@@ -11,7 +11,7 @@ This guide covers how to manually run Terraform for AWS. All commands should be 
 ### Generate SSH public and Private key using SSH-Keygen
 ```
 CLOUD=aws
-ssh_key_path=modules/terraform/$CLOUD/private_key.pem
+ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```
@@ -27,7 +27,6 @@ RUN_ID=123456789
 OWNER=$(whoami)
 CLOUD=aws
 REGION=us-east-2
-ZONE=us-east-2b
 MACHINE_TYPE=m5.4xlarge
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
@@ -58,8 +57,7 @@ INPUT_JSON=$(jq -n \
   --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg zone $ZONE \
-  --arg public_key_path: $SSH_PUBLIC_KEY_PATH \
+  --arg public_key_path $SSH_PUBLIC_KEY_PATH \
   --arg machine_type "$MACHINE_TYPE" \
   --arg data_disk_volume_type "$DATA_DISK_TYPE" \
   --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
@@ -77,7 +75,6 @@ INPUT_JSON=$(jq -n \
   owner: $owner, 
   run_id: $run_id, 
   region: $region, 
-  zone: $zone,
   public_key_path: $public_key_path,  
   machine_type: $machine_type, 
   data_disk_volume_type: $data_disk_volume_type, 

@@ -11,7 +11,7 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 ### Generate SSH public and Private key using SSH-Keygen
 ```
 CLOUD=azure
-ssh_key_path=modules/terraform/$CLOUD/private_key.pem
+ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```
@@ -63,6 +63,11 @@ Set subscription for testing
 az account set --subscription <subscriptionId>
 ```
 
+Create Resource Group for testing
+```
+az group create --name $RUN_ID --location $REGION --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=azure_devops" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=$(date -u -d '+2 hour' +'%Y-%m-%dT%H:%M:%SZ')"
+```
+
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/azure/variables.tf`](../../../modules/terraform/azure/variables.tf) as the list will keep changing as we add more features.
 
 ```
@@ -71,7 +76,7 @@ INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
   --arg machine_type "$MACHINE_TYPE" \
-  --arg public_key_path: $SSH_PUBLIC_KEY_PATH \
+  --arg public_key_path $SSH_PUBLIC_KEY_PATH \
   --arg aks_machine_type "$AKS_MACHINE_TYPE" \
   --arg accelerated_networking "$ACCELERATED_NETWORKING" \
   --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
@@ -138,6 +143,10 @@ Once your test is done, you can destroy the resources using Terraform.
 pushd $TERRAFORM_MODULES_DIR
 terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
+```
+After terraformn destroys all the resources delete resource group manually.
+```
+az group delete --name $RUN_ID
 ```
 
 ### References

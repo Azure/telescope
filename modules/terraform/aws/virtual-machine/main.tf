@@ -46,7 +46,7 @@ data "aws_subnet" "subnet" {
 resource "aws_instance" "vm" {
   ami               = data.aws_ami.ubuntu.id
   instance_type     = var.machine_type
-  availability_zone = var.vm_config.zone_suffix == null ? var.zone : "${var.region}${var.vm_config.zone_suffix}"
+  availability_zone = "${var.region}${var.vm_config.zone_suffix}"
   subnet_id         = data.aws_subnet.subnet.id
 
   vpc_security_group_ids = [data.aws_security_group.security_group.id]
@@ -66,7 +66,7 @@ resource "aws_instance" "vm" {
 resource "aws_ebs_volume" "data_disk" {
   count = var.vm_config.data_disk_config == null ? 0 : 1
 
-  availability_zone = var.vm_config.zone_suffix == null ? var.zone : "${var.region}${var.vm_config.zone_suffix}"
+  availability_zone = "${var.region}${var.vm_config.zone_suffix}"
 
   size       = var.vm_config.data_disk_config.data_disk_size_gb
   type       = var.vm_config.data_disk_config.data_disk_volume_type

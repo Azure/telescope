@@ -21,7 +21,7 @@ resource "aws_subnet" "subnets" {
   vpc_id     = aws_vpc.vpc.id
   cidr_block = each.value.cidr_block
 
-  availability_zone = each.value.zone_suffix == null ? var.zone : "${var.region}${each.value.zone_suffix}"
+  availability_zone = "${var.region}${each.value.zone_suffix}"
 
   tags = merge(local.tags, {
     "Name" = each.value.name

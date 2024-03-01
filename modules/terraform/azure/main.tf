@@ -45,21 +45,22 @@ locals {
   all_data_disks                         = { for disk in var.data_disk_config_list : disk.disk_name => module.data_disk[disk.disk_name].data_disk }
 }
 
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "<= 3.93.0"
+    }
+  }
+}
+
 provider "azurerm" {
   features {}
 }
 
-module "resource_group" {
-  source                       = "./resource-group"
-  resource_group_name          = local.run_id
-  location                     = local.region
-  tags                         = local.tags
-  skip_resource_group_creation = var.skip_resource_group_creation
-}
-
 module "public_ips" {
   source                = "./public-ip"
-  resource_group_name   = module.resource_group.name
+  resource_group_name   = local.run_id
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
   tags                  = local.tags
@@ -71,7 +72,7 @@ module "virtual_network" {
 
   source                 = "./network"
   network_config         = each.value
-  resource_group_name    = module.resource_group.name
+  resource_group_name    = local.run_id
   location               = local.region
   accelerated_networking = local.accelerated_networking
   public_ips             = module.public_ips.pip_ids
@@ -82,7 +83,7 @@ module "aks" {
   for_each = local.aks_config_map
 
   source              = "./aks"
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   vm_sku              = local.aks_machine_type
   subnet_id           = local.all_subnets[each.value.subnet_name]
@@ -95,7 +96,7 @@ module "load_balancer" {
   for_each = local.loadbalancer_config_map
 
   source              = "./load-balancer"
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   loadbalancer_config = each.value
   public_ip_id        = each.value.public_ip_name == null ? null : module.public_ips.pip_ids[each.value.public_ip_name]
@@ -109,7 +110,7 @@ module "appgateway" {
 
   source              = "./app-gateway"
   appgateway_config   = each.value
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   subnet_id           = local.all_subnets[each.value.subnet_name]
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
@@ -120,7 +121,7 @@ module "data_disk" {
   for_each = local.data_disk_config_map
 
   source                         = "./data-disk"
-  resource_group_name            = module.resource_group.name
+  resource_group_name            = local.run_id
   location                       = local.region
   data_disk_name                 = each.value.disk_name
   tags                           = local.tags
@@ -139,7 +140,7 @@ module "virtual_machine" {
 
   source              = "./virtual-machine"
   name                = each.value.vm_name
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
   vm_sku              = local.machine_type
   nic                 = local.all_nics[each.value.nic_name]
@@ -155,7 +156,7 @@ module "virtual_machine_scale_set" {
 
   source                = "./virtual-machine-scale-set"
   name                  = each.value.vmss_name
-  resource_group_name   = module.resource_group.name
+  resource_group_name   = local.run_id
   location              = local.region
   vm_sku                = local.machine_type
   subnet_id             = local.all_subnets[each.value.subnet_name]
@@ -199,7 +200,7 @@ module "storage_account" {
 
   count                            = var.storage_account_name_prefix != null ? 1 : 0
   storage_account_name             = "${var.storage_account_name_prefix}${random_string.storage_account_random_suffix[0].result}"
-  resource_group_name              = module.resource_group.name
+  resource_group_name              = local.run_id
   location                         = local.region
   storage_account_tier             = local.storage_account_tier
   storage_account_kind             = local.storage_account_kind
@@ -221,7 +222,7 @@ module "privatelink" {
 
   count = var.private_link_conf == null ? 0 : 1
 
-  resource_group_name = module.resource_group.name
+  resource_group_name = local.run_id
   location            = local.region
 
   pls_name       = var.private_link_conf.pls_name

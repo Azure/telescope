@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-iperf"
+scenario_name  = "vm-same-zone-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -9,7 +9,7 @@ network_config_list = [
     subnet = [{
       name        = "same-subnet"
       cidr_block  = "10.2.1.0/24"
-      zone_suffix = "b"
+      zone_suffix = "a"
     }]
     security_group_name    = "same-sg"
     route_table_cidr_block = "0.0.0.0/0"
@@ -22,15 +22,15 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20001
-          to_port    = 20001
+          from_port  = 80
+          to_port    = 80
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20002
-          to_port    = 20002
-          protocol   = "udp"
+          from_port  = 443
+          to_port    = 443
+          protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         }
       ]
@@ -52,7 +52,7 @@ vm_config_list = [{
   subnet_name                 = "same-subnet"
   security_group_name         = "same-sg"
   associate_public_ip_address = true
-  zone_suffix                 = "b"
+  zone_suffix                 = "a"
   },
   {
     vm_name                     = "server-vm"
@@ -60,6 +60,6 @@ vm_config_list = [{
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
-    zone_suffix                 = "b"
+    zone_suffix                 = "a"
   }
 ]
