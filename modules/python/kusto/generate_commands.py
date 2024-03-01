@@ -10,7 +10,13 @@ def infer_type(value):
     # Check if it's an number
     try:
         int(value)
-        return "long"
+        return "real"
+    except ValueError:
+        pass
+    # Check if it's an real number
+    try:
+        float(value)
+        return "real"
     except ValueError:
         pass
     # Check if it's dynamic
