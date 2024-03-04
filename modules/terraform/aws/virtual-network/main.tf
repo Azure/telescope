@@ -5,7 +5,9 @@ locals {
   subnet_map                   = { for subnet in var.network_config.subnet : subnet.name => subnet }
   route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
   route_table_associations_map = var.network_config.route_table_associations == null ? {} : { for rta in var.network_config.route_table_associations : rta.name => rta }
-
+  nat_gateway_public_ips_map   = var.network_config.nat_gateway_public_ips == null ? {} : { for pip in var.network_config.nat_gateway_public_ips : pip.name => pip }
+  nat_gateways_map             = var.network_config.nat_gateways == null ? {} : { for ng in var.network_config.nat_gateways : ng.name => ng }
+  
   security_group_name = var.network_config.security_group_name
   tags                = merge(var.tags, { "role" = var.network_config.role })
 }
@@ -26,6 +28,27 @@ resource "aws_subnet" "subnets" {
   map_public_ip_on_launch = each.value.map_public_ip_on_launch
 
   availability_zone = "${var.region}${each.value.zone_suffix}"
+
+  tags = merge(local.tags, {
+    "Name" = each.value.name
+  })
+}
+
+resource "aws_eip" "eips" {
+  for_each = local.nat_gateway_public_ips_map
+
+  domain = "vpc"
+
+  tags = merge(local.tags, {
+    "Name" = each.value.name
+  })
+}
+
+resource "aws_nat_gateway" "nat-gateways" {
+  for_each = local.nat_gateways_map
+
+  allocation_id = aws_eip.eips[each.value.public_ip_name].id
+  subnet_id     = aws_subnet.subnets[each.value.subnet_name].id
 
   tags = merge(local.tags, {
     "Name" = each.value.name
@@ -77,7 +100,7 @@ resource "aws_route_table" "route_tables" {
 
   route {
     cidr_block = each.value.cidr_block
-    gateway_id = aws_internet_gateway.internet_gateway.id
+    gateway_id = each.value.nat_gateway_name == null ? aws_internet_gateway.internet_gateway.id : aws_nat_gateway.nat-gateways[each.value.nat_gateway_name].id
   }
 
   tags = merge(local.tags, {
