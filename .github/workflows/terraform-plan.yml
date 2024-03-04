@@ -16,9 +16,10 @@ jobs:
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |
-           matrix=$(find scenarios/ -type f -name "*.json" | grep -E '\/(azure|aws)-[^\/]+\.json$' | awk -F'/' '{split($11, parts, "-"); region=parts[2]; cloud=parts[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"region\": \"" region "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
-           matrix="${matrix//$'\n'/''}"
-           echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
+          set -eux
+          matrix=$(find scenarios/ -type f -name "*.json" | grep -E '\/(azure|aws)-[^\/]+\.json$' | awk -F'/' '{split($11, parts, "-"); region=parts[2]; cloud=parts[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"region\": \"" region "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix="${matrix//$'\n'/''}"
+          echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
@@ -38,6 +39,7 @@ jobs:
 
         - name: Get job id and set env
           run: |
+            set -eux
             echo "RUN_ID=123456789" >> "$GITHUB_ENV"
             echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.cloud }}.tfvars" >> "$GITHUB_ENV"
             echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.cloud }}.json" >> "$GITHUB_ENV"
