@@ -17,7 +17,7 @@ jobs:
         id: setup-matrix-scenarios
         run: |
           set -eux
-          matrix=$(find scenarios/ -type f -name "*.json" | grep -E '\/(azure|aws)-[^\/]+\.json$' | awk -F'/' '{split($11, parts, "-"); region=parts[2]; cloud=parts[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"region\": \"" region "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -type f -name "*.json" | grep -E '\/(azure|aws)-[^\/]+\.json$' | awk -F'/' '{split($11, parts, "-"); region=parts[2]; cloud=parts[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"region\": \"" region "\", \"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
           matrix="${matrix//$'\n'/''}"
           echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
     outputs:
