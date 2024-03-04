@@ -30,7 +30,7 @@ jobs:
       max-parallel: 3
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
     runs-on: ubuntu-latest
-    name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }}-${{ matrix.region }}
+    name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }} ${{ matrix.region }}
 
     steps:
         - name: Checkout Repository
