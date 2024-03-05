@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-same-zone-iperf"
+scenario_name  = "vm-cross-region-iperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
