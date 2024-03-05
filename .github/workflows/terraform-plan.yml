@@ -17,7 +17,7 @@ jobs:
         id: setup-matrix-scenarios
         run: |
           set -eux
-          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
 
           matrix="${matrix//$'\n'/''}"
           echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
