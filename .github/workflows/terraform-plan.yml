@@ -38,7 +38,6 @@ jobs:
 
         - name: Get job id and set env
           run: |
-            set -eux
             echo "RUN_ID=123456789" >> "$GITHUB_ENV"
             echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.file_name }}.tfvars" >> "$GITHUB_ENV"
             echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.file_name }}.json" >> "$GITHUB_ENV"          
