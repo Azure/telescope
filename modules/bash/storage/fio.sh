@@ -51,7 +51,7 @@ run_fio_on_remote_vm() {
       do
         metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\"}"
         echo "$metadata_json" > $result_dir/metadata-${method}-${iodepth}-${bs}.log
-        local command="sudo fio --name=benchtest --size=$file_size --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=$bs --iodepth=$iodepth --time_based --runtime=60 --output-format=json"
+        local command="sudo fio --name=benchtest --size=$file_size --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=$bs --iodepth=$iodepth --time_based --runtime=1200 --output-format=json"
 
         # prepare files for the actual run using fio option --create_only=1
         setup_command="${command} --create_only=1"
