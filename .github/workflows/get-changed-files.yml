@@ -19,17 +19,13 @@ jobs:
       id: changed-files
       uses: tj-actions/changed-files@v42
       with:
-        json: true
-        base_sha: 'main'
-        files_ignore: |
-         *.md
-         *.yml          
+        json: "true"
+        base_sha: 'main'       
     - name: List all changed files
       env:
         ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
       run: |
         set -eux
-        for file in ${ALL_CHANGED_FILES}; do
-          echo "$file was changed"
-        done
+        echo "All changed files: $ALL_CHANGED_FILES"
+        git diff --name-only -r origin/main HEAD | xargs -I {} echo "Changed file: {}"
         
