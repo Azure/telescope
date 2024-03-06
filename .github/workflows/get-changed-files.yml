@@ -16,16 +16,22 @@ jobs:
         fetch-depth: 2
 
     - name: Get changed files
-      id: get-changed-files
+      id: changed-files
+      uses: tj-actions/changed-files@v42
+    # NOTE: `since_last_remote_commit: true` is implied by default and falls back to the previous local commit.
+
+    - name: List all changed files
+      env:
+        ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
       run: |
-        set -eux
-        changed_files=$(git diff --name-only main)
-        echo "changed_files=$changed_files" >> "$GITHUB_ENV"
+        for file in ${ALL_CHANGED_FILES}; do
+          echo "$file was changed"
+        done
 
     - name: Setup test matrix scenarios
       id: setup-matrix-scenarios
       run: |
         set -eux
-        matrix=$(echo "$changed_files" | awk -F'/' '{split($3, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($3, index($3, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $1 "\", \"scenario_name\": \"" $2 "\"},"}' | sort | uniq | sed 's/,$/,/')
+        matrix=$(echo "${ALL_CHANGED_FILES}" | awk -F'/' '{split($3, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($3, index($3, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $1 "\", \"scenario_name\": \"" $2 "\"},"}' | sort | uniq | sed 's/,$/,/')
         matrix="${matrix//$'\n'/''}"
         echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
