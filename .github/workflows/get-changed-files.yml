@@ -35,3 +35,5 @@ jobs:
         matrix=$(echo "${ALL_CHANGED_FILES}" | awk -F'/' '{split($3, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($3, index($3, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $1 "\", \"scenario_name\": \"" $2 "\"},"}' | sort | uniq | sed 's/,$/,/')
         matrix="${matrix//$'\n'/''}"
         echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
+      env:
+        ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
