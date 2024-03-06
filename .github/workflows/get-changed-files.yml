@@ -17,8 +17,7 @@ jobs:
       id: get-changed-files
       run: |
         set -eux
-        git fetch origin main
-        changed_files=$(git diff --name-only main..HEAD)
+        changed_files=$(git diff --name-only main)
         echo "changed_files=$changed_files" >> "$GITHUB_ENV"
 
     - name: Setup test matrix scenarios
