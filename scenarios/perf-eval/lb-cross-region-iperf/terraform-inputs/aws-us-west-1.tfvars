@@ -28,7 +28,7 @@ network_config_list = [
           to_port    = 20000
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
-        },        
+        },
         {
           from_port  = 20001
           to_port    = 20001
