@@ -12,18 +12,19 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
 
-        - name: Get changed files
-        id: get-changed-files
-        run: |
-          changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
-          echo "changed_files=$changed_files" >> "$GITHUB_ENV"
+    - name: Get changed files
+      id: get-changed-files
+      run: |
+        set -eux
+        git fetch origin main
+        changed_files=$(git diff --name-only main...${{ github.sha }})
+        echo "changed_files=$changed_files" >> "$GITHUB_ENV"
 
-      - name: Setup test matrix scenarios
-        id: setup-matrix-scenarios
-        run: |
-          matrix=$(echo "$changed_files" | awk -F'/' '{split($3, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($3, index($3, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $1 "\", \"scenario_name\": \"" $2 "\"},"}' | sort | uniq | sed 's/,$/,/')
-          matrix="${matrix//$'\n'/''}"
-          echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
+    - name: Setup test matrix scenarios
+      id: setup-matrix-scenarios
+      run: |
+        set -eux
+        matrix=$(echo "$changed_files" | awk -F'/' '{split($3, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($3, index($3, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $1 "\", \"scenario_name\": \"" $2 "\"},"}' | sort | uniq | sed 's/,$/,/')
+        matrix="${matrix//$'\n'/''}"
+        echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
