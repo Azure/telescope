@@ -14,11 +14,25 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+    - name: Generate test matrix scenarios
+      id: setup-matrix-scenarios
+      run: |
+        matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+        matrix="${matrix//$'\n'/''}"
+        echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
+      outputs:
+        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
     - name: List all changed files
       run: |
-        set -eux
-        file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.github/' | xargs)
-        for file in $file_changes; do
-          echo "Changed file: $file"
+        set -eu
+        echo $matrix
+        echo $matrix['include']
+        file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.github/' | xargs)       
+
+        terraform_provider_changes=echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | xargs
+
+        for cloud in $terraform_provider_changes; do    
+          filtered_matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)      
         done
-        
+      env:
+        matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
