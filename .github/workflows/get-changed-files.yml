@@ -20,7 +20,7 @@ jobs:
       uses: tj-actions/changed-files@v42
       with:
         json: true
-        sha: 'origin main'
+        base-sha: 'main'
     # NOTE: `since_last_remote_commit: true` is implied by default and falls back to the previous local commit.
 
     - name: List all changed files
