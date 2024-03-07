@@ -113,4 +113,3 @@ resource "azurerm_kusto_eventgrid_data_connection" "evengrid_connection" {
   mapping_rule_name            = "${var.json_input.kusto_table_name}_mapping"
   depends_on                   = [azurerm_eventgrid_event_subscription.event_subscription, azurerm_kusto_script.script, azurerm_eventhub_consumer_group.consumer_group]
 }
-
