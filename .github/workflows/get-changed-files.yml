@@ -27,6 +27,5 @@ jobs:
 
           if [ $(echo "$terraform_provider_changes" | wc -w) -eq 1 ]; then
             matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)
-          fi
-  
-         echo "matrix: $matrix" 
+          fi  
+          echo "matrix: $matrix" 
