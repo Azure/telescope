@@ -18,16 +18,17 @@ jobs:
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |
-          set -eux
+          set -eu
           matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
-          # matrix="${matrix//$'\n'/''}"
-          # echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
-          echo $matrix
-          file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.github/' | xargs)       
-  
-          terraform_provider_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | xargs)
+          
+          file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.github/' | xargs)
+          echo "file_changes: $file_changes"
+          changed_module_files=$(echo "$file_changes" | grep -E '^modules/' | xargs)
+          changed_scenario_files=$(echo "$file_changes" |  grep -E '^scenarios/' | xargs)
+          echo "changed_module_files: $changed_module_files"
+          echo "changed_scenario_files: $changed_scenario_files"
 
-          if [ $(echo "$terraform_provider_changes" | wc -w) -eq 1 ]; then
-            matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)
-          fi  
-          echo "matrix: $matrix" 
+          if [ -n "$changed_module_files" ]; then
+            updated_matrix=$matrix
+          fi
+          echo "matrix: $updated_matrix"
