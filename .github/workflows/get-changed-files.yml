@@ -20,7 +20,7 @@ jobs:
         run: |
           set -eu
           matrix=$(find scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
-          
+          echo $matrix
           # Remove .md, .sh, .py and github files from the changed list
           file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.sh$|\.py$|\.github/')
           echo "file_changes: $file_changes"
@@ -32,7 +32,7 @@ jobs:
             updated_matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)
           else
             run_all_tests=true
-            updated_matrix=$(echo "$matrix")
+            updated_matrix=$matrix
           fi
           echo "updated_matrix: $updated_matrix"
           if [ "$run_all_tests" = false ]; then                      
