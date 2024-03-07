@@ -23,9 +23,11 @@ jobs:
           
           file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.github/' | xargs)
           echo "file_changes: $file_changes"
+
           changed_module_files=$(echo "$file_changes" | grep -E '^modules/' | xargs)
-          changed_scenario_files=$(echo "$file_changes" |  grep -E '^scenarios/' | xargs)
           echo "changed_module_files: $changed_module_files"
+
+          changed_scenario_files=$(echo "$file_changes" | grep -E '^scenarios/' | xargs)
           echo "changed_scenario_files: $changed_scenario_files"
 
           if [ -n "$changed_module_files" ]; then
