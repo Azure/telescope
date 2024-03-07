@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+				with:
+					fetch-depth: 0
 
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
