@@ -19,7 +19,7 @@ jobs:
         id: setup-matrix-scenarios
         run: |
           set -eu
-          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,\s*}/}/' |  sed 's/,$/,/')
           echo $matrix
           # Remove .md, .sh, .py and github files from the changed list
           file_changes=$(git diff --name-only -r origin/main HEAD | grep -Ev '\.md$|\.sh$|\.py$|\.github/')
@@ -29,10 +29,10 @@ jobs:
           echo "terraform_module_changes: $terraform_module_changes"
           run_all_tests=false
           if [ $(echo "$terraform_module_changes" | wc -w) -eq 1 ]; then
-            updated_matrix=$(echo "$matrix" | sed 's/,\s*}/}/' | jq 'any(.cloud == "$cloud")'; echo $?)
+            updated_matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)
           else
             run_all_tests=true
-            updated_matrix=$(echo "$matrix" | sed 's/,\s*}/}/' )
+            updated_matrix=$(echo "$matrix")
           fi
           echo "updated_matrix: $updated_matrix"
           if [ "$run_all_tests" = false ]; then                      
