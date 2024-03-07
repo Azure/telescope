@@ -32,7 +32,7 @@ jobs:
             updated_matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)
           else
             run_all_tests=true
-            updated_matrix=$(echo "$matrix" | jq '.')
+            updated_matrix=$(echo "$matrix")
           fi
           echo "updated_matrix: $updated_matrix"
           if [ "$run_all_tests" = false ]; then                      
