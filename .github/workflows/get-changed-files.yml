@@ -18,7 +18,7 @@ jobs:
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |
-          set -eux
+          set -eu
           matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq |  sed 's/,$/,/')
           matrix_array="[${matrix%,}]"
           echo $matrix_array
@@ -31,7 +31,7 @@ jobs:
           run_all_tests=false
           if [ $(echo "$terraform_module_changes" | wc -w) -eq 1 ]; then
             cloud=$(echo "$terraform_module_changes" | cut -d' ' -f1)
-            updated_matrix=$(echo "$matrix_array" | jq '.[] | select(.cloud == "$cloud")')
+            updated_matrix=$(echo "$matrix_array" | jq --arg cloud_value "$cloud" '.[] | select(.cloud == $cloud_value)')
           else
             run_all_tests=true
             updated_matrix=$(echo "$matrix")
@@ -41,9 +41,9 @@ jobs:
             changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | xargs)
             echo "scenario_names: $changed_scenario_names"
             for scenario in $changed_scenario_names; do
-              scenario_matrix=$(echo "$updated_matrix"| jq '.[] | select(.scenario_name == "$scenario")')
-              updated_matrix=$(echo "$updated_matrix $scenario_matrix" | jq -s '.[]')
+              updated_matrix=$(echo "$updated_matrix $matrix_array" | jq --arg scenario_value "$scenario" '. + map(select(.scenario_name == $scenario_value))')
             done
+            updated_matrix=$(echo "$updated_matrix" | jq 'unique')
             echo "updated_matrix: $updated_matrix"
           fi
           updated_matrix="${updated_matrix//$'\n'/''}"
