@@ -34,6 +34,8 @@ jobs:
           if [ $(echo "$terraform_module_changes" | wc -w) -eq 1 ]; then
             cloud=$(echo "$terraform_module_changes" | cut -d' ' -f1)
             module_matrix=$(echo "$matrix_array" | jq --arg cloud_value "$cloud" '. | map(select(.cloud == $cloud_value))')
+          elif [ $(echo "$terraform_module_changes" | wc -w) -eq 0 ]; then
+            run_all_tests=false
           else
             run_all_tests=true
             module_matrix=$(echo "$matrix_array")
