@@ -29,10 +29,10 @@ jobs:
           echo "terraform_module_changes: $terraform_module_changes"
           run_all_tests=false
           if [ $(echo "$terraform_module_changes" | wc -w) -eq 1 ]; then
-            updated_matrix=$(echo "$matrix" | jq 'any(.cloud == "$cloud")'; echo $?)
+            updated_matrix=$(echo "$matrix" | sed 's/,\s*}/}/' | jq 'any(.cloud == "$cloud")'; echo $?)
           else
             run_all_tests=true
-            updated_matrix=$matrix
+            updated_matrix=$(echo "$matrix" | sed 's/,\s*}/}/' )
           fi
           echo "updated_matrix: $updated_matrix"
           if [ "$run_all_tests" = false ]; then                      
