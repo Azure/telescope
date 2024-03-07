@@ -45,6 +45,8 @@ jobs:
             echo "updated_matrix: $updated_matrix"
           fi
           updated_matrix="${updated_matrix//$'\n'/''}"
+          matrix_combinations="{\"include\": [${updated_matrix%?}]}"
           echo "matrix_combinations={\"include\": [${updated_matrix%?}]}" >> "$GITHUB_OUTPUT"
           echo "matrix_combinations: $matrix_combinations"
+          
 
