@@ -186,3 +186,6 @@ nic_backend_pool_association_list = [
     ip_configuration_name = "server-ipconfig"
   }
 ]
+
+
+
