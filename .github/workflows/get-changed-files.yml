@@ -50,7 +50,7 @@ jobs:
           updated_matrix=$(echo "$module_matrix $scenario_matrix" | jq -s 'flatten | unique')
           echo "updated_matrix: $updated_matrix"
           updated_matrix="${updated_matrix//$'\n'/''}"
-          matrix_combinations="{\"include\": [${updated_matrix%?}]}"
+          matrix_combinations="{\"include\": ${updated_matrix%?}}"
           echo "matrix_combinations={\"include\": [${updated_matrix}]}" >> "$GITHUB_OUTPUT"
           echo "matrix_combinations: $matrix_combinations"
           
