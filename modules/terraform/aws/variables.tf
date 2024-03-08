@@ -134,6 +134,28 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
+variable "eks_config_list" {
+  type = list(object({
+    eks_name = string
+    vpc_name = string
+    eks_managed_node_groups = list(object({
+      name           = string
+      ami_type       = string
+      instance_types = list(string)
+      min_size       = number
+      max_size       = number
+      desired_size   = number
+    }))
+  }))
+  default = []
+}
+
+variable "eks_name_prefix" {
+  description = "Value of the eks name prefix"
+  type        = string
+  default     = ""
+}
+
 variable "efs_name_prefix" {
   description = "Value of the bucket name prefix"
   type        = string
