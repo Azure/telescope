@@ -55,7 +55,7 @@ jobs:
 					echo "matrix_combinations={\"include\": [${updated_matrix}]}" >> "$GITHUB_OUTPUT"
 					echo "matrix_combinations: $matrix_combinations"
     outputs:
-        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
+      matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
   terraform-plan:
     permissions: read-all
