@@ -28,17 +28,16 @@ class TestInferType(unittest.TestCase):
     def test_infer_dynamic(self):
         self.assertEqual(infer_type({"key": "value"}), 'dynamic')
         self.assertEqual(infer_type([1,2,3,4]), 'dynamic')
-        self.assertNotEqual(infer_type(123456), 'dynamic')
-        self.assertNotEqual(infer_type(12.25), 'dynamic')
         self.assertEqual(infer_type('{"key": "value"}'), 'dynamic')
         self.assertEqual(infer_type('[1, 2, 3]'), 'dynamic')
         self.assertNotEqual(infer_type('abc'), 'dynamic')
         self.assertNotEqual(infer_type('123'), 'dynamic')
         self.assertNotEqual(infer_type('true'), 'dynamic')
+        self.assertNotEqual(infer_type(123456), 'dynamic')
+        self.assertNotEqual(infer_type(12.25), 'dynamic')
 
 
     def test_infer_datetime(self):
-        self.assertEqual(infer_type('2022-01-01T12:00:00Z'), 'datetime')
         self.assertEqual(infer_type('2022-01-01T12:00:00Z'), 'datetime')
         self.assertNotEqual(infer_type('abc'), 'datetime')
         self.assertNotEqual(infer_type('123'), 'datetime')
@@ -50,11 +49,11 @@ class TestInferType(unittest.TestCase):
 
     def test_infer_string(self):
         self.assertEqual(infer_type('hello'), 'string')
+        self.assertEqual(infer_type('!@#$%^&*()'), 'string')
         self.assertNotEqual(infer_type('123'), 'string')
         self.assertNotEqual(infer_type('true'), 'string')
         self.assertNotEqual(infer_type('{"key": "value"}'), 'string')
         self.assertNotEqual(infer_type('2022-01-01T12:00:00Z'), 'string')
-        self.assertEqual(infer_type('!@#$%^&*()'), 'string')
         self.assertNotEqual(infer_type(123456), 'string')
         self.assertNotEqual(infer_type({"key": "value"}), 'string')
         self.assertNotEqual(infer_type([1,2,3,4]), 'string')
