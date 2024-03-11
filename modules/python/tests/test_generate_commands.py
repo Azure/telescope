@@ -3,7 +3,7 @@ from datetime import datetime
 from kusto.generate_commands import infer_type, generate_kusto_commands
 
 class TestInferType(unittest.TestCase):
-    def test_infer_bool(self):        
+    def test_infer_bool(self):
         self.assertEqual(infer_type('true'), 'bool')
         self.assertEqual(infer_type('false'), 'bool')
         self.assertEqual(infer_type('True'), 'bool')
@@ -24,7 +24,6 @@ class TestInferType(unittest.TestCase):
         self.assertNotEqual(infer_type('true'), 'real')
         self.assertNotEqual(infer_type('{"key": "value"}'), 'real')
         self.assertNotEqual(infer_type('2022-01-01T12:00:00Z'), 'real')
-
 
     def test_infer_dynamic(self):
         self.assertEqual(infer_type({"key": "value"}), 'dynamic')
