@@ -31,7 +31,6 @@ def infer_type(value):
         parsed_json = json.loads(str(value))
         if isinstance(parsed_json, (dict, list)):
             return "dynamic"
-        return "dynamic"
     except (json.JSONDecodeError, TypeError):
         pass
 
