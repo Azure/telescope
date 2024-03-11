@@ -5,36 +5,43 @@ import base64
 
 def infer_type(value):
     # Check if it's a boolean
-    if value.lower() in ['true', 'false']:
+    if isinstance(value, str) and value.lower() in ['true', 'false']:
         return "bool"
-    # Check if it's an number
+
+    # Check if it's an integer
     try:
         int(value)
-        return "real"
-    except ValueError:
+        return "integer"
+    except (ValueError, TypeError):
         pass
-    # Check if it's an real number
+
+    # Check if it's a float
     try:
         float(value)
-        return "real"
-    except ValueError:
+        return "float"
+    except (ValueError, TypeError):
         pass
+
     # Check if it's dynamic
+    if isinstance(value, (dict, list)):
+        return "dynamic"
+
+    # Attempt to load the string as JSON
     try:
-        # Attempt to load the string as JSON
-        parsed_json = json.loads(value)
-        # Check if the parsed JSON is a dictionary or a list
+        parsed_json = json.loads(str(value))
         if isinstance(parsed_json, (dict, list)):
-            return "dynamic"        
-        return type(parsed_json) == dict and dict or list
-    except json.JSONDecodeError:
+            return "dynamic"
+        return "dynamic"
+    except (json.JSONDecodeError, TypeError):
         pass
+
     # Check if it's a datetime
     try:
         datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ')
         return "datetime"
     except ValueError:
         pass
+
     # If none of the above, take it as string
     return "string"
 
