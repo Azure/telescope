@@ -18,8 +18,9 @@ resource "aws_vpc" "vpc" {
 resource "aws_subnet" "subnets" {
   for_each = local.subnet_map
 
-  vpc_id     = aws_vpc.vpc.id
-  cidr_block = each.value.cidr_block
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = each.value.cidr_block
+  map_public_ip_on_launch = each.value.map_public_ip_on_launch
 
   availability_zone = "${var.region}${each.value.zone_suffix}"
 

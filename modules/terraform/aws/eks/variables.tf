@@ -16,8 +16,9 @@ variable "vpc_id" {
 
 variable "eks_config" {
   type = object({
-    eks_name = string
-    vpc_name = string
+    eks_name                = string
+    vpc_name                = string
+    policy_attachment_names = list(string)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -25,6 +26,14 @@ variable "eks_config" {
       min_size       = number
       max_size       = number
       desired_size   = number
+      capacity_type  = optional(string, "ON_DEMAND")
+      labels         = optional(map(string), {})
+    }))
+    eks_addons = list(object({
+      name                    = string
+      version                 = optional(string)
+      service_account         = string
+      policy_attachment_names = optional(list(string), [])
     }))
   })
 }

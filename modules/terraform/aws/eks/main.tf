@@ -1,6 +1,8 @@
 locals {
   eks_name           = var.eks_config.eks_name
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
+  eks_addons_map     = { for addon in var.eks_config.eks_addons : addon.name => addon }
+  policy_names       = var.eks_config.policy_attachment_names
 }
 
 data "aws_subnets" "subnets" {
@@ -15,22 +17,33 @@ data "aws_subnets" "subnets" {
   }
 }
 
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["eks.amazonaws.com", "ec2.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
 resource "aws_iam_role" "eks_cluster_role" {
   name               = "eks-cluster-role"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
+  tags               = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "AmazonEKSClusterPolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks_cluster_role.name
-}
-# Optionally, enable Security Groups for Pods
-# Reference: https://docs.aws.amazon.com/eks/latest/userguide/security-groups-for-pods.html
-resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+resource "aws_iam_role_policy_attachment" "policy_attachments" {
+  for_each = toset(local.policy_names)
+
+  policy_arn = "arn:aws:iam::aws:policy/${each.value}"
   role       = aws_iam_role.eks_cluster_role.name
 }
 
+# Create EKS Cluster
 resource "aws_eks_cluster" "eks" {
   name     = local.eks_name
   role_arn = aws_iam_role.eks_cluster_role.arn
@@ -39,11 +52,8 @@ resource "aws_eks_cluster" "eks" {
     subnet_ids = toset(data.aws_subnets.subnets.ids)
   }
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
-  # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
   depends_on = [
-    aws_iam_role_policy_attachment.AmazonEKSClusterPolicy,
-    aws_iam_role_policy_attachment.AmazonEKSVPCResourceController
+    aws_iam_role_policy_attachment.policy_attachments
   ]
 
   tags = var.tags
@@ -52,10 +62,11 @@ resource "aws_eks_cluster" "eks" {
 resource "aws_eks_node_group" "eks_managed_node_groups" {
 
   for_each = local.eks_node_group_map
-  # Required
-  cluster_name  = aws_eks_cluster.eks.name
-  node_role_arn = aws_iam_role.eks_cluster_role.arn
-  subnet_ids    = toset(data.aws_subnets.subnets.ids)
+
+  node_group_name = each.value.name
+  cluster_name    = aws_eks_cluster.eks.name
+  node_role_arn   = aws_iam_role.eks_cluster_role.arn
+  subnet_ids      = toset(data.aws_subnets.subnets.ids)
 
   scaling_config {
     min_size     = each.value.min_size
@@ -63,32 +74,28 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     desired_size = each.value.desired_size
   }
 
-  # Optional
+  ami_type       = each.value.ami_type
   instance_types = each.value.instance_types
+  capacity_type  = each.value.capacity_type
+  labels         = each.value.labels
+
   tags = merge(var.tags, {
     "Name" = each.value.name
   })
+  depends_on = [
+    aws_eks_cluster.eks,
+    aws_iam_role_policy_attachment.policy_attachments
+  ]
 }
 
-data "aws_iam_policy_document" "assume_role" {
-  statement {
-    effect = "Allow"
+module "eks_addon" {
+  source = "./addon"
 
-    principals {
-      type        = "Service"
-      identifiers = ["eks.amazonaws.com"]
-    }
+  count = length(var.eks_config.eks_addons) != 0 ? 1 : 0
 
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_eks_addon" "ebs-csi" {
-  cluster_name  = local.eks_name
-  addon_name    = "aws-ebs-csi-driver"
-  addon_version = "v1.20.0-eksbuild.1"
-  tags = {
-    "eks_addon" = "ebs-csi"
-    "terraform" = "true"
-  }
+  eks_addon_config_map      = local.eks_addons_map
+  cluster_name              = aws_eks_cluster.eks.name
+  cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+  tags                      = var.tags
+  depends_on                = [aws_eks_cluster.eks]
 }

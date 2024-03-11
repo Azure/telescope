@@ -47,9 +47,10 @@ variable "network_config_list" {
     vpc_name       = string
     vpc_cidr_block = string
     subnet = list(object({
-      name        = string
-      cidr_block  = string
-      zone_suffix = string
+      name                    = string
+      cidr_block              = string
+      zone_suffix             = string
+      map_public_ip_on_launch = optional(bool, false)
     }))
     security_group_name    = string
     route_table_cidr_block = string
@@ -136,8 +137,9 @@ variable "bucket_name_prefix" {
 
 variable "eks_config_list" {
   type = list(object({
-    eks_name = string
-    vpc_name = string
+    eks_name                = string
+    vpc_name                = string
+    policy_attachment_names = list(string)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -145,6 +147,14 @@ variable "eks_config_list" {
       min_size       = number
       max_size       = number
       desired_size   = number
+      capacity_type  = optional(string, "ON_DEMAND")
+      labels         = optional(map(string), {})
+    }))
+    eks_addons = list(object({
+      name                    = string
+      version                 = optional(string)
+      service_account         = string
+      policy_attachment_names = optional(list(string), [])
     }))
   }))
   default = []

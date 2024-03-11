@@ -110,17 +110,17 @@ module "efs" {
   tags                            = local.tags
 }
 
-resource "random_string" "eks_random_suffix" {
-  length           = 8
-  special          = false
-  upper            = false
-  numeric          = true
-  override_special = "_-"
-}
+# resource "random_string" "eks_random_suffix" {
+#   length           = 8
+#   special          = false
+#   upper            = false
+#   numeric          = true
+#   override_special = "_-"
+# }
 
-locals {
-  cluster_name = "eks-${random_string.eks_random_suffix.result}"
-}
+# locals {
+#   cluster_name = "eks-${random_string.eks_random_suffix.result}"
+# }
 
 module "eks" {
   for_each = local.eks_config_map
