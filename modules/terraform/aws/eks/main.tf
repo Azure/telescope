@@ -2,7 +2,7 @@ locals {
   eks_name           = var.eks_config.eks_name
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   eks_addons_map     = { for addon in var.eks_config.eks_addons : addon.name => addon }
-  policy_names       = var.eks_config.policy_attachment_names
+  policy_arns        = var.eks_config.policy_arns
 }
 
 data "aws_subnets" "subnets" {
@@ -37,7 +37,7 @@ resource "aws_iam_role" "eks_cluster_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "policy_attachments" {
-  for_each = toset(local.policy_names)
+  for_each = toset(local.policy_arns)
 
   policy_arn = "arn:aws:iam::aws:policy/${each.value}"
   role       = aws_iam_role.eks_cluster_role.name

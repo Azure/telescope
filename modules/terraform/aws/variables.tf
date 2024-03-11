@@ -137,9 +137,9 @@ variable "bucket_name_prefix" {
 
 variable "eks_config_list" {
   type = list(object({
-    eks_name                = string
-    vpc_name                = string
-    policy_attachment_names = list(string)
+    eks_name    = string
+    vpc_name    = string
+    policy_arns = list(string)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -151,10 +151,10 @@ variable "eks_config_list" {
       labels         = optional(map(string), {})
     }))
     eks_addons = list(object({
-      name                    = string
-      version                 = optional(string)
-      service_account         = optional(string)
-      policy_attachment_names = optional(list(string), [])
+      name            = string
+      version         = optional(string)
+      service_account = optional(string)
+      policy_arns     = optional(list(string), [])
     }))
   }))
   default = []

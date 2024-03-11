@@ -1,5 +1,5 @@
 locals {
-  policy_arns = flatten([for addon in var.eks_addon_config_map : addon.policy_attachment_names])
+  policy_arns = flatten([for addon in var.eks_addon_config_map : addon.policy_arns])
 }
 
 # Create OIDC Provider
@@ -55,7 +55,7 @@ resource "aws_iam_role" "addon_role" {
 resource "aws_iam_role_policy_attachment" "addon_policy_attachments" {
   for_each = toset(local.policy_arns)
 
-  policy_arn = "arn:aws:iam::aws:policy/service-role/${each.value}"
+  policy_arn = "arn:aws:iam::aws:policy/${each.value}"
   role       = aws_iam_role.addon_role.name
   depends_on = [aws_iam_role.addon_role]
 }
