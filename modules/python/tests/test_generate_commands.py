@@ -3,27 +3,34 @@ from datetime import datetime
 from kusto.generate_commands import infer_type, generate_kusto_commands
 
 class TestInferType(unittest.TestCase):
-    def test_infer_bool(self):
+    def test_infer_bool(self):        
         self.assertEqual(infer_type('true'), 'bool')
         self.assertEqual(infer_type('false'), 'bool')
         self.assertEqual(infer_type('True'), 'bool')
         self.assertEqual(infer_type('False'), 'bool')
         self.assertNotEqual(infer_type('abc'), 'bool')
         self.assertNotEqual(infer_type('123'), 'bool')
+        self.assertNotEqual(infer_type(1234), 'bool')
         self.assertNotEqual(infer_type('4.077777777777777777777'), 'bool')
+        self.assertNotEqual(infer_type(4.077777777777777777777), 'bool')
 
     def test_infer_real(self):
         self.assertEqual(infer_type('123'), 'real')
+        self.assertEqual(infer_type(1234), 'real')
         self.assertEqual(infer_type('4.077777777777777777777'), 'real')
         self.assertEqual(infer_type('92233720368547758088888'), 'real')
+        self.assertEqual(infer_type(12.25), 'real')
         self.assertNotEqual(infer_type('abc'), 'real')
         self.assertNotEqual(infer_type('true'), 'real')
         self.assertNotEqual(infer_type('{"key": "value"}'), 'real')
         self.assertNotEqual(infer_type('2022-01-01T12:00:00Z'), 'real')
 
+
     def test_infer_dynamic(self):
         self.assertEqual(infer_type({"key": "value"}), 'dynamic')
         self.assertEqual(infer_type([1,2,3,4]), 'dynamic')
+        self.assertNotEqual(infer_type(123456), 'dynamic')
+        self.assertNotEqual(infer_type(12.25), 'dynamic')
         self.assertEqual(infer_type('{"key": "value"}'), 'dynamic')
         self.assertEqual(infer_type('[1, 2, 3]'), 'dynamic')
         self.assertNotEqual(infer_type('abc'), 'dynamic')
@@ -33,8 +40,12 @@ class TestInferType(unittest.TestCase):
 
     def test_infer_datetime(self):
         self.assertEqual(infer_type('2022-01-01T12:00:00Z'), 'datetime')
+        self.assertEqual(infer_type('2022-01-01T12:00:00Z'), 'datetime')
         self.assertNotEqual(infer_type('abc'), 'datetime')
         self.assertNotEqual(infer_type('123'), 'datetime')
+        self.assertNotEqual(infer_type(123456), 'datetime')
+        self.assertNotEqual(infer_type({"key": "value"}), 'datetime')
+        self.assertNotEqual(infer_type([1,2,3,4]), 'datetime')
         self.assertNotEqual(infer_type('true'), 'datetime')
         self.assertNotEqual(infer_type('{"key": "value"}'), 'datetime')
 
@@ -45,6 +56,9 @@ class TestInferType(unittest.TestCase):
         self.assertNotEqual(infer_type('{"key": "value"}'), 'string')
         self.assertNotEqual(infer_type('2022-01-01T12:00:00Z'), 'string')
         self.assertEqual(infer_type('!@#$%^&*()'), 'string')
+        self.assertNotEqual(infer_type(123456), 'string')
+        self.assertNotEqual(infer_type({"key": "value"}), 'string')
+        self.assertNotEqual(infer_type([1,2,3,4]), 'string')
 
 class TestGenerateKustoCommands(unittest.TestCase):
     def test_generate_kusto_commands(self):
