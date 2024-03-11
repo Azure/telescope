@@ -44,7 +44,7 @@ locals {
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
   data_disk_config_map                   = { for config in var.data_disk_config_list : config.disk_name => config }
   all_data_disks                         = { for disk in var.data_disk_config_list : disk.disk_name => module.data_disk[disk.disk_name].data_disk }
-  all_storage_accounts                   = { for account in var.storage_account : account.storage_account_name => module.storage_account[account.storage_account_name].storage_account 
+  all_storage_accounts                   = { for account in var.storage_account : account.storage_account_name => module.storage_account[account.storage_account_name].storage_account }
 }
 
 provider "azurerm" {
