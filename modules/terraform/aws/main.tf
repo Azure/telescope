@@ -110,7 +110,6 @@ module "efs" {
   tags                            = local.tags
 }
 
-
 module "eks" {
   for_each = local.eks_config_map
 
