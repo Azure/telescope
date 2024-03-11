@@ -25,6 +25,12 @@ variable "pe_subnet_id" {
   default     = ""
 }
 
+variable "resource_id" {
+  description = "private service connection resource id"
+  type        = string
+  default     = ""
+}
+
 variable "storage_account_name" {
   description = "storage account name"
   type        = string
