@@ -32,7 +32,7 @@ variable "eks_config" {
     eks_addons = list(object({
       name                    = string
       version                 = optional(string)
-      service_account         = string
+      service_account         = optional(string)
       policy_attachment_names = optional(list(string), [])
     }))
   })
