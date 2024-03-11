@@ -235,5 +235,5 @@ module "private_endpoint" {
   pe_name                = var.pe_config.pe_name
   pe_subnet_id           = local.all_subnets[var.pe_config.pe_subnet_name]
 
-  resource_id = local.storage_account.id
+  resource_id = ""
 }
