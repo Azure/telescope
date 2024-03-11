@@ -79,9 +79,11 @@ vm_config_list =[{
     create_vm_extension = true
 }]
 
-storage_account_name_prefix = "plssinglevm"
+storage_account_name = "plssinglevm0003"
+storage_acccount_tier = "Standard"
+storage_account_replication_type = "LRS"
 
 pe_config = {
   pe_name = "private-endpoint"
-  pe_subnet_name = "same-subnet"
+  pe_subnet_name = "subnet"
 }

@@ -233,6 +233,5 @@ module "private_endpoint" {
   location               = local.region
   
   pe_name                = var.pe_config.pe_name
-  pe_subnet_id           = var.pe_config.pe_subnet_name
-  
+  pe_subnet_id           = local.all.subnets[pe_subnet_name]
 }
