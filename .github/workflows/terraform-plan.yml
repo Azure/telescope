@@ -15,7 +15,7 @@ jobs:
 				with:
 					fetch-depth: 0
 
-      - name: Setup test matrix scenarios
+      - name: Generate matrix scenarios
         id: setup-matrix-scenarios
         run: |
 					set -eu
