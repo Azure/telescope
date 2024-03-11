@@ -22,6 +22,8 @@ class TestInferType(unittest.TestCase):
         self.assertNotEqual(infer_type('2022-01-01T12:00:00Z'), 'real')
 
     def test_infer_dynamic(self):
+        self.assertEqual(infer_type({"key": "value"}), 'dynamic')
+        self.assertEqual(infer_type([1,2,3,4]), 'dynamic')
         self.assertEqual(infer_type('{"key": "value"}'), 'dynamic')
         self.assertEqual(infer_type('[1, 2, 3]'), 'dynamic')
         self.assertNotEqual(infer_type('abc'), 'dynamic')

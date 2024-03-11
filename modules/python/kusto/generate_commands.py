@@ -11,14 +11,14 @@ def infer_type(value):
     # Check if it's an integer
     try:
         int(value)
-        return "integer"
+        return "real"
     except (ValueError, TypeError):
         pass
 
     # Check if it's a float
     try:
         float(value)
-        return "float"
+        return "real"
     except (ValueError, TypeError):
         pass
 
