@@ -1,11 +1,12 @@
 locals {
-  nsr_rules_map               = { for rule in var.network_config.nsr_rules : rule.name => rule }
-  vnet_name                   = var.network_config.vnet_name
-  input_subnet_map            = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  subnets_map                 = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
-  network_security_group_name = var.network_config.network_security_group_name
-  nic_association_map         = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
-  tags                        = merge(var.tags, { "role" = var.network_config.role })
+  nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
+  nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
+  vnet_name                    = var.network_config.vnet_name
+  input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
+  subnets_map                  = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
+  network_security_group_name  = var.network_config.network_security_group_name
+  nic_association_map          = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
+  tags                         = merge(var.tags, { "role" = var.network_config.role })
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -76,4 +77,16 @@ module "nsr" {
   destination_address_prefix  = each.value.destination_address_prefix
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.nsg[0].name
+}
+
+module "nat_gateway" {
+  source   = "./nat-gateway"
+  for_each = local.nat_gateway_associations_map
+
+  nat_gateway_name     = each.value.nat_gateway_name
+  location             = var.location
+  public_ip_address_id = var.public_ips[each.value.public_ip_name]
+  resource_group_name  = var.resource_group_name
+  subnet_id            = local.subnets_map[each.value.subnet_name].id
+  tags                 = local.tags
 }
