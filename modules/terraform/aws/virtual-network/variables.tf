@@ -4,12 +4,22 @@ variable "network_config" {
     vpc_name       = string
     vpc_cidr_block = string
     subnet = list(object({
-      name        = string
-      cidr_block  = string
-      zone_suffix = string
+      name                    = string
+      cidr_block              = string
+      zone_suffix             = string
+      map_public_ip_on_launch = optional(bool, false)
     }))
-    security_group_name    = string
-    route_table_cidr_block = string
+    security_group_name = string
+    route_tables = list(object({
+      name             = string
+      cidr_block       = string
+      nat_gateway_name = optional(string)
+    }))
+    route_table_associations = list(object({
+      name             = string
+      subnet_name      = string
+      route_table_name = string
+    }))
     sg_rules = object({
       ingress = list(object({
         from_port  = number
