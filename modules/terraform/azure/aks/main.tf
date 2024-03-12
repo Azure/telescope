@@ -19,7 +19,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count
     vm_size                      = var.vm_sku
-    vnet_subnet_id               = var.subnet_id
+    vnet_subnet_id               = try(var.subnet_id, null)
     os_disk_type                 = var.aks_config.default_node_pool.os_disk_type
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
@@ -42,10 +42,4 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   vm_size               = var.vm_sku
   node_count            = each.value.node_count
   os_disk_type          = var.aks_config.default_node_pool.os_disk_type
-}
-
-resource "azurerm_role_assignment" "aks_on_subnet" {
-  role_definition_name = "Network Contributor"
-  scope                = var.vnet_id
-  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }

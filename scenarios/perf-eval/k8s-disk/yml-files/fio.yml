@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fio
+  labels:
+    test: fio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      test: fio
+  template:
+    metadata:
+      labels:
+        test: fio
+    spec:
+      containers:
+      - name: fio
+        image: vineethac/fio_image
+        command: ["/bin/sh"]
+        args: ["-c", "sleep infinity"]
+        volumeMounts:
+        - name: azure
+          mountPath: /mnt/azure
+      volumes:
+      - name: azure
+        persistentVolumeClaim:
+          claimName: prem-pvc
