@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-jmeter"
+scenario_name  = "lb-diff-zone-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -9,7 +9,7 @@ network_config_list = [
     subnet = [{
       name        = "server-subnet"
       cidr_block  = "10.1.1.0/24"
-      zone_suffix = "a"
+      zone_suffix = "b"
     }]
     security_group_name = "server-sg"
     route_tables = [
@@ -169,6 +169,6 @@ vm_config_list = [{
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
-    zone_suffix                 = "a"
+    zone_suffix                 = "b"
   }
 ]

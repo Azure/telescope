@@ -57,23 +57,34 @@ run_iperf3() {
   done
 }
 
-run_iperf2_helper() {
+run_iperf2() {
   local destination_ip_address=$1
   local client_public_ip_address=$2
   local thread_mode=$3
   local protocol=$4
-  local privatekey_path=$5
-  local server_public_ip_address=$6
-  local result_dir=$7
+  local run_time=$5
+  local wait_time=$6
+  local privatekey_path=$7
+  local server_public_ip_address=$8
+  local result_dir=$9
 
   local bandwidthList=(100 1000 2000 4000)
 
-  echo "Wait for 4 minutes before running all tests"
-  sleep 240
+  echo "Wait for $wait_time seconds before running all tests"
+  sleep $wait_time
+
+  echo "Perform a draft run to warm up the vm"
+  if [ "$protocol" = "udp" ]; then
+    command="iperf --enhancedreports --client $destination_ip_address --format m --time 30 --udp --port 20002"
+  else
+    command="iperf --enhancedreports --client $destination_ip_address --format m --time 30 --port 20001"
+  fi
+  echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
+  run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command"
 
   for bandwidth in "${bandwidthList[@]}"
   do
-    local command="iperf --enhancedreports --client $destination_ip_address --format m --time 60"
+    local command="iperf --enhancedreports --client $destination_ip_address --format m --time $run_time"
 
     if [ "$protocol" = "udp" ]; then
       port=20002
@@ -102,32 +113,6 @@ run_iperf2_helper() {
     echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
     run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
   done
-}
-
-run_iperf2() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local tcp_mode=$3
-  local udp_mode=$4
-  local privatekey_path=$5
-  local server_public_ip_address=$6
-  local result_dir=$7
-
-  mkdir -p $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $privatekey_path $server_public_ip_address $result_dir
-}
-
-run_iperf2_tcp() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local tcp_mode=$3
-  local privatekey_path=$4
-  local server_public_ip_address=$5
-  local result_dir=$6
-
-  mkdir -p $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
 }
 
 collect_result_iperf3() {
