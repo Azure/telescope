@@ -11,8 +11,20 @@ network_config_list = [
       cidr_block  = "10.2.1.0/24"
       zone_suffix = "a"
     }]
-    security_group_name    = "same-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    security_group_name = "same-sg"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "same-subnet-rt-assoc"
+        subnet_name      = "same-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {
