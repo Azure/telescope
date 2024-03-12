@@ -50,6 +50,11 @@ variable "network_config" {
       source_address_prefix      = string
       destination_address_prefix = string
     }))
+    nat_gateway_associations = optional(list(object({
+      nat_gateway_name = string
+      public_ip_name   = string
+      subnet_name      = string
+    })))
   })
 }
 
