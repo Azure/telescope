@@ -1,10 +1,13 @@
 locals {
-  ingress_sg_rules_map = { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
-  egress_sg_rules_map  = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
-  vpc_name             = var.network_config.vpc_name
-  subnet_map           = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  security_group_name  = var.network_config.security_group_name
-  tags                 = merge(var.tags, { "role" = var.network_config.role })
+  ingress_sg_rules_map         = { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
+  egress_sg_rules_map          = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
+  vpc_name                     = var.network_config.vpc_name
+  subnet_map                   = { for subnet in var.network_config.subnet : subnet.name => subnet }
+  route_tables_map             = { for rt in var.network_config.route_tables : rt.name => rt }
+  route_table_associations_map = { for rta in var.network_config.route_table_associations : rta.name => rta }
+
+  security_group_name = var.network_config.security_group_name
+  tags                = merge(var.tags, { "role" = var.network_config.role })
 }
 
 resource "aws_vpc" "vpc" {
@@ -66,22 +69,24 @@ resource "aws_internet_gateway" "internet_gateway" {
   })
 }
 
-resource "aws_route_table" "route_table" {
+resource "aws_route_table" "route_tables" {
+  for_each = local.route_tables_map
+
   vpc_id = aws_vpc.vpc.id
 
   route {
-    cidr_block = var.network_config.route_table_cidr_block
+    cidr_block = each.value.cidr_block
     gateway_id = aws_internet_gateway.internet_gateway.id
   }
 
   tags = merge(local.tags, {
-    "Name" = "${local.vpc_name}-rt"
+    "Name" = each.value.name
   })
 }
 
 resource "aws_route_table_association" "route_table_association" {
-  for_each = local.subnet_map
+  for_each = local.route_table_associations_map
 
-  subnet_id      = aws_subnet.subnets[each.key].id
-  route_table_id = aws_route_table.route_table.id
+  subnet_id      = aws_subnet.subnets[each.value.subnet_name].id
+  route_table_id = aws_route_table.route_tables[each.value.route_table_name].id
 }
