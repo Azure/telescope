@@ -23,7 +23,7 @@ jobs:
           matrix_array="[${matrix%,}]"
 
           # Remove .md, .sh, .py and github files from the changed list
-          git diff --name-only -r origin/main HEAD 2>/dev/null
+          git diff --name-only -r origin/main HEAD 2>/dev/null | grep -Ev '\.md$|\.sh$|\.py$|\.github/'
           file_changes=$(git diff --name-only -r origin/main HEAD 2>/dev/null | grep -Ev '\.md$|\.sh$|\.py$|\.github/')
           if [ -z "$file_changes" ]; then
             echo "No relevant file changes."           
