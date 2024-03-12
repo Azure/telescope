@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-jmeter"
+scenario_name  = "lb-same-zone-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -11,8 +11,20 @@ network_config_list = [
       cidr_block  = "10.1.1.0/24"
       zone_suffix = "a"
     }]
-    security_group_name    = "server-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    security_group_name = "server-sg"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "server-subnet-rt-assoc"
+        subnet_name      = "server-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {
@@ -53,8 +65,20 @@ network_config_list = [
       cidr_block  = "10.0.0.0/24"
       zone_suffix = "a"
     }]
-    security_group_name    = "client-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    security_group_name = "client-sg"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "client-subnet-rt-assoc"
+        subnet_name      = "client-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {

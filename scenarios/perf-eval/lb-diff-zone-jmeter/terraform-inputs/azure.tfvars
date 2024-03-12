@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-jmeter"
+scenario_name  = "lb-diff-zone-jmeter"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
