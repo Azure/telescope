@@ -57,7 +57,7 @@ run_iperf3() {
   done
 }
 
-run_iperf2_helper() {
+run_iperf2() {
   local destination_ip_address=$1
   local client_public_ip_address=$2
   local thread_mode=$3
@@ -119,36 +119,6 @@ run_iperf2_helper() {
     PID2=$!
     wait $PID1 $PID2
   done
-}
-
-run_iperf2() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local tcp_mode=$3
-  local udp_mode=$4
-  local run_time=$5
-  local wait_time=$6
-  local privatekey_path=$7
-  local server_public_ip_address=$8
-  local result_dir=$9
-
-  mkdir -p $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $run_time $wait_time $privatekey_path $server_public_ip_address $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $run_time $wait_time $privatekey_path $server_public_ip_address $result_dir
-}
-
-run_iperf2_tcp() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local tcp_mode=$3
-  local run_time=$4
-  local wait_time=$5
-  local privatekey_path=$6
-  local server_public_ip_address=$7
-  local result_dir=$8
-
-  mkdir -p $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $run_time $wait_time $privatekey_path $server_public_ip_address $result_dir
 }
 
 collect_result_iperf3() {
