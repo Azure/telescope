@@ -35,6 +35,15 @@ run_scp_local() {
   $scpCommand
 }
 
+run_kubectl_exec() {
+  local pod_name=$1
+  local container_name=$2
+  local command=$3
+
+  kubectlCommand="kubectl exec $pod_name -c $container_name -- $command"
+  $kubectlCommand
+}
+
 check_ssh_connection() {
   local ip_address=$1
   local privatekey_path=$2
