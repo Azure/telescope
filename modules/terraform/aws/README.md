@@ -48,6 +48,7 @@ aws configure set aws_secret_access_key <secret-access-key>
 aws configure set region <test-region>
 ```
 
+
 **Note**: Make sure you configure the region to be the same as where you want to provision the resources. Otherwise, you might get an error.
 
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/aws/variables.tf`](../../../modules/terraform/aws/variables.tf) as the list will keep changing as we add more features.
