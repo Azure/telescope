@@ -110,14 +110,8 @@ run_iperf2() {
     echo "Wait for 1 minutes before running"
     sleep 60
 
-    echo "fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol"
-    fetch_proc_net $server_public_ip_address 2222 $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
-    PID1=$!
-
     echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log &
-    PID2=$!
-    wait $PID1 $PID2
+    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
   done
 }
 
@@ -185,12 +179,7 @@ collect_result_iperf2() {
       cat $iperf_result
       iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
 
-      proc_net_result="$result_dir/proc-net-${protocol}-${bandwidth}.log"
-      read proc_net_rx_queue proc_net_drops < $proc_net_result
-      os_info=$(jq --null-input \
-        --arg pnrq "$proc_net_rx_queue" \
-        --arg pnd "$proc_net_drops" \
-        '{"proc_net_rx_queue": $pnrq, "proc_net_drops": $pnd}')
+      os_info="{}"
 
       data=$(jq --null-input \
         --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
