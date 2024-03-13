@@ -4,9 +4,10 @@ variable "network_config" {
     vpc_name       = string
     vpc_cidr_block = string
     subnet = list(object({
-      name        = string
-      cidr_block  = string
-      zone_suffix = string
+      name                    = string
+      cidr_block              = string
+      zone_suffix             = string
+      map_public_ip_on_launch = optional(bool, false)
     }))
     security_group_name = string
     route_tables = list(object({
