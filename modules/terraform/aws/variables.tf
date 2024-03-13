@@ -51,8 +51,17 @@ variable "network_config_list" {
       cidr_block  = string
       zone_suffix = string
     }))
-    security_group_name    = string
-    route_table_cidr_block = string
+    security_group_name = string
+    route_tables = list(object({
+      name             = string
+      cidr_block       = string
+      nat_gateway_name = optional(string)
+    }))
+    route_table_associations = list(object({
+      name             = string
+      subnet_name      = string
+      route_table_name = string
+    }))
     sg_rules = object({
       ingress = list(object({
         from_port  = number

@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-diff-zone-iperf"
+scenario_name  = "lb-same-zone-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -9,7 +9,7 @@ network_config_list = [
     subnet = [{
       name        = "server-subnet"
       cidr_block  = "10.1.1.0/24"
-      zone_suffix = "b"
+      zone_suffix = "a"
     }]
     security_group_name = "server-sg"
     route_tables = [
@@ -34,21 +34,15 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20000
-          to_port    = 20000
+          from_port  = 80
+          to_port    = 80
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20001
-          to_port    = 20001
+          from_port  = 443
+          to_port    = 443
           protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        },
-        {
-          from_port  = 20002
-          to_port    = 20002
-          protocol   = "udp"
           cidr_block = "0.0.0.0/0"
         }
       ]
@@ -112,50 +106,50 @@ loadbalancer_config_list = [{
   load_balancer_type = "network"
   lb_target_group = [{
     role       = "nlb-tg"
-    tg_suffix  = "tcp"
-    port       = 20001
+    tg_suffix  = "http"
+    port       = 80
     protocol   = "TCP"
     rule_count = 1
     vpc_name   = "server-vpc"
     health_check = {
-      port                = "20000"
+      port                = "80"
       protocol            = "TCP"
-      interval            = 10
+      interval            = 15
       timeout             = 10
-      healthy_threshold   = 2
-      unhealthy_threshold = 2
+      healthy_threshold   = 3
+      unhealthy_threshold = 3
     }
     lb_listener = {
-      port     = 20001
+      port     = 80
       protocol = "TCP"
     }
     lb_target_group_attachment = {
       vm_name = "server-vm"
-      port    = 20001
+      port    = 80
     }
     },
     {
       role       = "nlb-tg"
-      tg_suffix  = "udp"
-      port       = 20002
-      protocol   = "UDP"
+      tg_suffix  = "https"
+      port       = 443
+      protocol   = "TCP"
       rule_count = 1
       vpc_name   = "server-vpc"
       health_check = {
-        port                = "20000"
+        port                = "443"
         protocol            = "TCP"
-        interval            = 10
+        interval            = 15
         timeout             = 10
-        healthy_threshold   = 2
-        unhealthy_threshold = 2
+        healthy_threshold   = 3
+        unhealthy_threshold = 3
       }
       lb_listener = {
-        port     = 20002
-        protocol = "UDP"
+        port     = 443
+        protocol = "TCP"
       }
       lb_target_group_attachment = {
         vm_name = "server-vm"
-        port    = 20002
+        port    = 443
       }
     }
   ]
@@ -164,7 +158,6 @@ loadbalancer_config_list = [{
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  network_role                = "client"
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
@@ -176,6 +169,6 @@ vm_config_list = [{
     subnet_name                 = "server-subnet"
     security_group_name         = "server-sg"
     associate_public_ip_address = true
-    zone_suffix                 = "b"
+    zone_suffix                 = "a"
   }
 ]
