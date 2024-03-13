@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-cross-region-iperf"
+scenario_name  = "lb-cross-region-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -24,14 +24,14 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20001
-          to_port    = 20001
+          from_port  = 80
+          to_port    = 80
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20002
-          to_port    = 20002
+          from_port  = 443
+          to_port    = 443
           protocol   = "udp"
           cidr_block = "0.0.0.0/0"
         }

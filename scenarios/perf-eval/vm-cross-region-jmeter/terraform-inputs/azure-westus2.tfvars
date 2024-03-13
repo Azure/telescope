@@ -1,12 +1,9 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-cross-region-iperf"
+scenario_name  = "vm-cross-region-jmeter"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
     name = "server-pip"
-  },
-  {
-    name = "lb-pip"
   }
 ]
 network_config_list = [
@@ -29,24 +26,24 @@ network_config_list = [
     ]
     nsr_rules = [
       {
-        name                       = "server-nsr-tcp"
+        name                       = "server-nsr-http"
         priority                   = 100
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20001"
+        destination_port_range     = "80-80"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-udp"
+        name                       = "server-nsr-https"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
-        protocol                   = "Udp"
+        protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "443-443"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
@@ -64,36 +61,7 @@ network_config_list = [
     ]
   }
 ]
-loadbalancer_config_list = [{
-  role                  = "ingress"
-  loadbalance_name      = "ingress-lb"
-  public_ip_name        = "lb-pip"
-  loadbalance_pool_name = "ingress-lb-pool"
-  probe_protocol        = "Tcp"
-  probe_port            = 20000
-  probe_request_path    = null,
-  lb_rules = [{
-    type                     = "Inbound"
-    rule_count               = 1
-    role                     = "ingress-lb-tcp-rule"
-    protocol                 = "Tcp"
-    frontend_port            = 20001
-    backend_port             = 20001
-    fronend_ip_config_prefix = "ingress"
-    enable_tcp_reset         = false
-    idle_timeout_in_minutes  = 4
-    },
-    {
-      type                    = "Inbound"
-      rule_count              = 1
-      role                    = "ingress-lb-udp-rule"
-      protocol                = "Udp"
-      frontend_port           = 20002
-      backend_port            = 20002
-      enable_tcp_reset        = false
-      idle_timeout_in_minutes = 4
-  }]
-}]
+loadbalancer_config_list = []
 
 vm_config_list = [
   {
@@ -112,12 +80,5 @@ vm_config_list = [
   }
 ]
 vmss_config_list = []
-nic_backend_pool_association_list = [
-  {
-    nic_name              = "server-nic"
-    backend_pool_name     = "ingress-lb-pool"
-    vm_name               = "server-vm"
-    ip_configuration_name = "server-ipconfig"
-  }
-]
+nic_backend_pool_association_list = []
  

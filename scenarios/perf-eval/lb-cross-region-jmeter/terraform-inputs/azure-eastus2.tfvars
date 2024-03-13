@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-cross-region-iperf"
+scenario_name  = "vm-cross-region-jmeter"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -36,24 +36,24 @@ network_config_list = [
       destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-tcp"
+        name                       = "nsr-http"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20001"
+        destination_port_range     = "80-80"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-udp"
+        name                       = "nsr-https"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Udp"
         source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "443-443"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       }

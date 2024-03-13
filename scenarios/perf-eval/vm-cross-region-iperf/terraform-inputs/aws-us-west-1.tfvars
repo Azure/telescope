@@ -34,21 +34,15 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20000
-          to_port    = 20000
+          from_port  = 80
+          to_port    = 80
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20001
-          to_port    = 20001
+          from_port  = 443
+          to_port    = 443
           protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        },
-        {
-          from_port  = 20002
-          to_port    = 20002
-          protocol   = "udp"
           cidr_block = "0.0.0.0/0"
         }
       ]
@@ -63,61 +57,7 @@ network_config_list = [
     }
   }
 ]
-loadbalancer_config_list = [{
-  role               = "ingress"
-  vpc_name           = "server-vpc"
-  subnet_name        = "server-subnet"
-  load_balancer_type = "network"
-  lb_target_group = [{
-    role       = "nlb-tg"
-    tg_suffix  = "tcp"
-    port       = 20001
-    protocol   = "TCP"
-    rule_count = 1
-    vpc_name   = "server-vpc"
-    health_check = {
-      port                = "20000"
-      protocol            = "TCP"
-      interval            = 10
-      timeout             = 10
-      healthy_threshold   = 2
-      unhealthy_threshold = 2
-    }
-    lb_listener = {
-      port     = 20001
-      protocol = "TCP"
-    }
-    lb_target_group_attachment = {
-      vm_name = "server-vm"
-      port    = 20001
-    }
-    },
-    {
-      role       = "nlb-tg"
-      tg_suffix  = "udp"
-      port       = 20002
-      protocol   = "UDP"
-      rule_count = 1
-      vpc_name   = "server-vpc"
-      health_check = {
-        port                = "20000"
-        protocol            = "TCP"
-        interval            = 10
-        timeout             = 10
-        healthy_threshold   = 2
-        unhealthy_threshold = 2
-      }
-      lb_listener = {
-        port     = 20002
-        protocol = "UDP"
-      }
-      lb_target_group_attachment = {
-        vm_name = "server-vm"
-        port    = 20002
-      }
-    }
-  ]
-}]
+loadbalancer_config_list = []
 
 vm_config_list = [
   {
