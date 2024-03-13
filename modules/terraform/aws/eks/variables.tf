@@ -1,5 +1,5 @@
 variable "run_id" {
-  description = "The run id for the load balancer."
+  description = "The run id for  eks cluster"
   type        = string
 }
 

@@ -169,12 +169,6 @@ variable "eks_config_list" {
   default = []
 }
 
-variable "eks_name_prefix" {
-  description = "Value of the eks name prefix"
-  type        = string
-  default     = ""
-}
-
 variable "efs_name_prefix" {
   description = "Value of the bucket name prefix"
   type        = string
