@@ -54,7 +54,7 @@ To use the EKS module, follow these steps:
      }
    ]
    ```
-
+	 
    - For EKS addon's we have to create OIDC provider for the cluster and attach policy arns.[Refer here](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html)
    - This configuration creates two addons related to storage.
    - service_account and policy_attachment_names are optional in general but some addons are required to have IAM permisson values. [Refer here](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
