@@ -86,10 +86,10 @@ module "aks" {
   resource_group_name = local.run_id
   location            = local.region
   vm_sku              = local.aks_machine_type
-  subnet_id           = local.all_subnets[each.value.subnet_name]
+  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   aks_config          = each.value
   tags                = local.tags
-  vnet_id             = module.virtual_network[each.value.role].vnet_id
+  vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
 }
 
 module "load_balancer" {
