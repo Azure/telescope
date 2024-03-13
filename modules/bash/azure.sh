@@ -104,3 +104,26 @@ azure_aks_start_nginx()
     --set controller.admissionWebhooks.enabled=false \
     --wait-for-jobs
 }
+
+azure_aks_deploy_fio()
+{
+  local resource_group=$1
+  local aksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local disk_type=$5
+  local disk_size_in_gb=$6
+  local replica_count=$7
+
+  az aks get-credentials -n $aksName -g $resource_group
+  
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files
+
+  sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
+  sed -i "s/\(storage: \).*/\1${disk_size_in_gb}Gi/" "${file_source}/pvc.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/storage-class.yml"
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}
