@@ -24,8 +24,10 @@ locals {
   network_config_map      = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   vm_config_map           = { for vm in var.vm_config_list : vm.vm_name => vm }
+  eks_config_map          = { for eks in var.eks_config_list : eks.eks_name => eks }
 
   all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
+  all_vpcs    = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
 }
 
 terraform {
@@ -106,6 +108,17 @@ module "efs" {
   throughput_mode                 = local.efs_throughput_mode
   provisioned_throughput_in_mibps = local.efs_provisioned_throughput_in_mibps
   tags                            = local.tags
+}
+
+module "eks" {
+  for_each = local.eks_config_map
+
+  source     = "./eks"
+  run_id     = local.run_id
+  vpc_id     = local.all_vpcs[each.value.vpc_name].id
+  eks_config = each.value
+  tags       = local.tags
+  depends_on = [module.virtual_network]
 }
 
 module "privatelink" {

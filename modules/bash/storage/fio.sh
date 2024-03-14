@@ -212,6 +212,12 @@ collect_result_blob_fio() {
   write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
   write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
   write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
+  read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
+  read_lat_p99=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.000000"')
+  read_lat_p999=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.900000"')
+  write_lat_p50=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."50.000000"')
+  write_lat_p99=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.000000"')
+  write_lat_p999=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.900000"')
 
   data=$(jq --null-input \
     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -292,6 +298,12 @@ collect_result_fileshare_fio() {
   write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
   write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
   write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
+  read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
+  read_lat_p99=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.000000"')
+  read_lat_p999=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.900000"')
+  write_lat_p50=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."50.000000"')
+  write_lat_p99=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.000000"')
+  write_lat_p999=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.900000"')
 
   data=$(jq --null-input \
     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
