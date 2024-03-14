@@ -12,7 +12,19 @@ network_config_list = [
       zone_suffix = "a"
     }]
     security_group_name    = "server-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "server-subnet-rt-assoc"
+        subnet_name      = "server-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {

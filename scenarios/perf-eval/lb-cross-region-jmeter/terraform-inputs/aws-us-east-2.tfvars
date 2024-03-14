@@ -14,7 +14,19 @@ network_config_list = [
       }
     ]
     security_group_name    = "us-east-2-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "client-subnet-rt-assoc"
+        subnet_name      = "us-east-2-client-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {
