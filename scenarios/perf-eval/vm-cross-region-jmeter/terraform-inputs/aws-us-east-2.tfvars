@@ -11,7 +11,7 @@ network_config_list = [
       cidr_block  = "10.0.0.0/24"
       zone_suffix = "a"
     }]
-    security_group_name    = "client-sg"
+    security_group_name = "client-sg"
     route_tables = [
       {
         name       = "internet-rt"

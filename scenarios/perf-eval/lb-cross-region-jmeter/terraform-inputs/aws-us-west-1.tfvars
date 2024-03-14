@@ -13,7 +13,7 @@ network_config_list = [
         zone_suffix = "c"
       }
     ]
-    security_group_name    = "us-west-1-sg"
+    security_group_name = "us-west-1-sg"
     route_tables = [
       {
         name       = "internet-rt"
