@@ -67,13 +67,13 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-ssh"
+        name                       = "server-nsr-http"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "2222"
+        destination_port_range     = "80"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
     }]
