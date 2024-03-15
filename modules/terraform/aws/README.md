@@ -120,8 +120,29 @@ Provision resources using Terraform:
 ```
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if terraform workspace list | grep -q "$region"; then
+    terraform workspace select $region
+  else
+    terraform workspace new $region
+    terraform workspace select $region
+  fi
+  terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+  terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  terraform plan -var-file $terraform_input_file -var json_input=$terraform_input_variables
+done
+
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if terraform workspace list | grep -q "$region"; then
+    terraform workspace select $region
+  else
+    terraform workspace new $region
+    terraform workspace select $region
+  fi
+  terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+  terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  terraform apply -var-file $terraform_input_file -var json_input=$terraform_input_variables --auto-approve
+done
 popd
 ```
 
