@@ -44,7 +44,7 @@ network_config_list = [
         {
           from_port  = 443
           to_port    = 443
-          protocol   = "udp"
+          protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         }
       ]

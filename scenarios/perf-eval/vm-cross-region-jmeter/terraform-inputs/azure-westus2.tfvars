@@ -57,6 +57,28 @@ network_config_list = [
         destination_port_range     = "2222"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
+      },
+      {
+        name                       = "client-nsr-http"
+        priority                   = 101
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "80-80"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "client-nsr-https"
+        priority                   = 102
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Udp"
+        source_port_range          = "*"
+        destination_port_range     = "443-443"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
       }
     ]
   }
