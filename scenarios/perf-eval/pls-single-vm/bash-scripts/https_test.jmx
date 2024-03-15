@@ -126,6 +126,7 @@
           </objProp>
           <stringProp name="filename">${__P(result_file_name,aggregate)}.csv</stringProp>
         </ResultCollector>
+        </hashTree>
         <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config" enabled="true">
           <stringProp name="delimiter">,</stringProp>
           <stringProp name="fileEncoding"></stringProp>
