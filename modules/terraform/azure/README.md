@@ -182,10 +182,20 @@ Once resources are provisioned, make sure to go to Azure portal to verify the re
 Once your test is done, you can destroy the resources using Terraform.
 ```
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if terraform workspace list | grep -q "$region"; then
+    terraform workspace select $region
+  else
+    terraform workspace new $region
+    terraform workspace select $region
+  fi
+  terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+  terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  terraform destroy -var-file $terraform_input_file -var json_input=$terraform_input_variables --auto-approve
+done
 popd
 ```
-After terraformn destroys all the resources delete resource group manually.
+After terraform destroys all the resources delete resource group manually.
 ```
 az group delete --name $RUN_ID
 ```
