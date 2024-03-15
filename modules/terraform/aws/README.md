@@ -160,8 +160,8 @@ for region in $(echo "$REGIONS" | jq -r '.[]'); do
     terraform workspace new $region
     terraform workspace select $region
   fi
-  terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-  terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  terraform_input_file=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+  terraform_input_variables=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
   terraform destroy -var-file $terraform_input_file -var json_input=$terraform_input_variables --auto-approve
 done
 popd
