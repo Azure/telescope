@@ -70,7 +70,7 @@
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GetFileShares">
           <stringProp name="HTTPSampler.domain">management.azure.com</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/0002/providers/Microsoft.Storage/storageAccounts/123456plsteststorage/fileServices/default/shares?api-version=2023-01-01</stringProp>
+          <stringProp name="HTTPSampler.path">/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/0003/providers/Microsoft.Storage/storageAccounts/peplstest384zrax0/fileServices/default/shares?api-version=2023-01-01</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
