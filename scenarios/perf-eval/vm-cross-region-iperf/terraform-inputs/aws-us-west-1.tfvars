@@ -34,15 +34,21 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 80
-          to_port    = 80
+          from_port  = 20000
+          to_port    = 20000
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 443
-          to_port    = 443
+          from_port  = 20001
+          to_port    = 20001
           protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20002
+          to_port    = 20002
+          protocol   = "udp"
           cidr_block = "0.0.0.0/0"
         }
       ]
