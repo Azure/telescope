@@ -16,11 +16,6 @@ network_config_list = [
         name        = "server-subnet"
         cidr_block  = "10.2.2.0/24"
         zone_suffix = "b"
-      },
-      {
-        name        = "nat-subnet"
-        cidr_block  = "10.2.3.0/24"
-        zone_suffix = "a"
       }
     ]
     security_group_name = "same-sg"
@@ -28,38 +23,20 @@ network_config_list = [
       {
         name       = "internet-rt"
         cidr_block = "0.0.0.0/0"
-      },
-      {
-        name             = "nat-rt"
-        cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = "nat-gw"
       }
     ],
     route_table_associations = [
       {
         name             = "client-subnet-rt-assoc"
         subnet_name      = "client-subnet"
-        route_table_name = "nat-rt"
+        route_table_name = "internet-rt"
       },
       {
         name             = "server-subnet-rt-assoc"
         subnet_name      = "server-subnet"
         route_table_name = "internet-rt"
-      },
-      {
-        name             = "nat-subnet-rt-assoc"
-        subnet_name      = "nat-subnet"
-        route_table_name = "internet-rt"
       }
     ]
-    nat_gateways = [{
-      name           = "nat-gw"
-      public_ip_name = "nat-gw-eip"
-      subnet_name    = "nat-subnet"
-    }]
-    nat_gateway_public_ips = [{
-      name = "nat-gw-eip"
-    }]
     sg_rules = {
       ingress = [
         {
@@ -94,20 +71,12 @@ network_config_list = [
 ]
 loadbalancer_config_list = []
 vm_config_list = [{
-  vm_name                     = "jumpbox-vm"
-  role                        = "jumpbox"
-  subnet_name                 = "nat-subnet"
+  vm_name                     = "client-vm"
+  role                        = "client"
+  subnet_name                 = "client-subnet"
   security_group_name         = "same-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "client-vm"
-    role                        = "client"
-    subnet_name                 = "client-subnet"
-    security_group_name         = "same-sg"
-    associate_public_ip_address = false
-    zone_suffix                 = "a"
   },
   {
     vm_name                     = "server-vm"
