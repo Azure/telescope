@@ -28,7 +28,7 @@
         <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
           <collectionProp name="Arguments.arguments">
             <elementProp name="ip_address" elementType="Argument">
-              <stringProp name="Argument.name">ip_address</stringProp>
+              <stringProp name="Argument.name">api_endpoint</stringProp>
               <stringProp name="Argument.value">localhost</stringProp>
               <stringProp name="Argument.desc">IP Address of server</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
@@ -70,7 +70,7 @@
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GetFileShares">
           <stringProp name="HTTPSampler.domain">management.azure.com</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/0003/providers/Microsoft.Storage/storageAccounts/peplstest384zrax0/fileServices/default/shares?api-version=2023-01-01</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(api_endpoint,/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/0003/providers/Microsoft.Storage/storageAccounts/peplstest7so8erfk/fileServices/default/shares?api-version=2023-01-01)}</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
