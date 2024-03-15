@@ -26,16 +26,31 @@ SCENARIO_NAME=vm-same-zone-iperf
 RUN_ID=123456789
 OWNER=$(whoami)
 CLOUD=aws
-REGION=us-east-2
+REGIONS='["us-east-2"]' 
 MACHINE_TYPE=m5.4xlarge
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
-TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 ```
 
 **Note**:
 * `RUN_ID` should be a unique identifier since it is used to identify the resources based on tags as AWS has no concept of a resource group.
 * These variables are not exhaustive and may vary depending on the scenario.
+* `REGIONS` contains list of regions
+
+### Set Input File
+```
+regional_config=$(jq -n '{}')
+multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if [ $multi_region = "false" ]; then
+    terraform_input_file=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
+  else
+    terraform_input_file=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}-${region}.tfvars
+  fi
+  regional_config=$(echo $regional_config | jq --arg region $region --arg file_path $terraform_input_file '. + {($region): {"TERRAFORM_INPUT_FILE" : $file_path}}')
+done
+regional_config_str=$(echo $regional_config | jq -c .)
+```
 
 ### Provision Resources
 
@@ -53,43 +68,50 @@ aws configure set region <test-region>
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/aws/variables.tf`](../../../modules/terraform/aws/variables.tf) as the list will keep changing as we add more features.
 
 ```
-INPUT_JSON=$(jq -n \
-  --arg owner $OWNER \
-  --arg run_id $RUN_ID \
-  --arg region $REGION \
-  --arg public_key_path $SSH_PUBLIC_KEY_PATH \
-  --arg machine_type "$MACHINE_TYPE" \
-  --arg data_disk_volume_type "$DATA_DISK_TYPE" \
-  --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
-  --arg data_disk_tier "$DATA_DISK_TIER" \
-  --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
-  --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
-  --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
-  --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
-  --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
-  --arg user_data_path $TERRAFORM_USER_DATA_PATH \
-  --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
-  --arg efs_throughput_mode "$EFS_THROUGHPUT_MODE" \
-  --arg efs_provisioned_throughput_in_mibps "$EFS_PROVISIONED_THROUGHPUT_IN_MIBPS" \
-  '{
-  owner: $owner, 
-  run_id: $run_id, 
-  region: $region, 
-  public_key_path: $public_key_path,  
-  machine_type: $machine_type, 
-  data_disk_volume_type: $data_disk_volume_type, 
-  data_disk_size_gb: $data_disk_size_gb,
-  data_disk_tier: $data_disk_tier, 
-  data_disk_iops_read_write: $data_disk_iops_read_write, 
-  data_disk_iops_read_only: $data_disk_iops_read_only, 
-  data_disk_mbps_read_write: $data_disk_mbps_read_write, 
-  data_disk_mbps_read_only: $data_disk_mbps_read_only,
-  ultra_ssd_enabled: $ultra_ssd_enabled,
-  user_data_path: $user_data_path,
-  efs_performance_mode: $efs_performance_mode,
-  efs_throughput_mode: $efs_throughput_mode,
-  efs_provisioned_throughput_in_mibps: $efs_provisioned_throughput_in_mibps
-  }' | jq 'with_entries(select(.value != null and .value != ""))')
+for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
+  echo "Set input variables for region $REGION"
+  INPUT_JSON=$(jq -n \
+        --arg owner $OWNER \
+        --arg run_id $RUN_ID \
+        --arg region $REGION \
+        --arg public_key_path $SSH_PUBLIC_KEY_PATH \
+        --arg machine_type "$MACHINE_TYPE" \
+        --arg data_disk_volume_type "$DATA_DISK_TYPE" \
+        --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
+        --arg data_disk_tier "$DATA_DISK_TIER" \
+        --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
+        --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
+        --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
+        --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
+        --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
+        --arg user_data_path $TERRAFORM_USER_DATA_PATH \
+        --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
+        --arg efs_throughput_mode "$EFS_THROUGHPUT_MODE" \
+        --arg efs_provisioned_throughput_in_mibps "$EFS_PROVISIONED_THROUGHPUT_IN_MIBPS" \
+        '{
+        owner: $owner,
+        run_id: $run_id,
+        region: $region,
+        public_key_path: $public_key_path,
+        machine_type: $machine_type,
+        data_disk_volume_type: $data_disk_volume_type,
+        data_disk_size_gb: $data_disk_size_gb,
+        data_disk_tier: $data_disk_tier,
+        data_disk_iops_read_write: $data_disk_iops_read_write,
+        data_disk_iops_read_only: $data_disk_iops_read_only,
+        data_disk_mbps_read_write: $data_disk_mbps_read_write,
+        data_disk_mbps_read_only: $data_disk_mbps_read_only,
+        ultra_ssd_enabled: $ultra_ssd_enabled,
+        user_data_path: $user_data_path,
+        efs_performance_mode: $efs_performance_mode,
+        efs_throughput_mode: $efs_throughput_mode,
+        efs_provisioned_throughput_in_mibps: $efs_provisioned_throughput_in_mibps
+        }' | jq 'with_entries(select(.value != null and .value != ""))')
+  input_json_str=$(echo $INPUT_JSON | jq -c .)
+  regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_json_str" \
+    '.[$region].TERRAFORM_INPUT_VARIABLES += $input_variable')
+  INPUT_JSON=""
+done
 ```
 
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
