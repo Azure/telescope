@@ -26,17 +26,31 @@ SCENARIO_NAME=vm-same-zone-iperf
 RUN_ID=123456789
 OWNER=$(whoami)
 CLOUD=azure
-REGION=eastus
+REGIONS='["eastus"]' 
 MACHINE_TYPE=standard_D16_v3
 ACCERLATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
-TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/$CLOUD.tfvars
 ```
-
 **Note**:
 * `RUN_ID` should be a unique identifier since it is used to name the resource group in Azure.
 * These variables are not exhaustive and may vary depending on the scenario.
+* `REGIONS` contains list of regions
+
+### Set Input File
+```
+regional_config=$(jq -n '{}')
+multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if [ $multi_region = "false" ]; then
+    terraform_input_file=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
+  else
+    terraform_input_file=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}-${region}.tfvars
+  fi
+  regional_config=$(echo $regional_config | jq --arg region $region --arg file_path $terraform_input_file '. + {($region): {"TERRAFORM_INPUT_FILE" : $file_path}}')
+done
+regional_config_str=$(echo $regional_config | jq -c .)
+```
 
 ### Provision Resources
 
@@ -71,7 +85,9 @@ az group create --name $RUN_ID --location $REGION --tags "run_id=$RUN_ID" "scena
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/azure/variables.tf`](../../../modules/terraform/azure/variables.tf) as the list will keep changing as we add more features.
 
 ```
-INPUT_JSON=$(jq -n \
+for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
+  echo "Set input Json for region $REGION"
+  INPUT_JSON=$(jq -n \
   --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
@@ -120,6 +136,11 @@ INPUT_JSON=$(jq -n \
     storage_share_enabled_protocol: $storage_share_enabled_protocol,
     user_data_path: $user_data_path
   }' | jq 'with_entries(select(.value != null and .value != ""))')
+  input_json_str=$(echo $INPUT_JSON | jq -c .)
+  regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_json_str" \
+    '.[$region].TERRAFORM_INPUT_VARIABLES += $input_variable')
+  INPUT_JSON=""
+done
 ```
 
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
@@ -129,8 +150,26 @@ Provision resources using Terraform:
 ```
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if terraform workspace list | grep -q "$region"; then
+    terraform workspace select $region
+  else
+    terraform workspace new $region
+    terraform workspace select $region
+  fi
+  terraform_input_file=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+  terraform_input_variables=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  
+  terraform plan -var-file $terraform_input_file -var json_input=$terraform_input_variables
+  
+  # Check if the plan was successful
+  if [ $? -ne 0 ]; then
+    echo "Terraform plan failed for $region. Skipping apply."
+    continue
+  fi
+  
+  terraform apply -var-file $terraform_input_file -var json_input=$terraform_input_variables --auto-approve
+done
 popd
 ```
 
@@ -141,10 +180,20 @@ Once resources are provisioned, make sure to go to Azure portal to verify the re
 Once your test is done, you can destroy the resources using Terraform.
 ```
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+for region in $(echo "$REGIONS" | jq -r '.[]'); do
+  if terraform workspace list | grep -q "$region"; then
+    terraform workspace select $region
+  else
+    terraform workspace new $region
+    terraform workspace select $region
+  fi
+  terraform_input_file=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+  terraform_input_variables=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  terraform destroy -var-file $terraform_input_file -var json_input=$terraform_input_variables --auto-approve
+done
 popd
 ```
-After terraformn destroys all the resources delete resource group manually.
+After terraform destroys all the resources delete resource group manually.
 ```
 az group delete --name $RUN_ID
 ```
