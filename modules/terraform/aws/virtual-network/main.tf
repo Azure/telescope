@@ -7,7 +7,7 @@ locals {
   route_table_associations_map = var.network_config.route_table_associations == null ? {} : { for rta in var.network_config.route_table_associations : rta.name => rta }
   nat_gateway_public_ips_map   = var.network_config.nat_gateway_public_ips == null ? {} : { for pip in var.network_config.nat_gateway_public_ips : pip.name => pip }
   nat_gateways_map             = var.network_config.nat_gateways == null ? {} : { for ng in var.network_config.nat_gateways : ng.name => ng }
-  
+
   security_group_name = var.network_config.security_group_name
   tags                = merge(var.tags, { "role" = var.network_config.role })
 }
