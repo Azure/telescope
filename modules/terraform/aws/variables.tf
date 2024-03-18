@@ -4,8 +4,8 @@ variable "json_input" {
     owner                     = string
     run_id                    = string
     region                    = string
-    machine_type              = string
     public_key_path           = string
+    machine_type              = optional(string)
     user_data_path            = optional(string)
     data_disk_volume_type     = optional(string)
     data_disk_size_gb         = optional(number)
