@@ -1,10 +1,10 @@
 locals {
-  ingress_sg_rules_map         = { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
-  egress_sg_rules_map          = { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
+  ingress_sg_rules_map         = var.network_config.sg_rules == null ? {} : { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
+  egress_sg_rules_map          = var.network_config.sg_rules == null ? {} : { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
   vpc_name                     = var.network_config.vpc_name
   subnet_map                   = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  route_tables_map             = { for rt in var.network_config.route_tables : rt.name => rt }
-  route_table_associations_map = { for rta in var.network_config.route_table_associations : rta.name => rta }
+  route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
+  route_table_associations_map = var.network_config.route_table_associations == null ? {} : { for rta in var.network_config.route_table_associations : rta.name => rta }
 
   security_group_name = var.network_config.security_group_name
   tags                = merge(var.tags, { "role" = var.network_config.role })
