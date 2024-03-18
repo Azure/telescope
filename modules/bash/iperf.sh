@@ -126,10 +126,10 @@ run_iperf2() {
     else
       echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
       run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
-      # for debug
-      echo ======== iperf2-${protocol}-${bandwidth}.log ========
-      cat $result_dir/iperf2-${protocol}-${bandwidth}.log
     fi
+    # for debug
+    echo ======== iperf2-${protocol}-${bandwidth}.log ========
+    cat $result_dir/iperf2-${protocol}-${bandwidth}.log
   done
 }
 
