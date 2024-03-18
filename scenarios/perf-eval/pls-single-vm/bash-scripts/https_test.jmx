@@ -63,6 +63,12 @@
               <stringProp name="Argument.desc">Name of result file</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
+            <elementProp name="auth_token" elementType="Argument">
+              <stringProp name="Argument.name">auth_token</stringProp>
+              <stringProp name="Argument.value">random string</stringProp>
+              <stringProp name="Argument.desc">Header</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
           </collectionProp>
         </Arguments>
         <hashTree/>
@@ -101,6 +107,15 @@
             <stringProp name="preload">True</stringProp>
             <stringProp name="startIndex">0</stringProp>
           </KeystoreConfig>
+          <hashTree/>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Bearer ${__P(auth_token, token)}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
           <hashTree/>
         </hashTree>
         <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
