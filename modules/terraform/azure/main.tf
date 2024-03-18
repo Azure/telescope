@@ -237,3 +237,10 @@ module "private_endpoint" {
 
   resource_id = module.storage_account[0].storage_account.id
 }
+
+module "storage_container" {
+  source = "./storage-container"
+
+  storage_account_name = module.Storage_account[0].storage_account.name
+
+}
