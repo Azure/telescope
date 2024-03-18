@@ -159,18 +159,15 @@ for region in $(echo "$REGIONS" | jq -r '.[]'); do
   fi
   terraform_input_file=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
   terraform_input_variables=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  
   terraform plan -var-file $terraform_input_file -var json_input=$terraform_input_variables
-done
-
-for region in $(echo "$REGIONS" | jq -r '.[]'); do
-  if terraform workspace list | grep -q "$region"; then
-    terraform workspace select $region
-  else
-    terraform workspace new $region
-    terraform workspace select $region
+  
+  # Check if the plan was successful
+  if [ $? -ne 0 ]; then
+    echo "Terraform plan failed for $region. Skipping apply."
+    continue
   fi
-  terraform_input_file=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-  terraform_input_variables=$(echo $regional_config | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+  
   terraform apply -var-file $terraform_input_file -var json_input=$terraform_input_variables --auto-approve
 done
 popd
