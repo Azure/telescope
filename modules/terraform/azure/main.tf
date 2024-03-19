@@ -116,7 +116,7 @@ module "appgateway" {
 }
 
 module "data_disk" {
-  count = local.data_disk_count
+  count = local.data_disk_count == null ? 0 : local.data_disk_count
 
   source                         = "./data-disk"
   resource_group_name            = local.run_id
@@ -175,7 +175,7 @@ resource "azurerm_network_interface_backend_address_pool_association" "nic-backe
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "disk-association" {
-  count = local.data_disk_count
+  count = local.data_disk_count == null ? 0 : local.data_disk_count
 
   managed_disk_id    = module.data_disk[count.index].data_disk.id
   virtual_machine_id = local.all_vms[var.data_disk_config.vm_name].id

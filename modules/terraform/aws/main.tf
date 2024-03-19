@@ -76,7 +76,7 @@ module "virtual_machine" {
 }
 
 module "data_disk" {
-  count = local.data_disk_count
+  count = local.data_disk_count == null ? 0 : local.data_disk_count
 
   source                    = "./data-disk"
   zone                      = "${local.region}${var.data_disk_config.zone_suffix}"
@@ -145,7 +145,7 @@ module "privatelink" {
 }
 
 resource "aws_volume_attachment" "attach" {
-  count = local.data_disk_count
+  count = local.data_disk_count == null ? 0 : local.data_disk_count
 
   device_name = "/dev/sd${element(local.all_devices_suffixes, count.index)}"
   volume_id   = module.data_disk[count.index].data_disk.id
