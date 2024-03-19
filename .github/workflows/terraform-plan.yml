@@ -30,8 +30,8 @@ jobs:
           file_changes=$(echo "$pr_file_changes" | grep -Ev '\.md$|\.sh$|\.py$|\.github/' | xargs)
           echo "Files changed: $file_changes"
           if [ -z "$file_changes" ]; then
-            matrix_combinations="{\"include\": []}"
-            echo "matrix_combinations=null" >> "$GITHUB_OUTPUT"
+            matrix_combinations=null
+            echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
           else            
             terraform_module_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | xargs)
             echo "Files changed related to terraform modules: $terraform_module_changes"
@@ -69,6 +69,7 @@ jobs:
   terraform-plan:
     permissions: read-all
     needs: setup-matrix
+    if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != 'null' && needs.setup-matrix.outputs.matrix-combinations['inlcude'] != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: 3
