@@ -55,4 +55,3 @@ variable "tags" {
   default = {
   }
 }
-
