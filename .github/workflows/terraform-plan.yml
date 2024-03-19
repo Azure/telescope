@@ -33,7 +33,7 @@ jobs:
             matrix_combinations=null
             echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
           else            
-            terraform_module_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | xargs)
+            terraform_module_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}')
             echo "Files changed related to terraform modules: $terraform_module_changes"
             run_all_tests=false
             module_matrix='[]'
@@ -49,7 +49,7 @@ jobs:
             fi
             echo "module_matrix: $module_matrix"
             if [ "$run_all_tests" = false ]; then                      
-              changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | tr ' ' '\n' | sort -u | xargs)
+              changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | tr ' ' '\n' | sort -u)
               echo "Test scenarios changed: $changed_scenario_names"            
               for scenario_name in $changed_scenario_names; do
                 filtered_objects=$(echo "$matrix_array" | jq --arg scenario_value "$scenario_name" '. | map(select(.scenario_name == $scenario_value))')
