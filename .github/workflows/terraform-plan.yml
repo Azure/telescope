@@ -58,6 +58,7 @@ jobs:
             updated_matrix="${updated_matrix//$'\n'/''}"
             matrix_combinations="{\"include\": ${updated_matrix%?}}"
             echo "matrix_combinations={\"include\": ${updated_matrix} }" >> "$GITHUB_OUTPUT"
+          fi
           echo "matrix_combinations: $matrix_combinations"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
