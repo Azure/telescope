@@ -37,7 +37,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "inbound-nsr-http"
+        name                       = "server-inbound-nsr-http"
         priority                   = 100
         direction                  = "Inbound"
         access                     = "Allow"
@@ -48,7 +48,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "inbound-nsr-https"
+        name                       = "server-inbound-nsr-https"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
@@ -59,7 +59,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "outbound-nsr-http"
+        name                       = "server-outbound-nsr-http"
         priority                   = 100
         direction                  = "Outbound"
         access                     = "Allow"
@@ -70,7 +70,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "outbound-nsr-https"
+        name                       = "server-outbound-nsr-https"
         priority                   = 101
         direction                  = "Outbound"
         access                     = "Allow"
