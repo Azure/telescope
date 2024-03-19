@@ -31,7 +31,7 @@ jobs:
           echo "Files changed: $file_changes"
           if [ -z "$file_changes" ]; then
             matrix_combinations="{\"include\": []}"
-            echo "matrix_combinations={\"include\": []}" >> "$GITHUB_OUTPUT"
+            echo "matrix_combinations=null" >> "$GITHUB_OUTPUT"
           else            
             terraform_module_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | xargs)
             echo "Files changed related to terraform modules: $terraform_module_changes"
