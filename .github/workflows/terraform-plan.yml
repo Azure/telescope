@@ -23,8 +23,11 @@ jobs:
           matrix_array="[${matrix%,}]"
 
           # Remove .md, .sh, .py and github files from the changed list
-          file_changes=$(git diff --name-only -r origin/main HEAD | xargs)
-          file_changes=$(echo "$file_changes" | grep -Ev '\.md$|\.sh$|\.py$|\.github/' | xargs)
+          pr_file_changes=$(git diff --name-only -r origin/main HEAD | xargs)
+          echo "PR file changes: $pr_file_changes"
+
+          # Ignore .md, .sh, .py and github files from the changed list
+          file_changes=$(echo "$pr_file_changes" | grep -Ev '\.md$|\.sh$|\.py$|\.github/' | xargs)
           echo "Files changed: $file_changes"
           if [ -z "$file_changes" ]; then
             matrix_combinations="{\"include\": []}"
