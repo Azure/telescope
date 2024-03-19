@@ -11,14 +11,38 @@ network_config_list = [
       cidr_block  = "10.0.0.0/24"
       zone_suffix = "a"
     }]
-    security_group_name    = "client-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    security_group_name = "client-sg"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "client-subnet-rt-assoc"
+        subnet_name      = "client-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {
           from_port  = 2222
           to_port    = 2222
           protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20001
+          to_port    = 20001
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20002
+          to_port    = 20002
+          protocol   = "udp"
           cidr_block = "0.0.0.0/0"
         }
       ]

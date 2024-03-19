@@ -64,6 +64,43 @@ run_fio_on_remote_vm() {
   fi
 }
 
+run_fio_on_pod() {
+  local pod_name=$1
+  local mount_point=$2
+  local result_dir=$3
+  local bs=$4
+  local iodepth=$5
+  local method=$6
+  local runtime=$7
+
+  mkdir -p $result_dir
+
+  local file_size=$((10*1024*1024*1024))
+
+  local file_path="${mount_point}/benchtest"
+
+  echo "Run fio"
+
+  set +x # disable debug output because it will mess up the output of fio
+
+  metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\"}"
+  echo "$metadata_json" > $result_dir/metadata.log
+  local command="fio --name=benchtest --size=$file_size --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=$bs --iodepth=$iodepth --time_based --runtime=$runtime --output-format=json"
+
+  # prepare files for the actual run using fio option --create_only=1
+  setup_command="${command} --create_only=1"
+  echo "Run setup command: $setup_command"
+  run_kubectl_exec $pod_name fio "$setup_command"
+  sleep 30 # wait to clean any potential throttle / cache
+
+  # execute the actual run for metrics collection
+  echo "Run command: $command"
+  run_kubectl_exec $pod_name fio "$command" | tee $result_dir/fio.log
+
+  if $DEBUG; then # re-enable debug output if DEBUG is set
+    set -x
+  fi
+}
 
 collect_result_disk_fio() {
   local result_dir=$1
@@ -175,6 +212,12 @@ collect_result_blob_fio() {
   write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
   write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
   write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
+  read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
+  read_lat_p99=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.000000"')
+  read_lat_p999=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.900000"')
+  write_lat_p50=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."50.000000"')
+  write_lat_p99=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.000000"')
+  write_lat_p999=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.900000"')
 
   data=$(jq --null-input \
     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -255,6 +298,12 @@ collect_result_fileshare_fio() {
   write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
   write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
   write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
+  read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
+  read_lat_p99=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.000000"')
+  read_lat_p999=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.900000"')
+  write_lat_p50=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."50.000000"')
+  write_lat_p99=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.000000"')
+  write_lat_p999=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.900000"')
 
   data=$(jq --null-input \
     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \

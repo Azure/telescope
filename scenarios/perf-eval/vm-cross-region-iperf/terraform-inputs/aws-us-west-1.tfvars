@@ -11,8 +11,20 @@ network_config_list = [
       cidr_block  = "10.1.1.0/24"
       zone_suffix = "a"
     }]
-    security_group_name    = "server-sg"
-    route_table_cidr_block = "0.0.0.0/0"
+    security_group_name = "server-sg"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "server-subnet-rt-assoc"
+        subnet_name      = "server-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
     sg_rules = {
       ingress = [
         {
@@ -51,61 +63,7 @@ network_config_list = [
     }
   }
 ]
-loadbalancer_config_list = [{
-  role               = "ingress"
-  vpc_name           = "server-vpc"
-  subnet_name        = "server-subnet"
-  load_balancer_type = "network"
-  lb_target_group = [{
-    role       = "nlb-tg"
-    tg_suffix  = "tcp"
-    port       = 20001
-    protocol   = "TCP"
-    rule_count = 1
-    vpc_name   = "server-vpc"
-    health_check = {
-      port                = "20000"
-      protocol            = "TCP"
-      interval            = 10
-      timeout             = 10
-      healthy_threshold   = 2
-      unhealthy_threshold = 2
-    }
-    lb_listener = {
-      port     = 20001
-      protocol = "TCP"
-    }
-    lb_target_group_attachment = {
-      vm_name = "server-vm"
-      port    = 20001
-    }
-    },
-    {
-      role       = "nlb-tg"
-      tg_suffix  = "udp"
-      port       = 20002
-      protocol   = "UDP"
-      rule_count = 1
-      vpc_name   = "server-vpc"
-      health_check = {
-        port                = "20000"
-        protocol            = "TCP"
-        interval            = 10
-        timeout             = 10
-        healthy_threshold   = 2
-        unhealthy_threshold = 2
-      }
-      lb_listener = {
-        port     = 20002
-        protocol = "UDP"
-      }
-      lb_target_group_attachment = {
-        vm_name = "server-vm"
-        port    = 20002
-      }
-    }
-  ]
-}]
+loadbalancer_config_list = []
 
 vm_config_list = [
   {

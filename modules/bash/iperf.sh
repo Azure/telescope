@@ -57,23 +57,44 @@ run_iperf3() {
   done
 }
 
-run_iperf2_helper() {
+run_iperf2() {
   local destination_ip_address=$1
   local client_public_ip_address=$2
   local thread_mode=$3
   local protocol=$4
-  local privatekey_path=$5
-  local server_public_ip_address=$6
-  local result_dir=$7
+  local run_time=$5
+  local wait_time=$6
+  local privatekey_path=$7
+  local server_public_ip_address=$8
+  local result_dir=$9
+  local jumpbox_public_ip_address=${10:-''}
+
+  if [ -n "$jumpbox_public_ip_address" ]; then
+    echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
+  fi
 
   local bandwidthList=(100 1000 2000 4000)
 
-  echo "Wait for 4 minutes before running all tests"
-  sleep 240
+  echo "Wait for $wait_time seconds before running all tests"
+  sleep $wait_time
+
+  echo "Perform a draft run to warm up the vm"
+  if [ "$protocol" = "udp" ]; then
+    command="iperf --enhancedreports --client $destination_ip_address --format m --time 30 --udp --port 20002"
+  else
+    command="iperf --enhancedreports --client $destination_ip_address --format m --time 30 --port 20001"
+  fi
+  if [ -z "$jumpbox_public_ip_address" ]; then
+    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
+    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command"
+  else
+    echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
+    run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
+  fi
 
   for bandwidth in "${bandwidthList[@]}"
   do
-    local command="iperf --enhancedreports --client $destination_ip_address --format m --time 60"
+    local command="iperf --enhancedreports --client $destination_ip_address --format m --time $run_time"
 
     if [ "$protocol" = "udp" ]; then
       port=20002
@@ -99,41 +120,17 @@ run_iperf2_helper() {
     echo "Wait for 1 minutes before running"
     sleep 60
 
-    echo "fetch_proc_net $server_public_ip_address $privatekey_path $port $protocol"
-    fetch_proc_net $server_public_ip_address 2222 $privatekey_path $port $protocol > $result_dir/proc-net-${protocol}-${bandwidth}.log &
-    PID1=$!
-
-    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log &
-    PID2=$!
-    wait $PID1 $PID2
+    if [ -z "$jumpbox_public_ip_address" ]; then
+      echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
+      run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    else
+      echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
+      run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    fi
+    # for debug
+    echo ======== iperf2-${protocol}-${bandwidth}.log ========
+    cat $result_dir/iperf2-${protocol}-${bandwidth}.log
   done
-}
-
-run_iperf2() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local tcp_mode=$3
-  local udp_mode=$4
-  local privatekey_path=$5
-  local server_public_ip_address=$6
-  local result_dir=$7
-
-  mkdir -p $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $udp_mode "udp" $privatekey_path $server_public_ip_address $result_dir
-}
-
-run_iperf2_tcp() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local tcp_mode=$3
-  local privatekey_path=$4
-  local server_public_ip_address=$5
-  local result_dir=$6
-
-  mkdir -p $result_dir
-  run_iperf2_helper $destination_ip_address $client_public_ip_address $tcp_mode "tcp" $privatekey_path $server_public_ip_address $result_dir
 }
 
 collect_result_iperf3() {
@@ -200,12 +197,7 @@ collect_result_iperf2() {
       cat $iperf_result
       iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
 
-      proc_net_result="$result_dir/proc-net-${protocol}-${bandwidth}.log"
-      read proc_net_rx_queue proc_net_drops < $proc_net_result
-      os_info=$(jq --null-input \
-        --arg pnrq "$proc_net_rx_queue" \
-        --arg pnd "$proc_net_drops" \
-        '{"proc_net_rx_queue": $pnrq, "proc_net_drops": $pnd}')
+      os_info="{}"
 
       data=$(jq --null-input \
         --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \

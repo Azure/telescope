@@ -28,7 +28,7 @@ debug/
 
 /images/*/shared/*
 *.pem
-
+*.pub
 # local dev files
 .vscode/*
 **/.vscode

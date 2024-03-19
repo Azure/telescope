@@ -4,8 +4,8 @@ variable "json_input" {
     owner                     = string
     run_id                    = string
     region                    = string
-    machine_type              = string
     public_key_path           = string
+    machine_type              = optional(string)
     user_data_path            = optional(string)
     data_disk_volume_type     = optional(string)
     data_disk_size_gb         = optional(number)
@@ -47,12 +47,30 @@ variable "network_config_list" {
     vpc_name       = string
     vpc_cidr_block = string
     subnet = list(object({
-      name        = string
-      cidr_block  = string
-      zone_suffix = string
+      name                    = string
+      cidr_block              = string
+      zone_suffix             = string
+      map_public_ip_on_launch = optional(bool, false)
     }))
-    security_group_name    = string
-    route_table_cidr_block = string
+    security_group_name = string
+    route_tables = list(object({
+      name             = string
+      cidr_block       = string
+      nat_gateway_name = optional(string)
+    }))
+    route_table_associations = list(object({
+      name             = string
+      subnet_name      = string
+      route_table_name = string
+    }))
+    nat_gateway_public_ips = optional(list(object({
+      name = string
+    })))
+    nat_gateways = optional(list(object({
+      name           = string
+      public_ip_name = string
+      subnet_name    = string
+    })))
     sg_rules = object({
       ingress = list(object({
         from_port  = number
@@ -132,6 +150,31 @@ variable "bucket_name_prefix" {
   description = "Value of the bucket name prefix"
   type        = string
   default     = ""
+}
+
+variable "eks_config_list" {
+  type = list(object({
+    eks_name    = string
+    vpc_name    = string
+    policy_arns = list(string)
+    eks_managed_node_groups = list(object({
+      name           = string
+      ami_type       = string
+      instance_types = list(string)
+      min_size       = number
+      max_size       = number
+      desired_size   = number
+      capacity_type  = optional(string, "ON_DEMAND")
+      labels         = optional(map(string), {})
+    }))
+    eks_addons = list(object({
+      name            = string
+      version         = optional(string)
+      service_account = optional(string)
+      policy_arns     = optional(list(string), [])
+    }))
+  }))
+  default = []
 }
 
 variable "efs_name_prefix" {
