@@ -27,7 +27,7 @@ jobs:
           echo "PR file changes: $pr_file_changes"
 
           # Ignore .md, .sh, .py and github files from the changed list
-          file_changes=$(echo "$pr_file_changes" | grep -Ev '\.md$|\.sh$|\.py$|\.github/' | xargs)
+          file_changes=$(echo "$pr_file_changes" | grep -Ev '\.md$|\.sh$|\.py$|\.github/')
           echo "Files changed: $file_changes"
           if [ -z "$file_changes" ]; then
             matrix_combinations=null
