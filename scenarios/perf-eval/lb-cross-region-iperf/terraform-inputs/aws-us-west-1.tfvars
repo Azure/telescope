@@ -130,4 +130,3 @@ vm_config_list = [
     zone_suffix                 = "c"
   }
 ]
-
