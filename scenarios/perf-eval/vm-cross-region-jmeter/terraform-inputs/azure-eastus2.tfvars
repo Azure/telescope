@@ -25,7 +25,7 @@ network_config_list = [
     }]
     nsr_rules = [{
       name                       = "client-nsr-ssh"
-      priority                   = 100
+      priority                   = 102
       direction                  = "Inbound"
       access                     = "Allow"
       protocol                   = "Tcp"
