@@ -14,6 +14,7 @@ variable "json_input" {
     data_disk_iops_read_write = optional(number)
     data_disk_mbps_read_only  = optional(number)
     data_disk_mbps_read_write = optional(number)
+    data_disk_count           = optional(number)
     ultra_ssd_enabled         = optional(bool)
 
     efs_performance_mode                = optional(string)
@@ -144,6 +145,15 @@ variable "vm_config_list" {
     }))
   }))
   default = []
+}
+
+variable "data_disk_config" {
+  description = "List of data disks and disk associations with the same configuration to be created"
+  type = object({
+    zone_suffix = string
+    vm_name     = string
+  })
+  default = null
 }
 
 variable "bucket_name_prefix" {
