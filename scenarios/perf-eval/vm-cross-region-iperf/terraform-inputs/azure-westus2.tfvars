@@ -4,9 +4,6 @@ deletion_delay = "2h"
 public_ip_config_list = [
   {
     name = "server-pip"
-  },
-  {
-    name = "lb-pip"
   }
 ]
 network_config_list = [
@@ -64,36 +61,7 @@ network_config_list = [
     ]
   }
 ]
-loadbalancer_config_list = [{
-  role                  = "ingress"
-  loadbalance_name      = "ingress-lb"
-  public_ip_name        = "lb-pip"
-  loadbalance_pool_name = "ingress-lb-pool"
-  probe_protocol        = "Tcp"
-  probe_port            = 20000
-  probe_request_path    = null,
-  lb_rules = [{
-    type                     = "Inbound"
-    rule_count               = 1
-    role                     = "ingress-lb-tcp-rule"
-    protocol                 = "Tcp"
-    frontend_port            = 20001
-    backend_port             = 20001
-    fronend_ip_config_prefix = "ingress"
-    enable_tcp_reset         = false
-    idle_timeout_in_minutes  = 4
-    },
-    {
-      type                    = "Inbound"
-      rule_count              = 1
-      role                    = "ingress-lb-udp-rule"
-      protocol                = "Udp"
-      frontend_port           = 20002
-      backend_port            = 20002
-      enable_tcp_reset        = false
-      idle_timeout_in_minutes = 4
-  }]
-}]
+loadbalancer_config_list = []
 
 vm_config_list = [
   {
@@ -111,13 +79,6 @@ vm_config_list = [
     create_vm_extension = true
   }
 ]
-vmss_config_list = []
-nic_backend_pool_association_list = [
-  {
-    nic_name              = "server-nic"
-    backend_pool_name     = "ingress-lb-pool"
-    vm_name               = "server-vm"
-    ip_configuration_name = "server-ipconfig"
-  }
-]
+vmss_config_list                  = []
+nic_backend_pool_association_list = []
  
