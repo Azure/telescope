@@ -23,7 +23,7 @@ jobs:
           matrix_array="[${matrix%,}]"
 
           # Remove .md, .sh, .py and github files from the changed list
-          pr_file_changes=$(git diff --name-only -r origin/main HEAD | xargs)
+          pr_file_changes=$(git diff --name-only -r origin/main HEAD)
           echo "PR file changes: $pr_file_changes"
 
           # Ignore .md, .sh, .py and github files from the changed list
