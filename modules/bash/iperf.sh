@@ -67,6 +67,11 @@ run_iperf2() {
   local privatekey_path=$7
   local server_public_ip_address=$8
   local result_dir=$9
+  local jumpbox_public_ip_address=${10:-''}
+
+  if [ -n "$jumpbox_public_ip_address" ]; then
+    echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
+  fi
 
   local bandwidthList=(100 1000 2000 4000)
 
@@ -79,8 +84,13 @@ run_iperf2() {
   else
     command="iperf --enhancedreports --client $destination_ip_address --format m --time 30 --port 20001"
   fi
-  echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-  run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command"
+  if [ -z "$jumpbox_public_ip_address" ]; then
+    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
+    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command"
+  else
+    echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
+    run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
+  fi
 
   for bandwidth in "${bandwidthList[@]}"
   do
@@ -110,8 +120,16 @@ run_iperf2() {
     echo "Wait for 1 minutes before running"
     sleep 60
 
-    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    if [ -z "$jumpbox_public_ip_address" ]; then
+      echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
+      run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    else
+      echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
+      run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    fi
+    # for debug
+    echo ======== iperf2-${protocol}-${bandwidth}.log ========
+    cat $result_dir/iperf2-${protocol}-${bandwidth}.log
   done
 }
 
