@@ -32,6 +32,18 @@ network_config_list = [
           to_port    = 2222
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20001
+          to_port    = 20001
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20002
+          to_port    = 20002
+          protocol   = "udp"
+          cidr_block = "0.0.0.0/0"
         }
       ]
       egress = [
