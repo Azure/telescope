@@ -76,6 +76,7 @@ module "virtual_network" {
   location               = local.region
   accelerated_networking = local.accelerated_networking
   public_ips             = module.public_ips.pip_ids
+  cross_region_peering   = var.cross_region_peering
   tags                   = local.tags
 }
 
