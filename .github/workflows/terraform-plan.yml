@@ -2,10 +2,10 @@ name: Terraform Plan
 
 on:
   pull_request:
-		path:
-			- '**.tf'
-			- '**.json'
-			- '**.tfvars'  
+    paths:
+      - '**.tf'
+      - '**.json'
+      - '**.tfvars'
 
 env:
   AWS_REGION: us-east-1
