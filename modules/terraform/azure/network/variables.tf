@@ -58,9 +58,14 @@ variable "network_config" {
   })
 }
 
-
 variable "tags" {
   type = map(string)
   default = {
   }
+}
+
+variable "cross_region_peering" {
+  description = "Flag to enable VNet peering between VNets in different regions"
+  type        = bool
+  default     = false
 }

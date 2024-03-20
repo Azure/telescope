@@ -90,3 +90,11 @@ module "nat_gateway" {
   subnet_id            = local.subnets_map[each.value.subnet_name].id
   tags                 = local.tags
 }
+
+module "vnet_peering" {
+  source = "./vnet-peering"
+
+  resource_group_name = var.resource_group_name
+
+  count = var.cross_region_peering ? 1 : 0
+}
