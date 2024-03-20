@@ -231,6 +231,7 @@ module "private_endpoint" {
 
   resource_group_name    = local.run_id
   location               = local.region
+  tags = local.tags
   
   pe_name                = var.pe_config.pe_name
   pe_subnet_id           = local.all_subnets[var.pe_config.pe_subnet_name]
