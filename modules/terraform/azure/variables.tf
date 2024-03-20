@@ -95,6 +95,12 @@ variable "network_config_list" {
   default = []
 }
 
+variable "cross_region_peering" {
+  description = "Flag to enable VNet peering between VNets in different regions"
+  type        = bool
+  default     = false
+}
+
 variable "appgateway_config_list" {
   description = "List of app gateway configurations"
   type = list(object({
