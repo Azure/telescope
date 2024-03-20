@@ -15,7 +15,6 @@ network_config_list = [
       name           = "server-subnet"
       address_prefix = "10.1.1.0/24"
     }]
-    cross_region_peering = true
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
       {
@@ -84,6 +83,8 @@ network_config_list = [
     ]
   }
 ]
+
+cross_region_peering = true
 
 loadbalancer_config_list = []
 
