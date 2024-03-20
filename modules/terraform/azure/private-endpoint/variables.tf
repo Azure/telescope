@@ -36,3 +36,9 @@ variable "storage_account_name" {
   type        = string
   default     = "0003plssinglevm"
 }
+
+variable "tags" {
+  type = map(string)
+  default = {
+  }
+}
