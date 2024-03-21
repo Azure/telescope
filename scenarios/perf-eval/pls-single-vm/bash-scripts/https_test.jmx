@@ -175,6 +175,10 @@
           <stringProp name="variableNames">cert_name</stringProp>
         </CSVDataSet>
         <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Limit requests to 10 per second">
+          <stringProp name="ConstantTimer.delay">100</stringProp>
+        </ConstantTimer>
+        <hashTree/>
       </hashTree>
     </hashTree>
   </hashTree>
