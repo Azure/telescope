@@ -17,7 +17,7 @@
           <boolProp name="LoopController.continue_forever">false</boolProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">${__P(thread_num,100)}</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">5</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(ramp_time,5)}</stringProp>
         <boolProp name="ThreadGroup.delayedStart">false</boolProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
         <stringProp name="ThreadGroup.duration"></stringProp>
@@ -31,6 +31,12 @@
               <stringProp name="Argument.name">api_endpoint</stringProp>
               <stringProp name="Argument.value">/subscriptions/xxxx/resourceGrroups/stuff</stringProp>
               <stringProp name="Argument.desc">Azure REST API endpoint</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="ip_address" elementType="Argument">
+              <stringProp name="Argument.name">ramp_time</stringProp>
+              <stringProp name="Argument.value">5</stringProp>
+              <stringProp name="Argument.desc">Amount of time for all threads to be started</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="protocol" elementType="Argument">
