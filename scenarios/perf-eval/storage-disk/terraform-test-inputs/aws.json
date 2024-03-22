@@ -2,7 +2,6 @@
     "owner"                            : "terraform_unit_tests",
     "run_id"                           : "123456789",
     "region"                           : "us-east-1",
-    "zone"                             : "us-east-1a",
     "machine_type"                     : "m5.4xlarge",
     "accelerated_networking"           : false,
     "data_disk_storage_account_type"   : "gp3",

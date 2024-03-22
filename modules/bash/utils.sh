@@ -120,3 +120,31 @@ fetch_proc_net() {
 
   echo "$max_rx_queue $max_drops"
 }
+
+run_ssh_via_jumpbox() {
+  # in this function, we will login to jumpbox first, then do run_ssh inside of the jumpbox to call the command in the target machine
+  # assume jumpbox has same ssh user, port with the target
+
+  local privatekey_path=$1
+  local user=$2
+  local jumpbox_ip=$3
+  local target_ip=$4
+  local port=$5
+  local command=$6
+
+  local jumpbox_privatekey_path=/tmp/privatekey.pem
+  local jumpbox_script_path=/tmp/script.sh
+
+
+  # generate bash script into script.sh
+  cat <<EOF > script.sh
+#!/bin/bash
+ssh -i $jumpbox_privatekey_path -A -p $port $user@$target_ip -2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $command
+EOF
+  chmod 777 script.sh
+
+  run_scp_remote $privatekey_path $user $jumpbox_ip $port $privatekey_path $jumpbox_privatekey_path
+  run_scp_remote $privatekey_path $user $jumpbox_ip $port script.sh $jumpbox_script_path
+
+  run_ssh $privatekey_path $user $jumpbox_ip $port "$jumpbox_script_path"
+}

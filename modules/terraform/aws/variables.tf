@@ -4,8 +4,8 @@ variable "json_input" {
     owner                     = string
     run_id                    = string
     region                    = string
-    machine_type              = string
     public_key_path           = string
+    machine_type              = optional(string)
     user_data_path            = optional(string)
     data_disk_volume_type     = optional(string)
     data_disk_size_gb         = optional(number)
@@ -63,6 +63,14 @@ variable "network_config_list" {
       subnet_name      = string
       route_table_name = string
     }))
+    nat_gateway_public_ips = optional(list(object({
+      name = string
+    })))
+    nat_gateways = optional(list(object({
+      name           = string
+      public_ip_name = string
+      subnet_name    = string
+    })))
     sg_rules = object({
       ingress = list(object({
         from_port  = number

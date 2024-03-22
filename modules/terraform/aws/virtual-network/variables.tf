@@ -20,6 +20,14 @@ variable "network_config" {
       subnet_name      = string
       route_table_name = string
     }))
+    nat_gateway_public_ips = optional(list(object({
+      name = string
+    })))
+    nat_gateways = optional(list(object({
+      name           = string
+      public_ip_name = string
+      subnet_name    = string
+    })))
     sg_rules = object({
       ingress = list(object({
         from_port  = number

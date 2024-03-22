@@ -1,0 +1,13 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: azprem-sc
+parameters:
+   cachingMode: None
+   skuName: PremiumV2_LRS
+   DiskIOPSReadWrite: "5000"
+   DiskMBpsReadWrite: "200"
+provisioner: disk.csi.azure.com
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
