@@ -1,9 +1,15 @@
 data "aws_vpc" "client_vpc"{
-    vpc_name = "client-vpc"
+    tags = {
+        Name = "client-vpc"
+        Run_ID = var.run_id
+    }
 }
 
 data "aws_vpc" "server_vpc"{
-    vpc_name = "server_vpc"
+    tags = {
+        Name = "server-vpc"
+        Run_ID = var.run_id
+    }
 }
 
 resource "aws_vpc_peering_connection" "serverclientpeer" {

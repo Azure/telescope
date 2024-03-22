@@ -3,3 +3,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "run_id" {
+  description = "Run ID of the current deployment"
+  type = string
+  default = ""
+}

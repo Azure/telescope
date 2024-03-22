@@ -53,3 +53,9 @@ variable "cross_region_peering" {
   type        = bool
   default     = false
 }
+
+variable "run_id" {
+  description = "Run ID of the current deployment"
+  type = string
+  default = ""
+}
