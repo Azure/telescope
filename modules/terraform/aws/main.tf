@@ -56,6 +56,7 @@ module "virtual_network" {
   network_config = each.value
   region         = local.region
   tags           = local.tags
+  cross_region_peering   = var.cross_region_peering  
 }
 
 module "virtual_machine" {
