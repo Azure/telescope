@@ -27,19 +27,13 @@
       <hashTree>
         <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
           <collectionProp name="Arguments.arguments">
-          <elementProp name="ip_address" elementType="Argument">
-              <stringProp name="Argument.name">source_ip</stringProp>
-              <stringProp name="Argument.value">xxx.xx.xx.xx:xx</stringProp>
-              <stringProp name="Argument.desc">Client ip address with port</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="ip_address" elementType="Argument">
+            <elementProp name="api_endpoint" elementType="Argument">
               <stringProp name="Argument.name">api_endpoint</stringProp>
               <stringProp name="Argument.value">/subscriptions/xxxx/resourceGrroups/stuff</stringProp>
               <stringProp name="Argument.desc">Azure REST API endpoint</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="ip_address" elementType="Argument">
+            <elementProp name="ramp_time" elementType="Argument">
               <stringProp name="Argument.name">ramp_time</stringProp>
               <stringProp name="Argument.value">5</stringProp>
               <stringProp name="Argument.desc">Amount of time for all threads to be started</stringProp>
@@ -101,10 +95,9 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.ipSource">${__P(source_ip,xxx.xx.xx.xx:xx)}</stringProp>
           <stringProp name="HTTPSampler.domain">management.azure.com</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
-          <stringProp name="HTTPSampler.protocol">${__P(protocol,https)}</stringProp>
+          <stringProp name="HTTPSampler.protocol">https</stringProp>
           <stringProp name="HTTPSampler.path">${__P(api_endpoint,/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/0003/providers/Microsoft.Storage/storageAccounts/peplstest7so8erfk/fileServices/default/shares?api-version=2023-01-01)}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
