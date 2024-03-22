@@ -57,6 +57,9 @@ network_config_list = [
     }
   }
 ]
+
+cross_region_peering = true
+
 loadbalancer_config_list = []
 
 vm_config_list = [

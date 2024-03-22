@@ -18,6 +18,13 @@ resource "aws_vpc" "vpc" {
   })
 }
 
+module "vpc_peering" {
+  source = "./vpc-peering"
+  count = var.cross_region_peering ? 1 : 0
+  tags = var.tags
+  depends_on = [aws_vpc.vpc]
+}
+
 resource "aws_subnet" "subnets" {
   for_each = local.subnet_map
 

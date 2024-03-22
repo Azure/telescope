@@ -30,7 +30,7 @@ resource "azurerm_virtual_network_peering" "to_client" {
   virtual_network_name         = data.azurerm_virtual_network.server_vnet.name
   remote_virtual_network_id    = data.azurerm_virtual_network.client_vnet.id
   allow_virtual_network_access = true
-  allow_forwarded_traffic      = false
+  allow_forwarded_traffic      = true
 }
 
 resource "azurerm_virtual_network_peering" "to_server" {
@@ -39,5 +39,5 @@ resource "azurerm_virtual_network_peering" "to_server" {
   virtual_network_name         = data.azurerm_virtual_network.client_vnet.name
   remote_virtual_network_id    = data.azurerm_virtual_network.server_vnet.id
   allow_virtual_network_access = true
-  allow_forwarded_traffic      = false
+  allow_forwarded_traffic      = true
 }
