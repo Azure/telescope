@@ -1,26 +1,27 @@
-## Overview
+# Overview
 
 This guide covers how to manually run Terraform for Azure. All commands should be run from the root of the repository and in a bash shell (Linux or WSL).
 
-### Prerequisite
+## Prerequisite
 
 * Install [Terraform - 1.7.3](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
 * Install [Azure CLI - 2.57.0](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 
-### Generate SSH public and Private key using SSH-Keygen
-```
+## Generate SSH public and Private key using SSH-Keygen
+
+```bash
 CLOUD=azure
 ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```
 
-### Define Variables
+## Define Variables
 
 Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/vm-same-zone-iperf` scenario as the example and set the following variables:
 
-```
+```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=vm-same-zone-iperf
 RUN_ID=123456789
@@ -32,13 +33,16 @@ ACCERLATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 ```
+
 **Note**:
+
 * `RUN_ID` should be a unique identifier since it is used to name the resource group in Azure.
 * These variables are not exhaustive and may vary depending on the scenario.
 * `REGIONS` contains list of regions
 
 ### Set Input File
-```
+
+```bash
 regional_config=$(jq -n '{}')
 multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
 for region in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -55,12 +59,14 @@ regional_config_str=$(echo $regional_config | jq -c .)
 ### Provision Resources
 
 Login with web browser access
-```
+
+```bash
 az login
 ```
 
 Login without web browser like from a Linux devbox or VM, please create a service principle first to login with the service principle
-```
+
+```bash
 az ad sp create-for-rbac --name <servicePrincipleName> --role contributor --scopes /subscriptions/<subscriptionId>
 {
   "appId": "xxx",
@@ -73,18 +79,20 @@ az login --service-principal --username <appId> --password <password> --tenant <
 ```
 
 Set subscription for testing
-```
+
+```bash
 az account set --subscription <subscriptionId>
 ```
 
 Create Resource Group for testing
-```
+
+```bash
 az group create --name $RUN_ID --location $REGION --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=azure_devops" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=$(date -u -d '+2 hour' +'%Y-%m-%dT%H:%M:%SZ')"
 ```
 
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/azure/variables.tf`](../../../modules/terraform/azure/variables.tf) as the list will keep changing as we add more features.
 
-```
+```bash
 for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   echo "Set input Json for region $REGION"
   INPUT_JSON=$(jq -n \
@@ -147,7 +155,7 @@ done
 
 Provision resources using Terraform:
 
-```
+```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
 for region in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -178,7 +186,8 @@ Once resources are provisioned, make sure to go to Azure portal to verify the re
 ### Cleanup Resources
 
 Once your test is done, you can destroy the resources using Terraform.
-```
+
+```bash
 pushd $TERRAFORM_MODULES_DIR
 for region in $(echo "$REGIONS" | jq -r '.[]'); do
   if terraform workspace list | grep -q "$region"; then
@@ -193,12 +202,15 @@ for region in $(echo "$REGIONS" | jq -r '.[]'); do
 done
 popd
 ```
+
 After terraform destroys all the resources delete resource group manually.
-```
+
+```bash
 az group delete --name $RUN_ID
 ```
 
-### References
+## References
+
 * [Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 * [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/reference-index?view=azure-cli-latest)
 * [Azure Service Principle](https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli?view=azure-cli-latest)
