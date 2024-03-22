@@ -59,3 +59,9 @@ variable "run_id" {
   type = string
   default = ""
 }
+
+variable "peer_region" {
+  description = "Run ID of the current deployment"
+  type = string
+  default = ""
+}

@@ -12,20 +12,9 @@ data "aws_vpc" "server_vpc"{
     }
 }
 
-data "aws_instances" "client_instance" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.client_vpc.id]
-  }
-}
-
-output "client_vpc_region" {
-  value = data.aws_instances.client_instance.availability_zones[0]
-}
-
 resource "aws_vpc_peering_connection" "serverclientpeer" {
     peer_vpc_id = data.aws_vpc.client_vpc.id
     vpc_id = data.aws_vpc.server_vpc.id
-    peer_region = client_vpc_region
+    peer_region = var.peer_region
     auto_accept = true
 }

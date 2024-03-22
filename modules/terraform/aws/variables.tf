@@ -87,6 +87,12 @@ variable "cross_region_peering" {
   default     = false
 }
 
+variable "peer_region" {
+  description = "Run ID of the current deployment"
+  type = string
+  default = ""
+}
+
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({

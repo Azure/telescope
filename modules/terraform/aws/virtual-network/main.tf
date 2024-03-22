@@ -23,6 +23,7 @@ module "vpc_peering" {
   count = var.cross_region_peering ? 1 : 0
   tags = var.tags
   run_id = var.run_id
+  peer_region = var.peer_region
   depends_on = [aws_vpc.vpc]
 }
 
