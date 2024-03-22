@@ -4,25 +4,27 @@ This repository contains Terraform modules for provisioning various resources on
 
 ## AWS Modules
 
-- **bucket:** Module for creating buckets on cloud storage services.
-- **efs:** Module for provisioning Elastic File System (EFS) resources.
-- **eks:** Module for setting up Amazon Elastic Kubernetes Service (EKS) clusters.
-- **load-balancer:** Module for creating load balancers.
-- **private-link:** Module for managing AWS PrivateLink connections.
-- **virtual-machine:** Module for deploying virtual machines on AWS.
+- **[S3 Bucket:](./aws/bucket/README.md)** Module for creating buckets on cloud storage services.
+- **[EFS:](./aws/efs/README.md)** Module for provisioning Elastic File System (EFS) resources.
+- **[EKS:](./aws/eks/README.md)** Module for setting up Amazon Elastic Kubernetes Service (EKS) clusters.
+- **[Load Balancer:](./aws/load-balancer/README.md)** Module for creating load balancers.
+- **[Private Link:](./aws/private-link/README.md)** Module for managing AWS PrivateLink connections.
+- **[Virtual Machine:](./aws/virtual-machine/README.md)** Module for deploying virtual machines on AWS.
+- **[Virtual Network:](./aws/virtual-network/README.md)** Module for configuring networking resources on AWS including a VPC, subnets, security groups, route tables, and associated resources.
+
 
 ## Azure Modules
 
-- **aks:** Module for setting up Azure Kubernetes Service (AKS) clusters.
-- **data-disk:** Module for provisioning data disks on Azure VMs.
-- **network:** Module for configuring networking resources on Azure.
-- **private-link:** Module for managing Azure Private Link connections.
-- **storage-account:** Module for creating storage accounts on Azure.
-- **virtual-machine-scale-set:** Module for deploying virtual machine scale sets on Azure.
-- **app-gateway:** Module for configuring Azure Application Gateway.
-- **load-balancer:** Module for creating load balancers on Azure.
-- **onboarding:** Module for onboarding resources on Azure.
-- **public-ip:** Module for managing public IP addresses on Azure.
+- **[AKS:](./azure/aks/README.md)** Module for setting up Azure Kubernetes Service (AKS) clusters.
+- **[Data Disk:](./azure/data-disk/README.md)** Module for provisioning data disks on Azure VMs.
+- **[Network:](./azure/network/README.md)** Module for configuring networking resources on Azure.
+- **[Private Link:](./azure/private-link/README.md)** Module for managing Azure Private Link connections.
+- **[Storage Account:](./azure/storage-account/README.md)** Module for creating storage accounts on Azure.
+- **[VMSS:](./azure/virtual-machine-scale-set/README.md)** Module for deploying virtual machine scale sets on Azure.
+- **[Application Gateway:](./azure/app-gateway/README.md)** Module for configuring Azure Application Gateway.
+- **[Load Balancer:](./azure/load-balancer/README.md)** Module for creating load balancers on Azure.
+- **[Data Connection:](./azure/onboarding/data-connection/Readme.md)** Module for creating data connections and kusto tables on Azure.
+- **[Public IP:](./azure/public-ip/README.md)** Module for managing public IP addresses on Azure.
 
 ## Usage
 

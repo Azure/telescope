@@ -25,7 +25,7 @@ This module provisions public IP addresses in Azure. It allows you to create one
   - `sku`: SKU for the public IP (optional, default: "Standard")
   - `zones`: Availability zones for the public IP (optional, default: [])
 - **Example:**
-  ```hcl
+  ```
   public_ip_config_list = [
     {
       name              = "example-ip-1"
@@ -39,3 +39,18 @@ This module provisions public IP addresses in Azure. It allows you to create one
       sku               = "Basic"
     }
   ]
+
+#  Outputs
+
+This module provides the following outputs:
+
+## `pip_ids`
+
+- **Description:** IDs of the created public IP addresses.
+- **Type:** Map
+- **Example:**
+  ```hcl
+  {
+    "example-ip-1" = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/cle-rg/providers/Microsoft.Network/publicIPAddresses/example-ip-1"
+    "example-ip-2" = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/cle-rg/providers/Microsoft.Network/publicIPAddresses/example-ip-2"
+  }
