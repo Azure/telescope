@@ -20,7 +20,7 @@ data "aws_instances" "client_instance" {
 }
 
 output "client_vpc_region" {
-  value = data.aws_instances.client_instance.instances[0].availability_zone
+  value = data.aws_instances.client_instance.availability_zones[0]
 }
 
 resource "aws_vpc_peering_connection" "serverclientpeer" {
