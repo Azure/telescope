@@ -41,7 +41,7 @@
             </elementProp>
             <elementProp name="request_delay" elementType="Argument">
               <stringProp name="Argument.name">request_delay</stringProp>
-              <stringProp name="Argument.value">100</stringProp>
+              <stringProp name="Argument.value">200</stringProp>
               <stringProp name="Argument.desc">Amount of delay between requests</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
@@ -182,7 +182,7 @@
         </CSVDataSet>
         <hashTree/>
         <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Limit requests to 10 per second">
-          <stringProp name="ConstantTimer.delay">${__P(request_delay, 100)}</stringProp>
+          <stringProp name="ConstantTimer.delay">${__P(request_delay, 200)}</stringProp>
         </ConstantTimer>
         <hashTree/>
       </hashTree>
