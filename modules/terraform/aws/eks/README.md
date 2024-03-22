@@ -29,8 +29,9 @@ To use the EKS module, follow these steps:
    	]
    }]
    ```
-
+	
    - This configuration creates EKS cluster using specified VPC.
+	 - You need to have at least 2 subnets in different zones with public ip enabled to be able to successfully create the cluster.
    - It also creates an IAM role and attachs the polices listed in the tfvars config.
    - It creates one node group for the cluster with our desired configuration.
    - policy_arns is the list of suffix strings of policy we want to attach to a IAM role.
@@ -54,9 +55,8 @@ To use the EKS module, follow these steps:
      }
    ]
    ```
-	 
+	 - For EKS Cluster, you need to have at least 2 subnets in different zone with public ip enabled to be able to successfully create the cluster
    - For EKS addon's we have to create OIDC provider for the cluster and attach policy arns.[Refer here](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html)
    - This configuration creates two addons related to storage.
    - service_account and policy_attachment_names are optional in general but some addons are required to have IAM permisson values. [Refer here](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
-   - We can also provide the version of an addon we are created which is an optional input here.
-   -
+   - We can also provide the version of an addon we are created which is an optional input here.  
