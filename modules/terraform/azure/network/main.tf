@@ -96,6 +96,6 @@ module "vnet_peering" {
 
   resource_group_name = var.resource_group_name
 
-  count = var.cross_region_peering ? 1 : 0
+  count      = var.cross_region_peering ? 1 : 0
   depends_on = [azurerm_virtual_network.vnet]
 }
