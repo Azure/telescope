@@ -55,9 +55,9 @@ To use the EKS module, follow these steps:
        service_account         = "efs-csi-*"
        policy_arns = ["service-role/AmazonEFSCSIDriverPolicy"]
      },
-		 {
-			name = "coredns"
-		 }
+     {
+       name = "coredns"
+     }
    ]
    ```
 	 
