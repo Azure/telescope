@@ -1,14 +1,14 @@
 data "aws_vpc" "client_vpc"{
     tags = {
         Name = "client-vpc"
-        Run_ID = var.run_id
+        run_id = var.run_id
     }
 }
 
 data "aws_vpc" "server_vpc"{
     tags = {
         Name = "server-vpc"
-        Run_ID = var.run_id
+        run_id = var.run_id
     }
 }
 
