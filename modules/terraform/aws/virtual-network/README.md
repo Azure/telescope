@@ -100,3 +100,22 @@ module "aws_virtual_network" {
   }
 }
 ```
+
+## Terraform Provider References
+
+### Resources
+
+- [aws_vpc Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc)
+- [aws_subnet Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet)
+- [aws_eip Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eip)
+- [aws_nat_gateway Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/nat_gateway)
+- [aws_security_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group)
+- [aws_internet_gateway Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/internet_gateway)
+- [aws_route_table Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table)
+- [aws_route_table_association Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association)
+
+### Data Sources
+
+- [aws_vpc Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc)
+- [aws_security_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/security_group)
+- [aws_subnet Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet)

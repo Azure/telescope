@@ -77,3 +77,10 @@ module "network_security_rule" {
   resource_group_name           = "my-rg"
   network_security_group_name   = "my-nsg"
 }
+```
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_network_security_rule Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_rule)

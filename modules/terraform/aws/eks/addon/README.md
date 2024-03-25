@@ -60,3 +60,18 @@ module "eks_addons" {
     }
   }
 }
+```
+
+## Terraform Provider References
+
+## Resources
+
+- [aws_iam_openid_connect_provider Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_openid_connect_provider)
+- [aws_iam_policy_document Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document)
+- [aws_iam_role Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
+- [aws_iam_role_policy_attachment Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment)
+- [aws_eks_addon Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_addon)
+
+## Data Sources
+- [tls_certificate Documentation](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/data-sources/certificate)
+- [aws_iam_policy_document Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document)

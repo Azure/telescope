@@ -84,3 +84,16 @@ module "load_balancer_target_group" {
   }
 }
 ```
+
+## Terraform Provider References
+
+### Resources
+
+- [aws_lb_target_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group)
+- [aws_lb_listener Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener)
+- [aws_lb_target_group_attachment Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment)
+
+### Data Sources
+
+- [aws_vpc Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc)
+- [aws_instance Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/instance)

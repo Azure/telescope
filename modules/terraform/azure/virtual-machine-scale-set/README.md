@@ -116,3 +116,9 @@ module "vmss" {
   }
 }
 ```
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_linux_virtual_machine_scale_set](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine_scale_set)
+- [azurerm_virtual_machine_scale_set_extension](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine_scale_set_extension)

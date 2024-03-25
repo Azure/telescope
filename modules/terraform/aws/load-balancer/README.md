@@ -90,3 +90,14 @@ module "aws_lb" {
     project     = "example"
   }
 }
+```
+
+## Terraform Provider References
+
+### Resources
+
+- [aws_lb Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb)
+
+### Data Sources
+
+- [aws_subnet Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet)

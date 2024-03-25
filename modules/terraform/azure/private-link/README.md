@@ -81,3 +81,10 @@ This module provides the following output:
 - **Description:** ID of the created Private Link service.
 - **Type:** String
 - **Example:** `/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/privateLinkServices/my-pls`
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_private_link_service](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_link_service)
+- [azurerm_private_endpoint](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint)

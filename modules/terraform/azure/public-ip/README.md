@@ -54,3 +54,11 @@ This module provides the following outputs:
     "example-ip-1" = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/cle-rg/providers/Microsoft.Network/publicIPAddresses/example-ip-1"
     "example-ip-2" = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/cle-rg/providers/Microsoft.Network/publicIPAddresses/example-ip-2"
   }
+```
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_public_ip](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/public_ip)
+

@@ -53,3 +53,12 @@ module "nat_gateway" {
     project     = "example"
   }
 }
+```
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_nat_gateway Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/nat_gateway)
+- [azurerm_nat_gateway_public_ip_association Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/nat_gateway_public_ip_association)
+- [azurerm_subnet_nat_gateway_association Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet_nat_gateway_association)

@@ -121,4 +121,11 @@ output "storage_account_name" {
   description = "Name of the storage account"
   value       = module.storage_account.storage_account_name
 }
+```
 
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_storage_account](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_account)
+- [azurerm_storage_share](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_share)

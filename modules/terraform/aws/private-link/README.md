@@ -53,3 +53,16 @@ module "aws_private_link" {
   }
 }
 ```
+
+## Terraform Provider References
+
+### Resources
+
+- [aws_vpc_endpoint_service Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service)
+- [aws_vpc_endpoint Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint)
+
+### Data Sources
+
+- [aws_vpc Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc)
+- [aws_subnet Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet)
+- [aws_security_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/security_group)

@@ -96,3 +96,10 @@ module "aks" {
   }
 }
 ```
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_kubernetes_cluster Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster)
+- [azurerm_kubernetes_cluster_node_pool Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster_node_pool)

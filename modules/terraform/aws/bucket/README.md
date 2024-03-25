@@ -44,3 +44,8 @@ module "s3_bucket" {
 
 - **Description:** Name of the created S3 bucket.
 - **Value:** The actual name of the S3 bucket created.
+
+## Terraform Provider References
+
+## Resources
+- [aws_s3_bucket Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket)

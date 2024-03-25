@@ -91,3 +91,10 @@ module "load_balancer_rules" {
 
   # Additional variables as needed
 }
+```
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_lb_rule Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/lb_rule)
+- [azurerm_lb_outbound_rule Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/lb_outbound_rule)

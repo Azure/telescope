@@ -138,3 +138,13 @@ This module provides the following outputs:
 - **Description:** ID of the virtual network.
 - **Type:** String
 - **Example:** "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet"
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_virtual_network Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_network)
+- [azurerm_subnet Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet)
+- [azurerm_network_security_group Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_group)
+- [azurerm_subnet_network_security_group_association Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet_network_security_group_association)
+- [azurerm_network_interface Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_interface)

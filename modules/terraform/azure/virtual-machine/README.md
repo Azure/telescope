@@ -121,6 +121,12 @@ This module provides the following output:
     id   = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
     name = "my-vm"
     location = "East US"
-    ...
+
   }
     ```
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_linux_virtual_machine](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine)
+- [azurerm_virtual_machine_extension](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine_extension)

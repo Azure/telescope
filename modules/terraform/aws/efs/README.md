@@ -64,3 +64,9 @@ module "efs" {
 
 - **Description:** Creation token of the created Elastic File System (EFS).
 - **Value:** The creation token of the EFS.
+
+## Terraform Provider References
+
+## Resources
+
+- [aws_efs_file_system Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/efs_file_system)

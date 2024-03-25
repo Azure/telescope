@@ -119,3 +119,17 @@ module "app_gateway" {
   }
 }
 ```
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_application_gateway Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway)
+- [azurerm_application_gateway_probe Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_probe)
+- [azurerm_application_gateway_backend_address_pool Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_backend_address_pool)
+- [azurerm_application_gateway_backend_http_settings Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_backend_http_settings)
+- [azurerm_application_gateway_frontend_ip_configuration Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_frontend_ip_configuration)
+- [azurerm_application_gateway_frontend_port Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_frontend_port)
+- [azurerm_application_gateway_http_listener Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_http_listener)
+- [azurerm_application_gateway_request_routing_rule Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_gateway_request_routing_rule)
+- [azurerm_trusted_root_certificate Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/trusted_root_certificate)

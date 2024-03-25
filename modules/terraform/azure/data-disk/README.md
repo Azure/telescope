@@ -97,3 +97,9 @@ module "data_disk" {
   }
 }
 ```
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_managed_disk Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/managed_disk)

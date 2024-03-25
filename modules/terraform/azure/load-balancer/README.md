@@ -112,3 +112,11 @@ This module provides the following outputs:
 
 - **Description:** ID of the load balancer frontend IP configuration.
 - **Type:** String
+
+## Terraform Provider References
+
+### Resources
+
+- [azurerm_lb Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/lb)
+- [azurerm_lb_backend_address_pool Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/lb_backend_address_pool)
+- [azurerm_lb_probe Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/lb_probe)
