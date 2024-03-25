@@ -47,21 +47,3 @@ variable "tags" {
   default = {
   }
 }
-
-variable "cross_region_peering" {
-  description = "Flag to enable VNet peering between VNets in different regions"
-  type        = bool
-  default     = false
-}
-
-variable "run_id" {
-  description = "Run ID of the current deployment"
-  type = string
-  default = ""
-}
-
-variable "peer_region" {
-  description = "Run ID of the current deployment"
-  type = string
-  default = ""
-}

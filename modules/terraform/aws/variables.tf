@@ -81,18 +81,6 @@ variable "network_config_list" {
   default = []
 }
 
-variable "cross_region_peering" {
-  description = "Flag to enable VNet peering between VNets in different regions"
-  type        = bool
-  default     = false
-}
-
-variable "peer_region" {
-  description = "Run ID of the current deployment"
-  type = string
-  default = ""
-}
-
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
