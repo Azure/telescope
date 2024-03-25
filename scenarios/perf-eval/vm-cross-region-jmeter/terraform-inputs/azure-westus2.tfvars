@@ -79,7 +79,7 @@ network_config_list = [
         destination_port_range     = "443-443"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
-      }      
+      }
     ]
   }
 ]
