@@ -58,9 +58,6 @@ network_config_list = [
   }
 ]
 
-cross_region_peering = true
-peer_region = "us-east-2"
-
 loadbalancer_config_list = []
 
 vm_config_list = [
