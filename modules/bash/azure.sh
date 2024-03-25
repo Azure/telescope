@@ -114,16 +114,25 @@ azure_aks_deploy_fio()
   local disk_type=$5
   local disk_size_in_gb=$6
   local replica_count=$7
+  local data_disk_iops_read_write=$8
+  local data_disk_mbps_read_write=$9
 
   az aks get-credentials -n $aksName -g $resource_group
-  
   local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files
 
-  sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
+  if [ -z "$data_disk_iops_read_write" ]; then
+    sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
+    kubectl apply -f "${file_source}/storage-class.yml"
+  else
+    sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(DiskIOPSReadWrite: \).*/\1\"$data_disk_iops_read_write\"/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(DiskMBpsReadWrite: \).*/\1\"$data_disk_mbps_read_write\"/" "${file_source}/storage-class-provisioned.yml"
+    kubectl apply -f "${file_source}/storage-class-provisioned.yml"
+  fi
+
   sed -i "s/\(storage: \).*/\1${disk_size_in_gb}Gi/" "${file_source}/pvc.yml"
   sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
   
-  kubectl apply -f "${file_source}/storage-class.yml"
   kubectl apply -f "${file_source}/pvc.yml"
   kubectl apply -f "${file_source}/fio.yml"
 }

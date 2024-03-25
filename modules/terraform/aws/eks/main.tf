@@ -1,5 +1,6 @@
 locals {
   eks_name           = var.eks_config.eks_name
+  role               = var.eks_config.role
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   eks_addons_map     = { for addon in var.eks_config.eks_addons : addon.name => addon }
   policy_arns        = var.eks_config.policy_arns
@@ -31,7 +32,6 @@ data "aws_iam_policy_document" "assume_role" {
 }
 
 resource "aws_iam_role" "eks_cluster_role" {
-  name               = "eks-cluster-role"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
   tags               = var.tags
 }
@@ -56,7 +56,12 @@ resource "aws_eks_cluster" "eks" {
     aws_iam_role_policy_attachment.policy_attachments
   ]
 
-  tags = var.tags
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    }
+  )
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {

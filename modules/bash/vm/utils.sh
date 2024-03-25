@@ -31,30 +31,32 @@ get_vm_name() {
 #   - $3: The size of the VM (e.g. c3-highcpu-4)
 #   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
 #   - $5: The region where the VM will be created (e.g. us-east1)
-#   - $6: The resource group (e.g. my-resource-group)
-#   - $7: The security group (e.g. my-security-group)
-#   - $8: The subnet (e.g. my-subnet)
-#   - $9: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
-#   - $10: The security type (e.g. TrustedLaunch)
-#   - $11: The storage type (e.g. Premium_LRS)
-#   - $12: The result directory where to place the results in JSON format
-#   - $13: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $6: Whether to pre-create the NIC or let it be part of the VM creation/deletion measurement (e.g. true)
+#   - $7: The run id
+#   - $8: The security group (e.g. my-security-group)
+#   - $9: The subnet (e.g. my-subnet)
+#   - $10: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
+#   - $11: The security type (e.g. TrustedLaunch)
+#   - $12: The storage type (e.g. Premium_LRS)
+#   - $13: The result directory where to place the results in JSON format
+#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: measure_create_delete_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <resource_group> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <tags>
+# Usage: measure_create_delete_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <precreate_nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <tags>
 measure_create_delete_vm() {
     local cloud=$1
     local vm_name=$2
     local vm_size=$3
     local vm_os=$4
     local region=$5
-    local resource_group=$6
-    local security_group=$7
-    local subnet=$8
-    local accelerator=$9
-    local security_type=${10}
-    local storage_type=${11}
-    local result_dir=${12}
-    local tags=${13}
+    local precreate_nic=$6
+    local run_id=$7
+    local security_group=$8
+    local subnet=$9
+    local accelerator=${10}
+    local security_type=${11}
+    local storage_type=${12}
+    local result_dir=${13}
+    local tags=${14}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
@@ -62,6 +64,7 @@ measure_create_delete_vm() {
         \"size\": \"$vm_size\", \
         \"os\": \"$vm_os\", \
         \"region\": \"$region\", \
+        \"precreate_nic\": \"$precreate_nic\", \
         \"accelerator\": \"$accelerator\", \
         \"security_type\": \"$security_type\", \
         \"storage_type\": \"$storage_type\""
@@ -71,7 +74,7 @@ measure_create_delete_vm() {
 - VM size: $vm_size
 - VM OS: $vm_os
 - Region: $region
-- Resource group: $resource_group
+- Precreate NIC: $precreate_nic
 - Security group: $security_group
 - Subnet: $subnet
 - Accelerator: $accelerator
@@ -79,10 +82,10 @@ measure_create_delete_vm() {
 - Storage type: $storage_type
 - Tags: $tags"
     
-    instance_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$resource_group" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$result_dir" "$test_details" "$tags")
+    instance_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$precreate_nic" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$instance_id" ] && [[ "$instance_id" != Error* ]]; then
-        instance_id=$(measure_delete_vm "$cloud" "$instance_id" "$region" "$resource_group" "$result_dir" "$test_details")
+        instance_id=$(measure_delete_vm "$cloud" "$instance_id" "$region" "$precreate_nic" "$run_id" "$result_dir" "$test_details")
     fi
 }
 
@@ -95,50 +98,79 @@ measure_create_delete_vm() {
 #   - $3: The size of the VM (e.g. c3-highcpu-4)
 #   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
 #   - $5: The region where the VM will be created (e.g. us-east1)
-#   - $6: The resource group (e.g. my-resource-group)
-#   - $7: The security group (e.g. my-security-group)
-#   - $8: The subnet (e.g. my-subnet)
-#   - $9: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
-#   - $10: The security type (e.g. TrustedLaunch)
-#   - $11: The storage type (e.g. Premium_LRS)
-#   - $12: The result directory where to place the results in JSON format
-#   - $13: The test details in JSON format
-#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $6: Whether to pre-create the NIC or let it be part of the VM creation/deletion measurement (e.g. true)
+#   - $7: The run id
+#   - $8: The security group (e.g. my-security-group)
+#   - $9: The subnet (e.g. my-subnet)
+#   - $10: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
+#   - $11: The security type (e.g. TrustedLaunch)
+#   - $12: The storage type (e.g. Premium_LRS)
+#   - $13: The result directory where to place the results in JSON format
+#   - $14: The test details in JSON format
+#   - $15: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the Instance ID is returned if no errors occurred
 #
-# Usage: measure_create_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <resource_group> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <test_details>
+# Usage: measure_create_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <precreate_nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <test_details> <tags>
 measure_create_vm() {
     local cloud=$1
     local vm_name=$2
     local vm_size=$3
     local vm_os=$4
     local region=$5
-    local resource_group=$6
-    local security_group=$7
-    local subnet=$8
-    local accelerator=$9
-    local security_type=${10}
-    local storage_type=${11}
-    local result_dir=${12}
-    local test_details=${13}
-    local tags=${14}
+    local precreate_nic=$6
+    local run_id=$7
+    local security_group=$8
+    local subnet=$9
+    local accelerator=${10}
+    local security_type=${11}
+    local storage_type=${12}
+    local result_dir=${13}
+    local test_details=${14}
+    local tags=${15}
+
+    local creation_succeeded=false
+    local instance_id="$vm_name"
 
     {
+        local nic=""
+        if [[ "$precreate_nic" == "true" ]]; then
+            # we will use defaults here to not clobber the method signature, but we may want to parameterize these in the future
+            local nic_name="nic_$vm_name"
+            case $cloud in
+                azure)
+                    local vnet="create-delete-vm-vnet"
+                    subnet="create-delete-vm-subnet"
+                    local accelerated_networking=true
+                    nic=$(create_nic "$nic_name" "$run_id" "$vnet" "$subnet" "$accelerated_networking" "$tags")
+                ;;
+                aws)
+                    local nic_tags="${tags/ResourceType=instance/ResourceType=network-interface}"
+                    nic=$(create_nic "$nic_name" "$subnet" "$security_group" "$nic_tags")
+                ;;
+                gcp)
+                    nic=$(create_nic_instance_template "it_$nic_name" "$region" "$subnet" "$tags")
+                ;;
+                *)
+                    exit 1 # cloud provider unknown
+                ;;
+            esac
+        fi
+
         local start_time=$(date +%s)
         case $cloud in
             azure)
-            instance_id=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$resource_group" "$security_type" "$storage_type" "$tags")
+                instance_id=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$security_type" "$storage_type" "$tags")
             ;;
             aws)
-            instance_id=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$security_group" "$subnet" "$tags")
+                instance_id=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$subnet" "$tags")
             ;;
             gcp)
-            instance_id=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$accelerator" "$tags")
+                instance_id=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$accelerator" "$tags")
             ;;
             *)
-            exit 1 # cloud provider unknown
+                exit 1 # cloud provider unknown
             ;;
         esac
         
@@ -148,14 +180,10 @@ measure_create_vm() {
             creation_time=$((end_time - start_time))
             creation_succeeded=true
         else
-            instance_id=$vm_name
             creation_time=-1
-            creation_succeeded=false
         fi
     } || {
-        instance_id=$vm_name
         creation_time=-2
-        creation_succeeded=false
     }
 
     result="$test_details, \
@@ -180,36 +208,44 @@ measure_create_vm() {
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
 #   - $2: The name of the VM (e.g. vm-1-1233213123)
 #   - $3: The region where the VM will be created (e.g. us-east1)
-#   - $4: The resource group (e.g. my-resource-group)
-#   - $5: The result directory where to place the results in JSON format
-#   - $6: The test details in JSON format
+#   - $4: Whether there was a pre-created NIC that needs to be removed or let it be part of the VM creation/deletion measurement (e.g. true)
+#   - $5: The run id
+#   - $6: The result directory where to place the results in JSON format
+#   - $7: The test details in JSON format
 #
 # Notes:
 #   - the Instance ID is returned if no errors occurred
 #
-# Usage: measure_delete_vm <cloud> <vm_name> <region> <resource_group> <result_dir> <test_details>
+# Usage: measure_delete_vm <cloud> <vm_name> <region> <precreate_nic> <run_id> <result_dir> <test_details>
 measure_delete_vm() {
     local cloud=$1
     local vm_name=$2
     local region=$3
-    local resource_group=$4
-    local result_dir=$5
-    local test_details=$6
+    local precreate_nic=$4
+    local run_id=$5
+    local result_dir=$6
+    local test_details=$7
+    
+    local deletion_succeeded=false
 
     {
+        if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
+            nic=$(aws ec2 describe-instances --instance-ids "$vm_name" --output text --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId')
+        fi
+
         local start_time=$(date +%s)
         case $cloud in
             azure)
-            vm=$(delete_vm "$vm_name" "$resource_group")
+                vm=$(delete_vm "$vm_name" "$run_id")
             ;;
             aws)
-            vm=$(delete_ec2 "$vm_name" "$region")
+                vm=$(delete_ec2 "$vm_name" "$region")
             ;;
             gcp)
-            vm=$(delete_vm "$vm_name" "$region")
+                vm=$(delete_vm "$vm_name" "$region")
             ;;
             *)
-            exit 1 # cloud provider unknown
+                exit 1 # cloud provider unknown
             ;;
         esac
         
@@ -220,11 +256,14 @@ measure_delete_vm() {
             deletion_succeeded=true
         else
             deletion_time=-1
-            deletion_succeeded=false
+        fi
+        
+        
+        if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
+            deleted_nic=$(delete_nic "$nic")
         fi
     } || {
         deletion_time=-2
-        deletion_succeeded=false
     }
 
     result="$test_details, \
