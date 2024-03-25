@@ -16,6 +16,7 @@ variable "vpc_id" {
 
 variable "eks_config" {
   type = object({
+    role        = string
     eks_name    = string
     vpc_name    = string
     policy_arns = list(string)

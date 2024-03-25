@@ -2,6 +2,9 @@ name: Terraform Validate
 
 on:
   pull_request:
+    paths:
+      - '**.tf'
+      - '**.tfvars'    
 
 env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure

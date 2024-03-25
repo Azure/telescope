@@ -1,5 +1,6 @@
 locals {
-  policy_arns = flatten([for addon in var.eks_addon_config_map : addon.policy_arns])
+  policy_arns         = flatten([for addon in var.eks_addon_config_map : addon.policy_arns])
+  service_account_map = { for addon in var.eks_addon_config_map : addon.name => addon.service_account if addon.service_account != null }
 }
 
 # Create OIDC Provider
@@ -27,11 +28,11 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
     }
 
     dynamic "condition" {
-      for_each = var.eks_addon_config_map
+      for_each = local.service_account_map
       content {
         test     = "StringLike"
         variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
-        values   = ["system:serviceaccount:kube-system:${condition.value.service_account}"]
+        values   = ["system:serviceaccount:kube-system:${condition.value}"]
       }
     }
 
@@ -46,7 +47,6 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 
 resource "aws_iam_role" "addon_role" {
   assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy.json
-  name               = "eks-addon-role"
   tags               = var.tags
 
   depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
