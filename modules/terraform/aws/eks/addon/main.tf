@@ -32,7 +32,7 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
       content {
         test     = "StringLike"
         variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
-        values   = ["system:serviceaccount:kube-system:${condition.value.service_account}"]
+        values   = ["system:serviceaccount:kube-system:${condition.value}"]
       }
     }
 

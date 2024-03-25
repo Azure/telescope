@@ -154,6 +154,7 @@ variable "bucket_name_prefix" {
 
 variable "eks_config_list" {
   type = list(object({
+    role        = string
     eks_name    = string
     vpc_name    = string
     policy_arns = list(string)
