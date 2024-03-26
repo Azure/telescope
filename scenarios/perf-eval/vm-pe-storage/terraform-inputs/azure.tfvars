@@ -11,22 +11,22 @@ public_ip_config_list = [
 network_config_list = [
     {
         role = "network"
-        vnet_name = "vnet"
+        vnet_name = "same-vnet"
         vnet_address_space = "10.0.0.0/16"
         subnet = [
             {
-                name = "subnet"
+                name = "same-subnet"
                 address_prefix = "10.0.2.0/24"
                 pls_network_policies_enabled = false
             }
         ]
-        network_security_group_name = "nsg"
+        network_security_group_name = "same-nsg"
         nic_public_ip_associations = [
             {
-                nic_name = "vm_nic"
-                subnet_name = "subnet"
-                ip_configuration_name = "vm-ipconfig"
-                public_ip_name = "vm-pip"
+                nic_name = "client-nic"
+                subnet_name = "same-subnet"
+                ip_configuration_name = "client-ipconfig"
+                public_ip_name = "client-pip"
             }
         ]
         nsr_rules = [
@@ -92,8 +92,8 @@ network_config_list = [
 vm_config_list = [
     {
         role = "client"
-        vm_name = "vm"
-        nic_name = "vm_nic"
+        vm_name = "client"
+        nic_name = "client-nic"
         admin_username = "ubuntu"
         zone = "1"
         source_image_reference = {
@@ -105,9 +105,9 @@ vm_config_list = [
       create_vm_extension = true
 }]
 
-storage_account_name_prefix = "peplstest"
+storage_account_name_prefix = "vmpestorage"
 
 pe_config ={
     pe_name = "private-endpoint"
-    pe_subnet_name = "subnet"
+    pe_subnet_name = "same-subnet"
 }

@@ -238,6 +238,8 @@ module "privatelink" {
 module "private_endpoint" {
   source = "./private-endpoint"
 
+  count = var.pe_config == null ? 0 : 1
+
   resource_group_name    = local.run_id
   location               = local.region
   tags = local.tags

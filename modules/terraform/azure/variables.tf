@@ -283,4 +283,5 @@ variable "pe_config" {
     pe_name = string
     pe_subnet_name = string
   })
+  default = null
 }

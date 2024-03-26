@@ -31,10 +31,16 @@ variable "resource_id" {
   default     = ""
 }
 
-variable "storage_account_name" {
-  description = "storage account name"
-  type        = string
-  default     = "0003plssinglevm"
+variable "is_manual_connection" {
+  description = "boolean value for private endpoint manual connection"
+  type = bool
+  default = false
+}
+
+variable "subresource_names" {
+  description = "string type list of subresource names connected to private endpoint"
+  type = list(string)
+  default = ["blob"]
 }
 
 variable "tags" {
