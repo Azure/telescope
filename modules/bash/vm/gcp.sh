@@ -13,7 +13,7 @@
 #   - $7: [optional] The labels to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z", default value is empty)
 #
 # Notes:
-#   - the VM name is returned if no errors occurred
+#   - the VM name and data are returned if no errors occurred
 #
 # Usage: create_vm <vm_name> <vm_size> <vm_os> <region> [accelerator] [labels]
 create_vm() {
@@ -25,8 +25,13 @@ create_vm() {
     local accelerator="${6:-""}"
     local labels="${7:-""}"
 
-    if gcloud compute instances create "$vm_name" --zone "$region" --machine-type "$vm_size" --image "$vm_os" --source-instance-template "$instance_template" --accelerator "$accelerator" --labels=$labels --quiet; then
-        echo "$vm_name"
+    vm_data=$(gcloud compute instances create "$vm_name" --zone "$region" --machine-type "$vm_size" --image "$vm_os" --source-instance-template "$instance_template" --accelerator "$accelerator" --labels=$labels --format json)
+    
+    if [[ -n "$vm_data" ]]; then
+        echo $(jq -c -n \
+            --arg vm_name "$vm_name" \
+            --argjson vm_data "${vm_data,,}" \
+        '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
     fi
 }
 
@@ -38,15 +43,20 @@ create_vm() {
 #   - $2: The region under which the VM was created (e.g. us-east1)
 #
 # Notes:
-#   - the VM name is returned if no errors occurred
+#   - the VM name and data are returned if no errors occurred
 #
 # Usage: delete_vm <vm_name> <region>
 delete_vm() {
     local vm_name=$1
     local region=$2
 
-    if gcloud compute instances delete "$vm_name" --zone "$region" --quiet; then
-        echo "$vm_name"
+    vm_data=$(gcloud compute instances delete "$vm_name" --zone "$region" --format json)
+    
+    if [[ -n "$vm_data" ]]; then
+        echo $(jq -c -n \
+            --arg vm_name "$vm_name" \
+            --argjson vm_data "${vm_data}" \
+        '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
     fi
 }
 
@@ -94,3 +104,31 @@ delete_nic_instance_template() {
     fi
 }
 
+# Description:
+#   This function is used to retrieve the latest image id for a given OS type, version, and architecture
+#
+# Parameters:
+#   - $1: The OS type (e.g. ubuntu)
+#   - $2: The OS version (e.g. 2004)
+#   - $3: The architecture (e.g. amd64)
+#
+# Notes:
+#   - the image id is returned if no errors occurred
+#
+# Usage: get_latest_image <os_type> <os_version> <architecture>
+function get_latest_image {
+    local os_type=$1
+    local os_version=$2
+    local architecture=$3
+
+    if [ "$os_type" == "ubuntu" ]; then
+        LATEST_IMAGE=$(gcloud compute images describe-from-family ubuntu-$os_version-lts-$architecture --project=ubuntu-os-cloud --format="value(name)")
+        echo "projects/ubuntu-os-cloud/global/images/$LATEST_IMAGE"
+    elif [ "$os_type" == "windows" ]; then
+        LATEST_IMAGE=$(gcloud compute images describe-from-family $os_version-$architecture --project=windows-cloud --format="value(name)")
+        echo "projects/windows-cloud/global/images/$LATEST_IMAGE"
+    else
+        echo "Unsupported OS type: $os_type"
+        return 1
+    fi
+}
