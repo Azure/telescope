@@ -84,6 +84,15 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
 
+  dynamic "taint" {
+    for_each = each.value.taints
+    content {
+      key    = taint.value["key"]
+      value  = taint.value["value"]
+      effect = taint.value["effect"]
+    }
+  }
+
   tags = merge(var.tags, {
     "Name" = each.value.name
   })
