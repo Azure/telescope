@@ -4,7 +4,7 @@ deletion_delay = "2h"
 
 public_ip_config_list = [
     {
-        name = "vm-pip"
+        name = "client-pip"
     }
 ]
 
