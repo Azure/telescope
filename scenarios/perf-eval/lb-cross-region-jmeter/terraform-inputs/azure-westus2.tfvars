@@ -85,6 +85,7 @@ network_config_list = [
     ]
   }
 ]
+cross_region_peering = true
 loadbalancer_config_list = [{
   role                  = "ingress"
   loadbalance_name      = "ingress-lb"
