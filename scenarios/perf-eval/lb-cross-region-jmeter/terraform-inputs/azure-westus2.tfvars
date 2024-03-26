@@ -39,7 +39,7 @@ network_config_list = [
       destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-http"
+        name                       = "client-nsr-http"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
@@ -50,7 +50,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-https"
+        name                       = "client-nsr-https"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
@@ -72,7 +72,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-ssh"
+        name                       = "server-nsr-http"
         priority                   = 102
         direction                  = "Outbound"
         access                     = "Allow"
@@ -92,7 +92,7 @@ loadbalancer_config_list = [{
   public_ip_name        = "lb-pip"
   loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
-  probe_port            = 20000
+  probe_port            = 80
   probe_request_path    = null,
   lb_rules = [{
     type                     = "Inbound"

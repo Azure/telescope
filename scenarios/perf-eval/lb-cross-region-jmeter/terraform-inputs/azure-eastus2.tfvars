@@ -36,7 +36,7 @@ network_config_list = [
       destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-http"
+        name                       = "client-nsr-http"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
@@ -47,7 +47,7 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-https"
+        name                       = "client-nsr-https"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
@@ -69,13 +69,13 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-ssh"
+        name                       = "server-nsr-http"
         priority                   = 102
         direction                  = "Outbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "2222"
+        destination_port_range     = "80-80"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       }
