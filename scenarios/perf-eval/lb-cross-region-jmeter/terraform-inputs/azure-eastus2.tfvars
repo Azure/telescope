@@ -9,17 +9,17 @@ public_ip_config_list = [
 network_config_list = [
   {
     role               = "network"
-    vnet_name          = "eastus2-vnet"
+    vnet_name          = "client-vnet"
     vnet_address_space = "10.2.0.0/16"
     subnet = [{
-      name           = "eastus2-subnet"
+      name           = "client-subnet"
       address_prefix = "10.2.1.0/24"
     }]
-    network_security_group_name = "eastus2-nsg"
+    network_security_group_name = "client-nsg"
     nic_public_ip_associations = [
       {
         nic_name              = "client-nic"
-        subnet_name           = "eastus2-subnet"
+        subnet_name           = "client-subnet"
         ip_configuration_name = "client-ipconfig"
         public_ip_name        = "egress-pip"
       }
