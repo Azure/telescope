@@ -13,10 +13,10 @@ network_config_list = [
   {
     role               = "network"
     vnet_name          = "server-vnet"
-    vnet_address_space = "10.2.0.0/16"
+    vnet_address_space = "10.1.0.0/16"
     subnet = [{
       name           = "server-subnet"
-      address_prefix = "10.2.1.0/24"
+      address_prefix = "10.1.1.0/24"
     }]
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
