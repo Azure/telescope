@@ -51,3 +51,4 @@ linux-amd64/
 
 # python
 __pycache__/
+/.vs
