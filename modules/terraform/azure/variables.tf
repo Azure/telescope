@@ -23,6 +23,7 @@ variable "json_input" {
     storage_share_quota              = optional(number)
     storage_share_access_tier        = optional(string)
     storage_share_enabled_protocol   = optional(string)
+    data_disks_count                 = optional(number)
   })
 }
 
