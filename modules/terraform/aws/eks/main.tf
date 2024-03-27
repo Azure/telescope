@@ -45,7 +45,7 @@ resource "aws_iam_role_policy_attachment" "policy_attachments" {
 
 # Create EKS Cluster
 resource "aws_eks_cluster" "eks" {
-  name     = local.eks_name
+  name     = "${local.eks_name}-${var.run_id}"
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
@@ -79,10 +79,28 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     desired_size = each.value.desired_size
   }
 
+  dynamic "taint" {
+    for_each = each.value.taints
+    content {
+      key    = taint.value["key"]
+      value  = taint.value["value"]
+      effect = taint.value["effect"]
+    }
+  }
+
   ami_type       = each.value.ami_type
   instance_types = each.value.instance_types
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
+
+  dynamic "taint" {
+    for_each = each.value.taints
+    content {
+      key    = taint.value["key"]
+      value  = taint.value["value"]
+      effect = taint.value["effect"]
+    }
+  }
 
   tags = merge(var.tags, {
     "Name" = each.value.name

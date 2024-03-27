@@ -8,27 +8,32 @@ To use the EKS module, follow these steps:
 
 1. **Create EKS cluster & Managed Node Groups:**
 
-   Include the configuration in your input tfvars file:
+  Include the configuration in your input tfvars file:
 
-   ```
-   eks_config_list = [{
-   	eks_name                = "sumanth-test"
-   	vpc_name                = "client-vpc"
-   	policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
-   	eks_managed_node_groups = [
-   		{
-   			name           = "node-group-1"
-   			ami_type       = "AL2_x86_64"
-   			instance_types = ["t3.small"]
-   			min_size       = 1
-   			max_size       = 3
-   			desired_size   = 2
-   			capacity_type = "ON_DEMAND" # Optional input
-   			labels         = { terraform = "true", k8s = "true", role = "perf-eval" } # Optional input
-   		}
-   	]
-   }]
-   ```
+  ```hcl
+  eks_config_list = [{
+  eks_name                = "sumanth-test"
+  vpc_name                = "client-vpc"
+  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  eks_managed_node_groups = [
+    {
+      name           = "node-group-1"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["t3.small"]
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 2
+      capacity_type = "ON_DEMAND" # Optional input
+      labels         = { terraform = "true", k8s = "true", role = "perf-eval" } # Optional input
+      taints         = [{
+        key = "dedicated"
+        value = "fio"
+        effect = "NO_SCHEDULE"
+      }] # Optional input
+    }
+  ]
+  }]
+  ```
 	
    - This configuration creates EKS cluster using specified VPC.
 	 - You need to have at least 2 subnets in different zones with public ip enabled for each subnet to be able to successfully create the cluster.
