@@ -109,4 +109,6 @@ storage_account_name_prefix = "vmpestorage"
 pe_config = {
   pe_name        = "private-endpoint"
   pe_subnet_name = "same-subnet"
+  is_manual_connection = false
+  subresource_names = ["blob"]
 }
