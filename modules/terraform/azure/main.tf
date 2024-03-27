@@ -245,6 +245,4 @@ module "private_endpoint" {
   tags = local.tags
   
   pe_config = var.pe_config
-
-  resource_id = module.storage_account[0].storage_account.id
 }
