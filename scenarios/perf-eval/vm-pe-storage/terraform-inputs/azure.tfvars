@@ -108,4 +108,5 @@ storage_account_name_prefix = "vmpestorage"
 
 pe_config = {
   pe_subnet_name = "same-subnet"
+  subresource_names = ["blob"]
 }

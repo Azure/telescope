@@ -31,7 +31,7 @@ variable "pe_config" {
     pe_subnet_name = string
     psc_name = optional(string, "private-service-connection")
     private_connection_resource_id = optional(string, "")
-    subresource_names = optional(list(string, ["blob"]))
+    subresource_names = optional(list(string))
   })
   default = null
 }

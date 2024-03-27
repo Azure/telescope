@@ -285,7 +285,7 @@ variable "pe_config" {
     psc_name = optional(string, "private-service-connection")
     private_connection_resource_id = optional(string, "module.storage_account[0].storage_account.id")
     is_manual_connection = optional(bool, false)
-    subresource_names = optional(list(string, ["blob"]))
+    subresource_names = optional(list(string))
   })
   default = null
 }
