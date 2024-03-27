@@ -193,14 +193,11 @@ function get_latest_image {
     local os_version=$3
     local architecture=$4
 
-    local owner
     local name_pattern
 
     if [ "$os_type" = "windows" ]; then
-        owner="amazon"
         name_pattern="$os_version*"
     elif [ "$os_type" = "ubuntu" ]; then
-        owner="099720109477"
         name_pattern="ubuntu/images/hvm-ssd/ubuntu-*-$os_version-*-server-*"
     else
         echo "Unsupported OS type: $os_type"
@@ -208,7 +205,7 @@ function get_latest_image {
     fi
 
     local ami_id=$(aws ec2 describe-images --region $region \
-        --owners $owner \
+        --owners "amazon" \
         --filters "Name=name,Values=$name_pattern" \
                     "Name=architecture,Values=$architecture" \
                     "Name=state,Values=available" \
