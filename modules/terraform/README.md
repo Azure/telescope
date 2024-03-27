@@ -1,6 +1,6 @@
 # Terraform Modules
 
-This repository contains Terraform modules for provisioning various resources on cloud providers. Below is the list of modules currently supported for AWS and Azure:
+This folder contains Terraform modules for provisioning various resources on cloud providers. Below is the list of modules currently supported for AWS and Azure:
 
 ## AWS Modules
 
@@ -15,16 +15,16 @@ This repository contains Terraform modules for provisioning various resources on
 ## Azure Modules
 
 - **[AKS:](./azure/aks/README.md)** Module for setting up Azure Kubernetes Service (AKS) clusters.
+- **[Application Gateway:](./azure/app-gateway/README.md)** Module for configuring Azure Application Gateway.
 - **[Data Disk:](./azure/data-disk/README.md)** Module for provisioning data disks on Azure VMs.
+- **[Load Balancer:](./azure/load-balancer/README.md)** Module for creating load balancers on Azure.
 - **[Network:](./azure/network/README.md)** Module for configuring networking resources on Azure.
+- **[Data Connection:](./azure/onboarding/data-connection/Readme.md)** Module for creating data connections and kusto tables on Azure.
 - **[Private Link:](./azure/private-link/README.md)** Module for managing Azure Private Link connections.
+- **[Public IP:](./azure/public-ip/README.md)** Module for managing public IP addresses on Azure.
 - **[Storage Account:](./azure/storage-account/README.md)** Module for creating storage accounts on Azure.
 - **[Virtual Machine:](./azure/virtual-machine/README.md)** Module for deploying virtual machines on Azure.
 - **[VMSS:](./azure/virtual-machine-scale-set/README.md)** Module for deploying virtual machine scale sets on Azure.
-- **[Application Gateway:](./azure/app-gateway/README.md)** Module for configuring Azure Application Gateway.
-- **[Load Balancer:](./azure/load-balancer/README.md)** Module for creating load balancers on Azure.
-- **[Data Connection:](./azure/onboarding/data-connection/Readme.md)** Module for creating data connections and kusto tables on Azure.
-- **[Public IP:](./azure/public-ip/README.md)** Module for managing public IP addresses on Azure.
 
 ## Usage
 Each module contains its own README with specific instructions on usage and configuration.
