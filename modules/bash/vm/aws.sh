@@ -15,7 +15,7 @@
 #
 # Notes:
 #   - this commands waits for the EC2 instance's state to be running before returning the instance id
-#   - the instance id is returned if no errors occurred
+#   - the instance id and data are returned if no errors occurred
 #
 # Usage: create_ec2 <name> <size> <os> <region> <subnet> [tag_specifications]
 create_ec2() {
@@ -28,15 +28,25 @@ create_ec2() {
     local tag_specifications="${7:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
     if [[ -n "$nic" ]]; then
-        instance_id=$(aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output text --query 'Instances[0].InstanceId')
+        instance_data=$(aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2>&1)
     else
-        instance_id=$(aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output text --query 'Instances[0].InstanceId')
+        instance_data=$(aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2>&1)
     fi
 
+    instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
+    
     if [[ -n "$instance_id" ]]; then
         if aws ec2 wait instance-running --region "$region" --instance-ids "$instance_id"; then
-            echo "$instance_id"
+            echo $(jq -c -n \
+                --arg vm_name "$instance_id" \
+                --argjson vm_data "$instance_data" \
+            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
         fi
+    else
+        echo $(jq -c -n \
+            --arg vm_name "$instance_id" \
+            --arg vm_data "$instance_data" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
     fi
 }
 
@@ -49,17 +59,29 @@ create_ec2() {
 #
 # Notes:
 #   - this commands waits for the EC2 instance's state to be terminated before returning the instance id
-#   - the instance id is returned if no errors occurred
+#   - the instance id and data are returned if no errors occurred
 #
 # Usage: delete_ec2 <instance_id> <region>
 delete_ec2() {
     local instance_id=$1
     local region=$2
 
-    if aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id"; then
+    instance_data=$(aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2>&1)
+
+    instance_id=$(echo "$instance_data" | jq -r '.TerminatingInstances[0].InstanceId')
+
+    if [[ -n "$instance_id" ]]; then
         if aws ec2 wait instance-terminated --region "$region" --instance-ids "$instance_id"; then
-            echo "$instance_id"
+            echo $(jq -c -n \
+                --arg vm_name "$instance_id" \
+                --argjson vm_data "$(echo "$instance_data" | jq -r)" \
+            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
         fi
+    else
+        echo $(jq -c -n \
+            --arg vm_name "$instance_id" \
+            --arg vm_data "$instance_data" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
     fi
 }
 
@@ -150,4 +172,45 @@ get_nic_by_filters() {
     local filters=$2
 
     aws ec2 describe-network-interfaces --region "$region" --filters $filters --output text --query 'NetworkInterfaces[0].NetworkInterfaceId'
+}
+
+# Description:
+#   This function is used to retrieve the latest image id for a given OS type, version, and architecture
+#
+# Parameters:
+#   - $1: The region where the image is located (e.g. us-east-1)
+#   - $2: The OS type (e.g. ubuntu)
+#   - $3: The OS version (e.g. 22.04)
+#   - $4: The architecture (e.g. x86_64)
+#
+# Notes:
+#   - the image id is returned if no errors occurred
+#
+# Usage: get_latest_image <region> <os_type> <os_version> <architecture>
+function get_latest_image {
+    local region=$1
+    local os_type=$2
+    local os_version=$3
+    local architecture=$4
+
+    local name_pattern
+
+    if [ "$os_type" = "windows" ]; then
+        name_pattern="$os_version*"
+    elif [ "$os_type" = "ubuntu" ]; then
+        name_pattern="ubuntu/images/hvm-ssd/ubuntu-*-$os_version-*-server-*"
+    else
+        echo "Unsupported OS type: $os_type"
+        return 1
+    fi
+
+    local ami_id=$(aws ec2 describe-images --region $region \
+        --owners "amazon" \
+        --filters "Name=name,Values=$name_pattern" \
+                    "Name=architecture,Values=$architecture" \
+                    "Name=state,Values=available" \
+        --query "reverse(sort_by(Images, &CreationDate))[:1].ImageId" \
+        --output text)
+
+    echo "$ami_id"
 }

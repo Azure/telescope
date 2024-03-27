@@ -17,7 +17,7 @@
 #   - $11: [optional] The admin password to use (e.g. my_password, default value is Azur3User!FTW)
 #
 # Notes:
-#   - the VM name is returned if no errors occurred
+#   - the VM name and data are returned if no errors occurred
 #
 # Usage: create_vm <vm_name> <vm_size> <vm_os> <region> <resource_group> <nics> [security_type] [storage_type] [tags] [admin_username] [admin_password]
 create_vm() {
@@ -33,13 +33,30 @@ create_vm() {
     local admin_username="${10:-"azureuser"}"
     local admin_password="${11:-"Azur3User!FTW"}"
 
-    if [[ -n "$nic" ]]; then
-        if az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output none --tags $tags; then
-            echo "$vm_name"
-        fi
+    if [[ -n "$nics" ]]; then
+        vm_data=$(az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2>&1)
     else
-        if az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output none --tags $tags; then
-            echo "$vm_name"
+        vm_data=$(az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2>&1)
+    fi
+
+    vm_id=$(echo "$vm_data" | jq -r '.id')
+
+    if [[ -n "$vm_id" ]]; then
+        echo $(jq -c -n \
+            --arg vm_name "$vm_name" \
+            --argjson vm_data "$vm_data" \
+        '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
+    else
+        if [[ -n "$vm_data" ]] && [[ "${vm_data:0:8}" == "ERROR: {" ]]; then
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --argjson vm_data "${vm_data:7}" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --arg vm_data "$vm_data" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
         fi
     fi
 }
@@ -52,7 +69,7 @@ create_vm() {
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
 #
 # Notes:
-#   - the VM name is returned if no errors occurred
+#   - the VM name and data are returned if no errors occurred
 #
 # Usage: delete_vm <vm_name> <resource_group>
 delete_vm() {
@@ -60,7 +77,10 @@ delete_vm() {
     local resource_group=$2
 
     if az vm delete --resource-group "$resource_group" --name "$vm_name" --force-deletion true --yes --output none; then
-        echo "$vm_name"
+        echo $(jq -c -n \
+            --arg vm_name "$vm_name" \
+            --argjson vm_data "{}" \
+        '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
     fi
 }
 

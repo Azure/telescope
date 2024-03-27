@@ -82,10 +82,10 @@ measure_create_delete_vm() {
 - Storage type: $storage_type
 - Tags: $tags"
     
-    instance_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$precreate_nic" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$result_dir" "$test_details" "$tags")
+    vm_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$precreate_nic" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$result_dir" "$test_details" "$tags")
 
-    if [ -n "$instance_id" ] && [[ "$instance_id" != Error* ]]; then
-        instance_id=$(measure_delete_vm "$cloud" "$instance_id" "$region" "$precreate_nic" "$run_id" "$result_dir" "$test_details")
+    if [ -n "$vm_id" ] && [[ "$vm_id" != Error* ]]; then
+        vm_id=$(measure_delete_vm "$cloud" "$vm_id" "$region" "$precreate_nic" "$run_id" "$result_dir" "$test_details")
     fi
 }
 
@@ -110,7 +110,7 @@ measure_create_delete_vm() {
 #   - $15: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
-#   - the Instance ID is returned if no errors occurred
+#   - the VM ID is returned if no errors occurred
 #
 # Usage: measure_create_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <precreate_nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <test_details> <tags>
 measure_create_vm() {
@@ -131,7 +131,9 @@ measure_create_vm() {
     local tags=${15}
 
     local creation_succeeded=false
-    local instance_id="$vm_name"
+    local creation_time=-1
+    local vm_id="$vm_name"
+    local output_vm_data="{ \"vm_data\": {}}"
 
     {
         local nic=""
@@ -161,33 +163,45 @@ measure_create_vm() {
         local start_time=$(date +%s)
         case $cloud in
             azure)
-                instance_id=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$security_type" "$storage_type" "$tags")
+                vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$security_type" "$storage_type" "$tags")
             ;;
             aws)
-                instance_id=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$subnet" "$tags")
+                vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$subnet" "$tags")
             ;;
             gcp)
-                instance_id=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$accelerator" "$tags")
+                vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$accelerator" "$tags")
             ;;
             *)
                 exit 1 # cloud provider unknown
             ;;
         esac
-        
-        if [ -n "$instance_id" ] && [[ "$instance_id" != Error* ]]; then
-            wait
-            end_time=$(date +%s)
-            creation_time=$((end_time - start_time))
-            creation_succeeded=true
-        else
-            creation_time=-1
+
+        wait
+        end_time=$(date +%s)
+
+        if [[ -n "$vm_data" ]]; then
+            succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+            if [[ "$succeeded" == "true" ]]; then
+                output_vm_data=$vm_data
+                vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+                creation_time=$((end_time - start_time))
+                creation_succeeded=true
+            else
+                temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+                if [[ -n "$temporary_vm_data" ]]; then
+                    output_vm_data=$vm_data
+                fi
+            fi
         fi
     } || {
         creation_time=-2
     }
 
     result="$test_details, \
-        \"vm_id\": \"$instance_id\", \
+        \"vm_id\": \"$vm_id\", \
+        \"vm_data\": $(jq -c -n \
+          --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
+          '$vm_data'), \
         \"operation\": \"create_vm\", \
         \"time\": \"$creation_time\", \
         \"succeeded\": \"$creation_succeeded\" \
@@ -197,7 +211,7 @@ measure_create_vm() {
     echo $result > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
 
     if [[ "$creation_succeeded" == "true" ]]; then
-        echo "$instance_id"
+        echo "$vm_id"
     fi
 }
 
@@ -214,7 +228,7 @@ measure_create_vm() {
 #   - $7: The test details in JSON format
 #
 # Notes:
-#   - the Instance ID is returned if no errors occurred
+#   - the VM ID is returned if no errors occurred
 #
 # Usage: measure_delete_vm <cloud> <vm_name> <region> <precreate_nic> <run_id> <result_dir> <test_details>
 measure_delete_vm() {
@@ -227,6 +241,8 @@ measure_delete_vm() {
     local test_details=$7
     
     local deletion_succeeded=false
+    local deletion_time=-1
+    local output_vm_data="{ \"vm_data\": {}}"
 
     {
         if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
@@ -236,28 +252,35 @@ measure_delete_vm() {
         local start_time=$(date +%s)
         case $cloud in
             azure)
-                vm=$(delete_vm "$vm_name" "$run_id")
+                vm_data=$(delete_vm "$vm_name" "$run_id")
             ;;
             aws)
-                vm=$(delete_ec2 "$vm_name" "$region")
+                vm_data=$(delete_ec2 "$vm_name" "$region")
             ;;
             gcp)
-                vm=$(delete_vm "$vm_name" "$region")
+                vm_data=$(delete_vm "$vm_name" "$region")
             ;;
             *)
                 exit 1 # cloud provider unknown
             ;;
         esac
-        
-        if [ -n "$vm" ] && [[ "$vm" != *Error* ]]; then
-            wait
-            end_time=$(date +%s)
-            deletion_time=$((end_time - start_time))
-            deletion_succeeded=true
-        else
-            deletion_time=-1
+
+        wait
+        end_time=$(date +%s)
+
+        if [[ -n "$vm_data" ]]; then
+            succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+            if [[ "$succeeded" == "true" ]]; then
+                output_vm_data=$vm_data
+                deletion_time=$((end_time - start_time))
+                deletion_succeeded=true
+            else
+                temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+                if [[ -n "$temporary_vm_data" ]]; then
+                    output_vm_data=$temporary_vm_data
+                fi
+            fi
         fi
-        
         
         if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
             deleted_nic=$(delete_nic "$nic")
@@ -267,7 +290,10 @@ measure_delete_vm() {
     }
 
     result="$test_details, \
-        \"vm_id\": \"$instance_id\", \
+        \"vm_id\": \"$vm_name\", \
+        \"vm_data\": $(jq -c -n \
+          --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
+          '$vm_data'), \
         \"operation\": \"delete_vm\", \
         \"time\": \"$deletion_time\", \
         \"succeeded\": \"$deletion_succeeded\" \
