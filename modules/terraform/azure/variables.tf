@@ -283,7 +283,7 @@ variable "pe_config" {
     pe_name = optional(string, "private-endpoint")
     pe_subnet_name = string
     psc_name = optional(string, "private-service-connection")
-    private_connection_resource_id = optional(string, "module.storage_account[0].storage_account.id")
+    private_connection_resource_id = optional(string)
     is_manual_connection = optional(bool, false)
     subresource_names = optional(list(string))
   })

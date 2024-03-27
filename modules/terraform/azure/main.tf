@@ -242,6 +242,8 @@ module "private_endpoint" {
 
   resource_group_name    = local.run_id
   location               = local.region
+  subnet_id = local.all_subnets[var.pe_config.pe_subnet_name]
+  private_connection_resource_id = var.pe_config.private_connection_resource_id == null ? module.storage_account[0].id : ""
   tags = local.tags
   
   pe_config = var.pe_config
