@@ -118,7 +118,7 @@ azure_aks_deploy_fio()
   local data_disk_mbps_read_write=$9
 
   az aks get-credentials -n $aksName -g $resource_group
-  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/azure
 
   if [ -z "$data_disk_iops_read_write" ]; then
     sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
