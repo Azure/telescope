@@ -280,11 +280,11 @@ variable "private_link_conf" {
 variable "pe_config" {
   description = "configuration for a private endpoint"
   type = object({
-    pe_name = optional(string, "private-endpoint")
-    pe_subnet_name = string
-    psc_name = optional(string, "private-service-connection")
+    pe_name              = optional(string, "private-endpoint")
+    pe_subnet_name       = string
+    psc_name             = optional(string, "private-service-connection")
     is_manual_connection = optional(bool, false)
-    subresource_names = optional(list(string))
+    subresource_names    = optional(list(string))
   })
   default = null
 }
