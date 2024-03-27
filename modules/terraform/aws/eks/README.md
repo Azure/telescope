@@ -29,8 +29,11 @@ To use the EKS module, follow these steps:
    	]
    }]
    ```
-
+	
    - This configuration creates EKS cluster using specified VPC.
+	 - You need to have at least 2 subnets in different zones with public ip enabled for each subnet to be able to successfully create the cluster.
+	 - We need few IAM permission in order to create Node Group. Please refer [here](https://docs.aws.amazon.com/eks/latest/userguide/create-node-role.html)
+	 - Recommended to have these polices added to your tfvars. ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly", "AmazonEKS_CNI_Policy"] 
    - It also creates an IAM role and attachs the polices listed in the tfvars config.
    - It creates one node group for the cluster with our desired configuration.
    - policy_arns is the list of suffix strings of policy we want to attach to a IAM role.
@@ -51,6 +54,9 @@ To use the EKS module, follow these steps:
        name                    = "aws-efs-csi-driver"
        service_account         = "efs-csi-*"
        policy_arns = ["service-role/AmazonEFSCSIDriverPolicy"]
+     },
+     {
+       name = "coredns"
      }
    ]
    ```
