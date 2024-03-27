@@ -1,10 +1,3 @@
-variable "pe_name" {
-  description = "Value of the private endpoint name"
-  type        = string
-  default     = "pe"
-}
-
-
 variable "location" {
   description = "Location of private endpoint"
   type        = string
@@ -31,16 +24,15 @@ variable "resource_id" {
   default     = ""
 }
 
-variable "is_manual_connection" {
-  description = "boolean value for private endpoint manual connection"
-  type = bool
-  default = false
-}
-
-variable "subresource_names" {
-  description = "string type list of subresource names connected to private endpoint"
-  type = list(string)
-  default = ["blob"]
+variable "pe_config" {
+  description = "configuration for a private endpoint"
+  type = object({
+    pe_name = string
+    pe_subnet_name = string
+    is_manual_connection = bool
+    subresource_names = list(string)
+  })
+  default = null
 }
 
 variable "tags" {

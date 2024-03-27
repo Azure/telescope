@@ -282,6 +282,8 @@ variable "pe_config" {
   type = object({
     pe_name = string
     pe_subnet_name = string
+    is_manual_connection = bool
+    subresource_names = list(string)
   })
   default = null
 }

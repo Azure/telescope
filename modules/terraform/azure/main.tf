@@ -246,6 +246,8 @@ module "private_endpoint" {
   
   pe_name                = var.pe_config.pe_name
   pe_subnet_id           = local.all_subnets[var.pe_config.pe_subnet_name]
+  is_manual_connection   = var.pe_config.is_manual_connection
+  subresource_names      = var.pe_config.subresource_names
 
   resource_id = module.storage_account[0].storage_account.id
 }
