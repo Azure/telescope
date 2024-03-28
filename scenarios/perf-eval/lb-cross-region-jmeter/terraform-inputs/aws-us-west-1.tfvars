@@ -9,7 +9,7 @@ network_config_list = [
     subnet = [
       {
         name        = "us-west-1-server-subnet"
-        cidr_block  = "10.2.2.0/24"
+        cidr_block  = "10.2.1.0/24"
         zone_suffix = "c"
       }
     ]
