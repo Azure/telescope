@@ -87,7 +87,6 @@ Validate client VM is running and ready for https traffic
 ```
 VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${CLIENT_ROLE}')].id" --output tsv)
 VM_PUBLIC_IP=$(az vm list-ip-addresses --ids $VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
-VM_PRIVATE_IP=$(az vm list-ip-addresses --ids $VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
 ```
 
 Validate pe is deployed and ready for https traffic
@@ -129,7 +128,7 @@ run_jmeter $VM_PUBLIC_IP $ssh_key_path https 1 "$JMETER_HTTP_PROPERTY" $TEMP_JME
 ### Collect Results
 Collect and parse jmeter https test result(s)
 ```
-collect_result_jmeter http 1 $RESULT_PATH $RUN_ID "" ""
+collect_result_jmeter https 1 $RESULT_PATH $RUN_ID "" ""
 ```
 
 Check the results
