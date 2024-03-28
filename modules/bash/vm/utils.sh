@@ -135,67 +135,63 @@ measure_create_vm() {
     local vm_id="$vm_name"
     local output_vm_data="{ \"vm_data\": {}}"
 
-    {
-        local nic=""
-        if [[ "$precreate_nic" == "true" ]]; then
-            # we will use defaults here to not clobber the method signature, but we may want to parameterize these in the future
-            local nic_name="nic_$vm_name"
-            case $cloud in
-                azure)
-                    local vnet="create-delete-vm-vnet"
-                    subnet="create-delete-vm-subnet"
-                    local accelerated_networking=true
-                    nic=$(create_nic "$nic_name" "$run_id" "$vnet" "$subnet" "$accelerated_networking" "$tags")
-                ;;
-                aws)
-                    local nic_tags="${tags/ResourceType=instance/ResourceType=network-interface}"
-                    nic=$(create_nic "$nic_name" "$subnet" "$security_group" "$nic_tags")
-                ;;
-                gcp)
-                    nic=$(create_nic_instance_template "it_$nic_name" "$region" "$subnet" "$tags")
-                ;;
-                *)
-                    exit 1 # cloud provider unknown
-                ;;
-            esac
-        fi
-
-        local start_time=$(date +%s)
+    local nic=""
+    if [[ "$precreate_nic" == "true" ]]; then
+        # we will use defaults here to not clobber the method signature, but we may want to parameterize these in the future
+        local nic_name="nic_$vm_name"
         case $cloud in
             azure)
-                vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$security_type" "$storage_type" "$tags")
+                local vnet="create-delete-vm-vnet"
+                subnet="create-delete-vm-subnet"
+                local accelerated_networking=true
+                nic=$(create_nic "$nic_name" "$run_id" "$vnet" "$subnet" "$accelerated_networking" "$tags")
             ;;
             aws)
-                vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$subnet" "$tags")
+                local nic_tags="${tags/ResourceType=instance/ResourceType=network-interface}"
+                nic=$(create_nic "$nic_name" "$subnet" "$security_group" "$nic_tags")
             ;;
             gcp)
-                vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$accelerator" "$tags")
+                nic=$(create_nic_instance_template "it_$nic_name" "$region" "$subnet" "$tags")
             ;;
             *)
                 exit 1 # cloud provider unknown
             ;;
         esac
+    fi
 
-        wait
-        end_time=$(date +%s)
+    local start_time=$(date +%s)
+    case $cloud in
+        azure)
+            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$security_type" "$storage_type" "$tags")
+        ;;
+        aws)
+            vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$subnet" "$tags")
+        ;;
+        gcp)
+            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$accelerator" "$tags")
+        ;;
+        *)
+            exit 1 # cloud provider unknown
+        ;;
+    esac
 
-        if [[ -n "$vm_data" ]]; then
-            succeeded=$(echo "$vm_data" | jq -r '.succeeded')
-            if [[ "$succeeded" == "true" ]]; then
+    wait
+    end_time=$(date +%s)
+
+    if [[ -n "$vm_data" ]]; then
+        succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+        if [[ "$succeeded" == "true" ]]; then
+            output_vm_data=$vm_data
+            vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+            creation_time=$((end_time - start_time))
+            creation_succeeded=true
+        else
+            temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+            if [[ -n "$temporary_vm_data" ]]; then
                 output_vm_data=$vm_data
-                vm_id=$(echo "$vm_data" | jq -r '.vm_name')
-                creation_time=$((end_time - start_time))
-                creation_succeeded=true
-            else
-                temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
-                if [[ -n "$temporary_vm_data" ]]; then
-                    output_vm_data=$vm_data
-                fi
             fi
         fi
-    } || {
-        creation_time=-2
-    }
+    fi
 
     result="$test_details, \
         \"vm_id\": \"$vm_id\", \
@@ -244,50 +240,46 @@ measure_delete_vm() {
     local deletion_time=-1
     local output_vm_data="{ \"vm_data\": {}}"
 
-    {
-        if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
-            nic=$(aws ec2 describe-instances --instance-ids "$vm_name" --output text --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId')
-        fi
+    if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
+        nic=$(aws ec2 describe-instances --instance-ids "$vm_name" --output text --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId')
+    fi
 
-        local start_time=$(date +%s)
-        case $cloud in
-            azure)
-                vm_data=$(delete_vm "$vm_name" "$run_id")
-            ;;
-            aws)
-                vm_data=$(delete_ec2 "$vm_name" "$region")
-            ;;
-            gcp)
-                vm_data=$(delete_vm "$vm_name" "$region")
-            ;;
-            *)
-                exit 1 # cloud provider unknown
-            ;;
-        esac
+    local start_time=$(date +%s)
+    case $cloud in
+        azure)
+            vm_data=$(delete_vm "$vm_name" "$run_id")
+        ;;
+        aws)
+            vm_data=$(delete_ec2 "$vm_name" "$region")
+        ;;
+        gcp)
+            vm_data=$(delete_vm "$vm_name" "$region")
+        ;;
+        *)
+            exit 1 # cloud provider unknown
+        ;;
+    esac
 
-        wait
-        end_time=$(date +%s)
+    wait
+    end_time=$(date +%s)
 
-        if [[ -n "$vm_data" ]]; then
-            succeeded=$(echo "$vm_data" | jq -r '.succeeded')
-            if [[ "$succeeded" == "true" ]]; then
-                output_vm_data=$vm_data
-                deletion_time=$((end_time - start_time))
-                deletion_succeeded=true
-            else
-                temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
-                if [[ -n "$temporary_vm_data" ]]; then
-                    output_vm_data=$temporary_vm_data
-                fi
+    if [[ -n "$vm_data" ]]; then
+        succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+        if [[ "$succeeded" == "true" ]]; then
+            output_vm_data=$vm_data
+            deletion_time=$((end_time - start_time))
+            deletion_succeeded=true
+        else
+            temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+            if [[ -n "$temporary_vm_data" ]]; then
+                output_vm_data=$temporary_vm_data
             fi
         fi
-        
-        if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
-            deleted_nic=$(delete_nic "$nic")
-        fi
-    } || {
-        deletion_time=-2
-    }
+    fi
+    
+    if [[ "$precreate_nic" == "true" ]] && [[ "$cloud" == "aws" ]]; then
+        deleted_nic=$(delete_nic "$nic")
+    fi
 
     result="$test_details, \
         \"vm_id\": \"$vm_name\", \
