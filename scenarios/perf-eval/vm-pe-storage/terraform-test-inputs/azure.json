@@ -1,0 +1,10 @@
+{
+    "owner"                            : "terraform_unit_tests",
+    "run_id"                           : "vm-pe-storage",
+    "region"                           : "eastus",
+    "machine_type"                     : "Standard_D2s_v5",
+    "accelerated_networking"           : false,
+    "storage_account_tier"             : "Standard",
+    "storage_account_replication_type" : "LRS",
+    "storage_share_enabled_protocol"   : "NFS"
+  }
