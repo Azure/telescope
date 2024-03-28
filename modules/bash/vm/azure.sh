@@ -16,9 +16,6 @@
 #   - $10: [optional] The admin username to use (e.g. my_username, default value is azureuser)
 #   - $11: [optional] The admin password to use (e.g. my_password, default value is Azur3User!FTW)
 #
-# Notes:
-#   - the VM name is returned if no errors occurred
-#
 # Usage: create_vm <vm_name> <vm_size> <vm_os> <region> <resource_group> <nics> [security_type] [storage_type] [tags] [admin_username] [admin_password]
 create_vm() {
     local vm_name=$1
@@ -33,15 +30,45 @@ create_vm() {
     local admin_username="${10:-"azureuser"}"
     local admin_password="${11:-"Azur3User!FTW"}"
 
-    if [[ -n "$nic" ]]; then
-        if az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output none --tags $tags; then
-            echo "$vm_name"
-        fi
+    if [[ -n "$nics" ]]; then
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> /tmp/$resource_group-$vm_name-create_vm-error.txt > /tmp/$resource_group-$vm_name-create_vm-output.txt
     else
-        if az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output none --tags $tags; then
-            echo "$vm_name"
-        fi
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> /tmp/$resource_group-$vm_name-create_vm-error.txt > /tmp/$resource_group-$vm_name-create_vm-output.txt
     fi
+
+    exit_code=$?
+
+    (
+        set -Ee
+        function _catch {
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        vm_data=$(cat /tmp/$resource_group-$vm_name-create_vm-output.txt)
+        error=$(cat /tmp/$resource_group-$vm_name-create_vm-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --argjson vm_data "$vm_data" \
+            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+                echo $(jq -c -n \
+                    --arg vm_name "$vm_name" \
+                    --argjson vm_data "${error:7}" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+            else
+                echo $(jq -c -n \
+                    --arg vm_name "$vm_name" \
+                    --arg vm_data "$error" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
+        fi
+    )
 }
 
 # Description:
@@ -51,17 +78,46 @@ create_vm() {
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
 #
-# Notes:
-#   - the VM name is returned if no errors occurred
-#
 # Usage: delete_vm <vm_name> <resource_group>
 delete_vm() {
     local vm_name=$1
     local resource_group=$2
 
-    if az vm delete --resource-group "$resource_group" --name "$vm_name" --force-deletion true --yes --output none; then
-        echo "$vm_name"
-    fi
+    az vm delete --resource-group "$resource_group" --name "$vm_name" --force-deletion true --yes --output json 2> /tmp/$resource_group-$vm_name-delete_vm-error.txt > /tmp/$resource_group-$vm_name-delete_vm-output.txt
+
+    exit_code=$?
+
+    (
+        set -Ee
+        function _catch {
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        vm_data=$(cat /tmp/$resource_group-$vm_name-delete_vm-output.txt)
+        error=$(cat /tmp/$resource_group-$vm_name-delete_vm-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --argjson vm_data "{}" \
+            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+                echo $(jq -c -n \
+                    --arg vm_name "$vm_name" \
+                    --argjson vm_data "${error:7}" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            else
+                echo $(jq -c -n \
+                    --arg vm_name "$vm_name" \
+                    --arg vm_data "$error" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
+        fi
+    )
 }
 
 # Description:

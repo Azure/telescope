@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ebs-gp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ebs-sc-gp
+  resources:
+    requests:
+      storage: 1667Gi
