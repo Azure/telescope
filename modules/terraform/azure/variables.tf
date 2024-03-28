@@ -283,7 +283,7 @@ variable "pe_config" {
     pe_name              = string
     pe_subnet_name       = string
     psc_name             = string
-    is_manual_connection = optional(bool, false)
+    is_manual_connection = bool
     subresource_names    = optional(list(string))
   })
   default = null
