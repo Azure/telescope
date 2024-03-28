@@ -15,7 +15,6 @@
 #
 # Notes:
 #   - this commands waits for the EC2 instance's state to be running before returning the instance id
-#   - the instance id and data are returned if no errors occurred
 #
 # Usage: create_ec2 <name> <size> <os> <region> <subnet> [tag_specifications]
 create_ec2() {
@@ -28,26 +27,48 @@ create_ec2() {
     local tag_specifications="${7:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
     if [[ -n "$nic" ]]; then
-        instance_data=$(aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2>&1)
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> /tmp/aws-$instance_name-create_ec2-error.txt > /tmp/aws-$instance_name-create_ec2-output.txt
     else
-        instance_data=$(aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2>&1)
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> /tmp/aws-$instance_name-create_ec2-error.txt > /tmp/aws-$instance_name-create_ec2-output.txt
     fi
 
-    instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
-    
-    if [[ -n "$instance_id" ]]; then
-        if aws ec2 wait instance-running --region "$region" --instance-ids "$instance_id"; then
+    exit_code=$?
+
+    (
+        set -Ee
+        function _catch {
             echo $(jq -c -n \
-                --arg vm_name "$instance_id" \
-                --argjson vm_data "$instance_data" \
-            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
+                --arg vm_name "$instance_name" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        instance_data=$(cat /tmp/aws-$instance_name-create_ec2-output.txt)
+        error=$(cat /tmp/aws-$instance_name-create_ec2-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
+
+            if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
+                if aws ec2 wait instance-running --region "$region" --instance-ids "$instance_id"; then
+                    echo $(jq -c -n \
+                        --arg vm_name "$instance_id" \
+                        --argjson vm_data "$instance_data" \
+                    '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                fi
+            else
+                echo $(jq -c -n \
+                    --arg vm_name "$instance_id" \
+                    --arg vm_data "$instance_data" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$instance_name" \
+                --arg vm_data "$error" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
-    else
-        echo $(jq -c -n \
-            --arg vm_name "$instance_id" \
-            --arg vm_data "$instance_data" \
-        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
-    fi
+    )
 }
 
 # Description:
@@ -59,30 +80,51 @@ create_ec2() {
 #
 # Notes:
 #   - this commands waits for the EC2 instance's state to be terminated before returning the instance id
-#   - the instance id and data are returned if no errors occurred
 #
 # Usage: delete_ec2 <instance_id> <region>
 delete_ec2() {
     local instance_id=$1
     local region=$2
 
-    instance_data=$(aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2>&1)
+    aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2> /tmp/aws-$instance_id-delete_ec2-error.txt > /tmp/aws-$instance_id-delete_ec2-output.txt
 
-    instance_id=$(echo "$instance_data" | jq -r '.TerminatingInstances[0].InstanceId')
-
-    if [[ -n "$instance_id" ]]; then
-        if aws ec2 wait instance-terminated --region "$region" --instance-ids "$instance_id"; then
+    exit_code=$?
+    
+    (
+        set -Ee
+        function _catch {
             echo $(jq -c -n \
                 --arg vm_name "$instance_id" \
-                --argjson vm_data "$(echo "$instance_data" | jq -r)" \
-            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        instance_data=$(cat /tmp/aws-$instance_id-delete_ec2-output.txt)
+        error=$(cat /tmp/aws-$instance_id-delete_ec2-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            instance_id=$(echo "$instance_data" | jq -r '.TerminatingInstances[0].InstanceId')
+
+            if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
+                if aws ec2 wait instance-terminated --region "$region" --instance-ids "$instance_id"; then
+                    echo $(jq -c -n \
+                        --arg vm_name "$instance_id" \
+                        --argjson vm_data "$(echo "$instance_data" | jq -r)" \
+                    '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                fi
+            else
+                echo $(jq -c -n \
+                    --arg vm_name "$instance_id" \
+                    --arg vm_data "$instance_data" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$instance_id" \
+                --arg vm_data "$error" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
-    else
-        echo $(jq -c -n \
-            --arg vm_name "$instance_id" \
-            --arg vm_data "$instance_data" \
-        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | tr " " "|" | sed -E 's/\\n|\\r|\\t//g'
-    fi
+    )
 }
 
 # Description:
