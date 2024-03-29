@@ -22,7 +22,7 @@ attach_disk() {
     local resource_group=$3
 
     result=$(az vm disk attach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)
-    if [ $? -eq 0 ]; then
+    if [ $? -eq 0 ] && [[ $result != *"ERROR"* ]]; then
         echo "success"
     else
         echo "failed"
@@ -36,7 +36,7 @@ detach_disk() {
     local resource_group=$3
 
     result=$(az vm disk detach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)
-    if [ $? -eq 0 ]; then
+    if [ $? -eq 0 ] && [[ $result != *"ERROR"* ]]; then
         echo "success"
     else
         echo "failed"
