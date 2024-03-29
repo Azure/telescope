@@ -42,3 +42,24 @@ detach_disk() {
         echo "failed"
     fi
 }
+
+#function to validate the resources in the resource group
+validate_resources() {
+    # Retrieve VMs from the resource group
+    vm_count=$(az vm list --resource-group $RUN_ID --query "length([])")
+
+    # Check if there is only one VM
+    if [ $vm_count -ne 1 ]; then
+        echo "Error: There should be exactly one VM in the resource group."
+        exit 1
+    fi
+
+    # Retrieve disks from the resource group
+    disk_count=$(az disk list --resource-group $RUN_ID --query "length([])")
+
+    # Check if there is at least one disk
+    if [ $disk_count -lt 1 ]; then
+        echo "Error: There should be at least one disk in the resource group."
+        exit 1
+    fi
+}
