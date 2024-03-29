@@ -157,3 +157,41 @@ aws_create_vpc_peering(){
   aws ec2 describe-route-tables --route-table-ids $client_route_table --region $client_vpc_region
   aws ec2 describe-route-tables --route-table-ids $server_route_table --region $server_vpc_region
 }
+
+aws_eks_deploy_fio()
+{
+  local region=$1
+  local eksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local disk_type=$5
+  local disk_size_in_gb=$6
+  local replica_count=$7
+  local data_disk_iops_read_write=$8
+  local data_disk_mbps_read_write=$9
+
+  aws eks update-kubeconfig --region $region --name $eksName
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/aws
+
+  delete_time=$(date -ud '+2 hour' +'%FT%TZ')
+  deletion_tag="deletion_due_time=${delete_time}"
+
+  if [ -z "$data_disk_iops_read_write" ]; then
+    sed -i "s/\(type: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
+    sed -i "s/\(tagSpecification_1: \).*/\1\"$deletion_tag\"/" "${file_source}/storage-class.yml"
+    kubectl apply -f "${file_source}/storage-class.yml"
+  else
+    sed -i "s/\(type: \).*/\1$disk_type/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(iops: \).*/\1\"$data_disk_iops_read_write\"/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(throughput: \).*/\1\"$data_disk_mbps_read_write\"/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(tagSpecification_1: \).*/\1\"$deletion_tag\"/" "${file_source}/storage-class-provisioned.yml"
+    kubectl apply -f "${file_source}/storage-class-provisioned.yml"
+  fi
+
+
+  sed -i "s/\(storage: \).*/\1${disk_size_in_gb}Gi/" "${file_source}/pvc.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}

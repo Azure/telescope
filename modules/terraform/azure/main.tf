@@ -234,3 +234,18 @@ module "privatelink" {
 
   tags = local.tags
 }
+
+module "private_endpoint" {
+  source = "./private-endpoint"
+
+  count = var.pe_config == null ? 0 : 1
+
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+
+  pe_subnet_id                   = local.all_subnets[var.pe_config.pe_subnet_name]
+  private_connection_resource_id = module.storage_account[0].storage_account.id
+
+  pe_config = var.pe_config
+}
