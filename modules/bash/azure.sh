@@ -136,3 +136,24 @@ azure_aks_deploy_fio()
   kubectl apply -f "${file_source}/pvc.yml"
   kubectl apply -f "${file_source}/fio.yml"
 }
+
+azure_create_vnet_peering()
+{
+  local run_id=$1
+    # Step 1: Find all VNets in the specified resource group
+    vnets=$(az network vnet list --resource-group $(run_id) --query '[].name' -o tsv)
+
+    # Step 2: Create VNet peering between each pair of VNets
+    for vnet1 in $vnets; do
+        for vnet2 in $vnets; do
+            if [[ "$vnet1" != "$vnet2" ]]; then
+                az network vnet peering create \
+                    --name "${vnet1}-to-${vnet2}" \
+                    --resource-group $(run_id) \
+                    --vnet-name $vnet1 \
+                    --remote-vnet $vnet2 \
+                    --allow-vnet-access
+            fi
+        done
+    done
+}

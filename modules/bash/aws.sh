@@ -94,3 +94,8 @@ aws_lb_dns_name() {
   echo "$ROLE Public IP Address: $lb_dns_name" >&2
   echo  $lb_dns_name
 }
+
+aws_create_vpc_peering(){
+  local RUN_ID=$1
+  local REGIONS=$2
+}
