@@ -45,8 +45,10 @@ detach_disk() {
 
 #function to validate the resources in the resource group
 validate_resources() {
+    local run_id=$1
+    
     # Retrieve VMs from the resource group
-    vm_count=$(az vm list --resource-group $RUN_ID --query "length([])")
+    vm_count=$(az vm list --resource-group $run_id --query "length([])")
 
     # Check if there is only one VM
     if [ $vm_count -ne 1 ]; then
@@ -55,7 +57,7 @@ validate_resources() {
     fi
 
     # Retrieve disks from the resource group
-    disk_count=$(az disk list --resource-group $RUN_ID --query "length([])")
+    disk_count=$(az disk list --resource-group $run_id --query "length([])")
 
     # Check if there is at least one disk
     if [ $disk_count -lt 1 ]; then
