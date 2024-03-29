@@ -5,10 +5,10 @@ network_config_list = [
   {
     role           = "server"
     vpc_name       = "server-vpc"
-    vpc_cidr_block = "10.1.0.0/16"
+    vpc_cidr_block = "172.16.0.0/16"
     subnet = [{
       name        = "server-subnet"
-      cidr_block  = "10.1.0.0/16"
+      cidr_block  = "172.16.1.0/24"
       zone_suffix = "a"
     }]
     security_group_name = "server-sg"
