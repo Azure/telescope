@@ -16,15 +16,14 @@ kusto_table="your_kusto_table"
 #function to initialize tests
 init_tests() {
     local run_id=$1
-    local role=$2
-    local scenario_type=$3
-    local scenario_name=$4
+    local scenario_type=$2
+    local scenario_name=$3
 
     # create tmp directory if it does not exist
     mkdir -p tmp
 
     # get vm name and disk names
-    vm_name=$(get_vm_instance_by_name $run_id $role)
+    vm_name=$(get_vm_instance_by_name $run_id)
     disk_names=($(get_disk_instance_by_name $run_id $scenario_type $scenario_name))
 
     # get VM operating system and size
