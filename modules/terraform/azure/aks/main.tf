@@ -16,10 +16,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
       "role" = local.role
     },
   )
+  sku_tier = var.aks_config.sku_tier
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count
-    vm_size                      = var.vm_sku
+    vm_size                      = var.aks_config.default_node_pool.vm_size
     vnet_subnet_id               = try(var.subnet_id, null)
     os_disk_type                 = var.aks_config.default_node_pool.os_disk_type
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
@@ -40,7 +41,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
 
   name                  = each.value.name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
-  vm_size               = var.vm_sku
+  vm_size               = each.value.vm_size
   node_count            = each.value.node_count
   os_disk_type          = var.aks_config.default_node_pool.os_disk_type
 }

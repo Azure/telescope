@@ -28,12 +28,6 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
 - **Type:** String
 - **Default:** ""
 
-### `vm_sku`
-
-- **Description:** SKU (Stock Keeping Unit) of the virtual machines used in the AKS cluster.
-- **Type:** String
-- **Default:** "Standard_D2ds_v5"
-
 ### `vnet_id`
 
 - **Description:** ID of the virtual network where the AKS cluster will be deployed.
@@ -48,11 +42,13 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
   - `aks_name`: Name of the AKS cluster
   - `dns_prefix`: DNS prefix for the AKS cluster
   - `subnet_name`: Name of the subnet
+  - `sku_tier`: The type of pricing tiers
   - `network_plugin`: Network plugin used by the AKS cluster
   - `default_node_pool`: Configuration for the default node pool
   - `extra_node_pool`: Additional node pools for the AKS cluster
     - `name`: Name of the node pool
     - `node_count`: Number of nodes in the node pool
+    - `vm_size`: Size of Virtual Machines to create as Kubernetes nodes.
 
 ## Usage Example
 
@@ -63,7 +59,6 @@ module "aks" {
   resource_group_name = "my-rg"
   location            = "West Europe"
   subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
-  vm_sku              = "Standard_D2s_v3"
   vnet_id             = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet"
   aks_config = {
     role            = "dev"
@@ -73,6 +68,7 @@ module "aks" {
     network_plugin  = "kubenet"
     default_node_pool = {
       name                         = "default-pool"
+      vm_size                      = "Standard_D2s_v3"
       node_count                   = 3
       os_disk_type                 = "Ephemeral"
       only_critical_addons_enabled = false
@@ -82,10 +78,12 @@ module "aks" {
       {
         name       = "pool-1"
         node_count = 2
+        vm_size    = "Standard_D2s_v3"
       },
       {
         name       = "pool-2"
         node_count = 2
+        vm_size    = "Standard_D2s_v3"
       }
     ]
   }

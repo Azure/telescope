@@ -24,7 +24,7 @@ jobs:
 
     - name: Terraform Format Check
       if: always()
-      run: terraform fmt --check -recursive
+      run: terraform fmt --check -recursive --diff
 
     - name: Terraform Azure Validation Check
       if: always()

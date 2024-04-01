@@ -1,6 +1,7 @@
 scenario_type  = "perf-eval"
-scenario_name  = "k8s-disk"
-deletion_delay = "2h"
+scenario_name  = "apiserver-benchmark-virtualnodes100-pods3k"
+deletion_delay = "20h"
+
 network_config_list = [
   {
     role           = "client"
@@ -53,47 +54,48 @@ network_config_list = [
   }
 ]
 
-vm_config_list           = []
-loadbalancer_config_list = []
-
 eks_config_list = [{
   role        = "client"
-  eks_name    = "disk-eks"
+  eks_name    = "virtualnodes100-pods3k"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "node-group-1"
+      name           = "idle"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m5.4xlarge"]
-      min_size       = 2
-      max_size       = 2
-      desired_size   = 2
-      labels         = { terraform = "true", k8s = "true", role = "perf-eval", nodepool = "system" }
-      taints         = []
-    },
-    {
-      name           = "node-group-2"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m5.4xlarge"]
+      instance_types = ["m4.large"]
       min_size       = 1
       max_size       = 1
       desired_size   = 1
-      labels         = { terraform = "true", k8s = "true", role = "perf-eval", nodepool = "user" }
-      taints = [
-        {
-          key    = "fio-dedicated"
-          value  = "true"
-          effect = "NO_EXECUTE"
-        }
-      ]
+      capacity_type  = "ON_DEMAND"
+      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+    },
+    {
+      name           = "virtualnodes"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.2xlarge"]
+      min_size       = 5
+      max_size       = 5
+      desired_size   = 5
+      capacity_type  = "ON_DEMAND"
+      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+    },
+    {
+      name           = "runner"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.4xlarge"]
+      min_size       = 3
+      max_size       = 3
+      desired_size   = 3
+      capacity_type  = "ON_DEMAND"
+      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
     }
   ]
 
-  eks_addons = [{
-    name            = "aws-ebs-csi-driver"
-    service_account = "ebs-csi-controller-sa"
-    policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
+  eks_addons = [
+    {
+      name = "coredns"
     }
   ]
 }]
+
