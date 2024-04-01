@@ -182,6 +182,7 @@ execute()
     run_id=$1
     scenario_type=$2
     scenario_name=$3
+    resource_group=$run_id
 
     init_tests $run_id $scenario_type $scenario_name
     run_tests
