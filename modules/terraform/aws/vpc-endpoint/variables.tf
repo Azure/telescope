@@ -5,7 +5,7 @@ variable "vpc_id" {
 
 variable "region" {
     type = string
-    default = us-east-2
+    default = "us-east-2"
 }
 
 variable "vpc_endpoint_type" {
