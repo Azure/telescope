@@ -33,6 +33,13 @@ variable "route_table_ids" {
     default = []
 }
 
+variable "pe_config" {
+    description = "configuragtion for vpc private endpoint"
+    type = object({
+        pe_vpc_name = string
+    })
+}
+
 variable "tags" {
   type = map(string)
   default = {
