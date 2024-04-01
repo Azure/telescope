@@ -1,3 +1,7 @@
+# Custom configuration file for pylint!
+# It override the default configuration by adjusting some options.
+# Default configuration: https://pylint.pycqa.org/en/latest/user_guide/configuration/index.html
+
 [FORMAT]
 max-line-length=120
 

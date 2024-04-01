@@ -1,2 +1,5 @@
-# rules to disable for bash linter
+# Custom configuration file for shellcheckrc!
+# It override the default configuration by adjusting some options.
+# Default Rules: https://www.shellcheck.net/wiki/
+
 disable=
