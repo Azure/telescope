@@ -1,7 +1,6 @@
 #function to get the vm instance from the environment by name
 get_vm_instance_by_name() {
     local run_id=$1
-    local role=$2
 
     echo  $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id')].name" --output tsv)
 }
