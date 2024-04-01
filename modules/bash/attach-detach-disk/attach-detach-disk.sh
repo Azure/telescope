@@ -138,6 +138,7 @@ run_disk_test() {
 
 #function to run tests
 run_tests() {
+    echo $disk_sizes $disk_names
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
         disk_size="${disk_sizes[$index]}"
