@@ -80,10 +80,9 @@ measure_detach() {
 }
 
 #function to run disk test
-run_disk_test() {
+run_alternate_tests() {
     local disk_name=$1
 
-    echo "Running tests for disk: $disk_name"
     attach_output=$(measure_attach $disk_name)
     attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
     echo $attach_output > $attach_filename
@@ -99,10 +98,19 @@ run_disk_test() {
 run_tests() {
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        run_disk_test $disk_name &
-        wait
+        attach_output=$(measure_attach $disk_name)
+        attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+        echo $attach_output > $attach_filename
     done
-    wait
+
+    for index in "${!disk_names[@]}"; do
+        disk_name="${disk_names[$index]}"
+        if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
+            detach_output=$(measure_detach $disk_name)
+            detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+            echo $detach_output > $detach_filename
+        fi
+    done
 }
 
 
@@ -114,9 +122,6 @@ execute()
     scenario_name=$3
     export result_dir=$4
     export resource_group=$run_id
-
-    # create tmp directory if it does not exist
-    mkdir -p $result_dir
 
     # get vm name and disk names
     vm_name=$(get_vm_instance_by_name $run_id)
