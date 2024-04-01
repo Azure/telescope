@@ -3,6 +3,11 @@ variable "vpc_id" {
     default = ""
 }
 
+variable "pe_vpc_name" {
+    type = string
+    default = "same-vpc"
+}
+
 variable "region" {
     type = string
     default = "us-east-2"
