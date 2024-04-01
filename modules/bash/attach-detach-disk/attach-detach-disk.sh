@@ -142,11 +142,9 @@ run_disk_test() {
 
 #function to run tests
 run_tests() {
-    echo $disk_sizes $disk_names
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        disk_size="${disk_sizes[$index]}"
-        run_disk_test $disk_name $disk_size &
+        run_disk_test $disk_name &
         wait
     done
     wait
@@ -212,13 +210,6 @@ upload_results() {
 
     echo "Results uploaded to Azure storage blob"
 }
-
-vm_name=''
-vm_os=''
-vm_size=''
-disk_names=''
-disk_sizes=()
-
 
 #main script
 #run_id=$1
