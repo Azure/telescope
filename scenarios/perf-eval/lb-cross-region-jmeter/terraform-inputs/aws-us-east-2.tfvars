@@ -4,16 +4,16 @@ deletion_delay = "2h"
 network_config_list = [
   {
     role           = "network"
-    vpc_name       = "us-east-2-vpc"
+    vpc_name       = "client-vpc"
     vpc_cidr_block = "10.1.0.0/16"
     subnet = [
       {
-        name        = "us-east-2-client-subnet"
+        name        = "client-subnet"
         cidr_block  = "10.1.1.0/24"
         zone_suffix = "a"
       }
     ]
-    security_group_name = "us-east-2-sg"
+    security_group_name = "client-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -23,7 +23,7 @@ network_config_list = [
     route_table_associations = [
       {
         name             = "client-subnet-rt-assoc"
-        subnet_name      = "us-east-2-client-subnet"
+        subnet_name      = "client-subnet"
         route_table_name = "internet-rt"
       }
     ]
@@ -63,8 +63,8 @@ loadbalancer_config_list = []
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  subnet_name                 = "us-east-2-client-subnet"
-  security_group_name         = "us-east-2-sg"
+  subnet_name                 = "client-subnet"
+  security_group_name         = "client-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
   }

@@ -4,16 +4,16 @@ deletion_delay = "2h"
 network_config_list = [
   {
     role           = "network"
-    vpc_name       = "us-west-1-vpc"
+    vpc_name       = "server-vpc"
     vpc_cidr_block = "10.2.0.0/16"
     subnet = [
       {
-        name        = "us-west-1-server-subnet"
+        name        = "server-subnet"
         cidr_block  = "10.2.1.0/24"
         zone_suffix = "c"
       }
     ]
-    security_group_name = "us-west-1-sg"
+    security_group_name = "server-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -23,7 +23,7 @@ network_config_list = [
     route_table_associations = [
       {
         name             = "client-subnet-rt-assoc"
-        subnet_name      = "us-west-1-server-subnet"
+        subnet_name      = "server-subnet"
         route_table_name = "internet-rt"
       }
     ]
@@ -61,8 +61,8 @@ network_config_list = [
 ]
 loadbalancer_config_list = [{
   role               = "ingress"
-  vpc_name           = "us-west-1-vpc"
-  subnet_name        = "us-west-1-server-subnet"
+  vpc_name           = "server-vpc"
+  subnet_name        = "server-subnet"
   load_balancer_type = "network"
   lb_target_group = [{
     role       = "nlb-tg"
@@ -70,7 +70,7 @@ loadbalancer_config_list = [{
     port       = 80
     protocol   = "TCP"
     rule_count = 1
-    vpc_name   = "us-west-1-vpc"
+    vpc_name   = "server-vpc"
     health_check = {
       port                = "20000"
       protocol            = "TCP"
@@ -94,7 +94,7 @@ loadbalancer_config_list = [{
       port       = 443
       protocol   = "TCP"
       rule_count = 1
-      vpc_name   = "us-west-1-vpc"
+      vpc_name   = "server-vpc"
       health_check = {
         port                = "20000"
         protocol            = "TCP"
@@ -118,8 +118,8 @@ vm_config_list = [
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    subnet_name                 = "us-west-1-server-subnet"
-    security_group_name         = "us-west-1-sg"
+    subnet_name                 = "server-subnet"
+    security_group_name         = "server-sg"
     associate_public_ip_address = true
     zone_suffix                 = "c"
   }
