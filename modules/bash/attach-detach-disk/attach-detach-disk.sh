@@ -15,6 +15,11 @@ kusto_table="your_kusto_table"
 
 #function to initialize tests
 init_tests() {
+    local run_id=$1
+    local role=$2
+    local scenario_type=$3
+    local scenario_name=$4
+
     # create tmp directory if it does not exist
     mkdir -p tmp
 
@@ -172,13 +177,23 @@ upload_results() {
     echo "Results uploaded to Azure storage blob"
 }
 
+#function to execute tests
+execute()
+{
+    run_id=$1
+    scenario_type=$3
+    scenario_name=$4
+
+    init_tests $run_id $role $scenario_type $scenario_name
+    run_tests
+}
+
 #main script
 run_id=$1
-role=$2
 scenario_type=$3
 scenario_name=$4
-resource_group=$5
-cloud=$6
+resource_group=$run_id
+cloud=$5
 
 source "./$cloud/utils.sh"
 
