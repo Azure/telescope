@@ -100,9 +100,9 @@ run_tests() {
         disk_name="${disk_names[$index]}"
         attach_output=$(measure_attach $disk_name)
         echo $result_dir
-        attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+        attach_filename=$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json
         echo $attach_filename
-        echo $attach_output > "$attach_filename"
+        echo $attach_output > $attach_filename
     done
 
     for index in "${!disk_names[@]}"; do
@@ -124,6 +124,8 @@ execute()
     scenario_name=$3
     export result_dir=$4
     export resource_group=$run_id
+
+    mkdir -p $result_dir
 
     # get vm name and disk names
     vm_name=$(get_vm_instance_by_name $run_id)
