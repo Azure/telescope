@@ -156,14 +156,34 @@ execute()
     scenario_name=$3
     resource_group=$run_id
 
+    # create tmp directory if it does not exist
+    mkdir -p tmp
+
+    # get vm name and disk names
+    vm_name=$(get_vm_instance_by_name $run_id)
+    disk_names=($(get_disk_instance_by_name $run_id $scenario_type $scenario_name))
+
+    # get VM operating system and size
+    vm_os=$(az vm show --name $vm_name --resource-group $resource_group --query "storageProfile.osDisk.osType" --output tsv)
+    vm_size=$(az vm show --name $vm_name --resource-group $resource_group --query "hardwareProfile.vmSize" --output tsv)
+
+    # retrieve disk sizes
+    disk_sizes=()
+    for disk_name in "${disk_names[@]}"; do
+        disk_size=$(az disk show --name $disk_name --resource-group $resource_group --query "diskSizeGb" --output tsv)
+        disk_sizes+=($disk_size)
+    done
+
+    echo "Tests initialized. VM name: $vm_name, Disk names: ${disk_names[@]}"
+
     # initialize export variables
     export vm_name
-    export disk_names
     export vm_os
     export vm_size
+    export disk_names
     export disk_sizes
 
-    init_tests $run_id $scenario_type $scenario_name
+    #init_tests $run_id $scenario_type $scenario_name
     echo vm_os vm_size disk_names
     run_tests
 }
