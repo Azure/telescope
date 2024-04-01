@@ -1,0 +1,14 @@
+[FORMAT]
+max-line-length=120
+
+[MESSAGES CONTROL]
+# Disable specific error messages
+# R0911: Too many return statements
+# R0914: Too many local variables
+# R0801: Similar lines in 2 files
+# C0114: Missing module docstring
+# C0115: Missing class docstring
+# C0116: Missing function or method docstring
+# W0511: TODO
+# W0622: Redefining built-in 'sum'
+disable = R0911, R0914, R0801, C0114, C0115, C0116, W0511, W0622
