@@ -105,7 +105,7 @@ loadbalancer_config_list = [{
       }
       lb_listener = {
         port     = 443
-        protocol = "UDP"
+        protocol = "TCP"
       }
       lb_target_group_attachment = {
         vm_name = "server-vm"
