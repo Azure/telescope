@@ -181,23 +181,23 @@ upload_results() {
 execute()
 {
     run_id=$1
-    scenario_type=$3
-    scenario_name=$4
+    scenario_type=$2
+    scenario_name=$3
 
-    init_tests $run_id $role $scenario_type $scenario_name
+    init_tests $run_id $scenario_type $scenario_name
     run_tests
 }
 
 #main script
-run_id=$1
-scenario_type=$3
-scenario_name=$4
-resource_group=$run_id
-cloud=$5
+#run_id=$1
+#scenario_type=$2
+#scenario_name=$3
+#cloud=$4
+#resource_group=$run_id
 
 source "./$cloud/utils.sh"
 
-init_tests
-run_tests
-collect_results
+#init_tests
+#run_tests
+#collect_results
 #upload_results $ACCOUNT_NAME $ACCOUNT_KEY $scenario_type/$scenario_name v1 json_results
