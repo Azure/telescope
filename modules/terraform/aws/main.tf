@@ -137,5 +137,8 @@ module "privatelink" {
 
 module "privateendpoint" {
   source = "./vpc-endpoint"
+
+  vpc_id = local.all_vpcs[each.value.vpc_name].id
+
   tags = local.tags
 }
