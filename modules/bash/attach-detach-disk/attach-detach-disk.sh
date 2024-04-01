@@ -99,7 +99,9 @@ run_tests() {
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
         attach_output=$(measure_attach $disk_name)
+        echo $result_dir
         attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+        echo $attach_filename
         echo $attach_output > $attach_filename
     done
 
