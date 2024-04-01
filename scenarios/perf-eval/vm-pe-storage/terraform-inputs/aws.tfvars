@@ -76,3 +76,7 @@ network_config_list = [
     }
   },
 ]
+
+pe_config = {
+    vpc_name = "same-vpc"
+}

@@ -200,3 +200,11 @@ variable "private_link_conf" {
   })
   default = null
 }
+
+variable "pe_config" {
+  description = "configuration for vpc private endpoint"
+  type = object({
+    vpc_name = string
+  })
+  default = null
+}
