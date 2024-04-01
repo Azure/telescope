@@ -102,7 +102,7 @@ run_tests() {
         echo $result_dir
         attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
         echo $attach_filename
-        echo $attach_output > $attach_filename
+        echo $attach_output > "$attach_filename"
     done
 
     for index in "${!disk_names[@]}"; do
@@ -110,7 +110,7 @@ run_tests() {
         if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
             detach_output=$(measure_detach $disk_name)
             detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
-            echo $detach_output > $detach_filename
+            echo $detach_output > "$detach_filename"
         fi
     done
 }
