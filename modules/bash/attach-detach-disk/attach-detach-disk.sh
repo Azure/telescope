@@ -40,10 +40,9 @@ init_tests() {
     echo "Tests initialized. VM name: $vm_name, Disk names: ${disk_names[@]}"
 }
 
-#function to measure attach operation
+# function to measure attach operation
 measure_attach() {
     local disk_name=$1
-    local disk_size=$2
 
     echo "Executing attach operation for disk: $disk_name"  > /dev/tty
     start_time=$(date +%s)
@@ -54,6 +53,9 @@ measure_attach() {
     else
         attach_time=-1
     fi
+
+    # Get the disk size using the Azure CLI
+    disk_size=$(az disk show --name $disk_name --resource-group $resource_group --query "diskSizeGb" --output tsv)
 
     attach_output='{
         "timestamp": "'$(date)'",
@@ -79,10 +81,9 @@ measure_attach() {
     echo $attach_output
 }
 
-#function to measure detach operation
+# function to measure detach operation
 measure_detach() {
     local disk_name=$1
-    local disk_size=$2
 
     echo "Executing detach operation for disk: $disk_name"  > /dev/tty
     start_time=$(date +%s)
@@ -93,6 +94,9 @@ measure_detach() {
     else
         detach_time=-1
     fi
+
+    # Get the disk size using the Azure CLI
+    disk_size=$(az disk show --name $disk_name --resource-group $resource_group --query "diskSizeGb" --output tsv)
 
     detach_output='{
         "timestamp": "'$(date)'",
@@ -157,7 +161,26 @@ execute()
     scenario_name=$3
     resource_group=$run_id
 
-    init_tests $run_id $scenario_type $scenario_name
+    # create tmp directory if it does not exist
+    mkdir -p tmp
+
+    # get vm name and disk names
+    vm_name=$(get_vm_instance_by_name $run_id)
+    disk_names=($(get_disk_instance_by_name $run_id $scenario_type $scenario_name))
+
+    # get VM operating system and size
+    vm_os=$(az vm show --name $vm_name --resource-group $resource_group --query "storageProfile.osDisk.osType" --output tsv)
+    vm_size=$(az vm show --name $vm_name --resource-group $resource_group --query "hardwareProfile.vmSize" --output tsv)
+
+    echo "Tests initialized. VM name: $vm_name, Disk names: ${disk_names[@]}"
+
+    # Export variables
+    export vm_name
+    export disk_names
+    export vm_os
+    export vm_size
+
+    #init_tests $run_id $scenario_type $scenario_name
     echo $vm_os $vm_size $disk_names $disk_sizes
     run_tests
 }
