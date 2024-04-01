@@ -195,7 +195,7 @@ execute()
 #cloud=$4
 #resource_group=$run_id
 
-source "./$cloud/utils.sh"
+#source "./$cloud/utils.sh"
 
 #init_tests
 #run_tests
