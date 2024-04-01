@@ -147,6 +147,26 @@ run_tests() {
     wait
 }
 
+
+#function to execute tests
+execute()
+{
+    run_id=$1
+    scenario_type=$2
+    scenario_name=$3
+    resource_group=$run_id
+
+    # initialize export variables
+    export vm_name
+    export disk_names
+    export vm_os
+    export vm_size
+    export disk_sizes
+
+    init_tests $run_id $scenario_type $scenario_name
+    run_tests
+}
+
 #function to collect results
 collect_results() {
     for filename in tmp/*.json; do
@@ -176,17 +196,6 @@ upload_results() {
     echo "Results uploaded to Azure storage blob"
 }
 
-#function to execute tests
-execute()
-{
-    run_id=$1
-    scenario_type=$2
-    scenario_name=$3
-    resource_group=$run_id
-
-    init_tests $run_id $scenario_type $scenario_name
-    run_tests
-}
 
 #main script
 #run_id=$1
