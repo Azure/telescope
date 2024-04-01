@@ -124,16 +124,15 @@ measure_detach() {
 #function to run disk test
 run_disk_test() {
     local disk_name=$1
-    local disk_size=$2
 
     echo "Running tests for disk: $disk_name"
-    attach_output=$(measure_attach $disk_name $disk_size)
+    attach_output=$(measure_attach $disk_name)
     attach_filename="tmp/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
     echo $attach_output > $attach_filename
     echo "Attach operation result: $(echo $attach_output | jq -r .$result_column), time: $(echo $attach_output | jq -r .$time_column) seconds"
 
     if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
-        detach_output=$(measure_detach $disk_name $disk_size)
+        detach_output=$(measure_detach $disk_name)
         detach_filename="tmp/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
         echo $detach_output > $detach_filename
         echo "Detach operation result: $(echo $detach_output | jq -r .$result_column), time: $(echo $detach_output | jq -r .$time_column) seconds"
