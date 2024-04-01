@@ -85,15 +85,13 @@ run_disk_test() {
 
     echo "Running tests for disk: $disk_name"
     attach_output=$(measure_attach $disk_name)
-    attach_filename="$output_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+    attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
     echo $attach_output > $attach_filename
-    echo "Attach operation result: $(echo $attach_output | jq -r .$result_column), time: $(echo $attach_output | jq -r .$time_column) seconds"
 
     if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
         detach_output=$(measure_detach $disk_name)
-        detach_filename="$output_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+        detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
         echo $detach_output > $detach_filename
-        echo "Detach operation result: $(echo $detach_output | jq -r .$result_column), time: $(echo $detach_output | jq -r .$time_column) seconds"
     fi
 }
 
@@ -114,11 +112,11 @@ execute()
     run_id=$1
     scenario_type=$2
     scenario_name=$3
-    export output_dir=$4
+    export result_dir=$4
     export resource_group=$run_id
 
     # create tmp directory if it does not exist
-    mkdir -p $output_dir
+    mkdir -p $result_dir
 
     # get vm name and disk names
     vm_name=$(get_vm_instance_by_name $run_id)
@@ -143,18 +141,12 @@ execute()
 }
 
 #function to collect results
-collect_results() {
-    for filename in tmp/*.json; do
-        az kusto ingest inline into table $kusto_table --cluster $kusto_cluster --database $kusto_database --data $(cat $filename)
-    done
-    echo "Results collected and uploaded to Kusto database"
-}
-
-#function to collect results
-collect_results() {
+collect_results()  {
+    local result_dir=$1
+    local result_file=$2
     # merge all JSON files into one file
-    cat tmp/*.json > json_results.json
-    echo "Results collected and merged into json_results file"
+    cat $result_dir/*.json > $result_dir/$result_file
+    echo "Results collected and merged into json file"
 }
 
 #function to upload results
