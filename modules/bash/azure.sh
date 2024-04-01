@@ -149,7 +149,7 @@ azure_create_vnet_peering()
             if [[ "$vnet1" != "$vnet2" ]]; then
                 az network vnet peering create \
                     --name "${vnet1}-to-${vnet2}" \
-                    --resource-group $(run_id) \
+                    --resource-group $run_id \
                     --vnet-name $vnet1 \
                     --remote-vnet $vnet2 \
                     --allow-vnet-access
