@@ -134,3 +134,8 @@ module "privatelink" {
 
   depends_on = [module.load_balancer]
 }
+
+module "privateendpoint" {
+  source = "./vpc-endpoint"
+  tags = local.tags
+}
