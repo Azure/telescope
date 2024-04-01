@@ -181,7 +181,6 @@ execute()
     export vm_size
 
     #init_tests $run_id $scenario_type $scenario_name
-    echo $vm_os $vm_size $disk_names $disk_sizes
     run_tests
 }
 
