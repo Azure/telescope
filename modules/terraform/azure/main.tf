@@ -1,7 +1,6 @@
 locals {
   region                           = lookup(var.json_input, "region", "East US")
   machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
-  aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   public_key_path                  = lookup(var.json_input, "public_key_path", "")
@@ -85,11 +84,10 @@ module "aks" {
   source              = "./aks"
   resource_group_name = local.run_id
   location            = local.region
-  vm_sku              = local.aks_machine_type
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   aks_config          = each.value
   tags                = local.tags
   vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets             = try(local.all_subnets, null)
 }
 
 module "load_balancer" {

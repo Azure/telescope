@@ -199,11 +199,12 @@ aks_config_list = [
     role           = "ingress"
     aks_name       = "aks-instance"
     dns_prefix     = "repro-502"
-    subnet_name    = "aks-network-aks"
     network_plugin = "azure"
     default_node_pool = {
       name                         = "default"
+      subnet_name                  = "aks-network-aks"
       node_count                   = 3
+      vm_size                      = "Standard_D4s_v5"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
@@ -212,6 +213,7 @@ aks_config_list = [
       {
         name       = "user"
         node_count = 3
+        vm_size    = "Standard_D4s_v5"
       }
     ]
   }

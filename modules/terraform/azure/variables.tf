@@ -6,7 +6,6 @@ variable "json_input" {
     region                           = string
     public_key_path                  = string
     machine_type                     = optional(string)
-    aks_machine_type                 = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
     data_disk_storage_account_type   = optional(string)
@@ -146,19 +145,25 @@ variable "aks_config_list" {
   type = list(object({
     role           = string
     aks_name       = string
-    subnet_name    = string
     dns_prefix     = string
     network_plugin = string
     default_node_pool = object({
       name                         = string
+      subnet_name                  = optional(string)
       node_count                   = number
-      os_disk_type                 = string
+      vm_size                      = string
+      os_sku                       = optional(string)
+      os_disk_type                 = optional(string)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
     })
     extra_node_pool = list(object({
-      name       = string
-      node_count = number
+      name         = string
+      subnet_name  = optional(string)
+      node_count   = number
+      vm_size      = string
+      os_sku       = optional(string)
+      os_disk_type = optional(string)
     }))
   }))
   default = []

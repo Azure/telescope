@@ -16,22 +16,16 @@ variable "tags" {
   }
 }
 
-variable "subnet_id" {
-  description = "Subnet ID"
-  type        = string
-  default     = ""
-}
-
-variable "vm_sku" {
-  description = "Value of the VM SKU"
-  type        = string
-  default     = "Standard_D2ds_v5"
-}
-
 variable "vnet_id" {
   description = "Vnet id"
   type        = string
   default     = ""
+}
+
+variable "subnets" {
+  description = "Maps of subnets"
+  type        = map(string)
+  default     = {}
 }
 
 variable "aks_config" {
@@ -39,18 +33,24 @@ variable "aks_config" {
     role           = string
     aks_name       = string
     dns_prefix     = string
-    subnet_name    = string
     network_plugin = string
     default_node_pool = object({
       name                         = string
+      subnet_name                  = optional(string, null)
       node_count                   = number
-      os_disk_type                 = string
+      vm_size                      = string
+      os_sku                       = optional(string, "Ubuntu")
+      os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
     })
     extra_node_pool = list(object({
-      name       = string
-      node_count = number
+      name         = string
+      subnet_name  = optional(string, null)
+      node_count   = number
+      vm_size      = string
+      os_sku       = optional(string, "Ubuntu")
+      os_disk_type = optional(string, "Managed")
     }))
   })
 }
