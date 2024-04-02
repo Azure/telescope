@@ -96,48 +96,36 @@ aws_lb_dns_name() {
 }
 
 aws_create_vpc_peering(){
-  local RUN_ID=$1
-  local REGIONS=$2
+  local run_id=$1
+  local client_vpc_region=$2
+  local server_vpc_region=$3
+  local deletion_due_time=$4
 
   # Step 1: Check for the VPC IDs of the Server and Client VPC 
-  for region in $(echo "$REGIONS" | jq -r '.[]'); do
-    echo "Checking for Server VPC in $region with run Id $RUN_ID"
-    temp_server_vpc_id=$(aws ec2 describe-vpcs --region $region --filters "Name=tag:Name,Values=server-vpc" "Name=tag:run_id,Values=$RUN_ID" --query "Vpcs[0].VpcId" --output text)
-    if [ ! -z "$temp_server_vpc_id" ] && [ "$temp_server_vpc_id" != "None" ]; then
-      server_vpc_id=$(aws ec2 describe-vpcs --region $region --filters "Name=tag:Name,Values=server-vpc" "Name=tag:run_id,Values=$RUN_ID" --query "Vpcs[0].VpcId" --output text)
-      server_vpc_region=$region
-    fi
-
-    echo "Checking for Client VPC in $region with run Id $RUN_ID"
-    temp_client_vpc_id=$(aws ec2 describe-vpcs --region $region --filters "Name=tag:Name,Values=client-vpc" "Name=tag:run_id,Values=$RUN_ID" --query "Vpcs[0].VpcId" --output text)
-    if [ ! -z "$temp_client_vpc_id" ] && [ "$temp_client_vpc_id" != "None" ]; then
-      client_vpc_id=$(aws ec2 describe-vpcs --region $region --filters "Name=tag:Name,Values=client-vpc" "Name=tag:run_id,Values=$RUN_ID" --query "Vpcs[0].VpcId" --output text)
-      client_vpc_region=$region
-    fi
-  done
+  echo "Checking for Server VPC in $region with run Id $run_id"
+  client_vpc_id=$(aws ec2 describe-vpcs --region $client_vpc_region --filters "Name=tag:run_id,Values=$run_id" --query "Vpcs[0].VpcId" --output text)
+  server_vpc_id=$(aws ec2 describe-vpcs --region $server_vpc_region --filters "Name=tag:run_id,Values=$run_id" --query "Vpcs[0].VpcId" --output text)
 
   echo "Server ID $server_vpc_id Client ID $client_vpc_id "
 
+  client_vpc_output=$(aws ec2 describe-vpcs --region $client_vpc_region --filters "Name=tag:run_id,Values=$run_id" --output text)
+  owner=$(echo "$client_vpc_output" | jq -r '.Vpcs[].Tags[] | select(.Key == "owner") | .Value')
+  creation_time=$(echo "$client_vpc_output" | jq -r '.Vpcs[].Tags[] | select(.Key == "creation_time") | .Value')
+  scenario=$(echo "$client_vpc_output" | jq -r '.Vpcs[].Tags[] | select(.Key == "scenario") | .Value')
+
   # Step 2: Create VPC peering connection between client and server VPCs
-  if [[ "$client_vpc_region" != "$server_vpc_region" ]]; then
-      echo "Creating VPC peering connection between $client_vpc_id ($client_vpc_region) and $server_vpc_id ($server_vpc_region)"
+  echo "Creating VPC peering connection between $client_vpc_id ($client_vpc_region) and $server_vpc_id ($server_vpc_region)"
 
-      deletion_due_time=$(aws ec2 describe-vpcs --region $client_vpc_region --vpc-ids $client_vpc_id --query "Vpcs[*].Tags[?Key=='deletion_due_time'].Value" --output text)
-
-      peering_id=$(aws ec2 create-vpc-peering-connection \
-        --vpc-id $client_vpc_id \
-        --region $client_vpc_region \
-        --peer-vpc-id $server_vpc_id \
-        --peer-region $server_vpc_region \
-        --tag-specifications "ResourceType=vpc-peering-connection,Tags=[{Key=run_id,Value=${RUN_ID}},{Key=deletion_due_time,Value=${deletion_due_time}}]" \
-        --query "VpcPeeringConnection.VpcPeeringConnectionId" --output text)
-
-  else
-      echo "Error: Client and server VPCs are in the same region."
-  fi
+  peering_id=$(aws ec2 create-vpc-peering-connection \
+    --vpc-id $client_vpc_id \
+    --region $client_vpc_region \
+    --peer-vpc-id $server_vpc_id \
+    --peer-region $server_vpc_region \
+    --tag-specifications "ResourceType=vpc-peering-connection,Tags=[{Key=run_id,Value=${run_id}},{Key=deletion_due_time,Value=${deletion_due_time}},{Key=owner,Value=${owner}},{Key=creation_time,Value=${creation_time}},{Key=scenario,Value=${scenario}}]" \
+    --query "VpcPeeringConnection.VpcPeeringConnectionId" --output text)
 
   # Wait until the peering connection is available
-  sleep 30 
+  aws ec2 wait vpc-peering-connection-exists --vpc-peering-connection-ids $peering_id 
 
   # Step 3 Accept the Peering after it's been created. 
   echo "Accepting Peering ID $peering_id"

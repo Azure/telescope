@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-cross-region-jmeter"
+scenario_name  = "lb-cross-region-jmeter"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -8,12 +8,12 @@ public_ip_config_list = [
 ]
 network_config_list = [
   {
-    role               = "network"
+    role               = "client"
     vnet_name          = "client-vnet"
     vnet_address_space = "10.0.0.0/16"
     subnet = [{
       name           = "client-subnet"
-      address_prefix = "10.0.1.0/24"
+      address_prefix = "10.0.0.0/24"
     }]
     network_security_group_name = "client-nsg"
     nic_public_ip_associations = [

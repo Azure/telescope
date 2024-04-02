@@ -5,11 +5,11 @@ network_config_list = [
   {
     role           = "network"
     vpc_name       = "client-vpc"
-    vpc_cidr_block = "10.1.0.0/16"
+    vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
         name        = "client-subnet"
-        cidr_block  = "10.1.1.0/24"
+        cidr_block  = "10.0.0.0/24"
         zone_suffix = "a"
       }
     ]
