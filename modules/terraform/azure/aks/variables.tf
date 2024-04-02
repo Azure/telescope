@@ -54,3 +54,4 @@ variable "aks_config" {
     }))
   })
 }
+
