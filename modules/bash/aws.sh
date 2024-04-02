@@ -102,7 +102,7 @@ aws_create_vpc_peering(){
   local deletion_due_time=$4
 
   # Step 1: Check for the VPC IDs of the Server and Client VPC 
-  echo "Checking for Server VPC in $region with run Id $run_id"
+  echo "Checking for VPC with run Id $run_id"
   client_vpc_id=$(aws ec2 describe-vpcs --region $client_vpc_region --filters "Name=tag:run_id,Values=$run_id" --query "Vpcs[0].VpcId" --output text)
   server_vpc_id=$(aws ec2 describe-vpcs --region $server_vpc_region --filters "Name=tag:run_id,Values=$run_id" --query "Vpcs[0].VpcId" --output text)
 
