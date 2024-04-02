@@ -43,4 +43,3 @@ variable "eks_config" {
     }))
   })
 }
-
