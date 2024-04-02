@@ -6,7 +6,9 @@ aks_config_list = [
     role           = "client"
     aks_name       = "disk-aks"
     dns_prefix     = "disk"
-    network_plugin = "azure"
+    network_profile = {
+      network_plugin = "azure"
+    }
     default_node_pool = {
       name                         = "default"
       node_count                   = 2

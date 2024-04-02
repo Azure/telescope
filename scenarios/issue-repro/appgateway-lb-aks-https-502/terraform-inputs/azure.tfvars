@@ -196,10 +196,12 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role           = "ingress"
-    aks_name       = "aks-instance"
-    dns_prefix     = "repro-502"
-    network_plugin = "azure"
+    role       = "ingress"
+    aks_name   = "aks-instance"
+    dns_prefix = "repro-502"
+    network_profile = {
+      network_plugin = "azure"
+    }
     default_node_pool = {
       name                         = "default"
       subnet_name                  = "aks-network-aks"

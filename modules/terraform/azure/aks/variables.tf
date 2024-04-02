@@ -30,10 +30,15 @@ variable "subnets" {
 
 variable "aks_config" {
   type = object({
-    role           = string
-    aks_name       = string
-    dns_prefix     = string
-    network_plugin = string
+    role       = string
+    aks_name   = string
+    dns_prefix = string
+    network_profile = optional(object({
+      network_plugin = optional(string, null)
+      network_policy = optional(string, null)
+      outbound_type  = optional(string, null)
+      pod_cidr       = optional(string, null)
+    }))
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string, null)
