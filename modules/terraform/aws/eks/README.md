@@ -69,4 +69,19 @@ To use the EKS module, follow these steps:
    - For EKS addon's we have to create OIDC provider for the cluster and attach policy arns.[Refer here](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html)
    - This configuration creates two addons related to storage.
    - service_account and policy_attachment_names are optional in general but some addons are required to have IAM permisson values. [Refer here](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
-   - We can also provide the version of an addon we are created which is an optional input here.  
+   - We can also provide the version of an addon we are created which is an optional input here.
+   
+## Terraform Provider References
+
+### Resources
+
+- [aws_iam_role Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
+- [aws_iam_role_policy_attachment Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment)
+- [aws_eks_cluster Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster)
+- [aws_eks_node_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_node_group)
+- [module Documentation](https://www.terraform.io/docs/language/modules/index.html)
+
+### Data Sources
+
+- [aws_iam_policy_document Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document)
+- [aws_subnets Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets)
