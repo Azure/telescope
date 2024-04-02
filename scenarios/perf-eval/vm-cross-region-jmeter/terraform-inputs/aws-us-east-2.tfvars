@@ -1,18 +1,16 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-cross-region-iperf"
+scenario_name  = "vm-cross-region-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role           = "network"
+    role           = "client"
     vpc_name       = "client-vpc"
     vpc_cidr_block = "10.0.0.0/16"
-    subnet = [
-      {
-        name        = "client-subnet"
-        cidr_block  = "10.0.0.0/24"
-        zone_suffix = "a"
-      }
-    ]
+    subnet = [{
+      name        = "client-subnet"
+      cidr_block  = "10.0.0.0/24"
+      zone_suffix = "a"
+    }]
     security_group_name = "client-sg"
     route_tables = [
       {
@@ -36,15 +34,15 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20001
-          to_port    = 20001
+          from_port  = 80
+          to_port    = 80
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
-          from_port  = 20002
-          to_port    = 20002
-          protocol   = "udp"
+          from_port  = 443
+          to_port    = 443
+          protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         }
       ]
@@ -57,12 +55,14 @@ network_config_list = [
         }
       ]
     }
-  },
+  }
 ]
 loadbalancer_config_list = []
+
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
+  network_role                = "client"
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true

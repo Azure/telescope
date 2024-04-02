@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-cross-region-iperf"
+scenario_name  = "lb-cross-region-jmeter"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -11,7 +11,7 @@ public_ip_config_list = [
 ]
 network_config_list = [
   {
-    role               = "network"
+    role               = "server"
     vnet_name          = "server-vnet"
     vnet_address_space = "172.16.0.0/16"
     subnet = [{
@@ -39,24 +39,46 @@ network_config_list = [
       destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-tcp"
+        name                       = "client-nsr-http"
         priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20001"
+        destination_port_range     = "80-80"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-udp"
+        name                       = "client-nsr-https"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
-        protocol                   = "Udp"
+        protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "443-443"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "server-nsr-https"
+        priority                   = 101
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "443-443"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "server-nsr-http"
+        priority                   = 102
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "80"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       }
@@ -69,15 +91,15 @@ loadbalancer_config_list = [{
   public_ip_name        = "lb-pip"
   loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
-  probe_port            = 20000
+  probe_port            = 80
   probe_request_path    = null,
   lb_rules = [{
     type                     = "Inbound"
     rule_count               = 1
-    role                     = "ingress-lb-tcp-rule"
+    role                     = "ingress-lb-http-rule"
     protocol                 = "Tcp"
-    frontend_port            = 20001
-    backend_port             = 20001
+    frontend_port            = 80
+    backend_port             = 80
     fronend_ip_config_prefix = "ingress"
     enable_tcp_reset         = false
     idle_timeout_in_minutes  = 4
@@ -85,10 +107,10 @@ loadbalancer_config_list = [{
     {
       type                    = "Inbound"
       rule_count              = 1
-      role                    = "ingress-lb-udp-rule"
-      protocol                = "Udp"
-      frontend_port           = 20002
-      backend_port            = 20002
+      role                    = "ingress-lb-https-rule"
+      protocol                = "Tcp"
+      frontend_port           = 443
+      backend_port            = 443
       enable_tcp_reset        = false
       idle_timeout_in_minutes = 4
   }]
