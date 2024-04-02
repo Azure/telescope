@@ -137,6 +137,32 @@ azure_aks_deploy_fio()
   kubectl apply -f "${file_source}/fio.yml"
 }
 
+azure_aks_deploy_fio_fileshare()
+{
+  local resource_group=$1
+  local aksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local protocol=$(echo $5 | tr '[:upper:]' '[:lower:]') # convert to lowercase
+  local share_size_in_gb=$6
+  local replica_count=$7
+
+  az aks get-credentials -n $aksName -g $resource_group
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/azure
+
+  if [ $protocol = "smb" ]; then
+    kubectl apply -f "${file_source}/storage-class-smb.yml"
+  else
+    kubectl apply -f "${file_source}/storage-class-nfs.yml"
+  fi
+
+  sed -i "s/\(storage: \).*/\1${share_size_in_gb}Gi/" "${file_source}/pvc.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}
+
 azure_create_vnet_peering()
 {
   local run_id=$1

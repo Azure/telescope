@@ -102,6 +102,77 @@ run_fio_on_pod() {
   fi
 }
 
+run_fio_fileopenclose_multiple_pods_setup() {
+  local pod_name=$1
+  local mount_point=$2
+  local result_dir=$3
+  local file_name_prefix=$4
+  local num_files=$5
+  local num_jobs_parallel=$6
+  local runtime=$7
+
+  local target_directory="${mount_point}/${pod_name}"
+  local num_files_per_job=$((num_files / num_jobs_parallel))
+
+  mkdir_command="mkdir -p $target_directory"
+  run_kubectl_exec $pod_name fio "$mkdir_command"
+  mkdir -p $result_dir
+
+  echo "Run fio"
+
+  set +x # disable debug output because it will mess up the output of fio
+
+  local command="fio --name=$file_name_prefix --filesize=4096 --directory=$target_directory --thread=1 --readwrite=rw --nrfiles=$num_files_per_job --ioengine=fileopenclose --numjobs=$num_jobs_parallel --time_based --runtime=$runtime --openfiles=1 --group_report --output-format=json"
+
+  # prepare files for the actual run using fio option --create_only=1
+  setup_command="${command} --create_only=1"
+  echo "Run setup command: $setup_command"
+  run_kubectl_exec $pod_name fio "$setup_command" &
+
+  if $DEBUG; then # re-enable debug output if DEBUG is set
+    set -x
+  fi
+}
+
+wait_fio_done() {
+  local pod_name=$1
+
+  local command="ps"
+  run_kubectl_exec $pod_name fio "$command"
+  echo "Polling for setup command"
+
+  while run_kubectl_exec $pod_name fio "$command" | grep -q 'fio'; do echo "Still running fio"; sleep 60; done
+}
+
+run_fio_fileopenclose_multiple_pods_run() {
+  local pod_name=$1
+  local mount_point=$2
+  local result_dir=$3
+  local file_name_prefix=$4
+  local num_files=$5
+  local num_jobs_parallel=$6
+  local runtime=$7
+
+  local target_directory="${mount_point}/${pod_name}"
+  local num_files_per_job=$((num_files / num_jobs_parallel))
+
+  echo "Run fio"
+
+  set +x # disable debug output because it will mess up the output of fio
+
+  metadata_json="{\"NumFiles\": \"$num_files\", \"IoDepth\": \"$num_jobs_parallel\"}"
+  echo "$metadata_json" > $result_dir/metadata-${pod_name}.log
+  local command="fio --name=$file_name_prefix --filesize=4096 --directory=$target_directory --thread=1 --readwrite=rw --nrfiles=$num_files_per_job --ioengine=fileopenclose --numjobs=$num_jobs_parallel --time_based --runtime=$runtime --openfiles=1 --group_report --output-format=json"
+
+  # execute the actual run for metrics collection
+  echo "Run command: $command"
+  run_kubectl_exec $pod_name fio "$command" | tee $result_dir/result-${pod_name}.log &
+
+  if $DEBUG; then # re-enable debug output if DEBUG is set
+    set -x
+  fi
+}
+
 collect_result_disk_fio() {
   local result_dir=$1
   local run_link=$2
@@ -362,4 +433,95 @@ collect_result_fileshare_fio() {
     }')
 
   echo $data >> $result_dir/results.json
+}
+
+collect_result_fileshare_fio_mulitple_pods() {
+  local result_dir=$1
+  local run_link=$2
+
+  echo "collecting fio results from $result_dir/result-*.log"
+
+  cd $result_dir
+  results=$(ls -N result*)
+  echo $results
+
+  for result in $results
+  {
+    pod_name=$(echo "$result" | sed 's/result-\(.*\)\.log/\1/')
+
+    metadata="$(cat metadata-${pod_name}.log)"
+    echo "========= collecting ${result} ==========="
+    cat $result
+
+    read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
+    read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
+    read_lat_avg=$(cat $result | jq '.jobs[0].read.clat_ns.mean')
+    write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
+    write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
+    write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
+    read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
+    read_lat_p99=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.000000"')
+    read_lat_p999=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."99.900000"')
+    write_lat_p50=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."50.000000"')
+    write_lat_p99=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.000000"')
+    write_lat_p999=$(cat $result | jq '.jobs[0].write.clat_ns.percentile."99.900000"')
+
+    data=$(jq --null-input \
+      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --arg method "$method" \
+      --arg location "$REGION" \
+      --arg vm_size "$MACHINE_TYPE" \
+      --arg run_url "$run_link" \
+      --arg cloud "$CLOUD" \
+      --arg case_name "$CASE_NAME" \
+      --arg storage_tier "$STORAGE_TIER" \
+      --arg storage_kind "$STORAGE_KIND" \
+      --arg storage_replication "$STORAGE_REPLICATION" \
+      --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
+      --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
+      --arg read_iops_avg "$read_iops_avg" \
+      --arg read_bw_avg "$read_bw_avg" \
+      --arg read_lat_avg "$read_lat_avg" \
+      --arg write_iops_avg "$write_iops_avg" \
+      --arg write_bw_avg "$write_bw_avg" \
+      --arg write_lat_avg "$write_lat_avg" \
+      --arg small_file_rw "$small_file_rw" \
+      --arg read_lat_p50 "$read_lat_p50" \
+      --arg read_lat_p99 "$read_lat_p99" \
+      --arg read_lat_p999 "$read_lat_p999" \
+      --arg write_lat_p50 "$write_lat_p50" \
+      --arg write_lat_p99 "$write_lat_p99" \
+      --arg write_lat_p999 "$write_lat_p999" \
+      --arg metadata "$metadata" \
+      '{
+        timestamp: $timestamp,
+        method: $method,
+        location: $location,
+        vm_size: $vm_size,
+        run_url: $run_url,
+        cloud: $cloud,
+        case_name: $case_name,
+        storage_tier: $storage_tier,
+        storage_kind: $storage_kind,
+        storage_replication: $storage_replication,
+        storage_share_quota: $storage_share_quota,
+        storage_share_enabled_protocol: $storage_share_enabled_protocol,
+        read_iops_avg: $read_iops_avg,
+        read_bw_avg: $read_bw_avg,
+        read_lat_avg: $read_lat_avg,
+        write_iops_avg: $write_iops_avg,
+        write_bw_avg: $write_bw_avg,
+        write_lat_avg: $write_lat_avg,
+        small_file_rw: $small_file_rw,
+        read_lat_p50: $read_lat_p50,
+        read_lat_p99: $read_lat_p99,
+        read_lat_p999: $read_lat_p999,
+        write_lat_p50: $write_lat_p50,
+        write_lat_p99: $write_lat_p99,
+        write_lat_p999: $write_lat_p999,
+        metadata: $metadata
+      }')
+
+    echo $data >> $result_dir/results.json
+  }
 }

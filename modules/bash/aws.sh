@@ -191,3 +191,28 @@ aws_eks_deploy_fio()
   kubectl apply -f "${file_source}/pvc.yml"
   kubectl apply -f "${file_source}/fio.yml"
 }
+
+aws_eks_deploy_fio_fileshare()
+{
+  local region=$1
+  local eksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local fileSystemId=$5
+  local replica_count=$6
+
+  aws eks update-kubeconfig --region $region --name $eksName
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/aws
+
+  delete_time=$(date -ud '+2 hour' +'%FT%TZ')
+  deletion_tag="deletion_due_time=${delete_time}"
+
+  sed -i "s/\(fileSystemId: \).*/\1$fileSystemId/" "${file_source}/storage-class.yml"
+  sed -i "s/\(tagSpecification_1: \).*/\1\"$deletion_tag\"/" "${file_source}/storage-class.yml"
+  kubectl apply -f "${file_source}/storage-class.yml"
+
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}
