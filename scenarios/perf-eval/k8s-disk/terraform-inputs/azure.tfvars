@@ -3,9 +3,9 @@ scenario_type  = "perf-eval"
 deletion_delay = "20h"
 aks_config_list = [
   {
-    role           = "client"
-    aks_name       = "disk-aks"
-    dns_prefix     = "disk"
+    role       = "client"
+    aks_name   = "disk-aks"
+    dns_prefix = "disk"
     network_profile = {
       network_plugin = "azure"
     }
