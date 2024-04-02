@@ -7,11 +7,11 @@ variable "resource_group_name" {
 variable "location" {
   description = "Value of the location"
   type        = string
-  default     = "East US"
+  default     = "eastus"
 }
 
 variable "name" {
-  description = "Name of the Vnet"
+  description = "Name of the VM"
   type        = string
   default     = "client"
 }
