@@ -5,5 +5,5 @@ output "vpc" {
 
 output "route_tables" {
   description = "Route tables associated with vpc"
-  value = list(aws_vpc.route_tables)
+  value = list(route_tables)
 }
