@@ -6,12 +6,10 @@ get_vm_instance_by_name() {
 }
 
 #function to get the disk instance from the environment by name
-get_disk_instance_by_name() {
+get_disk_instances_by_name() {
     local run_id=$1
-    local scenario_type=$2
-    local scenario_name=$3
     
-    echo  $(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '${run_id}')].name" --output tsv)
+    echo  "$(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '${run_id}')].name"  --output tsv)"
 }
 
 #function to attach disk to VM
@@ -20,12 +18,7 @@ attach_disk() {
     local disk_name=$2
     local resource_group=$3
 
-    result=$(az vm disk attach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)
-    if [ $? -eq 0 ] && [[ $result != *"ERROR"* ]]; then
-        echo "success"
-    else
-        echo "failed"
-    fi
+    echo $(az vm disk attach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)
 }
 
 #function to detach disk to VM
@@ -34,12 +27,7 @@ detach_disk() {
     local disk_name=$2
     local resource_group=$3
 
-    result=$(az vm disk detach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)
-    if [ $? -eq 0 ] && [[ $result != *"ERROR"* ]]; then
-        echo "success"
-    else
-        echo "failed"
-    fi
+    echo $(az vm disk detach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)
 }
 
 #function to validate the resources in the resource group
@@ -63,4 +51,34 @@ validate_resources() {
         echo "Error: There should be at least one disk in the resource group."
         exit 1
     fi
+}
+
+#function that gets disk_name as parameter and returns the storage type and size of the disk
+get_disk_storage_type_and_size() {
+    local disk_name=$1
+
+    echo $(az disk list --query "[?name=='$disk_name'].{StorageType:sku.name, Size:diskSizeGB}" --output json)
+}
+
+# function to get the VM operating system
+get_vm_os() {
+    local vm_name=$1
+    local resource_group=$2
+        
+    echo $(az vm show --name $vm_name --resource-group $resource_group --query "storageProfile.osDisk.osType" --output tsv)
+}
+
+# function to get the VM size
+get_vm_size() {
+    local vm_name=$1
+    local resource_group=$2
+        
+    echo $(az vm show --name $vm_name --resource-group $resource_group --query "hardwareProfile.vmSize" --output tsv)
+}
+
+# function to get the region
+get_region() {
+    local resource_group=$1
+        
+    echo $(az group show --name $resource_group --query "location" --output tsv)
 }
