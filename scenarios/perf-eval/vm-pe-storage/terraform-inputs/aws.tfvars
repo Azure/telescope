@@ -79,4 +79,5 @@ network_config_list = [
 
 pe_config = {
     vpc_name = "same-vpc"
+    route_table_name = "internet-rt"
 }

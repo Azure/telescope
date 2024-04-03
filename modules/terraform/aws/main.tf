@@ -28,6 +28,7 @@ locals {
 
   all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
   all_vpcs    = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
+  all_route_tables = { for network in var.network_config_list : network.route_table_name => module.virtual_machine[network].route_table }
 }
 
 terraform {
@@ -141,6 +142,7 @@ module "privateendpoint" {
   count = var.pe_config == null ? 0 : 1
 
   vpc_id = local.all_vpcs[var.pe_config.vpc_name].id
+  route_table_ids = [local.all_route_tables[var.pe_config.route_table_name].id]
 
   tags = local.tags
   
