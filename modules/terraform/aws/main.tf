@@ -28,7 +28,7 @@ locals {
 
   all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
   all_vpcs    = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
-  all_route_tables = merge([for network in var.network_config_list : module.virtual_network[network.role].route_table]...)
+  all_route_tables = merge([for network in var.network_config_list : module.virtual_network[network.role].network_config.route_table]...)
 }
 
 terraform {
