@@ -5,5 +5,5 @@ output "vpc" {
 
 output "route_tables" {
   description = "Route tables associated with vpc"
-  value = aws_route_table.route_table
+  value = { for route_table in aws_route_table.route_tables: route_table.Name => route_table.id }
 }
