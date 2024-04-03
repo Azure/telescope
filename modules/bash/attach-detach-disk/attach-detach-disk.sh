@@ -1,173 +1,166 @@
 #!/bin/bash
 
-# function to measure attach operation
-measure_attach() {
-    local disk_name=$1
+# function to execute tests
+execute() {
+    local run_id=$1
+    local scenario_type=$2
+    local scenario_name=$3
+    local result_dir=$4
+    local resource_group=$run_id
+    local iterations_number=${5:-1}  # Set the default value of iterations_number to 1 if not provided
 
-    start_time=$(date +%s)
-    attach_result=$(attach_disk $vm_name $disk_name $resource_group)
-    end_time=$(date +%s)
-    if [ "$attach_result" == "success" ]; then
-        attach_time=$(($end_time - $start_time))
-    else
-        attach_time=-1
-    fi
+    mkdir -p $result_dir
 
-    # Get the disk size using the Azure CLI
-    disk_size=$(az disk show --name $disk_name --resource-group $resource_group --query "diskSizeGb" --output tsv)
+    # get vm name and disk names
+    local vm_name=$(get_vm_instance_by_name $run_id)
 
-    attach_output='{
-        "timestamp": "'$(date)'",
-        "region": "'$region'",
-        "operation_info": {
-            "operation": "attach",
-            "result": "'$attach_result'",
-            "time": '$attach_time',
-            "unit": "seconds"
-        },
-        "vm_info": {
-            "vm_name": "'$vm_name'",
-            "size": "'$vm_size'",
-            "os": "'$vm_os'"
-        },
-        "disk_info": {
-            "disk_name": "'$disk_name'",
-            "disk_size": "'$disk_size'"
-        },
-        "run_id": "'$run_id'"
-    }'
+    # get VM operating system and size
+    local vm_os=$(get_vm_os $vm_name $resource_group)
+    local vm_size=$(get_vm_size $vm_name $resource_group)
+    local region=$(get_region $resource_group)
 
-    echo $attach_output
+    for ((i=1; i<=iterations_number; i++)); do
+        run_tests $run_id $vm_name $resource_group $vm_os $vm_size $region $i
+    done
 }
 
-# function to measure detach operation
-measure_detach() {
-    local disk_name=$1
-
-    start_time=$(date +%s)
-    detach_result=$(detach_disk $vm_name $disk_name $resource_group)
-    end_time=$(date +%s)
-    if [ "$detach_result" == "success" ]; then
-        detach_time=$(($end_time - $start_time))
-    else
-        detach_time=-1
-    fi
-
-    # Get the disk size using the Azure CLI
-    disk_size=$(az disk show --name $disk_name --resource-group $resource_group --query "diskSizeGb" --output tsv)
-
-    detach_output='{
-        "timestamp": "'$(date)'",
-        "region": "'$region'",
-        "operation_info": {
-            "operation": "detach",
-            "result": "'$detach_result'",
-            "time": '$detach_time',
-            "unit": "seconds"
-        },
-        "vm_info": {
-            "vm_name": "'$vm_name'",
-            "size": "'$vm_size'",
-            "os": "'$vm_os'"
-        },
-        "disk_info": {
-            "disk_name": "'$disk_name'",
-            "disk_size": "'$disk_size'"
-        },
-        "run_id": "'$run_id'"
-    }'
-    echo $detach_output
-}
-
-#function to run disk test
-run_alternate_tests() {
-    local disk_name=$1
-
-    attach_output=$(measure_attach $disk_name)
-    attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
-    echo $attach_output > $attach_filename
-
-    if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
-        detach_output=$(measure_detach $disk_name)
-        detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
-        echo $detach_output > $detach_filename
-    fi
-}
-
-#function to run tests
+# function to run tests
 run_tests() {
+    local vm_name=$2
+    local resource_group=$3
+    local vm_os=$4
+    local vm_size=$5
+    local region=$6
+    local run_index=$7
+
+    local disk_names=($(get_disk_instances_by_name $resource_group))
+
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        attach_output=$(measure_attach $disk_name)
-        echo $result_dir
-        attach_filename=$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json
-        echo $attach_filename
-        echo $attach_output > $attach_filename
+        measure_attach $disk_name $vm_name $resource_group $run_index
+        wait
     done
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
         if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
-            detach_output=$(measure_detach $disk_name)
-            detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
-            echo $detach_output > "$detach_filename"
+            measure_detach $disk_name $vm_name $resource_group $run_index
+            wait
         fi
     done
 }
 
+# function to measure attach operation
+measure_attach() {
+    local disk_name=$1
+    local vm_name=$2
+    local resource_group=$3
+    local run_index=$4
 
-#function to execute tests
-execute()
-{
-    run_id=$1
-    scenario_type=$2
-    scenario_name=$3
-    export result_dir=$4
-    export resource_group=$run_id
+    start_time=$(date +%s)
+    attach_message="$(attach_disk $vm_name $disk_name $resource_group)"
+    end_time=$(date +%s)
+    if [[ $attach_message == *"error"* ]]; then
+        attach_time=-1
+        attach_result="failed"
+    else
+        attach_time=$(($end_time - $start_time))
+        attach_result="success"
+    fi
 
-    mkdir -p $result_dir
-
-    # get vm name and disk names
-    vm_name=$(get_vm_instance_by_name $run_id)
-    disk_names=($(get_disk_instance_by_name $run_id $scenario_type $scenario_name))
-
-    # get VM operating system and size
-    vm_os=$(az vm show --name $vm_name --resource-group $resource_group --query "storageProfile.osDisk.osType" --output tsv)
-    vm_size=$(az vm show --name $vm_name --resource-group $resource_group --query "hardwareProfile.vmSize" --output tsv)
-
-    region=$(az group show --name $resource_group --query "location" --output tsv)
-
-    echo "Tests initialized. VM name: $vm_name, Disk names: ${disk_names[@]}"
-
-    # Export variables
-    export vm_name
-    export disk_names
-    export vm_os
-    export vm_size
-    export region
-
-    run_tests
+    attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group $attach_message)
+    attach_filename="$result_dir/${disk_name}_attach_$run_index.json"
+    echo $attach_output > $attach_filename
 }
 
-#function to collect results
-collect_results()  {
+# function to measure detach operation
+measure_detach() {
+    local disk_name=$1
+    local vm_name=$2
+    local resource_group=$3
+    local run_index=$4
+
+    start_time=$(date +%s)
+    detach_message="$(detach_disk $vm_name $disk_name $resource_group)"
+    end_time=$(date +%s)
+    if [[ $detach_message == *"error"* ]]; then
+        detach_time=-1
+        detach_result="failed"
+    else
+        detach_time=$(($end_time - $start_time))
+        detach_result="success"
+    fi
+
+    detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group $detach_message)
+    detach_filename="$result_dir/${disk_name}_detach_$run_index.json"
+    echo $detach_output > "$detach_filename"
+}
+
+# function to run disk test
+run_alternate_tests() {
+    local disk_name=$1
+    local vm_name=$2
+    local resource_group=$3
+    local disk_size=$4
+    local run_id=$5
+
+    attach_output=$(measure_attach $disk_name $vm_name $resource_group $disk_size $run_id)
+    attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+    echo $attach_output > $attach_filename
+
+    if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
+        detach_output=$(measure_detach $disk_name $vm_name $resource_group $disk_size $run_id)
+        detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+        echo $detach_output > $detach_filename
+    fi
+}
+
+# function to fill the JSON template with received parameters
+fill_json_template() {
+    local operation=$1
+    local result=$2
+    local result_time=$3
+    local disk_name=$4
+    local run_id=$5
+    local message=$6
+
+    local timestamp=$(date)
+    local disk_info=$(get_disk_storage_type_and_size $disk_name)
+
+    local json_template='{
+        "timestamp": "'$timestamp'",
+        "cloud_info": {
+            "cloud": "'$cloud'",
+            "region": "'$region'",
+            "vm_info": {
+                "vm_name": "'$vm_name'",
+                "size": "'$vm_size'",
+                "os": "'$vm_os'"
+            }
+        },
+        "operation_info": {
+            "operation": "'$operation'",
+            "result": "'$result'",
+            "time": '$result_time',
+            "unit": "seconds",
+            "message": "'$message'"
+        },
+        "disk_info": {
+            "disk_name": "'$disk_name'",
+            "disk_size": "'$(echo $disk_info | jq -r '.[0].Size')'"
+            "disk_type": "'$(echo $disk_info | jq -r '.[0].StorageType')'"
+        },
+        "run_id": "'$run_id'"
+    }'
+
+    echo $json_template
+}
+
+# function to collect results
+collect_results() {
     local result_dir=$1
     local result_file=$2
     # merge all JSON files into one file
     cat $result_dir/*.json > $result_dir/$result_file
     echo "Results collected and merged into json file"
-}
-
-#function to upload results
-upload_results() {
-    local storage_account_name=$1
-    local account_key=$2
-    local container_name=$3
-    local filename=$4
-    local source_filename=$5
-
-    # upload file to Azure storage blob
-    az storage blob upload --account-name $storage_account_name --account-key $account_key --container-name $container_name --name $filename --file $source_filename
-
-    echo "Results uploaded to Azure storage blob"
 }
