@@ -36,7 +36,7 @@ variable "route_table_ids" {
 variable "pe_config" {
     description = "configuragtion for vpc private endpoint"
     type = object({
-        vpc_name = string
+        pe_vpc_name = string
     })
 }
 

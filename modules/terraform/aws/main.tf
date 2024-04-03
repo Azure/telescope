@@ -142,7 +142,6 @@ module "privateendpoint" {
   count = var.pe_config == null ? 0 : 1
 
   vpc_id = local.all_vpcs[var.pe_config.vpc_name].id
-  route_table_ids = [local.all_route_tables[var.pe_config.route_table_name].id]
 
   tags = local.tags
   
