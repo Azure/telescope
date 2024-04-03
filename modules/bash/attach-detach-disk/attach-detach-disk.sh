@@ -60,7 +60,7 @@ measure_attach() {
     start_time=$(date +%s)
     attach_message="$(attach_disk $vm_name $disk_name $resource_group)"
     end_time=$(date +%s)
-    if [[ $attach_message == *"error"* ]]; then
+    if [[ $attach_message == "ERROR: {"* ]]; then
         attach_time=-1
         attach_result="failed"
     else
@@ -83,7 +83,7 @@ measure_detach() {
     start_time=$(date +%s)
     detach_message="$(detach_disk $vm_name $disk_name $resource_group)"
     end_time=$(date +%s)
-    if [[ $detach_message == *"error"* ]]; then
+    if [[ $detach_message == "ERROR: {"* ]]; then
         detach_time=-1
         detach_result="failed"
     else
@@ -127,31 +127,101 @@ fill_json_template() {
     local timestamp=$(date)
     local disk_info=$(get_disk_storage_type_and_size $disk_name)
 
-    local json_template='{
-        "timestamp": "'$timestamp'",
+    (
+        set -Ee
+        trap _catch ERR
+
+        local json_template=$(jq -n \
+        --arg timestamp "$timestamp" \
+        --arg cloud "$cloud" \
+        --arg region "$region" \
+        --arg vm_name "$vm_name" \
+        --arg vm_size "$vm_size" \
+        --arg vm_os "$vm_os" \
+        --arg operation "$operation" \
+        --arg result "$result" \
+        --argjson result_time $result_time \
+        --arg unit "seconds" \
+        --arg message "$message" \
+        --arg disk_name "$disk_name" \
+        --arg disk_size "$(echo $disk_info | jq -r '.[0].Size')" \
+        --arg disk_type "$(echo $disk_info | jq -r '.[0].StorageType')" \
+        --arg run_id "$run_id" \
+        '{
+            "timestamp": $timestamp,
+            "cloud_info": {
+                "cloud": $cloud,
+                "region": $region,
+                "vm_info": {
+                    "vm_name": $vm_name,
+                    "size": $vm_size,
+                    "os": $vm_os
+                }
+            },
+            "operation_info": {
+                "operation": $operation,
+                "result": $result,
+                "time": $result_time,
+                "unit": $unit,
+                "message": $message
+            },
+            "disk_info": {
+                "disk_name": $disk_name,
+                "disk_size": $disk_size,
+                "disk_type": $disk_type
+            },
+            "run_id": $run_id,
+            "run_url": $url"
+        }')
+
+        echo $json_template
+    )
+}
+
+_catch()
+{
+    echo "CATCH"
+    local json_template=$(jq -n \
+    --arg timestamp "$timestamp" \
+    --arg cloud "$cloud" \
+    --arg region "$region" \
+    --arg vm_name "$vm_name" \
+    --arg vm_size "$vm_size" \
+    --arg vm_os "$vm_os" \
+    --arg operation "$operation" \
+    --arg result "$result" \
+    --argjson result_time $result_time \
+    --arg unit "seconds" \
+    --arg message "$message" \
+    --arg disk_name "$disk_name" \
+    --arg disk_size "$(echo $disk_info | jq -r '.[0].Size')" \
+    --arg disk_type "$(echo $disk_info | jq -r '.[0].StorageType')" \
+    --arg run_id "$run_id" \
+    '{
+        "timestamp": "",
         "cloud_info": {
-            "cloud": "'$cloud'",
-            "region": "'$region'",
+            "cloud": "",
+            "region": "",
             "vm_info": {
-                "vm_name": "'$vm_name'",
-                "size": "'$vm_size'",
-                "os": "'$vm_os'"
+                "vm_name": "",
+                "size": "",
+                "os": ""
             }
         },
         "operation_info": {
-            "operation": "'$operation'",
-            "result": "'$result'",
-            "time": '$result_time',
-            "unit": "seconds",
-            "message": "'$message'"
+            "operation": "",
+            "result": "",
+            "time": "",
+            "unit": "",
+            "message": "Unknwon error"
         },
         "disk_info": {
-            "disk_name": "'$disk_name'",
-            "disk_size": "'$(echo $disk_info | jq -r '.[0].Size')'"
-            "disk_type": "'$(echo $disk_info | jq -r '.[0].StorageType')'"
+            "disk_name": "",
+            "disk_size": "",
+            "disk_type": ""
         },
-        "run_id": "'$run_id'"
-    }'
+        "run_id": ""
+    }')
 
     echo $json_template
 }
