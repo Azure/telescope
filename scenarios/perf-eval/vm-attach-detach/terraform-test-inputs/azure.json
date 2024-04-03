@@ -2,12 +2,6 @@
   "owner": "terraform_unit_tests",
   "run_id": "758521942",
   "region": "eastus",
-  "machine_type": "Standard_D2s_v5",
-  "accelerated_networking": true,
-  "storage_account_tier": "Premium",
-  "storage_account_kind": "FileStorage",
-  "storage_account_replication_type": "LRS",
-  "data_disk_storage_account_type": "Standard_LRS",
   "data_disk_size_gb": "40",
   "storage_disks_count": "2"
 }
