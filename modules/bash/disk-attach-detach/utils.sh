@@ -98,7 +98,7 @@ measure_attach() {
     start_time=$(date +%s)
     attach_message="$(attach_disk $vm_name $disk_name $resource_group)"
     end_time=$(date +%s)
-    if [[ $attach_message == "ERROR: {"* ]]; then
+    if [[ $attach_message == "ERROR: "* ]]; then
         attach_time=-1
         attach_result="fail"
     else
@@ -110,7 +110,7 @@ measure_attach() {
         attach_message="Operation completed successfully."
     fi
 
-    attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group $attach_message $cloud)
+    attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group "$attach_message" $cloud)
     attach_filename="$result_dir/${disk_name}_attach_$run_index.json"
     echo $attach_output > $attach_filename
 }
@@ -135,7 +135,7 @@ measure_detach() {
     start_time=$(date +%s)
     detach_message="$(detach_disk $vm_name $disk_name $resource_group)"
     end_time=$(date +%s)
-    if [[ $detach_message == "ERROR: {"* ]]; then
+    if [[ $detach_message == "ERROR: "* ]]; then
         detach_time=-1
         detach_result="fail"
     else
@@ -147,7 +147,7 @@ measure_detach() {
         detach_message="Operation completed successfully."
     fi
 
-    detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group $detach_message $cloud)
+    detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group "$detach_message" $cloud)
     detach_filename="$result_dir/${disk_name}_detach_$run_index.json"
     echo $detach_output > "$detach_filename"
 
