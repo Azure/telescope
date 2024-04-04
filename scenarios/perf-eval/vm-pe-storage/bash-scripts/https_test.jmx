@@ -76,9 +76,15 @@
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="auth_token" elementType="Argument">
-              <stringProp name="Argument.name">auth_token</stringProp>
+              <stringProp name="Argument.name">aws_token</stringProp>
               <stringProp name="Argument.value">random string</stringProp>
-              <stringProp name="Argument.desc">Header</stringProp>
+              <stringProp name="Argument.desc">Header auth token</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="auth_token" elementType="Argument">
+              <stringProp name="Argument.name">bucket_owner</stringProp>
+              <stringProp name="Argument.value">random string</stringProp>
+              <stringProp name="Argument.desc">Header auth account id</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
           </collectionProp>
@@ -124,7 +130,11 @@
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer ${__P(auth_token, token)}</stringProp>
+                <stringProp name="Header.value">AWS ${__P(aws_token, token)}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">x-amz-expected-bucket-owner</stringProp>
+                <stringProp name="Header.value">${__P(bucket_owner, ExpectedBucketOwner)}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
