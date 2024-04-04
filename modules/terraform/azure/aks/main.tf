@@ -1,7 +1,8 @@
 locals {
-  role           = var.aks_config.role
-  name           = var.aks_config.aks_name
-  extra_pool_map = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
+  role                 = var.aks_config.role
+  name                 = var.aks_config.aks_name
+  extra_pool_map       = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
+  role_assignment_list = var.aks_config.role_assignment_list
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -42,4 +43,12 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   vm_size               = var.vm_sku
   node_count            = each.value.node_count
   os_disk_type          = var.aks_config.default_node_pool.os_disk_type
+}
+
+resource "azurerm_role_assignment" "aks_on_subnet" {
+  for_each = toset(local.role_assignment_list)
+
+  role_definition_name = each.key
+  scope                = var.vnet_id
+  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
