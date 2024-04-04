@@ -112,7 +112,7 @@ measure_attach_detach() {
     fi
 
     if [ -z "$message" ]; then
-        message="Operation completed successfully."
+        message="{}"
     fi
 
     output=$(fill_json_template $operation $result $time $disk_name $resource_group "$message" $cloud)
@@ -179,7 +179,7 @@ fill_json_template() {
                 "result": $result,
                 "time": $time,
                 "unit": $unit,
-                "message": $message
+                "data": if $message == "{}" then $message else {error: $message} end
             },
             "disk_info": {
                 "disk_name": $disk_name,
@@ -190,6 +190,7 @@ fill_json_template() {
         }')
 
         echo $json_template
+    )
     )
 }
 
