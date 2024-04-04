@@ -3,11 +3,19 @@ import json
 import pandas as pd
 import numpy as np
 
+COLUMN_NAMES = ["timeStamp", "elapsed", "label", "responseCode", "responseMessage",
+                "threadName", "dataType", "success", "failureMessage", "bytes",
+                "sentBytes", "grpThreads", "allThreads", "URL", "Latency", "IdleTime", "Connect"]
+
 def parse_jmeter_output(result_file):
   try:
     result = pd.read_csv(result_file)
     if len(result) == 0:
-      raise ValueError("No data to process!")
+      return "No data to process!"
+
+    for column in COLUMN_NAMES:
+      if column not in result.columns:
+        return f"Missing column: {column}"
 
     result['newLatency'] = result['elapsed'] - result['Connect']
 
@@ -21,8 +29,8 @@ def parse_jmeter_output(result_file):
     max = result['newLatency'].max()
     std = result['newLatency'].std()
 
-    error_rate = sum(result['responseCode'] != 200) / total_samples * 100
-    errors = result[result['responseCode'] != 200][['responseCode','responseMessage']].drop_duplicates().to_dict(orient='records')
+    error_rate = sum(~result['success']) / total_samples * 100
+    errors = result[~result['success']][['responseCode','responseMessage']].drop_duplicates().to_dict(orient='records')
 
     duration_in_seconds = (result['timeStamp'].max() - result['timeStamp'].min()) / 1000
     received_in_kb = sum(result['bytes']) / 1000
@@ -49,24 +57,17 @@ def parse_jmeter_output(result_file):
       if isinstance(data[key], np.int64):
         data[key] = int(data[key])
       elif isinstance(data[key], np.float64):
-        data[key] = float(data[key])
+        data[key] = float(round(data[key], 2))
     
     json_result = json.dumps(data)
     return json_result
-  except Exception as e:
-    print("Error:", e)
+  except pd.errors.EmptyDataError as e:
+    return "Empty file!"
 
 def main():
   result_file = sys.argv[1]
-  compare = sys.argv[2]
-
-  value = parse_jmeter_output(result_file)
-  print(value)
-
-  if compare == "true":
-    aggregate_file = sys.argv[3]
-    aggregate_result = pd.read_csv(aggregate_file)
-    print(aggregate_result)
+  result = parse_jmeter_output(result_file)
+  print(result)
 
 if __name__ == '__main__':
   main()
