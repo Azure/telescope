@@ -1,7 +1,0 @@
-{
-  "owner": "terraform_unit_tests",
-  "run_id": "758521942",
-  "region": "eastus",
-  "data_disk_size_gb": "40",
-  "storage_disks_count": "2"
-}
