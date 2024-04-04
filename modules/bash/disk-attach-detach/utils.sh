@@ -62,14 +62,14 @@ measure_attach() {
     end_time=$(date +%s)
     if [[ $attach_message == "ERROR: {"* ]]; then
         attach_time=-1
-        attach_result="failed"
+        attach_result="fail"
     else
         attach_time=$(($end_time - $start_time))
         attach_result="success"
     fi
 
     if [ -z "$attach_message" ]; then
-        attach_message=""
+        attach_message="Operation completed succesfuly."
     fi
 
     attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group $attach_message)
@@ -89,14 +89,14 @@ measure_detach() {
     end_time=$(date +%s)
     if [[ $detach_message == "ERROR: {"* ]]; then
         detach_time=-1
-        detach_result="failed"
+        detach_result="fail"
     else
         detach_time=$(($end_time - $start_time))
         detach_result="success"
     fi
 
     if [ -z "$detach_message" ]; then
-        detach_message=""
+        detach_message="Operation completed succesfuly."
     fi
 
     detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group $detach_message)
