@@ -186,7 +186,7 @@ fill_json_template() {
                 "disk_type": $disk_type
             },
             "run_id": $run_id
-        } | if $message == "{}" then .operation_info.data=$message else .operation_info.data{error: $message} end')
+        } | if $message == "{}" then .operation_info.data=$message else .operation_info.data={error: $message} end')
 
         echo $json_template
     )
