@@ -205,7 +205,6 @@ variable "pe_config" {
   description = "configuration for vpc private endpoint"
   type = object({
     vpc_name = string
-    route_table_name = string
   })
   default = null
 }
