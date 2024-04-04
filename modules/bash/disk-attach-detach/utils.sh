@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+
 # function to execute tests
 execute() {
     local run_id=$1
@@ -67,7 +67,11 @@ measure_attach() {
         attach_time=$(($end_time - $start_time))
         attach_result="success"
     fi
-    echo $attach_message
+
+    if [ -z "$attach_message" ]; then
+        attach_message=""
+    fi
+
     attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group $attach_message)
     attach_filename="$result_dir/${disk_name}_attach_$run_index.json"
     echo $attach_output > $attach_filename
@@ -91,9 +95,14 @@ measure_detach() {
         detach_result="success"
     fi
 
+    if [ -z "$detach_message" ]; then
+        detach_message=""
+    fi
+
     detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group $detach_message)
     detach_filename="$result_dir/${disk_name}_detach_$run_index.json"
     echo $detach_output > "$detach_filename"
+
 }
 
 # function to fill the JSON template with received parameters
@@ -106,7 +115,6 @@ fill_json_template() {
     local message=$6
 
     local disk_info=$(get_disk_storage_type_and_size $disk_name)
-    echo Building json with result $result
 
     (
         set -Ee
