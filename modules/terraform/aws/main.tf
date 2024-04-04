@@ -140,7 +140,7 @@ module "privateendpoint" {
 
   count = var.pe_config == null ? 0 : 1
 
-  vpc_id = local.all_vpcs[var.pe_config.vpc_name].id
+  vpc_id = local.all_vpcs[var.pe_config.pe_vpc_name].id
 
   tags = local.tags
   
