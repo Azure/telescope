@@ -109,35 +109,19 @@ get_disk_storage_type_and_size() {
 }
 
 #Description
-#   This function gets the operating system of a VM.
+#   This function gets the operating system and size of a VM.
 #
 # Parameters:
 #  - $1:  vm_name: the name of the VM instance (e.g. vm-1)
 #  - $2:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
-# Returns: The operating system of the VM
-# Usage: get_vm_os <vm_name> <resource_group>
-get_vm_os() {
+# Returns: JSON object containing the operating system and size of the VM
+# Usage: get_vm_properties <vm_name> <resource_group>
+get_vm_properties() {
     local vm_name=$1
     local resource_group=$2
-        
-    echo $(az vm show --name $vm_name --resource-group $resource_group --query "storageProfile.osDisk.osType" --output tsv)
-}
 
-#Description
-#   This function gets the size of a VM.
-#
-# Parameters:
-#  - $1:  vm_name: the name of the VM instance (e.g. vm-1)
-#  - $2:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
-# Returns: The size of the VM
-# Usage: get_vm_size <vm_name> <resource_group>
-get_vm_size() {
-    local vm_name=$1
-    local resource_group=$2
-        
-    echo $(az vm show --name $vm_name --resource-group $resource_group --query "hardwareProfile.vmSize" --output tsv)
+    echo $(az vm show --name $vm_name --resource-group $resource_group --query "{OperatingSystem: storageProfile.osDisk.osType, Size: hardwareProfile.vmSize}" --output json)
 }
 
 #Description
