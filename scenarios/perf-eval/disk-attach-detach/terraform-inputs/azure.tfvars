@@ -34,7 +34,6 @@ data_disk_config_list = [{
 vm_config_list = [{
     role           = "vm-attach-dettach"
     vm_name        = "vm-1"
-    nic_name       = "client-nic"
     admin_username = "ubuntu"
     source_image_reference = {
         publisher = "Canonical"
