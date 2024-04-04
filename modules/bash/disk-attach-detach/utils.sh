@@ -124,15 +124,14 @@ fill_json_template() {
     local run_id=$5
     local message=$6
 
-    local timestamp=$(date)
     local disk_info=$(get_disk_storage_type_and_size $disk_name)
+    echo Building json with result $result
 
     (
         set -Ee
         trap _catch ERR
 
         local json_template=$(jq -n \
-        --arg timestamp "$timestamp" \
         --arg cloud "$cloud" \
         --arg region "$region" \
         --arg vm_name "$vm_name" \
