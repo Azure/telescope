@@ -182,7 +182,6 @@ _catch()
 {
     echo "CATCH"
     local json_template=$(jq -n \
-    --arg timestamp "$timestamp" \
     --arg cloud "$cloud" \
     --arg region "$region" \
     --arg vm_name "$vm_name" \
@@ -198,7 +197,6 @@ _catch()
     --arg disk_type "$(echo $disk_info | jq -r '.[0].StorageType')" \
     --arg run_id "$run_id" \
     '{
-        "timestamp": "",
         "cloud_info": {
             "cloud": "",
             "region": "",
