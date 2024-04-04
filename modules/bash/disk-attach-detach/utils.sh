@@ -101,7 +101,7 @@ measure_attach_detach() {
     local cloud=$6
 
     start_time=$(date +%s)
-    message="$(attach_detach_disk $operation $vm_name $disk_name $resource_group)"
+    message="$($operation $vm_name $disk_name $resource_group)"
     end_time=$(date +%s)
     if [[ $message == "ERROR: "* ]]; then
         result="fail"
