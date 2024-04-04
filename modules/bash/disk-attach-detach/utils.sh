@@ -191,7 +191,6 @@ fill_json_template() {
 
         echo $json_template
     )
-    )
 }
 
 #Description
