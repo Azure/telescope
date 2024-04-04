@@ -29,7 +29,7 @@
           <collectionProp name="Arguments.arguments">
             <elementProp name="api_endpoint" elementType="Argument">
               <stringProp name="Argument.name">api_endpoint</stringProp>
-              <stringProp name="Argument.value">some string</stringProp>
+              <stringProp name="Argument.value">endpoint value</stringProp>
               <stringProp name="Argument.desc">AWS Rest API Endpoint</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
@@ -77,13 +77,13 @@
             </elementProp>
             <elementProp name="aws_token" elementType="Argument">
               <stringProp name="Argument.name">aws_token</stringProp>
-              <stringProp name="Argument.value">random string</stringProp>
+              <stringProp name="Argument.value">token</stringProp>
               <stringProp name="Argument.desc">Header auth token</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="bucket_owner" elementType="Argument">
               <stringProp name="Argument.name">bucket_owner</stringProp>
-              <stringProp name="Argument.value">random string</stringProp>
+              <stringProp name="Argument.value">owner</stringProp>
               <stringProp name="Argument.desc">Header auth account id</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
@@ -110,7 +110,7 @@
           <stringProp name="HTTPSampler.domain">${__P(bucket_name, bucket)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(api_endpoint,random string)}</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(api_endpoint,endpoint value)}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -140,7 +140,7 @@
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-amz-expected-bucket-owner</stringProp>
-                <stringProp name="Header.value">${__P(bucket_owner, ExpectedBucketOwner)}</stringProp>
+                <stringProp name="Header.value">${__P(bucket_owner, owner)}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
