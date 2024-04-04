@@ -66,114 +66,80 @@ run_tests() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        measure_attach $disk_name $vm_name $resource_group $run_index $cloud
+        measure_attach_detach "attach" $disk_name $vm_name $resource_group $run_index $cloud
         wait
     done
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
         if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
-            measure_detach $disk_name $vm_name $resource_group $run_index $cloud
+            measure_attach_detach "detach" $disk_name $vm_name $resource_group $run_index $cloud
             wait
         fi
     done
 }
 
 #Description
-#   Function to attach a disk to a virtual machine
+#   Function to attach or detach a disk to/from a virtual machine
 #
 # Parameters:
-#   - $1: vm_name: the name of the virtual machine (e.g. vm-1)
-#   - $2: disk_name: the name of the disk to attach (e.g. disk-1)
-#   - $3: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $1: operation: the name of the operation (e.g. attach or detach)
+#   - $2: disk_name: the name of the disk to attach or detach (e.g. disk-1)
+#   - $3: vm_name: the name of the virtual machine (e.g. vm-1)
+#   - $4: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $5: run_index: the index of the test run (e.g. 1)
+#   - $6: cloud: the cloud provider (e.g. azure)
 #
 # Returns: nothing, outputs data to files
-# Usage: attach_disk <vm_name> <disk_name> <resource_group>
-measure_attach() {
-    local disk_name=$1
-    local vm_name=$2
-    local resource_group=$3
-    local run_index=$4
-    local cloud=$5
+# Usage: measure_attach_detach <operation> <disk_name> <vm_name> <resource_group> <run_index> <cloud>
+measure_attach_detach() {
+    local operation=$1
+    local disk_name=$2
+    local vm_name=$3
+    local resource_group=$4
+    local run_index=$5
+    local cloud=$6
 
     start_time=$(date +%s)
-    attach_message="$(attach_disk $vm_name $disk_name $resource_group)"
+    message="$(attach_detach_disk $operation $vm_name $disk_name $resource_group)"
     end_time=$(date +%s)
-    if [[ $attach_message == "ERROR: "* ]]; then
-        attach_time=-1
-        attach_result="fail"
+    if [[ $message == "ERROR: "* ]]; then
+        result="fail"
+        time=-1
     else
-        attach_time=$(($end_time - $start_time))
-        attach_result="success"
+        result="success"
+        time=$(($end_time - $start_time))
     fi
 
-    if [ -z "$attach_message" ]; then
-        attach_message="Operation completed successfully."
+    if [ -z "$message" ]; then
+        message="Operation completed successfully."
     fi
 
-    attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group "$attach_message" $cloud)
-    attach_filename="$result_dir/${disk_name}_attach_$run_index.json"
-    echo $attach_output > $attach_filename
-}
-
-#Description
-#   Function to detach a disk from a virtual machine
-#
-# Parameters:
-#   - $1: vm_name: the name of the virtual machine (e.g. vm-1)
-#   - $2: disk_name: the name of the disk to detach (e.g. disk-1)
-#   - $3: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
-# Returns: nothing, outputs data to files
-# Usage: detach_disk <vm_name> <disk_name> <resource_group>
-measure_detach() {
-    local disk_name=$1
-    local vm_name=$2
-    local resource_group=$3
-    local run_index=$4
-    local cloud=$5
-
-    start_time=$(date +%s)
-    detach_message="$(detach_disk $vm_name $disk_name $resource_group)"
-    end_time=$(date +%s)
-    if [[ $detach_message == "ERROR: "* ]]; then
-        detach_time=-1
-        detach_result="fail"
-    else
-        detach_time=$(($end_time - $start_time))
-        detach_result="success"
-    fi
-
-    if [ -z "$detach_message" ]; then
-        detach_message="Operation completed successfully."
-    fi
-
-    detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group "$detach_message" $cloud)
-    detach_filename="$result_dir/${disk_name}_detach_$run_index.json"
-    echo $detach_output > "$detach_filename"
-
+    output=$(fill_json_template $operation $result $time $disk_name $resource_group "$message" $cloud)
+    filename="$result_dir/${disk_name}_${operation}_$run_index.json"
+    echo $output > $filename
 }
 
 #Description
 #   Function to fill a JSON template with the test results
 #
 # Parameters:
-#   - $1: operation: the name of the operation (e.g. attach)
-#   - $2: result: the result of the operation (e.g. success)
-#   - $3: result_time: the time taken to complete the operation (e.g. 5)
+#   - $1: operation: the name of the operation (e.g. attach or detach)
+#   - $2: result: the result of the operation (e.g. success or fail)
+#   - $3: time: the time taken to complete the operation (e.g. 5)
 #   - $4: disk_name: the name of the disk (e.g. disk-1)
-#   - $5: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $5: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #   - $6: message: the message of the operation (e.g. Operation completed successfully.)
 #   - $7: cloud: the cloud provider (e.g. azure)
 #
 # Returns: json with data
-# Usage: fill_json_template <operation> <result> <result_time> <disk_name> <run_id> <message> <cloud>
+# Usage: fill_json_template <operation> <result> <time> <disk_name> <resource_group> <message> <cloud>
 fill_json_template() {
     local operation=$1
     local result=$2
-    local result_time=$3
+    local time=$3
     local disk_name=$4
-    local run_id=$5
+    local resource_group=$5
     local message=$6
     local cloud=$7
 
@@ -191,7 +157,7 @@ fill_json_template() {
         --arg vm_os "$vm_os" \
         --arg operation "$operation" \
         --arg result "$result" \
-        --argjson result_time $result_time \
+        --argjson time $time \
         --arg unit "seconds" \
         --arg message "$message" \
         --arg disk_name "$disk_name" \
@@ -211,7 +177,7 @@ fill_json_template() {
             "operation_info": {
                 "operation": $operation,
                 "result": $result,
-                "time": $result_time,
+                "time": $time,
                 "unit": $unit,
                 "message": $message
             },
@@ -220,7 +186,7 @@ fill_json_template() {
                 "disk_size": $disk_size,
                 "disk_type": $disk_type
             },
-            "run_id": $run_id,
+            "run_id": $run_id
         }')
 
         echo $json_template
@@ -236,7 +202,6 @@ fill_json_template() {
 # Usage: trap _catch ERR
 _catch()
 {
-    echo "CATCH"
     local json_template=$(jq -n \
     --arg cloud "$cloud" \
     --arg region "$region" \
@@ -245,7 +210,7 @@ _catch()
     --arg vm_os "$vm_os" \
     --arg operation "$operation" \
     --arg result "$result" \
-    --argjson result_time $result_time \
+    --argjson time $time \
     --arg unit "seconds" \
     --arg message "$message" \
     --arg disk_name "$disk_name" \
@@ -296,12 +261,12 @@ run_alternate_tests() {
     local run_id=$5
     local cloud=$6
 
-    attach_output=$(measure_attach $disk_name $vm_name $resource_group $disk_size $run_id $cloud)
+    attach_output=$(measure_attach_detach "attach" $disk_name $vm_name $resource_group $disk_size $run_id $cloud)
     attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
     echo $attach_output > $attach_filename
 
     if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
-        detach_output=$(measure_detach $disk_name $vm_name $resource_group $disk_size $run_id $cloud)
+        detach_output=$(measure_attach_detach "detach" $disk_name $vm_name $resource_group $disk_size $run_id $cloud)
         detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
         echo $detach_output > $detach_filename
     fi
