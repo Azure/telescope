@@ -29,8 +29,8 @@
           <collectionProp name="Arguments.arguments">
             <elementProp name="api_endpoint" elementType="Argument">
               <stringProp name="Argument.name">api_endpoint</stringProp>
-              <stringProp name="Argument.value">/subscriptions/xxxx/resourceGrroups/stuff</stringProp>
-              <stringProp name="Argument.desc">Azure REST API endpoint</stringProp>
+              <stringProp name="Argument.value">some string</stringProp>
+              <stringProp name="Argument.desc">AWS Rest API Endpoint</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="ramp_time" elementType="Argument">
@@ -101,10 +101,10 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.domain">management.azure.com</stringProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(api_endpoint,/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/0003/providers/Microsoft.Storage/storageAccounts/peplstest7so8erfk/fileServices/default/shares?api-version=2023-01-01)}</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(api_endpoint,random string)}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
