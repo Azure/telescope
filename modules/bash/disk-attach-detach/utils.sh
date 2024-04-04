@@ -1,5 +1,5 @@
 #!/bin/bash
-
+sex -x
 # function to execute tests
 execute() {
     local run_id=$1
@@ -67,7 +67,7 @@ measure_attach() {
         attach_time=$(($end_time - $start_time))
         attach_result="success"
     fi
-
+    echo $attach_message
     attach_output=$(fill_json_template "attach" $attach_result $attach_time $disk_name $resource_group $attach_message)
     attach_filename="$result_dir/${disk_name}_attach_$run_index.json"
     echo $attach_output > $attach_filename
@@ -94,25 +94,6 @@ measure_detach() {
     detach_output=$(fill_json_template "detach" $detach_result $detach_time $disk_name $resource_group $detach_message)
     detach_filename="$result_dir/${disk_name}_detach_$run_index.json"
     echo $detach_output > "$detach_filename"
-}
-
-# function to run disk test
-run_alternate_tests() {
-    local disk_name=$1
-    local vm_name=$2
-    local resource_group=$3
-    local disk_size=$4
-    local run_id=$5
-
-    attach_output=$(measure_attach $disk_name $vm_name $resource_group $disk_size $run_id)
-    attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
-    echo $attach_output > $attach_filename
-
-    if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
-        detach_output=$(measure_detach $disk_name $vm_name $resource_group $disk_size $run_id)
-        detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
-        echo $detach_output > $detach_filename
-    fi
 }
 
 # function to fill the JSON template with received parameters
@@ -231,3 +212,23 @@ collect_results() {
     cat $result_dir/*.json > $result_dir/$result_file
     echo "Results collected and merged into json file"
 }
+
+# function to run disk test
+run_alternate_tests() {
+    local disk_name=$1
+    local vm_name=$2
+    local resource_group=$3
+    local disk_size=$4
+    local run_id=$5
+
+    attach_output=$(measure_attach $disk_name $vm_name $resource_group $disk_size $run_id)
+    attach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+    echo $attach_output > $attach_filename
+
+    if [ "$(echo $attach_output | jq -r .$result_column)" == "success" ]; then
+        detach_output=$(measure_detach $disk_name $vm_name $resource_group $disk_size $run_id)
+        detach_filename="$result_dir/$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1).json"
+        echo $detach_output > $detach_filename
+    fi
+}
+
