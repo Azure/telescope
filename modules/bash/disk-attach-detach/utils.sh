@@ -1,4 +1,3 @@
-#!/bin/bash
 
 #!/bin/bash
 
@@ -8,9 +7,9 @@ execute() {
     local scenario_type=$2
     local scenario_name=$3
     local result_dir=$4
+    local cloud=$5
     local resource_group=$run_id
-    local iterations_number=${5:-1}  # Set the default value of iterations_number to 1 if not provided
-    local cloud=$6
+    local iterations_number=${6:-1}  # Set the default value of iterations_number to 1 if not provided
 
     mkdir -p $result_dir
 
