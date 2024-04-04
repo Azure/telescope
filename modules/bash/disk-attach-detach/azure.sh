@@ -121,7 +121,7 @@ get_vm_properties() {
     local vm_name=$1
     local resource_group=$2
 
-    echo "$(az vm show --name $vm_name --resource-group $resource_group --query "{OperatingSystem: storageProfile.osDisk.osType, Size: hardwareProfile.vmSize}" --output json)"
+    echo $(az vm show --name $vm_name --resource-group $resource_group --query "{OperatingSystem: storageProfile.osDisk.osType, Size: hardwareProfile.vmSize}" --output json)
 }
 
 #Description
