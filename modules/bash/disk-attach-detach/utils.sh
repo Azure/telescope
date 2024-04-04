@@ -1,5 +1,5 @@
 #!/bin/bash
-sex -x
+set -x
 # function to execute tests
 execute() {
     local run_id=$1
