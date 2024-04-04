@@ -4,7 +4,7 @@
 #   This script contains the functions to manage the resources in the resource group.
 #
 # Parameters:
-#   $1:  run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 # 
 # Returns: name of the VM instance
 # Usage: get_vm_instance_by_name <run_id>
@@ -18,7 +18,7 @@ get_vm_instance_by_name() {
 #   This function gets the disk instances by name.
 #
 # Parameters:
-#   $1:  run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: name of the disk instances
 # Usage: get_disk_instances_by_name <run_id>
@@ -32,9 +32,9 @@ get_disk_instances_by_name() {
 #   This function ataches a disk to a vm.
 #
 # Parameters:
-#   $1:  vm_name: the name of the VM instance (e.g. vm-1)
-#   $2:  disk_name: the name of the disk instance (e.g. disk-1)
-#   $3:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  vm_name: the name of the VM instance (e.g. vm-1)
+#  - $2:  disk_name: the name of the disk instance (e.g. disk-1)
+#  - $3:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: Error message of the operation otherwise nothing
 # Usage: attach_disk <vm_name> <disk_name> <resource_group>
@@ -50,9 +50,9 @@ attach_disk() {
 #   This function detaches a disk from a vm.
 #
 # Parameters:
-#   $1:  vm_name: the name of the VM instance (e.g. vm-1)
-#   $2:  disk_name: the name of the disk instance (e.g. disk-1)
-#   $3:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  vm_name: the name of the VM instance (e.g. vm-1)
+#  - $2:  disk_name: the name of the disk instance (e.g. disk-1)
+#  - $3:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: Error message of the operation otherwise nothing
 # Usage: detach_disk <vm_name> <disk_name> <resource_group>
@@ -68,7 +68,7 @@ detach_disk() {
 #   This function validates the resources in the resource group.
 #
 # Parameters:
-#   $1:  run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  = $1:  run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: None
 # Usage: validate_resources <run_id>
@@ -98,7 +98,7 @@ validate_resources() {
 #   This function gets the storage type and size of a disk.
 #
 # Parameters:
-#   $1:  disk_name: the name of the disk instance (e.g. disk-1)
+#  - $1:  disk_name: the name of the disk instance (e.g. disk-1)
 #
 # Returns: JSON object containing the storage type and size of the disk
 # Usage: get_disk_storage_type_and_size <disk_name>
@@ -112,8 +112,8 @@ get_disk_storage_type_and_size() {
 #   This function gets the operating system of a VM.
 #
 # Parameters:
-#   $1:  vm_name: the name of the VM instance (e.g. vm-1)
-#   $2:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  vm_name: the name of the VM instance (e.g. vm-1)
+#  - $2:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: The operating system of the VM
 # Usage: get_vm_os <vm_name> <resource_group>
@@ -128,8 +128,8 @@ get_vm_os() {
 #   This function gets the size of a VM.
 #
 # Parameters:
-#   $1:  vm_name: the name of the VM instance (e.g. vm-1)
-#   $2:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  vm_name: the name of the VM instance (e.g. vm-1)
+#  - $2:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: The size of the VM
 # Usage: get_vm_size <vm_name> <resource_group>
@@ -144,7 +144,7 @@ get_vm_size() {
 #   This function gets the region of a resource group.
 #
 # Parameters:
-#   $1:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $1:  resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: The region of the resource group
 # Usage: get_region <resource_group>
