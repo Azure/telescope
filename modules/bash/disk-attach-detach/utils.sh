@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 #Description
 #   Function to execute tests
 #
