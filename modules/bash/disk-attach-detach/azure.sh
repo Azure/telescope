@@ -38,7 +38,7 @@ get_disk_instances_by_name() {
 #
 # Returns: Error message of the operation otherwise nothing
 # Usage: attach_disk <vm_name> <disk_name> <resource_group>
-attach_disk() {
+attach() {
     local vm_name=$1
     local disk_name=$2
     local resource_group=$3
@@ -56,7 +56,7 @@ attach_disk() {
 #
 # Returns: Error message of the operation otherwise nothing
 # Usage: detach_disk <vm_name> <disk_name> <resource_group>
-detach_disk() {
+detach() {
     local vm_name=$1
     local disk_name=$2
     local resource_group=$3
