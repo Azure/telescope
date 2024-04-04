@@ -1,14 +1,18 @@
-
 #!/bin/bash
 
-# function to execute tests
+#Description
+#   Function to execute tests
+#
 # Parameters:
-#   - run_id: the ID of the test run
-#   - scenario_type: the type of the scenario
-#   - scenario_name: the name of the scenario
-#   - result_dir: the directory to store the test results
-#   - cloud: the cloud provider
-#   - iterations_number: the number of iterations to run the tests (optional, default is 1)
+#   - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $2: scenario_type: the type of the scenario (e.g. perf-eval)
+#   - $3: scenario_name: the name of the scenario (e.g. disk--attach-detach)
+#   - $4: result_dir: the directory to store the test results (e.g. /mnt/results)
+#   - $5 cloud: the cloud provider (e.g. azure))
+#   - $6 iterations_number: the number of iterations to run the tests (e.g. 5, optional, default is 1)
+#
+# Returns: nothing
+# Usage: execute <run_id> <scenario_type> <scenario_name> <result_dir> <cloud> <iterations_number>
 execute() {
     local run_id=$1
     local scenario_type=$2
@@ -33,15 +37,21 @@ execute() {
     done
 }
 
-# function to run tests
+#Description
+#   Function to run tests
+#
 # Parameters:
-#   - vm_name: the name of the virtual machine
-#   - resource_group: the resource group of the virtual machine
-#   - vm_os: the operating system of the virtual machine
-#   - vm_size: the size of the virtual machine
-#   - region: the region of the resource group
-#   - run_index: the index of the test run
-#   - cloud: the cloud provider
+#   - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $2: vm_name: the name of the virtual machine (e.g. vm-1)
+#   - $3: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $4: vm_os: the operating system of the virtual machine (e.g. Linux)
+#   - $5: vm_size: the size of the virtual machine (e.g. Standard_LRS)
+#   - $6: region: the region of the virtual machine (e.g. eastus))
+#   - $7: run_index: the index of the test run (e.g. 1)
+#   - $8: cloud: the cloud provider (e.g. azure)
+#
+# Returns: nothing
+# Usage: run_tests <run_id> <vm_name> <resource_group> <vm_os> <vm_size> <region> <run_index> <cloud>
 run_tests() {
     local vm_name=$2
     local resource_group=$3
@@ -68,13 +78,16 @@ run_tests() {
     done
 }
 
-# function to measure attach operation
+#Description
+#   Function to attach a disk to a virtual machine
+#
 # Parameters:
-#   - disk_name: the name of the disk to attach
-#   - vm_name: the name of the virtual machine
-#   - resource_group: the resource group of the virtual machine
-#   - run_index: the index of the test run
-#   - cloud: the cloud provider
+#   - $1: vm_name: the name of the virtual machine (e.g. vm-1)
+#   - $2: disk_name: the name of the disk to attach (e.g. disk-1)
+#   - $3: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#
+# Returns: nothing, outputs data to files
+# Usage: attach_disk <vm_name> <disk_name> <resource_group>
 measure_attach() {
     local disk_name=$1
     local vm_name=$2
@@ -102,13 +115,16 @@ measure_attach() {
     echo $attach_output > $attach_filename
 }
 
-# function to measure detach operation
+#Description
+#   Function to detach a disk from a virtual machine
+#
 # Parameters:
-#   - disk_name: the name of the disk to detach
-#   - vm_name: the name of the virtual machine
-#   - resource_group: the resource group of the virtual machine
-#   - run_index: the index of the test run
-#   - cloud: the cloud provider
+#   - $1: vm_name: the name of the virtual machine (e.g. vm-1)
+#   - $2: disk_name: the name of the disk to detach (e.g. disk-1)
+#   - $3: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#
+# Returns: nothing, outputs data to files
+# Usage: detach_disk <vm_name> <disk_name> <resource_group>
 measure_detach() {
     local disk_name=$1
     local vm_name=$2
@@ -137,15 +153,20 @@ measure_detach() {
 
 }
 
-# function to fill the JSON template with received parameters
+#Description
+#   Function to fill a JSON template with the test results
+#
 # Parameters:
-#   - operation: the operation type (attach or detach)
-#   - result: the result of the operation (success or fail)
-#   - result_time: the time taken for the operation
-#   - disk_name: the name of the disk
-#   - run_id: the ID of the test run
-#   - message: the message of the operation
-#   - cloud: the cloud provider
+#   - $1: operation: the name of the operation (e.g. attach)
+#   - $2: result: the result of the operation (e.g. success)
+#   - $3: result_time: the time taken to complete the operation (e.g. 5)
+#   - $4: disk_name: the name of the disk (e.g. disk-1)
+#   - $5: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $6: message: the message of the operation (e.g. Operation completed successfully.)
+#   - $7: cloud: the cloud provider (e.g. azure)
+#
+# Returns: json with data
+# Usage: fill_json_template <operation> <result> <result_time> <disk_name> <run_id> <message> <cloud>
 fill_json_template() {
     local operation=$1
     local result=$2
@@ -205,6 +226,13 @@ fill_json_template() {
     )
 }
 
+#Description
+#   Function to catch errors
+#
+# Parameters: none
+#
+# Returns: json with data
+# Usage: trap _catch ERR
 _catch()
 {
     echo "CATCH"
@@ -249,18 +277,6 @@ _catch()
     }')
 
     echo $json_template
-}
-
-# function to collect results
-# Parameters:
-#   - result_dir: the directory where the test results are stored
-#   - result_file: the name of the merged result file
-collect_results() {
-    local result_dir=$1
-    local result_file=$2
-    # merge all JSON files into one file
-    cat $result_dir/*.json > $result_dir/$result_file
-    echo "Results collected and merged into json file"
 }
 
 # function to run disk test
