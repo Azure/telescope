@@ -149,7 +149,7 @@ fill_json_template() {
         set -Ee
         trap _catch ERR
 
-        local json_template=$(jq -n \
+        local json_template=$(jq -n -c \
         --arg cloud "$cloud" \
         --arg region "$region" \
         --arg vm_name "$vm_name" \
