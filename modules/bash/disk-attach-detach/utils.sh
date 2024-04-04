@@ -2,6 +2,13 @@
 #!/bin/bash
 
 # function to execute tests
+# Parameters:
+#   - run_id: the ID of the test run
+#   - scenario_type: the type of the scenario
+#   - scenario_name: the name of the scenario
+#   - result_dir: the directory to store the test results
+#   - cloud: the cloud provider
+#   - iterations_number: the number of iterations to run the tests (optional, default is 1)
 execute() {
     local run_id=$1
     local scenario_type=$2
@@ -27,6 +34,14 @@ execute() {
 }
 
 # function to run tests
+# Parameters:
+#   - vm_name: the name of the virtual machine
+#   - resource_group: the resource group of the virtual machine
+#   - vm_os: the operating system of the virtual machine
+#   - vm_size: the size of the virtual machine
+#   - region: the region of the resource group
+#   - run_index: the index of the test run
+#   - cloud: the cloud provider
 run_tests() {
     local vm_name=$2
     local resource_group=$3
@@ -54,6 +69,12 @@ run_tests() {
 }
 
 # function to measure attach operation
+# Parameters:
+#   - disk_name: the name of the disk to attach
+#   - vm_name: the name of the virtual machine
+#   - resource_group: the resource group of the virtual machine
+#   - run_index: the index of the test run
+#   - cloud: the cloud provider
 measure_attach() {
     local disk_name=$1
     local vm_name=$2
@@ -82,6 +103,12 @@ measure_attach() {
 }
 
 # function to measure detach operation
+# Parameters:
+#   - disk_name: the name of the disk to detach
+#   - vm_name: the name of the virtual machine
+#   - resource_group: the resource group of the virtual machine
+#   - run_index: the index of the test run
+#   - cloud: the cloud provider
 measure_detach() {
     local disk_name=$1
     local vm_name=$2
@@ -111,6 +138,14 @@ measure_detach() {
 }
 
 # function to fill the JSON template with received parameters
+# Parameters:
+#   - operation: the operation type (attach or detach)
+#   - result: the result of the operation (success or fail)
+#   - result_time: the time taken for the operation
+#   - disk_name: the name of the disk
+#   - run_id: the ID of the test run
+#   - message: the message of the operation
+#   - cloud: the cloud provider
 fill_json_template() {
     local operation=$1
     local result=$2
@@ -142,7 +177,6 @@ fill_json_template() {
         --arg disk_type "$(echo $disk_info | jq -r '.[0].StorageType')" \
         --arg run_id "$run_id" \
         '{
-            "timestamp": $timestamp,
             "cloud_info": {
                 "cloud": $cloud,
                 "region": $region,
@@ -165,7 +199,6 @@ fill_json_template() {
                 "disk_type": $disk_type
             },
             "run_id": $run_id,
-            "run_url": $url"
         }')
 
         echo $json_template
@@ -219,6 +252,9 @@ _catch()
 }
 
 # function to collect results
+# Parameters:
+#   - result_dir: the directory where the test results are stored
+#   - result_file: the name of the merged result file
 collect_results() {
     local result_dir=$1
     local result_file=$2
@@ -228,6 +264,13 @@ collect_results() {
 }
 
 # function to run disk test
+# Parameters:
+#   - disk_name: the name of the disk to test
+#   - vm_name: the name of the virtual machine
+#   - resource_group: the resource group of the virtual machine
+#   - disk_size: the size of the disk
+#   - run_id: the ID of the test run
+#   - cloud: the cloud provider
 run_alternate_tests() {
     local disk_name=$1
     local vm_name=$2
