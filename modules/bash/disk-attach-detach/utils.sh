@@ -179,7 +179,6 @@ fill_json_template() {
                 "result": $result,
                 "time": $time,
                 "unit": $unit,
-                "data": if $message == "{}" then $message else {error: $message} end
             },
             "disk_info": {
                 "disk_name": $disk_name,
@@ -187,7 +186,7 @@ fill_json_template() {
                 "disk_type": $disk_type
             },
             "run_id": $run_id
-        }')
+        } | if $message == "{}" then .operation_info.data=$message else .operation_info.data{error: $message} end')
 
         echo $json_template
     )
