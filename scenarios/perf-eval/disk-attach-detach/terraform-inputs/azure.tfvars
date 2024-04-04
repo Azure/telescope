@@ -14,7 +14,7 @@ network_config_list = [
   vnet_name          = "client-vnet"
   vnet_address_space = "10.1.0.0/16"
   subnet = [{
-    name           = "client-network"
+    name           = "client-subnet"
     address_prefix = "10.1.1.0/24"
   }]
   network_security_group_name = "server-nsg"
