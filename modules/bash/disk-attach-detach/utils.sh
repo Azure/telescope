@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+
 #Description
 #   Function to execute tests
 #
@@ -28,8 +28,9 @@ execute() {
     local vm_name=$(get_vm_instance_by_name $run_id)
 
     # get VM operating system and size
-    local vm_os=$(get_vm_os $vm_name $resource_group)
-    local vm_size=$(get_vm_size $vm_name $resource_group)
+    local vm_info= $(get_vm_properties $vm_name $resource_group)
+    local vm_os=$(echo vm_info | jq -n '.OperatingSystem')
+    local vm_size=$(echo vm_info | jq -n '.Size')
     local region=$(get_region $resource_group)
 
     for ((i=1; i<=iterations_number; i++)); do
