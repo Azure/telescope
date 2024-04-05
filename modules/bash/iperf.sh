@@ -186,9 +186,6 @@ collect_result_iperf2() {
 
   touch $result_dir/results.json
 
-  local protocolList=("tcp" "udp")
-  local bandwidthList=(100 1000 2000 4000)
-
   for protocol in $protocol_list_str
   do
     for bandwidth in $bandwidth_list_str
