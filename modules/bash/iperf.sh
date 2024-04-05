@@ -29,16 +29,16 @@ run_iperf3() {
   local ssh_port=$4
   local privatekey_path=$5
   local result_dir=$6
+  local protocol_list_str=$7
+  local bandwidth_list_str=$8
 
-  local protocolList=("tcp" "udp")
-  local bandwidthList=(100 1000 2000 4000)
 
   mkdir -p $result_dir
   echo "Run evaluation on $egress_ip_address with user name $user_name and ssh key $privatekey_path and result path $result_dir"
 
-  for protocol in "${protocolList[@]}"
+  for protocol in $protocol_list_str
   do
-    for bandwidth in "${bandwidthList[@]}"
+    for bandwidth in $bandwidth_list_str
     do
       local command="iperf3 --client $ingress_ip_address --time 60 --json"
 
@@ -67,13 +67,12 @@ run_iperf2() {
   local privatekey_path=$7
   local server_public_ip_address=$8
   local result_dir=$9
-  local jumpbox_public_ip_address=${10:-''}
+  local bandwidth_list_str=${10}
+  local jumpbox_public_ip_address=${11:-''}
 
   if [ -n "$jumpbox_public_ip_address" ]; then
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
   fi
-
-  local bandwidthList=(100 1000 2000 4000)
 
   echo "Wait for $wait_time seconds before running all tests"
   sleep $wait_time
@@ -92,7 +91,7 @@ run_iperf2() {
     run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
   fi
 
-  for bandwidth in "${bandwidthList[@]}"
+  for bandwidth in $bandwidth_list_str
   do
     local command="iperf --enhancedreports --client $destination_ip_address --format m --time $run_time"
 
@@ -139,15 +138,14 @@ collect_result_iperf3() {
   local ingress_ip_address=$3
   local cloud_info=$4
   local run_id=$5
+  local protocol_list_str=$6
+  local bandwidth_list_str=$7
 
   touch $result_dir/results.json
 
-  local protocolList=("tcp" "udp")
-  local bandwidthList=(100 1000 2000 4000)
-
-  for protocol in "${protocolList[@]}"
+  for protocol in $protocol_list_str
   do
-    for bandwidth in "${bandwidthList[@]}"
+    for bandwidth in $bandwidth_list_str
     do
       iperf_result="$result_dir/iperf3-${protocol}-${bandwidth}.json"
       cat $iperf_result
@@ -183,15 +181,17 @@ collect_result_iperf2() {
   local cloud_info=$4
   local run_id=$5
   local run_url=$6
+  local protocol_list_str=$7
+  local bandwidth_list_str=$8
 
   touch $result_dir/results.json
 
   local protocolList=("tcp" "udp")
   local bandwidthList=(100 1000 2000 4000)
 
-  for protocol in "${protocolList[@]}"
+  for protocol in $protocol_list_str
   do
-    for bandwidth in "${bandwidthList[@]}"
+    for bandwidth in $bandwidth_list_str
     do
       iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
       cat $iperf_result
