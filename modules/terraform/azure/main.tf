@@ -119,21 +119,21 @@ module "appgateway" {
 }
 
 module "data_disk" {
-    for_each = local.data_disk_config_map
+  for_each = local.data_disk_config_map
 
-    source                         = "./data-disk"
-    resource_group_name            = local.run_id
-    location                       = local.region
-    data_disk_name                 = each.value.disk_name
-    tags                           = local.tags
-    data_disk_storage_account_type = local.data_disk_storage_account_type
-    data_disk_size_gb              = local.data_disk_size_gb
-    data_disk_iops_read_write      = local.data_disk_iops_read_write
-    data_disk_mbps_read_write      = local.data_disk_mbps_read_write
-    data_disk_iops_read_only       = local.data_disk_iops_read_only
-    data_disk_mbps_read_only       = local.data_disk_mbps_read_only
-    data_disk_tier                 = local.data_disk_tier
-    zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : each.value.zone
+  source                         = "./data-disk"
+  resource_group_name            = local.run_id
+  location                       = local.region
+  data_disk_name                 = each.value.disk_name
+  tags                           = local.tags
+  data_disk_storage_account_type = local.data_disk_storage_account_type
+  data_disk_size_gb              = local.data_disk_size_gb
+  data_disk_iops_read_write      = local.data_disk_iops_read_write
+  data_disk_mbps_read_write      = local.data_disk_mbps_read_write
+  data_disk_iops_read_only       = local.data_disk_iops_read_only
+  data_disk_mbps_read_only       = local.data_disk_mbps_read_only
+  data_disk_tier                 = local.data_disk_tier
+  zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : each.value.zone
 
 }
 
