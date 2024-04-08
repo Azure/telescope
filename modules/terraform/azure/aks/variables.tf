@@ -22,12 +22,6 @@ variable "subnet_id" {
   default     = ""
 }
 
-variable "vm_sku" {
-  description = "Value of the VM SKU"
-  type        = string
-  default     = "Standard_D2ds_v5"
-}
-
 variable "vnet_id" {
   description = "Vnet id"
   type        = string
@@ -41,16 +35,19 @@ variable "aks_config" {
     dns_prefix     = string
     subnet_name    = string
     network_plugin = string
+    sku_tier       = string
     default_node_pool = object({
       name                         = string
       node_count                   = number
       os_disk_type                 = string
+      vm_size                      = string
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
     })
     extra_node_pool = list(object({
       name       = string
       node_count = number
+      vm_size    = string
     }))
     role_assignment_list = optional(list(string), [])
   })
