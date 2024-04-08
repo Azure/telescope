@@ -214,6 +214,7 @@ aks_config_list = [
         node_count = 3
       }
     ]
+    role_assignment_list = ["Network Contributor"]
   }
 ]
 

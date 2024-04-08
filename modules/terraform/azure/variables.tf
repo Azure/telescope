@@ -160,6 +160,7 @@ variable "aks_config_list" {
       name       = string
       node_count = number
     }))
+    role_assignment_list = optional(list(string), [])
   }))
   default = []
 }

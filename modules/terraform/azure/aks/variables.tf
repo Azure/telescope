@@ -52,5 +52,6 @@ variable "aks_config" {
       name       = string
       node_count = number
     }))
+    role_assignment_list = optional(list(string), [])
   })
 }
