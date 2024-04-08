@@ -69,11 +69,13 @@ run_iperf2() {
   local result_dir=$9
   local bandwidth_list_str=${10}
   local jumpbox_public_ip_address=${11:-''}
+  local iperf_properties=${12}
 
   if [ -n "$jumpbox_public_ip_address" ]; then
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
   fi
-
+  
+  iperf_properties="--client $destination_ip_address --time 30 --udp --bandwith 1000M --parallel 1"
   echo "Wait for $wait_time seconds before running all tests"
   sleep $wait_time
 
