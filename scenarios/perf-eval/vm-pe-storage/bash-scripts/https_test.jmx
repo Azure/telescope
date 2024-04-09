@@ -27,28 +27,10 @@
       <hashTree>
         <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
           <collectionProp name="Arguments.arguments">
-            <elementProp name="ramp_time" elementType="Argument">
-              <stringProp name="Argument.name">ramp_time</stringProp>
-              <stringProp name="Argument.value">5</stringProp>
-              <stringProp name="Argument.desc">Amount of time for all threads to be started</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
             <elementProp name="request_delay" elementType="Argument">
               <stringProp name="Argument.name">request_delay</stringProp>
               <stringProp name="Argument.value">200</stringProp>
               <stringProp name="Argument.desc">Amount of delay between requests</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="protocol" elementType="Argument">
-              <stringProp name="Argument.name">protocol</stringProp>
-              <stringProp name="Argument.value">https</stringProp>
-              <stringProp name="Argument.desc">Protocol</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="port" elementType="Argument">
-              <stringProp name="Argument.name">port</stringProp>
-              <stringProp name="Argument.value">443</stringProp>
-              <stringProp name="Argument.desc">Port number</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="thread_num" elementType="Argument">
@@ -67,6 +49,24 @@
               <stringProp name="Argument.name">result_file_name</stringProp>
               <stringProp name="Argument.value">summary</stringProp>
               <stringProp name="Argument.desc">Name of result file</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="ramp_time" elementType="Argument">
+              <stringProp name="Argument.name">ip_address</stringProp>
+              <stringProp name="Argument.value">xx.xxx.xx.xx</stringProp>
+              <stringProp name="Argument.desc">Request source ip address</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="protocol" elementType="Argument">
+              <stringProp name="Argument.name">protocol</stringProp>
+              <stringProp name="Argument.value">https</stringProp>
+              <stringProp name="Argument.desc">Protocol</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="port" elementType="Argument">
+              <stringProp name="Argument.name">port</stringProp>
+              <stringProp name="Argument.value">443</stringProp>
+              <stringProp name="Argument.desc">Port number</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="http_method" elementType="Argument">
@@ -119,6 +119,7 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
+          <stringProp name="HTTPSampler.ipSource">${__P(ip_address, xx.xxx.xx.xx)}</stringProp>
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
