@@ -51,12 +51,6 @@
               <stringProp name="Argument.desc">Name of result file</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="ramp_time" elementType="Argument">
-              <stringProp name="Argument.name">ip_address</stringProp>
-              <stringProp name="Argument.value">xx.xxx.xx.xx</stringProp>
-              <stringProp name="Argument.desc">Request source ip address</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
             <elementProp name="protocol" elementType="Argument">
               <stringProp name="Argument.name">protocol</stringProp>
               <stringProp name="Argument.value">https</stringProp>
@@ -254,7 +248,6 @@ public static String urlEncodeUTF8(Map&lt;?,?&gt; map) {
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.ipSource">${__P(ip_address, xx.xxx.xx.xx)}</stringProp>
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
