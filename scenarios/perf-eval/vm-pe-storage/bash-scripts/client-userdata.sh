@@ -27,8 +27,6 @@ curl -O "https://repo1.maven.org/maven2/kg/apc/jmeter-plugins-manager/${jpm_vers
 cd /opt/jmeter/lib
 plugin_version="2.2"
 java -jar cmdrunner-${cmdrunner_version}.jar --tool org.jmeterplugins.repository.PluginManagerCMD install jpgc-synthesis,jpgc-cmd=${plugin_version}
-cd /opt/jmeter/lib
-
 
 # generate certs
 sudo mkdir -p /etc/ssl/certs/jmeter
