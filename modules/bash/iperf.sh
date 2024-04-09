@@ -75,13 +75,13 @@ run_iperf2() {
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
   fi
   
-  iperf_properties="--client $destination_ip_address --time 30 --udp --bandwith 1000M --parallel 1"
+  iperf_properties="--client $destination_ip_address --time 30 --bandwith 1000M --parallel 1"
   echo "Wait for $wait_time seconds before running all tests"
   sleep $wait_time
 
   echo "Perform a draft run to warm up the vm"
   if [ "$protocol" = "udp" ]; then
-    command="iperf --enhancedreports $iperf_properties --format m  --udp --port 20002"
+    command="iperf --enhancedreports $iperf_properties --format m  --port 20002"
   else
     command="iperf --enhancedreports $iperf_properties --format m  --port 20001"
   fi
