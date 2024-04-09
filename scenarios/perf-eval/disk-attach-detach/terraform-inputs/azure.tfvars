@@ -2,11 +2,11 @@ scenario_type  = "perf-eval"
 scenario_name  = "disk-attach-dettach"
 deletion_delay = "2h"
 
-  public_ips = {
+  public_ips = [
         {
             name = "disk-attach-detach-pip"
         }
-  }
+  ]
 
 network_config_list = [
   {
