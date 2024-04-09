@@ -118,14 +118,7 @@ fill_json_template() {
         --arg disk_type "$(echo $disk_info | jq -r '.[0].StorageType')" \
         --arg run_id "$run_id" \
         '{
-            "cloud_info": $cloud_info,
             "operation_info": $operation_info,
-            "disk_info": {
-                "disk_name": $disk_name,
-                "disk_size": $disk_size,
-                "disk_type": $disk_type
-            },
-            "run_id": $run_id
         }')
 
         echo "$json_template"
