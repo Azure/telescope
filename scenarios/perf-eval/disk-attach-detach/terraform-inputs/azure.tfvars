@@ -43,7 +43,6 @@ vm_config_list = [{
   role           = "vm-attach-dettach"
   vm_name        = "vm-1"
   nic_name = "vm-attach-dettach-nic"
-  subnet_name    = "disk-attach-detach-subnet"
   admin_username = "ubuntu"
   source_image_reference = {
     publisher = "Canonical"
