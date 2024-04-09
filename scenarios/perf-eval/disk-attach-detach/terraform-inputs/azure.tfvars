@@ -2,10 +2,9 @@ scenario_type  = "perf-eval"
 scenario_name  = "disk-attach-dettach"
 deletion_delay = "2h"
 
-  public_ips = [
-        {
-            name = "disk-attach-detach-pip"
-        }
+  public_ip_config_list = [{
+        name = "disk-attach-detach-pip"
+  }
   ]
 
 network_config_list = [
@@ -20,7 +19,7 @@ network_config_list = [
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
     {
-        nic_name              = "disk-attac-detach-nic"
+        nic_name              = "disk-attach-detach-nic"
         subnet_name           = "disk-attach-detach-subnet"
         ip_configuration_name = "disk-attach-detach-config"
         public_ip_name        = "disk-attach-detach-pip"
@@ -31,18 +30,18 @@ network_config_list = [
 ]
 
 data_disk_config_list = [{
-  disk_name = "disk-attach-dettach-storage-disk1"
+  disk_name = "disk-attach-detach-storage-disk1"
   zone      = 1
   },
   {
-    disk_name = "disk-attach-dettach-storage-disk2"
+    disk_name = "disk-attach-detach-storage-disk2"
     zone      = 1
 }]
 
 vm_config_list = [{
   role           = "vm-attach-dettach"
   vm_name        = "vm-1"
-  nic_name = "vm-attach-dettach-nic"
+  nic_name = "disk-attach-detach-nic"
   admin_username = "ubuntu"
   source_image_reference = {
     publisher = "Canonical"
