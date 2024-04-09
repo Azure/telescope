@@ -69,8 +69,6 @@ run_iperf2() {
 	local bandwidth=$9
   local jumpbox_public_ip_address=${10:-''}
 
-	echo "Run evaluation on $client_public_ip_address with destination ip $destination_ip_address and protocol $protocol and result path $result_dir"
-
   if [ -n "$jumpbox_public_ip_address" ]; then
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
   fi
