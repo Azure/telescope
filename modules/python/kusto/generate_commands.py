@@ -67,7 +67,7 @@ def main():
     table_name = sys.argv[1]
     schema_path = sys.argv[2]
     with open(schema_path, 'r') as schema_file:             
-        json_data = schema_file.readline()       
+        json_data = schema_file.read()
     json_object = json.loads(json_data)
     kusto_commands = base64.b64encode(generate_kusto_commands(json_object, table_name).encode("utf-8"))
     print(kusto_commands.decode("utf-8"))
