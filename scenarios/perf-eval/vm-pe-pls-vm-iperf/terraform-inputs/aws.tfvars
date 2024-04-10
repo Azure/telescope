@@ -99,6 +99,12 @@ network_config_list = [
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
+        {
+          from_port  = 20002
+          to_port    = 20002
+          protocol   = "udp"
+          cidr_block = "0.0.0.0/0"
+        }        
       ]
       egress = [
         {
@@ -138,6 +144,30 @@ loadbalancer_config_list = [{
     lb_target_group_attachment = {
       vm_name = "server-vm"
       port    = 20001
+    }
+    },
+    {
+    role       = "nlb-tg"
+    tg_suffix  = "tcp"
+    port       = 20002
+    protocol   = "UDP"
+    rule_count = 1
+    vpc_name   = "server-vpc"
+    health_check = {
+      port                = "20000"
+      protocol            = "TCP"
+      interval            = 10
+      timeout             = 10
+      healthy_threshold   = 2
+      unhealthy_threshold = 2
+    }
+    lb_listener = {
+      port     = 20002
+      protocol = "UDP"
+    }
+    lb_target_group_attachment = {
+      vm_name = "server-vm"
+      port    = 20002
     }
     }
   ]
