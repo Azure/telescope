@@ -99,6 +99,12 @@
               <stringProp name="Argument.desc">Region for aws resource to perform call on</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
+            <elementProp name="ip_address" elementType="Argument">
+              <stringProp name="Argument.name">ip_address</stringProp>
+              <stringProp name="Argument.value">52.219.96.0</stringProp>
+              <stringProp name="Argument.desc">Value for request source ip address</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
           </collectionProp>
         </Arguments>
         <hashTree/>
@@ -113,6 +119,7 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
+          <stringProp name="HTTPSampler.ipSource">${ip_address}</stringProp>
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
