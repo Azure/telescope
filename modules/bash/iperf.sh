@@ -65,8 +65,8 @@ run_iperf2() {
   local privatekey_path=$5
   local server_public_ip_address=$6
   local result_dir=$7
-	local iperf_properties=$8
-	local bandwidth=$9
+  local iperf_properties=$8
+  local bandwidth=$9
   local jumpbox_public_ip_address=${10:-''}
 
   if [ -n "$jumpbox_public_ip_address" ]; then
@@ -77,11 +77,13 @@ run_iperf2() {
   sleep $wait_time
 
   echo "Perform a draft run to warm up the vm"
+  local command="iperf --enhancedreports --client $destination_ip_address --format m --time 30"
   if [ "$protocol" = "udp" ]; then
-    command="iperf --enhancedreports $iperf_properties --format m  --port 20002"
+    command="$command --udp --port 20002"
   else
-    command="iperf --enhancedreports $iperf_properties --format m  --port 20001"
+   command="$command --port 20001"
   fi
+
   if [ -z "$jumpbox_public_ip_address" ]; then
     echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
     run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command"
@@ -90,7 +92,7 @@ run_iperf2() {
     run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
   fi
 
-	local command="iperf --enhancedreports $iperf_properties --format m"
+	command="iperf --enhancedreports $iperf_properties --format m"
 
 	if [ "$protocol" = "udp" ]; then
 		port=20002
