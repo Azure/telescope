@@ -19,7 +19,7 @@ network_config_list = [
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
     {
-        nic_name              = "disk-attach-detach-nic"
+        nic_name              = "compete-disk-attach-detach-nic"
         subnet_name           = "disk-attach-detach-subnet"
         ip_configuration_name = "disk-attach-detach-config"
         public_ip_name        = "disk-attach-detach-pip"
@@ -41,7 +41,7 @@ data_disk_config_list = [{
 vm_config_list = [{
   role           = "vm-attach-dettach"
   vm_name        = "vm-1"
-  nic_name = "disk-attach-detach-nic"
+  nic_name = "compete-disk-attach-detach-nic"
   admin_username = "ubuntu"
   source_image_reference = {
     publisher = "Canonical"
