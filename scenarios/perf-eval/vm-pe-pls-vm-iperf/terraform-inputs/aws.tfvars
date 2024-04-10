@@ -148,7 +148,7 @@ loadbalancer_config_list = [{
     },
     {
     role       = "nlb-tg"
-    tg_suffix  = "tcp"
+    tg_suffix  = "udp"
     port       = 20002
     protocol   = "UDP"
     rule_count = 1
