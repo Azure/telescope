@@ -297,7 +297,7 @@ public static String urlEncodeUTF8(Map&lt;?,?&gt; map) {
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-amz-expected-bucket-owner: </stringProp>
-                <stringProp name="Header.value">${aws_account_id}</stringProp>
+                <stringProp name="Header.value">${__P(aws_account_id, account)}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
