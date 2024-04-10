@@ -138,6 +138,7 @@ def secret_key = vars.get(&quot;aws_secret_key&quot;)
 def service = vars.get(&quot;aws_service_name&quot;)
 def host = vars.get(&quot;aws_host&quot;)
 def region = vars.get(&quot;aws_region&quot;)
+def bucket_owner = vars.get(&quot;aws_account_id&quot;)
 
 //Obtain data form the Http Request Sampler
 def method = sampler.getMethod()
@@ -150,21 +151,11 @@ sampler.getArguments().each {arg -&gt;
     request_parameters = arg.getStringValue().substring(1)
 }
 
-//Create the variable x-amz-date 
-def now = new Date()
-def amzFormat = new SimpleDateFormat( &quot;yyyyMMdd&apos;T&apos;HHmmss&apos;Z&apos;&quot; )
-def stampFormat = new SimpleDateFormat( &quot;yyyyMMdd&quot; )
-amzFormat.setTimeZone(TimeZone.getTimeZone(&quot;UTC&quot;));  //server timezone
-def amzDate = amzFormat.format(now)
-def dateStamp = stampFormat.format(now)
-vars.put(&quot;x_amz_date&quot;, amzDate)
-
-
 //Create a Canonical Request
 def canonical_uri = req_path
 def canonical_querystring = req_query_string
-def canonical_headers = &quot;host:&quot; + host + &quot;\n&quot; + &quot;x-amz-date:&quot; + amzDate + &quot;\n&quot;
-def signed_headers = &quot;host;x-amz-date&quot;
+def canonical_headers = &quot;host:&quot; + host + &quot;\n&quot; + &quot;x-amz-expected-bucket-owner:&quot; + bucket_owner + &quot;\n&quot;
+def signed_headers = &quot;host;x-amz-expected-bucket-owner&quot;
 def payload_hash = getHexDigest(request_parameters)
 def canonical_request = method + &quot;\n&quot; + canonical_uri + &quot;\n&quot; + canonical_querystring + &quot;\n&quot; + canonical_headers + &quot;\n&quot; + signed_headers + &quot;\n&quot; + payload_hash
 
@@ -173,7 +164,7 @@ def canonical_request = method + &quot;\n&quot; + canonical_uri + &quot;\n&quot;
 def algorithm = &quot;AWS4-HMAC-SHA256&quot;
 def credential_scope = dateStamp + &quot;/&quot; + region + &quot;/&quot; + service + &quot;/&quot; + &quot;aws4_request&quot;
 def hash_canonical_request = getHexDigest(canonical_request)
-def string_to_sign = algorithm + &quot;\n&quot; +  amzDate + &quot;\n&quot; +  credential_scope + &quot;\n&quot; +  hash_canonical_request
+def string_to_sign = algorithm + &quot;\n&quot; +  bucket_owner + &quot;\n&quot; +  credential_scope + &quot;\n&quot; +  hash_canonical_request
 
 //Calculate the String to Sign
 def signing_key = getSignatureKey(secret_key, dateStamp, region, service)
@@ -287,10 +278,6 @@ public static String urlEncodeUTF8(Map&lt;?,?&gt; map) {
           <hashTree/>
           <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
             <collectionProp name="HeaderManager.headers">
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">x_amz_date</stringProp>
-                <stringProp name="Header.value">${x_amz_date}</stringProp>
-              </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
                 <stringProp name="Header.value">${aws_authorization}</stringProp>
