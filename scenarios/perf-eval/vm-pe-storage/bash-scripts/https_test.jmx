@@ -99,6 +99,12 @@
               <stringProp name="Argument.desc">Region for aws resource to perform call on</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
+            <elementProp name="aws_region" elementType="Argument">
+              <stringProp name="Argument.name">aws_account_id</stringProp>
+              <stringProp name="Argument.value">account</stringProp>
+              <stringProp name="Argument.desc">Value for expected bucket owner auth header</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
             <elementProp name="ip_address" elementType="Argument">
               <stringProp name="Argument.name">ip_address</stringProp>
               <stringProp name="Argument.value">52.219.96.0</stringProp>
@@ -288,6 +294,10 @@ public static String urlEncodeUTF8(Map&lt;?,?&gt; map) {
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
                 <stringProp name="Header.value">${aws_authorization}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">x-amz-expected-bucket-owner: </stringProp>
+                <stringProp name="Header.value">${aws_account_id}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
