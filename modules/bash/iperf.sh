@@ -101,9 +101,6 @@ run_iperf2() {
   if [ -n "$jumpbox_public_ip_address" ]; then
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
   fi
-  
-  echo "Wait for $wait_time seconds before running all tests"
-  sleep $wait_time
 
   local command="iperf --enhancedreports $iperf_properties --format m"
 
