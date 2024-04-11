@@ -123,11 +123,21 @@ aws_create_vpc_peering(){
     --query "VpcPeeringConnection.VpcPeeringConnectionId" --output text)
 
   # Wait until the peering connection is available
-  aws ec2 wait vpc-peering-connection-exists --vpc-peering-connection-ids $peering_id 
+  aws ec2 wait vpc-peering-connection-exists --region $client_vpc_region --vpc-peering-connection-ids $peering_id 
 
   # Step 3 Accept the Peering after it's been created. 
   echo "Accepting Peering ID $peering_id"
-  aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $peering_id --region $server_vpc_region
+  accept_peering_retry=5
+  accept_peering_interval=10
+  for ((i=1; i<=$accept_peering_retry; i++)); do
+    if aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $peering_id --region $server_vpc_region; then
+      echo "Peering connection accepted successfully."
+      break
+    else
+      echo "Failed to accept peering connection. Retrying in $accept_peering_interval seconds..."
+      sleep $accept_peering_interval
+    fi
+  done
 
   # Step 4 Modify internet-rt Route Tables for both VPCs to go to the peering connection   
   client_route_table=$(aws ec2 describe-route-tables --region $client_vpc_region --query "RouteTables[?VpcId=='$client_vpc_id' && Tags[?Key=='Name' && Value=='internet-rt']].RouteTableId" --output text)

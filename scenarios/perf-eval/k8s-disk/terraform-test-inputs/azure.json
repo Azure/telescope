@@ -3,7 +3,6 @@
     "run_id"                           : "123456789",
     "region"                           : "eastus",
     "machine_type"                     : "Standard_D16s_v3",
-    "aks_machine_type"                 : "Standard_D16s_v4",
     "accelerated_networking"           : true,
     "data_disk_storage_account_type"   : "Premium_LRS",
     "data_disk_size_gb"                : 1024,
