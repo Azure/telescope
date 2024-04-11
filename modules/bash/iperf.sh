@@ -51,17 +51,15 @@ run_iperf3() {
   run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
 }
 
-run_iperf2() {
-  local destination_ip_address=$1
+run_iperf2_draft_run(){
+local destination_ip_address=$1
   local client_public_ip_address=$2
   local protocol=$3
   local wait_time=$4
   local privatekey_path=$5
   local server_public_ip_address=$6
   local result_dir=$7
-  local iperf_properties=$8
-  local bandwidth=$9
-  local jumpbox_public_ip_address=${10:-''}
+  local jumpbox_public_ip_address=${8:-''}
 
   if [ -n "$jumpbox_public_ip_address" ]; then
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
@@ -85,8 +83,29 @@ run_iperf2() {
     echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
     run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
   fi
+  echo "Completed draft run"
+}
 
-  command="iperf --enhancedreports $iperf_properties --format m"
+run_iperf2() {
+  local destination_ip_address=$1
+  local client_public_ip_address=$2
+  local protocol=$3
+  local wait_time=$4
+  local privatekey_path=$5
+  local server_public_ip_address=$6
+  local result_dir=$7
+  local iperf_properties=$8
+  local bandwidth=$9
+  local jumpbox_public_ip_address=${10:-''}
+
+  if [ -n "$jumpbox_public_ip_address" ]; then
+    echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
+  fi
+  
+  echo "Wait for $wait_time seconds before running all tests"
+  sleep $wait_time
+
+  local command="iperf --enhancedreports $iperf_properties --format m"
 
   if [ "$protocol" = "udp" ]; then
     port=20002
