@@ -89,7 +89,7 @@
             </elementProp>
             <elementProp name="aws_service_name" elementType="Argument">
               <stringProp name="Argument.name">aws_service_name</stringProp>
-              <stringProp name="Argument.value">execute-api</stringProp>
+              <stringProp name="Argument.value">s3</stringProp>
               <stringProp name="Argument.desc">Value for aw spi service name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
