@@ -52,7 +52,7 @@ run_iperf3() {
 }
 
 run_iperf2_draft_run(){
-local destination_ip_address=$1
+  local destination_ip_address=$1
   local client_public_ip_address=$2
   local protocol=$3
   local wait_time=$4
