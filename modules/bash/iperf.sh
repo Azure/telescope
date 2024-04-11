@@ -86,28 +86,28 @@ run_iperf2() {
     run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
   fi
 
-	command="iperf --enhancedreports $iperf_properties --format m"
+  command="iperf --enhancedreports $iperf_properties --format m"
 
-	if [ "$protocol" = "udp" ]; then
-		port=20002
-	else
-		port=20001
-	fi
-	command="$command --port $port"
+  if [ "$protocol" = "udp" ]; then
+    port=20002
+  else
+    port=20001
+  fi
+  command="$command --port $port"
 
-	echo "Wait for 1 minutes before running"
-	sleep 60
+  echo "Wait for 1 minutes before running"
+  sleep 60
 
-	if [ -z "$jumpbox_public_ip_address" ]; then
-		echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-		run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
-	else
-		echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
-		run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
-	fi
-	# for debug
-	echo ======== iperf2-${protocol}-${bandwidth}.log ========
-	cat $result_dir/iperf2-${protocol}-${bandwidth}.log
+  if [ -z "$jumpbox_public_ip_address" ]; then
+    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
+    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+  else
+    echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
+    run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+  fi
+  # for debug
+  echo ======== iperf2-${protocol}-${bandwidth}.log ========
+  cat $result_dir/iperf2-${protocol}-${bandwidth}.log
 }
 
 collect_result_iperf3() {
@@ -159,24 +159,24 @@ collect_result_iperf2() {
   touch $result_dir/results.json
 
 	iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
-	cat $iperf_result
-	iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
+  cat $iperf_result
+  iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
 
-	os_info="{}"
+  os_info="{}"
 
-	data=$(jq --null-input \
-		--arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-		--arg metric "$protocol" \
-		--arg target_bw "$bandwidth" \
-		--arg unit "Mbits/sec" \
-		--arg iperf_info "$iperf_info" \
-		--arg os_info "$os_info" \
-		--arg cloud_info "$cloud_info" \
-		--arg egress_ip "$egress_ip_address" \
-		--arg ingress_ip "$ingress_ip_address" \
-		--arg run_id "$run_id" \
-		--arg run_url "$run_url" \
-		'{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
+  data=$(jq --null-input \
+    --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+    --arg metric "$protocol" \
+    --arg target_bw "$bandwidth" \
+    --arg unit "Mbits/sec" \
+    --arg iperf_info "$iperf_info" \
+    --arg os_info "$os_info" \
+    --arg cloud_info "$cloud_info" \
+    --arg egress_ip "$egress_ip_address" \
+    --arg ingress_ip "$ingress_ip_address" \
+    --arg run_id "$run_id" \
+    --arg run_url "$run_url" \
+    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, os_info: $os_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
 
-	echo $data >> $result_dir/results.json
+  echo $data >> $result_dir/results.json
 }
