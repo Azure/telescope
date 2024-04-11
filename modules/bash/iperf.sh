@@ -29,32 +29,26 @@ run_iperf3() {
   local ssh_port=$4
   local privatekey_path=$5
   local result_dir=$6
-  local protocol_list_str=$7
-  local bandwidth_list_str=$8
+  local protocol=$7
+  local bandwidth=$8
+  local iperf_properties=$9
 
 
   mkdir -p $result_dir
   echo "Run evaluation on $egress_ip_address with user name $user_name and ssh key $privatekey_path and result path $result_dir"
 
-  for protocol in $protocol_list_str
-  do
-    for bandwidth in $bandwidth_list_str
-    do
-      local command="iperf3 --client $ingress_ip_address --time 60 --json"
+  local command="iperf3 $iperf_properties --json"
 
-      port=20001
-      if [ "$protocol" = "udp" ]; then
-        command="$command --udp"
-        port=20002
-      fi
+  port=20001
+  if [ "$protocol" = "udp" ]; then
+    port=20002
+  fi
 
-      echo "Wait for 1 minutes before running"
-      sleep 60
-      local fullCommand="$command --bandwidth ${bandwidth}M --port $port"
-      echo "Run iperf3 command: $fullCommand"
-      run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
-    done
-  done
+  echo "Wait for 1 minutes before running"
+  sleep 60
+  local fullCommand="$command --port $port"
+  echo "Run iperf3 command: $fullCommand"
+  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
 }
 
 run_iperf2() {
@@ -122,40 +116,34 @@ collect_result_iperf3() {
   local ingress_ip_address=$3
   local cloud_info=$4
   local run_id=$5
-  local protocol_list_str=$6
-  local bandwidth_list_str=$7
+  local protocol=$6
+  local bandwidth=$7
 
   touch $result_dir/results.json
 
-  for protocol in $protocol_list_str
-  do
-    for bandwidth in $bandwidth_list_str
-    do
-      iperf_result="$result_dir/iperf3-${protocol}-${bandwidth}.json"
-      cat $iperf_result
-      iperf_info=$(python3 ./modules/python/iperf3/parser.py $protocol $iperf_result)
+  iperf_result="$result_dir/iperf3-${protocol}-${bandwidth}.json"
+  cat $iperf_result
+  iperf_info=$(python3 ./modules/python/iperf3/parser.py $protocol $iperf_result)
 
-      if echo "$iperf_info" | jq '.timestamp' > /dev/null; then
-        timestamp=$(echo "$iperf_info" | jq -r '.timestamp')
-      else
-				timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-      fi
+  if echo "$iperf_info" | jq '.timestamp' > /dev/null; then
+    timestamp=$(echo "$iperf_info" | jq -r '.timestamp')
+  else
+    timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  fi
 
-      data=$(jq --null-input \
-        --arg timestamp "$timestamp" \
-        --arg metric "$protocol" \
-        --arg target_bw "$bandwidth" \
-        --arg unit "Mbits/sec" \
-        --arg iperf_info "$iperf_info" \
-        --arg cloud_info "$cloud_info" \
-        --arg egress_ip "$egress_ip_address" \
-        --arg ingress_ip "$ingress_ip_address" \
-        --arg run_id "$run_id" \
-        '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
+  data=$(jq --null-input \
+    --arg timestamp "$timestamp" \
+    --arg metric "$protocol" \
+    --arg target_bw "$bandwidth" \
+    --arg unit "Mbits/sec" \
+    --arg iperf_info "$iperf_info" \
+    --arg cloud_info "$cloud_info" \
+    --arg egress_ip "$egress_ip_address" \
+    --arg ingress_ip "$ingress_ip_address" \
+    --arg run_id "$run_id" \
+    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
 
-      echo $data >> $result_dir/results.json
-    done
-  done
+  echo $data >> $result_dir/results.json
 }
 
 collect_result_iperf2() {
