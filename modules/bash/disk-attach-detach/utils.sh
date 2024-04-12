@@ -28,14 +28,8 @@ execute() {
     local vm_name=$(get_vm_instance_by_name $run_id)
     local region=$(get_region $resource_group)
 
-    # get VM info
-    local vm_info=$(get_vm_properties $vm_name $resource_group)
-
-    # create cloud info
-    local cloud_info=$(echo "{ \"cloud\": \"$cloud\", \"region\": \"$region\", \"vm_info\": $vm_info }")
-
     for ((i=1; i<=iterations_number; i++)); do
-        run_tests $run_id $vm_name $i $cloud "$cloud_info"
+        run_tests $run_id $vm_name $i $cloud
     done
 }
 
@@ -59,7 +53,6 @@ run_tests() {
     local vm_name=$2
     local run_index=$3
     local cloud=$4
-    local cloud_info=$5
 
     local disk_names=($(get_disk_instances_by_name $resource_group))
 
@@ -67,7 +60,7 @@ run_tests() {
         disk_name="${disk_names[$index]}"
         operation_info="$(attach_or_detach_disk attach $vm_name $disk_name $resource_group)"
         wait
-        output=$(fill_json_template $resource_group $disk_name "$cloud_info" "$operation_info")
+        output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_attach_$run_index.json"
         echo $output > $filename
     done
@@ -77,7 +70,7 @@ run_tests() {
         if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
             operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
             wait
-            output=$(fill_json_template $resource_group $disk_name "$cloud_info" "$operation_info")
+            output=$(fill_json_template "$operation_info")
             filename="$result_dir/${disk_name}_detach_$run_index.json"
             echo $output > $filename
         fi
@@ -99,24 +92,14 @@ run_tests() {
 # Returns: json with data
 # Usage: fill_json_template <operation> <result> <time> <disk_name> <resource_group> <message> <cloud>
 fill_json_template() {
-    local resource_group=$1
-    local disk_name=$2
-    local cloud_info="$3"
-    local operation_info="$4"
-
-    local disk_info=$(get_disk_storage_type_and_size $disk_name)
+    local operation_info="$1"
 
     (
         set -Ee
         trap _catch ERR
 
         local json_template=$(jq -n -c \
-        --argjson cloud_info "$cloud_info" \
         --argjson operation_info "$operation_info" \
-        --arg disk_name "$disk_name" \
-        --arg disk_size "$(echo $disk_info | jq -r '.[0].Size')" \
-        --arg disk_type "$(echo $disk_info | jq -r '.[0].StorageType')" \
-        --arg run_id "$run_id" \
         '{
             "operation_info": $operation_info,
         }')
