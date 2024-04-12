@@ -126,6 +126,24 @@ get_disk_storage_type_and_size() {
     echo $(az disk list --query "[?name=='$disk_name'].{StorageType:sku.name, Size:diskSizeGB}" --output json)
 }
 
+# Function: get_disk_attached_state
+#
+# Description:
+#   This function checks the attached state of a disk in Azure.
+#
+# Parameters:
+#   - disk_name: The name of the disk to check.
+#   - resource_group: The resource group where the disk is located.
+#
+# Returns:
+#   - true if the disk is attached, false otherwise.
+#
+get_disk_attached_state() {
+    local disk_name=$1
+    local resource_group=$2
+    [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]
+}
+
 # Description:
 #   This function gets the name, operating system and size of a VM.
 #

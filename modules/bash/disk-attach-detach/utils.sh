@@ -74,7 +74,7 @@ run_tests() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
+        if [ $(get_disk_attached_state $disk_name $resource_group) ]; then
             operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
             wait
             output=$(fill_json_template $resource_group $disk_name "$cloud_info" "$operation_info")
