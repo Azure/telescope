@@ -77,8 +77,9 @@ attach_or_detach_disk() {
         echo $(jq -n \
         --arg succeeded "$succeeded" \
         --arg execution_time "$execution_time" \
+        --arg operation "$operation" \
         --argjson data "$data" \
-        '{"succeeded": $succeeded, "execution_time": $execution_time, "unit": "seconds", "data": $data}')
+        '{"operation": $operation ,"succeeded": $succeeded, "execution_time": $execution_time, "unit": "seconds", "data": $data}')
     )
 }
 
