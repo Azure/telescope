@@ -46,41 +46,10 @@ attach_or_detach_disk() {
     local resource_group=$4
 
     start_time=$(date +%s)
-    if [ "$operation" == "attach" ]; then
-        local output_message="$(az vm disk attach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)"
-    elif [ "$operation" == "detach" ]; then
-        local output_message="$(az vm disk detach -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)"
-    else
-        echo "Invalid operation. Please specify either 'attach' or 'detach'."
-        exit 1
-    fi
+    local output_message="$(az vm disk $operation -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)"
     end_time=$(date +%s)
-
-    (
-        set -Ee
-
-        _catch() {
-            echo '{"succeeded": "false", "execution_time": "null", "unit": "seconds", "data": {"error": "Unknown error"}}'
-        }
-        trap _catch ERR
-
-        if [[ "$output_message" == "ERROR: "* ]]; then
-            local succeeded="false"
-            local execution_time=-1
-            local data=$(jq -n -r -c --arg error "$output_message" '{"error": $error}')
-        else
-            local succeeded="true"
-            local execution_time=$(($end_time - $start_time))
-            local data=\"{}\"
-        fi
-
-        echo $(jq -n \
-        --arg succeeded "$succeeded" \
-        --arg execution_time "$execution_time" \
-        --arg operation "$operation" \
-        --argjson data "$data" \
-        '{"name": $operation ,"succeeded": $succeeded, "time": $execution_time, "unit": "seconds", "data": $data}')
-    )
+    
+    echo "$(build_output $operation "$output_message" $(($end_time - $start_time)))"
 }
 
 # Description:
@@ -156,4 +125,44 @@ get_region() {
     local resource_group=$1
         
     echo $(az group show --name $resource_group --query "location" --output tsv)
+}
+
+# Description:
+#   This function builds the output JSON object for the disk attach/detach operation.
+#
+# Parameters:
+#  - $1: operation: the operation to perform (attach or detach)
+#  - $2: output_message: the output message of the operation
+#  - $3: start_time: the start time of the operation
+#  - $4: end_time: the end time of the operation
+#
+# Returns: The output JSON object
+# Usage: build_output <operation> <output_message> <start_time> <end_time>
+build_output() {
+    local operation=$1
+    local output_message=$2
+    local execution_time=$3
+
+    set -Ee
+
+    _catch() {
+        echo '{"succeeded": "false", "execution_time": "null", "unit": "seconds", "data": {"error": "Unknown error"}}'
+    }
+    trap _catch ERR
+
+    if [[ "$output_message" == "ERROR: "* ]]; then
+        local succeeded="false"
+        local execution_time=-1
+        local data=$(jq -n -r -c --arg error "$output_message" '{"error": $error}')
+    else
+        local succeeded="true"
+        local data=\"{}\"
+    fi
+
+    echo $(jq -n \
+    --arg succeeded "$succeeded" \
+    --arg execution_time "$execution_time" \
+    --arg operation "$operation" \
+    --argjson data "$data" \
+    '{"name": $operation ,"succeeded": $succeeded, "time": $execution_time, "unit": "seconds", "data": $data}')
 }
