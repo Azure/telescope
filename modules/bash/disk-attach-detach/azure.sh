@@ -68,7 +68,7 @@ validate_resources() {
 
     # Check if there is only one VM
     if [ $vm_count -ne 1 ]; then
-        echo "Error: There should be exactly one VM in the resource group."
+        echo "Error: There should be exactly one VM in the resource group, but ${vm_count} were found."
         exit 1
     fi
 
@@ -77,41 +77,10 @@ validate_resources() {
 
     # Check if there is at least one disk
     if [ $disk_count -lt 1 ]; then
-        echo "Error: There should be at least one disk in the resource group."
+        echo "Error: There should be at least one disk in the resource group, but ${disk_count} were found"
         exit 1
     fi
 }
-
-# Description:
-#   This function gets the storage type and size of a disk.
-#
-# Parameters:
-#  - $1: disk_name: the name of the disk instance (e.g. disk-1)
-#
-# Returns: JSON object containing the storage type and size of the disk
-# Usage: get_disk_storage_type_and_size <disk_name>
-get_disk_storage_type_and_size() {
-    local disk_name=$1
-
-    echo $(az disk list --query "[?name=='$disk_name'].{StorageType:sku.name, Size:diskSizeGB}" --output json)
-}
-
-# Description:
-#   This function gets the name, operating system and size of a VM.
-#
-# Parameters:
-#  - $1: vm_name: the name of the VM instance (e.g. vm-1)
-#  - $2: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
-# Returns: JSON object containing the name, operating system and size of the VM
-# Usage: get_vm_properties <vm_name> <resource_group>
-get_vm_properties() {
-    local vm_name=$1
-    local resource_group=$2
-
-    echo $(az vm show --name $vm_name --resource-group $resource_group --query "{VMName: name, OperatingSystem: storageProfile.osDisk.osType, Size: hardwareProfile.vmSize}" --output json)
-}
-
 
 # Description:
 #   This function gets the region of a resource group.
