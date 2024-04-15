@@ -10,7 +10,7 @@ variable "run_id" {
   default     = ""
 }
 
-variable "source" {
+variable "bucket_source_path" {
   description = "Value of bucket source file path"
   type = string
   default = ""
