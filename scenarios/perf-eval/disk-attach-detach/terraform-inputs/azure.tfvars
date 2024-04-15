@@ -29,14 +29,7 @@ network_config_list = [
 }
 ]
 
-data_disk_config_list = [{
-  disk_name = "disk-attach-detach-storage-disk1"
-  zone      = 1
-  },
-  {
-    disk_name = "disk-attach-detach-storage-disk2"
-    zone      = 1
-}]
+data_disk_config_list = []
 
 vm_config_list = [{
   role           = "vm-attach-dettach"
