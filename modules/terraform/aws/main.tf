@@ -92,6 +92,7 @@ module "load_balancer" {
 module "bucket" {
   source = "./bucket"
 
+  bucket_source_path = (local.user_data_path)/client-userdata.sh
   count              = var.bucket_name_prefix != "" ? 1 : 0
   bucket_name_prefix = var.bucket_name_prefix
   run_id             = local.run_id

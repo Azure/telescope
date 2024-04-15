@@ -152,6 +152,12 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
+variable "bucket_source_path" {
+  description = "File path of bucket source file"
+  type        = string
+  default     = ""
+}
+
 variable "eks_config_list" {
   type = list(object({
     role        = string

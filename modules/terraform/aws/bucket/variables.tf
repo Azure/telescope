@@ -10,6 +10,12 @@ variable "run_id" {
   default     = ""
 }
 
+variable "source" {
+  description = "Value of bucket source file path"
+  type = string
+  default = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
