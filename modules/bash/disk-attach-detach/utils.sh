@@ -19,17 +19,19 @@ execute() {
     local scenario_name=$3
     local result_dir=$4
     local cloud=$5
+    local region=$6
+    local iterations_number=${7:-1}  # Set the default value of iterations_number to 1 if not provided
     local resource_group=$run_id
-    local iterations_number=${6:-1}  # Set the default value of iterations_number to 1 if not provided
 
     mkdir -p $result_dir
+
 
     # get vm name and disk names
     local vm_name=$(get_vm_instance_by_name $run_id)
     local region=$(get_region $resource_group)
 
     for ((i=1; i<=iterations_number; i++)); do
-        run_tests $run_id $vm_name $i $cloud
+        run_tests $run_id $vm_name $i $cloud $region
     done
 }
 
@@ -53,11 +55,12 @@ run_tests() {
     local vm_name=$2
     local run_index=$3
     local cloud=$4
+    local region=$5
 
-    local disk_names=($(get_disk_instances_by_name $resource_group))
+    local available_disks="$(get_available_disk_instances $resource_group $region)"
 
-    for index in "${!disk_names[@]}"; do
-        disk_name="${disk_names[$index]}"
+    for index in "${!available_disks[@]}"; do
+        disk_name="${available_disks[$index]}"
         operation_info="$(attach_or_detach_disk attach $vm_name $disk_name $resource_group)"
         wait
         output=$(fill_json_template "$operation_info")
@@ -65,15 +68,13 @@ run_tests() {
         echo $output > $filename
     done
 
-    for index in "${!disk_names[@]}"; do
-        disk_name="${disk_names[$index]}"
-        if [ $(get_disk_attached_state $disk_name $resource_group) ]; then
-            operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
-            wait
-            output=$(fill_json_template "$operation_info")
-            filename="$result_dir/${disk_name}_detach_$run_index.json"
-            echo $output > $filename
-        fi
+    for index in "${!available_disks[@]}"; do
+        disk_name="${available_disks[$index]}"
+        operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
+        wait
+        output=$(fill_json_template "$operation_info")
+        filename="$result_dir/${disk_name}_detach_$run_index.json"
+        echo $output > $filename
     done
 }
 

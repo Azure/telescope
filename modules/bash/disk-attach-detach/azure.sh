@@ -15,17 +15,22 @@ get_vm_instance_by_name() {
 }
 
 # Description:
-#   This function gets the disk instances by name.
+#   This function retrieves the disk instances by name that are available in the specified region.
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $2: region: the region where the disk instances are located
 #
-# Returns: name of the disk instances
-# Usage: get_disk_instances_by_name <run_id>
-get_disk_instances_by_name() {
+# Returns: The names of the available disk instances
+# Usage: get_available_disk_instances <run_id> <region>
+get_available_disk_instances() {
     local run_id=$1
+    local region=$2
     
-    echo "$(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '${run_id}')].name" --output tsv)"
+    echo "$(az resource list \
+        --resource-type Microsoft.Compute/disks \
+        --query "[?(tags.run_id == '${run_id}' && properties.diskState == 'Unattached')].name" \
+        --output tsv)"
 }
 
 # Description:

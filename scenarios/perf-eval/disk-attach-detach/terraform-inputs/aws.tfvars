@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "storage-disk"
+scenario_name  = "disk-attach-detach"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -53,17 +53,6 @@ vm_config_list = [{
   security_group_name         = "client-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
-
-  data_disk_config = [
-    {
-      data_disk_size_gb     = 40
-      data_disk_volume_type = "gp2"
-    },
-    {
-      data_disk_size_gb     = 40
-      data_disk_volume_type = "gp2"
-    }
-  ]
 }]
 
 loadbalancer_config_list = []
