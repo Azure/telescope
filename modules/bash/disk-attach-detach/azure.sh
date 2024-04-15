@@ -79,7 +79,7 @@ attach_or_detach_disk() {
         --arg execution_time "$execution_time" \
         --arg operation "$operation" \
         --argjson data "$data" \
-        '{"operation": $operation ,"succeeded": $succeeded, "execution_time": $execution_time, "unit": "seconds", "data": $data}')
+        '{"name": $operation ,"succeeded": $succeeded, "time": $execution_time, "unit": "seconds", "data": $data}')
     )
 }
 
