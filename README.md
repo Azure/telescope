@@ -10,6 +10,7 @@ This repository is part of the [Cloud Competitve Test Framework](https://microso
 * [Azure/telescope](https://github.com/Azure/telescope): make sure you join **Azure** organization using this [link](https://repos.opensource.microsoft.com/orgs) and your personal GitHub account. Once done, ask owner to give you access to the repository.
 
 *Note*: Owners can be found in [owners.txt](owners.txt)
+
 ## Repository Hierarchy
 ```
 .github
@@ -25,43 +26,63 @@ scenarios
     └── lb-tls-error
         ├── bash-scripts
         ├── https
-        ├── terraform-inputs
-        ├── terraform-test-inputs
+        ├── terraform-inputs *
+        ├── terraform-test-inputs *
         └── Makefile
     └── perf-eval
         └── vm-iperf
             ├── bash-scripts
-            ├── terraform-inputs
-            └── terraform-test-inputs
+            ├── terraform-inputs *
+            └── terraform-test-inputs *
 .gitignore
 ```
-Here 
 
-```
-.github
-└── workflows # List of CI workflows that runs for GH PR's
-modules # Contains python/bash/Terraform modules related to files
-├── bash # Script that are used of test scenarios
-├── python # Python files that are used for different test scenarios
-└── terraform # Terraform code for creating and managing infrastructure as code for AWS & Azure
-    ├── aws
-    └── azure
-scenarios # All Scenario Types use for testing
-└── issue-repo # One of the Scenario Type
-    └── lb-tls-error # Scenario Name
-        ├── bash-scripts
-        ├── https
-        ├── terraform-inputs
-        ├── terraform-test-inputs
-        └── Makefile
-└── perf-eval # Another Scenario Type
-    └── vm-iperf # Scenario Name
-        ├── bash-scripts  # Place scripts required for this test scenario in this folder
-        ├── terraform-inputs # tfvars that are used to create infrastrcuture for this test scenario.
-        └── terraform-test-inputs  # Test inputs to verify tfvars input properly.
-.gitignore # file that are ingored from checking into GitHub.
-```
+Note:
+- Here * represents these folders are required any test scenario we create using this framework.
 
+### .github
+
+This directory contains GitHub Actions workflows, which automate various tasks like unit testing and validating code.
+
+- **workflows**: This folder Contains YAML files defining GitHub Actions workflows.
+
+### modules
+
+This directory holds reusable scripts and configurations for automation tasks.
+
+- **bash**: Contains Bash scripts for various automation tasks related to specifc to test scenario's and cloud.
+- **python**: Contains Python scripts/modules for running various test scenario's.
+- **terraform**: Contains Terraform configurations for managing cloud infrastructure related to AWS and Azure.
+
+  - **aws**: Terraform module configurations specific to Amazon Web Services (AWS).
+  - **azure**: Terraform module configurations specific to Microsoft Azure.
+
+	Note:
+		- Please refer to this [Terraform Readme](./modules/terraform/README.md) to know about the modules we currently support for telescope framework.
+
+### scenarios
+
+This directory organizes different test scenarios inputs to evaluation the performance of different cloud components and reproduce issues we see in production.
+
+- **issue-repo**: Contains test scenarios related to know issues that needs to be replicated.
+	Example:
+  - **lb-tls-error**: Name of the issue repro.
+
+    - **bash-scripts**: Bash scripts for diagnosing or replicating TLS errors.
+    - **https**: Files related to HTTPS configuration.
+    - **terraform-inputs**: Input configurations for Terraform to create cloud resources.
+    - **terraform-test-inputs**: Test input configurations for Terraform to run on github workflows.
+
+  - **perf-eval**: Resources related to performance evaluation scenarios.
+
+    - **vm-iperf**: Resources for evaluating VM network performance using iPerf.
+      - **bash-scripts**: Bash scripts for diagnosing or replicating TLS errors.
+      - **terraform-inputs**: Input configurations for Terraform to create cloud resources.
+      - **terraform-test-inputs**: Test input configurations for Terraform to run on github workflows.
+
+### .gitignore
+
+Specifies files to ignore in version control.
 
 ## Create and run Test Scenarios
 
@@ -75,53 +96,83 @@ scenarios # All Scenario Types use for testing
 #### Main workflows
 
 * Step 1: create a test branch with new test scenario(vm-diff-zone-iperf) in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
-* Step 2: 
+* Step 2: create new folder under `scenarios\perf-eval\`  with `vm-diff-zone-iperf` and create subfolders terraform-inputs and terraform-test-inputs which are required for any test scenario.
+* Step 3: Create aws.tfvars and azure.tfvars file inside terraform-inputs folder.
+* Step-4: Create azure.json and aws.json files instead terraform-test-inputs folder.
 
-**Template:**
+Please find the templates for these files below:
 
-```yaml
-trigger: none
+**Tfvars Template:**
 
-schedules:
-  - cron: <cron-syntax-schedule>
-    displayName: <schedule-name>
-    branches:
-      include:
-        - main
-    always: true
-
-variables:
-  SCENARIO_REPO: Azure/telescope # must keep as is
-  SCENARIO_TYPE: <scenario-type> 
-  SCENARIO_NAME: <scenario-name>
-  SCENARIO_VERSION: <Azure/telescope branch, tag, or SHA>
-
-pool:
-  name: <agent-pool-name>
-
-stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
-        parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus
-            - region2 # e.g. westus
-          topology: <topology> # e.g. vm-lb-vm
-          engine: <engine> # e.g. iperf2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          timeout_in_minutes: <timeout in minutes> # if not specified, default is 60
+```hcl
+scenario_type  = "perf-eval"
+scenario_name  = "vm-diff-zone-iperf"
+deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "ingress-pip"
+  }
+]
+network_config_list = [
+  {
+    role               = "network"
+    vnet_name          = "same-vnet"
+    vnet_address_space = "10.2.0.0/16"
+    subnet = [{
+      name           = "same-subnet"
+      address_prefix = "10.2.1.0/24"
+    }]
+    network_security_group_name = "same-nsg"
+    nic_public_ip_associations = [
+      {
+        nic_name              = "server-nic"
+        subnet_name           = "same-subnet"
+        ip_configuration_name = "server-ipconfig"
+        public_ip_name        = "ingress-pip"
+      }
+    ]
+    nsr_rules = [{
+      name                       = "nsr-ssh"
+      priority                   = 100
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "2222"
+      source_address_prefix      = "*"
+      destination_address_prefix = "*"
+      }
+    ]
+  }
+]
+loadbalancer_config_list = []
+vm_config_list = [{
+  role           = "client"
+  vm_name        = "client-vm"
+  nic_name       = "client-nic"
+  admin_username = "ubuntu"
+  zone           = "1"
+  source_image_reference = {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-focal"
+    sku       = "20_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = true
+  }
+]
+vmss_config_list                  = []
+nic_backend_pool_association_list = []
 ```
 
-* Step 3: trigger the pipeline [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871) to run your test. To trigger, click the `Run pipeline` button in top right corner, then choose your branch under drop down menu under `Branch/tag` and click `Run` button in the bottom right corner.
-* Step 4: once you verify the new test is working properly, create a new pipeline `yml` file under `pipelines` folder and in the corresponding subfolder depending on your test type (`perf-eval` or `issue-repro`). Move the content of the `new-pipeline-test.yml` to this new file and undo all changes made to the `new-pipeline-test.yml` file.
-* Step 5: create a new pull request to merge the new pipeline `yml` file to the main branch and ask owner to create a new pipeline for you once the PR is merged.
+* Step 5: Follow the instructions from this [readme](./scenarios/perf-eval/vm-iperf/README.md) and manually run the terraform code on your local machine before we test this on ADO pipeline.
+* Step 6: After testing it successfull on your local machine. Push the changes to remote branch.
+* Step 7: Create a new branch in the [ADO/telescope](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope) and update `SCENARIO_VERSION` with the name of the branch you created in GitHub in this [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871)
+* Step 8: trigger the pipeline [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871) to run your test. To trigger, click the `Run pipeline` button in top right corner, then choose your branch under drop down menu under `Branch/tag` and click `Run` button in the bottom right corner.
+* Step 9: once you verify the new test is working properly, create a new pipeline `yml` file under `pipelines` folder and in the corresponding subfolder depending on your test type (`perf-eval` or `issue-repro`). Move the content of the `new-pipeline-test.yml` to this new file and undo all changes made to the `new-pipeline-test.yml` file.
+* Step 10: create a new pull request to merge the github file changes to the main branch and ask owner to review the PR.
+* Step 11: Once the GitHub PR is merged. Create a GitHub tag based on the changes you added in this PR. Please refer to the Tag documentation to create the tag.
+* Step 12: Update the tag you created in the previous step and create the PR for ADO pipeline. Please refer to instructions [here](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope?path=/README.md)
 
 #### Template explanation
 
