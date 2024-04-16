@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.2">
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Web Server Test" enabled="true">
       <boolProp name="TestPlan.functional_mode">false</boolProp>
@@ -69,46 +69,16 @@
               <stringProp name="Argument.desc">Method value for http request</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="aws_access_key" elementType="Argument">
-              <stringProp name="Argument.name">aws_access_key</stringProp>
-              <stringProp name="Argument.value">key</stringProp>
-              <stringProp name="Argument.desc">Value for aws access key id</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="aws_secret_key" elementType="Argument">
-              <stringProp name="Argument.name">aws_secret_key</stringProp>
-              <stringProp name="Argument.value">value</stringProp>
-              <stringProp name="Argument.desc">Value for aws access key secret</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
             <elementProp name="aws_host" elementType="Argument">
               <stringProp name="Argument.name">aws_host</stringProp>
               <stringProp name="Argument.value">bucket.s3.amazonaws.com</stringProp>
               <stringProp name="Argument.desc">Value for aws api endpoint</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="aws_host" elementType="Argument">
+            <elementProp name="aws_path" elementType="Argument">
               <stringProp name="Argument.name">aws_path</stringProp>
               <stringProp name="Argument.value">path</stringProp>
               <stringProp name="Argument.desc">Value for aws api endpoint path trailing host value</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="aws_service_name" elementType="Argument">
-              <stringProp name="Argument.name">aws_service_name</stringProp>
-              <stringProp name="Argument.value">s3</stringProp>
-              <stringProp name="Argument.desc">Value for aw spi service name</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="aws_region" elementType="Argument">
-              <stringProp name="Argument.name">aws_region</stringProp>
-              <stringProp name="Argument.value">us-east-2</stringProp>
-              <stringProp name="Argument.desc">Region for aws resource to perform call on</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="aws_region" elementType="Argument">
-              <stringProp name="Argument.name">aws_account_id</stringProp>
-              <stringProp name="Argument.value">account</stringProp>
-              <stringProp name="Argument.desc">Value for expected bucket owner auth header</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="ip_address" elementType="Argument">
@@ -116,6 +86,30 @@
               <stringProp name="Argument.value">52.219.96.0</stringProp>
               <stringProp name="Argument.desc">Value for request source ip address</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="aws_credential" elementType="Argument">
+              <stringProp name="Argument.name">aws_credential</stringProp>
+              <stringProp name="Argument.value">AKIA47EUCCNPCDKWZV6V%2F20240416%2Fus-east-2%2Fs3%2Faws4_request</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+              <stringProp name="Argument.desc">Value from presign for x-amz-credential</stringProp>
+            </elementProp>
+            <elementProp name="aws_date" elementType="Argument">
+              <stringProp name="Argument.name">aws_date</stringProp>
+              <stringProp name="Argument.value">20240416T004000Z</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+              <stringProp name="Argument.desc">Value from presign for x-amz-date</stringProp>
+            </elementProp>
+            <elementProp name="aws_expiry" elementType="Argument">
+              <stringProp name="Argument.name">aws_expiry</stringProp>
+              <stringProp name="Argument.value">3600</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+              <stringProp name="Argument.desc">Value from presign for x-amz-expires</stringProp>
+            </elementProp>
+            <elementProp name="aws_signature" elementType="Argument">
+              <stringProp name="Argument.name">aws_signature</stringProp>
+              <stringProp name="Argument.value">9538055761a09e581cafbe48ec228ee998134c44894edb164e5816ba3f65278b</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+              <stringProp name="Argument.desc">Value from presign for x-amz-signature</stringProp>
             </elementProp>
           </collectionProp>
         </Arguments>
@@ -126,161 +120,63 @@
           <boolProp name="CookieManager.controlledByThreadGroup">false</boolProp>
         </CookieManager>
         <hashTree/>
-        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor">
-          <stringProp name="cacheKey">true</stringProp>
-          <stringProp name="filename"></stringProp>
-          <stringProp name="parameters"></stringProp>
-          <stringProp name="script">import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
-import java.security.InvalidKeyException
-import java.security.MessageDigest
-import groovy.json.JsonSlurper
-import java.text.SimpleDateFormat
-
-
-//Defined in User Defined Variables
-def access_key = vars.get(&quot;aws_access_key&quot;)
-def secret_key = vars.get(&quot;aws_secret_key&quot;)
-def service = vars.get(&quot;aws_service_name&quot;)
-def host = &quot;s3.amazonaws.com&quot;
-def region = &quot;us-east-2&quot;
-def bucket_owner = vars.get(&quot;aws_account_id&quot;)
-
-//Obtain data form the Http Request Sampler
-def method = &quot;HEAD&quot;
-def url = sampler.getUrl()
-def req_path = &quot;/&quot;
-def req_query_string = &quot;&quot;
-def request_parameters = &apos;&apos;;
-
-sampler.getArguments().each {arg -&gt;
-    request_parameters = arg.getStringValue().substring(1)
-}
-
-//Create the variable x-amz-date 
-def now = new Date()
-def amzFormat = new SimpleDateFormat( &quot;yyyyMMdd&apos;T&apos;HHmmss&apos;Z&apos;&quot; )
-def stampFormat = new SimpleDateFormat( &quot;yyyyMMdd&quot; )
-amzFormat.setTimeZone(TimeZone.getTimeZone(&quot;UTC&quot;));  //server timezone
-def amzDate = amzFormat.format(now)
-def dateStamp = stampFormat.format(now)
-vars.put(&quot;x_amz_date&quot;, amzDate)
-
-
-//Create a Canonical Request
-def canonical_uri = &quot;/&quot;
-def canonical_querystring = &quot;&quot;
-def canonical_headers = &quot;host:&quot; + host + &quot;\n&quot; + &quot;x-amz-date:&quot; + amzDate + &quot;\n&quot; + &quot;x-amz-expected-bucket-owner:&quot; + bucket_owner + &quot;\n&quot;
-def signed_headers = &quot;host;x-amz-date;x-amz-expected-bucket-owner&quot;
-def payload_hash = &quot;UNSIGNED-PAYLOAD&quot;
-def canonical_request = method + &quot;\n&quot; + canonical_uri + &quot;\n&quot; + canonical_querystring + &quot;\n&quot; + canonical_headers + &quot;\n&quot; + signed_headers + &quot;\n&quot; + payload_hash
-
-
-//Create the String to Sign
-def algorithm = &quot;AWS4-HMAC-SHA256&quot;
-def credential_scope = dateStamp + &quot;/&quot; + region + &quot;/&quot; + service + &quot;/&quot; + &quot;aws4_request&quot;
-def hash_canonical_request = getHexDigest(canonical_request)
-def string_to_sign = algorithm + &quot;\n&quot; +  amzDate + &quot;\n&quot; +  credential_scope + &quot;\n&quot; +  hash_canonical_request
-
-//Calculate the String to Sign
-def signing_key = getSignatureKey(secret_key, dateStamp, region, service)
-def signature = hmac_sha256Hex(signing_key, string_to_sign)
-
-//Add Signing information to Variable
-def authorization_header = algorithm + &quot; &quot; + &quot;Credential=&quot; + access_key + &quot;/&quot; + credential_scope + &quot;, &quot; +  &quot;SignedHeaders=&quot; + signed_headers + &quot;, &quot; + &quot;Signature=&quot; + signature
-vars.put(&quot;aws_authorization&quot;, authorization_header)
-
-
-def hmac_sha256(secretKey, data) {
-    Mac mac = Mac.getInstance(&quot;HmacSHA256&quot;)
-    SecretKeySpec secretKeySpec = new SecretKeySpec(secretKey, &quot;HmacSHA256&quot;)
-    mac.init(secretKeySpec)
-    byte[] digest = mac.doFinal(data.getBytes())
-    return digest
-}
-
-def hmac_sha256Hex(secretKey, data) {
-    def result = hmac_sha256(secretKey, data)
-    return result.encodeHex()
-}
-
-def getSignatureKey(key, dateStamp, regionName, serviceName) {
-    def kDate = hmac_sha256((&quot;AWS4&quot; + key).getBytes(), dateStamp)
-    def kRegion = hmac_sha256(kDate, regionName)
-    def kService = hmac_sha256(kRegion, serviceName)
-    def kSigning = hmac_sha256(kService, &quot;aws4_request&quot;)
-    return kSigning
-}
-
-def getHexDigest(text) {
-    log.info(&quot;text:&quot;+text)
-    def md = MessageDigest.getInstance(&quot;SHA-256&quot;)
-    md.update(text.getBytes())
-    return md.digest().encodeHex()
-}
-
-public static String orderQuery(URL url) throws UnsupportedEncodingException {
-
-    def orderQueryString = &quot;&quot;;
-    Map&lt;String, String&gt; queryPairs = new LinkedHashMap&lt;&gt;();
-    String queryParams = url.getQuery();
-
-    if (queryParams != null) {
-        String[] pairs = queryParams.split(&quot;&amp;&quot;);
-    
-        for (String pair : pairs) {
-            int idx = pair.indexOf(&quot;=&quot;);
-            queryPairs.put(URLDecoder.decode(pair.substring(0, idx), &quot;UTF-8&quot;), URLDecoder.decode(pair.substring(idx + 1), &quot;UTF-8&quot;));
-        }
-        def orderQueryArray = new TreeMap&lt;String, String&gt;(queryPairs);
-        orderQueryString  = urlEncodeUTF8(orderQueryArray)
-    }
-    return orderQueryString;
-}
-
-public static String urlEncodeUTF8(String s) {
-    try {
-        return URLEncoder.encode(s, &quot;UTF-8&quot;);
-    } catch (UnsupportedEncodingException e) {
-        throw new UnsupportedOperationException(e);
-    }
-}
-
-public static String urlEncodeUTF8(Map&lt;?,?&gt; map) {
-    StringBuilder sb = new StringBuilder();
-    for (Map.Entry&lt;?,?&gt; entry : map.entrySet()) {
-        if (sb.length() &gt; 0) {
-            sb.append(&quot;&amp;&quot;);
-        }
-        sb.append(String.format(&quot;%s=%s&quot;,
-            urlEncodeUTF8(entry.getKey().toString()),
-            urlEncodeUTF8(entry.getValue().toString())
-        ));
-    }
-    return sb.toString();       
-}</stringProp>
-          <stringProp name="scriptLanguage">groovy</stringProp>
-        </JSR223PreProcessor>
-        <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTPs Request" enabled="true">
-          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTPs Request">
+          <intProp name="HTTPSampler.concurrentPool">6</intProp>
+          <stringProp name="HTTPSampler.ipSource">${__P(ip_address, 52.219.96.0)}</stringProp>
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(aws_path, path)}</stringProp>
-          <stringProp name="HTTPSampler.method">${__P(http_method, GET)}</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(aws_bucket_object, test)}</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <stringProp name="HTTPSampler.method">${__P(http_method, GET)}</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
-          <boolProp name="HTTPSampler.BROWSER_COMPATIBLE_MULTIPART">false</boolProp>
-          <boolProp name="HTTPSampler.image_parser">false</boolProp>
-          <boolProp name="HTTPSampler.concurrentDwn">false</boolProp>
-          <stringProp name="HTTPSampler.concurrentPool">6</stringProp>
-          <boolProp name="HTTPSampler.md5">false</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="X-Amz-Algorithm" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">AWS4-HMAC-SHA256</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">X-Amz-Algorithm</stringProp>
+              </elementProp>
+              <elementProp name="X-Amz-Credential" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(aws_credential, AKIA47EUCCNPCDKWZV6V%2F20240416%2Fus-east-2%2Fs3%2Faws4_request)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">X-Amz-Credential</stringProp>
+              </elementProp>
+              <elementProp name="X-Amz-Date" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(aws_date, 20240416T004000Z)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">X-Amz-Date</stringProp>
+              </elementProp>
+              <elementProp name="X-Amz-Expires" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(aws_expiry, 3600)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">X-Amz-Expires</stringProp>
+              </elementProp>
+              <elementProp name="X-Amz-SignedHeaders" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">host</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">X-Amz-SignedHeaders</stringProp>
+              </elementProp>
+              <elementProp name="X-Amz-Signature" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(aws_signature, 9538055761a09e581cafbe48ec228ee998134c44894edb164e5816ba3f65278b)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">X-Amz-Signature</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
           <intProp name="HTTPSampler.ipSourceType">0</intProp>
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
         </HTTPSamplerProxy>
