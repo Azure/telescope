@@ -148,6 +148,14 @@ aws_get_1st_subnet_id_by_tag() {
   echo $subnet_id
 }
 
+aws_get_subnet_ids_by_tag() {
+  local tag_key=$1
+  local tag_value=$2
+
+  subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='$tag_key' && Value=='$tag_value']].SubnetId" --output text)
+  echo $subnet_ids
+}
+
 aws_get_1st_security_group_id_by_tag() {
   local tag_key=$1
   local tag_value=$2
