@@ -98,195 +98,305 @@ Specifies files to ignore in version control.
 * Step 1: create a test branch with new test scenario(vm-diff-zone-iperf) in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
 * Step 2: create new folder under `scenarios\perf-eval\`  with `vm-diff-zone-iperf` and create subfolders terraform-inputs and terraform-test-inputs which are required for any test scenario.
 * Step 3: Create aws.tfvars and azure.tfvars file inside terraform-inputs folder.
-* Step-4: Create azure.json and aws.json files instead terraform-test-inputs folder.
+* Step 4: Create azure.json and aws.json files instead terraform-test-inputs folder.
 
 Please find the templates for these files below:
 
-**Tfvars Template:**
+**Azure tfvars Template:**
 
 ```hcl
-scenario_type  = "perf-eval"
-scenario_name  = "vm-diff-zone-iperf"
-deletion_delay = "2h"
-public_ip_config_list = [
+scenario_type  = "perf-eval"  # Name of the scenario type (E.g perf-eval)
+scenario_name  = "vm-diff-zone-iperf"  # Name of the scenario folder we created in the scenario/perf-eval (E.g vm-diff-zone-iperf)
+deletion_delay = "2h"  # No of hours after which the resources can be deleted.
+
+public_ip_config_list = [  # List of public IP address configurations to be created
   {
-    name = "ingress-pip"
+    name               = "ingress-pip"  # Name of the Public IP (e.g., "ingress-pip")
+    allocation_method = "Static"  # Optional: Allocation method for the public IP (e.g., "Static")
+    sku               = "Standard"  # Optional: SKU of the public IP (e.g., "Standard")
+    zones             = [1, 2]  # Optional: Zones for the public IP (e.g., [1,2])
   }
 ]
 network_config_list = [
   {
-    role               = "network"
-    vnet_name          = "same-vnet"
-    vnet_address_space = "10.2.0.0/16"
+    role               = "client"  # Name of the role that will be used to identify the resources (E.g "client")
+    vnet_name          = "client-vnet"  # Name of the VNET (E.g "client-vnet")
+    vnet_address_space = "10.2.0.0/16"  # CIDR address for Vnet (E.g "10.2.0.0/16")
     subnet = [{
-      name           = "same-subnet"
-      address_prefix = "10.2.1.0/24"
+      name                         = "server-subnet"  # Name of the Subnet (e.g., "server-subnet")
+      address_prefix               = "10.2.1.0/24"  # CIDR address for Subnet (e.g., "10.2.1.0/24")
+      service_endpoints            = ["Microsoft.Storage"]  # Optional: List of service endpoints for the subnet (e.g., ["Microsoft.Storage"])
+      pls_network_policies_enabled = true  # Optional: Flag indicating whether PLS network policies are enabled for the subnet
     }]
-    network_security_group_name = "same-nsg"
-    nic_public_ip_associations = [
+    network_security_group_name = "same-nsg"  # Name of the Network Security Group(E.g "same-nsg")
+    nic_public_ip_associations = [ # List of NIC public IP associations
       {
-        nic_name              = "server-nic"
-        subnet_name           = "same-subnet"
-        ip_configuration_name = "server-ipconfig"
-        public_ip_name        = "ingress-pip"
+        nic_name              =  "server-nic"  # Name of the Network Interface Card (NIC) (e.g., "server-nic")
+        subnet_name           =  "same-subnet"  # Name of the subnet associated with the NIC (e.g., "same-subnet")
+        ip_configuration_name =  "server-ipconfig"  # Name of the IP configuration for the NIC (e.g., "server-ipconfig")
+        public_ip_name        =  "ingress-pip"  # Name of the public IP associated with the NIC (e.g., "ingress-pip")
       }
     ]
-    nsr_rules = [{
-      name                       = "nsr-ssh"
-      priority                   = 100
-      direction                  = "Inbound"
-      access                     = "Allow"
-      protocol                   = "Tcp"
-      source_port_range          = "*"
-      destination_port_range     = "2222"
-      source_address_prefix      = "*"
-      destination_address_prefix = "*"
+    nsr_rules = [{  # List of Network Security Rules
+      name                       =  "nsr-ssh"  # Name of the Network Security Rule (e.g., "nsr-ssh")
+      priority                   =  100  # Priority of the rule (e.g., 100)
+      direction                  =  "Inbound"  # Direction of traffic (e.g., "Inbound")
+      access                     =  "Allow"  # Access permission (e.g., "Allow")
+      protocol                   =  "Tcp"  # Protocol for the rule (e.g., "Tcp")
+      source_port_range          =  "*"  # Source port range (e.g., "*")
+      destination_port_range     =  "2222"  # Destination port range (e.g., "2222")
+      source_address_prefix      =  "*"  # Source address prefix (e.g., "*")
+      destination_address_prefix =  "*"  # Destination address prefix (e.g., "*")
       }
     ]
   }
 ]
-loadbalancer_config_list = []
-vm_config_list = [{
-  role           = "client"
-  vm_name        = "client-vm"
-  nic_name       = "client-nic"
-  admin_username = "ubuntu"
-  zone           = "1"
-  source_image_reference = {
+loadbalancer_config_list = [{
+  role                  = "ingress"  # Role of the load balancer (e.g., "ingress")
+  loadbalance_name      = "ingress-lb"  # Name of the load balancer (e.g., "ingress-lb")
+  loadbalance_pool_name = "ingress-lb-pool"  # Name of the load balancer pool (e.g., "ingress-lb-pool")
+  probe_protocol        = "Tcp"  # Protocol used for health probes (e.g., "Tcp")
+  probe_port            = 20000  # Port used for health probes (e.g., 20000)
+  probe_request_path    =  ""  # Request path used for health probes, if applicable
+  is_internal_lb        = false  # Flag indicating whether the load balancer is internal or external
+  subnet_name           =  "client-subnet"  # Name of the subnet where the load balancer is located (e.g., "client-subnet")
+  lb_rules = [{  # List of load balancer rules
+    type                     = "Inbound"  # Type of the rule (e.g., "Inbound")
+    rule_count               = 1  # Number of rules (e.g., 1)
+    role                     = "ingress-lb-tcp-rule"  # Role of the rule (e.g., "ingress-lb-tcp-rule")
+    protocol                 = "Tcp"  # Protocol used for the rule (e.g., "Tcp")
+    frontend_port            = 20001  # Frontend port for the rule (e.g., 20001)
+    backend_port             = 20001  # Backend port for the rule (e.g., 20001)
+    fronend_ip_config_prefix = "ingress"  # Prefix for the frontend IP configuration (e.g., "ingress")
+    enable_tcp_reset         = false  # Flag indicating whether to enable TCP reset (e.g., false)
+    idle_timeout_in_minutes  = 4  # Idle timeout in minutes (e.g., 4)
+    }]
+}]
+
+vm_config_list = [{  # List of virtual machine configurations
+  role           =  "server"  # Role of the virtual machine (e.g., "server")
+  vm_name        =  "server-vm"  # Name of the virtual machine (e.g., "server-vm")
+  nic_name       =  "server-nic"  # Name of the associated Network Interface Card (NIC) (e.g., "server-nic")
+  admin_username =  "ubuntu"  # Username for accessing the virtual machine (e.g., "ubuntu")
+  zone           =  "1"  # Availability zone for the virtual machine (e.g., "1")
+  source_image_reference = {  # Reference to the source image for the virtual machine
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
     sku       = "20_04-lts"
     version   = "latest"
   }
-  create_vm_extension = true
+  create_vm_extension = true  # Flag indicating whether to create a VM extension or not
+}]
+
+vmss_config_list = [{
+  role                   =  "server"  # Role of the virtual machine scale set (e.g., "server")
+  vmss_name              =  "server-vmss"  # Name of the virtual machine scale set (e.g., "server-vmss")
+  nic_name               =  "server-nic"  # Name of the associated Network Interface Card (NIC) (e.g., "server-nic")
+  subnet_name            =  "server-subnet"  # Name of the subnet for the virtual machine scale set (e.g., "server-subnet")
+  loadbalancer_pool_name =  "ingress-lb-pool"  # Name of the load balancer pool associated with the virtual machine scale set (e.g., "ingress-lb-pool")
+  ip_configuration_name  =  "server-ipconfig"  # Name of the IP configuration for the virtual machine scale set (e.g., "server-ipconfig")
+  number_of_instances    =  2  # Number of instances in the virtual machine scale set (e.g., 2)
+  admin_username         =  "adminuser"  # Username for accessing the virtual machines in the scale set (e.g., "adminuser")
+  source_image_reference = {  # Reference to the source image for the virtual machine scale set
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+}]
+
+nic_backend_pool_association_list = [
+  {
+    nic_name              = "server-nic"  # Name of the Network Interface Card (NIC) (e.g., "server-nic")
+    backend_pool_name     = "ingress-lb-pool"  # Name of the backend pool associated with the NIC (e.g., "ingress-lb-pool")
+    vm_name               = "server-vm"  # Name of the virtual machine associated with the NIC (e.g., "server-vm")
+    ip_configuration_name = "server-ipconfig"  # Name of the IP configuration for the NIC (e.g., "server-ipconfig")
   }
 ]
-vmss_config_list                  = []
-nic_backend_pool_association_list = []
 ```
+**Aws tfvars Template:**
+```hcl
+scenario_type  = "perf-eval"  # Type of scenario (e.g., "perf-eval")
+scenario_name  = "vm-diff-zone-iperf"  # Name of the scenario (e.g., "vm-diff-zone-iperf")
+deletion_delay = "2h"  # Delay before resources can be deleted (e.g., "2h")
+network_config_list = [  # List of network configurations
+  {
+    role           = "network"  # Role of the network configuration (e.g., "network")
+    vpc_name       = "same-vpc"  # Name of the VPC (e.g., "same-vpc")
+    vpc_cidr_block = "10.2.0.0/16"  # CIDR block for the VPC (e.g., "10.2.0.0/16")
+    subnet = [  # List of subnets
+      {
+        name        = "client-subnet"  # Name of the subnet (e.g., "client-subnet")
+        cidr_block  = "10.2.1.0/24"  # CIDR block for the subnet (e.g., "10.2.1.0/24")
+        zone_suffix = "a"  # Availability zone suffix for the subnet (e.g., "a")
+      },
+      {
+        name        = "server-subnet"  # Name of the subnet (e.g., "server-subnet")
+        cidr_block  = "10.2.2.0/24"  # CIDR block for the subnet (e.g., "10.2.2.0/24")
+        zone_suffix = "b"  # Availability zone suffix for the subnet (e.g., "b")
+      }
+    ]
+    security_group_name = "same-sg"  # Name of the security group (e.g., "same-sg")
+    route_tables = [  # List of route tables
+      {
+        name       = "internet-rt"  # Name of the route table (e.g., "internet-rt")
+        cidr_block = "0.0.0.0/0"  # CIDR block for the route (e.g., "0.0.0.0/0")
+      }
+    ],
+    route_table_associations = [  # List of route table associations
+      {
+        name             = "client-subnet-rt-assoc"  # Name of the association (e.g., "client-subnet-rt-assoc")
+        subnet_name      = "client-subnet"  # Name of the subnet (e.g., "client-subnet")
+        route_table_name = "internet-rt"  # Name of the route table (e.g., "internet-rt")
+      },
+      {
+        name             = "server-subnet-rt-assoc"  # Name of the association (e.g., "server-subnet-rt-assoc")
+        subnet_name      = "server-subnet"  # Name of the subnet (e.g., "server-subnet")
+        route_table_name = "internet-rt"  # Name of the route table (e.g., "internet-rt")
+      }
+    ]
+    sg_rules = {  # Security group rules
+      ingress = [  # Ingress rules
+        {
+          from_port  = 2222  # Starting port for traffic (e.g., 2222)
+          to_port    = 2222  # Ending port for traffic (e.g., 2222)
+          protocol   = "tcp"  # Protocol for the rule (e.g., "tcp")
+          cidr_block = "0.0.0.0/0"  # CIDR block for the rule (e.g., "0.0.0.0/0")
+        },  
+        {
+          from_port  = 20002  # Starting port for traffic (e.g., 20002)
+          to_port    = 20002  # Ending port for traffic (e.g., 20002)
+          protocol   = "udp"  # Protocol for the rule (e.g., "udp")
+          cidr_block = "0.0.0.0/0"  # CIDR block for the rule (e.g., "0.0.0.0/0")
+        }
+      ]
+      egress = [  # Egress rules
+        {
+          from_port  = 0  # Starting port for traffic (e.g., 0)
+          to_port    = 0  # Ending port for traffic (e.g., 0)
+          protocol   = "-1"  # Protocol for the rule (e.g., "-1")
+          cidr_block = "0.0.0.0/0"  # CIDR block for the rule (e.g., "0.0.0.0/0")
+        }
+      ]
+    }
+  },
+]
+loadbalancer_config_list = [{  # List of load balancer configurations
+  role               = "ingress"  # Role of the load balancer (e.g., "ingress")
+  vpc_name           = "same-vpc"  # Name of the VPC (e.g., "same-vpc")
+  subnet_name        = "server-subnet"  # Name of the subnet (e.g., "server-subnet")
+  load_balancer_type = "network"  # Type of load balancer (e.g., "network")
+  lb_target_group = [{  # List of load balancer target groups
+    role       = "nlb-tg"  # Role of the target group (e.g., "nlb-tg")
+    tg_suffix  = "http"  # Suffix for the target group (e.g., "http")
+    port       = 80  # Port for the target group (e.g., 80)
+    protocol   = "TCP"  # Protocol for the target group (e.g., "TCP")
+    rule_count = 1  # Number of rules for the target group (e.g., 1)
+    vpc_name   = "server-vpc"  # Name of the VPC (e.g., "server-vpc")
+    health_check = {  # Health check configuration
+      port                = "80"  # Port for health checks (e.g., "80")
+      protocol            = "TCP"  # Protocol for health checks (e.g., "TCP")
+      interval            = 15  # Interval for health checks (e.g., 15)
+      timeout             = 10  # Timeout for health checks (e.g., 10)
+      healthy_threshold   = 3  # Healthy threshold for health checks (e.g., 3)
+      unhealthy_threshold = 3  # Unhealthy threshold for health checks (e.g., 3)
+    }
+    lb_listener = {  # Load balancer listener configuration
+      port     = 80  # Port for the listener (e.g., 80)
+      protocol = "TCP"  # Protocol for the listener (e.g., "TCP")
+    }
+    lb_target_group_attachment = {  # Load balancer target group attachment configuration
+      vm_name = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
+      port    = 80  # Port for the target group attachment (e.g., 80)
+    }
+    },
+    {
+      role       = "nlb-tg"  # Role of the target group (e.g., "nlb-tg")
+      tg_suffix  = "https"  # Suffix for the target group (e.g., "https")
+      port       = 443  # Port for the target group (e.g., 443)
+      protocol   = "TCP"  # Protocol for the target group (e.g., "TCP")
+      rule_count = 1  # Number of rules for the target group (e.g., 1)
+      vpc_name   = "same-vpc"  # Name of the VPC (e.g., "same-vpc")
+      health_check = {  # Health check configuration
+        port                = "443"  # Port for health checks (e.g., "443")
+        protocol            = "TCP"  # Protocol for health checks (e.g., "TCP")
+        interval            = 15  # Interval for health checks (e.g., 15)
+        timeout             = 10  # Timeout for health checks (e.g., 10)
+        healthy_threshold   = 3  # Healthy threshold for health checks (e.g., 3)
+        unhealthy_threshold = 3  # Unhealthy threshold for health checks (e.g., 3)
+      }
+      lb_listener = {  # Load balancer listener configuration
+        port     = 443  # Port for the listener (e.g., 443)
+        protocol = "TCP"  # Protocol for the listener (e.g., "TCP")
+      }
+      lb_target_group_attachment = {  # Load balancer target group attachment configuration
+        vm_name = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
+        port    = 443  # Port for the target group attachment (e.g., 443)
+      }
+    }
+  ]
+}]
+
+vm_config_list = [{  # List of virtual machine configurations
+  vm_name                     = "client-vm"  # Name of the virtual machine (e.g., "client-vm")
+  role                        = "client"  # Role of the virtual machine (e.g., "client")
+  subnet_name                 = "client-subnet"  # Name of the subnet (e.g., "client-subnet")
+  security_group_name         = "same-sg"  # Name of the security group (e.g., "same-sg")
+  associate_public_ip_address = true  # Flag indicating whether to associate a public IP address (e.g., true)
+  zone_suffix                 = "a"  # Availability zone suffix for the VM (e.g., "a")
+},
+{
+  vm_name                     = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
+  role                        = "server"  # Role of the virtual machine (e.g., "server")
+  subnet_name                 = "server-subnet"  # Name of the subnet (e.g., "server-subnet")
+  security_group_name         = "same-sg"  # Name of the security group (e.g., "same-sg")
+  associate_public_ip_address = true  # Flag indicating whether to associate a public IP address (e.g., true)
+  zone_suffix                 = "b"  # Availability zone suffix for the VM (e.g., "b")
+}
+]
+
+```
+**Azure json Template:**
+```json
+{
+    "owner"                            : "terraform_unit_tests",  // Owner of the resource (e.g., "terraform_unit_tests")
+    "run_id"                           : "123456789",  // Run ID associated with the resource (e.g., "123456789")
+    "region"                           : "eastus",  // Region where the resource is located (e.g., "eastus")
+    "machine_type"                     : "Standard_D16_v5",  // Type of machine (e.g., "Standard_D16_v5")
+    "accelerated_networking"           : true  // Whether accelerated networking is enabled or not (e.g., true)
+}
+```
+**Aws json Template:**
+```json
+{
+    "owner"         : "terraform_unit_tests",  // Owner of the resource (e.g., "terraform_unit_tests")
+    "run_id"        : "123456789",  // Run ID associated with the resource (e.g., "123456789")
+    "region"        : "us-east-1",  // AWS region where the resource is located (e.g., "us-east-1")
+    "machine_type"  : "m5.4xlarge"  // Type of machine used  (e.g., "m5.4xlarge")
+}
+
+```
+
+Note:
+  - In this json files we add key values that are passed as arguments while running terraform apply.
 
 * Step 5: Follow the instructions from this [readme](./scenarios/perf-eval/vm-iperf/README.md) and manually run the terraform code on your local machine before we test this on ADO pipeline.
 * Step 6: After testing it successfull on your local machine. Push the changes to remote branch.
-* Step 7: Create a new branch in the [ADO/telescope](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope) and update `SCENARIO_VERSION` with the name of the branch you created in GitHub in this [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871)
+* Step 7: Create a new branch in the [ADO/telescope](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope) and update `SCENARIO_VERSION` to the branch/tag/SHA of where you change is in this [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871)
 * Step 8: trigger the pipeline [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871) to run your test. To trigger, click the `Run pipeline` button in top right corner, then choose your branch under drop down menu under `Branch/tag` and click `Run` button in the bottom right corner.
 * Step 9: once you verify the new test is working properly, create a new pipeline `yml` file under `pipelines` folder and in the corresponding subfolder depending on your test type (`perf-eval` or `issue-repro`). Move the content of the `new-pipeline-test.yml` to this new file and undo all changes made to the `new-pipeline-test.yml` file.
-* Step 10: create a new pull request to merge the github file changes to the main branch and ask owner to review the PR.
+* Step 10: Create a new pull request to merge the github file changes to the main branch and ask owner to review the PR.
 * Step 11: Once the GitHub PR is merged. Create a GitHub tag based on the changes you added in this PR. Please refer to the Tag documentation to create the tag.
 * Step 12: Update the tag you created in the previous step and create the PR for ADO pipeline. Please refer to instructions [here](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope?path=/README.md)
 
-#### Template explanation
-
-* `trigger`: we only run test based on schedules so `none` is used here to avoid unnecessary runs when changes are made to the pipeline file.
-* `schedules`: we use this to define the schedule of test run. The [cron syntax](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/scheduled-triggers?view=azure-devops&tabs=yaml) is used to define the schedule in `cron` section. Note that schedule is in UTC time zone. Example
-
-```yaml
-schedules:
-  - cron: "0 */2 * * *"
-    displayName: "Daily even hours"
-    branches:
-      include:
-        - main
-    always: true
-```
-
-* `pool`: currently, we have 2 agent pools available for general use. Note that they are all Linux agents using Ubuntu 22.04
-  * [1ES-Telescope-Local-Debug-EastUS](https://dev.azure.com/msazure/CloudNativeCompute/_settings/agentqueues?queueId=181842&view=jobs): for manual testing
-  * [1ES-Telescope-Ubuntu-EastUS](https://dev.azure.com/msazure/CloudNativeCompute/_settings/agentqueues?queueId=184798&view=jobs): for scheduled runs
-
-Example usage:
-
-```yaml
-pool:
-  name: "1ES-Telescope-Local-Debug-EastUS"
-```
-
-* `variables`: we use these variables to define which test scenario we want to check out from the `Azure/telescope` repository. Suppose you define a new test in a folder called `my-new-test` under [`perf-eval`](https://github.com/Azure/telescope/tree/main/scenarios/perf-eval) folder and the branch that you use to write the test is `my-test-branch`, then the variables should have the following values:
-
-```yaml
-variables:
-  SCENARIO_REPO: Azure/telescope
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: my-new-test
-  SCENARIO_VERSION: my-test-branch
-```
-
-* `stages`: each stage represents a test run for a specific cloud in specific region(s) depending on whether your cloud resources are all in one region or spread across regions.
-
-For example:
-
-* If your test is for Azure and all resources are in East US 2, then you can use the following stage definition:
-
-```yaml
-  - stage: azure_eastus2
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - eastus2
-```
-
-* If your test is for AWS and resources are in US East and US West, then you can use the following stage definition:
-
-```yaml
-  - stage: aws_eastus_westus
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: aws
-          regions:
-            - us-east-1
-            - us-west-1
-```
-
-**Note**: Each cloud have a different way of naming regions so make sure to use the correct region name for the cloud you are testing. If you want to run the same test for multiple regions, then you should define multiple stages for each region. The `regions` parameter should only contain more than 1 value if for that test, resources are spread across regions.
-
-* `topology`: refers to the setup of your resources. Based on different setups, the validation, execution, and collection of a test will be implemented differently. You can either re-use an [existing topology](steps/topology/) or define a new one if none of them fits your test.
-
-Example: for a test  with a setup 2 VMs and an ILB in between, you can define the topology as follows
-
-```yaml
-topology: vm-ilb-vm
-```
-
-* `engine`: refers to the tool you use to run your test. Each tool has its own way of running and collecting results. You can either re-use an [existing engine](steps/engine/) or define a new one if none of them fits your needs.
-
-Example: for test that uses iperf2, the engine is defined as below
-
-```yaml
-engine: iperf2
-```
-
-* `matrix`: refers to the customization of resources. For example, if you want to run the same test on different Azure VM sizes, then you can define the matrix as follows:
-
-```yaml
-matrix:
-  v3_without_accel_net:
-    machine_type: Standard_D16_v3
-    accelerated_networking: "false"
-  v3_with_accel_net:
-    machine_type: Standard_D16_v3
-    accelerated_networking: "true"
-  v5_with_accel_net:
-    machine_type: Standard_D16_v5
-    accelerated_networking: "true"
-```
-
-*Note*: For the list of what parameters you can customize based on clouds, refer to [set-input-variables-aws](steps/terraform/set-input-variables-aws.yml) for AWS and [set-input-variables-azure](steps/terraform/set-input-variables-azure.yml) for Azure. These are where you need to update if you add new inputs ([Azure](https://github.com/Azure/telescope/blob/main/modules/terraform/azure/variables.tf) and [AWS](https://github.com/Azure/telescope/blob/main/modules/terraform/aws/variables.tf)) to Terraform in `Azure/telescope` repository.
-
-* `max_parallel`: refers to the number of concurrent jobs you want to run. This is to avoid overloading the agent pool. Each value in `matrix` corresponds to a job. The number of parallel jobs should always be less than or equal to the number of values in `matrix`. In the example above, we have 3 values in `matrix` so the `max_parallel` should be less than or equal to 3.
-* `timeout_in_minutes`: refers to the maximum time a job can run. When that time is reached, job will be cancelled immediately. Thus, it's important that you set the right value taking into account the runtime of all steps: setup, provision, validate, execute, collect, cleanup. If not specified, the default value is 60 minutes.
-
-### Update an existing test/pipeline
+### Update an existing test scenario
 
 * Step 1: create a test branch in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
-* Step 2: navigate to the pipeline file you want to update and make the necessary changes. You can coordinate using `SCENARIO_TYPE` and `SCENARIO_NAME` to find the corresponding pipeline file.
+* Step 2: navigate to the test scenario file you want to update and make the necessary changes. You can coordinate using `SCENARIO_TYPE` and `SCENARIO_NAME` to find the corresponding test scenario folder.
 
-For example, if you want to update the [lb-same-zone-iperf](https://github.com/Azure/telescope/tree/main/scenarios/perf-eval/lb-same-zone-iperf), then you should navigate to the [vm-lb-vm-same-zone-iperf2.yml](pipelines/perf-eval/vm-lb-vm-same-zone-iperf2.yml) file.
+For example, if you want to update the `lb-same-zone-iperf` test scenario, then you should navigate to the [lb-same-zone-iperf](https://github.com/Azure/telescope/tree/main/scenarios/perf-eval/lb-same-zone-iperf) folder and make necessary changes.
 
-* Step 3: update `SCENARIO_VERSION` to the branch/tag/SHA of where you change is.
+* Step 3: update `SCENARIO_VERSION` to the branch/tag/SHA of where you change is in the [vm-lb-vm-same-zone-iperf2.yml](pipelines/perf-eval/vm-lb-vm-same-zone-iperf2.yml) file.
 
 For example, if your branch name is `my-name/update-lb-iperf2` in `Azure/telescope`, then you should update `SCENARIO_VERSION` to `my-name/update-lb-iperf2`.
 
@@ -296,17 +406,67 @@ For example, the pipeline for `vm-lb-vm-same-zone-iperf2.yml` is [Performance Ev
 
 ### CI checks
 
-We currently have 2 CI checks in place for pipelines:
+We currently have 3 CI checks in place for GitHub Workflows:
 
-* [System YAML Syntax Checker](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=354326&_a=summary): this one performs a dry run of the pipeline to validate that the `yaml` syntax is correct. It's triggered automatically when a PR is created or updated.
-  * If you think your yaml syntax is correct, but still see errors like **file not found** or **unexpected parameter**, it might be because your branch is out of sync with the main branch. In this case, you can resolve the issue by getting the latest changes from the `main` branch.
-* [System YAML Linter](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=354326&_a=summary): this one performs a lint check all `yaml` files to make sure format is consistent and follows the best practices. It's triggered automatically when a PR is created or updated.
-  * To examine the lint errors locally, you can install the `yamllint` package using `pip install yamllint` and run `yamllint -c .yamllint . --no-warnings` in the root of the repository.
-  * The fastest way to fix lint errors in a file is to install this extension [YAML - Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) in VSCode and format the file with it.
+* [Terraform Validate](https://github.com/Azure/telescope/actions/workflows/terraform-validate.yml): this one performs a dry run of the terraform code to validate that the `hcl` format and syntax is correct. It's triggered automatically when a PR is created or updated based on the changes in the PR.
+  * To run the local format check run  this command `terraform fmt --check -recursive --diff`
+  * To run local validation check run this command in respective terraform cloud modules folders 
+    ```
+    terraform init
+    terraform validate
+    ```
+* [Terraform Plan](https://github.com/Azure/telescope/blob/main/.github/workflows/terraform-plan.yml): This workflow creates terraform plan for all the tests scenarios to make sure all terraform inputs are provided properly and check all required inputs for a test scenario. It's triggered automatically when a PR is created or updated based on the test scenario changes in the PR.
+* [Python Unit Tests](https://github.com/Azure/telescope/actions/workflows/python-unit-tests.yml): this one runs the unit tests for all `py` related files to make sure python code is tested and validated. It's triggered automatically when a PR is created or updated based on the changes in the PR.
+  * To run the tests locally, you can run the `python -m unittest discover` command in the python module folder of the repository.
+
+
+# GitHub tag Scenarios:
+- Sample github tag looks like this v1.0.32 which represents Version<MAJOR>.<MINOR>.<PATCH>
+- Github changes are categorized in three types.
+  1. Major
+  2. Minor
+  3. Patch
+- Please check the current version used and increment the tag version based on the following scenarios.
+
+## Current Tag version
+
+| Current Version   | Major | Minor | Patch |
+|-------------------|-------|-------|-------|
+| V1.0.32           | 1     | 0     | 32    |
+
+
+## Update Tag version based on the code changes
+| Code Changes                   | Major | Minor | Patch | Example |
+|----------------------------|-------|-------|-------|-------|
+| Major Refactoring(Terraform)|&check;|&cross;|&cross;| v2.0.0|
+| Specific Test Scenario    |&cross;|&cross;|&check;| v2.0.1|
+| Engine-related Changes(Iperf,Jmeter)   |&cross;|&check;|&cross;| v2.1.0|
+| Results data format updated |&cross;|&check;|&cross;| v2.2.0|
+| Results data format remains same|&cross;|&cross;|&check;|v2.2.1|
+| Interface change |&cross;|&check;|&cross;|v2.3.0|
+
+Note:
+ - Here Example version is based on the current version tag.
+ - All the GitHub Version tags are found [here](https://github.com/Azure/telescope/tags)
+
+## Cases to update tables and data connections.
+- After the github version tag is updated. Please check the below table to identify what changes has to be done for the tables and data connection.
+
+| Cases                   | Major | Minor | Patch |
+|----------------------------|-------|-------|-------|
+| New Tables                 |&check;|&check;|&cross;|
+| New Data Connections      |&check;|&check;|&cross;|
+| Update Existing Data connections     |&cross;|&cross;|&check;|
+
+- To create new tables, data connections and Data ingestion use these pipelines.
+  1. [System Database Table and Data Connection Creation](https://msazure.visualstudio.com/CloudNativeCompute/_build?definitionId=345697)
+  2. [System Data Ingestion from Blob Storage](https://msazure.visualstudio.com/CloudNativeCompute/_build?definitionId=342761)
+  3. Here is the [Readme](./modules/terraform/azure/onboarding/data-connection/Readme.md) on how to use these Pipelines.
 
 ## References
 
-* [YAML schema](https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema/?view=azure-pipelines)
+* [GitHub Workflows](https://docs.github.com/en/actions/using-workflows)
 * [Azure Pipelines - Key Concept](https://learn.microsoft.com/en-us/azure/devops/pipelines/get-started/key-pipelines-concepts?view=azure-devops)
-* [1ES Hosted Pools](https://eng.ms/docs/cloud-ai-platform/devdiv/one-engineering-system-1es/1es-docs/1es-hosted-azure-devops-pools/onboarding-overview)
-* [Pre-installed Software in 1ES Hosted Pools](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops&tabs=yaml#software)
+* [Terraform Fmt command](https://developer.hashicorp.com/terraform/cli/commands/fmt)
+* [Terraform validate command](https://developer.hashicorp.com/terraform/cli/commands/validate)
+* [Python Unit Tests](https://docs.python.org/3/library/unittest.html)
