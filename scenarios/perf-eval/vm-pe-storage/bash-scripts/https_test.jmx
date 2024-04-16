@@ -125,7 +125,7 @@
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(aws_bucket_object, test)}?${X-Amz-Algorithm}</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(aws_bucket_object, test)}?X-Amz-Algorithm=</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">${__P(http_method, GET)}</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -134,42 +134,42 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
             <collectionProp name="Arguments.arguments">
               <elementProp name="X-Amz-Algorithm" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">AWS4-HMAC-SHA256</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <boolProp name="HTTPArgument.use_equals">false</boolProp>
                 <stringProp name="Argument.name">X-Amz-Algorithm</stringProp>
               </elementProp>
               <elementProp name="X-Amz-Credential" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">${__P(aws_credential, AKIA47EUCCNPCDKWZV6V%2F20240416%2Fus-east-2%2Fs3%2Faws4_request)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">X-Amz-Credential</stringProp>
               </elementProp>
               <elementProp name="X-Amz-Date" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">${__P(aws_date, 20240416T004000Z)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">X-Amz-Date</stringProp>
               </elementProp>
               <elementProp name="X-Amz-Expires" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">${__P(aws_expiry, 3600)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">X-Amz-Expires</stringProp>
               </elementProp>
               <elementProp name="X-Amz-SignedHeaders" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">host</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">X-Amz-SignedHeaders</stringProp>
               </elementProp>
               <elementProp name="X-Amz-Signature" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">${__P(aws_signature, 9538055761a09e581cafbe48ec228ee998134c44894edb164e5816ba3f65278b)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
