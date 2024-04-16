@@ -77,6 +77,9 @@ Example:
 
 - [Successful pipeline run](https://msazure.visualstudio.com/CloudNativeCompute/_build/results?buildId=87483539&view=logs&j=36a08b4a-8fb0-5483-406c-cef72de14512&t=8680e7ae-c3d4-5dab-593a-979ba4750c3a)
 
+Note:
+ - Always run the pipelines from Main branch.
+ - Scenario Name, Type and Version has to be unique in order to create tables and data connection successfuly.
 
 ### References
 * [Azure Data Explorer](https://learn.microsoft.com/en-us/azure/data-explorer/data-explorer-overview)
