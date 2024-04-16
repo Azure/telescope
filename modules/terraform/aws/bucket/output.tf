@@ -3,5 +3,5 @@ output "bucket_name" {
 }
 
 output "bucket_object" {
-  value = aws_s3_bucket_object.object
+  value = aws_s3_object.object
 }
