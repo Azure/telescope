@@ -11,7 +11,7 @@
 get_vm_instance_by_name() {
     local run_id=$1
 
-    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id') && managedBy==null].name" --output tsv)
+    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id')].name" --output tsv)
 }
 
 # Description:
@@ -25,7 +25,7 @@ get_vm_instance_by_name() {
 get_disk_instances_by_name() {
     local run_id=$1
     
-    echo "$(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '${run_id}')].name" --output tsv)"
+    echo "$(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '${run_id}') && (managedBy==null)].name" --output tsv)"
 }
 
 # Description:
@@ -53,43 +53,12 @@ attach_or_detach_disk() {
 }
 
 # Description:
-#   This function validates the resources in the resource group.
-#
-# Parameters:
-#  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
-# Returns: None
-# Usage: validate_resources <run_id>
-validate_resources() {
-    local run_id=$1
-    
-    # Retrieve VMs from the resource group
-    vm_count=$(az vm list --resource-group $run_id --query "length([])")
-
-    # Check if there is only one VM
-    if [ $vm_count -ne 1 ]; then
-        echo "Error: There should be exactly one VM in the resource group, but ${vm_count} were found."
-        exit 1
-    fi
-
-    # Retrieve disks from the resource group
-    disk_count=$(az disk list --resource-group $run_id --query "length([])")
-
-    # Check if there is at least one disk
-    if [ $disk_count -lt 1 ]; then
-        echo "Error: There should be at least one disk in the resource group, but ${disk_count} were found"
-        exit 1
-    fi
-}
-
-# Description:
 #   This function builds the output JSON object for the disk attach/detach operation.
 #
 # Parameters:
 #  - $1: operation: the operation to perform (attach or detach)
 #  - $2: output_message: the output message of the operation
-#  - $3: start_time: the start time of the operation
-#  - $4: end_time: the end time of the operation
+#  - $3: execution_time: the execution time of the operation
 #
 # Returns: The output JSON object
 # Usage: build_output <operation> <output_message> <start_time> <end_time>
