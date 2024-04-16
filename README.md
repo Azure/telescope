@@ -22,18 +22,18 @@ modules
     ├── aws
     └── azure
 scenarios
-└── issue-repo
-    └── lb-tls-error
+└── issue-repo <Scenario-Type>
+    └── lb-tls-error <Scenario-Name>
         ├── bash-scripts
         ├── https
-        ├── terraform-inputs *
-        ├── terraform-test-inputs *
+        ├── terraform-inputs*
+        ├── terraform-test-inputs*
         └── Makefile
-    └── perf-eval
-        └── vm-iperf
+    └── perf-eval <Scenario-Type>
+        └── vm-iperf <Scenario-Name>
             ├── bash-scripts
-            ├── terraform-inputs *
-            └── terraform-test-inputs *
+            ├── terraform-inputs*
+            └── terraform-test-inputs*
 .gitignore
 ```
 
