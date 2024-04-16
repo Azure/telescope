@@ -10,7 +10,7 @@ sudo apt-get install default-jre -y
 java -version
 
 # install jmeter
-jmeter_version="5.6.2"
+jmeter_version="5.6.3"
 wget https://downloads.apache.org/jmeter/binaries/apache-jmeter-${jmeter_version}.tgz
 tar -xvf apache-jmeter-${jmeter_version}.tgz
 sudo mv apache-jmeter-${jmeter_version} /opt/jmeter
