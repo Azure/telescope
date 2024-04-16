@@ -25,10 +25,8 @@ execute() {
 
     mkdir -p $result_dir
 
-
     # get vm name and disk names
-    local vm_name=$(get_vm_instance_by_name $run_id)
-    local region=$(get_region $resource_group)
+    local vm_name=$(get_vm_instance_by_run_id $run_id)
 
     for ((i=1; i<=iterations_number; i++)); do
         run_tests $run_id $vm_name $i $cloud $region
@@ -63,6 +61,10 @@ run_tests() {
         disk_name="${available_disks[$index]}"
         operation_info="$(attach_or_detach_disk attach $vm_name $disk_name $resource_group)"
         wait
+        succeeded=$(echo "$operation_info" | jq -r '.succeeded')
+        if [ "$succeeded" == "false" ]; then
+            unset available_disks[$index] # Prevents detach operation if attach operation fails
+        fi
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_attach_$run_index.json"
         echo $output > $filename
@@ -70,6 +72,9 @@ run_tests() {
 
     for index in "${!available_disks[@]}"; do
         disk_name="${available_disks[$index]}"
+        if [ -z "$disk_name" ]; then # Skip disks that failed to attach
+            continue
+        fi
         operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
         wait
         output=$(fill_json_template "$operation_info")
