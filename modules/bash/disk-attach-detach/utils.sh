@@ -19,14 +19,13 @@ execute() {
     local scenario_name=$3
     local result_dir=$4
     local cloud=$5
-    local resource_group=$run_id
+    local rregion=$6
     local iterations_number=${6:-1}  # Set the default value of iterations_number to 1 if not provided
 
     mkdir -p $result_dir
 
     # get vm name and disk names
     local vm_name=$(get_vm_instance_by_name $run_id)
-    local region=$(get_region $resource_group)
 
     for ((i=1; i<=iterations_number; i++)); do
         run_tests $run_id $vm_name $i $cloud
@@ -67,12 +66,11 @@ run_tests() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        if [ "$(az disk show --name $disk_name --resource-group $resource_group --query "diskState" --output tsv)" == "Attached" ]; then
-            operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
-            wait
-            output=$(fill_json_template "$operation_info")
-            filename="$result_dir/${disk_name}_detach_$run_index.json"
-            echo $output > $filename
+        operation_info="$(attach_or_detach_disk detach $vm_name $disk_name $resource_group)"
+        wait
+        output=$(fill_json_template "$operation_info")
+        filename="$result_dir/${disk_name}_detach_$run_index.json"
+        echo $output > $filename
         fi
     done
 }

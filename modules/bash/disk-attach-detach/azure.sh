@@ -83,20 +83,6 @@ validate_resources() {
 }
 
 # Description:
-#   This function gets the region of a resource group.
-#
-# Parameters:
-#  - $1: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
-# Returns: The region of the resource group
-# Usage: get_region <resource_group>
-get_region() {
-    local resource_group=$1
-        
-    echo $(az group show --name $resource_group --query "location" --output tsv)
-}
-
-# Description:
 #   This function builds the output JSON object for the disk attach/detach operation.
 #
 # Parameters:
