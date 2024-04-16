@@ -38,13 +38,13 @@ scenarios
 ```
 
 Note:
-- Here * represents these folders are required any test scenario we create using this framework.
+- Here * represents these folders are required for to create any tests using this framework.
 
 ### .github
 
-This directory contains GitHub Actions workflows, which automate various tasks like unit testing and validating code.
+This directory contains GitHub workflows, which automate various tasks like unit testing and validating the code.
 
-- **workflows**: This folder Contains YAML files defining GitHub Actions workflows.
+- **workflows**: This folder Contains YAML files defining GitHub Actions.
 
 ### modules
 
@@ -57,16 +57,16 @@ This directory holds reusable scripts and configurations for automation tasks.
   - **aws**: Terraform module configurations specific to Amazon Web Services (AWS).
   - **azure**: Terraform module configurations specific to Microsoft Azure.
 
-	Note:
-		- Please refer to this [Terraform Readme](./modules/terraform/README.md) to know about the modules we currently support for telescope framework.
+Note:
+  - Please refer to this [Terraform Readme](./modules/terraform/README.md) to know about the modules we currently support for telescope framework.
 
 ### scenarios
 
 This directory organizes different test scenarios inputs to evaluation the performance of different cloud components and reproduce issues we see in production.
 
-- **issue-repo**: Contains test scenarios related to know issues that needs to be replicated.
-	Example:
-  - **lb-tls-error**: Name of the issue repro.
+- **issue-repo**: Contains test scenarios related to know issues that can to be replicated using telescope framework.
+  Example:
+  - **lb-tls-error**: Name of the issue we are trying to reproduce.
 
     - **bash-scripts**: Bash scripts for diagnosing or replicating TLS errors.
     - **https**: Files related to HTTPS configuration.
