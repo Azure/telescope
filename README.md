@@ -1,15 +1,10 @@
 # Telescope
 
-This repository is part of the [Cloud Competitve Test Framework](https://microsoft-my.sharepoint.com/:w:/p/ansonqian/EWu1qhLEL-RBqimgsFBgb9EBWJlLPRc_w1FNaSYuY-UA7A?e=jikM3r). It stores test scenarios specific code, include terraform code for creating and managing infrastructure as code and python/bash code for test modules (e.g. iperf, jmeter, fio) integration. It works closely with the other part of the framework [ADO/telescope](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope) which stores test automation and reporting related code, including azure devops pipeline (yaml) code for test scheduling and execution, and azure data explorer dashboard (json) code for kusto query and data vizualization.
+This repository is part of the Cloud Competitve Test Framework that enables engineers and product managers to efficiently analyze and compare features, reproduce (customer reported) issues, and evaluate performance across the three major cloud providers: Azure, AWS, and GCP. This absence of an easy-to-use framework makes it challenging to conduct seamless and accurate assessments within the compute, network, and storage domains. It stores test scenarios specific code, include terraform code for creating and managing infrastructure as code and python/bash code for test modules (e.g. iperf, jmeter, fio) integration.
 
 ## Permissions
 
-* Cloud resources (for manual local testing only)
-  * Azure subscription: [Cloud Competitive Test](https://ms.portal.azure.com/#@microsoft.onmicrosoft.com/resource/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/overview) - ask owner to give you **Contributor** role
-  * AWS account: ask owner to give you an account
 * [Azure/telescope](https://github.com/Azure/telescope): make sure you join **Azure** organization using this [link](https://repos.opensource.microsoft.com/orgs) and your personal GitHub account. Once done, ask owner to give you access to the repository.
-
-*Note*: Owners can be found in [owners.txt](owners.txt)
 
 ## Repository Hierarchy
 ```
@@ -89,14 +84,13 @@ Specifies files to ignore in version control.
 ### Test Scenarios
 
 * All existing test scenarios are located in the [Azure\telescope](https://github.com/Azure/telescope/tree/main/scenarios) folder.
-* 
 
 ### Build a new test scenario
 
 #### Main workflows
 
-* Step 1: create a test branch with new test scenario(vm-diff-zone-iperf) in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
-* Step 2: create new folder under `scenarios\perf-eval\`  with `vm-diff-zone-iperf` and create subfolders terraform-inputs and terraform-test-inputs which are required for any test scenario.
+* Step 1: Create a test branch with new test scenario(vm-diff-zone-iperf) in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
+* Step 2: Create new folder under `scenarios\perf-eval\`  with `vm-diff-zone-iperf` and create subfolders terraform-inputs and terraform-test-inputs which are required for any test scenario.
 * Step 3: Create aws.tfvars and azure.tfvars file inside terraform-inputs folder.
 * Step 4: Create azure.json and aws.json files instead terraform-test-inputs folder.
 
@@ -380,29 +374,19 @@ vm_config_list = [{  # List of virtual machine configurations
 Note:
   - In this json files we add key values that are passed as arguments while running terraform apply.
 
-* Step 5: Follow the instructions from this [readme](./scenarios/perf-eval/vm-iperf/README.md) and manually run the terraform code on your local machine before we test this on ADO pipeline.
+* Step 5: Follow the instructions from this [readme](./scenarios/perf-eval/vm-iperf/README.md) and manually run the terraform code on your local machine.
 * Step 6: After testing it successfull on your local machine. Push the changes to remote branch.
-* Step 7: Create a new branch in the [ADO/telescope](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope) and update `SCENARIO_VERSION` to the branch/tag/SHA of where you change is in this [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871)
-* Step 8: trigger the pipeline [New Pipeline Test](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338871) to run your test. To trigger, click the `Run pipeline` button in top right corner, then choose your branch under drop down menu under `Branch/tag` and click `Run` button in the bottom right corner.
-* Step 9: once you verify the new test is working properly, create a new pipeline `yml` file under `pipelines` folder and in the corresponding subfolder depending on your test type (`perf-eval` or `issue-repro`). Move the content of the `new-pipeline-test.yml` to this new file and undo all changes made to the `new-pipeline-test.yml` file.
-* Step 10: Create a new pull request to merge the github file changes to the main branch and ask owner to review the PR.
-* Step 11: Once the GitHub PR is merged. Create a GitHub tag based on the changes you added in this PR. Please refer to the Tag documentation to create the tag.
-* Step 12: Update the tag you created in the previous step and create the PR for ADO pipeline. Please refer to instructions [here](https://msazure.visualstudio.com/CloudNativeCompute/_git/telescope?path=/README.md)
+* Step 7: Create a new pull request to merge the github changes to the main branch.
+* Step 8: Once the GitHub PR is merged. Create a GitHub tag based on the changes you added in this PR. Please refer to the Tag documentation below to create the tag.
 
 ### Update an existing test scenario
 
-* Step 1: create a test branch in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
-* Step 2: navigate to the test scenario file you want to update and make the necessary changes. You can coordinate using `SCENARIO_TYPE` and `SCENARIO_NAME` to find the corresponding test scenario folder.
+* Step 1: Create a test branch in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
+* Step 2: Navigate to the test scenario file you want to update and make the necessary changes. You can coordinate using `SCENARIO_TYPE` and `SCENARIO_NAME` to find the corresponding test scenario folder.
 
 For example, if you want to update the `lb-same-zone-iperf` test scenario, then you should navigate to the [lb-same-zone-iperf](https://github.com/Azure/telescope/tree/main/scenarios/perf-eval/lb-same-zone-iperf) folder and make necessary changes.
-
-* Step 3: update `SCENARIO_VERSION` to the branch/tag/SHA of where you change is in the [vm-lb-vm-same-zone-iperf2.yml](pipelines/perf-eval/vm-lb-vm-same-zone-iperf2.yml) file.
-
-For example, if your branch name is `my-name/update-lb-iperf2` in `Azure/telescope`, then you should update `SCENARIO_VERSION` to `my-name/update-lb-iperf2`.
-
-* Step 4: navigate to the corresponding pipeline under [\AKS\telescope](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionScope=%5CAKS%5Ctelescope) folder and trigger it using your own branch. To trigger, click the `Run pipeline` button in top right corner, then choose your branch under drop down menu under `Branch/tag` and click `Run` button in the bottom right corner.
-
-For example, the pipeline for `vm-lb-vm-same-zone-iperf2.yml` is [Performance Evaluation VM-LB-VM Cross VNet Same Zone iPerf](https://dev.azure.com/msazure/CloudNativeCompute/_build?definitionId=338133).
+* Step 3: Manually run the terrafrom code on your local machine and test your changes.
+* Step 4: Once the changes are verified create PR and update the tag version.
 
 ### CI checks
 
@@ -421,7 +405,7 @@ We currently have 3 CI checks in place for GitHub Workflows:
 
 
 # GitHub tag Scenarios:
-- Sample github tag looks like this v1.0.32 which represents Version<MAJOR>.<MINOR>.<PATCH>
+- Sample github tag looks like this v1.0.33 which represents Version MAJOR.MINOR.PATCH
 - Github changes are categorized in three types.
   1. Major
   2. Minor
@@ -432,41 +416,26 @@ We currently have 3 CI checks in place for GitHub Workflows:
 
 | Current Version   | Major | Minor | Patch |
 |-------------------|-------|-------|-------|
-| V1.0.32           | 1     | 0     | 32    |
+| v1.0.33           | 1     | 0     | 32    |
 
 
 ## Update Tag version based on the code changes
-| Code Changes                   | Major | Minor | Patch | Example |
-|----------------------------|-------|-------|-------|-------|
-| Major Refactoring(Terraform)|&check;|&cross;|&cross;| v2.0.0|
-| Specific Test Scenario    |&cross;|&cross;|&check;| v2.0.1|
-| Engine-related Changes(Iperf,Jmeter)   |&cross;|&check;|&cross;| v2.1.0|
-| Results data format updated |&cross;|&check;|&cross;| v2.2.0|
-| Results data format remains same|&cross;|&cross;|&check;|v2.2.1|
-| Interface change |&cross;|&check;|&cross;|v2.3.0|
+| Code Changes                   | Major | Minor | Patch | Current Tag | Updated Tag
+|----------------------------|-------|-------|-------|-------|-------|
+| Major Refactoring(Terraform)|&check;|&cross;|&cross;| v1.2.33|v2.0.0|
+| Specific Test Scenario    |&cross;|&cross;|&check;| v2.0.1|v2.0.2|
+| Engine-related Changes(Iperf,Jmeter)   |&cross;|&check;|&cross;| v1.1.1|v1.2.0|
+| Results data format updated |&cross;|&check;|&cross;| v2.2.0|v2.3.0|
+| Results data format remains same|&cross;|&cross;|&check;|v2.2.1|v2.2.2|
+| Interface change |&cross;|&check;|&cross;|v2.3.5|v2.4.0|
 
 Note:
- - Here Example version is based on the current version tag.
+ - Here tags are just an example to know what an updated tag should look like when we make new changes.
  - All the GitHub Version tags are found [here](https://github.com/Azure/telescope/tags)
-
-## Cases to update tables and data connections.
-- After the github version tag is updated. Please check the below table to identify what changes has to be done for the tables and data connection.
-
-| Cases                   | Major | Minor | Patch |
-|----------------------------|-------|-------|-------|
-| New Tables                 |&check;|&check;|&cross;|
-| New Data Connections      |&check;|&check;|&cross;|
-| Update Existing Data connections     |&cross;|&cross;|&check;|
-
-- To create new tables, data connections and Data ingestion use these pipelines.
-  1. [System Database Table and Data Connection Creation](https://msazure.visualstudio.com/CloudNativeCompute/_build?definitionId=345697)
-  2. [System Data Ingestion from Blob Storage](https://msazure.visualstudio.com/CloudNativeCompute/_build?definitionId=342761)
-  3. Here is the [Readme](./modules/terraform/azure/onboarding/data-connection/Readme.md) on how to use these Pipelines.
 
 ## References
 
 * [GitHub Workflows](https://docs.github.com/en/actions/using-workflows)
-* [Azure Pipelines - Key Concept](https://learn.microsoft.com/en-us/azure/devops/pipelines/get-started/key-pipelines-concepts?view=azure-devops)
 * [Terraform Fmt command](https://developer.hashicorp.com/terraform/cli/commands/fmt)
 * [Terraform validate command](https://developer.hashicorp.com/terraform/cli/commands/validate)
 * [Python Unit Tests](https://docs.python.org/3/library/unittest.html)
