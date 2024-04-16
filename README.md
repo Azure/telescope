@@ -1,6 +1,6 @@
 # Telescope
 
-This repository is part of the Cloud Competitve Test Framework that enables engineers and product managers to efficiently analyze and compare features, reproduce (customer reported) issues, and evaluate performance across the three major cloud providers: Azure, AWS, and GCP. This absence of an easy-to-use framework makes it challenging to conduct seamless and accurate assessments within the compute, network, and storage domains. It stores test scenarios specific code, include terraform code for creating and managing infrastructure as code and python/bash code for test modules (e.g. iperf, jmeter, fio) integration.
+This repository is part of the Cloud Competitve Test Framework that enables engineers and product managers to efficiently analyze and compare features, reproduce (customer reported) issues, and evaluate performance across the three major cloud providers: Azure, AWS, and GCP. This framework makes it easy to conduct seamless and accurate assessments within the compute, network, and storage domains. It stores test scenarios specific code, include terraform code for creating and managing infrastructure as code and python/bash code for test modules (e.g. iperf, jmeter, fio) integration.
 
 ## Permissions
 
