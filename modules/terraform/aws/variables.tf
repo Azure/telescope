@@ -158,6 +158,12 @@ variable "bucket_source_path" {
   default     = ""
 }
 
+variable "bucket_file_key" {
+  description = "Key for bucket object file"
+  type = string
+  default = ""
+}
+
 variable "eks_config_list" {
   type = list(object({
     role        = string

@@ -16,6 +16,12 @@ variable "bucket_source_path" {
   default = ""
 }
 
+variable "bucket_file_key" {
+  description = "Value for bucket file key"
+  type = string
+  default = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
