@@ -5,7 +5,7 @@ resource "aws_s3_bucket" "bucket" {
 }
 
 resource "aws_s3_object" "object" {
-  bucket = "${var.bucket_name_prefix}-${var.run_id}"
+  bucket = module.bucket[0].aws_s3_bucket.id
   key    = var.bucket_file_key
   source = var.bucket_source_path
 }
