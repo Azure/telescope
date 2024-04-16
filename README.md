@@ -360,7 +360,9 @@ vm_config_list = [{  # List of virtual machine configurations
     "accelerated_networking"           : true  // Whether accelerated networking is enabled or not (e.g., true)
 }
 ```
+
 **Aws json Template:**
+
 ```json
 {
     "owner"         : "terraform_unit_tests",  // Owner of the resource (e.g., "terraform_unit_tests")
@@ -368,7 +370,6 @@ vm_config_list = [{  # List of virtual machine configurations
     "region"        : "us-east-1",  // AWS region where the resource is located (e.g., "us-east-1")
     "machine_type"  : "m5.4xlarge"  // Type of machine used  (e.g., "m5.4xlarge")
 }
-
 ```
 
 Note:
@@ -403,7 +404,6 @@ We currently have 3 CI checks in place for GitHub Workflows:
 * [Python Unit Tests](https://github.com/Azure/telescope/actions/workflows/python-unit-tests.yml): this one runs the unit tests for all `py` related files to make sure python code is tested and validated. It's triggered automatically when a PR is created or updated based on the changes in the PR.
   * To run the tests locally, you can run the `python -m unittest discover` command in the python module folder of the repository.
 
-
 # GitHub tag Scenarios:
 - Sample github tag looks like this v1.0.33 which represents Version MAJOR.MINOR.PATCH
 - Github changes are categorized in three types.
@@ -416,7 +416,7 @@ We currently have 3 CI checks in place for GitHub Workflows:
 
 | Current Version   | Major | Minor | Patch |
 |-------------------|-------|-------|-------|
-| v1.0.33           | 1     | 0     | 32    |
+| v1.0.33           | 1     | 0     | 33    |
 
 
 ## Update Tag version based on the code changes
@@ -430,7 +430,7 @@ We currently have 3 CI checks in place for GitHub Workflows:
 | Interface change |&cross;|&check;|&cross;|v2.3.5|v2.4.0|
 
 Note:
- - Here tags are just an example to know what an updated tag should look like when we make new changes.
+ - Tags displayed in the above table are examples.
  - All the GitHub Version tags are found [here](https://github.com/Azure/telescope/tags)
 
 ## References
