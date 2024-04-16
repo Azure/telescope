@@ -125,7 +125,7 @@
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(aws_bucket_object, test)}?X-Amz-Algorithm=</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(aws_bucket_object, test)}?X-Amz-Algorithm=AWS4-HMAC-SHA256</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">${__P(http_method, GET)}</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -133,13 +133,6 @@
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
             <collectionProp name="Arguments.arguments">
-              <elementProp name="X-Amz-Algorithm" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">AWS4-HMAC-SHA256</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">false</boolProp>
-                <stringProp name="Argument.name">X-Amz-Algorithm</stringProp>
-              </elementProp>
               <elementProp name="X-Amz-Credential" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">true</boolProp>
                 <stringProp name="Argument.value">${__P(aws_credential, AKIA47EUCCNPCDKWZV6V%2F20240416%2Fus-east-2%2Fs3%2Faws4_request)}</stringProp>
