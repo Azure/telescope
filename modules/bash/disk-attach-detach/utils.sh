@@ -71,7 +71,6 @@ run_tests() {
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_detach_$run_index.json"
         echo $output > $filename
-        fi
     done
 }
 
