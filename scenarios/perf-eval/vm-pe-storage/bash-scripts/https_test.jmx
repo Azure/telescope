@@ -87,12 +87,6 @@
               <stringProp name="Argument.desc">Value for aws api endpoint</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="aws_host" elementType="Argument">
-              <stringProp name="Argument.name">aws_path</stringProp>
-              <stringProp name="Argument.value">path</stringProp>
-              <stringProp name="Argument.desc">Value for aws api endpoint path trailing host value</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
             <elementProp name="aws_service_name" elementType="Argument">
               <stringProp name="Argument.name">aws_service_name</stringProp>
               <stringProp name="Argument.value">s3</stringProp>
@@ -270,7 +264,7 @@ public static String urlEncodeUTF8(Map&lt;?,?&gt; map) {
           <stringProp name="HTTPSampler.domain">${__P(aws_host, bucket.s3.amazonaws.com)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(aws_path, path)}</stringProp>
+          <stringProp name="HTTPSampler.path"></stringProp>
           <stringProp name="HTTPSampler.method">${__P(http_method, GET)}</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
