@@ -11,7 +11,7 @@
 get_vm_instance_by_name() {
     local run_id=$1
 
-    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id')].name" --output tsv)
+    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id') && managedBy==null].name" --output tsv)
 }
 
 # Description:
