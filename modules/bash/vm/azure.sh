@@ -60,7 +60,7 @@ create_vm() {
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
                     --argjson vm_data "${error:7}" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \

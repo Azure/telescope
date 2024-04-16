@@ -101,7 +101,6 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg region $REGION \
   --arg machine_type "$MACHINE_TYPE" \
   --arg public_key_path $SSH_PUBLIC_KEY_PATH \
-  --arg aks_machine_type "$AKS_MACHINE_TYPE" \
   --arg accelerated_networking "$ACCELERATED_NETWORKING" \
   --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
   --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
@@ -125,7 +124,6 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
     region: $region,
     machine_type: $machine_type,
     public_key_path: $public_key_path, 
-    aks_machine_type: $aks_machine_type,
     accelerated_networking: $accelerated_networking,
     data_disk_storage_account_type: $data_disk_storage_account_type,
     data_disk_size_gb: $data_disk_size_gb,
