@@ -83,7 +83,7 @@ Specifies files to ignore in version control.
 
 ### Test Scenarios
 
-* All existing test scenarios are located in the [Azure\telescope](https://github.com/Azure/telescope/tree/main/scenarios) folder.
+* All existing test scenarios are located in the [Scenarios](https://github.com/Azure/telescope/tree/main/scenarios) folder.
 
 ### Build a new test scenario
 
@@ -91,8 +91,8 @@ Specifies files to ignore in version control.
 
 * Step 1: Create a test branch with new test scenario(vm-diff-zone-iperf) in [Azure/telescope](https://github.com/Azure/telescope/tree/main/scenarios) repository.
 * Step 2: Create new folder under `scenarios\perf-eval\`  with `vm-diff-zone-iperf` and create subfolders terraform-inputs and terraform-test-inputs which are required for any test scenario.
-* Step 3: Create aws.tfvars and azure.tfvars file inside terraform-inputs folder.
-* Step 4: Create azure.json and aws.json files instead terraform-test-inputs folder.
+* Step 3: Create aws.tfvars and azure.tfvars files inside terraform-inputs folder.
+* Step 4: Create azure.json and aws.json files inside terraform-test-inputs folder.
 
 Please find the templates for these files below:
 
@@ -208,6 +208,10 @@ nic_backend_pool_association_list = [
   }
 ]
 ```
+  **Note:**
+- In this template `scenario_type`, `scenario_name`, `deletion_delay` and atleast one configlist is required for any test scenario.
+- The rest of the input variables are optional and varies based on the test setup.
+
 **Aws tfvars Template:**
 ```hcl
 scenario_type  = "perf-eval"  # Type of scenario (e.g., "perf-eval")
@@ -348,8 +352,11 @@ vm_config_list = [{  # List of virtual machine configurations
   zone_suffix                 = "b"  # Availability zone suffix for the VM (e.g., "b")
 }
 ]
-
 ```
+  **Note:**
+- In this template `scenario_type`, `scenario_name`, `deletion_delay` and atleast one configlist is required for any test scenario.
+- The rest of the input variables are optional and varies based on the test setup.
+
 **Azure json Template:**
 ```json
 {
@@ -360,6 +367,10 @@ vm_config_list = [{  # List of virtual machine configurations
     "accelerated_networking"           : true  // Whether accelerated networking is enabled or not (e.g., true)
 }
 ```
+  **Note:**
+  - In this json files we add key values that are passed as arguments while running terraform apply.
+  - In this template all the values are required for any test scenario.
+  - We can additional inputs to this template which are optional and varies based on the test setup.
 
 **Aws json Template:**
 
@@ -372,8 +383,10 @@ vm_config_list = [{  # List of virtual machine configurations
 }
 ```
 
-Note:
+  **Note:**
   - In this json files we add key values that are passed as arguments while running terraform apply.
+  - In this template all the values are required for any test scenario.
+  - We can additional inputs to this template which are optional and varies based on the test setup.
 
 * Step 5: Follow the instructions from this [readme](./scenarios/perf-eval/vm-iperf/README.md) and manually run the terraform code on your local machine.
 * Step 6: After testing it successfull on your local machine. Push the changes to remote branch.
