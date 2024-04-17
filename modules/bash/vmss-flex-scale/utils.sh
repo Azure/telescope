@@ -1,7 +1,5 @@
 #!/bin/bash
 
-source /mount/modules/bash/vmss-flex-scale/azure.sh
-
 # Description:
 #   This function is used to generate a VMSS name
 #
@@ -17,7 +15,7 @@ get_vmss_name() {
     local i=$1
     local run_id=$2
 
-    local vmss_name="vm-$i-$run_id"
+    local vmss_name="vmss-$i-$run_id"
     vmss_name="${vmss_name:0:15}"
     vmss_name="${vmss_name%-}"
 
@@ -25,40 +23,45 @@ get_vmss_name() {
 }
 
 # Description:
-#   This function is used to to measure the time it takes to create and delete a VM and save results in JSON format
+#   This function is used to measure the time it takes to create and delete a VMSS and save results in JSON format
 #
 # Parameters:
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
 #   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
-#   - $3: The size of the VM used in the VMS (e.g. c3-highcpu-4)
+#   - $3: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
 #   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
-#   - $5: The run id
+#   - $5: The number of VM instances in the VMSS (e.g. 1)
 #   - $6: The region where the VMSS will be created (e.g. us-east1)
-#   - $7: The subnet (e.g. my-subnet)
-#   - $8: The security type (e.g. TrustedLaunch)
-#   - $9: The result directory where to place the results in JSON format
-#   - $10: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $7: The run id
+#   - $8: The network security group (eg. my-nsg)
+#   - $9: The virtual network name (e.g. my-vnet)
+#   - $10: The subnet (e.g. my-subnet)
+#   - $11: The security type (e.g. TrustedLaunch)
+#   - $12: The result directory where to place the results in JSON format
+#   - $13: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: measure_create_delete_vmss <cloud> <vm_name> <vm_size> <vm_os> <run_id> <region> <subnet> <security_type> <result_dir> <tags>
+# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
 measure_create_delete_vmss() {
     local cloud=$1
     local vmss_name=$2
-    local vm_os=$3
-    local vm_size=$4
-    local region=$5
-    local run_id=$6
-    local network_security_group=$7
-    local vnet_name=$8
-    local subnet=$9
-    local security_type=${10}
-    local result_dir=${11}
-    local tags=${12}
+    local vm_size=$3
+    local vm_os=$4
+    local vm_instances=$5
+    local region=$6
+    local run_id=$7
+    local network_security_group=$8
+    local vnet_name=$9
+    local subnet=${10}
+    local security_type=${11}
+    local result_dir=${12}
+    local tags=${13}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
         \"name\": \"$vmss_name\", \
-        \"size\": \"$vm_os\", \
-        \"os\": \"$vm_size\", \
+        \"vm_size\": \"$vm_size\", \
+        \"vm_os\": \"$vm_os\", \
+        \"vm_instances\": \"$vm_instances\", \
         \"region\": \"$region\", \
         \"network_security_group\": \"$network_security_group\", \
         \"vnet_name\": \"$vnet_name\", \
@@ -69,6 +72,7 @@ measure_create_delete_vmss() {
         - VMSS name: $vmss_name
         - VM size: $vm_size
         - VM OS: $vm_os
+        - VM instances: $vm_instances
         - Region: $region
         - Network Security Group: $network_security_group
 		- VNet: $vnet_name
@@ -76,7 +80,7 @@ measure_create_delete_vmss() {
         - Security type: $security_type
         - Tags: $tags"
     
-    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_os" "$vm_size" "$run_id" "$region" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
+    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$vmss_id" ] && [[ "$vmss_id" != Error* ]]; then
         vmss_id=$(measure_delete_vmss "$cloud" "$vmss_id" "$region" "$run_id" "$result_dir" "$test_details")
@@ -89,39 +93,39 @@ measure_create_delete_vmss() {
 #
 # Parameters:
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VMSS (e.g. vmss-test)
-#   - $3: The size of the VM (e.g. c3-highcpu-4)
+#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
 #   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
-#   - $5: The region where the VM will be created (e.g. us-east1)
-#   - $6: Optional NIC to be used for VM creation/deletion measurement
+#   - $5: The number of VM instances in the VMSS (e.g. 1)
+#   - $6: The region where the VMSS will be created (e.g. us-east1)
 #   - $7: The run id
-#   - $8: The security group (e.g. my-security-group)
-#   - $9: The subnet (e.g. my-subnet)
-#   - $10: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
+#   - $8: The network security group (eg. my-nsg)
+#   - $9: The virtual network name (e.g. my-vnet)
+#   - $10: The subnet (e.g. my-subnet)
 #   - $11: The security type (e.g. TrustedLaunch)
-#   - $12: The storage type (e.g. Premium_LRS)
-#   - $13: The result directory where to place the results in JSON format
-#   - $14: The test details in JSON format
-#   - $15: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $12: The result directory where to place the results in JSON format
+#   - $13: The test details in JSON format
+#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
-#   - the VM ID is returned if no errors occurred
+#   - the VMSS ID is returned if no errors occurred
 #
-# Usage: measure_create_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <test_details> <tags>
+# Usage: measure_create_vmss <cloud> <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <run_id> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <test_details> <tags>
 measure_create_vmss() {
     local cloud=$1
     local vmss_name=$2
-    local vm_os=$3
-    local vm_size=$4
-    local region=$5
-    local run_id=$6
-    local network_security_group=$7
-    local vnet_name=$8
-    local subnet=$9
-    local security_type=${10}
-    local result_dir=${11}
-    local test_details=${12}
-    local tags=${13}
+    local vm_size=$3
+    local vm_os=$4
+    local vm_instances=$5
+    local region=$6
+    local run_id=$7
+    local network_security_group=$8
+    local vnet_name=$9
+    local subnet=${10}
+    local security_type=${11}
+    local result_dir=${12}
+    local test_details=${13}
+    local tags=${14}
 
     local creation_succeeded=false
     local creation_time=-1
@@ -131,13 +135,17 @@ measure_create_vmss() {
     local start_time=$(date +%s)
     case $cloud in
         azure)
-            vmss_data=$(create_vmss "$vmss_name" "$vm_size" "$vm_os" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$tags")
+            vmss_data=$(create_vmss "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$tags")
         ;;
         aws)
             # AWS Method call
+            echo "AWS not implemented yet."
+            exit 1
         ;;
         gcp)
             # GCP Method call
+            echo "GCP not implemented yet."
+            exit 1
         ;;
         *)
             exit 1 # cloud provider unknown
@@ -180,6 +188,21 @@ measure_create_vmss() {
     fi
 }
 
+# Description:
+#   This function is used to to measure the time it takes to delete a VMSS and save results in JSON format
+#
+# Parameters:
+#   - $1: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: The region where the VMSS will be created (e.g. us-east1)
+#   - $4: The run id
+#   - $5: The result directory where to place the results in JSON format
+#   - $6: The test details in JSON format
+#
+# Notes:
+#   - the VMSS ID is returned if no errors occurred
+#
+# Usage: measure_delete_vmss <cloud> <vmss_name> <region> <run_id> <result_dir> <test_details>
 measure_delete_vmss() {
     local cloud=$1
     local vmss_name=$2

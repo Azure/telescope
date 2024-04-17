@@ -4,32 +4,35 @@
 #   This function is used to create a VMSS in Azure.
 #
 # Parameters:
-#   - $1: The name of the VMSS (e.g. my-vmss)
-#   - $2: The size of the VM (e.g. Standard_D2ds_v5)
-#   - $3: The full URN of the OS image the VM will use (e.g. canonical:0001-com-ubuntu-server-focal:20_04-lts-gen2:latest)
-#   - $4: The region where the VM will be created (e.g. us-east-1)
-#   - $5: The resource group to use (e.g. rg-my-vm)
-#   - $6: The NIC(s) to use (e.g. my-nic)
-#   - $7: [optional] The security type to use (e.g. Standard, default value is TrustedLaunch)
-#   - $8: [optional] The storage type to use (e.g. Premium_LRS, default value is Standard_LRS)
-#   - $9: [optional] The tags to use (e.g. "'owner=azure_devops' 'creation_time=2024-03-11T19:12:01Z'", default value is empty)
+#   - $1: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $2: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
+#   - $3: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
+#   - $4: The number of VM instances in the VMSS (e.g. 1)
+#   - $5: The region where the VMSS will be created (e.g. us-east1)
+#   - $6: The run id
+#   - $7: The network security group (eg. my-nsg)
+#   - $8: The virtual network name (e.g. my-vnet)
+#   - $9: The subnet (e.g. my-subnet)
+#   - $10: [optional] The security type (e.g. TrustedLaunch)
+#   - $11: [optional] The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: create_vm <vm_name> <vm_size> <vm_os> <region> <resource_group> <nics> [security_type] [storage_type] [tags] [admin_username] [admin_password]
+# Usage: create_vmss <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <resource_group> <network_security_group> <vnet_name> <subnet> [security_type] [tags] [admin_username] [admin_password]
 create_vmss() {
 	local vmss_name=$1
     local vm_size=$2
     local vm_os=$3
-    local region=$4
-    local resource_group=$5
-    local network_security_group=$6
-    local vnet_name=$7
-    local subnet=$8
-    local security_type="${9:-"TrustedLaunch"}"
-    local tags="${10:-"''"}"
-    local admin_username="${11:-"azureuser"}"
-    local admin_password="${12:-"Azur3User!FTW"}"
+    local vm_instances=$4
+    local region=$5
+    local resource_group=$6
+    local network_security_group=$7
+    local vnet_name=$8
+    local subnet=$9
+    local security_type="${10:-"TrustedLaunch"}"
+    local tags="${11:-"''"}"
+    local admin_username="${12:-"azureuser"}"
+    local admin_password="${13:-"Azur3User!FTW"}"
 
-	az vmss create --name "$vmss_name" --resource-group "$resource_group" --image "$vm_os" --vm-sku "$vm_size" --instance-count 1 --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" --subnet "$subnet" --security-type "$security_type" --tags $tags --admin-username "$admin_username" --admin-password "$admin_password" -o json 2> /tmp/$resource_group-$vmss_name-create_vmss-error.txt > /tmp/$resource_group-$vmss_name-create_vmss-output.txt
+	az vmss create --name "$vmss_name" --resource-group "$resource_group" --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" --subnet "$subnet" --security-type "$security_type" --tags $tags --admin-username "$admin_username" --admin-password "$admin_password" -o json 2> /tmp/$resource_group-$vmss_name-create_vmss-error.txt > /tmp/$resource_group-$vmss_name-create_vmss-output.txt
 
     exit_code=$?
 
@@ -67,7 +70,7 @@ create_vmss() {
 
 }
 
-# Test only
+# This method will be used in the future when scaling is required for Azure.
 scale_vmss() {
     local vmss_name=$1
     local resource_group=$2
@@ -76,6 +79,14 @@ scale_vmss() {
     az vmss scale --name "$vmss_name" --new-capacity "$vmss_capacity" --resource-group "$resource_group" -o json 2> /tmp/$resource_group-$vmss_name-scale_vmss-error.txt > /tmp/$resource_group-$vmss_name-scale_vmss-output.txt
 }
 
+# Description:
+#   This function is used to delete a VMSS in Azure.
+#
+# Parameters:
+#   - $1: The name of the VMSS (e.g. my-vmss)
+#   - $2: The resource group under which the VMSS was created (e.g. rg-my-vmss)
+#
+# Usage: delete_vm <vmss_name> <resource_group>
 delete_vmss() {
     local vmss_name=$1
     local resource_group=$2
