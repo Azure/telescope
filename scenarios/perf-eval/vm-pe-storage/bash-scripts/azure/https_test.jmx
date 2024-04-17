@@ -27,10 +27,16 @@
       <hashTree>
         <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
           <collectionProp name="Arguments.arguments">
+            <elementProp name="api_domain" elementType="Argument">
+              <stringProp name="Argument.name">api_domain</stringProp>
+              <stringProp name="Argument.value">myAccount.blob.core.windows.net</stringProp>
+              <stringProp name="Argument.desc">Azure Blob Storage REST Api domain</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
             <elementProp name="api_endpoint" elementType="Argument">
               <stringProp name="Argument.name">api_endpoint</stringProp>
-              <stringProp name="Argument.value">/subscriptions/xxxx/resourceGrroups/stuff</stringProp>
-              <stringProp name="Argument.desc">Azure REST API endpoint</stringProp>
+              <stringProp name="Argument.value">/myContainer/myBlob</stringProp>
+              <stringProp name="Argument.desc">Azure Blob Storage REST API endpoint</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="ramp_time" elementType="Argument">
@@ -78,7 +84,19 @@
             <elementProp name="auth_token" elementType="Argument">
               <stringProp name="Argument.name">auth_token</stringProp>
               <stringProp name="Argument.value">random string</stringProp>
-              <stringProp name="Argument.desc">Header</stringProp>
+              <stringProp name="Argument.desc">Azure auth token header value</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="azure_date" elementType="Argument">
+              <stringProp name="Argument.name">azure_date</stringProp>
+              <stringProp name="Argument.value">Thu, Apr 18 2024 00:12:00 UTC</stringProp>
+              <stringProp name="Argument.desc">Azure date header value in "%A, %d %b, %Y %I:%M %p" format</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="azure_version" elementType="Argument">
+              <stringProp name="Argument.name">azure_version</stringProp>
+              <stringProp name="Argument.value">2024-05-04</stringProp>
+              <stringProp name="Argument.desc">Azure version header value</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
           </collectionProp>
@@ -95,10 +113,10 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.domain">management.azure.com</stringProp>
+          <stringProp name="HTTPSampler.domain">${__P(api_domain, myAccount.blob.core.windows.net)}</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(api_endpoint,/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Storage/storageAccounts/storageaccount/fileServices/default/shares?api-version=2023-01-01)}</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(api_endpoint, /myContainer/myBlob)}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -125,6 +143,18 @@
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
                 <stringProp name="Header.value">Bearer ${__P(auth_token, token)}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">x-ms-date</stringProp>
+                <stringProp name="Header.value">${__P(azure_date, Thu, Apr 18 2024 00:12:00 UTC)}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">x-ms-version</stringProp>
+                <stringProp name="Header.value">${__P(azure_version, 2024-05-04)}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Range</stringProp>
+                <stringProp name="Header.value">bytes=0-0</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
