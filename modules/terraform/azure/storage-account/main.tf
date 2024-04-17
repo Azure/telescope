@@ -26,7 +26,6 @@ resource "azurerm_storage_container" "storage_container" {
   name                  = var.storage_blob_config.container_name
   storage_account_name  = azurerm_storage_account.storage_account.name
   container_access_type = "private"
-  tags = var.tags
   depends_on =  [
     azurerm_storage_account.storage_account
   ]
@@ -39,7 +38,6 @@ resource "azurerm_storage_blob" "storage_blob" {
   storage_container_name = var.storage_blob_config.container_name
   type                   = "Block"
   source                 = var.storage_blob_config.source_file_path
-  tags = var.tags
   depends_on = [
     azurerm_storage_container.storage_container
   ]
