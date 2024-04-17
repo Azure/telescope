@@ -15,10 +15,12 @@
 #   - $9: The subnet (e.g. my-subnet)
 #   - $10: [optional] The security type (e.g. TrustedLaunch)
 #   - $11: [optional] The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $12: [optional] The admin username to use (e.g. my_username, default value is azureuser)
+#   - $13: [optional] The admin password to use (e.g. my_password, default value is Azur3User!FTW)
 #
 # Usage: create_vmss <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <resource_group> <network_security_group> <vnet_name> <subnet> [security_type] [tags] [admin_username] [admin_password]
 create_vmss() {
-	local vmss_name=$1
+    local vmss_name=$1
     local vm_size=$2
     local vm_os=$3
     local vm_instances=$4
@@ -32,7 +34,7 @@ create_vmss() {
     local admin_username="${12:-"azureuser"}"
     local admin_password="${13:-"Azur3User!FTW"}"
 
-	az vmss create --name "$vmss_name" --resource-group "$resource_group" --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" --subnet "$subnet" --security-type "$security_type" --tags $tags --admin-username "$admin_username" --admin-password "$admin_password" -o json 2> /tmp/$resource_group-$vmss_name-create_vmss-error.txt > /tmp/$resource_group-$vmss_name-create_vmss-output.txt
+    az vmss create --name "$vmss_name" --resource-group "$resource_group" --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" --subnet "$subnet" --security-type "$security_type" --tags $tags --admin-username "$admin_username" --admin-password "$admin_password" -o json 2> /tmp/$resource_group-$vmss_name-create_vmss-error.txt > /tmp/$resource_group-$vmss_name-create_vmss-output.txt
 
     exit_code=$?
 
@@ -71,12 +73,21 @@ create_vmss() {
 }
 
 # This method will be used in the future when scaling is required for Azure.
+# Description:
+#   This function is used to scale (in/out) a VMSS in Azure.
+#
+# Parameters:
+#   - $1: The name of the VMSS (e.g. my-vmss)
+#   - $2: The resource group under which the VMSS was created (e.g. rg-my-vmss)
+#   - $3: The new VM capacity for the VMSS (e.g. 20)
+#
+# Usage: scale_vmss <vmss_name> <resource_group> <vmss_capacity>
 scale_vmss() {
     local vmss_name=$1
     local resource_group=$2
     local vmss_capacity=$3
     
-    az vmss scale --name "$vmss_name" --new-capacity "$vmss_capacity" --resource-group "$resource_group" -o json 2> /tmp/$resource_group-$vmss_name-scale_vmss-error.txt > /tmp/$resource_group-$vmss_name-scale_vmss-output.txt
+    az vmss scale --name "$vmss_name" --new-capacity $vmss_capacity --resource-group "$resource_group" -o json 2> /tmp/$resource_group-$vmss_name-scale_vmss-error.txt > /tmp/$resource_group-$vmss_name-scale_vmss-output.txt
 }
 
 # Description:
