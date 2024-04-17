@@ -114,7 +114,7 @@ Leverage scp to transfer jmeter properties and text.jmx files to client vm
 source ./${TEST_MODULES_DIR}/jmeter.sh
 
 run_scp_remote $ssh_key_path ubuntu $VM_PUBLIC_IP 2222 "${USER_DATA_PATH}/jmeter.properties" "${TEMP_JMETER}/jmeter.properties"
-run_scp_remote $ssh_key_path ubuntu $VM_PUBLIC_IP 2222 "${USER_DATA_PATH}/https_test.jmx" "${TEMP_JMETER}/https_test.jmx"
+run_scp_remote $ssh_key_path ubuntu $VM_PUBLIC_IP 2222 "${USER_DATA_PATH}/https_test.jmx" "${TEMP_JMETER}/${cloud}/https_test.jmx"
 
 mkdir -p $RESULT_PATH
 ```
@@ -122,7 +122,7 @@ mkdir -p $RESULT_PATH
 Execute jmeter test for single thread @ 100 loops (this is a constraint of Azure REST Api, after an undisclosed amount of request, the api will continuously return 429 bad request responses)
 ```
 JMETER_HTTP_PROPERTY="-JProtocol=https -JPort=443 -Jip_address=$PE_IP -Jthread_num=1 -Jloop_count=100 -Japi_endpoint=$STORAGE_ENDPONT -Jauth_token=$token -Jrequest_delay=200"
-run_jmeter $VM_PUBLIC_IP $ssh_key_path https 1 "$JMETER_HTTP_PROPERTY" $TEMP_JMETER $RESULT_PATH
+run_jmeter $VM_PUBLIC_IP $ssh_key_path https 1 "$JMETER_HTTP_PROPERTY" "$TEMP_JMETER/$cloud" $RESULT_PATH
 ```
 
 ### Collect Results

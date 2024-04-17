@@ -20,3 +20,19 @@ resource "azurerm_storage_share" "fileshare" {
   access_tier          = var.storage_share_config.access_tier
   enabled_protocol     = var.storage_share_config.enabled_protocol
 }
+
+resource "azurerm_storage_container" "example" {
+  count                 = var.storage_blob_config == null ? 0 : 1
+  name                  = var.storage_blob_config.container_name
+  storage_account_name  = azurerm_storage_account.storage_account.name
+  container_access_type = "private"
+}
+
+resource "azurerm_storage_blob" "blob" {
+  count                  = var.storage_blob_config == null ? 0 : 1
+  name                   = var.storage_blob_config.blob_name
+  storage_account_name   = azurerm_storage_account.storage_account.name
+  storage_container_name = var.storage_blob_config.container_name
+  type                   = "Block"
+  source                 = var.storage_blob_config.source_file_path
+}

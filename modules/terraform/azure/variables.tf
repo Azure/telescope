@@ -264,6 +264,16 @@ variable "storage_account_name_prefix" {
   default = null
 }
 
+variable "blob_config" {
+  description = "storage container blob config"
+  type = object({
+    container_name = string
+    blob_name = string
+    source_file_name = string
+  })
+  default = null
+}
+
 variable "private_link_conf" {
   description = "configuration for private link service and private endpoint"
   type = object({
