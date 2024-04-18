@@ -9,6 +9,7 @@ locals {
   data_disk_iops_read_write = lookup(var.json_input, "data_disk_iops_read_write", null)
   data_disk_mbps_read_write = lookup(var.json_input, "data_disk_mbps_read_write", null)
   data_disk_count           = lookup(var.json_input, "data_disk_count", 0)
+  data_disk_attach          = lookup(var.json_input, "data_disk_attach", false)
 
   efs_performance_mode                = lookup(var.json_input, "efs_performance_mode", null)
   efs_throughput_mode                 = lookup(var.json_input, "efs_throughput_mode", null)
@@ -145,7 +146,7 @@ module "privatelink" {
 }
 
 resource "aws_volume_attachment" "attach" {
-  count = local.data_disk_count == null ? 0 : local.data_disk_count
+  count = (local.data_disk_count == null || local.data_disk_attach == false) ? 0 : local.data_disk_count
 
   device_name = "/dev/sd${element(local.all_devices_suffixes, count.index)}"
   volume_id   = module.data_disk[count.index].data_disk.id
