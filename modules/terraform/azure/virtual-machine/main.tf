@@ -33,7 +33,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   tags = merge(
     var.tags,
     {
-      "role" = var.vm_config.role
+      "role"             = var.vm_config.role
       "info_column_name" = var.vm_config.info_column_name
     },
   )

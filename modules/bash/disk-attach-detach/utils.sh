@@ -29,12 +29,12 @@ execute() {
     local vm_name=$(get_vm_instance_by_name $run_id)
 
     for ((i=1; i<=iterations_number; i++)); do
-        run_tests $run_id $vm_name $i $cloud
+        run_and_collect $run_id $vm_name $i $cloud
     done
 }
 
 #Description
-#   Function to run tests
+#   Function to run tests and collect results
 #
 # Parameters:
 #   - $1: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
@@ -43,8 +43,8 @@ execute() {
 #   - $4: cloud: the cloud provider (e.g. azure)
 #
 # Returns: nothing
-# Usage: run_tests <run_id> <vm_name> <resource_group> <vm_os> <vm_size> <region> <run_index> <cloud>
-run_tests() {
+# Usage: run_and_collect <run_id> <vm_name> <resource_group> <vm_os> <vm_size> <region> <run_index> <cloud>
+run_and_collect() {
     local resource_group=$1
     local vm_name=$2
     local run_index=$3

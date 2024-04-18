@@ -40,11 +40,11 @@ data_disk_config_list = [{
 
 vm_config_list = [{
   info_column_name = "cloud_info.vm-info"
-  roles           = "vm-role"
-  role           = "vm-role"
-  vm_name        = "Attach-Detach-VM-RAW"
-  nic_name       = "compete-disk-attach-detach-nic"
-  admin_username = "ubuntu"
+  roles            = "vm-role"
+  role             = "vm-role"
+  vm_name          = "Attach-Detach-VM-RAW"
+  nic_name         = "compete-disk-attach-detach-nic"
+  admin_username   = "ubuntu"
   source_image_reference = {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
