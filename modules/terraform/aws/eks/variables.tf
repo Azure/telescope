@@ -16,6 +16,7 @@ variable "vpc_id" {
 
 variable "eks_config" {
   type = object({
+    role        = string
     eks_name    = string
     vpc_name    = string
     policy_arns = list(string)
@@ -28,6 +29,11 @@ variable "eks_config" {
       desired_size   = number
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
+      taints = optional(list(object({
+        key    = string
+        value  = string
+        effect = string
+      })), [])
     }))
     eks_addons = list(object({
       name            = string

@@ -2,6 +2,10 @@ name: Terraform Plan
 
 on:
   pull_request:
+    paths:
+      - '**.tf'
+      - '**.json'
+      - '**.tfvars'
 
 env:
   AWS_REGION: us-east-1
@@ -12,19 +16,61 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |
-          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.json" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
-          matrix="${matrix//$'\n'/''}"
-          echo "matrix_combinations={\"include\": [${matrix%?}]}" >> "$GITHUB_OUTPUT"
+          set -eux
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix_array="[${matrix%,}]"
+
+          file_changes=$(git diff --name-only -r origin/main HEAD)
+          echo "PR file changes: $file_changes"
+
+          if [ -z "$file_changes" ]; then
+            matrix_combinations=null
+            echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
+          else
+            cloud_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | uniq)
+            echo "File changes related to cloud: $cloud_changes"
+
+            run_all_tests=false
+            module_matrix='[]'
+            scenario_matrix='[]'
+            if [ $(echo "$cloud_changes" | wc -w) -eq 1 ]; then
+              cloud=$(echo "$cloud_changes" | cut -d' ' -f1)
+              module_matrix=$(echo "$matrix_array" | jq --arg cloud_value "$cloud" '. | map(select(.cloud == $cloud_value))')
+            elif [ $(echo "$cloud_changes" | wc -w) -eq 0 ]; then
+              run_all_tests=false
+            else
+              run_all_tests=true
+              module_matrix=$(echo "$matrix_array")
+            fi
+            echo "module_matrix: $module_matrix"
+            if [ "$run_all_tests" = false ]; then                      
+              changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | tr ' ' '\n' | sort -u)
+              echo "Test scenarios changed: $changed_scenario_names"            
+              for scenario_name in $changed_scenario_names; do
+                filtered_objects=$(echo "$matrix_array" | jq --arg scenario_value "$scenario_name" '. | map(select(.scenario_name == $scenario_value))')
+                scenario_matrix=$(echo "$scenario_matrix $filtered_objects" | jq -s 'flatten | unique')
+              done           
+            fi
+            updated_matrix=$(echo "$module_matrix $scenario_matrix" | jq -s 'flatten | unique')
+            echo "Test scenarios to run: $updated_matrix"
+            updated_matrix="${updated_matrix//$'\n'/''}"
+            matrix_combinations="{\"include\": ${updated_matrix%?}}"
+            echo "matrix_combinations={\"include\": ${updated_matrix} }" >> "$GITHUB_OUTPUT"
+          fi
+          echo "matrix_combinations: $matrix_combinations"
     outputs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
   terraform-plan:
     permissions: read-all
     needs: setup-matrix
+    if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != 'null' && needs.setup-matrix.outputs.matrix-combinations['inlcude'] != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: 3

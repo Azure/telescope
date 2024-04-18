@@ -6,7 +6,6 @@ variable "json_input" {
     region                           = string
     public_key_path                  = string
     machine_type                     = optional(string)
-    aks_machine_type                 = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
     data_disk_storage_account_type   = optional(string)
@@ -150,9 +149,11 @@ variable "aks_config_list" {
     subnet_name    = string
     dns_prefix     = string
     network_plugin = string
+    sku_tier       = string
     default_node_pool = object({
       name                         = string
       node_count                   = number
+      vm_size                      = string
       os_disk_type                 = string
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
@@ -160,7 +161,9 @@ variable "aks_config_list" {
     extra_node_pool = list(object({
       name       = string
       node_count = number
+      vm_size    = string
     }))
+    role_assignment_list = optional(list(string), [])
   }))
   default = []
 }
@@ -267,6 +270,18 @@ variable "private_link_conf" {
 
     pe_name        = string
     pe_subnet_name = string
+  })
+  default = null
+}
+
+variable "pe_config" {
+  description = "configuration for a private endpoint"
+  type = object({
+    pe_name              = string
+    pe_subnet_name       = string
+    psc_name             = string
+    is_manual_connection = bool
+    subresource_names    = optional(list(string))
   })
   default = null
 }

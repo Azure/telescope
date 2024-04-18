@@ -114,16 +114,72 @@ azure_aks_deploy_fio()
   local disk_type=$5
   local disk_size_in_gb=$6
   local replica_count=$7
+  local data_disk_iops_read_write=$8
+  local data_disk_mbps_read_write=$9
 
   az aks get-credentials -n $aksName -g $resource_group
-  
-  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/azure
 
-  sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
+  if [ -z "$data_disk_iops_read_write" ]; then
+    sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class.yml"
+    kubectl apply -f "${file_source}/storage-class.yml"
+  else
+    sed -i "s/\(skuName: \).*/\1$disk_type/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(DiskIOPSReadWrite: \).*/\1\"$data_disk_iops_read_write\"/" "${file_source}/storage-class-provisioned.yml"
+    sed -i "s/\(DiskMBpsReadWrite: \).*/\1\"$data_disk_mbps_read_write\"/" "${file_source}/storage-class-provisioned.yml"
+    kubectl apply -f "${file_source}/storage-class-provisioned.yml"
+  fi
+
   sed -i "s/\(storage: \).*/\1${disk_size_in_gb}Gi/" "${file_source}/pvc.yml"
   sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
   
-  kubectl apply -f "${file_source}/storage-class.yml"
   kubectl apply -f "${file_source}/pvc.yml"
   kubectl apply -f "${file_source}/fio.yml"
+}
+
+azure_aks_deploy_fio_fileshare()
+{
+  local resource_group=$1
+  local aksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local protocol=$(echo $5 | tr '[:upper:]' '[:lower:]') # convert to lowercase
+  local share_size_in_gb=$6
+  local replica_count=$7
+
+  az aks get-credentials -n $aksName -g $resource_group
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/azure
+
+  if [ $protocol = "smb" ]; then
+    kubectl apply -f "${file_source}/storage-class-smb.yml"
+  else
+    kubectl apply -f "${file_source}/storage-class-nfs.yml"
+  fi
+
+  sed -i "s/\(storage: \).*/\1${share_size_in_gb}Gi/" "${file_source}/pvc.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}
+
+azure_create_vnet_peering()
+{
+  local run_id=$1
+    # Step 1: Find all VNets in the specified resource group
+    vnets=$(az network vnet list --resource-group $run_id --query '[].name' -o tsv)
+
+    # Step 2: Create VNet peering between each pair of VNets
+    for vnet1 in $vnets; do
+        for vnet2 in $vnets; do
+            if [[ "$vnet1" != "$vnet2" ]]; then
+                az network vnet peering create \
+                    --name "${vnet1}-to-${vnet2}" \
+                    --resource-group $run_id \
+                    --vnet-name $vnet1 \
+                    --remote-vnet $vnet2 \
+                    --allow-vnet-access
+            fi
+        done
+    done
 }

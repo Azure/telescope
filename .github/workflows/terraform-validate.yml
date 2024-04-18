@@ -2,6 +2,9 @@ name: Terraform Validate
 
 on:
   pull_request:
+    paths:
+      - '**.tf'
+      - '**.tfvars'    
 
 env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
@@ -21,7 +24,7 @@ jobs:
 
     - name: Terraform Format Check
       if: always()
-      run: terraform fmt --check -recursive
+      run: terraform fmt --check -recursive --diff
 
     - name: Terraform Azure Validation Check
       if: always()

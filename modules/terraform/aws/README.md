@@ -1,26 +1,27 @@
-## Overview
+# Overview
 
 This guide covers how to manually run Terraform for AWS. All commands should be run from the root of the repository and in a bash shell (Linux or WSL).
 
-### Prerequisite
+## Prerequisite
 
 * Install [Terraform - 1.7.3](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
 * Install [AWS CLI - 2.15.19](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 
-### Generate SSH public and Private key using SSH-Keygen
-```
+## Generate SSH public and Private key using SSH-Keygen
+
+```bash
 CLOUD=aws
 ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
 ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```
 
-### Define Variables
+## Define Variables
 
 Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/vm-same-zone-iperf` scenario as the example and set the following variables:
 
-```
+```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=vm-same-zone-iperf
 RUN_ID=123456789
@@ -33,12 +34,14 @@ TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scr
 ```
 
 **Note**:
+
 * `RUN_ID` should be a unique identifier since it is used to identify the resources based on tags as AWS has no concept of a resource group.
 * These variables are not exhaustive and may vary depending on the scenario.
 * `REGIONS` contains list of regions
 
-### Set Input File
-```
+## Set Input File
+
+```bash
 regional_config=$(jq -n '{}')
 multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
 for region in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -52,12 +55,13 @@ done
 regional_config_str=$(echo $regional_config | jq -c .)
 ```
 
-### Provision Resources
+## Provision Resources
 
 Create access key and secret key for AWS CLI following the instructions [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_CreateAccessKey) if you don't have one yet.
 
 Login using the access key and secret key
-```
+
+```bash
 aws configure set aws_access_key_id <access-key>
 aws configure set aws_secret_access_key <secret-access-key>
 aws configure set region <test-region>
@@ -67,7 +71,7 @@ aws configure set region <test-region>
 
 Set `INPUT_JSON` variable. This variable is not exhaustive and may vary depending on the scenario. For a full list of what can be set, look for `json_input` in file [`modules/terraform/aws/variables.tf`](../../../modules/terraform/aws/variables.tf) as the list will keep changing as we add more features.
 
-```
+```bash
 for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   echo "Set input variables for region $REGION"
   INPUT_JSON=$(jq -n \
@@ -119,7 +123,8 @@ done
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
 
 Provision resources using Terraform:
-```
+
+```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
 for region in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -149,7 +154,8 @@ Once resources are provisioned, make sure to go to AWS console to verify the res
 ### Cleanup Resources
 
 Once your test is done, you can destroy the resources using Terraform.
-```
+
+```bash
 pushd $TERRAFORM_MODULES_DIR
 for region in $(echo "$REGIONS" | jq -r '.[]'); do
   if terraform workspace list | grep -q "$region"; then
@@ -165,7 +171,8 @@ done
 popd
 ```
 
-### References
-- [Terraform AWS Provider](https://www.terraform.io/docs/providers/aws/index.html)
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/)
-- [AWS Console](https://aws.amazon.com/console/)
+## References
+
+* [Terraform AWS Provider](https://www.terraform.io/docs/providers/aws/index.html)
+* [AWS CLI](https://docs.aws.amazon.com/cli/latest/)
+* [AWS Console](https://aws.amazon.com/console/)

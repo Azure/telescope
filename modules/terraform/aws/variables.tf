@@ -164,6 +164,7 @@ variable "bucket_name_prefix" {
 
 variable "eks_config_list" {
   type = list(object({
+    role        = string
     eks_name    = string
     vpc_name    = string
     policy_arns = list(string)
@@ -176,6 +177,11 @@ variable "eks_config_list" {
       desired_size   = number
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
+      taints = optional(list(object({
+        key    = string
+        value  = string
+        effect = string
+      })), [])
     }))
     eks_addons = list(object({
       name            = string

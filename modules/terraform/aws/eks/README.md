@@ -8,29 +8,37 @@ To use the EKS module, follow these steps:
 
 1. **Create EKS cluster & Managed Node Groups:**
 
-   Include the configuration in your input tfvars file:
+  Include the configuration in your input tfvars file:
 
-   ```
-   eks_config_list = [{
-   	eks_name                = "sumanth-test"
-   	vpc_name                = "client-vpc"
-   	policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
-   	eks_managed_node_groups = [
-   		{
-   			name           = "node-group-1"
-   			ami_type       = "AL2_x86_64"
-   			instance_types = ["t3.small"]
-   			min_size       = 1
-   			max_size       = 3
-   			desired_size   = 2
-   			capacity_type = "ON_DEMAND" # Optional input
-   			labels         = { terraform = "true", k8s = "true", role = "perf-eval" } # Optional input
-   		}
-   	]
-   }]
-   ```
-
+  ```hcl
+  eks_config_list = [{
+  eks_name                = "sumanth-test"
+  vpc_name                = "client-vpc"
+  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  eks_managed_node_groups = [
+    {
+      name           = "node-group-1"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["t3.small"]
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 2
+      capacity_type = "ON_DEMAND" # Optional input
+      labels         = { terraform = "true", k8s = "true", role = "perf-eval" } # Optional input
+      taints         = [{
+        key = "dedicated"
+        value = "fio"
+        effect = "NO_SCHEDULE"
+      }] # Optional input
+    }
+  ]
+  }]
+  ```
+	
    - This configuration creates EKS cluster using specified VPC.
+	 - You need to have at least 2 subnets in different zones with public ip enabled for each subnet to be able to successfully create the cluster.
+	 - We need few IAM permission in order to create Node Group. Please refer [here](https://docs.aws.amazon.com/eks/latest/userguide/create-node-role.html)
+	 - Recommended to have these polices added to your tfvars. ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly", "AmazonEKS_CNI_Policy"] 
    - It also creates an IAM role and attachs the polices listed in the tfvars config.
    - It creates one node group for the cluster with our desired configuration.
    - policy_arns is the list of suffix strings of policy we want to attach to a IAM role.
@@ -51,6 +59,9 @@ To use the EKS module, follow these steps:
        name                    = "aws-efs-csi-driver"
        service_account         = "efs-csi-*"
        policy_arns = ["service-role/AmazonEFSCSIDriverPolicy"]
+     },
+     {
+       name = "coredns"
      }
    ]
    ```
@@ -59,4 +70,18 @@ To use the EKS module, follow these steps:
    - This configuration creates two addons related to storage.
    - service_account and policy_attachment_names are optional in general but some addons are required to have IAM permisson values. [Refer here](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
    - We can also provide the version of an addon we are created which is an optional input here.
-   -
+   
+## Terraform Provider References
+
+### Resources
+
+- [aws_iam_role Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
+- [aws_iam_role_policy_attachment Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment)
+- [aws_eks_cluster Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster)
+- [aws_eks_node_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_node_group)
+- [module Documentation](https://www.terraform.io/docs/language/modules/index.html)
+
+### Data Sources
+
+- [aws_iam_policy_document Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document)
+- [aws_subnets Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets)

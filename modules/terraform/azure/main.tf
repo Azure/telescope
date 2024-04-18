@@ -1,7 +1,6 @@
 locals {
   region                           = lookup(var.json_input, "region", "East US")
   machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
-  aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   public_key_path                  = lookup(var.json_input, "public_key_path", "")
@@ -83,7 +82,6 @@ module "aks" {
   source              = "./aks"
   resource_group_name = local.run_id
   location            = local.region
-  vm_sku              = local.aks_machine_type
   subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   aks_config          = each.value
   tags                = local.tags
@@ -231,4 +229,19 @@ module "privatelink" {
   pe_subnet_id = local.all_subnets[var.private_link_conf.pe_subnet_name]
 
   tags = local.tags
+}
+
+module "private_endpoint" {
+  source = "./private-endpoint"
+
+  count = var.pe_config == null ? 0 : 1
+
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+
+  pe_subnet_id                   = local.all_subnets[var.pe_config.pe_subnet_name]
+  private_connection_resource_id = module.storage_account[0].storage_account.id
+
+  pe_config = var.pe_config
 }
