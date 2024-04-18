@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "pls-iperf"
+scenario_name  = "vm-pe-pls-vm-iperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
