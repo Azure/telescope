@@ -39,8 +39,10 @@ data_disk_config_list = [{
 }]
 
 vm_config_list = [{
-  role           = "vm-attach-dettach"
-  vm_name        = "vm-1"
+  info_column_name = "cloud_info.vm-info"
+  roles           = "vm-role"
+  role           = "vm-role"
+  vm_name        = "Attach-Detach-VM-RAW"
   nic_name       = "compete-disk-attach-detach-nic"
   admin_username = "ubuntu"
   source_image_reference = {
