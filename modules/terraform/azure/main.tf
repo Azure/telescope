@@ -15,7 +15,7 @@ locals {
   data_disk_tier                   = lookup(var.json_input, "data_disk_tier", null)
   data_disk_caching                = lookup(var.json_input, "data_disk_caching", "ReadOnly")
   data_disk_count                  = lookup(var.json_input, "data_disk_count", 0)
-  data_disk_attach                 = lookup(var.json_input, "data_disk_attach", false)
+  data_disk_attach                 = lookup(var.json_input, "data_disk_attach", true)
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
