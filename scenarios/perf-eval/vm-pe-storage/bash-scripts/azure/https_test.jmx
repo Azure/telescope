@@ -90,7 +90,7 @@
             <elementProp name="azure_date" elementType="Argument">
               <stringProp name="Argument.name">azure_date</stringProp>
               <stringProp name="Argument.value">Thu, Apr 18 2024 00:12:00 UTC</stringProp>
-              <stringProp name="Argument.desc">Azure date header value in "%A, %d %b, %Y %I:%M %p" format</stringProp>
+              <stringProp name="Argument.desc">Azure date header value in "%a, %b %d %Y %T %Z" format</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="azure_version" elementType="Argument">
@@ -146,11 +146,11 @@
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">${__P(azure_date, Thu, Apr 18 2024 00:12:00 UTC)}</stringProp>
+                <stringProp name="Header.value">${__P(azure_date, \"Thu, Apr 18 2024 00:12:00 UTC\")}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
-                <stringProp name="Header.value">${__P(azure_version, 2024-05-04)}</stringProp>
+                <stringProp name="Header.value">2024-05-04</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Range</stringProp>
