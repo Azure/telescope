@@ -51,5 +51,3 @@ linux-amd64/
 
 # python
 __pycache__/
-/scenarios/perf-eval/vmss-flex/terraform-inputs/aws.tfvars
-/scenarios/perf-eval/vmss-flex/terraform-test-inputs/aws.json
