@@ -93,7 +93,7 @@ func main() {
 			case duration >= 300:
 				durationMap[">300s"]++
 			}
-			printDurationDistribution(durationMap, keys)
+			//printDurationDistribution(durationMap, keys)
 
 			atomic.AddUint64(&actualConns, 1)
 			return nil

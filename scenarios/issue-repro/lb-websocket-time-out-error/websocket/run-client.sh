@@ -3,7 +3,7 @@
 ./client &> log.txt
 code=$?
 if [[ $code -eq 0 ]]; then
-  error_count=$(cat log.txt | grep "timeout" | wc -l)
+  error_count=$(cat log.txt | grep "Connection closed:" | wc -l)
   jq --null-input \
     --arg error_count "$error_count" \
     --arg server_address "$SERVER_ADDRESS" \
