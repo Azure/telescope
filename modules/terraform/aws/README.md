@@ -88,7 +88,6 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
         --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
         --arg data_disk_count "$DATA_DISK_COUNT" \
-        --arg data_disk_attach "$DATA_DISK_ATTACH" \
         --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
         --arg user_data_path $TERRAFORM_USER_DATA_PATH \
         --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
@@ -108,7 +107,6 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         data_disk_mbps_read_write: $data_disk_mbps_read_write,
         data_disk_mbps_read_only: $data_disk_mbps_read_only,
         data_disk_count: $data_disk_count,
-        data_disk_attach: $data_disk_attach,
         ultra_ssd_enabled: $ultra_ssd_enabled,
         user_data_path: $user_data_path,
         efs_performance_mode: $efs_performance_mode,

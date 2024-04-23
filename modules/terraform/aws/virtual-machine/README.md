@@ -14,11 +14,6 @@ This module provisions a virtual machine (EC2 instance) in AWS with customizable
   - `security_group_name`: Name of the security group
   - `associate_public_ip_address`: Whether to associate a public IP address with the instance (boolean)
   - `zone_suffix`: Suffix for the availability zone
-  - `data_disk_config`: (Optional) Configuration for the data disk
-    - `data_disk_size_gb`: Size of the data disk in GB
-    - `data_disk_volume_type`: Type of the data disk volume
-    - `data_disk_iops_read_write`: (Optional) IOPS for read and write operations
-    - `data_disk_mbps_read_write`: (Optional) Throughput for read and write operations
   - `ami_config`: (Optional) Configuration for the Amazon Machine Image (AMI)
     - `most_recent`: Whether to use the most recent AMI (boolean)
     - `name`: Name of the AMI
@@ -73,12 +68,6 @@ module "aws_virtual_machine" {
     security_group_name         = "example-security-group"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    data_disk_config = {
-      data_disk_size_gb         = 50
-      data_disk_volume_type     = "gp2"
-      data_disk_iops_read_write = 1000
-      data_disk_mbps_read_write = 100
-    }
     ami_config = {
       most_recent         = true
       name                = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
