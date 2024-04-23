@@ -10,6 +10,11 @@ COPY websocket/server /app
 # Build the Go application
 RUN go build -o server .
 
+COPY websocket/ca.crt /app/ca.crt
+COPY websocket/server.crt /app/server.crt
+COPY websocket/server.csr /app/server.csr
+COPY websocket/server.key /app/server.key
+
 # Expose the necessary port
 EXPOSE 8080
 

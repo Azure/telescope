@@ -8,8 +8,13 @@ WORKDIR /app
 COPY websocket/client /app
 
 # Build the Go application
-RUN go build -o client
+RUN go build -o client .
 
+
+COPY websocket/ca.crt /app/ca.crt
+COPY websocket/client.crt /app/client.crt
+COPY websocket/client.csr /app/client.csr
+COPY websocket/client.key /app/client.key
 COPY websocket/run-client.sh .
 
 ENV SERVER_ADDRESS=""
