@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,8 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/sync/errgroup"
 )
+
+var interrupt = make(chan os.Signal, 1)
 
 func main() {
 	hostname := os.Getenv("SERVER_ADDRESS")
@@ -116,6 +119,9 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 
 	go func() {
 		defer close(done)
+		// Handle OS interrupts to gracefully close the connection.
+		signal.Notify(interrupt, os.Interrupt)
+
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
@@ -128,14 +134,25 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 
 	select {
 	case <-done:
-		duration := time.Since(startTime)
-		fmt.Printf("Connection duration: %v\n", duration)
-		return duration.Seconds(), true
+		// Connection closed
 
 	case <-timeout:
-		conn.Close()
-		return websocketTimeout.Seconds(), false
+		// Timeout occurred, close the connection
+		fmt.Println("Timeout expired, closing connection...")
+		return time.Since(startTime).Seconds(), false
+	case <-interrupt:
+		// Interrupt received, close the connection
+		fmt.Println("Interrupt received, closing connection...")
 	}
+	// Gracefully close the WebSocket connection
+	err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		log.Println("write close:", err)
+	}
+
+	// Wait for a short duration to allow time for the server to receive the close message
+	time.Sleep(1 * time.Second)
+	return time.Since(startTime).Seconds(), false
 }
 
 func printDurationDistribution(durationMap map[string]int, keys []string) {
