@@ -93,13 +93,6 @@ func main() {
 
 			v := atomic.AddUint64(&actualConns, 1)
 			fmt.Println("Connection count:", v, time.Now())
-			// if v%10000 == 0 {
-			// 	fmt.Printf("%v times %v\n", v, time.Now())
-			// 	fmt.Printf("Duration distribution:\n")
-			// 	for _, k := range keys {
-			// 		fmt.Printf("%v: %v\n", k, durationMap[k])
-			// 	}
-			// }
 			return nil
 		})
 	}
