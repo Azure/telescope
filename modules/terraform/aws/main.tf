@@ -145,7 +145,7 @@ module "privatelink" {
 }
 
 resource "aws_volume_attachment" "attach" {
-  count = var.data_disk_config.vm_name == null ? 0 : local.data_disk_count
+  count = try(var.data_disk_config.vm_name, null) != null ? local.data_disk_count : 0
 
   device_name = "/dev/sd${element(local.all_devices_suffixes, count.index)}"
   volume_id   = module.data_disk[count.index].data_disk.id
