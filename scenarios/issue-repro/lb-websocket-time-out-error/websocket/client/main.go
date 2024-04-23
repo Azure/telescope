@@ -90,9 +90,9 @@ func main() {
 			case duration >= 300:
 				durationMap[">300s"]++
 			}
+			printDurationDistribution(durationMap, keys)
 
-			v := atomic.AddUint64(&actualConns, 1)
-			fmt.Println("Connection count:", v, time.Now())
+			atomic.AddUint64(&actualConns, 1)
 			return nil
 		})
 	}
@@ -133,13 +133,8 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 		return duration.Seconds(), true
 
 	case <-timeout:
-		fmt.Printf("Connection timed out after %v seconds\n", time.Since(startTime).Seconds())
-		err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		if err != nil {
-			log.Println("Error closing connection:", err)
-			return 0, false
-		}
-		return websocketTimeout.Seconds(), true
+		conn.Close()
+		return websocketTimeout.Seconds(), false
 	}
 }
 
