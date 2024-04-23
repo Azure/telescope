@@ -32,30 +32,19 @@ network_config_list = [
     ]
     nsr_rules = [
       {
-        name                       = "server-nsr-tcp"
-        priority                   = 100
+        name                       = "server-nsr-websocket"
+        priority                   = 120
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20001"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "server-nsr-udp"
-        priority                   = 101
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Udp"
-        source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "8080"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
         name                       = "server-nsr-ssh"
-        priority                   = 102
+        priority                   = 130
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -94,27 +83,16 @@ network_config_list = [
       destination_address_prefix = "*"
       },
       {
-        name                       = "client-nsr-tcp"
-        priority                   = 101
+        name                       = "client-nsr-websocket"
+        priority                   = 110
         direction                  = "Outbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20002"
+        destination_port_range     = "8080"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
-      },
-      {
-        name                       = "client-nsr-udp"
-        priority                   = 102
-        direction                  = "Outbound"
-        access                     = "Allow"
-        protocol                   = "Udp"
-        source_port_range          = "*"
-        destination_port_range     = "20002-20002"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-    }]
+      }]
   }
 ]
 loadbalancer_config_list = [{
@@ -130,22 +108,12 @@ loadbalancer_config_list = [{
     rule_count               = 1
     role                     = "ingress-lb-tcp-rule"
     protocol                 = "Tcp"
-    frontend_port            = 20001
-    backend_port             = 20001
+    frontend_port            = 8080
+    backend_port             = 8080
     fronend_ip_config_prefix = "ingress"
     enable_tcp_reset         = false
     idle_timeout_in_minutes  = 4
-    },
-    {
-      type                    = "Inbound"
-      rule_count              = 1
-      role                    = "ingress-lb-udp-rule"
-      protocol                = "Udp"
-      frontend_port           = 20002
-      backend_port            = 20002
-      enable_tcp_reset        = false
-      idle_timeout_in_minutes = 4
-  }]
+    }]
 }]
 
 vm_config_list = [{

@@ -7,7 +7,7 @@ CLIENT_IMAGE_NAME = websocket-client
 SERVER_DOCKERFILE = $(SERVER_DIR)/Dockerfile
 CLIENT_DOCKERFILE = $(CLIENT_DIR)/Dockerfile
 GIT_TAG = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-IMAGE_REPO = sumanthwebsocket.azurecr.io
+IMAGE_REPO = telescope.azurecr.io
 
 .PHONY: all gen-certs clean-certs build-server push-server build-client push-client release
 
@@ -39,5 +39,5 @@ push-client: build-client
 	docker tag $(CLIENT_IMAGE_NAME):${GIT_TAG} $(IMAGE_REPO)/$(CLIENT_IMAGE_NAME):$(GIT_TAG)
 	docker push $(IMAGE_REPO)/$(CLIENT_IMAGE_NAME):$(GIT_TAG)
 
-release: gen-certs push-server push-client
+release: push-server push-client
 	@echo "Release finished"

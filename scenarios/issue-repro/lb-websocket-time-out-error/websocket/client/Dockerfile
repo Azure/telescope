@@ -5,7 +5,7 @@ FROM golang:1.20 as builder
 WORKDIR /app
 
 # Copy the source code into the container
-COPY . /app
+COPY websocket/client /app
 
 # Build the Go application
 RUN go build -o client
