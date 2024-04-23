@@ -1,12 +1,15 @@
-scenario_type  = "issue-repro"
+scenario_type  = "perf-eval"
 scenario_name  = "lb-websocket-time-out-error"
 deletion_delay = "480h"
 public_ip_config_list = [
   {
-    name = "ingress-pip"
+    name = "client-pip"
   },
   {
-    name = "egress-pip"
+    name = "server-pip"
+  },
+  {
+    name = "lb-pip"
   }
 ]
 network_config_list = [
@@ -19,38 +22,45 @@ network_config_list = [
       address_prefix = "10.1.1.0/24"
     }]
     network_security_group_name = "server-nsg"
-    nic_public_ip_associations  = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "server-nic"
+        subnet_name           = "server-subnet"
+        ip_configuration_name = "server-ipconfig"
+        public_ip_name        = "server-pip"
+      }
+    ]
     nsr_rules = [
       {
-        name                       = "server-nsr-ssh"
+        name                       = "server-nsr-tcp"
         priority                   = 100
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "22"
+        destination_port_range     = "20001-20001"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-http"
-        priority                   = 110
+        name                       = "server-nsr-udp"
+        priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
-        protocol                   = "Tcp"
+        protocol                   = "Udp"
         source_port_range          = "*"
-        destination_port_range     = "8080"
+        destination_port_range     = "20002-20002"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
       {
-        name                       = "server-nsr-https"
-        priority                   = 120
+        name                       = "server-nsr-ssh"
+        priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "4443"
+        destination_port_range     = "2222"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       }
@@ -62,7 +72,7 @@ network_config_list = [
     vnet_address_space = "10.0.0.0/16"
     subnet = [{
       name           = "client-subnet"
-      address_prefix = "10.0.1.0/24"
+      address_prefix = "10.0.0.0/24"
     }]
     network_security_group_name = "client-nsg"
     nic_public_ip_associations = [
@@ -70,7 +80,7 @@ network_config_list = [
         nic_name              = "client-nic"
         subnet_name           = "client-subnet"
         ip_configuration_name = "client-ipconfig"
-        public_ip_name        = null
+        public_ip_name        = "client-pip"
     }]
     nsr_rules = [{
       name                       = "client-nsr-ssh"
@@ -79,107 +89,100 @@ network_config_list = [
       access                     = "Allow"
       protocol                   = "Tcp"
       source_port_range          = "*"
-      destination_port_range     = "22"
+      destination_port_range     = "2222"
       source_address_prefix      = "*"
       destination_address_prefix = "*"
+      },
+      {
+        name                       = "client-nsr-tcp"
+        priority                   = 101
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "20001-20002"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "client-nsr-udp"
+        priority                   = 102
+        direction                  = "Outbound"
+        access                     = "Allow"
+        protocol                   = "Udp"
+        source_port_range          = "*"
+        destination_port_range     = "20002-20002"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
     }]
   }
 ]
-loadbalancer_config_list = [
-  {
-    role                  = "ingress"
-    loadbalance_name      = "ingress-lb"
-    public_ip_name        = "ingress-pip"
-    loadbalance_pool_name = "ingress-lb-pool"
-    probe_protocol        = "Http"
-    probe_port            = 8080
-    probe_request_path    = "/healthz"
-    lb_rules = [{
-      type                    = "Inbound"
-      rule_count              = 1
-      role                    = "ingress-lb-rule"
-      protocol                = "Tcp"
-      frontend_port           = 443
-      backend_port            = 4443
-      enable_tcp_reset        = true
-      idle_timeout_in_minutes = 4
-      },
-      {
-        type                    = "Outbound"
-        rule_count              = 1
-        role                    = "ingress-lb-outbound-rule"
-        protocol                = "All"
-        frontend_port           = 0
-        backend_port            = 0
-        enable_tcp_reset        = true
-        idle_timeout_in_minutes = 66
-    }]
+loadbalancer_config_list = [{
+  role                  = "ingress"
+  loadbalance_name      = "ingress-lb"
+  public_ip_name        = "lb-pip"
+  loadbalance_pool_name = "ingress-lb-pool"
+  probe_protocol        = "Tcp"
+  probe_port            = 20000
+  probe_request_path    = null,
+  lb_rules = [{
+    type                     = "Inbound"
+    rule_count               = 1
+    role                     = "ingress-lb-tcp-rule"
+    protocol                 = "Tcp"
+    frontend_port            = 20001
+    backend_port             = 20001
+    fronend_ip_config_prefix = "ingress"
+    enable_tcp_reset         = false
+    idle_timeout_in_minutes  = 4
     },
-		{
-    role                  = "egress"
-    loadbalance_name      = "egress-lb"
-    public_ip_name        = "egress-pip"
-    loadbalance_pool_name = "egress-lb-pool"
-    probe_protocol        = "Tcp"
-    probe_port            = 22
-    probe_request_path    = null
-    lb_rules = [{
+    {
       type                    = "Inbound"
       rule_count              = 1
-      role                    = "egress-lb-rule"
-      protocol                = "Tcp"
-      frontend_port           = 22
-      backend_port            = 22
+      role                    = "ingress-lb-udp-rule"
+      protocol                = "Udp"
+      frontend_port           = 20002
+      backend_port            = 20002
       enable_tcp_reset        = false
       idle_timeout_in_minutes = 4
-      },
-      {
-        type                    = "Outbound"
-        rule_count              = 1
-        role                    = "egress-lb-outbound-rule"
-        protocol                = "All"
-        frontend_port           = 0
-        backend_port            = 0
-        enable_tcp_reset        = true
-        idle_timeout_in_minutes = 4
-    }]
-  }
-]
+  }]
+}]
+
 vm_config_list = [{
   role           = "client"
   vm_name        = "client-vm"
   nic_name       = "client-nic"
-  admin_username = "adminuser"
+  admin_username = "ubuntu"
+  zone           = "1"
   source_image_reference = {
     publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
+    offer     = "0001-com-ubuntu-server-focal"
+    sku       = "20_04-lts"
     version   = "latest"
   }
   create_vm_extension = true
+  },
+  {
+    role           = "server"
+    vm_name        = "server-vm"
+    nic_name       = "server-nic"
+    admin_username = "ubuntu"
+    zone           = "1"
+    source_image_reference = {
+      publisher = "Canonical"
+      offer     = "0001-com-ubuntu-server-focal"
+      sku       = "20_04-lts"
+      version   = "latest"
+    }
+    create_vm_extension = true
   }
 ]
-vmss_config_list = [{
-  role                   = "server"
-  vmss_name              = "server-vmss"
-  nic_name               = "server-nic"
-  subnet_name            = "server-subnet"
-  loadbalancer_pool_name = "ingress-lb-pool"
-  ip_configuration_name  = "server-ipconfig"
-  number_of_instances    = 2
-  admin_username         = "adminuser"
-  source_image_reference = {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-}]
+vmss_config_list = []
 nic_backend_pool_association_list = [
   {
-    nic_name              = "client-nic"
-    backend_pool_name     = "egress-lb-pool"
-    vm_name               = "client-vm"
-    ip_configuration_name = "client-ipconfig"
+    nic_name              = "server-nic"
+    backend_pool_name     = "ingress-lb-pool"
+    vm_name               = "server-vm"
+    ip_configuration_name = "server-ipconfig"
   }
 ]

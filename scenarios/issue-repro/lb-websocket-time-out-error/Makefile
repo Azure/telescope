@@ -3,13 +3,15 @@ BASE_DIR := websocket
 SERVER_DIR := $(BASE_DIR)/server
 CLIENT_DIR := $(BASE_DIR)/client
 SERVER_IMAGE_NAME = websocket-server
-SERVER_DOCKERFILE=$(SERVER_DIR)/Dockerfile
+CLIENT_IMAGE_NAME = websocket-client
+SERVER_DOCKERFILE = $(SERVER_DIR)/Dockerfile
+CLIENT_DOCKERFILE = $(CLIENT_DIR)/Dockerfile
 GIT_TAG = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-IMAGE_REPO=sumanthwebsocket.azurecr.io
+IMAGE_REPO = sumanthwebsocket.azurecr.io
 
-.PHONY: all gen-certs clean-certs build-server push-server
+.PHONY: all gen-certs clean-certs build-server push-server build-client push-client release
 
-all: build-server
+all: build-server build-client release
 
 gen-certs:
 	@echo "Generating certificates..."
@@ -21,12 +23,12 @@ clean-certs:
 
 build-server:
 	@echo "Building server..."
-	docker buildx build -t $(SERVER_IMAGE_NAME):${GIT_TAG} -f $(SERVER_DOCKERFILE) .
+	docker build -t $(SERVER_IMAGE_NAME):${GIT_TAG} -f $(SERVER_DOCKERFILE) .
 
 push-server: build-server
 	@echo "Pushing server..."
-	docker tag $SERVER_IMAGE_NAME:$GIT_TAG $IMAGE_REPO/$SERVER_IMAGE_NAME:$GIT_TAG
-	docker push $IMAGE_REPO/$SERVER_IMAGE_NAME:$GIT_TAG
+	docker tag $(SERVER_IMAGE_NAME):${GIT_TAG} $(IMAGE_REPO)/$(SERVER_IMAGE_NAME):$(GIT_TAG)
+	docker push $(IMAGE_REPO)/$(SERVER_IMAGE_NAME):$(GIT_TAG)
 
 build-client:
 	@echo "Building client..."

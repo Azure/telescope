@@ -4,74 +4,159 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
+	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/sync/errgroup"
 )
 
-var interrupt = make(chan os.Signal, 1)
-
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Please provide the load balancer URL")
+	hostname := os.Getenv("SERVER_ADDRESS")
+	if hostname == "" {
+		fmt.Println("Please provide the load balancer URL or IP address.")
 		return
 	}
+	port := os.Getenv("SERVER_PORT")
 
-	// Replace the URL with your WebSocket server's URL.
-	url := fmt.Sprintf("ws://%s:8080/ws", os.Args[1])
+	url := fmt.Sprintf("ws://%s:%s/ws", hostname, port)
 	fmt.Println("Connecting to", url)
 
+	durationMap := map[string]int{
+		"error":     0,
+		"<1s":       0,
+		"1s-2s":     0,
+		"2s-5s":     0,
+		"5s-10s":    0,
+		"10s-30s":   0,
+		"30s-60s":   0,
+		"60s-120s":  0,
+		"120s-180s": 0,
+		"180s-240s": 0,
+		"240s-300s": 0,
+		">300s":     0,
+	}
+	keys := []string{"<1s", "1s-2s", "2s-5s", "5s-10s", "10s-30s", "30s-60s", "60s-120s", "120s-180s", "180s-240s", "240s-300s", ">300s", "error"}
+
+	var actualConns uint64
+	totalConns, _ := strconv.ParseUint(os.Getenv("TOTAL_CONNECTIONS"), 10, 64)
+	fmt.Printf("%v total connections to be established\n", totalConns)
+
+	parallelConns, _ := strconv.ParseUint(os.Getenv("PARALLEL_CONNECTIONS"), 10, 64)
+	fmt.Printf("%v parallel connections to be established\n", parallelConns)
+
+	connectionTimeout, _ := strconv.ParseInt(os.Getenv("TIMEOUT"), 10, 64)
+	fmt.Print("Set websocket timeout to ", connectionTimeout, " seconds\n")
+
+	eg := errgroup.Group{}
+	eg.SetLimit(int(parallelConns))
+
+	mu := sync.Mutex{}
+
+	for {
+		if atomic.LoadUint64(&actualConns) >= totalConns {
+			break
+		}
+
+		eg.Go(func() error {
+			duration, isErr := connect(url, time.Duration(connectionTimeout)*time.Second)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if isErr {
+				durationMap["error"]++
+			}
+
+			switch {
+			case duration >= 0 && duration < 1:
+				durationMap["<1s"]++
+			case duration >= 1 && duration < 2:
+				durationMap["1s-2s"]++
+			case duration >= 2 && duration < 5:
+				durationMap["2s-5s"]++
+			case duration >= 5 && duration < 10:
+				durationMap["5s-10s"]++
+			case duration >= 10 && duration < 30:
+				durationMap["10s-30s"]++
+			case duration >= 30 && duration < 60:
+				durationMap["30s-60s"]++
+			case duration >= 60 && duration < 120:
+				durationMap["60s-120s"]++
+			case duration >= 120 && duration < 180:
+				durationMap["120s-180s"]++
+			case duration >= 180 && duration < 240:
+				durationMap["180s-240s"]++
+			case duration >= 240 && duration < 300:
+				durationMap["240s-300s"]++
+			case duration >= 300:
+				durationMap[">300s"]++
+			}
+
+			v := atomic.AddUint64(&actualConns, 1)
+			fmt.Println("Connection count:", v, time.Now())
+			// if v%10000 == 0 {
+			// 	fmt.Printf("%v times %v\n", v, time.Now())
+			// 	fmt.Printf("Duration distribution:\n")
+			// 	for _, k := range keys {
+			// 		fmt.Printf("%v: %v\n", k, durationMap[k])
+			// 	}
+			// }
+			return nil
+		})
+	}
+
+	// Wait for all goroutines to complete or for an error to occur
+	if err := eg.Wait(); err != nil {
+		fmt.Printf("An error occurred: %v\n", err)
+	}
+	printDurationDistribution(durationMap, keys)
+}
+
+func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		log.Fatal("Error connecting to WebSocket server:", err)
 	}
 	defer conn.Close()
 
-	// Handle OS interrupts to gracefully close the connection.
-	signal.Notify(interrupt, os.Interrupt)
-
+	startTime := time.Now()
 	done := make(chan struct{})
 
-	// Start a goroutine to read messages from the server.
 	go func() {
 		defer close(done)
 		for {
-			_, message, err := conn.ReadMessage()
+			_, _, err := conn.ReadMessage()
 			if err != nil {
-				log.Println("Error reading from server:", err)
+				fmt.Printf("Connection closed: %v\n", err)
 				return
 			}
-			fmt.Printf("Received: %s\n", message)
 		}
 	}()
+	timeout := time.After(websocketTimeout)
 
-	ticker := time.NewTicker(time.Second * 2)
-	defer ticker.Stop()
+	select {
+	case <-done:
+		duration := time.Since(startTime)
+		fmt.Printf("Connection duration: %v\n", duration)
+		return duration.Seconds(), true
 
-	// Main loop to send messages and handle interrupts.
-	for {
-		select {
-		case <-done:
-			return
-		case t := <-ticker.C:
-			err := conn.WriteMessage(websocket.TextMessage, []byte(t.String()))
-			if err != nil {
-				log.Println("Error writing to server:", err)
-				return
-			}
-		case <-interrupt:
-			log.Println("Interrupt received, closing connection...")
-			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("Error closing connection:", err)
-				return
-			}
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return
+	case <-timeout:
+		fmt.Printf("Connection timed out after %v seconds\n", time.Since(startTime).Seconds())
+		err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		if err != nil {
+			log.Println("Error closing connection:", err)
+			return 0, false
 		}
+		return websocketTimeout.Seconds(), true
+	}
+}
+
+func printDurationDistribution(durationMap map[string]int, keys []string) {
+	fmt.Println("Final duration distribution:")
+	for _, k := range keys {
+		fmt.Printf("%v: %v\n", k, durationMap[k])
 	}
 }

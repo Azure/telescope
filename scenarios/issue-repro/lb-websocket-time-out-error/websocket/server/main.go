@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -25,11 +26,17 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-
-	fmt.Println("Client connected")
+	ip, err := getIPAddress()
+	if err != nil {
+		fmt.Println("Error getting IP address:", err)
+		return
+	}
+	port := getPort()
+	fmt.Printf("Client connected with IP address: %s:%d at %s\n", ip, port, time.Now())
 
 	for {
-		messageType, msg, err := conn.ReadMessage()
+		// Read message from the client
+		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			fmt.Println("Error reading message:", err)
 			break
@@ -45,11 +52,21 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Printf("Received: %s\n", msg)
 
-		if err := conn.WriteMessage(messageType, msg); err != nil {
-			fmt.Println("Error writing message:", err)
-			break
-		}
+		// if err := conn.WriteMessage(messageType, msg); err != nil {
+		// 	fmt.Println("Error writing message:", err)
+		// 	break
+		// }
 	}
+}
+
+func getPort() int {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return -1
+	}
+	defer conn.Close()
+
+	return conn.LocalAddr().(*net.UDPAddr).Port
 }
 
 func getIPAddress() (string, error) {
@@ -66,6 +83,6 @@ func getIPAddress() (string, error) {
 
 func main() {
 	http.HandleFunc("/ws", handleConnection)
-	fmt.Println("WebSocket server listening on :8080")
-	http.ListenAndServe(":8080", nil)
+	fmt.Println("WebSocket server listening on :8081")
+	http.ListenAndServe(":8081", nil)
 }

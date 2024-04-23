@@ -22,4 +22,4 @@ sudo apt-get -qq install docker-ce docker-ce-cli containerd.io docker-buildx-plu
 docker --version
 
 # Pull image
-docker pull -q telescope.azurecr.io/issue-repro/slb-eof-error-client:v1.0.9
+docker pull -q sumanthwebsocket.azurecr.io/websocket-client:v1.1.1
