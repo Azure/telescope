@@ -47,8 +47,8 @@ func main() {
 	parallelConns, _ := strconv.ParseUint(os.Getenv("PARALLEL_CONNECTIONS"), 10, 64)
 	fmt.Printf("%v parallel connections to be established\n", parallelConns)
 
-	connectionTimeout, _ := strconv.ParseInt(os.Getenv("TIMEOUT"), 10, 64)
-	fmt.Print("Set websocket timeout to ", connectionTimeout, " seconds\n")
+	websocketTimeout, _ := strconv.ParseInt(os.Getenv("WEBSOCKET_TIMEOUT"), 10, 64)
+	fmt.Print("Set websocket timeout to ", websocketTimeout, " seconds\n")
 
 	eg := errgroup.Group{}
 	eg.SetLimit(int(parallelConns))
@@ -57,7 +57,7 @@ func main() {
 
 	for atomic.LoadUint64(&actualConns) < totalConns {
 		eg.Go(func() error {
-			duration, isErr := connect(url, time.Duration(connectionTimeout)*time.Second)
+			duration, isErr := connect(url, time.Duration(websocketTimeout)*time.Second)
 
 			mu.Lock()
 			defer mu.Unlock()
