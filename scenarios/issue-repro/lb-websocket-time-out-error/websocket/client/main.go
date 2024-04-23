@@ -55,11 +55,7 @@ func main() {
 
 	mu := sync.Mutex{}
 
-	for {
-		if atomic.LoadUint64(&actualConns) >= totalConns {
-			break
-		}
-
+	for atomic.LoadUint64(&actualConns) < totalConns {
 		eg.Go(func() error {
 			duration, isErr := connect(url, time.Duration(connectionTimeout)*time.Second)
 
