@@ -16,7 +16,7 @@ variable "json_input" {
     data_disk_iops_read_only         = optional(number)
     data_disk_mbps_read_only         = optional(number)
     data_disk_caching                = optional(string)
-    data_disk_count                  = optional(number)
+    data_disk_count                  = optional(number, 1)
     ultra_ssd_enabled                = optional(bool)
     storage_account_tier             = optional(string)
     storage_account_kind             = optional(string)
