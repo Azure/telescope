@@ -116,6 +116,7 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 	defer conn.Close()
 
 	startTime := time.Now()
+	var duration float64
 	done := make(chan struct{})
 
 	go func() {
@@ -126,7 +127,8 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
-				fmt.Printf("Connection closed: %v\n", err)
+				fmt.Printf("Connection closed: %v with duration %v\n", err, time.Since(startTime).Seconds())
+				duration = time.Since(startTime).Seconds()
 				return
 			}
 		}
@@ -153,7 +155,7 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 
 	// Wait for a short duration to allow time for the server to receive the close message
 	time.Sleep(1 * time.Second)
-	return time.Since(startTime).Seconds(), false
+	return duration, false
 }
 
 func printDurationDistribution(durationMap map[string]int, keys []string) {
