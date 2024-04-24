@@ -23,13 +23,13 @@ execute() {
     local region=$6
     local iterations_number=${7:-1}  # Set the default value of iterations_number to 1 if not provided
 
-    mkdir -p $result_dir
+    mkdir -p "$result_dir"
 
     # get vm name and disk names
-    local vm_name=$(get_vm_instances_by_run_id $run_id)
+    local vm_name=$(get_vm_instances_by_run_id "$run_id")
 
     for ((i=1; i<=iterations_number; i++)); do
-        run_and_collect $run_id $vm_name $i $cloud
+        run_and_collect "$run_id" "$vm_name" "$i" "$cloud"
     done
 }
 
@@ -50,7 +50,7 @@ run_and_collect() {
     local run_index=$3
     local cloud=$4
 
-    local disk_names=($(get_disk_instances_by_run_id $resource_group))
+    local disk_names=($(get_disk_instances_by_run_id "$resource_group"))
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
@@ -58,7 +58,7 @@ run_and_collect() {
         wait
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_attach_$run_index.json"
-        echo $output > $filename
+        echo "$output" > "$filename"
     done
 
     for index in "${!disk_names[@]}"; do
@@ -67,7 +67,7 @@ run_and_collect() {
         wait
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_detach_$run_index.json"
-        echo $output > $filename
+        echo "$output" > "$filename"
     done
 }
 
@@ -80,7 +80,7 @@ run_and_collect() {
 # Returns: json with data
 # Usage: fill_json_template <operation_info>
 fill_json_template() {
-    local operation_info="$1"
+    local operation_info=$1
 
     (
         set -Ee

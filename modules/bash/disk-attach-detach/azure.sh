@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Description:
-#   This function gets the disk instances by name.
+#   This function gets the name of disk instances.
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
@@ -15,7 +15,7 @@ get_vm_instances_by_run_id() {
 }
 
 # Description:
-#   This function gets the disk instances by name.
+#   This function gets the name of the disk instances.
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
@@ -46,10 +46,10 @@ attach_or_detach_disk() {
     local resource_group=$4
 
     start_time=$(date +%s)
-    local output_message="$(az vm disk $operation -g $resource_group --vm-name ${vm_name} --name ${disk_name} 2>&1)"
+    local output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
     end_time=$(date +%s)
     
-    echo "$(build_output $operation "$output_message" $(($end_time - $start_time)))"
+    echo "$(build_output "$operation" "$output_message" $(($end_time - $start_time)))"
 }
 
 # Description:
