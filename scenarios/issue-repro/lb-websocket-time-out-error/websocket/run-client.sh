@@ -3,9 +3,9 @@
 ./client &> log.txt
 code=$?
 if [[ $code -eq 0 ]]; then
-  error_count=$(cat log.txt | grep "Connection closed:" | wc -l)
+  websocket_duration_json=$(cat log.txt | grep -o '{.*}')
   jq --null-input \
-    --arg error_count "$error_count" \
+    --arg websocket_duration "$websocket_duration" \
     --arg server_address "$SERVER_ADDRESS" \
     --arg server_port "$SERVER_PORT" \
     --arg total_connections "$TOTAL_CONNECTIONS" \

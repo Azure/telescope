@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -156,8 +157,20 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 }
 
 func printDurationDistribution(durationMap map[string]int, keys []string) {
-	fmt.Println("Final duration distribution:")
-	for _, k := range keys {
-		fmt.Printf("%v: %v\n", k, durationMap[k])
+	// Filter out entries with count 0
+	nonZeroDurationMap := make(map[string]int)
+	for k, v := range durationMap {
+		if v != 0 {
+			nonZeroDurationMap[k] = v
+		}
 	}
+
+	// Convert the map to JSON
+	jsonData, err := json.Marshal(nonZeroDurationMap)
+	if err != nil {
+		log.Fatalf("Error marshaling JSON: %v", err)
+	}
+
+	// Print the JSON data without any additional text
+	fmt.Println(string(jsonData))
 }
