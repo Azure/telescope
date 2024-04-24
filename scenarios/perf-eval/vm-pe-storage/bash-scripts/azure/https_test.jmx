@@ -146,7 +146,7 @@
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">$azure_date1", "$azure_date2</stringProp>
+                <stringProp name="Header.value">$(azure_date1), $(azure_date2)</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
