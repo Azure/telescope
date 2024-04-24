@@ -140,7 +140,7 @@
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">${__P(azure_date, Thu Apr 18 2024 00:12:00 UTC)}</stringProp>
+                <stringProp name="Header.value">"${__P(azure_date, Thu Apr 18 2024 00:12:00 UTC)}"</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
