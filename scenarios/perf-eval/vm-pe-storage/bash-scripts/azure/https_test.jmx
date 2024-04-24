@@ -81,22 +81,16 @@
               <stringProp name="Argument.desc">Name of result file</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="auth_token" elementType="Argument">
-              <stringProp name="Argument.name">auth_token</stringProp>
-              <stringProp name="Argument.value">random string</stringProp>
-              <stringProp name="Argument.desc">Azure auth token header value</stringProp>
+            <elementProp name="azure_auth" elementType="Argument">
+              <stringProp name="Argument.name">azure_auth</stringProp>
+              <stringProp name="Argument.value">SharedKey accountName:signatureValue</stringProp>
+              <stringProp name="Argument.desc">Azure shared key auth header value</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="azure_date" elementType="Argument">
               <stringProp name="Argument.name">azure_date</stringProp>
               <stringProp name="Argument.value">"Thu, Apr 18 2024 00:12:00 UTC"</stringProp>
               <stringProp name="Argument.desc">Azure date header value in "%a, %b %d %Y %T %Z" format</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="azure_version" elementType="Argument">
-              <stringProp name="Argument.name">azure_version</stringProp>
-              <stringProp name="Argument.value">2024-05-04</stringProp>
-              <stringProp name="Argument.desc">Azure version header value</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
           </collectionProp>
@@ -142,7 +136,7 @@
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer ${__P(auth_token, token)}</stringProp>
+                <stringProp name="Header.value">${__P(azure_auth, SharedKey account:signature)}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
@@ -153,7 +147,7 @@
                 <stringProp name="Header.value">2024-05-04</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">Range</stringProp>
+                <stringProp name="Header.name">x-ms-range</stringProp>
                 <stringProp name="Header.value">bytes=0-0</stringProp>
               </elementProp>
             </collectionProp>
