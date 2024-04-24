@@ -26,9 +26,9 @@ execute() {
     mkdir -p "$result_dir"
 
     # get vm name and disk names
-    local vm_name=$(get_vm_instances_by_run_id "$run_id")
+    local vm_name=$(get_vm_instances_name_by_run_id "$run_id")
 
-    for ((i=1; i<=iterations_number; i++)); do
+    for ((i=1; i <= $iterations_number; i++)); do
         run_and_collect "$run_id" "$vm_name" "$i" "$cloud"
     done
 }
@@ -50,7 +50,7 @@ run_and_collect() {
     local run_index=$3
     local cloud=$4
 
-    local disk_names=($(get_disk_instances_by_run_id "$run_id"))
+    local disk_names=($(get_disk_instances_name_by_run_id "$run_id"))
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
