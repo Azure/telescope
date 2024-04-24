@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Description:
-#   This script contains the functions to manage the resources in the resource group.
+#   This function gets the disk instances by name.
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 # 
 # Returns: name of the VM instance
-# Usage: get_vm_instance_by_name <run_id>
-get_vm_instance_by_name() {
+# Usage: get_vm_instances_by_run_id <run_id>
+get_vm_instances_by_run_id() {
     local run_id=$1
 
     echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id')].name" --output tsv)
@@ -21,8 +21,8 @@ get_vm_instance_by_name() {
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
 # Returns: name of the disk instances
-# Usage: get_disk_instances_by_name <run_id>
-get_disk_instances_by_name() {
+# Usage: get_disk_instances_by_run_id <run_id>
+get_disk_instances_by_run_id() {
     local run_id=$1
     
     echo "$(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '${run_id}') && (managedBy==null)].name" --output tsv)"
@@ -37,7 +37,7 @@ get_disk_instances_by_name() {
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
-# Returns: Error message of the operation otherwise nothing
+# Returns: Information about each operation
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group>
 attach_or_detach_disk() {
     local operation=$1
@@ -60,8 +60,8 @@ attach_or_detach_disk() {
 #  - $2: output_message: the output message of the operation
 #  - $3: execution_time: the execution time of the operation
 #
-# Returns: The output JSON object
-# Usage: build_output <operation> <output_message> <start_time> <end_time>
+# Returns: The operation result JSON object
+# Usage: build_output <operation> <output_message> <execution_time>
 build_output() {
     local operation=$1
     local output_message=$2
@@ -70,7 +70,7 @@ build_output() {
     set -Ee
 
     _catch() {
-        echo '{"succeeded": "false", "execution_time": "null", "unit": "seconds", "data": {"error": "Unknown error"}}'
+        echo '{"succeeded": "false", "time": "-1", "unit": "seconds", "data": {"error": "Unknown error"}}'
     }
     trap _catch ERR
 

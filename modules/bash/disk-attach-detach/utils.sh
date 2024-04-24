@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Description
+# Description
 #   Function to execute tests
 #
 # Parameters:
@@ -13,7 +13,7 @@
 #   - $7 iterations_number: the number of iterations to run the tests (e.g. 5, optional, default is 1)
 #
 # Returns: nothing
-# Usage: execute <run_id> <scenario_type> <scenario_name> <result_dir> <cloud> <iterations_number>
+# Usage: execute <run_id> <scenario_type> <scenario_name> <result_dir> <cloud> <region> <iterations_number>
 execute() {
     local run_id=$1
     local scenario_type=$2
@@ -26,14 +26,14 @@ execute() {
     mkdir -p $result_dir
 
     # get vm name and disk names
-    local vm_name=$(get_vm_instance_by_name $run_id)
+    local vm_name=$(get_vm_instances_by_run_id $run_id)
 
     for ((i=1; i<=iterations_number; i++)); do
         run_and_collect $run_id $vm_name $i $cloud
     done
 }
 
-#Description
+# Description
 #   Function to run tests and collect results
 #
 # Parameters:
@@ -43,14 +43,14 @@ execute() {
 #   - $4: cloud: the cloud provider (e.g. azure)
 #
 # Returns: nothing
-# Usage: run_and_collect <run_id> <vm_name> <resource_group> <vm_os> <vm_size> <region> <run_index> <cloud>
+# Usage: run_and_collect <run_id> <vm_name> <run_index> <cloud>
 run_and_collect() {
     local resource_group=$1
     local vm_name=$2
     local run_index=$3
     local cloud=$4
 
-    local disk_names=($(get_disk_instances_by_name $resource_group))
+    local disk_names=($(get_disk_instances_by_run_id $resource_group))
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
@@ -71,14 +71,14 @@ run_and_collect() {
     done
 }
 
-#Description
+# Description
 #   Function to fill a JSON template with the test results
 #
 # Parameters:
-#   - $1: operation: the operation to perform (e.g. attach)
+#   - $1: operation: execution info of the operator (e.g. attach)
 #
 # Returns: json with data
-# Usage: fill_json_template <operation> <result> <time> <disk_name> <resource_group> <message> <cloud>
+# Usage: fill_json_template <operation_info>
 fill_json_template() {
     local operation_info="$1"
 
@@ -96,8 +96,8 @@ fill_json_template() {
     )
 }
 
-#Description
-# Function to catch errors
+# Description
+#   Function to catch errors
 #
 # Parameters: none
 #
@@ -118,7 +118,7 @@ _catch()
         "operation_info": {
             "operation": "",
             "result": "",
-            "execution_time": "",
+            "time": "",
             "unit": "",
             "message": "Unknown error"
         },
