@@ -146,7 +146,7 @@
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">${__time(RFC822)}</stringProp>
+                <stringProp name="Header.value">${__time(E, MMM dd yyyy HH:mm:ss z)}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
