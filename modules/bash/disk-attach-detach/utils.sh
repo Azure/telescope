@@ -37,7 +37,7 @@ execute() {
 #   Function to run tests and collect results
 #
 # Parameters:
-#   - $1: resource_group: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#   - $1: run_id: the resource group of the virtual machine (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #   - $2: vm_name: the name of the virtual machine (e.g. vm-1)
 #   - $3: run_index: the index of the run (e.g. 1)
 #   - $4: cloud: the cloud provider (e.g. azure)
@@ -45,16 +45,16 @@ execute() {
 # Returns: nothing
 # Usage: run_and_collect <run_id> <vm_name> <run_index> <cloud>
 run_and_collect() {
-    local resource_group=$1
+    local run_id=$1
     local vm_name=$2
     local run_index=$3
     local cloud=$4
 
-    local disk_names=($(get_disk_instances_by_run_id "$resource_group"))
+    local disk_names=($(get_disk_instances_by_run_id "$run_id"))
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$resource_group")"
+        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id")"
         wait
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_attach_$run_index.json"
@@ -63,7 +63,7 @@ run_and_collect() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$resource_group")"
+        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id")"
         wait
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_detach_$run_index.json"
