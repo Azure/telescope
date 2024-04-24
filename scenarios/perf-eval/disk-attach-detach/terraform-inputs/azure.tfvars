@@ -39,8 +39,7 @@ data_disk_config_list = [{
 }]
 
 vm_config_list = [{
-  info_column_name = "cloud_info.vm-info"
-  roles            = "vm-role"
+  info_column_name = "cloud_info.vm_info"
   role             = "vm-role"
   vm_name          = "Attach-Detach-VM-RAW"
   nic_name         = "compete-disk-attach-detach-nic"
