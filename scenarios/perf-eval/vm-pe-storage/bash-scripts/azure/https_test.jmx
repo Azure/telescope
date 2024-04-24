@@ -87,9 +87,15 @@
               <stringProp name="Argument.desc">Azure shared key auth header value</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="azure_date" elementType="Argument">
-              <stringProp name="Argument.name">azure_date</stringProp>
-              <stringProp name="Argument.value">Thu, Apr 18 2024 00:12:00 UTC</stringProp>
+            <elementProp name="azure_date1" elementType="Argument">
+              <stringProp name="Argument.name">azure_date1</stringProp>
+              <stringProp name="Argument.value">Thu</stringProp>
+              <stringProp name="Argument.desc">Azure date header value in "%a, %b %d %Y %T %Z" format</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+              <elementProp name="azure_date2" elementType="Argument">
+              <stringProp name="Argument.name">azure_date2</stringProp>
+              <stringProp name="Argument.value">Apr 18 2024 00:12:00 UTC</stringProp>
               <stringProp name="Argument.desc">Azure date header value in "%a, %b %d %Y %T %Z" format</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
@@ -140,7 +146,7 @@
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">"${__P(azure_date, Thu Apr 18 2024 00:12:00 UTC)}"</stringProp>
+                <stringProp name="Header.value">${__P(azure_date1, Thu)}, ${__P(azure_date2, Apr 18 2024 00:00:00 UTC)}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
