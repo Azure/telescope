@@ -13,7 +13,7 @@
 #   - $7 iterations_number: the number of iterations to run the tests (e.g. 5, optional, default is 1)
 #
 # Returns: nothing
-# Usage: execute <run_id> <scenario_type> <scenario_name> <result_dir> <cloud> <region> <iterations_number>
+# Usage: execute <run_id> <scenario_type> <scenario_name> <result_dir> <cloud> <region> [iterations_number]
 execute() {
     local run_id=$1
     local scenario_type=$2
