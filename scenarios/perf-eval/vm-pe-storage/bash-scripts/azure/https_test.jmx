@@ -25,24 +25,42 @@
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
       <hashTree>
-        <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
           <collectionProp name="Arguments.arguments">
-            <elementProp name="api_domain" elementType="Argument">
-              <stringProp name="Argument.name">api_domain</stringProp>
-              <stringProp name="Argument.value">myAccount.blob.core.windows.net</stringProp>
-              <stringProp name="Argument.desc">Azure Blob Storage REST Api domain</stringProp>
+            <elementProp name="storage_account" elementType="Argument">
+              <stringProp name="Argument.name">storage_account</stringProp>
+              <stringProp name="Argument.value">account</stringProp>
+              <stringProp name="Argument.desc">Azure storage account name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="api_endpoint" elementType="Argument">
-              <stringProp name="Argument.name">api_endpoint</stringProp>
-              <stringProp name="Argument.value">/myContainer/myBlob</stringProp>
-              <stringProp name="Argument.desc">Azure Blob Storage REST API endpoint</stringProp>
+            <elementProp name="container" elementType="Argument">
+              <stringProp name="Argument.name">container</stringProp>
+              <stringProp name="Argument.value">container</stringProp>
+              <stringProp name="Argument.desc">Azure storage container name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="ramp_time" elementType="Argument">
-              <stringProp name="Argument.name">ramp_time</stringProp>
-              <stringProp name="Argument.value">5</stringProp>
-              <stringProp name="Argument.desc">Amount of time for all threads to be started</stringProp>
+            <elementProp name="blob" elementType="Argument">
+              <stringProp name="Argument.name">blob</stringProp>
+              <stringProp name="Argument.value">blob</stringProp>
+              <stringProp name="Argument.desc">Azure storage blob name</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="storage_key" elementType="Argument">
+              <stringProp name="Argument.name">storage_key</stringProp>
+              <stringProp name="Argument.value">storage_key</stringProp>
+              <stringProp name="Argument.desc">Azure storage account shared storage key name</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="xmsdate" elementType="Argument">
+              <stringProp name="Argument.name">xmsdate</stringProp>
+              <stringProp name="Argument.value">"Fri, Apr 13 2021 00:00:00 GMT"</stringProp>
+              <stringProp name="Argument.desc">Azure Storage REST Api xmsdate header value in RFC1123 format</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="xmsversion" elementType="Argument">
+              <stringProp name="Argument.name">xmsversion</stringProp>
+              <stringProp name="Argument.value">2024-05-04</stringProp>
+              <stringProp name="Argument.desc">Azure Storage REST Api xmsversion header value</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="request_delay" elementType="Argument">
@@ -81,24 +99,6 @@
               <stringProp name="Argument.desc">Name of result file</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="azure_auth" elementType="Argument">
-              <stringProp name="Argument.name">azure_auth</stringProp>
-              <stringProp name="Argument.value">SharedKey accountName:signatureValue</stringProp>
-              <stringProp name="Argument.desc">Azure shared key auth header value</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="azure_date1" elementType="Argument">
-              <stringProp name="Argument.name">azure_date1</stringProp>
-              <stringProp name="Argument.value">Thu</stringProp>
-              <stringProp name="Argument.desc">Azure date header value in "%a, %b %d %Y %T %Z" format</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-              <elementProp name="azure_date2" elementType="Argument">
-              <stringProp name="Argument.name">azure_date2</stringProp>
-              <stringProp name="Argument.value">Apr 18 2024 00:12:00 UTC</stringProp>
-              <stringProp name="Argument.desc">Azure date header value in "%a, %b %d %Y %T %Z" format</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
           </collectionProp>
         </Arguments>
         <hashTree/>
@@ -113,10 +113,11 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.domain">${__P(api_domain, myAccount.blob.core.windows.net)}</stringProp>
+          <stringProp name="HTTPSampler.domain">${__P(storageAccount, "vmpestorage")}.blob.core.windows.net</stringProp>
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
-          <stringProp name="HTTPSampler.path">${__P(api_endpoint, /myContainer/myBlob)}</stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">/${__P(container, "container")}/${__P(blob, "test")}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -131,6 +132,41 @@
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
         </HTTPSamplerProxy>
         <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">import javax.crypto.Mac;
+            import javax.crypto.spec.SecretKeySpec;
+            import org.apache.commons.codec.binary.Base64;
+
+            // Your storage account name.
+            String storageAccount = vars.get("storageAccount");
+
+            // Your storage account access key.
+            String storageKey = vars.get("storageKey");
+
+            // Specify the blob type (BlockBlob|PageBlob|AppendBlob).
+            String blobType = "BlockBlob";
+
+            // Specify your container name.
+            String containerName = vars.get("container");
+
+            // Specify your blob name.
+            String blobName = vars.get("blob");
+
+            // Create the canonicalized string.
+            String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + vars.get("xmsdate") + "\nx-ms-version:" + vars.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
+
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
+            String authKey = new String(Base64.encodeBase64(mac.doFinal(canonicalizedString.getBytes("UTF-8"))));
+            vars.put("authKey", authKey);
+            </stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            </JSR223PreProcessor>
+          <hashTree/>
+          <hashTree>
           <KeystoreConfig guiclass="TestBeanGUI" testclass="KeystoreConfig" testname="Keystore Configuration" enabled="true">
             <stringProp name="clientCertAliasVarName">cert_name</stringProp>
             <stringProp name="endIndex">10000</stringProp>
@@ -138,23 +174,19 @@
             <stringProp name="startIndex">0</stringProp>
           </KeystoreConfig>
           <hashTree/>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">SharedKey ${__P(azure_auth, account:signature)}</stringProp>
+                <stringProp name="Header.value">"SharedKey ${__P(storageAccount, "storage")}:${__groovy(vars.get("authKey"))}"</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">${__time(E, MMM dd yyyy HH:mm:ss z)}</stringProp>
+                <stringProp name="Header.value">${__P(xmsdate, "")}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
-                <stringProp name="Header.value">2024-05-04</stringProp>
-              </elementProp>
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">x-ms-range</stringProp>
-                <stringProp name="Header.value">bytes=0-0</stringProp>
+                <stringProp name="Header.value">${__P(xmsversion, "")}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
