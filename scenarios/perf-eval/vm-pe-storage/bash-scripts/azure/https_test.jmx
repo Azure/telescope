@@ -129,7 +129,7 @@
         String blobName = props.get("blob");
 
         // Create the canonicalized string.
-        String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + vars.get("xmsdate") + "\nx-ms-version:" + props.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
+        String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + vars.get("xmsdate") + "\nx-ms-range:bytes=0-0\nx-ms-version:" + props.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
 
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
@@ -190,6 +190,10 @@
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
                 <stringProp name="Header.value">${__P(xmsversion, "")}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">x-ms-range</stringProp>
+                <stringProp name="Header.value">bytes=0-0</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
