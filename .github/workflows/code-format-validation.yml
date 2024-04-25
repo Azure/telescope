@@ -17,7 +17,7 @@ jobs:
         set -eu
         SCENARIO_NAME_MAX_LENGTH=30
         check_failed=false    
-        scenario_names=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{print $3}' | sort -u)
+        scenario_names=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{print $9}' | sort -u)
         echo "Scenario names: $scenario_names"
         for name in $scenario_names; do
           echo "Checking scenario folder name: $name"
