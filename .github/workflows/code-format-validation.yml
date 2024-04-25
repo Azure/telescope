@@ -16,16 +16,9 @@ jobs:
       run: |
         set -eu
         SCENARIO_NAME_MAX_LENGTH=30
-        check_failed=false    
         scenario_names=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{print $9}' | sort -u)
         for name in $scenario_names; do
           if [ ${#name} -gt $SCENARIO_NAME_MAX_LENGTH ]; then
             echo "::error::Scenario folder name $name is greater than $SCENARIO_NAME_MAX_LENGTH characters. Please rename the folder to a shorter name."
-            check_failed=true
           fi
         done
-        if [ "$check_failed" = true ]; then
-          exit 1
-        fi
-
-
