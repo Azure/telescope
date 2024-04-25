@@ -196,11 +196,12 @@ variable "loadbalancer_config_list" {
 variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
-    role           = string
-    vm_name        = string
-    nic_name       = string
-    admin_username = string
-    zone           = optional(number)
+    role             = string
+    vm_name          = string
+    nic_name         = string
+    admin_username   = string
+    info_column_name = optional(string)
+    zone             = optional(number)
     source_image_reference = object({
       publisher = string
       offer     = string
