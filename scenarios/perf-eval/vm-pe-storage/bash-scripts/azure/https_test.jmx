@@ -114,22 +114,22 @@
         vars.put("xmsdate", rfc1123Date);
 
         // Your storage account name.
-        String storageAccount = vars.get("storageAccount");
+        String storageAccount = props.get("storage_account");
 
         // Your storage account access key.
-        String storageKey = vars.get("storageKey");
+        String storageKey = props.get("storage_key");
 
         // Specify the blob type (BlockBlob|PageBlob|AppendBlob).
         String blobType = "BlockBlob";
 
         // Specify your container name.
-        String containerName = vars.get("container");
+        String containerName = props.get("container");
 
         // Specify your blob name.
-        String blobName = vars.get("blob");
+        String blobName = props.get("blob");
 
         // Create the canonicalized string.
-        String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + xmsdate + "\nx-ms-version:" + vars.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
+        String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + xmsdate + "\nx-ms-version:" + props.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
 
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
@@ -180,7 +180,7 @@
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">"SharedKey ${__P(storageAccount, "storage")}:${authKey}"</stringProp>
+                <stringProp name="Header.value">SharedKey ${__P(storage_account, "storage")}:${authKey}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
