@@ -14,6 +14,7 @@ locals {
   data_disk_mbps_read_only         = lookup(var.json_input, "data_disk_mbps_read_only", null)
   data_disk_tier                   = lookup(var.json_input, "data_disk_tier", null)
   data_disk_caching                = lookup(var.json_input, "data_disk_caching", "ReadOnly")
+  data_disk_count                  = lookup(var.json_input, "data_disk_count", 1)
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
@@ -39,10 +40,7 @@ locals {
   all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
-  disk_association_map                   = { for config in var.data_disk_association_list : config.vm_name => config }
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
-  data_disk_config_map                   = { for config in var.data_disk_config_list : config.disk_name => config }
-  all_data_disks                         = { for disk in var.data_disk_config_list : disk.disk_name => module.data_disk[disk.disk_name].data_disk }
 }
 
 terraform {
@@ -117,12 +115,12 @@ module "appgateway" {
 }
 
 module "data_disk" {
-  for_each = local.data_disk_config_map
+  count = var.data_disk_config == null ? 0 : local.data_disk_count
 
   source                         = "./data-disk"
   resource_group_name            = local.run_id
   location                       = local.region
-  data_disk_name                 = each.value.disk_name
+  data_disk_name                 = "${var.data_disk_config.name_prefix}-${count.index}"
   tags                           = local.tags
   data_disk_storage_account_type = local.data_disk_storage_account_type
   data_disk_size_gb              = local.data_disk_size_gb
@@ -131,7 +129,7 @@ module "data_disk" {
   data_disk_iops_read_only       = local.data_disk_iops_read_only
   data_disk_mbps_read_only       = local.data_disk_mbps_read_only
   data_disk_tier                 = local.data_disk_tier
-  zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : each.value.zone
+  zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : var.data_disk_config.zone
 }
 
 module "virtual_machine" {
@@ -176,11 +174,11 @@ resource "azurerm_network_interface_backend_address_pool_association" "nic-backe
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "disk-association" {
-  for_each = local.disk_association_map
+  count = try(var.data_disk_config.vm_name, null) != null ? local.data_disk_count : 0
 
-  managed_disk_id    = local.all_data_disks[each.value.data_disk_name].id
-  virtual_machine_id = local.all_vms[each.key].id
-  lun                = 0
+  managed_disk_id    = module.data_disk[count.index].data_disk.id
+  virtual_machine_id = local.all_vms[var.data_disk_config.vm_name].id
+  lun                = count.index
   caching            = (local.data_disk_caching == null || local.data_disk_caching == "") ? "ReadOnly" : local.data_disk_caching
 }
 

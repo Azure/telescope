@@ -29,14 +29,10 @@ network_config_list = [
   }
 ]
 
-data_disk_config_list = [{
-  disk_name = "disk-attach-detach-storage-disk1"
-  zone      = 1
-  },
-  {
-    disk_name = "disk-attach-detach-storage-disk2"
-    zone      = 1
-}]
+data_disk_config = {
+  name_prefix = "disk-attach-detach-storage-disk"
+  zone        = 1
+}
 
 vm_config_list = [{
   info_column_name = "cloud_info.vm_info"
