@@ -1,10 +1,10 @@
-name: Code Lint Validation
+name: Lint Checker
 
 on:
   pull_request: 
 
 jobs:
-  lint-validation:
+  lint-checker:
     runs-on: ubuntu-latest
 
     steps:
