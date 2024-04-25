@@ -51,12 +51,6 @@
               <stringProp name="Argument.desc">Azure storage account shared storage key name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="xmsdate" elementType="Argument">
-              <stringProp name="Argument.name">xmsdate</stringProp>
-              <stringProp name="Argument.value">"Fri\, Apr 13 2021 00:00:00 GMT"</stringProp>
-              <stringProp name="Argument.desc">Azure Storage REST Api xmsdate header value in RFC1123 format</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
             <elementProp name="xmsversion" elementType="Argument">
               <stringProp name="Argument.name">xmsversion</stringProp>
               <stringProp name="Argument.value">2024-05-04</stringProp>
@@ -186,11 +180,11 @@
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">"SharedKey ${__P(storageAccount, "storage")}:${__groovy(vars.get("authKey"))}"</stringProp>
+                <stringProp name="Header.value">"SharedKey ${__P(storageAccount, "storage")}:${authKey}"</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">${__P(xmsdate, "")}</stringProp>
+                <stringProp name="Header.value">${xmsdate}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-version</stringProp>
