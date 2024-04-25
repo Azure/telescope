@@ -12,10 +12,6 @@
     <hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <stringProp name="LoopController.loops">${__P(loop_count,1)}</stringProp>
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-        </elementProp>
         <stringProp name="ThreadGroup.num_threads">${__P(thread_num,100)}</stringProp>
         <stringProp name="ThreadGroup.ramp_time">${__P(ramp_time,5)}</stringProp>
         <boolProp name="ThreadGroup.delayedStart">false</boolProp>
@@ -23,6 +19,10 @@
         <stringProp name="ThreadGroup.duration"></stringProp>
         <stringProp name="ThreadGroup.delay"></stringProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <stringProp name="LoopController.loops">${__P(loop_count,1)}</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
       <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
@@ -102,6 +102,49 @@
           </collectionProp>
         </Arguments>
         <hashTree/>
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor" enabled="true">
+        <stringProp name="cacheKey">true</stringProp>
+        <stringProp name="filename"></stringProp>
+        <stringProp name="parameters"></stringProp>
+        <stringProp name="script">import javax.crypto.Mac;
+        import javax.crypto.spec.SecretKeySpec;
+        import org.apache.commons.codec.binary.Base64;
+        import java.text.SimpleDateFormat;
+        import java.util.Locale;
+        import java.util.TimeZone;
+
+        //Generate the RCF1123 date
+        SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        String rfc1123Date = dateFormat.format(new Date());
+        vars.put("xmsdate", rfc1123Date);
+
+        // Your storage account name.
+        String storageAccount = vars.get("storageAccount");
+
+        // Your storage account access key.
+        String storageKey = vars.get("storageKey");
+
+        // Specify the blob type (BlockBlob|PageBlob|AppendBlob).
+        String blobType = "BlockBlob";
+
+        // Specify your container name.
+        String containerName = vars.get("container");
+
+        // Specify your blob name.
+        String blobName = vars.get("blob");
+
+        // Create the canonicalized string.
+        String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + xmsdate + "\nx-ms-version:" + vars.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
+        String authKey = new String(Base64.encodeBase64(mac.doFinal(canonicalizedString.getBytes("UTF-8"))));
+        vars.put("authKey", authKey);
+        </stringProp>
+        <stringProp name="scriptLanguage">groovy</stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
         <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
           <collectionProp name="CookieManager.cookies"/>
           <boolProp name="CookieManager.clearEachIteration">true</boolProp>
@@ -132,50 +175,6 @@
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
         </HTTPSamplerProxy>
         <hashTree>
-            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor" enabled="true">
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="script">import javax.crypto.Mac;
-            import javax.crypto.spec.SecretKeySpec;
-            import org.apache.commons.codec.binary.Base64;
-            import java.text.SimpleDateFormat;
-            import java.util.Locale;
-            import java.util.TimeZone;
-
-            //Generate the RCF1123 date
-            SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
-            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-            String rfc1123Date = dateFormat.format(new Date());
-            vars.put("xmsdate", rfc1123Date);
-
-            // Your storage account name.
-            String storageAccount = vars.get("storageAccount");
-
-            // Your storage account access key.
-            String storageKey = vars.get("storageKey");
-
-            // Specify the blob type (BlockBlob|PageBlob|AppendBlob).
-            String blobType = "BlockBlob";
-
-            // Specify your container name.
-            String containerName = vars.get("container");
-
-            // Specify your blob name.
-            String blobName = vars.get("blob");
-
-            // Create the canonicalized string.
-            String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + xmsdate + "\nx-ms-version:" + vars.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
-
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
-            String authKey = new String(Base64.encodeBase64(mac.doFinal(canonicalizedString.getBytes("UTF-8"))));
-            vars.put("authKey", authKey);
-            </stringProp>
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            </JSR223PreProcessor>
-          <hashTree/>
-          <hashTree>
           <KeystoreConfig guiclass="TestBeanGUI" testclass="KeystoreConfig" testname="Keystore Configuration" enabled="true">
             <stringProp name="clientCertAliasVarName">cert_name</stringProp>
             <stringProp name="endIndex">10000</stringProp>
