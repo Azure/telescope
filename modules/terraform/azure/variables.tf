@@ -16,7 +16,7 @@ variable "json_input" {
     data_disk_iops_read_only         = optional(number)
     data_disk_mbps_read_only         = optional(number)
     data_disk_caching                = optional(string)
-    data_disk_count                  = optional(number)
+    data_disk_count                  = optional(number, 1)
     ultra_ssd_enabled                = optional(bool)
     storage_account_tier             = optional(string)
     storage_account_kind             = optional(string)
@@ -198,11 +198,12 @@ variable "loadbalancer_config_list" {
 variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
-    role           = string
-    vm_name        = string
-    nic_name       = string
-    admin_username = string
-    zone           = optional(number)
+    role             = string
+    vm_name          = string
+    nic_name         = string
+    admin_username   = string
+    info_column_name = optional(string)
+    zone             = optional(number)
     source_image_reference = object({
       publisher = string
       offer     = string
@@ -252,7 +253,7 @@ variable "data_disk_config" {
   type = object({
     name_prefix = string
     zone        = number
-    vm_name     = string
+    vm_name     = optional(string)
   })
   default = null
 }

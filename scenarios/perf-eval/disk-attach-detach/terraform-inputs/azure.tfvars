@@ -2,10 +2,10 @@ scenario_type  = "perf-eval"
 scenario_name  = "disk-attach-dettach"
 deletion_delay = "2h"
 
-  public_ip_config_list = [{
-        name = "disk-attach-detach-pip"
+public_ip_config_list = [{
+  name = "disk-attach-detach-pip"
   }
-  ]
+]
 
 network_config_list = [
   {
@@ -18,31 +18,28 @@ network_config_list = [
     }]
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
-    {
+      {
         nic_name              = "compete-disk-attach-detach-nic"
         subnet_name           = "disk-attach-detach-subnet"
         ip_configuration_name = "disk-attach-detach-config"
         public_ip_name        = "disk-attach-detach-pip"
-    }
-  ]
+      }
+    ]
     nsr_rules = []
-}
+  }
 ]
 
-data_disk_config_list = [{
-  disk_name = "disk-attach-detach-storage-disk1"
-  zone      = 1
-  },
-  {
-    disk_name = "disk-attach-detach-storage-disk2"
-    zone      = 1
-}]
+data_disk_config = {
+  name_prefix = "disk-attach-detach-storage-disk"
+  zone        = 1
+}
 
 vm_config_list = [{
-  role           = "vm-attach-dettach"
-  vm_name        = "vm-1"
-  nic_name = "compete-disk-attach-detach-nic"
-  admin_username = "ubuntu"
+  info_column_name = "cloud_info.vm_info"
+  role             = "vm-role"
+  vm_name          = "Attach-Detach-VM-RAW"
+  nic_name         = "compete-disk-attach-detach-nic"
+  admin_username   = "ubuntu"
   source_image_reference = {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"

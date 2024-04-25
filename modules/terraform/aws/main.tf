@@ -85,7 +85,6 @@ module "data_disk" {
   data_disk_size_gb         = tonumber(local.data_disk_size_gb)
   data_disk_iops_read_write = tonumber(local.data_disk_iops_read_write)
   data_disk_mbps_read_write = tonumber(local.data_disk_mbps_read_write)
-
 }
 
 module "load_balancer" {
