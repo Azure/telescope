@@ -134,7 +134,8 @@
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
         String authKey = new String(Base64.encodeBase64(mac.doFinal(canonicalizedString.getBytes("UTF-8"))));
-        vars.put("authKey", authKey);
+        String auth_header = "SharedKey ${storageAccount}:${authKey}"
+        vars.put("auth_header", auth_header);
         </stringProp>
         <stringProp name="scriptLanguage">groovy</stringProp>
         </JSR223PreProcessor>
@@ -180,7 +181,7 @@
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">SharedKey ${__P(storage_account, "storage")}:${authKey}</stringProp>
+                <stringProp name="Header.value">${auth_header}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">x-ms-date</stringProp>
