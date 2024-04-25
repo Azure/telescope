@@ -54,7 +54,7 @@ run_and_collect() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id")"
+        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index")"
         wait
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_attach_$run_index.json"
@@ -63,7 +63,7 @@ run_and_collect() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id")"
+        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index")"
         wait
         output=$(fill_json_template "$operation_info")
         filename="$result_dir/${disk_name}_detach_$run_index.json"

@@ -1,7 +1,10 @@
 {
-  "owner": "terraform_unit_tests",
-  "run_id": "758521942",
-  "region": "us-east-2",
-  "data_disk_size_gb": "40",
-  "storage_disks_count": "2"
+  "owner"                            : "terraform_unit_tests",
+  "run_id"                           : "123456789",
+  "region"                           : "us-east-1",
+  "machine_type"                     : "m5.4xlarge",
+  "accelerated_networking"           : true,
+  "data_disk_storage_account_type"   : "gp3",
+  "data_disk_size_gb"                : 1024,
+  "data_disk_count"                  : 2
 }

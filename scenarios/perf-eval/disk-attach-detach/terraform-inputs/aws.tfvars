@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "disk-attach-detach"
+scenario_name  = "disk-attach-dettach"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -31,7 +31,6 @@ vm_config_list = [{
 }]
 
 data_disk_config = {
-  vm_name     = "helper-vm"
   zone_suffix = "a"
 }
 
