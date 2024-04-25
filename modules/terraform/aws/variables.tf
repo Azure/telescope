@@ -151,7 +151,7 @@ variable "data_disk_config" {
   description = "List of data disks and disk associations with the same configuration to be created"
   type = object({
     zone_suffix = string
-    vm_name     = string
+    vm_name     = optional(string)
   })
   default = null
 }

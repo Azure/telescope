@@ -252,7 +252,7 @@ variable "data_disk_config" {
   type = object({
     name_prefix = string
     zone        = number
-    vm_name     = string
+    vm_name     = optional(string)
   })
   default = null
 }
