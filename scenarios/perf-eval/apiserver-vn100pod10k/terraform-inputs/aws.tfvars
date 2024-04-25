@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-benchmark-virtualnodes100-pods10k"
+scenario_name  = "apiserver-vn100pod10k"
 deletion_delay = "20h"
 
 network_config_list = [
