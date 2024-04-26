@@ -1,7 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-benchmark-virtualnodes100-pods3k"
-deletion_delay = "20h"
-
+scenario_name  = "storage-attach-detach-1000"
+deletion_delay = "6h"
 network_config_list = [
   {
     role           = "client"
@@ -10,13 +9,13 @@ network_config_list = [
     subnet = [
       {
         name                    = "client-subnet"
-        cidr_block              = "10.0.0.0/24"
+        cidr_block              = "10.0.0.0/17"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "client-subnet-2"
-        cidr_block              = "10.0.1.0/24"
+        cidr_block              = "10.0.128.0/17"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       }
@@ -41,7 +40,14 @@ network_config_list = [
       }
     ]
     sg_rules = {
-      ingress = []
+      ingress = [
+        {
+          from_port  = 2222
+          to_port    = 2222
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        }
+      ]
       egress = [
         {
           from_port  = 0
@@ -54,47 +60,31 @@ network_config_list = [
   }
 ]
 
+
+vm_config_list = []
+
+loadbalancer_config_list = []
+
 eks_config_list = [{
   role        = "client"
-  eks_name    = "virtualnodes100-pods3k"
+  eks_name    = "perfevala1000"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
+      name           = "node-group-1"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.large"]
-      min_size       = 1
-      max_size       = 1
-      desired_size   = 1
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "virtualnodes"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.2xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "runner"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+      instance_types = ["m7i.2xlarge"]
+      min_size       = 40
+      max_size       = 40
+      desired_size   = 40
     }
   ]
-
   eks_addons = [
     {
-      name = "coredns"
+      name            = "aws-ebs-csi-driver"
+      service_account = "ebs-csi-controller-sa"
+      policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
     }
   ]
 }]

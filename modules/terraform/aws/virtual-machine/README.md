@@ -94,8 +94,6 @@ module "aws_virtual_machine" {
 ### Resources
 
 - [aws_instance Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance)
-- [aws_ebs_volume Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ebs_volume)
-- [aws_volume_attachment Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/volume_attachment)
 
 ### Data Sources
 

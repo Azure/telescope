@@ -28,26 +28,42 @@ variable "vnet_id" {
   default     = ""
 }
 
+variable "subnets" {
+  description = "Maps of subnets"
+  type        = map(string)
+  default     = {}
+}
+
 variable "aks_config" {
   type = object({
-    role           = string
-    aks_name       = string
-    dns_prefix     = string
-    subnet_name    = string
-    network_plugin = string
-    sku_tier       = string
+    role        = string
+    aks_name    = string
+    dns_prefix  = string
+    subnet_name = optional(string, null)
+    network_profile = optional(object({
+      network_plugin = optional(string, null)
+      network_policy = optional(string, null)
+      outbound_type  = optional(string, null)
+      pod_cidr       = optional(string, null)
+    }))
+    sku_tier = string
     default_node_pool = object({
       name                         = string
+      subnet_name                  = optional(string, null)
       node_count                   = number
-      os_disk_type                 = string
       vm_size                      = string
+      os_sku                       = optional(string, "Ubuntu")
+      os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
     })
     extra_node_pool = list(object({
-      name       = string
-      node_count = number
-      vm_size    = string
+      name         = string
+      subnet_name  = optional(string, null)
+      node_count   = number
+      vm_size      = string
+      os_sku       = optional(string, "Ubuntu")
+      os_disk_type = optional(string, "Managed")
     }))
     role_assignment_list = optional(list(string), [])
   })
