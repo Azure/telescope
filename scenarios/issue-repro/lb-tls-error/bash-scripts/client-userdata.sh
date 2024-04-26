@@ -17,6 +17,7 @@ echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docke
 # Install the latest version
 sudo apt-get -qq update
 sudo apt-get -qq install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo apt-get -qq install -y jq
 
 # Verify docker has been installed
 docker --version
