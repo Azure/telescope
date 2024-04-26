@@ -21,6 +21,7 @@ locals {
   storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
   storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
   storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
+  
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
