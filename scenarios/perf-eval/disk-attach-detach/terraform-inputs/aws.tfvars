@@ -11,12 +11,12 @@ network_config_list = [
       cidr_block  = "10.0.0.0/24"
       zone_suffix = "a"
     }]
-    security_group_name = "helper-sg"
-    route_tables = [],
+    security_group_name      = "helper-sg"
+    route_tables             = [],
     route_table_associations = []
     sg_rules = {
       ingress = []
-      egress = []
+      egress  = []
     }
   }
 ]

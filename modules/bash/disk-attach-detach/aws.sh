@@ -43,7 +43,7 @@ get_disk_instances_name_by_run_id() {
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: run_id: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk
-# Returns: Error message of the operation otherwise nothing
+# Returns: A json object with the operation results
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <run_id> <index>
 attach_or_detach_disk() {
     local operation=$1
@@ -100,7 +100,7 @@ attach_or_detach_disk() {
 #  - $3: operation: the name of the operation
 #  - $4: data: additional data related to the operation
 #
-# Returns: None
+# Returns: A json object with the operation results
 # Usage: print_result <succeeded> <execution_time> <operation> <data>
 build_output() {
     local succeeded=$1
