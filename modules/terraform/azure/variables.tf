@@ -144,24 +144,34 @@ variable "appgateway_config_list" {
 
 variable "aks_config_list" {
   type = list(object({
-    role           = string
-    aks_name       = string
-    subnet_name    = string
-    dns_prefix     = string
-    network_plugin = string
-    sku_tier       = string
+    role        = string
+    aks_name    = string
+    subnet_name = optional(string)
+    dns_prefix  = string
+    network_profile = optional(object({
+      network_plugin = optional(string, null)
+      network_policy = optional(string, null)
+      outbound_type  = optional(string, null)
+      pod_cidr       = optional(string, null)
+    }))
+    sku_tier = string
     default_node_pool = object({
       name                         = string
+      subnet_name                  = optional(string)
       node_count                   = number
       vm_size                      = string
-      os_disk_type                 = string
+      os_sku                       = optional(string)
+      os_disk_type                 = optional(string)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
     })
     extra_node_pool = list(object({
-      name       = string
-      node_count = number
-      vm_size    = string
+      name         = string
+      subnet_name  = optional(string)
+      node_count   = number
+      vm_size      = string
+      os_sku       = optional(string)
+      os_disk_type = optional(string)
     }))
     role_assignment_list = optional(list(string), [])
   }))
