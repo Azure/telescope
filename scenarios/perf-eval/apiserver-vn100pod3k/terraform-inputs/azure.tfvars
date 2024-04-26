@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-benchmark-virtualnodes100-pods3k"
+scenario_name  = "apiserver-vn100pod3k"
 deletion_delay = "20h"
 aks_config_list = [
   {
