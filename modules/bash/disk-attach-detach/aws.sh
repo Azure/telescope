@@ -59,14 +59,15 @@ attach_or_detach_disk() {
         then echo "attached"; 
         else echo ""; fi)
     
-    local error_message=$(aws ec2 $operation-volume \
+    aws ec2 $operation-volume \
         --volume-id $disk_name \
         --instance-id $vm_name \
         --device "/dev/sd${all_devices_suffixes[$index]}" \
-        2>&1 \
-        >/dev/null)
-
-    if [[ -n $error_message ]]; then
+        2> /tmp/$vm_name-$disk_name-$operation.error \
+        >  /dev/null
+    error_code=$?
+    local error_message=$(cat /tmp/$vm_name-$disk_name-$operation.error)
+    if [[ $error_code -ne 0 ]]; then
         echo $(build_output "false" "-1" "$operation" "$(jq -n --arg msg "$error_message" '{"error": $msg}')")
         return
     fi
