@@ -123,6 +123,18 @@ resource "time_sleep" "wait_60_seconds" {
   create_duration = "60s"
 }
 
+resource "azurerm_user_assigned_identity" "agw" {
+  name                = "${var.resource_group_name}-uamsi"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
+}
+
 resource "azurerm_key_vault" "agw" {
   name                = "${var.resource_group_name}-kv"
   location            = var.location
@@ -137,17 +149,28 @@ resource "azurerm_key_vault" "agw" {
       "role" = local.role
     },
   )
-  access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
+}
 
-    certificate_permissions = [
-      "Get", "Create", "List" 
-    ]
-    secret_permissions = [
-      "Get",
-    ]
-  }
+resource "azurerm_key_vault_access_policy" "builder" {
+  key_vault_id = azurerm_key_vault.agw.id
+  tenant_id = data.azurerm_client_config.current.tenant_id
+  object_id = data.azurerm_client_config.current.object_id
+
+  certificate_permissions = [
+    "create",
+    "get",
+    "list"
+  ]
+}
+
+resource "azurerm_key_vault_access_policy" "agw" {
+  key_vault_id = azurerm_key_vault.agw.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_user_assigned_identity.agw.principal_id
+
+  secret_permissions = [
+    "get"
+  ]
 }
 
 resource "azurerm_key_vault_certificate" "appgatewayhttps" {
