@@ -75,4 +75,5 @@ network_config_list = [
 
 pe_config = {
     pe_vpc_name = "same-vpc"
+    service_name = "com.amazonaws.us-east-2.s3"
 }

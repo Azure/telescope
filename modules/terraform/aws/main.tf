@@ -160,7 +160,6 @@ module "privateendpoint" {
   pe_config = var.pe_config
 
   vpc_id = local.all_vpcs[var.pe_config.pe_vpc_name].id
-  service_name = var.pe_config.service_name == null ? "com.amazonaws.${local.region}.s3" : var.pe_config.service_name
 
   tags = local.tags
 }
