@@ -162,6 +162,18 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
+variable "bucket_source_path" {
+  description = "File path of bucket source file"
+  type        = string
+  default     = ""
+}
+
+variable "bucket_file_key" {
+  description = "Key for bucket object file"
+  type        = string
+  default     = ""
+}
+
 variable "eks_config_list" {
   type = list(object({
     role        = string
@@ -207,6 +219,15 @@ variable "private_link_conf" {
     client_vpc_name            = string
     client_subnet_name         = string
     client_security_group_name = string
+  })
+  default = null
+}
+
+variable "pe_config" {
+  description = "configuration for vpc private endpoint"
+  type = object({
+    pe_vpc_name = string
+    service_name = string
   })
   default = null
 }

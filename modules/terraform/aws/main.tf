@@ -100,6 +100,8 @@ module "load_balancer" {
 module "bucket" {
   source = "./bucket"
 
+  bucket_file_key    = var.bucket_file_key
+  bucket_source_path = "${local.user_data_path}/${var.bucket_source_path}"
   count              = var.bucket_name_prefix != "" ? 1 : 0
   bucket_name_prefix = var.bucket_name_prefix
   run_id             = local.run_id
@@ -149,4 +151,16 @@ resource "aws_volume_attachment" "attach" {
   device_name = "/dev/sd${element(local.all_devices_suffixes, count.index)}"
   volume_id   = module.data_disk[count.index].data_disk.id
   instance_id = local.all_vms[var.data_disk_config.vm_name].id
+}
+
+module "privateendpoint" {
+  source = "./vpc-endpoint"
+
+  count     = var.pe_config == null ? 0 : 1
+  pe_config = var.pe_config
+
+  vpc_id = local.all_vpcs[var.pe_config.pe_vpc_name].id
+  service_name = var.pe_config.service_name == null ? "com.amazonaws.${local.region}.s3" : var.pe_config.service_name
+
+  tags = local.tags
 }

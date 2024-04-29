@@ -45,6 +45,17 @@ variable "storage_share_config" {
   default = null
 }
 
+variable "storage_blob_config" {
+  description = "storage container blob config"
+  type = object({
+    container_name = string
+    container_access = string
+    blob_name = string
+    source_file_path = string
+  })
+  default = null
+}
+
 variable "storage_network_rules_config" {
   description = "storage network rules config"
   type = object({
