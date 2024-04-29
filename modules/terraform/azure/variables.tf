@@ -296,3 +296,14 @@ variable "pe_config" {
   })
   default = null
 }
+
+variable "blob_config" {
+  description = "storage container blob config"
+  type = object({
+    container_name = string
+    container_access = string
+    blob_name = string
+    source_file_name = string
+  })
+  default = null
+}
