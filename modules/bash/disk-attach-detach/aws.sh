@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Description:
-#   This function retrieves the VM instance by run id.
+#   This function gets the first running VM instance id (called name for Azure compatibility) by run id.
 
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 # 
 # Returns: The id of the VM instance
-# Usage: get_vm_instance_by_run_id <run_id>
+# Usage: get_vm_instances_name_by_run_id <run_id>
 get_vm_instances_name_by_run_id() {
     local run_id=$1
 
@@ -18,13 +18,13 @@ get_vm_instances_name_by_run_id() {
 }
 
 # Description:
-#   This function gets the name of the disk instances by run id.
+#   This function gets the ids of the available volumes (disks) by run id.
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
-# Returns: The names of the available disk instances
-# Usage: get_available_disk_instances <run_id>
+# Returns: The ids of the available disk instances
+# Usage: get_disk_instances_name_by_run_id <run_id>
 get_disk_instances_name_by_run_id() {
     local run_id=$1
     
@@ -43,6 +43,7 @@ get_disk_instances_name_by_run_id() {
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: run_id: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk
+#  - $6: timeout: (optional, default 90) seconds to wait for the operation to complete
 # Returns: A json object with the operation results
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <run_id> <index>
 attach_or_detach_disk() {
@@ -51,22 +52,25 @@ attach_or_detach_disk() {
     local disk_name=$3
     local run_id=$4
     local index=$5
-    local timeout=90 # seconds to wait for the operation to complete
-    local all_devices_suffixes=("f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p")
+    local timeout=${6:-90}
+    local all_letters=(a b c d e f g h i j k l m n o p q r s t u v w x y z)
 
     local start_time=$(date +%s)
     local status_req=$(if [ "$operation" == "attach" ]; 
         then echo "attached"; 
         else echo ""; fi)
-    
+
+    nletter=${#all_letters[@]}
+    iletter=$(($index / $nletter))
+    jletter=$(($index % $nletter))
     aws ec2 $operation-volume \
-        --volume-id $disk_name \
-        --instance-id $vm_name \
-        --device "/dev/sd${all_devices_suffixes[$index]}" \
-        2> /tmp/$vm_name-$disk_name-$operation.error \
+        --volume-id "$disk_name" \
+        --instance-id "$vm_name" \
+        --device "/dev/xvd${all_letters[$iletter]}${all_letters[$jletter]}" \
+        2> "/tmp/$vm_name-$disk_name-$operation.error" \
         >  /dev/null
     error_code=$?
-    local error_message=$(cat /tmp/$vm_name-$disk_name-$operation.error)
+    local error_message=$(cat "/tmp/$vm_name-$disk_name-$operation.error")
     if [[ $error_code -ne 0 ]]; then
         echo $(build_output "false" "-1" "$operation" "$(jq -n --arg msg "$error_message" '{"error": $msg}')")
         return
@@ -74,7 +78,7 @@ attach_or_detach_disk() {
     for ((i=1; i<=$timeout; i++)); do
         local status=$(
             aws ec2 describe-volumes \
-                --volume-ids $disk_name \
+                --volume-ids "$disk_name" \
                 --query "Volumes[].Attachments[].State" \
                 --output text)
         if [ "$status" == "$status_req" ]; then
@@ -113,5 +117,5 @@ build_output() {
         --arg execution_time "$execution_time" \
         --arg operation "$operation" \
         --argjson data "$data" \
-        '{"operation": $operation ,"succeeded": $succeeded, "execution_time": $execution_time, "unit": "seconds", "data": $data}')
+        '{"name": $operation ,"succeeded": $succeeded, "time": $execution_time, "unit": "seconds", "data": $data}')
 }
