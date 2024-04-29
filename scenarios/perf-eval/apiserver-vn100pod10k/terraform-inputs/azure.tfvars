@@ -1,14 +1,16 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-benchmark-virtualnodes100-pods10k"
+scenario_name  = "apiserver-vn100pod10k"
 deletion_delay = "20h"
 aks_config_list = [
   {
-    role           = "client"
-    aks_name       = "virtualnodes100-pods10k"
-    dns_prefix     = "kperf"
-    subnet_name    = "aks-network"
-    network_plugin = "azure"
-    sku_tier       = "Standard"
+    role        = "client"
+    aks_name    = "virtualnodes100-pods10k"
+    dns_prefix  = "kperf"
+    subnet_name = "aks-network"
+    sku_tier    = "Standard"
+    network_profile = {
+      network_plugin = "azure"
+    }
     default_node_pool = {
       name                         = "default"
       node_count                   = 2

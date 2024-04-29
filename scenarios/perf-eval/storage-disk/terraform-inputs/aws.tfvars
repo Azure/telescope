@@ -53,12 +53,11 @@ vm_config_list = [{
   security_group_name         = "client-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
+}]
 
-  data_disk_config = {
-    data_disk_size_gb     = 1024
-    data_disk_volume_type = "gp2"
-  }
-  }
-]
+data_disk_config = {
+  vm_name     = "client-vm"
+  zone_suffix = "a"
+}
 
 loadbalancer_config_list = []

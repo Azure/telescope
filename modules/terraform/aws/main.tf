@@ -8,6 +8,7 @@ locals {
   data_disk_volume_type     = lookup(var.json_input, "data_disk_volume_type", "")
   data_disk_iops_read_write = lookup(var.json_input, "data_disk_iops_read_write", null)
   data_disk_mbps_read_write = lookup(var.json_input, "data_disk_mbps_read_write", null)
+  data_disk_count           = lookup(var.json_input, "data_disk_count", 1)
 
   efs_performance_mode                = lookup(var.json_input, "efs_performance_mode", null)
   efs_throughput_mode                 = lookup(var.json_input, "efs_throughput_mode", null)
@@ -26,8 +27,10 @@ locals {
   vm_config_map           = { for vm in var.vm_config_list : vm.vm_name => vm }
   eks_config_map          = { for eks in var.eks_config_list : eks.eks_name => eks }
 
-  all_lb_arns = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
-  all_vpcs    = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
+  all_lb_arns          = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
+  all_vpcs             = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
+  all_vms              = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
+  all_devices_suffixes = ["f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p"]
 }
 
 terraform {
@@ -61,15 +64,8 @@ module "virtual_network" {
 module "virtual_machine" {
   for_each = local.vm_config_map
 
-  source = "./virtual-machine"
-  vm_config = merge(each.value, {
-    data_disk_config = (local.data_disk_volume_type == null || local.user_data_path == "") ? null : {
-      data_disk_volume_type     = local.data_disk_volume_type
-      data_disk_size_gb         = tonumber(local.data_disk_size_gb)
-      data_disk_iops_read_write = tonumber(local.data_disk_iops_read_write)
-      data_disk_mbps_read_write = tonumber(local.data_disk_mbps_read_write)
-    }
-  })
+  source              = "./virtual-machine"
+  vm_config           = each.value
   admin_key_pair_name = aws_key_pair.admin_key_pair.key_name
   tags                = local.tags
   run_id              = local.run_id
@@ -77,6 +73,18 @@ module "virtual_machine" {
   user_data_path      = local.user_data_path
   depends_on          = [module.virtual_network]
   region              = local.region
+}
+
+module "data_disk" {
+  count = var.data_disk_config == null ? 0 : local.data_disk_count
+
+  source                    = "./data-disk"
+  zone                      = "${local.region}${var.data_disk_config.zone_suffix}"
+  tags                      = local.tags
+  data_disk_volume_type     = local.data_disk_volume_type
+  data_disk_size_gb         = tonumber(local.data_disk_size_gb)
+  data_disk_iops_read_write = tonumber(local.data_disk_iops_read_write)
+  data_disk_mbps_read_write = tonumber(local.data_disk_mbps_read_write)
 }
 
 module "load_balancer" {
@@ -133,4 +141,12 @@ module "privatelink" {
   tags                       = local.tags
 
   depends_on = [module.load_balancer]
+}
+
+resource "aws_volume_attachment" "attach" {
+  count = try(var.data_disk_config.vm_name, null) != null ? local.data_disk_count : 0
+
+  device_name = "/dev/sd${element(local.all_devices_suffixes, count.index)}"
+  volume_id   = module.data_disk[count.index].data_disk.id
+  instance_id = local.all_vms[var.data_disk_config.vm_name].id
 }

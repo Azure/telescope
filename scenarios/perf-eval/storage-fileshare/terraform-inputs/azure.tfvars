@@ -38,9 +38,6 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = []
-
-data_disk_config_list = []
-
 vm_config_list = [{
   role           = "client"
   vm_name        = "client-vm"
