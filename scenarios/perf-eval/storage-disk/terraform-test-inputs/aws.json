@@ -3,9 +3,7 @@
     "run_id"                           : "123456789",
     "region"                           : "us-east-1",
     "machine_type"                     : "m5.4xlarge",
-    "accelerated_networking"           : false,
+    "accelerated_networking"           : true,
     "data_disk_storage_account_type"   : "gp3",
-    "data_disk_size_gb"                : 4096,
-    "data_disk_iops_read_write"        : 7500,
-    "data_disk_mbps_read_write"        : 250
+    "data_disk_size_gb"                : 1024
   }

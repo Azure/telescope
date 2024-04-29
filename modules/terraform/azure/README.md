@@ -110,6 +110,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
   --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
   --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
+  --arg data_disk_count "$DATA_DISK_COUNT" \
   --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
   --arg storage_account_tier "$STORAGE_TIER" \
   --arg storage_account_kind "$STORAGE_KIND" \
@@ -133,6 +134,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
     data_disk_iops_read_only: $data_disk_iops_read_only,
     data_disk_mbps_read_write: $data_disk_mbps_read_write,
     data_disk_mbps_read_only: $data_disk_mbps_read_only,
+    data_disk_count: $data_disk_count,
     ultra_ssd_enabled: $ultra_ssd_enabled,
     storage_account_tier: $storage_account_tier,
     storage_account_kind: $storage_account_kind,

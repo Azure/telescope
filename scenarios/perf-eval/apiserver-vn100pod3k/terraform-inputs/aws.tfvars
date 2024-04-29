@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-benchmark-virtualnodes100-pods10k"
+scenario_name  = "apiserver-vn100pod3k"
 deletion_delay = "20h"
 
 network_config_list = [
@@ -56,7 +56,7 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "virtualnodes100-pods10k"
+  eks_name    = "virtualnodes100-pods3k"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
