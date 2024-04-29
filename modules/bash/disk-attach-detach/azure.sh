@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Description:
-#   This function retrieves the VM instance by resource group(run id).
+#   This function gets the VM instance name by resource group(run id).
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
