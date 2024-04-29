@@ -142,18 +142,9 @@ resource "azurerm_key_vault" "agw" {
     object_id = data.azurerm_client_config.current.object_id
 
     certificate_permissions = [
-      "Get",
+      "Get", "Create", "List" 
     ]
-
-    key_permissions = [
-      "Get",
-    ]
-
     secret_permissions = [
-      "Get",
-    ]
-
-    storage_permissions = [
       "Get",
     ]
   }
