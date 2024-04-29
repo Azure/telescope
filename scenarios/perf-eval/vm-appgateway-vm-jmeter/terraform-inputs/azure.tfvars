@@ -196,7 +196,7 @@ appgateway_config_list = [
         rule_type                  = "Basic"
         http_listener_name         = "https-backend-contoso-com-direct"
         backend_address_pool_name  = "appgateway-server"
-        backend_http_settings_name = "server-https-direct"
+        backend_http_settings_name = "server-https"
       },
       {
         name                       = "http-backend-contoso-com-direct"
@@ -204,7 +204,7 @@ appgateway_config_list = [
         rule_type                  = "Basic"
         http_listener_name         = "http-backend-contoso-com-direct"
         backend_address_pool_name  = "appgateway-server"
-        backend_http_settings_name = "server-http-direct"
+        backend_http_settings_name = "server-http"
       }
     ]
   }
