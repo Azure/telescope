@@ -129,11 +129,11 @@ appgateway_config_list = [
     subnet_name     = "server-subnet"
     appgateway_probes = [
       {
-        name     = "client-https"
+        name     = "server-https"
         protocol = "Https"
       },
       {
-        name     = "client-http"
+        name     = "server-http"
         protocol = "Http"
       }
     ]
