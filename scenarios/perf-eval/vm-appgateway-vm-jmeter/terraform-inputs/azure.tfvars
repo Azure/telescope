@@ -140,7 +140,7 @@ appgateway_config_list = [
     appgateway_backend_address_pool = [
       {
         name         = "appgateway-server"
-        ip_addresses = [server-pip]
+        ip_addresses = ["10.1.1.4", "10.1.1.5"]
       }
     ]
     appgateway_frontendport1 = {
