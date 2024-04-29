@@ -23,7 +23,7 @@ network_config_list = [
     },
     {
       name           = "appgateway-subnet"
-      address_prefix = "10.1.1.0/24"
+      address_prefix = "10.1.2.0/24"
     }]
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
