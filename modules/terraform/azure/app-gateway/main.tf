@@ -34,8 +34,8 @@ resource "azurerm_application_gateway" "appgateway" {
   dynamic "frontend_port" {
     for_each = local.frontend_ports
     content{
-      name = frontend_port.name
-      port = frontend_port.port
+      name = frontend_port.value.name
+      port = frontend_port.value.port
     }
   }
 
