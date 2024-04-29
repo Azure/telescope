@@ -39,7 +39,11 @@ resource "azurerm_application_gateway" "appgateway" {
       port = frontend_port.value.port
     }
   }
-
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.agw.id]
+  }
+  
   ssl_certificate {
     name                = azurerm_key_vault_certificate.appgatewayhttps.name
     key_vault_secret_id = azurerm_key_vault_certificate.appgatewayhttps.secret_id
