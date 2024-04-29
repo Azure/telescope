@@ -2,7 +2,7 @@ locals {
   role                  = var.appgateway_config.role
   appgateway_name       = var.appgateway_config.appgateway_name
   health_probes         = var.appgateway_config.appgateway_probes
-  frontend_ports        = var.appgateway_config.appgateway_frontendports
+  frontend_ports        = var.appgateway_config.appgateway_frontend_ports
   backend_address_pool  = var.appgateway_config.appgateway_backend_address_pool
   backendhttp_settings  = var.appgateway_config.appgateway_backend_http_settings
   http_listeners        = var.appgateway_config.appgateway_http_listeners

@@ -37,7 +37,7 @@ variable "appgateway_config" {
       name         = string
       ip_addresses = list(string)
     }))
-    appgateway_frontendport = list(object({
+    appgateway_frontend_ports = list(object({
       name = string
       port = string
     }))
