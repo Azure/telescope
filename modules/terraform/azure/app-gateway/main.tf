@@ -114,6 +114,8 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 }
 
+data "azurerm_client_config" "current" {}
+
 resource "azurerm_key_vault" "agw" {
   name                = "${local.appgateway_name}-kv"
   location            = var.location
