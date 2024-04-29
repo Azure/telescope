@@ -39,6 +39,11 @@ resource "azurerm_application_gateway" "appgateway" {
     }
   }
 
+  ssl_certificate {
+    name                = azurerm_key_vault_certificate.appgatewayhttps.name
+    key_vault_secret_id = azurerm_key_vault_certificate.appgatewayhttps.secret_id
+  }
+
   frontend_ip_configuration {
     name                 = "public"
     public_ip_address_id = var.public_ip_id
@@ -87,7 +92,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? ["self-signed-root"] : []
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? azurerm_key_vault_certificate.appgatewayhttps.name : ""
     }
   }
 
@@ -109,4 +114,71 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 }
 
+resource "azurerm_key_vault" "agw" {
+  name                = "${local.appgateway_name}-kv"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  soft_delete_enabled = truesoft_delete_retention_days = 90
+  purge_protection_enabed = false
+  sku_name = "standard"
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
+}
 
+resource "azurerm_key_vault_certificate" "appgatewayhttps" {
+  name         = "mysite1"
+  key_vault_id = azurerm_key_vault.agw.id
+
+  certificate_policy {
+    issuer_parameters {
+      name = "Self"
+    }
+
+    key_properties {
+      exportable = true
+      key_size   = 2048
+      key_type   = "RSA"
+      reuse_key  = true
+    }
+
+    lifetime_action {
+      action {
+        action_type = "AutoRenew"
+      }
+
+      trigger {
+        days_before_expiry = 30
+      }
+    }
+
+    secret_properties {
+      content_type = "application/x-pkcs12"
+    }
+
+    x509_certificate_properties {
+      # Server Authentication = 1.3.6.1.5.5.7.3.1
+      # Client Authentication = 1.3.6.1.5.5.7.3.2
+      extended_key_usage = ["1.3.6.1.5.5.7.3.1"]
+
+      key_usage = [
+        "cRLSign",
+        "dataEncipherment",
+        "digitalSignature",
+        "keyAgreement",
+        "keyCertSign",
+        "keyEncipherment",
+      ]
+
+      subject_alternative_names {
+        dns_names = ["mysite1.com"]
+      }
+
+      subject            = "CN=mysite1.com"
+      validity_in_months = 12
+    }
+  }
+}
