@@ -118,7 +118,8 @@ resource "azurerm_key_vault" "agw" {
   name                = "${local.appgateway_name}-kv"
   location            = var.location
   resource_group_name = var.resource_group_name
-  soft_delete_enabled = truesoft_delete_retention_days = 90
+  soft_delete_enabled = true
+  soft_delete_retention_days = 90
   purge_protection_enabed = false
   sku_name = "standard"
   tags = merge(
