@@ -157,9 +157,9 @@ resource "azurerm_key_vault_access_policy" "builder" {
   object_id = data.azurerm_client_config.current.object_id
 
   certificate_permissions = [
-    "create",
-    "get",
-    "list"
+    "Create",
+    "Get",
+    "List"
   ]
 }
 
@@ -169,7 +169,7 @@ resource "azurerm_key_vault_access_policy" "agw" {
   object_id    = azurerm_user_assigned_identity.agw.principal_id
 
   secret_permissions = [
-    "get"
+    "Get"
   ]
 }
 
