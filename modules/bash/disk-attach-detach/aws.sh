@@ -53,20 +53,16 @@ attach_or_detach_disk() {
     local run_id=$4
     local index=$5
     local timeout=${6:-90}
-    local all_letters=(a b c d e f g h i j k l m n o p q r s t u v w x y z)
 
     local start_time=$(date +%s)
     local status_req=$(if [ "$operation" == "attach" ]; 
         then echo "attached"; 
         else echo ""; fi)
 
-    nletter=${#all_letters[@]}
-    iletter=$(($index / $nletter))
-    jletter=$(($index % $nletter))
     aws ec2 $operation-volume \
         --volume-id "$disk_name" \
         --instance-id "$vm_name" \
-        --device "/dev/xvd${all_letters[$iletter]}${all_letters[$jletter]}" \
+        --device $(build_device_name $index) \
         2> "/tmp/$vm_name-$disk_name-$operation.error" \
         >  /dev/null
     error_code=$?
@@ -93,6 +89,27 @@ attach_or_detach_disk() {
     else
         echo $(build_output "true" "$execution_time" "$operation" "$(jq -n '{}')")
     fi
+}
+
+# Description:
+# This function builds a device name for an AWS EC2 instance based on the given index.
+# The device name is constructed using the letters 'a' to 'z' and the prefix '/dev/xvd'.
+# The index is used to determine the combination of letters to form the device name.
+#
+# Parameters:
+# - $1: index: The index used to calculate the device name.
+#
+# Returns: The constructed device name, e.g. /dev/xvdaa
+# Usage: build_device_name <index>
+build_device_name() {
+    local index=$1
+    local all_letters=(a b c d e f g h i j k l m n o p q r s t u v w x y z)
+
+    nletter=${#all_letters[@]}
+    iletter=$(($index / $nletter))
+    jletter=$(($index % $nletter))
+
+    echo "/dev/xvd${all_letters[$iletter]}${all_letters[$jletter]}"
 }
 
 # Description:

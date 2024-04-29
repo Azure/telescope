@@ -42,7 +42,8 @@ get_disk_instances_name_by_run_id() {
 #  - $2: vm_name: the name of the VM instance (e.g. vm-1)
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
+#  - $5: index: the index of the disk (not used in Azure)
+# 
 # Returns: Information about each operation
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group>
 attach_or_detach_disk() {
@@ -50,7 +51,7 @@ attach_or_detach_disk() {
     local vm_name=$2
     local disk_name=$3
     local resource_group=$4
-    local index=$5 # not used in Azure
+    local index=$5
 
     start_time=$(date +%s)
     local output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
