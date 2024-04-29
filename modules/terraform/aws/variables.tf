@@ -148,7 +148,7 @@ variable "vm_config_list" {
 }
 
 variable "data_disk_config" {
-  description = "List of data disks and attachment targets (up to 11 per vm) with the same configuration to be created"
+  description = "Data disk and optional attachment target (up to 11 per vm) to be created <data_disk_count> times"
   type = object({
     zone_suffix = string
     vm_name     = optional(string)
