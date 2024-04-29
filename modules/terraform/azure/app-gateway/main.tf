@@ -118,9 +118,9 @@ resource "azurerm_key_vault" "agw" {
   name                = "${local.appgateway_name}-kv"
   location            = var.location
   resource_group_name = var.resource_group_name
-  soft_delete_enabled = true
-  soft_delete_retention_days = 90
-  purge_protection_enabed = false
+  tenant_id           =  data.azurerm_client_config.current.tenant_id
+  soft_delete_retention_days = 2
+  purge_protection_enabled = false
   sku_name = "standard"
   tags = merge(
     var.tags,
@@ -128,6 +128,22 @@ resource "azurerm_key_vault" "agw" {
       "role" = local.role
     },
   )
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    key_permissions = [
+      "Get",
+    ]
+
+    secret_permissions = [
+      "Get",
+    ]
+
+    storage_permissions = [
+      "Get",
+    ]
+  }
 }
 
 resource "azurerm_key_vault_certificate" "appgatewayhttps" {
