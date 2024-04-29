@@ -117,7 +117,7 @@ resource "azurerm_application_gateway" "appgateway" {
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_key_vault" "agw" {
-  name                = "${var.run_id}-kv"
+  name                = "${var.resource_group_name}-kv"
   location            = var.location
   resource_group_name = var.resource_group_name
   tenant_id           =  data.azurerm_client_config.current.tenant_id
