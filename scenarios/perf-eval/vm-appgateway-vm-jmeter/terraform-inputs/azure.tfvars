@@ -143,14 +143,16 @@ appgateway_config_list = [
         ip_addresses = ["10.1.1.4", "10.1.1.5"]
       }
     ]
-    appgateway_frontendport1 = {
-      name = "http"
-      port = 80
-    }
-    appgateway_frontendport2 = {
-      name = "https"
-      port = 443
-    }
+    appgateway_frontendports = [
+      {
+        name = "http"
+        port = 80
+      },
+      {
+        name = "https"
+        port = 443
+      }
+    ]
     appgateway_backend_http_settings = [
       {
         name                  = "server-https"
