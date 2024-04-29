@@ -10,6 +10,7 @@ locals {
 }
 
 resource "azurerm_application_gateway" "appgateway" {
+  depends_on          = [azurerm_key_vault_certificate.appgatewayhttps, time_sleep.wait_60_seconds]
   name                = local.appgateway_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -115,6 +116,12 @@ resource "azurerm_application_gateway" "appgateway" {
 }
 
 data "azurerm_client_config" "current" {}
+
+resource "time_sleep" "wait_60_seconds" {
+  depends_on = [azurerm_key_vault_certificate.appgatewayhttps]
+
+  create_duration = "60s"
+}
 
 resource "azurerm_key_vault" "agw" {
   name                = "${var.resource_group_name}-kv"
