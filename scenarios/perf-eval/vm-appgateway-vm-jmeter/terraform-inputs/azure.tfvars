@@ -143,7 +143,7 @@ appgateway_config_list = [
         ip_addresses = ["10.1.1.4", "10.1.1.5"]
       }
     ]
-    appgateway_frontendports = [
+    appgateway_frontend_ports = [
       {
         name = "http"
         port = 80
