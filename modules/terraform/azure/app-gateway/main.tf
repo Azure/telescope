@@ -101,7 +101,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "data.azurerem_key_vault_certificate.Appgateway.id" : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "data.azurerm_key_vault_certificate.Appgateway.id" : ""
     }
   }
 
