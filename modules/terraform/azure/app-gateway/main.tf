@@ -19,11 +19,6 @@ data "azurerm_key_vault_certificate" "Appgateway" {
   key_vault_id = data.azurerm_key_vault.appgatewaykv.id
 }
 
-data "azurerm_user_assigned_identity" "appgatewayuami" {
-  name                = "telescopeAppGWUAMI"
-  resource_group_name = "AppGatewayKeyvaults"
-}
-
 resource "azurerm_application_gateway" "appgateway" {
   name                = local.appgateway_name
   location            = var.location
@@ -106,7 +101,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/AppGatewayKeyvaults/providers/Microsoft.KeyVault/vaults/TelescopeAppGatewayKV/sslCertificates/Appgateway" : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "data.azurerem_key_vault_certificate.Appgateway.id" : ""
     }
   }
 
