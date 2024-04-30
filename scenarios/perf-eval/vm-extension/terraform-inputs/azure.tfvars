@@ -31,7 +31,7 @@ network_config_list = [
 vm_config_list = [
   {
     info_column_name = "cloud_info.vm_info"
-    role           = "client"
+    role           = "vm-role"
     vm_name        = "vm-extension"
     nic_name       = "vm-extension-nic"
     admin_username = "ubuntu"
