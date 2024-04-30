@@ -4,16 +4,13 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
-variable "bucket_source_path" {
-  description = "Value of bucket source file path"
-  type        = string
-  default     = ""
-}
-
-variable "bucket_file_key" {
-  description = "Value for bucket file key"
-  type        = string
-  default     = ""
+variable "bucket_object_config" {
+  description = "Configuration for deployment of bucket object with bucket"
+  type = object({
+    bucket_source_path = string
+    bucket_file_key = string
+  })
+  default = null
 }
 
 variable "run_id" {

@@ -2,9 +2,12 @@ scenario_type  = "perf-eval"
 scenario_name  = "vm-pe-storage"
 deletion_delay = "2h"
 
-bucket_name_prefix = "vm-pe-storage" # should be same with $BUCKET_NAME_PREFIX in the script
-bucket_file_key    = "test"
-bucket_source_path = "client-userdata.sh"
+bucket_name_prefix = "vm-pe-storage" # should be same with $BUCKET_NAME_PREFIX in the 
+
+bucket_object_config = {
+    bucket_file_key    = "test"
+    bucket_source_path = "client-userdata.sh"
+}
 
 vm_config_list = [{
   vm_name                     = "client-vm"

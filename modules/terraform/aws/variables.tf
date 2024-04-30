@@ -162,16 +162,13 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
-variable "bucket_source_path" {
-  description = "File path of bucket source file"
-  type        = string
-  default     = ""
-}
-
-variable "bucket_file_key" {
-  description = "Key for bucket object file"
-  type        = string
-  default     = ""
+variable "bucket_object_config" {
+  description = "Configuration for deployment of bucket object with bucket"
+  type = object({
+    bucket_source_path = string
+    bucket_file_key = string
+  })
+  default = null
 }
 
 variable "eks_config_list" {
