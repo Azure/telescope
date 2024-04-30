@@ -106,7 +106,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? data.azurerm_key_vault_certificate.Appgateway.name : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "https://telescopeappgatewaykv.vault.azure.net/certificates/Appgateway/14efce320af2457e9d6f074c9f145bf9" : ""
     }
   }
 
