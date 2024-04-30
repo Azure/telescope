@@ -101,7 +101,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "data.azurerm_key_vault_certificate.Appgateway.id" : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "appgw-testgateway-ssl01" : ""
     }
   }
 
@@ -115,6 +115,13 @@ resource "azurerm_application_gateway" "appgateway" {
       backend_address_pool_name  = request_routing_rule.value.backend_address_pool_name
       backend_http_settings_name = request_routing_rule.value.backend_http_settings_name
     }
+  }
+
+  ssl_certificate {
+    name                = "appgw-testgateway-ssl01"
+    data                = "./keyBag.pfx"
+    password            = "P@$$w0rd123"
+    key_vault_secret_id = lookup(ssl_certificate.value, "key_vault_secret_id", null)
   }
 
   trusted_root_certificate {
