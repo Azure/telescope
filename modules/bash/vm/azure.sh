@@ -1,6 +1,20 @@
 #!/bin/bash
 
 # Description:
+#   This script contains the functions to manage the resources in the resource group.
+#
+# Parameters:
+#  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+# 
+# Returns: name of the VM instance
+# Usage: get_vm_instance_by_name <run_id>
+get_vm_instance_by_name() {
+    local run_id=$1
+
+    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '$run_id')].name" --output tsv)
+}
+
+# Description:
 #   This function is used to create a VM in Azure.
 #
 # Parameters:
@@ -166,4 +180,51 @@ delete_nic() {
     if az network nic delete --resource-group "$resource_group" --name "$nic_name" --output none; then
         echo "$nic_name"
     fi
+}
+
+# Description:
+#   This function is used to install CSE extension on a VM
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#
+# Notes:
+#   - the exit_code is returned
+#
+# Usage: install_vm_extension <vm_name> <resource_group>
+install_vm_extension() {
+    local vm_name=$1
+    local resource_group=$2
+
+    az vm extension set \
+        --resource-group "$resource_group" \
+        --vm-name "$vm_name" \
+        --name "CustomScript" \
+        --publisher "Microsoft.Azure.Extensions" \
+        --settings '{"commandToExecute": "echo Hello World"}' 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
+
+    exit_code=$?
+
+    (
+        set -Ee
+        function _catch {
+            echo $(jq -c -n \
+            '{succeeded: "false", data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        extension_data=$(cat /tmp/$resource_group-$vm_name-install-extension-output.txt)
+        error=$(cat /tmp/$resource_group-$vm_name-install-extension-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --argjson extension_data "$extension_data" \
+            '{succeeded: "true", data: $extension_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            echo $(jq -c -n \
+                --arg error "$error" \
+                '{succeeded: "false", data: {error: $error}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        fi
+    )
 }
