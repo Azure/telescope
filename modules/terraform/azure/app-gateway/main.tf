@@ -121,7 +121,6 @@ resource "azurerm_application_gateway" "appgateway" {
     name                = "appgw-testgateway-ssl01"
     data                = "./keyBag.pfx"
     password            = "P@$$w0rd123"
-    key_vault_secret_id = lookup(ssl_certificate.value, "key_vault_secret_id", null)
   }
 
   trusted_root_certificate {
