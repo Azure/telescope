@@ -34,7 +34,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Error converting SERVER_TIMEOUT to int:", err)
 		return
 	}
-	fmt.Printf("Setting server timeout to %d seconds\n", serverTimeout)
 	conn.SetReadDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
 	conn.SetWriteDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
 
