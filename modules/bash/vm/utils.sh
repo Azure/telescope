@@ -171,72 +171,61 @@ measure_create_delete_vm() {
 #
 # Parameters:
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VM (e.g. vm-1-1233213123)
-#   - $3: The size of the VM (e.g. c3-highcpu-4)
-#   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
-#   - $5: The region where the VM will be created (e.g. us-east1)
-#   - $6: Whether to pre-create the NIC or let it be part of the VM creation/deletion measurement (e.g. true)
-#   - $7: The run id
-#   - $8: The security group (e.g. my-security-group)
-#   - $9: The subnet (e.g. my-subnet)
-#   - $10: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
-#   - $11: The security type (e.g. TrustedLaunch)
-#   - $12: The storage type (e.g. Premium_LRS)
-#   - $13: The result directory where to place the results in JSON format
-#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $2: The run id
+#   - $3: The result directory where to place the results in JSON format
 #
-# Usage: measure_vm_extension <cloud> <vm_name> <vm_size> <vm_os> <region> <precreate_nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <tags>
+# Usage: measure_vm_extension <cloud> <run_id> <result_dir>
 measure_vm_extension() {
     local cloud=$1
-    local vm_size=$3
-    local vm_os=$4
-    local region=$5
-    local precreate_nic=$6
-    local run_id=$7
-    local security_group=$8
-    local subnet=$9
-    local accelerator=${10}
-    local security_type=${11}
-    local storage_type=${12}
-    local result_dir=${13}
-    local tags=${14}
+    local run_id=$2
+    local result_dir=$3
     local vm_name=$(get_vm_instance_by_name $run_id)
-
-    local test_details="{ \
-        \"cloud\": \"$cloud\", \
-        \"name\": \"$vm_name\", \
-        \"size\": \"$vm_size\", \
-        \"os\": \"$vm_os\", \
-        \"region\": \"$region\", \
-        \"precreate_nic\": \"$precreate_nic\", \
-        \"accelerator\": \"$accelerator\", \
-        \"security_type\": \"$security_type\", \
-        \"storage_type\": \"$storage_type\""
     
-    echo "Measuring $cloud VM extension installation with the following details: 
-- VM name: $vm_name
-- VM size: $vm_size
-- VM OS: $vm_os
-- Region: $region
-- Precreate NIC: $precreate_nic
-- Security group: $security_group
-- Subnet: $subnet
-- Accelerator: $accelerator
-- Security type: $security_type
-- Storage type: $storage_type
-- Tags: $tags"
+    echo "Measuring $cloud VM extension installation" 
 
+    local result=""
+    local installation_succedded="false"
+    local installation_time=0
 
-    install_status=$(measure_install_vm_extension "$cloud" "$vm_name" "$run_id" "$result_dir")
-    echo "install_status= $install_status"
-    succeeded=$(echo "$install_status" | jq -r '.succeeded')
-    echo "succeeded= $succeeded"
+    local start_time=$(date +%s)
+    case $cloud in
+        azure)
+            extension_data=$(install_vm_extension "$vm_name" "$run_id")
+        ;;
+        *)
+            exit 1 # cloud provider unknown/not implemented
+        ;;
+    esac
+    
+    wait
+    local end_time=$(date +%s)
 
-    if [[ "$succeeded" == "false" ]]; then
-        echo "Error while installing extension"
-    else
-        echo "All good while installing extension"
+    if [[ -n "$extension_data" ]]; then
+        succeeded=$(echo "$extension_data" | jq -r '.succeeded')
+        if [[ "$succeeded" == "true" ]]; then
+            output_extension_data=$extension_data
+            installation_time=$((end_time - start_time))
+            installation_succedded="true"
+        else
+            temporary_extension_data=$(echo "$extension_data" | jq -r '.data')
+            if [[ -n "$temporary_extension_data" ]]; then
+                output_extension_data=$extension_data
+            fi
+        fi
     fi
+
+    result="{\
+        \"operation\": \"install_vm_extension\", \
+        \"succeeded\": \"$installation_succedded\", \
+        \"extension_data\": $(jq -c -n \
+          --argjson extension_data "$(echo "$output_extension_data" | jq -r '.data')" \
+          '$extension_data'), \
+        \"time\": \"$installation_time\" \
+    }"
+
+    mkdir -p $result_dir
+    echo $result > "$result_dir/vm-extension-$cloud-$vm_name-$(date +%s).json"
+    echo $result
 }
 
 # Description:
@@ -414,57 +403,4 @@ measure_delete_vm() {
     if [[ "$deletion_succeeded" == "true" ]]; then
         echo "$vm_name"
     fi
-}
-
-
-# TODO: Description
-
-measure_install_vm_extension() {
-    local cloud=$1
-    local vm_name=$2
-    local run_id=$3
-    local result_dir=$4
-    local result=""
-    local installation_succedded="false"
-    local installation_time=0
-
-    local start_time=$(date +%s)
-    case $cloud in
-        azure)
-            extension_data=$(install_vm_extension "$vm_name" "$run_id")
-        ;;
-        *)
-            exit 1 # cloud provider unknown/not implemented
-        ;;
-    esac
-    
-    wait
-    local end_time=$(date +%s)
-
-    if [[ -n "$extension_data" ]]; then
-        succeeded=$(echo "$extension_data" | jq -r '.succeeded')
-        if [[ "$succeeded" == "true" ]]; then
-            output_extension_data=$extension_data
-            installation_time=$((end_time - start_time))
-            installation_succedded="true"
-        else
-            temporary_extension_data=$(echo "$extension_data" | jq -r '.data')
-            if [[ -n "$temporary_extension_data" ]]; then
-                output_extension_data=$extension_data
-            fi
-        fi
-    fi
-
-    result="{\
-        \"operation\": \"install_vm_extension\", \
-        \"succeeded\": \"$installation_succedded\", \
-        \"extension_data\": $(jq -c -n \
-          --argjson extension_data "$(echo "$output_extension_data" | jq -r '.data')" \
-          '$extension_data'), \
-        \"time\": \"$installation_time\" \
-    }"
-
-    mkdir -p $result_dir
-    echo $result > "$result_dir/vm-extension-$cloud-$vm_name-$(date +%s).json"
-    echo $result
 }
