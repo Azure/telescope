@@ -102,6 +102,7 @@ module "bucket" {
 
   count                = var.bucket_name_prefix != "" ? 1 : 0
   bucket_object_config = var.bucket_object_config
+  local_path           = local.user_data_path
   bucket_name_prefix   = var.bucket_name_prefix
   run_id               = local.run_id
   tags                 = local.tags
