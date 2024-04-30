@@ -9,8 +9,33 @@ locals {
   request_routing_rules = var.appgateway_config.appgateway_request_routing_rules
 }
 
+data "azurerm_key_vault" "example" {
+  name                = "TelescopeAppGatewayKV"
+  resource_group_name = "AppGatewayKeyvaults"
+}
+
+output "vault_uri" {
+  value = data.azurerm_key_vault.example.vault_uri
+}
+
+data "azurerm_user_assigned_identity" "example" {
+  name                = "telescopeAppGWUAMI"
+  resource_group_name = "AppGatewayKeyvaults"
+}
+
+output "uai_client_id" {
+  value = data.azurerm_user_assigned_identity.example.client_id
+}
+
+output "uai_principal_id" {
+  value = data.azurerm_user_assigned_identity.example.principal_id
+}
+
+output "uai_tenant_id" {
+  value = data.azurerm_user_assigned_identity.example.tenant_id
+}
+
 resource "azurerm_application_gateway" "appgateway" {
-  depends_on          = [azurerm_key_vault_certificate.appgatewayhttps, time_sleep.wait_60_seconds]
   name                = local.appgateway_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -41,12 +66,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
   identity {
     type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.agw.id]
-  }
-  
-  ssl_certificate {
-    name                = azurerm_key_vault_certificate.appgatewayhttps.name
-    key_vault_secret_id = azurerm_key_vault_certificate.appgatewayhttps.secret_id
+    identity_ids = [uai_client_id,uai_principal_id,uai_tenant_id]
   }
 
   frontend_ip_configuration {
@@ -97,7 +117,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? azurerm_key_vault_certificate.appgatewayhttps.name : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? vault_uri.Appgateway.name : ""
     }
   }
 
@@ -116,117 +136,5 @@ resource "azurerm_application_gateway" "appgateway" {
   trusted_root_certificate {
     name = "self-signed-root"
     data = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tDQpNSUlCdHpDQ0FWMENGSEUvNk5mME92L3QxV2JCQlBTOWp2VlBJV0pOTUFvR0NDcUdTTTQ5QkFNQ01GNHhDekFKDQpCZ05WQkFZVEFrNU1NUTR3REFZRFZRUUlEQVZCZW5WeVpURVNNQkFHQTFVRUJ3d0pRVzF6ZEdWeVpHRnRNUkV3DQpEd1lEVlFRS0RBaHViR2xuYUhSbGJqRVlNQllHQTFVRUF3d1BjMlZzWm5OcFoyNWxaQzF5YjI5ME1CNFhEVEl6DQpNRFl5TWpFM05UQXpNMW9YRFRJME1EWXlNVEUzTlRBek0xb3dYakVMTUFrR0ExVUVCaE1DVGt3eERqQU1CZ05WDQpCQWdNQlVGNmRYSmxNUkl3RUFZRFZRUUhEQWxCYlhOMFpYSmtZVzB4RVRBUEJnTlZCQW9NQ0c1c2FXZG9kR1Z1DQpNUmd3RmdZRFZRUUREQTl6Wld4bWMybG5ibVZrTFhKdmIzUXdXVEFUQmdjcWhrak9QUUlCQmdncWhrak9QUU1CDQpCd05DQUFUTzZvVVpsRjBwRWdEME5nQ1Bsc1ptUjk2OVMrcHBzRlF1bVZFK1NYK1JkVDMwZ1BVRjFyRTB1WjZ2DQpLMWJRREhSSVV3bzNnZzJZTnZKb3BvbFVmL3VLTUFvR0NDcUdTTTQ5QkFNQ0EwZ0FNRVVDSVFDbDdlN1o0bHplDQoxTGowMS9zU1I2K0lCZHVESUpNTkQxamdsTTYvdDc0NXh3SWdZSHl3SjArNmw2SHgvT2tOTnlYZmxNalBvaWk0DQpoNHczNzQxNFZqMG56Qk09DQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tDQo="
-  }
-}
-
-data "azurerm_client_config" "current" {}
-
-resource "time_sleep" "wait_60_seconds" {
-  depends_on = [azurerm_key_vault_certificate.appgatewayhttps]
-
-  create_duration = "60s"
-}
-
-resource "azurerm_user_assigned_identity" "agw" {
-  name                = "${var.resource_group_name}-uamsi"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tags = merge(
-    var.tags,
-    {
-      "role" = local.role
-    },
-  )
-}
-
-resource "azurerm_key_vault" "agw" {
-  name                = "${var.resource_group_name}-kv"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tenant_id           =  data.azurerm_client_config.current.tenant_id
-  soft_delete_retention_days = 7
-  purge_protection_enabled = false
-  sku_name = "standard"
-  tags = merge(
-    var.tags,
-    {
-      "role" = local.role
-    },
-  )
-}
-
-resource "azurerm_key_vault_access_policy" "builder" {
-  key_vault_id = azurerm_key_vault.agw.id
-  tenant_id = data.azurerm_client_config.current.tenant_id
-  object_id = data.azurerm_client_config.current.object_id
-
-  certificate_permissions = [
-    "Create",
-    "Get",
-    "List"
-  ]
-}
-
-resource "azurerm_key_vault_access_policy" "agw" {
-  key_vault_id = azurerm_key_vault.agw.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_user_assigned_identity.agw.principal_id
-
-  secret_permissions = [
-    "Get"
-  ]
-}
-
-resource "azurerm_key_vault_certificate" "appgatewayhttps" {
-  name         = "mysite1"
-  key_vault_id = azurerm_key_vault.agw.id
-
-  certificate_policy {
-    issuer_parameters {
-      name = "Self"
-    }
-
-    key_properties {
-      exportable = true
-      key_size   = 2048
-      key_type   = "RSA"
-      reuse_key  = true
-    }
-
-    lifetime_action {
-      action {
-        action_type = "AutoRenew"
-      }
-
-      trigger {
-        days_before_expiry = 30
-      }
-    }
-
-    secret_properties {
-      content_type = "application/x-pkcs12"
-    }
-
-    x509_certificate_properties {
-      # Server Authentication = 1.3.6.1.5.5.7.3.1
-      # Client Authentication = 1.3.6.1.5.5.7.3.2
-      extended_key_usage = ["1.3.6.1.5.5.7.3.1"]
-
-      key_usage = [
-        "cRLSign",
-        "dataEncipherment",
-        "digitalSignature",
-        "keyAgreement",
-        "keyCertSign",
-        "keyEncipherment",
-      ]
-
-      subject_alternative_names {
-        dns_names = ["mysite1.com"]
-      }
-
-      subject            = "CN=mysite1.com"
-      validity_in_months = 12
-    }
   }
 }
