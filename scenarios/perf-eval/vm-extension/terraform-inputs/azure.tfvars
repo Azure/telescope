@@ -30,6 +30,7 @@ network_config_list = [
 
 vm_config_list = [
   {
+    info_column_name = "cloud_info.vm_info"
     role           = "client"
     vm_name        = "vm-extension"
     nic_name       = "vm-extension-nic"
