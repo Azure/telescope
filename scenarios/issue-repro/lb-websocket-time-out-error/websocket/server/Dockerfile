@@ -11,7 +11,14 @@ COPY websocket/server .
 
 RUN go build -ldflags="-s -w" -o server .
 
+FROM ubuntu:20.04
+
+RUN apt-get update && apt-get install -y \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /home
+
 COPY --from=builder /build/server /home/server
 
 # Expose the necessary port
