@@ -4,7 +4,7 @@
 code=$?
 if [[ $code -eq 0 ]]; then
   websocket_duration_map=$(cat log.txt | grep -o '{.*}')
-  websocket_abnormal_closure_count=$(cat log.txt | grep -o 'websocket: close 1006 (abnormal closure)')
+  websocket_abnormal_closure_count=$(cat log.txt | grep "websocket: close 1006 (abnormal closure)" | wc -l)
   jq --null-input \
     --arg websocket_duration_map "$websocket_duration_map" \
     --arg websocket_abnormal_closure_count "$websocket_abnormal_closure_count" \

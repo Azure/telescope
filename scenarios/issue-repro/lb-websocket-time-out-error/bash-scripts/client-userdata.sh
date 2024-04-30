@@ -22,4 +22,4 @@ sudo apt-get -qq install docker-ce docker-ce-cli containerd.io docker-buildx-plu
 docker --version
 
 # Pull image
-docker pull -q telescope.azurecr.io/websocket-client:v1.1.2
+docker pull -q telescope.azurecr.io/websocket-client:v1.1.6

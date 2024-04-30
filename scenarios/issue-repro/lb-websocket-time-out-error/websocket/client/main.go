@@ -127,7 +127,6 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
 				fmt.Printf("Connection closed: %v with duration %v\n", err, time.Since(startTime).Seconds())
-				duration = time.Since(startTime).Seconds()
 				return
 			}
 		}
