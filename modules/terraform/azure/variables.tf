@@ -300,9 +300,9 @@ variable "pe_config" {
 variable "blob_config" {
   description = "storage container blob config"
   type = object({
-    container_name = string
+    container_name   = string
     container_access = string
-    blob_name = string
+    blob_name        = string
     source_file_name = string
   })
   default = null

@@ -4,7 +4,6 @@
     "region"                           : "us-east-2",
     "zone"                             : "us-east-2b",
     "machine_type"                     : "m6i.4xlarge",
-    "accelerated_networking"           : false,
     "BUCKET_NAME"                      : "vm-pe-storage",
     "STORAGE_ENDPONT"                  : "vm-pe-storage.s3.amazonaws.com"
   }
