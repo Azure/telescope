@@ -30,6 +30,7 @@ run_fio_on_remote_vm() {
   local iodepth=$6
   local method=$7
   local runtime=$8
+  local storage_name=$9
 
   mkdir -p $result_dir
 
@@ -44,8 +45,6 @@ run_fio_on_remote_vm() {
 
   set +x # disable debug output because it will mess up the output of fio
 
-  metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\"}"
-  echo "$metadata_json" > $result_dir/metadata.log
   local command="sudo fio --name=benchtest --size=$file_size --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=$bs --iodepth=$iodepth --time_based --runtime=$runtime --output-format=json"
 
   # prepare files for the actual run using fio option --create_only=1
@@ -56,8 +55,12 @@ run_fio_on_remote_vm() {
 
   # execute the actual run for metrics collection
   echo "Run command: $command"
+  start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   run_ssh $privatekey_path ubuntu $egress_ip_address 2222 "$command" | tee $result_dir/fio.log
-  sleep 30 # wait to clean any potential throttle / cache
+  end_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\",  \"StorageName\": \"$storage_name\", \"StartTime\": \"$start_time\", \"EndTime\": \"$end_time\"}"
+  echo "$metadata_json" > $result_dir/metadata.log
 
   if $DEBUG; then # re-enable debug output if DEBUG is set
     set -x
@@ -72,6 +75,7 @@ run_fio_on_pod() {
   local iodepth=$5
   local method=$6
   local runtime=$7
+  local storage_name=$8
 
   mkdir -p $result_dir
 
@@ -83,8 +87,6 @@ run_fio_on_pod() {
 
   set +x # disable debug output because it will mess up the output of fio
 
-  metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\"}"
-  echo "$metadata_json" > $result_dir/metadata.log
   local command="fio --name=benchtest --size=$file_size --filename=$file_path --direct=1 --rw=$method --ioengine=libaio --bs=$bs --iodepth=$iodepth --time_based --runtime=$runtime --output-format=json"
 
   # prepare files for the actual run using fio option --create_only=1
@@ -95,7 +97,12 @@ run_fio_on_pod() {
 
   # execute the actual run for metrics collection
   echo "Run command: $command"
+  start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   run_kubectl_exec $pod_name fio "$command" | tee $result_dir/fio.log
+  end_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  metadata_json="{\"BlockSize\": \"$bs\", \"IoDepth\": \"$iodepth\", \"Operation\": \"$method\", \"FileSize\": \"$file_size\", \"StorageName\": \"$storage_name\", \"StartTime\": \"$start_time\", \"EndTime\": \"$end_time\"}"
+  echo "$metadata_json" > $result_dir/metadata.log
 
   if $DEBUG; then # re-enable debug output if DEBUG is set
     set -x
@@ -152,6 +159,7 @@ run_fio_fileopenclose_multiple_pods_run() {
   local num_files=$5
   local num_jobs_parallel=$6
   local runtime=$7
+  local storage_name=$8
 
   local target_directory="${mount_point}/${pod_name}"
   local num_files_per_job=$((num_files / num_jobs_parallel))
@@ -160,13 +168,16 @@ run_fio_fileopenclose_multiple_pods_run() {
 
   set +x # disable debug output because it will mess up the output of fio
 
-  metadata_json="{\"NumFiles\": \"$num_files\", \"IoDepth\": \"$num_jobs_parallel\"}"
-  echo "$metadata_json" > $result_dir/metadata-${pod_name}.log
   local command="fio --name=$file_name_prefix --filesize=4096 --directory=$target_directory --thread=1 --readwrite=rw --nrfiles=$num_files_per_job --ioengine=fileopenclose --numjobs=$num_jobs_parallel --time_based --runtime=$runtime --openfiles=1 --group_report --output-format=json"
 
   # execute the actual run for metrics collection
   echo "Run command: $command"
+  start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   run_kubectl_exec $pod_name fio "$command" | tee $result_dir/result-${pod_name}.log &
+  end_time=$(date -u -d "$start_time + $runtime seconds" +"%Y-%m-%dT%H:%M:%SZ")
+
+  metadata_json="{\"NumFiles\": \"$num_files\", \"IoDepth\": \"$num_jobs_parallel\", \"StorageName\": \"$storage_name\", \"StartTime\": \"$start_time\", \"EndTime\": \"$end_time\"}"
+  echo "$metadata_json" > $result_dir/metadata-${pod_name}.log
 
   if $DEBUG; then # re-enable debug output if DEBUG is set
     set -x
