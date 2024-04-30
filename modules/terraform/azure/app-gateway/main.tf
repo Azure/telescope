@@ -55,7 +55,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
   identity {
     type         = "UserAssigned"
-    identity_ids = [data.azurerm_user_assigned_identity.appgatewayuami.client_id]
+    identity_ids = ["/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/AppGatewayKeyvaults/providers/Microsoft.ManagedIdentity/userAssignedIdentities/telescopeAppGWUAMI"]
   }
 
   frontend_ip_configuration {
