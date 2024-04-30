@@ -14,25 +14,9 @@ data "azurerm_key_vault" "appgatewaykv" {
   resource_group_name = "AppGatewayKeyvaults"
 }
 
-output "vault_uri" {
-  value = data.azurerm_key_vault.appgatewaykv.vault_uri
-}
-
 data "azurerm_user_assigned_identity" "appgatewayuami" {
   name                = "telescopeAppGWUAMI"
   resource_group_name = "AppGatewayKeyvaults"
-}
-
-output "uai_client_id" {
-  value = data.azurerm_user_assigned_identity.appgatewayuami.client_id
-}
-
-output "uai_principal_id" {
-  value = data.azurerm_user_assigned_identity.appgatewayuami.principal_id
-}
-
-output "uai_tenant_id" {
-  value = data.azurerm_user_assigned_identity.appgatewayuami.tenant_id
 }
 
 resource "azurerm_application_gateway" "appgateway" {
@@ -66,7 +50,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
   identity {
     type         = "UserAssigned"
-    identity_ids = [uai_client_id.value,uai_principal_id.value,uai_tenant_id.value]
+    identity_ids = [data.azurerm_user_assigned_identity.appgatewayuami.client_id]
   }
 
   frontend_ip_configuration {
@@ -117,7 +101,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? vault_uri.value.Appgateway.name : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? data.azurerm_key_vault.appgatewaykv.vault_uri.Appgateway.name : ""
     }
   }
 
