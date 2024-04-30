@@ -92,7 +92,7 @@ network_config_list = [
         destination_port_range     = "8080"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
-      }]
+    }]
   }
 ]
 loadbalancer_config_list = [{
@@ -113,7 +113,7 @@ loadbalancer_config_list = [{
     fronend_ip_config_prefix = "ingress"
     enable_tcp_reset         = false
     idle_timeout_in_minutes  = 4
-    }]
+  }]
 }]
 
 vm_config_list = [{

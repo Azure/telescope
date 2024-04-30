@@ -1,22 +1,24 @@
-# Use the official Go image as the base image
 FROM golang:1.20 as builder
 
-# Set the working directory inside the container
-WORKDIR /app
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64
 
-# Copy the source code into the container
-COPY websocket/server /app
+WORKDIR /build
 
-# Build the Go application
-RUN go build -o server .
+COPY websocket/server .
 
-COPY websocket/ca.crt /app/ca.crt
-COPY websocket/server.crt /app/server.crt
-COPY websocket/server.csr /app/server.csr
-COPY websocket/server.key /app/server.key
+RUN go build -ldflags="-s -w" -o server .
+
+WORKDIR /home
+COPY --from=builder /build/server /home/server
 
 # Expose the necessary port
 EXPOSE 8080
+
+ENV SERVER_PORT="8080"
+ENV SERVER_TIMEOUT="240"
 
 # Run the Go application
 CMD ["./server"]

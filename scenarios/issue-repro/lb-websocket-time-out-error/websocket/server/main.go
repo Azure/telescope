@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -17,13 +20,22 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func handleConnection(w http.ResponseWriter, r *http.Request) {
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Println("Error upgrading connection:", err)
 		return
 	}
 	defer conn.Close()
+
+	// Set read and write deadlines
+	serverTimeout, err := strconv.Atoi(os.Getenv("SERVER_TIMEOUT"))
+	if err != nil {
+		fmt.Println("Error converting SERVER_TIMEOUT to int:", err)
+		return
+	}
+	conn.SetReadDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
+	conn.SetWriteDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
 
 	clientAddr := conn.RemoteAddr().String()
 
@@ -33,14 +45,15 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		// Read message from the client
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println("Error reading message:", err)
+			fmt.Println("Read error:", err)
 			break
 		}
 	}
 }
 
 func main() {
-	http.HandleFunc("/ws", handleConnection)
-	fmt.Println("WebSocket server listening on :8080")
-	http.ListenAndServe(":8080", nil)
+	port := os.Getenv("SERVER_PORT")
+	http.HandleFunc("/ws", handleWebSocket)
+	fmt.Println("WebSocket server listening on :", port)
+	http.ListenAndServe(":"+port, nil)
 }

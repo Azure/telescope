@@ -51,8 +51,8 @@ func main() {
 	parallelConns, _ := strconv.ParseUint(os.Getenv("PARALLEL_CONNECTIONS"), 10, 64)
 	fmt.Printf("%v parallel connections to be established\n", parallelConns)
 
-	websocketTimeout, _ := strconv.ParseInt(os.Getenv("WEBSOCKET_TIMEOUT"), 10, 64)
-	fmt.Print("Set websocket timeout to ", websocketTimeout, " seconds\n")
+	clientTimeout, _ := strconv.ParseInt(os.Getenv("CLIENT_TIMEOUT"), 10, 64)
+	fmt.Print("Set client timeout to ", clientTimeout, " seconds\n")
 
 	eg := errgroup.Group{}
 	eg.SetLimit(int(parallelConns))
@@ -61,7 +61,7 @@ func main() {
 
 	for atomic.LoadUint64(&actualConns) < totalConns {
 		eg.Go(func() error {
-			duration, isErr := connect(url, time.Duration(websocketTimeout)*time.Second)
+			duration, isErr := connect(url, time.Duration(clientTimeout)*time.Second)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -94,7 +94,6 @@ func main() {
 			case duration >= 300:
 				durationMap[">300s"]++
 			}
-			//printDurationDistribution(durationMap, keys)
 
 			atomic.AddUint64(&actualConns, 1)
 			return nil
@@ -137,14 +136,11 @@ func connect(url string, websocketTimeout time.Duration) (float64, bool) {
 
 	select {
 	case <-done:
-		// Connection closed
-
+		duration = time.Since(startTime).Seconds()
+		return duration, true
 	case <-timeout:
-		// Timeout occurred, close the connection
 		fmt.Println("Timeout expired, closing connection...")
-		return time.Since(startTime).Seconds(), false
 	case <-interrupt:
-		// Interrupt received, close the connection
 		fmt.Println("Interrupt received, closing connection...")
 	}
 	// Gracefully close the WebSocket connection
