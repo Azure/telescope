@@ -9,30 +9,30 @@ locals {
   request_routing_rules = var.appgateway_config.appgateway_request_routing_rules
 }
 
-data "azurerm_key_vault" "example" {
+data "azurerm_key_vault" "appgatewaykv" {
   name                = "TelescopeAppGatewayKV"
   resource_group_name = "AppGatewayKeyvaults"
 }
 
 output "vault_uri" {
-  value = data.azurerm_key_vault.example.vault_uri
+  value = data.azurerm_key_vault.appgatewaykv.vault_uri
 }
 
-data "azurerm_user_assigned_identity" "example" {
+data "azurerm_user_assigned_identity" "appgatewayuami" {
   name                = "telescopeAppGWUAMI"
   resource_group_name = "AppGatewayKeyvaults"
 }
 
 output "uai_client_id" {
-  value = data.azurerm_user_assigned_identity.example.client_id
+  value = data.azurerm_user_assigned_identity.appgatewayuami.client_id
 }
 
 output "uai_principal_id" {
-  value = data.azurerm_user_assigned_identity.example.principal_id
+  value = data.azurerm_user_assigned_identity.appgatewayuami.principal_id
 }
 
 output "uai_tenant_id" {
-  value = data.azurerm_user_assigned_identity.example.tenant_id
+  value = data.azurerm_user_assigned_identity.appgatewayuami.tenant_id
 }
 
 resource "azurerm_application_gateway" "appgateway" {
@@ -66,7 +66,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
   identity {
     type         = "UserAssigned"
-    identity_ids = [uai_client_id,uai_principal_id,uai_tenant_id]
+    identity_ids = [uai_client_id.value,uai_principal_id.value,uai_tenant_id.value]
   }
 
   frontend_ip_configuration {
@@ -117,7 +117,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? vault_uri.Appgateway.name : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? vault_uri.value.Appgateway.name : ""
     }
   }
 
