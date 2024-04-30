@@ -9,17 +9,9 @@ CLIENT_DOCKERFILE = $(CLIENT_DIR)/Dockerfile
 GIT_TAG = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
 IMAGE_REPO = telescope.azurecr.io
 
-.PHONY: all gen-certs clean-certs build-server push-server build-client push-client release
+.PHONY: all build-server push-server build-client push-client release
 
 all: build-server build-client release
-
-gen-certs:
-	@echo "Generating certificates..."
-	@(cd $(BASE_DIR) && ./gen-certs.sh)
-
-clean-certs:
-	@echo "Cleaning certs..."
-	@rm -f $(BASE_DIR)/ca.* $(BASE_DIR)/*.csr $(BASE_DIR)/*.crt $(BASE_DIR)/*.key
 
 build-server:
 	@echo "Building server..."
