@@ -106,8 +106,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/AppGatewayKeyvaults/providers/Microsoft.KeyVault/vaults/TelescopeAppGatewayKV/sslCertificates/Appgateway
-" : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/AppGatewayKeyvaults/providers/Microsoft.KeyVault/vaults/TelescopeAppGatewayKV/sslCertificates/Appgateway" : ""
     }
   }
 
