@@ -35,21 +35,39 @@ get_disk_instances_name_by_run_id() {
 }
 
 # Description:
-#   This function attaches or detaches a disk to/from a vm based on the operation parameter.
+#   This function gets the attach status of a disk by its id.
+#
+# Parameters:
+#  - $1: disk_id: the ID of the disk volume
+#
+# Returns: The attach status of the disk, empty if available
+# Usage: get_disk_attach_status_by_disk_id <disk_id>
+get_disk_attach_status_by_disk_id() {
+    local disk_id=$1
+    
+    echo "$(aws ec2 describe-volumes \
+        --volume-ids "$disk_id" \
+        --query "Volumes[].Attachments[].State" \
+        --output text)"
+}
+
+# Description:
+#   This function attaches or detaches a disk to/from a vm based on the operation parameter
+#   and measures execution time.
 #
 # Parameters:
 #  - $1: operation: the operation to perform (attach or detach)
-#  - $2: vm_name: the name of the VM instance (e.g. vm-1)
-#  - $3: disk_name: the name of the disk instance (e.g. disk-1)
+#  - $2: vm_id: the id of the VM instance (e.g. i-0f76f3f3f3f3f3f3f)
+#  - $3: disk_id: the id of the disk instance (e.g. vol-0f76f3f3f3f3f3f3f)
 #  - $4: run_id: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk
 #  - $6: timeout: (optional, default 90) seconds to wait for the operation to complete
 # Returns: A json object with the operation results
-# Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <run_id> <index>
+# Usage: attach_or_detach_disk <operation> <vm_id> <disk_id> <run_id> <index>
 attach_or_detach_disk() {
     local operation=$1
-    local vm_name=$2
-    local disk_name=$3
+    local vm_id=$2
+    local disk_id=$3
     local run_id=$4
     local index=$5
     local timeout=${6:-90}
@@ -60,23 +78,19 @@ attach_or_detach_disk() {
         else echo ""; fi)
 
     aws ec2 $operation-volume \
-        --volume-id "$disk_name" \
-        --instance-id "$vm_name" \
+        --volume-id "$disk_id" \
+        --instance-id "$vm_id" \
         --device $(build_device_name $index) \
-        2> "/tmp/$vm_name-$disk_name-$operation.error" \
+        2> "/tmp/$vm_id-$disk_id-$operation.error" \
         >  /dev/null
     error_code=$?
-    local error_message=$(cat "/tmp/$vm_name-$disk_name-$operation.error")
+    local error_message=$(cat "/tmp/$vm_id-$disk_id-$operation.error")
     if [[ $error_code -ne 0 ]]; then
         echo $(build_output "false" "-1" "$operation" "$(jq -n --arg msg "$error_message" '{"error": $msg}')")
         return
     fi
     for ((i=1; i<=$timeout; i++)); do
-        local status=$(
-            aws ec2 describe-volumes \
-                --volume-ids "$disk_name" \
-                --query "Volumes[].Attachments[].State" \
-                --output text)
+        local status=$(get_disk_attach_status_by_disk_id "$disk_id")
         if [ "$status" == "$status_req" ]; then
             break
         fi
