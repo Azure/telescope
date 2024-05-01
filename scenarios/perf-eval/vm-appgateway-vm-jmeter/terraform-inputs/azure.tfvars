@@ -151,7 +151,7 @@ appgateway_config_list = [
     appgateway_backend_address_pool = [
       {
         name         = "appgateway-server"
-        ip_addresses = ["10.1.1.4", "10.1.1.5"]
+        ip_addresses = ["10.1.1.4"]
       }
     ]
     appgateway_frontend_ports = [
@@ -167,7 +167,7 @@ appgateway_config_list = [
     appgateway_backend_http_settings = [
       {
         name                  = "server-https"
-        host_name             = "test.contoso.com"
+        host_name             = "https-backend-direct.contoso.com"
         cookie_based_affinity = "Disabled"
         port                  = 443
         protocol              = "Https"
@@ -176,7 +176,7 @@ appgateway_config_list = [
       },
       {
         name                  = "server-http"
-        host_name             = "test.contoso.com"
+        host_name             = "http-backend-direct.contoso.com"
         cookie_based_affinity = "Disabled"
         port                  = 80
         protocol              = "Http"
