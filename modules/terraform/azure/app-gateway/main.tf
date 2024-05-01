@@ -93,6 +93,11 @@ resource "azurerm_application_gateway" "appgateway" {
     }
   }
 
+  ssl_certificate {
+    name = data.azurerm_key_vault_certificate.Appgateway.name
+    key_vault_secret_id = azurerm_key_vault_certificate.mysite1.secret_id
+  }
+
   dynamic "http_listener" {
     for_each = local.http_listeners
     content {
@@ -101,7 +106,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? data.azurerm_key_vault_certificate.Appgateway.name : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? "data.azurerm_key_vault_certificate.Appgateway.name" : ""
     }
   }
 
