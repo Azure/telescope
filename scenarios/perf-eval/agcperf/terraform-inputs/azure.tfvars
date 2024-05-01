@@ -47,7 +47,9 @@ aks_config_list = [
     aks_name       = "aks-instance"
     dns_prefix     = "agcperf"
     subnet_name    = "aks-network-aks"
-    network_plugin = "azure"
+    network_profile = {
+      network_plugin = "azure"
+    }
     sku_tier       = "Free"
     default_node_pool = {
       name                         = "systempool"
