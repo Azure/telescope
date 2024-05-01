@@ -137,7 +137,7 @@ appgateway_config_list = [
     role            = "ingress"
     appgateway_name = "appgateway"
     public_ip_name  = "app-gateway-pip"
-    subnet_name     = "server-subnet"
+    subnet_name     = "appgateway-subnet"
     appgateway_probes = [
       {
         name     = "server-https"
