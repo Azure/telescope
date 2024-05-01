@@ -11,14 +11,14 @@ network_config_list = [
       name           = "aks-network-agc"
       address_prefix = "10.10.0.0/24"
       delegations = [{
-        name = "Microsoft.ServiceNetworking.trafficControllers"
-        service_delegation_name = "Microsoft.ServiceNetworking/trafficControllers"
+        name                       = "Microsoft.ServiceNetworking.trafficControllers"
+        service_delegation_name    = "Microsoft.ServiceNetworking/trafficControllers"
         service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
       }]
-    },
-    {
-      name           = "aks-network-aks"
-      address_prefix = "10.10.1.0/24"
+      },
+      {
+        name           = "aks-network-aks"
+        address_prefix = "10.10.1.0/24"
     }]
     network_security_group_name = ""
     nic_public_ip_associations  = []
@@ -31,13 +31,13 @@ agc_config_list = [
     role                    = "agcperf"
     name                    = "agc"
     association_subnet_name = "aks-network-agc"
-    frontends               = [
-                                "frontend-1",
-                                "frontend-2",
-                                "frontend-3",
-                                "frontend-4",
-                                "frontend-5",
-                              ]
+    frontends = [
+      "frontend-1",
+      "frontend-2",
+      "frontend-3",
+      "frontend-4",
+      "frontend-5",
+    ]
   }
 ]
 
