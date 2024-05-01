@@ -167,7 +167,7 @@ appgateway_config_list = [
     appgateway_backend_http_settings = [
       {
         name                  = "server-https"
-        host_name             = "https-backend-direct.contoso.com"
+        host_name             = "https-backend-direct.mysite.com"
         cookie_based_affinity = "Disabled"
         port                  = 443
         protocol              = "Https"
@@ -176,7 +176,7 @@ appgateway_config_list = [
       },
       {
         name                  = "server-http"
-        host_name             = "http-backend-direct.contoso.com"
+        host_name             = "http-backend-direct.mysite.com"
         cookie_based_affinity = "Disabled"
         port                  = 80
         protocol              = "Http"
@@ -186,34 +186,34 @@ appgateway_config_list = [
     ]
     appgateway_http_listeners = [
       {
-        name                           = "https-backend-contoso-com-direct"
+        name                           = "https-backend-mysite-com-direct"
         frontend_ip_configuration_name = "public"
         frontend_port_name             = "https"
         protocol                       = "Https"
-        host_name                      = "https-backend-direct.contoso.com"
+        host_name                      = "https-backend-direct.mysite.com"
       },
       {
-        name                           = "http-backend-contoso-com-direct"
+        name                           = "http-backend-mysite-com-direct"
         frontend_ip_configuration_name = "public"
         frontend_port_name             = "http"
         protocol                       = "Http"
-        host_name                      = "http-backend-direct.contoso.com"
+        host_name                      = "http-backend-direct.mysite.com"
       }
     ]
     appgateway_request_routing_rules = [
       {
-        name                       = "https-backend-contoso-com-direct"
+        name                       = "https-backend-mysite-com-direct"
         priority                   = 1020
         rule_type                  = "Basic"
-        http_listener_name         = "https-backend-contoso-com-direct"
+        http_listener_name         = "https-backend-mysite-com-direct"
         backend_address_pool_name  = "appgateway-server"
         backend_http_settings_name = "server-https"
       },
       {
-        name                       = "http-backend-contoso-com-direct"
+        name                       = "http-backend-mysite-com-direct"
         priority                   = 1030
         rule_type                  = "Basic"
-        http_listener_name         = "http-backend-contoso-com-direct"
+        http_listener_name         = "http-backend-mysite-com-direct"
         backend_address_pool_name  = "appgateway-server"
         backend_http_settings_name = "server-http"
       }
