@@ -23,7 +23,7 @@ spec:
         - name: "zombie"
           image: telescope.azurecr.io/issue-repro/zombie:v1.1.7
           env:
-            - name: CHILD_PROCESS_RUNTIME
+            - name: SLEEP_TIME
               value: "360"
           imagePullPolicy: Always
           volumeMounts:

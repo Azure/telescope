@@ -1,14 +1,11 @@
-FROM ubuntu:20.04
+FROM gcc:latest
 
 WORKDIR /home
 
 COPY zombie.c .
 
-RUN apt-get update && apt-get install -y gcc
-RUN rm -rf /var/lib/apt/lists/*
-
 RUN gcc -o zombie zombie.c
 
-ENV CHILD_PROCESS_RUNTIME=3600
+ENV SLEEP_TIME=60
 
-CMD ./zombie $CHILD_PROCESS_RUNTIME
+CMD ./zombie $SLEEP_TIME
