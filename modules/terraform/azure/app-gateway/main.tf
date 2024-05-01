@@ -95,7 +95,7 @@ resource "azurerm_application_gateway" "appgateway" {
 
   ssl_certificate {
     name = data.azurerm_key_vault_certificate.Appgateway.name
-    key_vault_secret_id = azurerm_key_vault_certificate.mysite1.secret_id
+    key_vault_secret_id = azurerm_key_vault_certificate.Appgateway.secret_id
   }
 
   dynamic "http_listener" {
