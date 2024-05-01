@@ -43,14 +43,14 @@ agc_config_list = [
 
 aks_config_list = [
   {
-    role           = "agcperf"
-    aks_name       = "aks-instance"
-    dns_prefix     = "agcperf"
-    subnet_name    = "aks-network-aks"
+    role        = "agcperf"
+    aks_name    = "aks-instance"
+    dns_prefix  = "agcperf"
+    sku_tier    = "Free"
+    subnet_name = "aks-network-aks"
     network_profile = {
       network_plugin = "azure"
     }
-    sku_tier       = "Free"
     default_node_pool = {
       name                         = "systempool"
       node_count                   = 3
