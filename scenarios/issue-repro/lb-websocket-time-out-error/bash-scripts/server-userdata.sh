@@ -22,5 +22,5 @@ sudo apt-get -qq install docker-ce docker-ce-cli containerd.io docker-buildx-plu
 docker --version
 
 # Pull image
-docker pull -q telescope.azurecr.io/websocket-server:v1.1.6
-docker run -d --name server -p 8080:8080 telescope.azurecr.io/websocket-server:v1.1.6
+docker pull -q telescope.azurecr.io/websocket-server:v1.1.7
+docker run -d --name server -p 8080:8080 telescope.azurecr.io/websocket-server:v1.1.7
