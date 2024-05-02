@@ -44,10 +44,15 @@ locals {
 }
 
 terraform {
+  required_version = ">1.5.6"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "<= 3.93.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">=3.1.0"
     }
   }
 }
@@ -62,7 +67,6 @@ module "public_ips" {
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
   tags                  = local.tags
-
 }
 
 module "virtual_network" {
@@ -191,7 +195,6 @@ resource "random_string" "storage_account_random_suffix" {
   numeric          = true
   override_special = "_-"
 }
-
 
 module "storage_account" {
   source = "./storage-account"
