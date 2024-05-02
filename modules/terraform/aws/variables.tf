@@ -94,7 +94,7 @@ variable "loadbalancer_config_list" {
   type = list(object({
     role               = string
     vpc_name           = string
-    subnet_name        = string
+    subnet_names        = list(string)
     load_balancer_type = string
     is_internal_lb     = optional(bool, false)
     lb_target_group = list(object({

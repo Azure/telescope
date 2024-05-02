@@ -140,10 +140,6 @@ appgateway_config_list = [
     subnet_name     = "appgateway-subnet"
     appgateway_probes = [
       {
-        name     = "server-https"
-        protocol = "Https"
-      },
-      {
         name     = "server-http"
         protocol = "Http"
       }
@@ -158,22 +154,9 @@ appgateway_config_list = [
       {
         name = "http"
         port = 80
-      },
-      {
-        name = "https"
-        port = 443
       }
     ]
     appgateway_backend_http_settings = [
-      {
-        name                  = "server-https"
-        host_name             = "https-backend-direct.mysite.com"
-        cookie_based_affinity = "Disabled"
-        port                  = 443
-        protocol              = "Https"
-        request_timeout       = 60
-        probe_name            = "server-https"
-      },
       {
         name                  = "server-http"
         host_name             = "http-backend-direct.mysite.com"
@@ -186,13 +169,6 @@ appgateway_config_list = [
     ]
     appgateway_http_listeners = [
       {
-        name                           = "https-backend-mysite-com-direct"
-        frontend_ip_configuration_name = "public"
-        frontend_port_name             = "https"
-        protocol                       = "Https"
-        host_name                      = "https-backend-direct.mysite.com"
-      },
-      {
         name                           = "http-backend-mysite-com-direct"
         frontend_ip_configuration_name = "public"
         frontend_port_name             = "http"
@@ -201,14 +177,6 @@ appgateway_config_list = [
       }
     ]
     appgateway_request_routing_rules = [
-      {
-        name                       = "https-backend-mysite-com-direct"
-        priority                   = 1020
-        rule_type                  = "Basic"
-        http_listener_name         = "https-backend-mysite-com-direct"
-        backend_address_pool_name  = "appgateway-server"
-        backend_http_settings_name = "server-https"
-      },
       {
         name                       = "http-backend-mysite-com-direct"
         priority                   = 1030
