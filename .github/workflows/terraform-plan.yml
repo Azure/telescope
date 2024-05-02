@@ -9,6 +9,9 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  PYTHON_MODULES_DIR: modules/python
+  AWS_JSON_SCHEMA:  modules/terraform/aws/aws_input_schema.json
+  AZURE_JSON_SCHEMA: modules/terraform/azure/azure_input_schema.json
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
@@ -97,9 +100,10 @@ jobs:
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Create JSON Input
+        - name: Create JSON Input & Validate the schema
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}", "public_key_path": "${{ env.SSH_KEY_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+            python "${{ env.PYTHON_MODULES_DIR }}/validate_json.py" ${{ matrix.cloud == 'aws' ? env.AWS_JSON_SCHEMA : env.AZURE_JSON_SCHEMA }} ${{ env.TERRAFORM_TEST_INPUT_FILE }}
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
