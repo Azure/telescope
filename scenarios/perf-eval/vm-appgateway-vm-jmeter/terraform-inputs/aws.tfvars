@@ -28,6 +28,11 @@ network_config_list = [
         name             = "server-subnet-rt-assoc"
         subnet_name      = "server-subnet"
         route_table_name = "internet-rt"
+      },
+      {
+        name             = "app-subnet-rt-assoc"
+        subnet_name      = "app-subnet"
+        route_table_name = "internet-rt"
       }
     ]
     sg_rules = {
