@@ -24,17 +24,17 @@ network_config_list = [
         public_ip_name        = "ingress-pip"
       }
     ]
-    nsr_rules                  = []
+    nsr_rules = []
   }
 ]
 
 vm_config_list = [
   {
     info_column_name = "cloud_info.vm_info"
-    role           = "vm-role"
-    vm_name        = "vm-extension"
-    nic_name       = "vm-extension-nic"
-    admin_username = "ubuntu"
+    role             = "vm-role"
+    vm_name          = "vm-extension"
+    nic_name         = "vm-extension-nic"
+    admin_username   = "ubuntu"
     source_image_reference = {
       publisher = "Canonical"
       offer     = "0001-com-ubuntu-server-jammy"
