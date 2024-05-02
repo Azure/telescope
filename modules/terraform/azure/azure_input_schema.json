@@ -25,6 +25,6 @@
       "storage_share_access_tier": {"type": "string"},
       "storage_share_enabled_protocol": {"type": "string"}
   },
-  "required": ["owner", "run_id", "region","public_key_path"],
+  "required": ["owner", "run_id", "region"],
   "additionalProperties": false
 }

@@ -18,9 +18,10 @@ def validate_json_schema(json_file, schema_file):
     if not errors:
         print("JSON is valid against the schema.")
     else:
-        print("JSON is not valid against the schema. Errors:")
+        sys.stderr.write("JSON is not valid against the schema. Errors:\n")
         for error in errors:
-            print(error.message)
+            sys.stderr.write(f"{error.message}\n")
+        sys.exit(1)
 
 if __name__ == "__main__":
     # Check if correct number of command-line arguments are provided
