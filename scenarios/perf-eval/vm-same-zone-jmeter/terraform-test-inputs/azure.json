@@ -3,5 +3,6 @@
     "run_id"                           : "123456789",
     "region"                           : "eastus",
     "machine_type"                     : "Standard_D16_v5",  
-    "accelerated_networking"           : true
+    "accelerated_networking"           : true,
+    "zone"                             : "1"
   }
