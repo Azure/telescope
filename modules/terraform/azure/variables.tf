@@ -127,7 +127,7 @@ variable "appgateway_config_list" {
       frontend_ip_configuration_name = string
       frontend_port_name             = string
       protocol                       = string
-      host_name                      = string
+      host_name                      = optional(string)
     }))
     appgateway_request_routing_rules = list(object({
       name                       = string
