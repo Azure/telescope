@@ -113,7 +113,7 @@ loadbalancer_config_list = [{
     role       = "nlb-tg"
     tg_suffix  = "http"
     port       = 80
-    protocol   = "TCP"
+    protocol   = "HTTP"
     rule_count = 1
     vpc_name   = "server-vpc"
     health_check = {
@@ -132,30 +132,6 @@ loadbalancer_config_list = [{
       vm_name = "server-vm"
       port    = 80
     }
-    },
-    {
-      role       = "nlb-tg"
-      tg_suffix  = "https"
-      port       = 443
-      protocol   = "HTTPS"
-      rule_count = 1
-      vpc_name   = "server-vpc"
-      health_check = {
-        port                = "443"
-        protocol            = "HTTPS"
-        interval            = 15
-        timeout             = 10
-        healthy_threshold   = 3
-        unhealthy_threshold = 3
-      }
-      lb_listener = {
-        port     = 443
-        protocol = "HTTPS"
-      }
-      lb_target_group_attachment = {
-        vm_name = "server-vm"
-        port    = 443
-      }
     }
   ]
 }]
