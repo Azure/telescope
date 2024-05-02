@@ -25,7 +25,7 @@ COPY --from=builder /build/server /home/server
 EXPOSE 8080
 
 ENV SERVER_PORT="8080"
-ENV SERVER_TIMEOUT="250"
+# ENV SERVER_TIMEOUT="250"
 
 # Run the Go application
 CMD ["./server"]

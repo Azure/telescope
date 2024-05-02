@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -29,13 +27,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	// Set read and write deadlines
-	serverTimeout, err := strconv.Atoi(os.Getenv("SERVER_TIMEOUT"))
-	if err != nil {
-		fmt.Println("Error converting SERVER_TIMEOUT to int:", err)
-		return
-	}
-	conn.SetReadDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
-	conn.SetWriteDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
+	// serverTimeout, err := strconv.Atoi(os.Getenv("SERVER_TIMEOUT"))
+	// if err != nil {
+	// 	fmt.Println("Error converting SERVER_TIMEOUT to int:", err)
+	// 	return
+	// }
+	// conn.SetReadDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
+	// conn.SetWriteDeadline(time.Now().Add(time.Duration(serverTimeout) * time.Second))
 
 	clientAddr := conn.RemoteAddr().String()
 

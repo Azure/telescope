@@ -40,12 +40,19 @@ func main() {
 	clientTimeout, _ := strconv.ParseInt(os.Getenv("CLIENT_TIMEOUT"), 10, 64)
 	fmt.Print("Set client timeout to ", clientTimeout, " seconds\n")
 
-	eg := errgroup.Group{}
+	eg := &errgroup.Group{}
 	eg.SetLimit(int(parallelConns))
 
 	mu := sync.Mutex{}
 
-	for atomic.LoadUint64(&actualConns) < totalConns {
+	for {
+		// Increment actualConns and check if it exceeds totalConns
+		newActualConns := atomic.AddUint64(&actualConns, 1)
+		if newActualConns > totalConns {
+			break
+		}
+
+		// Launch a new goroutine to establish a WebSocket connection
 		eg.Go(func() error {
 			duration := connect(url, time.Duration(clientTimeout)*time.Second)
 
@@ -53,7 +60,7 @@ func main() {
 			defer mu.Unlock()
 			durationString := fmt.Sprintf("%.0f", duration)
 			durationMap[durationString]++
-			atomic.AddUint64(&actualConns, 1)
+
 			return nil
 		})
 	}
