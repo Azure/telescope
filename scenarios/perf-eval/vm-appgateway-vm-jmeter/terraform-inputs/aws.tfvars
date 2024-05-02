@@ -41,13 +41,13 @@ network_config_list = [
         {
           from_port  = 80
           to_port    = 80
-          protocol   = "http"
+          protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
         {
           from_port  = 443
           to_port    = 443
-          protocol   = "https"
+          protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         }
       ]
