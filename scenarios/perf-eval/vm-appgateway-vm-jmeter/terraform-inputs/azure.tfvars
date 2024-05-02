@@ -173,7 +173,6 @@ appgateway_config_list = [
         frontend_ip_configuration_name = "public"
         frontend_port_name             = "http"
         protocol                       = "Http"
-        host_name                      = "http-backend-direct.mysite.com"
       }
     ]
     appgateway_request_routing_rules = [
