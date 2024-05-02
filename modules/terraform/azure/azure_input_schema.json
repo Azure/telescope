@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+      "owner": {"type": "string"},
+      "run_id": {"type": "string"},
+      "region": {"type": "string"},
+      "public_key_path": {"type": "string"},
+      "machine_type": {"type": "string"},
+      "accelerated_networking": {"type": "boolean"},
+      "user_data_path": {"type": "string"},
+      "data_disk_storage_account_type": {"type": "string"},
+      "data_disk_size_gb": {"type": "string"},
+      "data_disk_tier": {"type": "string"},
+      "data_disk_iops_read_write": {"type": "number"},
+      "data_disk_mbps_read_write": {"type": "number"},
+      "data_disk_iops_read_only": {"type": "number"},
+      "data_disk_mbps_read_only": {"type": "number"},
+      "data_disk_caching": {"type": "string"},
+      "data_disk_count": {"type": "number"},
+      "ultra_ssd_enabled": {"type": "boolean"},
+      "storage_account_tier": {"type": "string"},
+      "storage_account_kind": {"type": "string"},
+      "storage_account_replication_type": {"type": "string"},
+      "storage_share_quota": {"type": "number"},
+      "storage_share_access_tier": {"type": "string"},
+      "storage_share_enabled_protocol": {"type": "string"}
+  },
+  "required": ["owner", "run_id", "region","public_key_path"],
+  "additionalProperties": false
+}

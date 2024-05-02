@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "properties": {
+    "owner": {"type": "string"},
+    "run_id": {"type": "string"},
+    "region": {"type": "string"},
+    "public_key_path": {"type": "string"},
+    "machine_type": {"type": ["string", "null"]},
+    "user_data_path": {"type": ["string", "null"]},
+    "data_disk_volume_type": {"type": ["string", "null"]},
+    "data_disk_size_gb": {"type": ["number", "null"]},
+    "data_disk_tier": {"type": ["string", "null"]},
+    "data_disk_iops_read_only": {"type": ["number", "null"]},
+    "data_disk_iops_read_write": {"type": ["number", "null"]},
+    "data_disk_mbps_read_only": {"type": ["number", "null"]},
+    "data_disk_mbps_read_write": {"type": ["number", "null"]},
+    "data_disk_count": {"type": ["number", "null"], "default": 1},
+    "ultra_ssd_enabled": {"type": ["boolean", "null"]},
+    "efs_performance_mode": {"type": ["string", "null"]},
+    "efs_throughput_mode": {"type": ["string", "null"]},
+    "efs_provisioned_throughput_in_mibps": {"type": ["number", "null"]}
+  },
+  "required": ["owner", "run_id", "region"],
+  "additionalProperties": false
+}
