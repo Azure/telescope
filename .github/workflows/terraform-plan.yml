@@ -103,7 +103,7 @@ jobs:
         - name: Create JSON Input & Validate the schema
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}", "public_key_path": "${{ env.SSH_KEY_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-            python "${{ env.PYTHON_MODULES_DIR }}/validate_json.py" ${{ matrix.cloud == 'aws' ? env.AWS_JSON_SCHEMA : env.AZURE_JSON_SCHEMA }} ${{ env.TERRAFORM_TEST_INPUT_FILE }}
+            python "${{ env.PYTHON_MODULES_DIR }}/validate_json.py" "${{ matrix.cloud == 'aws' ? env.AWS_JSON_SCHEMA : env.AZURE_JSON_SCHEMA }}" ${{ env.TERRAFORM_TEST_INPUT_FILE }}
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
