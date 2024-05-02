@@ -36,7 +36,7 @@ resource "azurerm_storage_blob" "storage_blob" {
   name                   = var.storage_blob_config.blob_name
   storage_account_name   = azurerm_storage_account.storage_account.name
   storage_container_name = var.storage_blob_config.container_name
-  type                   = "Block"
+  type                   = var.storage_blob_config.blob_type
   source                 = var.storage_blob_config.source_file_path
   depends_on = [
     azurerm_storage_container.storage_container

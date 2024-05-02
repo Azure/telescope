@@ -218,6 +218,7 @@ module "storage_account" {
     container_name   = var.blob_config.container_name
     container_access = var.blob_config.container_access
     blob_name        = var.blob_config.blob_name
+    blob_type        = var.blob_config.blob_type
     source_file_path = "${local.user_data_path}/${var.blob_config.source_file_name}"
   }
 }

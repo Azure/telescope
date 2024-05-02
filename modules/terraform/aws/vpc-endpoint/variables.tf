@@ -3,42 +3,17 @@ variable "vpc_id" {
   default = ""
 }
 
-variable "pe_vpc_name" {
-  type    = string
-  default = "same-vpc"
-}
-
-variable "region" {
-  type    = string
-  default = "us-east-2"
-}
-
-variable "vpc_endpoint_type" {
-  type    = string
-  default = "Gateway"
-}
-
-variable "subnet_ids" {
-  type    = list(string)
-  default = []
-}
-
-variable "security_group_ids" {
-  type    = list(string)
-  default = []
-}
-
-variable "route_table_ids" {
-  type    = list(string)
-  default = []
-}
-
 variable "pe_config" {
   description = "configuration for vpc private endpoint"
   type = object({
-    pe_vpc_name  = string
-    service_name = string
+    pe_vpc_name        = string
+    pe_service_name    = string
+    vpc_endpoint_type  = string
+    subnet_ids         = optional(list(string), [])
+    security_group_ids = optional(list(string), [])
+    route_table_ids    = optional(list(string), [])
   })
+  default = null
 }
 
 variable "tags" {

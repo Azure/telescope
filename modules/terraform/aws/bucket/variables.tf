@@ -7,14 +7,14 @@ variable "bucket_name_prefix" {
 variable "bucket_object_config" {
   description = "Configuration for deployment of bucket object with bucket"
   type = object({
-    bucket_source_path = string
-    bucket_file_key    = string
+    source_path = string
+    file_key    = string
   })
   default = null
 }
 
-variable "local_path" {
-  description = "Local path for bucket object to be uploaded"
+variable "user_data_path" {
+  description = "User data path for bucket object to be uploaded"
   type        = string
   default     = ""
 }

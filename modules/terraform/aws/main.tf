@@ -100,12 +100,15 @@ module "load_balancer" {
 module "bucket" {
   source = "./bucket"
 
-  count                = var.bucket_name_prefix != "" ? 1 : 0
-  bucket_object_config = var.bucket_object_config
-  local_path           = local.user_data_path
-  bucket_name_prefix   = var.bucket_name_prefix
-  run_id               = local.run_id
-  tags                 = local.tags
+  count              = var.bucket_name_prefix != "" ? 1 : 0
+  bucket_name_prefix = var.bucket_name_prefix
+  run_id             = local.run_id
+  tags               = local.tags
+
+  bucket_object_config = var.bucket_object_config == null ? null : {
+    source_path = "${local.user_data_path}/${bucket_object_config.bucket_source_file_name}"
+    file_key    = bucket_object_config.bucket_file_key
+  }
 }
 
 module "efs" {

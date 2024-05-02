@@ -51,6 +51,7 @@ variable "storage_blob_config" {
     container_name   = string
     container_access = string
     blob_name        = string
+    blob_type        = string
     source_file_path = string
   })
   default = null

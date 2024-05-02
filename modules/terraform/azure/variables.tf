@@ -302,6 +302,7 @@ variable "blob_config" {
   type = object({
     container_name   = string
     container_access = string
+    blob_type        = string
     blob_name        = string
     source_file_name = string
   })

@@ -17,11 +17,10 @@ ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 export SCENARIO_TYPE=perf-eval
 export SCENARIO_NAME=vm-pe-storage
-export RUN_ID=0003
+export RUN_ID=$(whoami)
 export OWNER=$(whoami)
 export RESULT_PATH=/tmp/$RUN_ID
 export TEMP_JMETER=/tmp/jmeter
-export CLOUD=azure
 export REGION=eastus
 export MACHINE_TYPE=Standard_D2s_v5
 export ACCERLATED_NETWORKING=true
@@ -151,11 +150,9 @@ ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
 SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=vm-pe-storage
-RUN_ID=lbrookstest
+RUN_ID=$(whoami)
 OWNER=$(whoami)
-CLOUD=aws
 REGION=us-east-2
-ZONE=us-east-2b
 MACHINE_TYPE=m6i.4xlarge
 export SERVER_ROLE=server
 export CLIENT_ROLE=client

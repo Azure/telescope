@@ -2,11 +2,11 @@ scenario_type  = "perf-eval"
 scenario_name  = "vm-pe-storage"
 deletion_delay = "2h"
 
-bucket_name_prefix = "vm-pe-storage" # should be same with $BUCKET_NAME_PREFIX in the 
+bucket_name_prefix = "vm-pe-storage"
 
 bucket_object_config = {
   bucket_file_key    = "test"
-  bucket_source_path = "client-userdata.sh"
+  bucket_source_file_name = "client-userdata.sh"
 }
 
 vm_config_list = [{
@@ -79,4 +79,5 @@ network_config_list = [
 pe_config = {
   pe_vpc_name  = "same-vpc"
   service_name = "com.amazonaws.us-east-2.s3"
+  vpc_endpoint_type = "Gateway"
 }

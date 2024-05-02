@@ -10,49 +10,16 @@ This module provisions a vpc endpoint on AWS. It allows you to create and config
 - **Type:** String
 - **Default:** ""
 
-### `pe_vpc_name`
-
-- **Description:** Name of the created vpc endpoint
-- **Type:** String
-- **Default:** ""
-
-### `region`
-
-- **Description:** Region that the vpc endpoint will be deployed in
-- **Type:** String
-- **Default:** "us-east-2"
-
-### `vpc_endpoint_type`
-
-- **Description:** Region that the vpc endpoint will be deployed in
-- **Type:** String
-- **Default:** "us-east-2"
-
-### `subnet_ids`
-
-- **Description:** Subnet id's the vpc endpoint will be associated to
-- **Type:** List(String)
-- **Default:** []
-
-### `security_group_ids`
-
-- **Description:** Security group id's the vpc endpoint will be associated to
-- **Type:** List(String)
-- **Default:** []
-
-### `route_table_ids`
-
-- **Description:** Route table id's that the vpc endpoint will be associated to
-- **Type:** List(String)
-- **Default:** []
-
 ### `pe_config`
 
 - **Description:** Configuration template for vpc endpoint configuration
-- **Type:** Object(
+- **Type:** Object
     **pe_vpc_name:** String
-    **service_name:** String
-)
+    **pe_service_name:** String
+    **vpc_endpoint_type:** String
+    **subnet_ids:** Optional(List(string), [])
+    **security_group_ids:** Optional(List(string), [])
+    **route_table_ids:** Optional(List(string), [])
 - **Default:** null
 
 ### `tags`
@@ -64,16 +31,15 @@ This module provisions a vpc endpoint on AWS. It allows you to create and config
 ## Usage Example
 
 ```hcl
-module "s3_bucket" {
-  source = "./s3-bucket"
+module "privateendpoint" {
+  source = "./vpc-endpoint"
 
-  bucket_name_prefix = "example-bucket"
-  run_id             = "12345"
-  
-  tags = {
-    environment = "production"
-    project     = "example"
-  }
+  count     = var.pe_config == null ? 0 : 1
+  pe_config = var.pe_config
+
+  vpc_id = local.all_vpcs[var.pe_config.pe_vpc_name].id
+
+  tags = local.tags
 }
 ```
 
