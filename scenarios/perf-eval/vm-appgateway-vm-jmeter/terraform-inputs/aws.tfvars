@@ -41,13 +41,13 @@ network_config_list = [
         {
           from_port  = 80
           to_port    = 80
-          protocol   = "tcp"
+          protocol   = "http"
           cidr_block = "0.0.0.0/0"
         },
         {
           from_port  = 443
           to_port    = 443
-          protocol   = "tcp"
+          protocol   = "https"
           cidr_block = "0.0.0.0/0"
         }
       ]
@@ -118,7 +118,7 @@ loadbalancer_config_list = [{
     vpc_name   = "server-vpc"
     health_check = {
       port                = "80"
-      protocol            = "TCP"
+      protocol            = "HTTP"
       interval            = 15
       timeout             = 10
       healthy_threshold   = 3
@@ -126,7 +126,7 @@ loadbalancer_config_list = [{
     }
     lb_listener = {
       port     = 80
-      protocol = "TCP"
+      protocol = "HTTP"
     }
     lb_target_group_attachment = {
       vm_name = "server-vm"
@@ -137,12 +137,12 @@ loadbalancer_config_list = [{
       role       = "nlb-tg"
       tg_suffix  = "https"
       port       = 443
-      protocol   = "TCP"
+      protocol   = "HTTPS"
       rule_count = 1
       vpc_name   = "server-vpc"
       health_check = {
         port                = "443"
-        protocol            = "TCP"
+        protocol            = "HTTPS"
         interval            = 15
         timeout             = 10
         healthy_threshold   = 3
@@ -150,7 +150,7 @@ loadbalancer_config_list = [{
       }
       lb_listener = {
         port     = 443
-        protocol = "TCP"
+        protocol = "HTTPS"
       }
       lb_target_group_attachment = {
         vm_name = "server-vm"
