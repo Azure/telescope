@@ -10,7 +10,7 @@ This module provisions an AWS load balancer and associated target groups. It pro
 - **Type:** Object
   - `role`: The role of the load balancer.
   - `subnet_name`: The name of the subnet for the load balancer.
-  - `load_balancer_type`: The type of the load balancer.
+  - `load_balancer_type`: The type of the load balancer. Could be application 
   - `is_internal_lb`: (Optional) Specifies if the load balancer is internal or not. Defaults to `false`.
   - `lb_target_group`: A list of objects representing target group configurations.
     - `role`: The role of the target group.

@@ -10,11 +10,6 @@ network_config_list = [
       name        = "server-subnet"
       cidr_block  = "10.1.1.0/24"
       zone_suffix = "a"
-    },
-    {
-      name        = "applb-subnet"
-      cidr_block  = "10.1.1.0/24"
-      zone_suffix = "a"
     }]
     security_group_name = "server-sg"
     route_tables = [
@@ -104,7 +99,61 @@ network_config_list = [
     }
   }
 ]
-loadbalancer_config_list = []
+loadbalancer_config_list = [{
+  role               = "ingress"
+  vpc_name           = "server-vpc"
+  subnet_name        = "server-subnet"
+  load_balancer_type = "application"
+  lb_target_group = [{
+    role       = "nlb-tg"
+    tg_suffix  = "http"
+    port       = 80
+    protocol   = "TCP"
+    rule_count = 1
+    vpc_name   = "server-vpc"
+    health_check = {
+      port                = "80"
+      protocol            = "TCP"
+      interval            = 15
+      timeout             = 10
+      healthy_threshold   = 3
+      unhealthy_threshold = 3
+    }
+    lb_listener = {
+      port     = 80
+      protocol = "TCP"
+    }
+    lb_target_group_attachment = {
+      vm_name = "server-vm"
+      port    = 80
+    }
+    },
+    {
+      role       = "nlb-tg"
+      tg_suffix  = "https"
+      port       = 443
+      protocol   = "TCP"
+      rule_count = 1
+      vpc_name   = "server-vpc"
+      health_check = {
+        port                = "443"
+        protocol            = "TCP"
+        interval            = 15
+        timeout             = 10
+        healthy_threshold   = 3
+        unhealthy_threshold = 3
+      }
+      lb_listener = {
+        port     = 443
+        protocol = "TCP"
+      }
+      lb_target_group_attachment = {
+        vm_name = "server-vm"
+        port    = 443
+      }
+    }
+  ]
+}]
 
 vm_config_list = [{
   vm_name                     = "client-vm"
