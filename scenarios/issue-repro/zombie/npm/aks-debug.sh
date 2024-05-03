@@ -21,7 +21,7 @@ function cleanup {
   if [[ $workdir =~ ^/tmp/tmp\.[a-zA-Z0-9]+$ ]]; then
     if [[ "$DEBUG" != "1" ]]; then
       echo "Cleaning up $workdir..."
-      # rm -rf "$workdir"
+      rm -rf "$workdir"
     else
       echo "DEBUG active or $workdir looks wrong; leaving $workdir behind."
     fi
@@ -74,9 +74,8 @@ do
     echo "Collecting debug information..."
     # Collect process information
     collectToZip collect/ps${FILE_SUFFIX}.txt ps -auxf
-    # collectToZip collect/lsof${FILE_SUFFIX}.txt "lsof | wc -l"
     mkfifo collect/lsof${FILE_SUFFIX}.txt
-    lsof | wc -l > collect/lsof${FILE_SUFFIX}.txt 2>&1 &
+    lsof 2> /dev/null | wc -l > collect/lsof${FILE_SUFFIX}.txt 2>&1 &
     zip -gumDZ deflate --fifo "${ZIP}" collect/lsof${FILE_SUFFIX}.txt
     echo "Collected process information with file suffix $FILE_SUFFIX."
 

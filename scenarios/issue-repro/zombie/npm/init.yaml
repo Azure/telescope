@@ -1,13 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "npm"
+  name: "init-npm"
   labels:
-    app.kubernetes.io/name: npm
+    app.kubernetes.io/name: init-npm
 spec:
   selector:
     matchLabels:
-      app: "npm"
+      app: "init-npm"
   replicas: 5
   strategy:
     type: RollingUpdate
@@ -17,17 +17,17 @@ spec:
   template:
     metadata:
       labels:
-        app: "npm"
+        app: "init-npm"
     spec:
       containers:
-        - name: "npm"
-          image: telescope.azurecr.io/issue-repro/zombie:v1.1.11
+        - name: "init-npm"
+          image: telescope.azurecr.io/issue-repro/init:v1.1.11
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /tmp
               name: tmp
           ports:
-            - name: npm
+            - name: init-npm
               containerPort: 3000
           securityContext:
             allowPrivilegeEscalation: false
@@ -54,7 +54,7 @@ spec:
       terminationGracePeriodSeconds: 30
       nodeSelector:
         kubernetes.io/os: linux
-        kubernetes.io/hostname: aks-nodepool1-24832268-vmss000001
+        kubernetes.io/hostname: aks-nodepool1-24832268-vmss000002
       tolerations:
         - effect: NoExecute
           key: node.kubernetes.io/not-ready
