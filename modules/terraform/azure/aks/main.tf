@@ -31,7 +31,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   network_profile {
     network_plugin      = var.aks_config.network_profile.network_plugin
-    network_plugin_mode = var.aks_config.network_profile.network_plugin == "azure" ? "overlay" : null
+    network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
     network_policy      = var.aks_config.network_profile.network_policy
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
