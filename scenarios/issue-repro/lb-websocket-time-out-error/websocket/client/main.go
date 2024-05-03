@@ -29,6 +29,7 @@ func main() {
 	fmt.Println("Connecting to", url)
 
 	durationMap := make(map[string]int)
+	prematureClosureCount := 0
 
 	var actualConns uint64
 	totalConns, _ := strconv.ParseUint(os.Getenv("TOTAL_CONNECTIONS"), 10, 64)
@@ -60,6 +61,9 @@ func main() {
 			defer mu.Unlock()
 			durationString := fmt.Sprintf("%.0f", duration)
 			durationMap[durationString]++
+			if duration < float64(clientTimeout) {
+				prematureClosureCount++
+			}
 
 			return nil
 		})
@@ -69,7 +73,7 @@ func main() {
 	if err := eg.Wait(); err != nil {
 		fmt.Printf("An error occurred: %v\n", err)
 	}
-	printDurationDistribution(durationMap)
+	printDurationDistribution(durationMap, prematureClosureCount)
 }
 
 func connect(url string, websocketTimeout time.Duration) float64 {
@@ -90,7 +94,10 @@ func connect(url string, websocketTimeout time.Duration) float64 {
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
-				fmt.Printf("Connection closed: %v with duration %v\n", err, time.Since(startTime).Seconds())
+				elapsedTime := time.Since(startTime).Seconds()
+				if elapsedTime < websocketTimeout.Seconds() {
+					fmt.Printf("Connection closed: %v with duration %v\n", err, elapsedTime)
+				}
 				return
 			}
 		}
@@ -102,9 +109,7 @@ func connect(url string, websocketTimeout time.Duration) float64 {
 	case <-done:
 		return time.Since(startTime).Seconds()
 	case <-timeout:
-		fmt.Println("Timeout expired, closing connection...")
 	case <-interrupt:
-		fmt.Println("Interrupt received, closing connection...")
 	}
 	// Gracefully close the WebSocket connection
 	err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
@@ -115,13 +120,13 @@ func connect(url string, websocketTimeout time.Duration) float64 {
 	return time.Since(startTime).Seconds()
 }
 
-func printDurationDistribution(durationMap map[string]int) {
+func printDurationDistribution(durationMap map[string]int, prematureClosureCount int) {
 
-	// Convert the map to JSON
 	jsonData, err := json.Marshal(durationMap)
 	if err != nil {
 		log.Fatalf("Error marshaling JSON: %v", err)
 	}
 
 	fmt.Println(string(jsonData))
+	fmt.Println("Total number of premature closures:", prematureClosureCount)
 }
