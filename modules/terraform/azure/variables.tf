@@ -165,10 +165,11 @@ variable "aks_config_list" {
     subnet_name = optional(string)
     dns_prefix  = string
     network_profile = optional(object({
-      network_plugin = optional(string, null)
-      network_policy = optional(string, null)
-      outbound_type  = optional(string, null)
-      pod_cidr       = optional(string, null)
+      network_plugin      = optional(string, null)
+      network_plugin_mode = optional(string, null)
+      network_policy      = optional(string, null)
+      outbound_type       = optional(string, null)
+      pod_cidr            = optional(string, null)
     }))
     sku_tier = string
     default_node_pool = object({

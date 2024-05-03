@@ -1,4 +1,5 @@
 locals {
+  role                     = var.agc_config.role
   agc_manager_role         = "AppGw for Containers Configuration Manager"
   network_contributor_role = "Network Contributor"
 }
@@ -7,7 +8,12 @@ resource "azurerm_application_load_balancer" "agc" {
   name                = var.agc_config.name
   resource_group_name = var.resource_group_name
   location            = var.location
-  tags                = var.tags
+  tags = merge(
+    var.tags,
+    {
+      "role" = local.role
+    },
+  )
 }
 
 resource "azurerm_application_load_balancer_frontend" "frontend" {
