@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test
+  name: test2
   labels:
-    app: test
+    app: test2
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test
+      app: test2
   template:
     metadata:
       labels:
-        app: test
+        app: test2
     spec:
       containers:
         - name: busybox-1

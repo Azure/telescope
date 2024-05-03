@@ -8,4 +8,3 @@ build-and-push-image:
 	docker build -t ${IMAGE_NAME}:${GIT_TAG} -f ${DOCKERFILE} .
 	docker tag ${IMAGE_NAME}:${GIT_TAG} ${IMAGE_REPO}/${IMAGE_NAME}:${GIT_TAG}
 	docker push ${IMAGE_REPO}/${IMAGE_NAME}:${GIT_TAG}
-
