@@ -4,7 +4,7 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
-variable "bucket_object_config" {
+variable "object_config" {
   description = "Configuration for deployment of bucket object with bucket"
   type = object({
     source_path = string

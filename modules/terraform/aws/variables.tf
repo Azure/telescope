@@ -165,8 +165,8 @@ variable "bucket_name_prefix" {
 variable "bucket_object_config" {
   description = "Configuration for deployment of bucket object with bucket"
   type = object({
-    bucket_source_path = string
-    bucket_file_key    = string
+    bucket_source_file_name = string
+    bucket_file_key         = string
   })
   default = null
 }
