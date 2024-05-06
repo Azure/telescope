@@ -5,7 +5,7 @@ deletion_delay = "2h"
 bucket_name_prefix = "vm-pe-storage"
 
 bucket_object_config = {
-  bucket_file_key    = "test"
+  bucket_file_key         = "test"
   bucket_source_file_name = "client-userdata.sh"
 }
 
@@ -77,7 +77,7 @@ network_config_list = [
 ]
 
 pe_config = {
-  pe_vpc_name  = "same-vpc"
-  service_name = "com.amazonaws.us-east-2.s3"
+  pe_vpc_name       = "same-vpc"
+  service_name      = "com.amazonaws.us-east-2.s3"
   vpc_endpoint_type = "Gateway"
 }
