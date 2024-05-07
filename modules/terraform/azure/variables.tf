@@ -67,6 +67,11 @@ variable "network_config_list" {
       address_prefix               = string
       service_endpoints            = optional(list(string))
       pls_network_policies_enabled = optional(bool)
+      delegations = optional(list(object({
+        name                       = string
+        service_delegation_name    = string
+        service_delegation_actions = list(string)
+      })))
     }))
     network_security_group_name = string
     nic_public_ip_associations = list(object({
@@ -142,6 +147,17 @@ variable "appgateway_config_list" {
   default = []
 }
 
+variable "agc_config_list" {
+  description = "List of Application Gateway for Containers configurations"
+  type = list(object({
+    role                    = string
+    name                    = string
+    frontends               = list(string)
+    association_subnet_name = string
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -149,10 +165,11 @@ variable "aks_config_list" {
     subnet_name = optional(string)
     dns_prefix  = string
     network_profile = optional(object({
-      network_plugin = optional(string, null)
-      network_policy = optional(string, null)
-      outbound_type  = optional(string, null)
-      pod_cidr       = optional(string, null)
+      network_plugin      = optional(string, null)
+      network_plugin_mode = optional(string, null)
+      network_policy      = optional(string, null)
+      outbound_type       = optional(string, null)
+      pod_cidr            = optional(string, null)
     }))
     sku_tier = string
     default_node_pool = object({

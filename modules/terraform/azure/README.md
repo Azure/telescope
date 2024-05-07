@@ -29,7 +29,7 @@ OWNER=$(whoami)
 CLOUD=azure
 REGIONS='["eastus"]' 
 MACHINE_TYPE=standard_D16_v3
-ACCERLATED_NETWORKING=true
+ACCELERATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 ```

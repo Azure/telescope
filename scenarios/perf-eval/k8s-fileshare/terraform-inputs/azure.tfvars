@@ -8,7 +8,8 @@ aks_config_list = [
     dns_prefix  = "files"
     subnet_name = "aks-network"
     network_profile = {
-      network_plugin = "azure"
+      network_plugin      = "azure"
+      network_plugin_mode = "overlay"
     }
     sku_tier = "Free"
     default_node_pool = {
