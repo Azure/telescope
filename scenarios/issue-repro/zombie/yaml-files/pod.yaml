@@ -54,7 +54,6 @@ spec:
       terminationGracePeriodSeconds: 30
       nodeSelector:
         kubernetes.io/os: linux
-        kubernetes.io/hostname: gke-cos-test-default-pool-3d1b0aeb-kn06
       tolerations:
         - effect: NoExecute
           key: node.kubernetes.io/not-ready

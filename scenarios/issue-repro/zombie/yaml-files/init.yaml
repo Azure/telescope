@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: "init-npm"
-          image: telescope.azurecr.io/issue-repro/init:v1.1.11
+          image: telescope.azurecr.io/issue-repro/zombie-init:v1.1.11
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /tmp
@@ -54,7 +54,6 @@ spec:
       terminationGracePeriodSeconds: 30
       nodeSelector:
         kubernetes.io/os: linux
-        kubernetes.io/hostname: aks-nodepool1-24832268-vmss000002
       tolerations:
         - effect: NoExecute
           key: node.kubernetes.io/not-ready
