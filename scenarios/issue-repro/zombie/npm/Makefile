@@ -1,8 +1,8 @@
 ZOMBIE_IMAGE_NAME=zombie
-INIT_IMAGE_NAME=zombie-init
+INIT_IMAGE_NAME=no-zombie
 IMAGE_REPO=telescope.azurecr.io/issue-repro
-DOCKERFILE=Dockerfile
-INIT_DOCKERFILE=init.Dockerfile
+DOCKERFILE=Dockerfile.no-init
+INIT_DOCKERFILE=Dockerfile.dumb-init
 GIT_TAG=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 
 .PHONY: all build-and-push-zombie-image build-and-push-init-image

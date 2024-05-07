@@ -1,13 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "init-npm"
+  name: "npm-dumb-init"
   labels:
-    app.kubernetes.io/name: init-npm
+    app.kubernetes.io/name: npm-dumb-init
 spec:
   selector:
     matchLabels:
-      app: "init-npm"
+      app: "npm-dumb-init"
   replicas: 5
   strategy:
     type: RollingUpdate
@@ -17,17 +17,17 @@ spec:
   template:
     metadata:
       labels:
-        app: "init-npm"
+        app: "npm-dumb-init"
     spec:
       containers:
-        - name: "init-npm"
-          image: telescope.azurecr.io/issue-repro/zombie-init:v1.1.11
+        - name: "npm-dumb-init"
+          image: telescope.azurecr.io/issue-repro/no-zombie:v1.1.11
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /tmp
               name: tmp
           ports:
-            - name: init-npm
+            - name: npm-dumb-init
               containerPort: 3000
           securityContext:
             allowPrivilegeEscalation: false
