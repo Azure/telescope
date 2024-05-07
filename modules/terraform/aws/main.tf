@@ -106,8 +106,8 @@ module "bucket" {
   tags               = local.tags
 
   object_config = var.bucket_object_config == null ? null : {
-    source_path = "${local.user_data_path}/${bucket_object_config.bucket_source_file_name}"
-    file_key    = bucket_object_config.bucket_file_key
+    source_path = "${local.user_data_path}/${var.bucket_object_config.bucket_source_file_name}"
+    file_key    = var.bucket_object_config.bucket_file_key
   }
 }
 
