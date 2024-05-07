@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Description:
-#   This function gets the names of disk instances by resource group(run id).
+#   This function gets the VM instance name by resource group(run id).
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
@@ -11,7 +11,10 @@
 get_vm_instances_name_by_run_id() {
     local resource_group=$1
 
-    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '"$resource_group"')].name" --output tsv)
+    echo $(az resource list \
+        --resource-type Microsoft.Compute/virtualMachines \
+        --query "[?(tags.run_id == '"$resource_group"')].name" \
+        --output tsv)
 }
 
 # Description:
@@ -25,7 +28,10 @@ get_vm_instances_name_by_run_id() {
 get_disk_instances_name_by_run_id() {
     local resource_group=$1
     
-    echo "$(az resource list --resource-type Microsoft.Compute/disks --query "[?(tags.run_id == '"$resource_group"') && (managedBy==null)].name" --output tsv)"
+    echo "$(az resource list \
+        --resource-type Microsoft.Compute/disks \
+        --query "[?(tags.run_id == '"$resource_group"') && (managedBy==null)].name" \
+        --output tsv)"
 }
 
 # Description:
@@ -36,7 +42,8 @@ get_disk_instances_name_by_run_id() {
 #  - $2: vm_name: the name of the VM instance (e.g. vm-1)
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#
+#  - $5: index: the index of the disk (not used in Azure)
+# 
 # Returns: Information about each operation
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group>
 attach_or_detach_disk() {
@@ -44,12 +51,13 @@ attach_or_detach_disk() {
     local vm_name=$2
     local disk_name=$3
     local resource_group=$4
+    local index=$5
 
     start_time=$(date +%s)
     local output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
     end_time=$(date +%s)
     
-    echo "$(build_output "$operation" "$output_message" $(($end_time - $start_time)))"
+    echo "$(build_output "$operation" "$output_message" "$(($end_time - $start_time))")"
 }
 
 # Description:
