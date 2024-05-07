@@ -9,7 +9,8 @@ aks_config_list = [
     subnet_name = "aks-network"
     sku_tier    = "Standard"
     network_profile = {
-      network_plugin = "azure"
+      network_plugin      = "azure"
+      network_plugin_mode = "overlay"
     }
     default_node_pool = {
       name                         = "default"
