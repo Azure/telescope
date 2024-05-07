@@ -59,6 +59,7 @@ resource "aws_instance" "vm" {
 
   tags = merge(var.tags, {
     "role" = "${var.vm_config.role}",
-    "Name" = "${var.vm_config.vm_name}"
+    "Name" = "${var.vm_config.vm_name}",
+    "info_column_name" = "${var.vm_config.info_column_name}"
   })
 }
