@@ -326,7 +326,6 @@ measure_create_vm() {
     fi
 }
 
-
 # Description:
 #   This function is used to to measure the time it takes to delete a VM and save results in JSON format
 #

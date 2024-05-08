@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "create-delete-vm"
+scenario_name  = "vm-extension"
 deletion_delay = "2h"
 public_ip_config_list = [
   {

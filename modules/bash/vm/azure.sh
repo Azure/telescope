@@ -190,7 +190,7 @@ delete_nic() {
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
 #
 # Notes:
-#   - the exit_code is returned
+#   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
 #
 # Usage: install_vm_extension <vm_name> <resource_group>
 install_vm_extension() {
