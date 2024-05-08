@@ -20,10 +20,10 @@ network_config_list = [
     subnet = [{
       name           = "server-subnet"
       address_prefix = "10.1.1.0/24"
-    },
-    {
-      name           = "appgateway-subnet"
-      address_prefix = "10.1.2.0/24"
+      },
+      {
+        name           = "appgateway-subnet"
+        address_prefix = "10.1.2.0/24"
     }]
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
@@ -216,5 +216,5 @@ vm_config_list = [{
     create_vm_extension = true
   }
 ]
-vmss_config_list = []
+vmss_config_list                  = []
 nic_backend_pool_association_list = []

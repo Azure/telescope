@@ -10,11 +10,11 @@ network_config_list = [
       name        = "server-subnet"
       cidr_block  = "10.1.1.0/24"
       zone_suffix = "a"
-    },
-    {
-      name        = "app-subnet"
-      cidr_block  = "10.1.2.0/24"
-      zone_suffix = "b"
+      },
+      {
+        name        = "app-subnet"
+        cidr_block  = "10.1.2.0/24"
+        zone_suffix = "b"
     }]
     security_group_name = "server-sg"
     route_tables = [
@@ -112,7 +112,7 @@ network_config_list = [
 loadbalancer_config_list = [{
   role               = "ingress"
   vpc_name           = "server-vpc"
-  subnet_names        = ["server-subnet", "app-subnet"]
+  subnet_names       = ["server-subnet", "app-subnet"]
   load_balancer_type = "application"
   lb_target_group = [{
     role       = "nlb-tg"

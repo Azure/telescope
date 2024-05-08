@@ -43,7 +43,7 @@ resource "azurerm_application_gateway" "appgateway" {
 
   dynamic "frontend_port" {
     for_each = local.frontend_ports
-    content{
+    content {
       name = frontend_port.value.name
       port = frontend_port.value.port
     }
@@ -94,7 +94,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 
   ssl_certificate {
-    name = data.azurerm_key_vault_certificate.Appgateway.name
+    name                = data.azurerm_key_vault_certificate.Appgateway.name
     key_vault_secret_id = data.azurerm_key_vault_certificate.Appgateway.secret_id
   }
 
@@ -123,7 +123,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 
   trusted_root_certificate {
-    name = "self-signed-root"
+    name                = "self-signed-root"
     key_vault_secret_id = data.azurerm_key_vault_certificate.Appgateway.secret_id
   }
 }

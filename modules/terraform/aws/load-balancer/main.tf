@@ -39,7 +39,7 @@ resource "aws_lb" "nlb" {
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = values(data.aws_subnet.subnets)[*].id
   security_groups    = var.loadbalancer_config.load_balancer_type == "application" ? [aws_security_group.alb_security_group.id] : []
-  
+
   tags = merge(
     var.tags,
     {
@@ -49,9 +49,9 @@ resource "aws_lb" "nlb" {
 }
 
 resource "aws_security_group" "alb_security_group" {
-  name = "applbrules"
-  description = "Allow inbound HTTP and HTTPS" 
-  vpc_id = data.aws_vpc.server_vpc.id
+  name        = "applbrules"
+  description = "Allow inbound HTTP and HTTPS"
+  vpc_id      = data.aws_vpc.server_vpc.id
   tags = merge(
     var.tags,
     {
@@ -63,7 +63,7 @@ resource "aws_security_group" "alb_security_group" {
 resource "aws_vpc_security_group_ingress_rule" "allow_inbound_http" {
   security_group_id = aws_security_group.alb_security_group.id
   cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp" 
+  ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
 }
@@ -71,7 +71,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_inbound_http" {
 resource "aws_vpc_security_group_ingress_rule" "allow_inbound_https" {
   security_group_id = aws_security_group.alb_security_group.id
   cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp" 
+  ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
 }
@@ -79,7 +79,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_inbound_https" {
 resource "aws_vpc_security_group_egress_rule" "allow_outbound_http" {
   security_group_id = aws_security_group.alb_security_group.id
   cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp" 
+  ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
 }
@@ -87,7 +87,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_outbound_http" {
 resource "aws_vpc_security_group_egress_rule" "allow_outbound_https" {
   security_group_id = aws_security_group.alb_security_group.id
   cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp" 
+  ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
 }
