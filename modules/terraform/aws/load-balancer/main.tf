@@ -76,6 +76,22 @@ resource "aws_vpc_security_group_ingress_rule" "allow_inbound_https" {
   to_port           = 443
 }
 
+resource "aws_vpc_security_group_egress_rule" "allow_outbound_http" {
+  security_group_id = aws_security_group.alb_security_group.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp" 
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_egress_rule" "allow_outbound_https" {
+  security_group_id = aws_security_group.alb_security_group.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp" 
+  from_port         = 443
+  to_port           = 443
+}
+
 module "lb_target_group" {
   source   = "./lb-target-group"
   for_each = local.lb_target_group_map
