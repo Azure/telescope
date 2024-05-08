@@ -2,6 +2,7 @@ variable "loadbalancer_config" {
   description = "Configuration for the load balancer."
   type = object({
     role               = string
+    vpc_name           = string
     subnet_names       = list(string)
     security_groups    = list(string)
     load_balancer_type = string
