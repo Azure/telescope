@@ -11,7 +11,7 @@ locals {
 
 data "azurerm_key_vault" "appgatewaykv" {
   name                = "TelescopeAppGatewayKV"
-  resource_group_name = "AppGatewayKeyvaults"
+  resource_group_name = "telescope"
 }
 
 data "azurerm_key_vault_certificate" "Appgateway" {
@@ -50,7 +50,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
   identity {
     type         = "UserAssigned"
-    identity_ids = ["/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/AppGatewayKeyvaults/providers/Microsoft.ManagedIdentity/userAssignedIdentities/telescopeAppGWUAMI"]
+    identity_ids = ["/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/telescope/providers/Microsoft.ManagedIdentity/userAssignedIdentities/telescopeAppGWUAMI"]
   }
 
   frontend_ip_configuration {
