@@ -14,6 +14,7 @@ variable "json_input" {
     data_disk_iops_read_write = optional(number)
     data_disk_mbps_read_only  = optional(number)
     data_disk_mbps_read_write = optional(number)
+    data_disk_count           = optional(number, 1)
     ultra_ssd_enabled         = optional(bool)
 
     efs_performance_mode                = optional(string)
@@ -134,6 +135,7 @@ variable "vm_config_list" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+    info_column_name            = optional(string)
 
     ami_config = optional(object({
       most_recent         = bool
@@ -144,6 +146,15 @@ variable "vm_config_list" {
     }))
   }))
   default = []
+}
+
+variable "data_disk_config" {
+  description = "Data disk and optional attachment target (up to 11 per vm) to be created <data_disk_count> times"
+  type = object({
+    zone_suffix = string
+    vm_name     = optional(string)
+  })
+  default = null
 }
 
 variable "bucket_name_prefix" {

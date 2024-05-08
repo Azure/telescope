@@ -3,12 +3,15 @@ scenario_type  = "perf-eval"
 deletion_delay = "20h"
 aks_config_list = [
   {
-    role           = "client"
-    aks_name       = "disk-aks"
-    dns_prefix     = "disk"
-    subnet_name    = "aks-network"
-    network_plugin = "azure"
-    sku_tier       = "Free"
+    role        = "client"
+    aks_name    = "disk-aks"
+    dns_prefix  = "disk"
+    subnet_name = "aks-network"
+    sku_tier    = "Free"
+    network_profile = {
+      network_plugin      = "azure"
+      network_plugin_mode = "overlay"
+    }
     default_node_pool = {
       name                         = "default"
       node_count                   = 2

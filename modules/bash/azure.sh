@@ -73,6 +73,13 @@ azure_get_vm_info() {
   echo $res
 }
 
+azure_get_1st_storage_account_name_by_rg() {
+  local resource_group=$1
+
+  storage_account_name=$(az storage account list -g $resource_group --query "[].name" -o tsv | head -n 1)
+  echo $storage_account_name
+}
+
 azure_aks_start_nginx()
 {
   local resource_group=$1
