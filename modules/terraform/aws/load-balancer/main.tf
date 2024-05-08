@@ -22,6 +22,18 @@ data "aws_subnet" "subnets" {
   }
 }
 
+data "aws_vpc" "server_vpc" {
+  filter {
+    name   = "tag:run_id"
+    values = ["${var.run_id}"]
+  }
+
+  filter {
+    name   = "tag:Name"
+    values = ["${var.lb_vpc_name}"]
+  }
+}
+
 resource "aws_lb" "nlb" {
   internal           = var.loadbalancer_config.is_internal_lb
   load_balancer_type = var.loadbalancer_config.load_balancer_type
@@ -39,7 +51,7 @@ resource "aws_lb" "nlb" {
 resource "aws_security_group" "alb_security_group" {
   name = "applbrules"
   description = "Allow inbound HTTP and HTTPS" 
-  vpc_id = local.lb_vpc_name
+  vpc_id = aws_vpc.server_vpc.id
   tags = merge(
     var.tags,
     {
