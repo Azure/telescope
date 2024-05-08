@@ -5,6 +5,7 @@ locals {
     for tg in local.lb_target_group :
     "${tg.vpc_name}-${tg.tg_suffix}" => tg
   }
+  lb_vpc_name = var.loadbalancer_config.lb_target_group.vpc_name
 }
 
 data "aws_subnet" "subnets" {
@@ -38,7 +39,7 @@ resource "aws_lb" "nlb" {
 resource "aws_security_group" "alb_security_group" {
   name = "applbrules"
   description = "Allow inbound HTTP and HTTPS" 
-  vpc_id = local.lb_target_group.vpc_name
+  vpc_id = lb_vpc_name
   tags = merge(
     var.tags,
     {
