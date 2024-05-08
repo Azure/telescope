@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # Description:
-#   This script contains the functions to manage the resources in the resource group.
+#   This function gets the names of disk instances by resource group(run id).
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 # 
 # Returns: name of the VM instance
-# Usage: get_vm_instance_by_name <run_id>
-get_vm_instance_by_name() {
-    local run_id=$1
+# Usage: get_vm_instances_by_run_id <run_id>
+get_vm_instances_name_by_run_id() {
+    local resource_group=$1
 
-    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '"$run_id"')].name" --output tsv)
+    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '"$resource_group"')].name" --output tsv)
 }
 
 # Description:
