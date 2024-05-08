@@ -24,7 +24,7 @@ network_config_list = [
         public_ip_name        = "ingress-pip"
       }
     ]
-    nsr_rules                  = []
+    nsr_rules = []
   }
 ]
 
