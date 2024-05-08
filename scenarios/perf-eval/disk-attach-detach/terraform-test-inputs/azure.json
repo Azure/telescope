@@ -1,0 +1,9 @@
+{
+  "owner": "terraform_unit_tests",
+  "run_id": "758521942",
+  "region": "eastus",
+  "data_disk_storage_account_type": "Standard_LRS",
+  "machine_type": "Standard_D2s_v5",
+  "data_disk_size_gb": "40",
+  "data_disk_count": "2"
+}

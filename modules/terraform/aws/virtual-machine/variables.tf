@@ -7,13 +7,7 @@ variable "vm_config" {
     security_group_name         = string
     associate_public_ip_address = bool
     zone_suffix                 = string
-
-    data_disk_config = optional(object({
-      data_disk_size_gb         = number
-      data_disk_volume_type     = string
-      data_disk_iops_read_write = optional(number)
-      data_disk_mbps_read_write = optional(number)
-    }))
+    info_column_name            = optional(string)
 
     ami_config = optional(object({
       most_recent         = bool
