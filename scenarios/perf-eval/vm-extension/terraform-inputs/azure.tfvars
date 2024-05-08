@@ -16,8 +16,15 @@ network_config_list = [
       name           = "vm-extension-vm-subnet"
       address_prefix = "10.2.1.0/24"
     }]
-    nic_public_ip_associations = []
-    nsr_rules = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "vm-extension-nic"
+        subnet_name           = "vm-extension-vm-subnet"
+        ip_configuration_name = "vm-extension-ipconfig"
+        public_ip_name        = "ingress-pip"
+      }
+    ]
+    nsr_rules                  = []
   }
 ]
 
