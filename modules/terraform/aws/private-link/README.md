@@ -59,7 +59,6 @@ module "aws_private_link" {
 ### Resources
 
 - [aws_vpc_endpoint_service Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service)
-- [aws_vpc_endpoint Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint)
 
 ### Data Sources
 

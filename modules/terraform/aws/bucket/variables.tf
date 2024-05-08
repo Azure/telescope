@@ -4,6 +4,21 @@ variable "bucket_name_prefix" {
   default     = ""
 }
 
+variable "object_config" {
+  description = "Configuration for deployment of bucket object with bucket"
+  type = object({
+    source_path = string
+    file_key    = string
+  })
+  default = null
+}
+
+variable "user_data_path" {
+  description = "User data path for bucket object to be uploaded"
+  type        = string
+  default     = ""
+}
+
 variable "run_id" {
   description = "Value of the run id"
   type        = string
