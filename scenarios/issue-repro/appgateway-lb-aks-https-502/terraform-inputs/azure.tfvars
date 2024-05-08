@@ -86,10 +86,12 @@ appgateway_config_list = [
         ip_addresses = ["10.10.1.7", "10.10.1.8", "10.10.1.9"]
       }
     ]
-    appgateway_frontendport = {
-      name = "http"
-      port = 80
-    }
+    appgateway_frontend_ports = [
+      {
+        name = "http"
+        port = 80
+      }
+    ]
     appgateway_backend_http_settings = [
       {
         name                  = "aks-https-lb"
