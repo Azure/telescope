@@ -5,7 +5,7 @@ locals {
     for tg in local.lb_target_group :
     "${tg.vpc_name}-${tg.tg_suffix}" => tg
   }
-  lb_vpc_name = var.loadbalancer_config.lb_target_group.vpc_name
+  lb_vpc_name = var.loadbalancer_config.vpc_name
 }
 
 data "aws_subnet" "subnets" {
