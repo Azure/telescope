@@ -3,6 +3,7 @@ variable "loadbalancer_config" {
   type = object({
     role               = string
     subnet_names       = list(string)
+    security_groups    = list(string)
     load_balancer_type = string
     is_internal_lb     = optional(bool, false)
     lb_target_group = list(object({
