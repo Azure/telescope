@@ -25,7 +25,7 @@ resource "aws_lb" "nlb" {
   internal           = var.loadbalancer_config.is_internal_lb
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = values(data.aws_subnet.subnets)[*].id
-  security_groups    = security_groups = var.loadbalancer_config.load_balancer_type == "application" ? [aws_security_group.alb_security_group] : []
+  security_groups    = var.loadbalancer_config.load_balancer_type == "application" ? [aws_security_group.alb_security_group] : []
   
   tags = merge(
     var.tags,
