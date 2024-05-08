@@ -30,7 +30,7 @@ data "aws_vpc" "server_vpc" {
 
   filter {
     name   = "tag:Name"
-    values = ["${var.lb_vpc_name}"]
+    values = ["${local.lb_vpc_name}"]
   }
 }
 
@@ -51,7 +51,7 @@ resource "aws_lb" "nlb" {
 resource "aws_security_group" "alb_security_group" {
   name = "applbrules"
   description = "Allow inbound HTTP and HTTPS" 
-  vpc_id = aws_vpc.server_vpc.id
+  vpc_id = data.aws_vpc.server_vpc.id
   tags = merge(
     var.tags,
     {
