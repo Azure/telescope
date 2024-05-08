@@ -104,6 +104,11 @@ module "bucket" {
   bucket_name_prefix = var.bucket_name_prefix
   run_id             = local.run_id
   tags               = local.tags
+
+  object_config = var.bucket_object_config == null ? null : {
+    source_path = "${local.user_data_path}/${var.bucket_object_config.bucket_source_file_name}"
+    file_key    = var.bucket_object_config.bucket_file_key
+  }
 }
 
 module "efs" {
@@ -149,4 +154,15 @@ resource "aws_volume_attachment" "attach" {
   device_name = "/dev/sd${element(local.all_devices_suffixes, count.index)}"
   volume_id   = module.data_disk[count.index].data_disk.id
   instance_id = local.all_vms[var.data_disk_config.vm_name].id
+}
+
+module "privateendpoint" {
+  source = "./vpc-endpoint"
+
+  count     = var.pe_config == null ? 0 : 1
+  pe_config = var.pe_config
+
+  vpc_id = local.all_vpcs[var.pe_config.pe_vpc_name].id
+
+  tags = local.tags
 }

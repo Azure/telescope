@@ -246,6 +246,14 @@ module "storage_account" {
   #   access_tier      = local.storage_share_access_tier
   #   enabled_protocol = local.storage_share_enabled_protocol
   # }
+
+  storage_blob_config = var.blob_config == null ? null : {
+    container_name   = var.blob_config.container_name
+    container_access = var.blob_config.container_access
+    blob_name        = var.blob_config.blob_name
+    blob_type        = var.blob_config.blob_type
+    source_file_path = "${local.user_data_path}/${var.blob_config.source_file_name}"
+  }
 }
 
 module "privatelink" {
