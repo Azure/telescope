@@ -9,12 +9,12 @@ locals {
   request_routing_rules = var.appgateway_config.appgateway_request_routing_rules
 }
 
-data "azurerm_key_vault" "appgatewaykv" {
+data "azurerm_key_vault" "akstelescope" {
   name                = "TelescopeAppGatewayKV"
   resource_group_name = "telescope"
 }
 
-data "azurerm_key_vault_certificate" "Appgateway" {
+data "azurerm_key_vault_certificate" "vm-appgateway-vm" {
   name         = "Appgateway"
   key_vault_id = data.azurerm_key_vault.appgatewaykv.id
 }
@@ -94,8 +94,8 @@ resource "azurerm_application_gateway" "appgateway" {
   }
 
   ssl_certificate {
-    name                = data.azurerm_key_vault_certificate.Appgateway.name
-    key_vault_secret_id = data.azurerm_key_vault_certificate.Appgateway.secret_id
+    name                = data.azurerm_key_vault_certificate.vm-appgateway-vm.name
+    key_vault_secret_id = data.azurerm_key_vault_certificate.vm-appgateway-vm.secret_id
   }
 
   dynamic "http_listener" {
@@ -106,7 +106,7 @@ resource "azurerm_application_gateway" "appgateway" {
       frontend_port_name             = http_listener.value.frontend_port_name
       protocol                       = http_listener.value.protocol
       host_name                      = http_listener.value.host_name
-      ssl_certificate_name           = http_listener.value.protocol == "Https" ? data.azurerm_key_vault_certificate.Appgateway.name : ""
+      ssl_certificate_name           = http_listener.value.protocol == "Https" ? data.azurerm_key_vault_certificate.vm-appgateway-vm.name : ""
     }
   }
 

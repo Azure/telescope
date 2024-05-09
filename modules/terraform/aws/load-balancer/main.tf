@@ -22,7 +22,7 @@ data "aws_subnet" "subnets" {
   }
 }
 
-data "aws_vpc" "server_vpc" {
+data "aws_vpc" "lb_vpc" {
   filter {
     name   = "tag:run_id"
     values = ["${var.run_id}"]
@@ -51,7 +51,7 @@ resource "aws_lb" "nlb" {
 resource "aws_security_group" "alb_security_group" {
   name        = "applbrules"
   description = "Allow inbound HTTP and HTTPS"
-  vpc_id      = data.aws_vpc.server_vpc.id
+  vpc_id      = data.aws_vpc.lb_vpc.id
   tags = merge(
     var.tags,
     {
