@@ -124,6 +124,6 @@ resource "azurerm_application_gateway" "appgateway" {
 
   trusted_root_certificate {
     name                = "self-signed-root"
-    key_vault_secret_id = data.azurerm_key_vault_certificate.Appgateway.secret_id
+    key_vault_secret_id = data.azurerm_key_vault_certificate.vm-appgateway-vm.secret_id
   }
 }
