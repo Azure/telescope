@@ -15,7 +15,7 @@ data "azurerm_key_vault" "akstelescope" {
 }
 
 data "azurerm_key_vault_certificate" "vm-appgateway-vm" {
-  name         = "Appgateway"
+  name         = "vm-appgateway-vm"
   key_vault_id = data.azurerm_key_vault.akstelescope.id
 }
 
