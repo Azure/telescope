@@ -167,6 +167,68 @@ measure_create_delete_vm() {
 }
 
 # Description:
+#   This function is used to to measure the time it takes to install CSE script for custom script extension on a created VM and save results in JSON format
+#
+# Parameters:
+#   - $1: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: The run id
+#   - $3: The result directory where to place the results in JSON format
+#
+# Usage: measure_vm_extension <cloud> <run_id> <result_dir>
+measure_vm_extension() {
+    local cloud=$1
+    local run_id=$2
+    local result_dir=$3
+    local vm_name=$(get_vm_instances_name_by_run_id $run_id)
+    
+    echo "Measuring $cloud VM extension installation" 
+
+    local result=""
+    local installation_succedded="false"
+    local installation_time=0
+
+    local start_time=$(date +%s)
+    case $cloud in
+        azure)
+            extension_data=$(install_vm_extension "$vm_name" "$run_id")
+        ;;
+        *)
+            exit 1 # cloud provider unknown/not implemented
+        ;;
+    esac
+    
+    wait
+    local end_time=$(date +%s)
+
+    if [[ -n "$extension_data" ]]; then
+        succeeded=$(echo "$extension_data" | jq -r '.succeeded')
+        if [[ "$succeeded" == "true" ]]; then
+            output_extension_data=$extension_data
+            installation_time=$((end_time - start_time))
+            installation_succedded="true"
+        else
+            temporary_extension_data=$(echo "$extension_data" | jq -r '.data')
+            if [[ -n "$temporary_extension_data" ]]; then
+                output_extension_data=$extension_data
+            fi
+        fi
+    fi
+
+    result="{\
+        \"operation\": \"install_vm_extension\", \
+        \"succeeded\": \"$installation_succedded\", \
+        \"extension_data\": $(jq -c -n \
+          --argjson extension_data "$(echo "$output_extension_data" | jq -r '.data')" \
+          '$extension_data'), \
+        \"time\": \"$installation_time\" \
+    }"
+
+    mkdir -p $result_dir
+    echo $result > "$result_dir/vm-extension-$cloud-$vm_name-$(date +%s).json"
+    echo $result
+}
+
+# Description:
 #   This function is used to to measure the time it takes to create a VM and save results in JSON format
 #
 # Parameters:
