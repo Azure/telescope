@@ -10,13 +10,13 @@ locals {
 }
 
 data "azurerm_key_vault" "akstelescope" {
-  name                = "TelescopeAppGatewayKV"
+  name                = "akstelescope"
   resource_group_name = "telescope"
 }
 
 data "azurerm_key_vault_certificate" "vm-appgateway-vm" {
   name         = "Appgateway"
-  key_vault_id = data.azurerm_key_vault.appgatewaykv.id
+  key_vault_id = data.azurerm_key_vault.akstelescope.id
 }
 
 resource "azurerm_application_gateway" "appgateway" {
