@@ -48,48 +48,48 @@ resource "aws_lb" "nlb" {
   )
 }
 
-resource "aws_security_group" "alb_security_group" {
-  name        = "applbrules"
-  description = "Allow inbound HTTP and HTTPS"
-  vpc_id      = data.aws_vpc.lb_vpc.id
+module "security_group" {
+  source              = "../security_group"
+  security_group_name = "applbrules"
+  vpc_id              = data.aws_vpc.lb_vpc.id
+  description         = "Allow inbound HTTP and HTTPS"
+  sg_rules = {
+    ingress = [
+      {
+        from_port  = 80
+        to_port    = 80
+        protocol   = "tcp"
+        cidr_block = "0.0.0.0/0"
+      },
+      {
+        from_port  = 443
+        to_port    = 443
+        protocol   = "tcp"
+        cidr_block = "0.0.0.0/0"
+      }
+    ]
+    egress = [
+      {
+        from_port  = 80
+        to_port    = 80
+        protocol   = "tcp"
+        cidr_block = "0.0.0.0/0"
+      },
+      {
+        from_port  = 443
+        to_port    = 443
+        protocol   = "tcp"
+        cidr_block = "0.0.0.0/0"
+      }
+    ]
+  }
+
   tags = merge(
     var.tags,
     {
       "role" = local.role
     },
   )
-}
-
-resource "aws_vpc_security_group_ingress_rule" "allow_inbound_http" {
-  security_group_id = aws_security_group.alb_security_group.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = 80
-  to_port           = 80
-}
-
-resource "aws_vpc_security_group_ingress_rule" "allow_inbound_https" {
-  security_group_id = aws_security_group.alb_security_group.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = 443
-  to_port           = 443
-}
-
-resource "aws_vpc_security_group_egress_rule" "allow_outbound_http" {
-  security_group_id = aws_security_group.alb_security_group.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = 80
-  to_port           = 80
-}
-
-resource "aws_vpc_security_group_egress_rule" "allow_outbound_https" {
-  security_group_id = aws_security_group.alb_security_group.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = 443
-  to_port           = 443
 }
 
 module "lb_target_group" {
