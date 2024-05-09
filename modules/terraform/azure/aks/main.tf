@@ -31,7 +31,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   network_profile {
     network_plugin      = var.aks_config.network_profile.network_plugin
-    network_plugin_mode = var.aks_config.network_profile.network_plugin == "azure" ? "overlay" : null
+    network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
     network_policy      = var.aks_config.network_profile.network_policy
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
@@ -39,6 +39,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
   identity {
     type = "SystemAssigned"
   }
+
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
@@ -59,4 +62,9 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
   role_definition_name = each.key
   scope                = var.vnet_id
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+}
+
+resource "local_file" "kube_config" {
+  filename = "/tmp/${azurerm_kubernetes_cluster.aks.fqdn}"
+  content  = azurerm_kubernetes_cluster.aks.kube_config_raw
 }
