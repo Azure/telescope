@@ -174,7 +174,7 @@ collect_result_iperf2() {
 
   touch $result_dir/results.json
 
-	iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
+  iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
   echo "Check iPerf log file:"
   cat $iperf_result
   iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
