@@ -135,6 +135,7 @@ variable "vm_config_list" {
     subnet_name                 = string
     security_group_name         = string
     associate_public_ip_address = bool
+    info_column_name            = optional(string)
 
     ami_config = optional(object({
       most_recent         = bool
@@ -148,7 +149,7 @@ variable "vm_config_list" {
 }
 
 variable "data_disk_config" {
-  description = "List of data disks and disk associations with the same configuration to be created"
+  description = "Data disk and optional attachment target (up to 11 per vm) to be created <data_disk_count> times"
   type = object({
     zone_suffix = string
     vm_name     = optional(string)
@@ -160,6 +161,15 @@ variable "bucket_name_prefix" {
   description = "Value of the bucket name prefix"
   type        = string
   default     = ""
+}
+
+variable "bucket_object_config" {
+  description = "Configuration for deployment of bucket object with bucket"
+  type = object({
+    bucket_source_file_name = string
+    bucket_file_key         = string
+  })
+  default = null
 }
 
 variable "eks_config_list" {
@@ -207,6 +217,19 @@ variable "private_link_conf" {
     client_vpc_name            = string
     client_subnet_name         = string
     client_security_group_name = string
+  })
+  default = null
+}
+
+variable "pe_config" {
+  description = "configuration for vpc private endpoint"
+  type = object({
+    pe_vpc_name        = string
+    pe_service_name    = string
+    vpc_endpoint_type  = string
+    subnet_ids         = optional(list(string), [])
+    security_group_ids = optional(list(string), [])
+    route_table_ids    = optional(list(string), [])
   })
   default = null
 }

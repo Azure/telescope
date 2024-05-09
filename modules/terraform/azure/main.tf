@@ -33,7 +33,10 @@ locals {
   network_config_map                     = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   appgateway_config_map                  = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  agc_config_map                         = { for agc in var.agc_config_list : agc.role => agc }
   aks_config_map                         = { for aks in var.aks_config_list : aks.role => aks }
+  aks_cluster_oidc_issuer_map            = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
+  aks_cluster_kubeconfig_list            = [for aks in var.aks_config_list : module.aks[aks.role].aks_cluster_kubeconfig_path]
   vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
@@ -49,11 +52,28 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "<= 3.93.0"
     }
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = "<= 2.13.1"
+    }
   }
 }
 
 provider "azurerm" {
   features {}
+}
+
+provider "helm" {
+  kubernetes {
+    config_paths = local.aks_cluster_kubeconfig_list
+  }
+
+  registry {
+    url      = "oci://mcr.microsoft.com"
+    username = ""
+    password = ""
+  }
 }
 
 module "public_ips" {
@@ -113,6 +133,19 @@ module "appgateway" {
   subnet_id           = local.all_subnets[each.value.subnet_name]
   public_ip_id        = module.public_ips.pip_ids[each.value.public_ip_name]
   tags                = local.tags
+}
+
+module "agc" {
+  for_each = local.agc_config_map
+
+  source                  = "./agc"
+  agc_config              = each.value
+  resource_group_name     = local.run_id
+  location                = local.region
+  association_subnet_id   = local.all_subnets[each.value.association_subnet_name]
+  tags                    = local.tags
+  aks_cluster_oidc_issuer = local.aks_cluster_oidc_issuer_map[each.value.role]
+  depends_on              = [module.aks]
 }
 
 module "data_disk" {
@@ -213,6 +246,14 @@ module "storage_account" {
   #   access_tier      = local.storage_share_access_tier
   #   enabled_protocol = local.storage_share_enabled_protocol
   # }
+
+  storage_blob_config = var.blob_config == null ? null : {
+    container_name   = var.blob_config.container_name
+    container_access = var.blob_config.container_access
+    blob_name        = var.blob_config.blob_name
+    blob_type        = var.blob_config.blob_type
+    source_file_path = "${local.user_data_path}/${var.blob_config.source_file_name}"
+  }
 }
 
 module "privatelink" {
