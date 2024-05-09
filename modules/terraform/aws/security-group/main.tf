@@ -24,6 +24,6 @@ resource "aws_security_group" "security_group" {
     }
   }
 
-  vpc_id = var.vpc.id
+  vpc_id = var.vpc_id
   tags   = var.tags
 }
