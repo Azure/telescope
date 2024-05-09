@@ -15,13 +15,10 @@ def validate_json_schema(json_file, schema_file):
     validator = Draft7Validator(schema)
     errors = list(validator.iter_errors(json_data))
 
-    if not errors:
-        print("JSON is valid against the schema.")
-    else:
-        sys.stderr.write("JSON is not valid against the schema. Errors:\n")
-        for error in errors:
-            sys.stderr.write(f"{error.message}\n")
-        sys.exit(1)
+    return {
+        "isValid": not errors,
+        "errors": None if not errors else [error.message for error in errors]
+    }
 
 if __name__ == "__main__":
     # Check if correct number of command-line arguments are provided
@@ -34,4 +31,4 @@ if __name__ == "__main__":
     json_file_path = sys.argv[2]
 
     # Validate JSON against schema
-    validate_json_schema(json_file_path, schema_file_path)
+    print(validate_json_schema(json_file_path, schema_file_path))

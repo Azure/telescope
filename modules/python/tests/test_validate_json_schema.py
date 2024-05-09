@@ -1,48 +1,56 @@
 import unittest
-import json
 from unittest.mock import patch, mock_open
-from  terraform.validate_json_schema import validate_json_schema
+from io import StringIO
+import json
+from terraform.validate_json_schema import validate_json_schema
 
-class TestValidateJson(unittest.TestCase):
-    def test_valid_json(self):
-        # Mock the schema and JSON data
-        schema = {
+class TestValidateJsonSchema(unittest.TestCase):
+
+    schema = {
             "type": "object",
             "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "number"}
+                "owner": {"type": "string"},
+                "run_id": {"type": "string"},
+                "region": {"type": "string"},
+                "accelerated_networking": {"type": "boolean"}
             },
-            "required": ["name", "age"]
+            "required": ["owner", "run_id", "region"]
         }
-        json_data = {"name": "John", "age": 30}
-
-        # Mock the open function to return the schema and JSON data
-        with patch("builtins.open", mock_open(read_data=json.dumps(schema))), \
-             patch("json.load", return_value=json_data):
-            with patch("sys.argv", ["validate_json.py", "schema.json", "data.json"]):
-                # Call the validate_json function
-                with patch("jsonschema.Draft7Validator.iter_errors", return_value=[]):
-                    validate_json_schema("data.json", "schema.json")
-
-    def test_invalid_json(self):
-        # Mock the schema and JSON data
-        schema = {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "number"}
-            },
-            "required": ["name", "age"]
+    def test_validate_json_schema_valid(self):
+        # Mock a valid JSON data
+        json_data = {
+            "owner": "John Doe",
+            "run_id": "123456",
+            "region": "us-west",
+            "accelerated_networking": True
         }
-        json_data = {"name": "John"}  # Missing "age"
 
-        # Mock the open function to return the schema and JSON data
-        with patch("builtins.open", mock_open(read_data=json.dumps(schema))), \
-             patch("json.load", return_value=json_data):
-            with patch("sys.argv", ["validate_json.py", "schema.json", "data.json"]):
-                # Call the validate_json function
-                with patch("jsonschema.Draft7Validator.iter_errors", return_value=[Exception("Error 1"), Exception("Error 2")]):
-                    validate_json_schema("data.json", "schema.json")
+        # Mock file operations
+        with patch("builtins.open", mock_open(read_data='{}')) as mock_file:
+            mock_file.side_effect = [StringIO(json.dumps(self.schema)), StringIO(json.dumps(json_data))]
+            result = validate_json_schema('schema.json', 'data.json')
 
-if __name__ == "__main__":
+        # Assert that the validation succeeded
+        self.assertTrue(result['isValid'])
+        self.assertIsNone(result['errors'])
+
+    def test_validate_json_schema_invalid(self):
+        # Mock an invalid JSON data (missing "region")
+        json_data_invalid  = {
+            "owner": "John Doe",
+            "run_id": "123456"
+        }
+
+        # Mock file operations
+        with patch("builtins.open", mock_open(read_data='{}')) as mock_file:
+            mock_file.side_effect = [StringIO(json.dumps(self.schema)), StringIO(json.dumps(json_data_invalid ))]
+            result = validate_json_schema('schema.json', 'data.json')
+
+
+        # Assert that the validation failed
+        self.assertFalse(result['isValid'])
+        self.assertIsNotNone(result['errors'])
+        self.assertIn("'region' is a required property", result['errors'])
+
+if __name__ == '__main__':
     unittest.main()
