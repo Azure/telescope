@@ -1,6 +1,6 @@
 locals {
-  ingress_sg_rules_map = var.security_config.sg_rules == null ? {} : { for idx, rule in var.security_config.sg_rules.ingress : idx => rule }
-  egress_sg_rules_map  = var.security_config.sg_rules == null ? {} : { for idx, rule in var.security_config.sg_rules.egress : idx => rule }
+  ingress_sg_rules_map = var.sg_rules == null ? {} : { for idx, rule in var.sg_rules.ingress : idx => rule }
+  egress_sg_rules_map  = var.sg_rules == null ? {} : { for idx, rule in var.sg_rules.egress : idx => rule }
 }
 
 resource "aws_security_group" "security_group" {
