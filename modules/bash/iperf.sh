@@ -175,10 +175,17 @@ collect_result_iperf2() {
   touch $result_dir/results.json
 
 	iperf_result="$result_dir/iperf2-${protocol}-${bandwidth}.log"
+  echo "Check iPerf log file:"
   cat $iperf_result
   iperf_info=$(python3 ./modules/python/iperf2/parser.py $protocol $iperf_result)
+  echo "iPerf result: $iperf_info"
 
-  os_info="{}"
+  client_cpu_info=$(cat $result_dir/client-lscpu.json | jq -c .)
+  server_cpu_info=$(cat $result_dir/server-lscpu.json | jq -c .)
+  os_info=$(jq --null-input \
+    --arg client_cpu_info "$client_cpu_info" \
+    --arg server_cpu_info "$server_cpu_info" \
+    '{client_cpu_info: $client_cpu_info, server_cpu_info: $server_cpu_info}')
 
   data=$(jq --null-input \
     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
