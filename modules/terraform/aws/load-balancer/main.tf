@@ -49,7 +49,7 @@ resource "aws_lb" "nlb" {
 }
 
 module "security_group" {
-  source              = "../security_group"
+  source              = "../security-group"
   security_group_name = "applbrules"
   vpc_id              = data.aws_vpc.lb_vpc.id
   description         = "Allow inbound HTTP and HTTPS"
