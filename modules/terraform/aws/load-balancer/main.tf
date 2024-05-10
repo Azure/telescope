@@ -49,7 +49,7 @@ resource "aws_lb" "nlb" {
 }
 
 module "security_group" {
-  count = var.loadbalancer_config.load_balancer_type == "application" ? 1 : 0
+  count               = var.loadbalancer_config.load_balancer_type == "application" ? 1 : 0
   source              = "../security-group"
   security_group_name = "applbrules"
   vpc_id              = data.aws_vpc.lb_vpc.id
