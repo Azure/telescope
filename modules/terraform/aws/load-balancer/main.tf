@@ -22,6 +22,18 @@ data "aws_subnet" "subnets" {
   }
 }
 
+data "aws_security_group" "lb_security_group" {
+    filter {
+    name   = "tag:run_id"
+    values = [var.run_id]
+  }
+
+  filter {
+    name   = "tag:Name"
+    values = ["server-sg"]
+  }
+}
+
 data "aws_vpc" "lb_vpc" {
   filter {
     name   = "tag:run_id"
@@ -38,52 +50,7 @@ resource "aws_lb" "nlb" {
   internal           = var.loadbalancer_config.is_internal_lb
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = values(data.aws_subnet.subnets)[*].id
-  security_groups    = var.loadbalancer_config.load_balancer_type == "application" ? [module.security_group[0].security_group_id] : []
-
-  tags = merge(
-    var.tags,
-    {
-      "role" = local.role
-    },
-  )
-}
-
-module "security_group" {
-  count               = var.loadbalancer_config.load_balancer_type == "application" ? 1 : 0
-  source              = "../security-group"
-  security_group_name = "applbrules"
-  vpc_id              = data.aws_vpc.lb_vpc.id
-  description         = "Allow inbound HTTP and HTTPS"
-  sg_rules = {
-    ingress = [
-      {
-        from_port  = 80
-        to_port    = 80
-        protocol   = "tcp"
-        cidr_block = "0.0.0.0/0"
-      },
-      {
-        from_port  = 443
-        to_port    = 443
-        protocol   = "tcp"
-        cidr_block = "0.0.0.0/0"
-      }
-    ]
-    egress = [
-      {
-        from_port  = 80
-        to_port    = 80
-        protocol   = "tcp"
-        cidr_block = "0.0.0.0/0"
-      },
-      {
-        from_port  = 443
-        to_port    = 443
-        protocol   = "tcp"
-        cidr_block = "0.0.0.0/0"
-      }
-    ]
-  }
+  security_groups    = var.loadbalancer_config.load_balancer_type == "application" ? [data.aws_security_group.lb_security_group] : []
 
   tags = merge(
     var.tags,
