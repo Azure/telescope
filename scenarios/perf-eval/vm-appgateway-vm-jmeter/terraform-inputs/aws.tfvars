@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-pe-pls-vm-jmeter"
+scenario_name  = "vm-appgateway-vm-jmeter"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -10,6 +10,11 @@ network_config_list = [
       name        = "server-subnet"
       cidr_block  = "10.1.1.0/24"
       zone_suffix = "a"
+      },
+      {
+        name        = "app-subnet"
+        cidr_block  = "10.1.2.0/24"
+        zone_suffix = "b"
     }]
     security_group_name = "server-sg"
     route_tables = [
@@ -22,6 +27,11 @@ network_config_list = [
       {
         name             = "server-subnet-rt-assoc"
         subnet_name      = "server-subnet"
+        route_table_name = "internet-rt"
+      },
+      {
+        name             = "app-subnet-rt-assoc"
+        subnet_name      = "app-subnet"
         route_table_name = "internet-rt"
       }
     ]
@@ -86,18 +96,6 @@ network_config_list = [
           to_port    = 2222
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
-        },
-        {
-          from_port  = 80
-          to_port    = 80
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        },
-        {
-          from_port  = 443
-          to_port    = 443
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
         }
       ]
       egress = [
@@ -112,57 +110,34 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = [{
-  role               = "ingress"
-  vpc_name           = "server-vpc"
-  subnet_names       = ["server-subnet"]
-  load_balancer_type = "network"
+  role                = "ingress"
+  vpc_name            = "server-vpc"
+  subnet_names        = ["server-subnet", "app-subnet"]
+  load_balancer_type  = "application"
+  security_group_name = "server-sg"
   lb_target_group = [{
     role       = "nlb-tg"
     tg_suffix  = "http"
     port       = 80
-    protocol   = "TCP"
+    protocol   = "HTTP"
     rule_count = 1
     vpc_name   = "server-vpc"
     health_check = {
       port                = "80"
-      protocol            = "TCP"
-      interval            = 10
+      protocol            = "HTTP"
+      interval            = 15
       timeout             = 10
-      healthy_threshold   = 2
-      unhealthy_threshold = 2
+      healthy_threshold   = 3
+      unhealthy_threshold = 3
     }
     lb_listener = {
       port     = 80
-      protocol = "TCP"
+      protocol = "HTTP"
     }
     lb_target_group_attachment = {
       vm_name = "server-vm"
       port    = 80
     }
-    },
-    {
-      role       = "nlb-tg"
-      tg_suffix  = "https"
-      port       = 443
-      protocol   = "TCP"
-      rule_count = 1
-      vpc_name   = "server-vpc"
-      health_check = {
-        port                = "443"
-        protocol            = "TCP"
-        interval            = 10
-        timeout             = 10
-        healthy_threshold   = 2
-        unhealthy_threshold = 2
-      }
-      lb_listener = {
-        port     = 443
-        protocol = "TCP"
-      }
-      lb_target_group_attachment = {
-        vm_name = "server-vm"
-        port    = 443
-      }
     }
   ]
 }]
@@ -170,7 +145,6 @@ loadbalancer_config_list = [{
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  network_role                = "client"
   subnet_name                 = "client-subnet"
   security_group_name         = "client-sg"
   associate_public_ip_address = true
@@ -185,11 +159,3 @@ vm_config_list = [{
     zone_suffix                 = "a"
   }
 ]
-
-private_link_conf = {
-  service_lb_role = "ingress"
-
-  client_vpc_name            = "client-vpc"
-  client_subnet_name         = "client-subnet"
-  client_security_group_name = "client-sg"
-}

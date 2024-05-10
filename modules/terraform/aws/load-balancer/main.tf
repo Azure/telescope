@@ -7,7 +7,21 @@ locals {
   }
 }
 
-data "aws_subnet" "subnet" {
+data "aws_subnet" "subnets" {
+  for_each = { for subnet_name in var.loadbalancer_config.subnet_names : subnet_name => subnet_name }
+
+  filter {
+    name   = "tag:run_id"
+    values = [var.run_id]
+  }
+
+  filter {
+    name   = "tag:Name"
+    values = [each.value]
+  }
+}
+
+data "aws_security_group" "lb_security_group" {
   filter {
     name   = "tag:run_id"
     values = ["${var.run_id}"]
@@ -15,14 +29,15 @@ data "aws_subnet" "subnet" {
 
   filter {
     name   = "tag:Name"
-    values = ["${var.loadbalancer_config.subnet_name}"]
+    values = ["${var.loadbalancer_config.security_group_name}"]
   }
 }
 
 resource "aws_lb" "nlb" {
   internal           = var.loadbalancer_config.is_internal_lb
   load_balancer_type = var.loadbalancer_config.load_balancer_type
-  subnets            = [data.aws_subnet.subnet.id]
+  subnets            = values(data.aws_subnet.subnets)[*].id
+  security_groups    = var.loadbalancer_config.security_group_name != null ? [data.aws_security_group.lb_security_group.id] : []
 
   tags = merge(
     var.tags,
