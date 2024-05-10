@@ -5,7 +5,7 @@ locals {
     for tg in local.lb_target_group :
     "${tg.vpc_name}-${tg.tg_suffix}" => tg
   }
-  lb_vpc_name            = var.loadbalancer_config.vpc_name
+  lb_vpc_name = var.loadbalancer_config.vpc_name
 }
 
 data "aws_subnet" "subnets" {
@@ -50,7 +50,7 @@ resource "aws_lb" "nlb" {
   internal           = var.loadbalancer_config.is_internal_lb
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = values(data.aws_subnet.subnets)[*].id
-  security_groups    = local.lb_security_group_name != null ? [data.aws_security_group.lb_security_group.id] : []
+  security_groups    = var.loadbalancer_config.security_group_name != null ? [data.aws_security_group.lb_security_group.id] : []
 
   tags = merge(
     var.tags,
