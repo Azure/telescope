@@ -6,7 +6,7 @@ locals {
     "${tg.vpc_name}-${tg.tg_suffix}" => tg
   }
   lb_vpc_name            = var.loadbalancer_config.vpc_name
-  lb_security_group_name = var.load_balancer_config.security_group_name
+  lb_security_group_name = var.loadbalancer_config.security_group_name
 }
 
 data "aws_subnet" "subnets" {
