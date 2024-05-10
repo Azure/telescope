@@ -19,6 +19,11 @@ data "azurerm_key_vault_certificate" "vm-appgateway-vm" {
   key_vault_id = data.azurerm_key_vault.akstelescope.id
 }
 
+data "azurerm_user_assigned_identity" "telescope_identity" {
+  name                = "aks-telescope-operator"
+  resource_group_name = "telescope"
+}
+
 resource "azurerm_application_gateway" "appgateway" {
   name                = local.appgateway_name
   location            = var.location
@@ -50,7 +55,7 @@ resource "azurerm_application_gateway" "appgateway" {
   }
   identity {
     type         = "UserAssigned"
-    identity_ids = ["/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/telescope/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aks-telescope-operator"]
+    identity_ids = [data.azurerm_user_assigned_identity.telescope_identity.id]
   }
 
   frontend_ip_configuration {
