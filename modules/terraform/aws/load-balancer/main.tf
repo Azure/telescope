@@ -23,7 +23,7 @@ data "aws_subnet" "subnets" {
 }
 
 data "aws_security_group" "lb_security_group" {
-    filter {
+  filter {
     name   = "tag:run_id"
     values = [var.run_id]
   }
