@@ -6,7 +6,6 @@ locals {
     "${tg.vpc_name}-${tg.tg_suffix}" => tg
   }
   lb_vpc_name            = var.loadbalancer_config.vpc_name
-  lb_security_group_name = var.loadbalancer_config.security_group_name
 }
 
 data "aws_subnet" "subnets" {
@@ -26,12 +25,12 @@ data "aws_subnet" "subnets" {
 data "aws_security_group" "lb_security_group" {
   filter {
     name   = "tag:run_id"
-    values = [var.run_id]
+    values = ["${var.run_id}"]
   }
 
   filter {
     name   = "tag:Name"
-    values = [local.lb_security_group_name]
+    values = ["${var.loadbalancer_config.security_group_name}"]
   }
 }
 
