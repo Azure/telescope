@@ -110,10 +110,11 @@ network_config_list = [
   }
 ]
 loadbalancer_config_list = [{
-  role               = "ingress"
-  vpc_name           = "server-vpc"
-  subnet_names       = ["server-subnet", "app-subnet"]
-  load_balancer_type = "application"
+  role                = "ingress"
+  vpc_name            = "server-vpc"
+  subnet_names        = ["server-subnet", "app-subnet"]
+  load_balancer_type  = "application"
+  security_group_name = "server-sg"
   lb_target_group = [{
     role       = "nlb-tg"
     tg_suffix  = "http"

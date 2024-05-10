@@ -5,7 +5,8 @@ locals {
     for tg in local.lb_target_group :
     "${tg.vpc_name}-${tg.tg_suffix}" => tg
   }
-  lb_vpc_name = var.loadbalancer_config.vpc_name
+  lb_vpc_name            = var.loadbalancer_config.vpc_name
+  lb_security_group_name = var.load_balancer_config.security_group_name
 }
 
 data "aws_subnet" "subnets" {
@@ -30,7 +31,7 @@ data "aws_security_group" "lb_security_group" {
 
   filter {
     name   = "tag:Name"
-    values = ["server-sg"]
+    values = [local.lb_security_group_name]
   }
 }
 
