@@ -252,7 +252,6 @@ module "private_endpoint" {
 module "template_deployment" {
   source               = "./template-deployment"
   resource_group_name  = local.run_id
-  template_file_path   = var.template_deployment_config.template_file_path
-  parameters_file_path = var.template_deployment_config.parameters_file_path
+	user_data_path       = local.user_data_path
   deployment_name      = "${var.scenario_type}-${var.scenario_name}"
 }
