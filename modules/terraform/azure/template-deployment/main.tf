@@ -1,8 +1,8 @@
 resource "azurerm_template_deployment" "example" {
-  name                = "example-deployment"
-  resource_group_name = azurerm_resource_group.example.name
-  deployment_mode     = "Incremental"
+  name                = var.deployment_name
+  resource_group_name = var.resource_group_name
+  deployment_mode     = var.deployment_mode
 
-  template_body      = file("template.json")
-  parameters_content = file("parameters.json")
+  template_body = file(var.template_file_path)
+  parameters    = jsondecode(file(var.parameters_file_path))
 }

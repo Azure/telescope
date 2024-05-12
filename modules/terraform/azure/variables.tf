@@ -296,3 +296,14 @@ variable "pe_config" {
   })
   default = null
 }
+
+variable "template_deployment_config" {
+  description = "Configuration for the template deployment"
+  type = object({
+    deployment_name      = string
+    deployment_mode      = optional(string)
+    template_file_path   = string
+    parameters_file_path = string
+  })
+  default = null
+}
