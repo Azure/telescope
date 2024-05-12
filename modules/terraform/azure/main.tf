@@ -247,11 +247,3 @@ module "private_endpoint" {
 
   pe_config = var.pe_config
 }
-
-
-module "template_deployment" {
-  source               = "./template-deployment"
-  resource_group_name  = local.run_id
-	user_data_path       = local.user_data_path
-  deployment_name      = "${var.scenario_type}-${var.scenario_name}"
-}

@@ -3,9 +3,6 @@
 ./client &> log.txt
 code=$?
 if [[ $code -eq 0 ]]; then
-  echo "client logs:"
-  echo "============"
-  cat log.txt
   websocket_duration_map=$(cat log.txt | grep -o '{.*}')
   premature_closure_count=$(grep -oE 'Total number of premature closures: [0-9]+' log.txt | cut -d' ' -f6)
 

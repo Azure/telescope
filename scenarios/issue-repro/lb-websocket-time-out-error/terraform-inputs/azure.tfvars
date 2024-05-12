@@ -32,24 +32,24 @@ network_config_list = [
     ]
     nsr_rules = [
       {
-        name                       = "server-nsr-websocket"
-        priority                   = 120
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "8080"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
         name                       = "server-nsr-ssh"
-        priority                   = 130
+        priority                   = 100
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
         destination_port_range     = "2222"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "server-nsr-http"
+        priority                   = 110
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "8080"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       }
