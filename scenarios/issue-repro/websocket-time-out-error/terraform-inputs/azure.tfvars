@@ -122,7 +122,7 @@ loadbalancer_config_list = [{
   loadbalance_name      = "ingress-lb"
   public_ip_name        = "lb-pip"
   loadbalance_pool_name = "ingress-lb-pool"
-  probe_protocol        = "Tcp"
+  probe_protocol        = "Http"
   probe_port            = 8080
   probe_request_path    = "/health",
   lb_rules = [{
@@ -132,8 +132,7 @@ loadbalancer_config_list = [{
     protocol                 = "Tcp"
     frontend_port            = 443
     backend_port             = 4443
-    fronend_ip_config_prefix = "ingress"
-    enable_tcp_reset         = false
+    enable_tcp_reset         = true
     idle_timeout_in_minutes  = 4
   }]
 }]
