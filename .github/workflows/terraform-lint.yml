@@ -10,16 +10,10 @@ jobs:
     - uses: actions/checkout@v4
       name: Checkout source code
 
-    - uses: actions/cache@v4
-      name: Cache plugin dir
-      with:
-        path: ~/.tflint.d/plugins
-        key: ubuntu-latest-tflint-${{ hashFiles('.tflint.hcl') }}
-
     - uses: terraform-linters/setup-tflint@v4
       name: Setup TFLint
       with:
-        tflint_version: v0.50.3
+        tflint_wrapper: true
 
     - name: Show version
       run: tflint --version
@@ -29,5 +23,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Run TFLint
+    - id: tflint
       run: tflint -f compact
+      
+    - run: echo ${{ steps.tflint.outputs.stdout }}
+    - run: echo ${{ steps.tflint.outputs.stderr }}
+    - run: echo ${{ steps.tflint.outputs.exitcode 
