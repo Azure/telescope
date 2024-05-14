@@ -13,7 +13,21 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-        
+
+    - uses: terraform-linters/setup-tflint@v4
+      name: Setup TFLint
+
+    - name: Show version
+      run: tflint --version
+
+    - name: Init TFLint
+      run: tflint --init
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Terraform Lint Check
+      run: tflint -f compact --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
+
     - name: Scenario name check
       if: always()
       run: |
