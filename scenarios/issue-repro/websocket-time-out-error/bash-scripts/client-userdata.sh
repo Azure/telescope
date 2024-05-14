@@ -27,4 +27,4 @@ docker --version
 sudo chmod 666 /var/run/docker.sock
 
 # Pull image
-docker pull -q telescope.azurecr.io/websocket-client:v1.1.9
+docker pull -q telescope.azurecr.io/issue-repro/websocket-client:v1.2.2

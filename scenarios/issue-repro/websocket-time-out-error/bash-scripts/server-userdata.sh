@@ -27,5 +27,5 @@ docker --version
 sudo chmod 666 /var/run/docker.sock
 
 # Pull image
-docker pull -q telescope.azurecr.io/websocket-server:v1.1.9
-docker run -d --name server -p 4443:4443 -p 8080:8080 telescope.azurecr.io/websocket-server:v1.1.9
+docker pull -q telescope.azurecr.io/issue-repro/websocket-server:v1.2.2
+docker run -d --name server -p 4443:4443 -p 8080:8080 telescope.azurecr.io/issue-repro/websocket-server:v1.2.2
