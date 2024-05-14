@@ -2,8 +2,6 @@ name: Lint Checker
 
 on:
   pull_request:
-    paths:
-      - 'scenarios/**'
 
 jobs:
   lint-checker:

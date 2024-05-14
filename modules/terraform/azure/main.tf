@@ -1,22 +1,3 @@
-terraform {
-  required_version = ">1.5.6"
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "<= 3.93.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = ">=3.1.0"
-    }
-
-    helm = {
-      source  = "hashicorp/helm"
-      version = "<= 2.13.1"
-    }
-  }
-}
-
 locals {
   region                           = lookup(var.json_input, "region", "East US")
   machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
@@ -61,6 +42,25 @@ locals {
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
+}
+
+terraform {
+  required_version = ">=1.5.6"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "<= 3.93.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">=3.1.0"
+    }
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = "<= 2.13.1"
+    }
+  }
 }
 
 provider "azurerm" {
