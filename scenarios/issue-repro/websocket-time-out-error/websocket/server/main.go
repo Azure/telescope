@@ -16,8 +16,6 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// Implement your logic here to check if the origin is allowed.
-		// Return true if the origin is allowed, false otherwise.
 		return true
 	},
 }
@@ -49,7 +47,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func main() {
 	port := os.Getenv("SERVER_PORT")
 
-	// Serve the healthz endpoint.
+	// Serve the health endpoint.
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "ok\n")
 	})
@@ -99,7 +97,7 @@ func main() {
 		http.HandleFunc("/ws", handleWebSocket)
 		fmt.Println("Starting server on port:", port)
 		if err = httpsServer.ListenAndServeTLS("", ""); err != nil {
-			log.Fatal("Failed to start HTTPS server: ", err)
+			log.Fatal("Failed to start Websocket server: ", err)
 		}
 	}()
 
