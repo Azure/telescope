@@ -28,4 +28,4 @@ jobs:
       
     - run: echo ${{ steps.tflint.outputs.stdout }}
     - run: echo ${{ steps.tflint.outputs.stderr }}
-    - run: echo ${{ steps.tflint.outputs.exitcode 
+    - run: echo ${{ steps.tflint.outputs.exitcode }}
