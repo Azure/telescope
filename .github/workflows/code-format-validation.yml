@@ -12,6 +12,19 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
+    
+    - uses: terraform-linters/setup-tflint@v4
+      name: Setup TFLint
+      with:
+        tflint_version: v0.50.3
+    
+    - name: Init TFLint
+      run: tflint --init
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run TFLint
+      run: tflint -f compact
 
     - name: Scenario name check
       if: always()
