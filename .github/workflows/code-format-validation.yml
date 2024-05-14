@@ -10,30 +10,20 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-    
-    - uses: terraform-linters/setup-tflint@v4
-      name: Setup TFLint
-    
-    - name: Show version
-      run: tflint --version
 
-    - name: Init TFLint
-      run: tflint --init
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Run TFLint
-      run: tflint -f compact
-
-    - uses: reviewdog/action-setup@v1
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
       with:
-        reviewdog_version: latest # Optional. [latest,nightly,v.X.Y.Z]
-    - name: Run reviewdog
-      env:
-        REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        reviewdog -reporter=github-pr-check -runners=tflint,yamllint,shellcheck,pylint
-        reviewdog -reporter=github-pr-review -runners=tflint,yamllint,shellcheck,pylint
+        terraform_version: 1.5.6
+    
+    - name: tflint
+      uses: reviewdog/action-tflint@v1
+      with:
+        github_token: ${{ secrets.github_token }}
+        reporter: github-pr-review # Optional. Change reporter
+        fail_on_error: "true" # Optional. Fail action if errors are found
+        tflint_version: "v0.24.0" # Optional. Custom version, instead of latest
+        tflint_rulesets: "azurerm aws" # Optional. Extra official rulesets to install
 
     - name: Scenario name check
       if: always()
