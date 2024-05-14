@@ -12,8 +12,6 @@ jobs:
 
     - uses: terraform-linters/setup-tflint@v4
       name: Setup TFLint
-      with:
-        tflint_wrapper: true
 
     - name: Show version
       run: tflint --version
@@ -24,4 +22,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Terraform Lint Check
-      run: tflint --recursive
+      run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
