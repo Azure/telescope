@@ -23,7 +23,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Terraform Lint Check
-      run: tflint -f compact --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
+      run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
 
     - name: Scenario name check
       if: always()
