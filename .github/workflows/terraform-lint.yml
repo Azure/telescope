@@ -23,9 +23,5 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - id: tflint
-      run: tflint -f compact
-      
-    - run: echo ${{ steps.tflint.outputs.stdout }}
-    - run: echo ${{ steps.tflint.outputs.stderr }}
-    - run: echo ${{ steps.tflint.outputs.exitcode }}
+    - name: Terraform Lint Check
+      run: tflint --recursive
