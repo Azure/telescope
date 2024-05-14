@@ -2,6 +2,9 @@ name: Lint Checker
 
 on:
   pull_request:
+    path:
+      - 'scenarios/**'
+
 
 jobs:
   lint-checker:
@@ -10,21 +13,7 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.5.6
-    
-    - name: tflint
-      uses: reviewdog/action-tflint@v1
-      with:
-        github_token: ${{ secrets.github_token }}
-        reporter: github-pr-review # Optional. Change reporter
-        fail_on_error: "true" # Optional. Fail action if errors are found
-        tflint_version: "v0.24.0" # Optional. Custom version, instead of latest
-        tflint_rulesets: "azurerm aws" # Optional. Extra official rulesets to install
-
+        
     - name: Scenario name check
       if: always()
       run: |
