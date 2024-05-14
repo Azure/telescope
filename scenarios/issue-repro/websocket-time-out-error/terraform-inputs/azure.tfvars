@@ -53,7 +53,7 @@ network_config_list = [
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
-			      {
+      {
         name                       = "server-nsr-https"
         priority                   = 120
         direction                  = "Inbound"
@@ -103,8 +103,8 @@ network_config_list = [
         destination_port_range     = "8080"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
-    },
-		{
+      },
+      {
         name                       = "client-nsr-https"
         priority                   = 120
         direction                  = "Outbound"
@@ -126,14 +126,14 @@ loadbalancer_config_list = [{
   probe_port            = 8080
   probe_request_path    = "/health",
   lb_rules = [{
-    type                     = "Inbound"
-    rule_count               = 1
-    role                     = "ingress-lb-tcp-rule"
-    protocol                 = "Tcp"
-    frontend_port            = 443
-    backend_port             = 4443
-    enable_tcp_reset         = true
-    idle_timeout_in_minutes  = 4
+    type                    = "Inbound"
+    rule_count              = 1
+    role                    = "ingress-lb-tcp-rule"
+    protocol                = "Tcp"
+    frontend_port           = 443
+    backend_port            = 4443
+    enable_tcp_reset        = true
+    idle_timeout_in_minutes = 4
   }]
 }]
 
