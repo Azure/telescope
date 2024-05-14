@@ -22,6 +22,7 @@ data "aws_subnet" "subnets" {
 }
 
 data "aws_security_group" "lb_security_group" {
+  count = var.loadbalancer_config.security_group_name != null ? 1 : 0
   filter {
     name   = "tag:run_id"
     values = ["${var.run_id}"]
@@ -37,7 +38,7 @@ resource "aws_lb" "nlb" {
   internal           = var.loadbalancer_config.is_internal_lb
   load_balancer_type = var.loadbalancer_config.load_balancer_type
   subnets            = values(data.aws_subnet.subnets)[*].id
-  security_groups    = var.loadbalancer_config.security_group_name != null ? [data.aws_security_group.lb_security_group.id] : []
+  security_groups    = var.loadbalancer_config.security_group_name != null ? [data.aws_security_group.lb_security_group[0].id] : []
 
   tags = merge(
     var.tags,
