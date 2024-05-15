@@ -21,7 +21,7 @@ SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 Set environment variables for testing
 ```bash
 SCENARIO_TYPE=issue-repro
-SCENARIO_NAME=websocket-time-out-error
+SCENARIO_NAME=websocket-timeout-error
 RUN_ID=$(whoami)
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
@@ -99,7 +99,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg machine_type "$MACHINE_TYPE" \
   --arg public_key_path $SSH_PUBLIC_KEY_PATH \
   --arg accelerated_networking "$ACCELERATED_NETWORKING" \
-  --arg user_data_path $TERRAFORM_USER_DATA_PATH 
+  --arg user_data_path $USER_DATA_PATH \
   '{
     owner: $owner,
     run_id: $run_id,
@@ -159,49 +159,25 @@ SLB_PUBLIC_IP=$(az network public-ip show --ids $SLB_PIP_ID --query ipAddress -o
 ### Execute Tests
 Run client and simulate multiple TCP connections with WebSocket protocol through Azure standard load balancer
 ```
-az vm run-command create --name dockerCommand -g ${RUN_ID} --vm-name ${CLIENT_NAME} --async-execution true --script "docker run -e SERVER_ADDRESS=${SLB_PUBLIC_IP}" telescope.azurecr.io/issue-repro/websocket-server:v1.1.9
-{
-  "asyncExecution": true,
-  "errorBlobUri": null,
-  "id": "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/01092024/providers/Microsoft.Compute/virtualMachines/client-vm/runCommands/dockerCommand",
-  "instanceView": null,
-  "location": "eastus",
-  "name": "dockerCommand",
-  "outputBlobUri": null,
-  "parameters": null,
-  "protectedParameters": null,
-  "provisioningState": "Succeeded",
-  "resourceGroup": "01092024",
-  "runAsPassword": null,
-  "runAsUser": null,
-  "source": {
-    "commandId": null,
-    "script": "docker run -e SERVER_ADDRESS=40.68.161.134 telescope.azurecr.io/issue-repro/websocket-server:v1.1.9",
-    "scriptUri": null
-  },
-  "tags": null,
-  "timeoutInSeconds": 0,
-  "type": "Microsoft.Compute/virtualMachines/runCommands"
-}
+
+ssh -i $ssh_key_path -p 2222 ubuntu@52.168.52.247 "docker run -e SERVER_ADDRESS=${SLB_PUBLIC_IP}" telescope.azurecr.io/issue-repro/websocket-server:v1.1.9" > docker_output.log
+
 ```
 Then wait for the test to finish execution
-```
-az vm run-command wait -g ${RUN_ID} --vm-name ${CLIENT_NAME} --run-command-name dockerCommand --instance-view --custom instanceView.endTime!=null
-```
 
 ### Collect Results
-Get the test execution by running command as below:
+Get the results stored in the log file by running command as below:
 ```
-az vm run-command show -g ${RUN_ID} --vm-name ${CLIENT_NAME} --run-command-name dockerCommand --instance-view --query instanceView
+cat docker_output.log
 {
-  "endTime": "2024-05-14T00:15:37+00:00",
-  "error": "",
-  "executionMessage": "Execution' 'completed",
-  "executionState": "Succeeded",
-  "exitCode": 0,
-  "output": "{\n' '\"websocket_duration_map\":' '\"{\\\"240\\\":10000}\",\n' '\"premature_closure_count\":' '\"0\",\n' '\"server_address\":' '\"40.68.161.134\",\n' '\"server_port\":' '\"443\",\n' '\"total_connections\":' '\"10000\",\n' '\"parallel_connections\":' '\"500\",\n' '\"client_timeout\":' '\"240\"\n}\n",
-  "startTime": "2024-05-13T22:55:33+00:00",
-  "statuses": null
+  "websocket_duration_map": "{\"240\":500}",
+  "premature_closure_count": "0",
+  "server_address": "52.174.62.244",
+  "server_port": "443",
+  "total_connections": "500",
+  "parallel_connections": "500",
+  "client_timeout": "240",
+  "error_log": "Connecting to wss://52.174.62.244:443/ws\n500 total connections to be established\n500 parallel connections to be established\nSet client timeout to 240 seconds\n{\"240\":500}\nTotal number of premature closures: 0"
 }
 ```
 if executionState field is succeeded, check output field for test results
