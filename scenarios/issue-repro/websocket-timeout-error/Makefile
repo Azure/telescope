@@ -6,7 +6,7 @@ SERVER_IMAGE_NAME = websocket-server
 CLIENT_IMAGE_NAME = websocket-client
 SERVER_DOCKERFILE = $(SERVER_DIR)/Dockerfile
 CLIENT_DOCKERFILE = $(CLIENT_DIR)/Dockerfile
-GIT_TAG = v1.2.2
+GIT_TAG = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
 IMAGE_REPO = telescope.azurecr.io/issue-repro
 
 .PHONY: all build-server push-server build-client push-client release
