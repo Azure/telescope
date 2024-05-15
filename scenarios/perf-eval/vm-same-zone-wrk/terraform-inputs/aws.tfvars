@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf"
+scenario_name  = "vm-same-zone-wrk"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -9,7 +9,7 @@ network_config_list = [
     subnet = [{
       name        = "same-subnet"
       cidr_block  = "10.2.1.0/24"
-      zone_suffix = "a"
+      zone_suffix = "c"
     }]
     security_group_name = "same-sg"
     route_tables = [
@@ -58,13 +58,14 @@ network_config_list = [
   },
 ]
 loadbalancer_config_list = []
-vm_config_list = [{
-  vm_name                     = "client-vm"
-  role                        = "client"
-  subnet_name                 = "same-subnet"
-  security_group_name         = "same-sg"
-  associate_public_ip_address = true
-  zone_suffix                 = "a"
+vm_config_list = [
+  {
+    vm_name                     = "client-vm"
+    role                        = "client"
+    subnet_name                 = "same-subnet"
+    security_group_name         = "same-sg"
+    associate_public_ip_address = true
+    zone_suffix                 = "c"
   },
   {
     vm_name                     = "server-vm"
@@ -72,6 +73,6 @@ vm_config_list = [{
     subnet_name                 = "same-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
-    zone_suffix                 = "a"
+    zone_suffix                 = "c"
   }
 ]
