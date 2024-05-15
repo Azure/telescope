@@ -14,7 +14,7 @@ network_config_list = [
       {
         name        = "app-subnet"
         cidr_block  = "10.1.2.0/24"
-        zone_suffix = "b"
+        zone_suffix = "c"
     }]
     security_group_name = "server-sg"
     route_tables = [
