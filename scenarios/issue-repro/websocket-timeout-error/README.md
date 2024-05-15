@@ -150,7 +150,7 @@ Once resources are provisioned, make sure to go to Azure portal to verify the re
 
 ### Validate Resources
 Validate Standard Load Balancer (SLB) is running and ready for traffic
-```
+```bash
 SLB_ID=$(az resource list --resource-type Microsoft.Network/loadBalancers --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$INGRESS_ROLE')].id" --output tsv)
 SLB_PIP_ID=$(az network lb show --ids $SLB_ID --query frontendIPConfigurations[0].publicIPAddress.id --output tsv)
 SLB_PUBLIC_IP=$(az network public-ip show --ids $SLB_PIP_ID --query ipAddress -o tsv)
@@ -158,16 +158,14 @@ SLB_PUBLIC_IP=$(az network public-ip show --ids $SLB_PIP_ID --query ipAddress -o
 
 ### Execute Tests
 Run client and simulate multiple TCP connections with WebSocket protocol through Azure standard load balancer
-```
-
-ssh -i $ssh_key_path -p 2222 ubuntu@52.168.52.247 "docker run -e SERVER_ADDRESS=${SLB_PUBLIC_IP}" telescope.azurecr.io/issue-repro/websocket-server:v1.1.9" > docker_output.log
-
+```bash
+ssh -i $ssh_key_path -p 2222 ubuntu@52.168.52.247 "docker run -e SERVER_ADDRESS=${SLB_PUBLIC_IP} telescope.azurecr.io/issue-repro/websocket-server:v1.1.9" > docker_output.log
 ```
 Then wait for the test to finish execution
 
 ### Collect Results
 Get the results stored in the log file by running command as below:
-```
+```bash
 cat docker_output.log
 {
   "websocket_duration_map": "{\"240\":500}",
@@ -180,7 +178,6 @@ cat docker_output.log
   "error_log": "Connecting to wss://52.174.62.244:443/ws\n500 total connections to be established\n500 parallel connections to be established\nSet client timeout to 240 seconds\n{\"240\":500}\nTotal number of premature closures: 0"
 }
 ```
-if executionState field is succeeded, check output field for test results
 
 ### Cleanup Resources
 Once your test is done, you can destroy the resources using Terraform.
@@ -210,3 +207,5 @@ az group delete --name $RUN_ID
 ## References
 
 * [Azure Portal](https://portal.azure.com/)
+* [Go WebSocket](https://pkg.go.dev/github.com/gorilla/websocket@v1.5.1)
+* [Docker](https://docs.docker.com/get-started/overview/)
