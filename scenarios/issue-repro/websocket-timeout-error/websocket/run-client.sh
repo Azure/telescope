@@ -5,6 +5,7 @@ code=$?
 if [[ $code -eq 0 ]]; then
   websocket_duration_map=$(cat log.txt | grep -o '{.*}')
   premature_closure_count=$(grep -oE 'Total number of premature closures: [0-9]+' log.txt | cut -d' ' -f6)
+  error_log=$(cat log.txt)
   jq --null-input \
     --arg websocket_duration_map "$websocket_duration_map" \
     --arg premature_closure_count "$premature_closure_count" \
@@ -13,7 +14,7 @@ if [[ $code -eq 0 ]]; then
     --arg total_connections "$TOTAL_CONNECTIONS" \
     --arg parallel_connections "$PARALLEL_CONNECTIONS" \
     --arg client_timeout "$CLIENT_TIMEOUT" \
-    --arg error_log "$(cat log.txt)"
+    --arg error_log "$error_log"
     '{websocket_duration_map: $websocket_duration_map, premature_closure_count: $premature_closure_count,server_address: $server_address, server_port: $server_port, total_connections: $total_connections, parallel_connections: $parallel_connections, client_timeout: $client_timeout, error_log: $error_log}'
 else
   echo "Client exited with error"

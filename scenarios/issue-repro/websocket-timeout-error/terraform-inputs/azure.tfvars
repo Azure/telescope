@@ -1,5 +1,5 @@
 scenario_type  = "issue-repro"
-scenario_name  = "lb-websocket-time-out-error"
+scenario_name  = "lb-websocket-timeout-error"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
