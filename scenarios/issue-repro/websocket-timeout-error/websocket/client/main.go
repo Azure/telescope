@@ -107,7 +107,6 @@ func createTlsConfig() *tls.Config {
 func connect(config *tls.Config, url string, websocketTimeout time.Duration) float64 {
 	dialer := websocket.DefaultDialer
 	dialer.TLSClientConfig = config
-	dialer.HandshakeTimeout = 10 * time.Second
 	conn, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		log.Fatal("Error connecting to WebSocket server:", err)
