@@ -231,54 +231,6 @@ After terraform destroys all the resources delete resource group manually.
 az group delete --name $RUN_ID
 ```
 
-### Create VM on a specific Cluster with Pre-Release Hardware using TipNode Session:
-
-####  Prerequisites
-* Follow this [TipNode Session Setup guide](https://dev.azure.com/msazure/AzureWiki/_wiki/wikis/AzureWiki.wiki/405559/Tip-On-AME?anchor=1.-powershell) to setup SAW machine to create the session.
-
-* Check if your cluster is whitelisted for your subscription:
-```
-https://kusto.azure.com/clusters/azurecm/databases/AzureCM?query=H4sIAAAAAAAAA72TTU%2BDQBCG7%2F0VEy4FQzhYj9Kkfp3sR1KiRzOw03ZbdpfsLkEa4293KdTYxkZjVC4wy8w7b56ZzfLSWNJ%2BH7elpkxEGxerqOKSqcpEkmw%2FiBhaTNGQ3x81Wddjd5aMx0th7zDVPJuTtVwub22VYJpT7wWqFWmCCQqCOAavTYtGea6qqczrxxW3dM9dZzYvU5NpXliupJnqWY52obRISKK0ibqhIle1BygZzJxBbijhguYWRQFDwKXyByzY%2FX7AvCRYoXlCWfteokvyQvBs8w6cJ1MKgZpvCVAvBT77x3ohnAWQ1tD2Dnf2w1Y2hHs0dqwYX3BiV7WTK7RaU2YPss8h%2FljVhKfK14pL2DjMMZfSDQCgB%2B7JjubxA%2FqNzKkJNMyniwPmu6EQ26OeymTFzXVr4yvuXa9fJdtKfkZ3cEh3cJJuAEp2lZ%2BQ%2FjPObvXeQSe8aNd9QpX7nihGczKmAf4Ly%2Fyv2C8OsV98E3sLpg0hfgXvsluqRmvonbpB%2B6tzrN6twH72nbW9pzfj8O8BxwQAAA%3D%3D
-
-cluster('azurecm.kusto.windows.net').database('AzureCM').TMMgmtFabricSettingEtwTable
-| where Name == "Fabric.AllowOnlyWhiteListedSubscriptionsOrPlatformTenantToDeploy" and PreciseTimeStamp > ago(3d) and Value has_any("True", "true")
-| summarize argmax(PreciseTimeStamp, *) by Tenant, Name, Value, LastModifiedBy
-| project Tenant, Name2 = Name, Value2 = Value, LastModifiedBy
-| join kind=inner(  
-    cluster('azurecm').database('AzureCM').TMMgmtFabricSettingEtwTable
-    | where Name == "Fabric.ListOfSubscriptionsAllowedToDeployOnThisCluster" and PreciseTimeStamp > ago(3d)
-    | summarize argmax(PreciseTimeStamp, *) by Tenant, Name, Value, LastModifiedBy
-    | project Tenant, Name3 = Name, Value3 = Value, LastModifiedBy
-) on Tenant
-| join kind=inner(
-    cluster('azurecm').database('AzureCM').TMMgmtFabricSettingEtwTable
-    | where Name has "Fabric.Tip.AllowNewTipNodeSessions" and PreciseTimeStamp > ago(3d) and Value has_any("True", "true")
-    | summarize argmax(PreciseTimeStamp, *) by Tenant, Name, Value, LastModifiedBy
-    | project Tenant, Name4 = Name, Value4 = Value, LastModifiedBy
-) on Tenant
-| where Tenant =~ "<ClusterName>"
-| project Tenant, Name2, Value2, LastModifiedBy, Name3, Value3, Name4, Value4
-```
-
-
-Once you are registerd with TipNode service create TipNode Session for the cluster using Node count, Cluster Name and SubscriptionID.
-```powershell
-
-New-TipNodeSession `
-  -NodeCount 2 `
-  -ClusterName "<YourClusterName>"
-  -SubscriptionId "<YourSubId>"
-```
-**Note**: This command needs to run only on SAW machine
-
-Follow Instructions on this link to deploy VM using ARM template
-[TiPNode_UserGuide_VMDeployment_Using_AvailabilitySet](https://dev.azure.com/msazure/AzureWiki/_wiki/wikis/AzureWiki.wiki/3461/TiPNode_UserGuide_VMDeployment_Using_AvailabilitySet)
-
-**Notes**: This can be done from both SAW and Non-SAW machines.
-
 ## References
 
 * [Azure Portal](https://portal.azure.com/)
-* [TiPNode_UserGuide_TiPOnRestrictedClusters](https://dev.azure.com/msazure/AzureWiki/_wiki/wikis/AzureWiki.wiki/271738/TiPNode_UserGuide_TiPOnRestrictedClusters?anchor=do-you-have-any-useful-kusto-queries-for-fabric-settings-relevant-to-this-feature-on-a-cluster%3F)
-* [TiPNode_UserGuide_VMDeployment_Using_AvailabilitySet](https://dev.azure.com/msazure/AzureWiki/_wiki/wikis/AzureWiki.wiki/3461/TiPNode_UserGuide_VMDeployment_Using_AvailabilitySet)
-* [TiPNode_UserGuide_HowTo_ExtendTiPNodeSession](https://dev.azure.com/msazure/AzureWiki/_wiki/wikis/AzureWiki.wiki/3462/TiPNode_UserGuide_HowTo_ExtendTiPNodeSession)
