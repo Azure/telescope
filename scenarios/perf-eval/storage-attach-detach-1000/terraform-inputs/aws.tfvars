@@ -74,7 +74,7 @@ eks_config_list = [{
     {
       name           = "node-group-1"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m7i.xlarge"]
+      instance_types = ["m7i.2xlarge"]
       min_size       = 40
       max_size       = 40
       desired_size   = 40
