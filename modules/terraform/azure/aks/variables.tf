@@ -57,6 +57,7 @@ variable "aks_config" {
       os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
+      max_pods                     = optional(number, null)
     })
     extra_node_pool = list(object({
       name         = string

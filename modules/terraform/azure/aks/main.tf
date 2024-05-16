@@ -27,6 +27,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     os_disk_type                 = var.aks_config.default_node_pool.os_disk_type
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
+    max_pods                     = var.aks_config.default_node_pool.max_pods
   }
 
   network_profile {

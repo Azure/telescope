@@ -190,6 +190,7 @@ variable "aks_config_list" {
       vm_size      = string
       os_sku       = optional(string)
       os_disk_type = optional(string)
+      max_pods     = optional(number)
     }))
     role_assignment_list = optional(list(string), [])
   }))

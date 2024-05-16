@@ -58,6 +58,7 @@ aks_config_list = [
       vm_size                      = "Standard_D4s_v5"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
+      max_pods                     = 250
     }
     extra_node_pool = [
       {
