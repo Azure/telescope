@@ -62,7 +62,6 @@ aks_config_list = [
     extra_node_pool = [
       {
         name       = "userpool"
-        node_count = 30
         vm_size    = "Standard_D4s_v5"
         max_pods   = 250
       }
