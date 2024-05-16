@@ -65,6 +65,7 @@ variable "aks_config" {
       vm_size      = string
       os_sku       = optional(string, "Ubuntu")
       os_disk_type = optional(string, "Managed")
+      max_pods     = optional(number, null)
     }))
     role_assignment_list = optional(list(string), [])
   })
