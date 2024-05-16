@@ -35,8 +35,7 @@ agc_config_list = [
       "frontend-1",
       "frontend-2",
       "frontend-3",
-      "frontend-4",
-      "frontend-5",
+      "frontend-4"
     ]
   }
 ]
