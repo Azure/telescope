@@ -6,10 +6,10 @@ network_config_list = [
   {
     role               = "agcperf"
     vnet_name          = "agcperf-vnet"
-    vnet_address_space = "10.10.0.0/16"
+    vnet_address_space = "10.224.0.0/12"
     subnet = [{
       name           = "aks-network-agc"
-      address_prefix = "10.10.0.0/24"
+      address_prefix = "10.225.0.0/24"
       delegations = [{
         name                       = "Microsoft.ServiceNetworking.trafficControllers"
         service_delegation_name    = "Microsoft.ServiceNetworking/trafficControllers"
@@ -18,7 +18,7 @@ network_config_list = [
       },
       {
         name           = "aks-network-aks"
-        address_prefix = "10.10.1.0/24"
+        address_prefix = "10.224.0.0/16"
     }]
     network_security_group_name = ""
     nic_public_ip_associations  = []
