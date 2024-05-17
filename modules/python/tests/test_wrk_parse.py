@@ -2,7 +2,7 @@ import unittest
 import json
 from wrk.parser import parse_wrk_result
 
-class TestJmeterParser(unittest.TestCase):
+class TestWrkParser(unittest.TestCase):
 
   def test_parse_wrk_empty_file(self):
     file_name = "tests/wrk/empty.txt"

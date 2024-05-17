@@ -181,6 +181,7 @@ variable "aks_config_list" {
       os_disk_type                 = optional(string)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
+      max_pods                     = optional(number)
     })
     extra_node_pool = list(object({
       name         = string
@@ -189,6 +190,7 @@ variable "aks_config_list" {
       vm_size      = string
       os_sku       = optional(string)
       os_disk_type = optional(string)
+      max_pods     = optional(number)
     }))
     role_assignment_list = optional(list(string), [])
   }))

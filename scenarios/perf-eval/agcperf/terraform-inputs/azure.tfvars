@@ -35,8 +35,7 @@ agc_config_list = [
       "frontend-1",
       "frontend-2",
       "frontend-3",
-      "frontend-4",
-      "frontend-5",
+      "frontend-4"
     ]
   }
 ]
@@ -58,12 +57,14 @@ aks_config_list = [
       vm_size                      = "Standard_D4s_v5"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
+      max_pods                     = 250
     }
     extra_node_pool = [
       {
         name       = "userpool"
         node_count = 3
         vm_size    = "Standard_D4s_v5"
+        max_pods   = 250
       }
     ]
     role_assignment_list = ["Network Contributor"]
