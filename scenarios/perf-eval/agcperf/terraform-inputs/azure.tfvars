@@ -54,7 +54,7 @@ aks_config_list = [
       name                         = "systempool"
       node_count                   = 3
       os_disk_type                 = "Managed"
-      vm_size                      = "Standard_D4s_v5"
+      vm_size                      = "Standard_D4s_v3"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
       max_pods                     = 250
@@ -63,7 +63,7 @@ aks_config_list = [
       {
         name       = "userpool"
         node_count = 3
-        vm_size    = "Standard_D4s_v5"
+        vm_size    = "Standard_D4s_v3"
         max_pods   = 250
       }
     ]
