@@ -423,7 +423,7 @@ We currently have 4 CI checks in place for GitHub Workflows:
       tflint --init
       tflint --recursive --config "$(pwd)/.tflint.hcl"  --minimum-failure-severity=warning
       ```
-  * To fix terraform lint errors that are fixable use using this command `tflint --recursive --config "$(pwd)/.tflint.hcl" --fix`
+  * To fix terraform lint errors that are fixable use this command `tflint --recursive --config "$(pwd)/.tflint.hcl" --fix`
 
 # GitHub tag Scenarios:
 - Sample github tag looks like this v1.0.33 which represents Version MAJOR.MINOR.PATCH
