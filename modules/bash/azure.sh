@@ -190,3 +190,16 @@ azure_create_vnet_peering()
         done
     done
 }
+
+azure_aks_enable_addons() {
+  local resource_group=$1
+  local aks_cluster=$2
+  local addons=$3
+  local subnet_name=$4
+
+  az aks enable-addons \
+    --resource-group $resource_group \
+    --name $aks_cluster \
+    --addons $addons \
+    --subnet-name $subnet_name
+}
