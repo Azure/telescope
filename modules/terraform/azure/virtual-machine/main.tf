@@ -38,7 +38,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     },
   )
 
-  zone = var.vm_config.zone
+  # zone = var.vm_config.zone
 
   additional_capabilities {
     ultra_ssd_enabled = var.ultra_ssd_enabled
