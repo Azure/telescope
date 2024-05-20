@@ -19,6 +19,8 @@ locals {
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
   storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
+  # storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
+  # storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
 
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
