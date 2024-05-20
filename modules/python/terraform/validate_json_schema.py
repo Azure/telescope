@@ -2,14 +2,14 @@ import sys
 import json
 from jsonschema import  Draft7Validator
 
-def validate_json_schema(json_file, schema_file):
-    # Load JSON file
-    with open(json_file, 'r') as f:
-        json_data = json.load(f)
-
+def validate_json_schema(schema_file, json_file):
     # Load JSON schema
     with open(schema_file, 'r') as f:
         schema = json.load(f)
+    
+    # Load JSON file
+    with open(json_file, 'r') as f:
+        json_data = json.load(f)
 
     # Validate JSON against schema
     validator = Draft7Validator(schema)
@@ -31,4 +31,4 @@ if __name__ == "__main__":
     json_file_path = sys.argv[2]
 
     # Validate JSON against schema
-    print(validate_json_schema(json_file_path, schema_file_path))
+    print(validate_json_schema(schema_file_path, json_file_path))

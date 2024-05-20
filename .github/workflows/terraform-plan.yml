@@ -103,7 +103,11 @@ jobs:
         - name: Create JSON Input & Validate the schema
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}", "public_key_path": "${{ env.SSH_KEY_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-            python ${{ env.PYTHON_MODULES_DIR }}/terraform/validate_json_schema.py "${{ env.TERRAFORM_MODULES_DIR }}/${{ matrix.cloud }}_input_schema.json" ${{ env.TERRAFORM_TEST_INPUT_FILE }}
+            validation_response=$(python ${{ env.PYTHON_MODULES_DIR }}/terraform/validate_json_schema.py "${{ env.TERRAFORM_MODULES_DIR }}/${{ matrix.cloud }}_input_schema.json" ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+            if validation_response["isValid"] == "false"; then
+              echo "Error: JSON input validation failed: \n ${validation_response["errors"]}"
+              exit 1
+            fi
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
