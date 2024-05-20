@@ -7,7 +7,8 @@ sudo service ssh restart
 
 sudo apt-get update
 sudo apt-get install build-essential libssl-dev git unzip -y
-git clone https://github.com/wg/wrk.git wrk
-cd wrk
+wget https://github.com/wg/wrk/archive/refs/tags/4.2.0.tar.gz
+tar -xzvf 4.2.0.tar.gz
+cd wrk-4.2.0
 make
 sudo cp wrk /usr/local/bin
