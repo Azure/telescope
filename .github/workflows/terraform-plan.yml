@@ -103,9 +103,13 @@ jobs:
         - name: Create JSON Input & Validate the schema
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}", "public_key_path": "${{ env.SSH_KEY_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-            validation_response=$(python ${{ env.PYTHON_MODULES_DIR }}/terraform/validate_json_schema.py "${{ env.TERRAFORM_MODULES_DIR }}/${{ matrix.cloud }}_input_schema.json" ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-            if validation_response["isValid"] == "false"; then
-              echo "Error: JSON input validation failed: \n ${validation_response["errors"]}"
+            validation_response=$(python ${{ env.PYTHON_MODULES_DIR }}/terraform/validate_json_schema.py "${{ env.TERRAFORM_MODULES_DIR }}/${{ matrix.cloud }}_input_schema.json" ${{ env.TERRAFORM_TEST_INPUT_FILE }})            
+            is_valid=$(echo "$validation_response" | jq -r '.isValid')
+            errors=$(echo "$validation_response" | jq -r '.errors | join("\n")')
+            
+            # Check if the validation is valid
+            if [ "$is_valid" == "false" ]; then
+              echo "Error: JSON input validation failed: \n $errors"
               exit 1
             fi
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
