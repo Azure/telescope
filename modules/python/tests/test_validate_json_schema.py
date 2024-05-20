@@ -33,7 +33,7 @@ class TestValidateJsonSchema(unittest.TestCase):
 
         # Assert that the validation succeeded
         self.assertTrue(result['isValid'])
-        self.assertIsNone(result['errors'])
+        self.assertEqual("", result['errors'])
 
     def test_validate_json_schema_invalid(self):
         # Mock an invalid JSON data (missing "region")
@@ -50,7 +50,7 @@ class TestValidateJsonSchema(unittest.TestCase):
 
         # Assert that the validation failed
         self.assertFalse(result['isValid'])
-        self.assertIsNotNone(result['errors'])
+        self.assertNotEqual("", result['errors'])
         self.assertIn("'region' is a required property", result['errors'])
         self.assertIn("'run_id' is a required property", result['errors'])
         self.assertIn("Additional properties are not allowed ('RUN_ID', 'ZONE' were unexpected)", result['errors'])

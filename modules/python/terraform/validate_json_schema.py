@@ -17,7 +17,7 @@ def validate_json_schema(schema_file, json_file):
 
     return {
         "isValid": not errors,
-        "errors": None if not errors else [error.message for error in errors]
+        "errors": "" if not errors else [error.message for error in errors]
     }
 
 if __name__ == "__main__":
