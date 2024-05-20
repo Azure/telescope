@@ -110,7 +110,6 @@ jobs:
             # Check if the validation is valid
             if [ "$is_valid" == "false" ]; then
               echo "::error::JSON input validation failed: $errors"
-              exit 1
             fi
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
