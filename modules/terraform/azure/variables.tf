@@ -115,10 +115,10 @@ variable "appgateway_config_list" {
       name         = string
       ip_addresses = list(string)
     }))
-    appgateway_frontendport = object({
+    appgateway_frontend_ports = list(object({
       name = string
       port = string
-    })
+    }))
     appgateway_backend_http_settings = list(object({
       name                  = string
       host_name             = string
@@ -133,7 +133,7 @@ variable "appgateway_config_list" {
       frontend_ip_configuration_name = string
       frontend_port_name             = string
       protocol                       = string
-      host_name                      = string
+      host_name                      = optional(string)
     }))
     appgateway_request_routing_rules = list(object({
       name                       = string
@@ -181,6 +181,7 @@ variable "aks_config_list" {
       os_disk_type                 = optional(string)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
+      max_pods                     = optional(number)
     })
     extra_node_pool = list(object({
       name         = string
@@ -189,6 +190,7 @@ variable "aks_config_list" {
       vm_size      = string
       os_sku       = optional(string)
       os_disk_type = optional(string)
+      max_pods     = optional(number)
     }))
     role_assignment_list = optional(list(string), [])
   }))
