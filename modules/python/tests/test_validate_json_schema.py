@@ -48,7 +48,6 @@ class TestValidateJsonSchema(unittest.TestCase):
             mock_file.side_effect = [StringIO(json.dumps(self.schema)), StringIO(json.dumps(json_data_invalid ))]
             result = validate_json_schema('schema.json', 'invalid_data.json')
 
-        print(result)
         # Assert that the validation failed
         self.assertFalse(result['isValid'])
         self.assertIsNotNone(result['errors'])

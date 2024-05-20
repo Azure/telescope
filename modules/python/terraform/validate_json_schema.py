@@ -31,4 +31,5 @@ if __name__ == "__main__":
     json_file_path = sys.argv[2]
 
     # Validate JSON against schema
-    print(validate_json_schema(schema_file_path, json_file_path))
+    result = validate_json_schema(schema_file_path, json_file_path)
+    print(json.dumps(result))
