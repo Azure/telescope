@@ -10,8 +10,6 @@ on:
 env:
   AWS_REGION: us-east-1
   PYTHON_MODULES_DIR: modules/python
-  AWS_JSON_SCHEMA:  modules/terraform/aws/aws_input_schema.json
-  AZURE_JSON_SCHEMA: modules/terraform/azure/azure_input_schema.json
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
