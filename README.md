@@ -446,9 +446,20 @@ Note:
  - Tags displayed in the above table are examples.
  - All the GitHub Version tags are found [here](https://github.com/Azure/telescope/tags)
 
+## Modify properties in JSON schema:
+To Modify the AWS and Azure input JSON schema, follow these steps:
+
+- [AWS-Schema](./modules/terraform/aws/aws_input_schema.json) 
+- [Azure-Schema](./modules/terraform/azure/azure_input_schema.json)
+
+1. Use schemas referenced above to Add or modify necessary properties in the JSON schema file.
+2. Update the schema whenever there is change in input json
+3. Make sure to include unit tests for updated changes.
+
 ## References
 
 * [GitHub Workflows](https://docs.github.com/en/actions/using-workflows)
 * [Terraform Fmt command](https://developer.hashicorp.com/terraform/cli/commands/fmt)
 * [Terraform validate command](https://developer.hashicorp.com/terraform/cli/commands/validate)
 * [Python Unit Tests](https://docs.python.org/3/library/unittest.html)
+* [JSON-Schema](https://json-schema.org/learn/getting-started-step-by-step)
