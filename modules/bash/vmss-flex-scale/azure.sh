@@ -34,7 +34,7 @@ create_vmss() {
     local admin_username="${12:-"azureuser"}"
     local admin_password="${13:-"Azur3User!FTW"}"
 
-    az vmss create --name "$vmss_name" --resource-group "$resource_group" --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" --subnet "$subnet" --security-type "$security_type" --tags $tags --admin-username "$admin_username" --admin-password "$admin_password" -o json 2> /tmp/$resource_group-$vmss_name-create_vmss-error.txt > /tmp/$resource_group-$vmss_name-create_vmss-output.txt
+    az vmss create --name "$vmss_name" --resource-group "$resource_group" --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" --subnet "$subnet" --security-type "$security_type" --load-balancer "" --tags $tags --admin-username "$admin_username" --admin-password "$admin_password" -o json 2> /tmp/$resource_group-$vmss_name-create_vmss-error.txt > /tmp/$resource_group-$vmss_name-create_vmss-output.txt
 
     exit_code=$?
 

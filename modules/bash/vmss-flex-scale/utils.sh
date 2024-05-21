@@ -4,18 +4,16 @@
 #   This function is used to generate a VMSS name
 #
 # Parameters:
-#   - $1: The index of the VMSS
-#   - $2: The run id
+#   - $1: The run id
 #
 # Notes:
 #   - the VMSS name is truncated to 15 characters due to Windows limitations
 #
-# Usage: get_vmss_name <index> <run_id>
+# Usage: get_vmss_name <run_id>
 get_vmss_name() {
-    local i=$1
-    local run_id=$2
+    local run_id=$1
 
-    local vmss_name="vmss-$i-$run_id"
+    local vmss_name="vmss-$run_id"
     vmss_name="${vmss_name:0:15}"
     vmss_name="${vmss_name%-}"
 
@@ -139,6 +137,8 @@ measure_create_vmss() {
         ;;
         aws)
             # AWS Method call
+            #end time
+            # describe for data
             echo "AWS not implemented yet."
             exit 1
         ;;
@@ -153,7 +153,11 @@ measure_create_vmss() {
     esac
 
     wait
+
+
     end_time=$(date +%s)
+
+
 
     if [[ -n "$vmss_data" ]]; then
         succeeded=$(echo "$vmss_data" | jq -r '.succeeded')
