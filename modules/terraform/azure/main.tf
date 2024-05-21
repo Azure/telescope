@@ -18,9 +18,9 @@ locals {
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
-  storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
-  storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
   storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
+  # storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
+  # storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
 
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
@@ -47,10 +47,15 @@ locals {
 }
 
 terraform {
+  required_version = ">=1.5.6"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "<= 3.93.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">=3.1.0"
     }
 
     helm = {
@@ -82,7 +87,6 @@ module "public_ips" {
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
   tags                  = local.tags
-
 }
 
 module "virtual_network" {
@@ -224,7 +228,6 @@ resource "random_string" "storage_account_random_suffix" {
   numeric          = true
   override_special = "_-"
 }
-
 
 module "storage_account" {
   source = "./storage-account"

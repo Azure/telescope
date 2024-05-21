@@ -2,36 +2,36 @@
 data "aws_vpc" "client_vpc" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.client_vpc_name}"]
+    values = [var.client_vpc_name]
   }
 }
 
 data "aws_subnet" "client_subnet" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.client_subnet_name}"]
+    values = [var.client_subnet_name]
   }
 }
 
 data "aws_security_group" "security_group" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.client_security_group_name}"]
+    values = [var.client_security_group_name]
   }
 }
 

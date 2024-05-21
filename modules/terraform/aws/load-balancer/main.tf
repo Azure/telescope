@@ -25,12 +25,12 @@ data "aws_security_group" "lb_security_group" {
   count = var.loadbalancer_config.security_group_name != null ? 1 : 0
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.loadbalancer_config.security_group_name}"]
+    values = [var.loadbalancer_config.security_group_name]
   }
 }
 
