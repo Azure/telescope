@@ -404,7 +404,7 @@ For example, if you want to update the `lb-same-zone-iperf` test scenario, then 
 
 ### CI checks
 
-We currently have 3 CI checks in place for GitHub Workflows:
+We currently have 4 CI checks in place for GitHub Workflows:
 
 * [Terraform Validate](https://github.com/Azure/telescope/actions/workflows/terraform-validate.yml): this one performs a dry run of the terraform code to validate that the `hcl` format and syntax is correct. It's triggered automatically when a PR is created or updated based on the changes in the PR.
   * To run the local format check run  this command `terraform fmt --check -recursive --diff`
@@ -416,6 +416,14 @@ We currently have 3 CI checks in place for GitHub Workflows:
 * [Terraform Plan](https://github.com/Azure/telescope/blob/main/.github/workflows/terraform-plan.yml): This workflow creates terraform plan for all the tests scenarios to make sure all terraform inputs are provided properly and check all required inputs for a test scenario. It's triggered automatically when a PR is created or updated based on the test scenario changes in the PR.
 * [Python Unit Tests](https://github.com/Azure/telescope/actions/workflows/python-unit-tests.yml): this one runs the unit tests for all `py` related files to make sure python code is tested and validated. It's triggered automatically when a PR is created or updated based on the changes in the PR.
   * To run the tests locally, you can run the `python -m unittest discover` command in the python module folder of the repository.
+* [Lint Checker](https://github.com/Azure/telescope/actions/workflows/code-format-validation.yml): This workflow checks for terraform lint errors and also check if the scenario folder name is not greater than 30 characters long.
+  * Use these command to setup tflint on local machine.
+      ```bash
+      curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+      tflint --init
+      tflint --recursive --config "$(pwd)/.tflint.hcl"  --minimum-failure-severity=warning
+      ```
+  * To fix terraform lint errors that are fixable use this command `tflint --recursive --config "$(pwd)/.tflint.hcl" --fix`
 
 # GitHub tag Scenarios:
 - Sample github tag looks like this v1.0.33 which represents Version MAJOR.MINOR.PATCH
@@ -463,3 +471,4 @@ To Modify the AWS and Azure input JSON schema, follow these steps:
 * [Terraform validate command](https://developer.hashicorp.com/terraform/cli/commands/validate)
 * [Python Unit Tests](https://docs.python.org/3/library/unittest.html)
 * [JSON-Schema](https://json-schema.org/learn/getting-started-step-by-step)
+* [Tflint](https://github.com/terraform-linters/tflint?tab=readme-ov-file)

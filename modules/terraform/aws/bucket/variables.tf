@@ -13,12 +13,6 @@ variable "object_config" {
   default = null
 }
 
-variable "user_data_path" {
-  description = "User data path for bucket object to be uploaded"
-  type        = string
-  default     = ""
-}
-
 variable "run_id" {
   description = "Value of the run id"
   type        = string

@@ -9,7 +9,7 @@ locals {
 data "aws_subnets" "subnets" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {

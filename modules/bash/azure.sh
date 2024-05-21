@@ -76,7 +76,14 @@ azure_get_vm_info() {
 azure_get_1st_storage_account_name_by_rg() {
   local resource_group=$1
 
-  storage_account_name=$(az storage account list -g $resource_group --query "[].name" -o tsv | head -n 1)
+  resource_group_names=$(az group list --query "[?contains(name, '$resource_group')].name" -o tsv)
+
+  for resource_group_name in $resource_group_names; do
+    storage_account_name=$(az storage account list -g $resource_group_name --query "[].name" -o tsv | head -n 1)
+    if [ -n "$storage_account_name" ]; then
+      break
+    fi
+  done
   echo $storage_account_name
 }
 

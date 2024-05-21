@@ -10,12 +10,6 @@ variable "location" {
   default     = "East US"
 }
 
-variable "pip_id" {
-  description = "ID of the public ip"
-  type        = string
-  default     = ""
-}
-
 variable "loadbalancer_config" {
   description = "Configuration for the load balancer."
   type = object({

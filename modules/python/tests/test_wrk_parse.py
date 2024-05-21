@@ -13,31 +13,38 @@ class TestWrkParser(unittest.TestCase):
   def test_parse_wrk_output_file(self):
     file_name = "tests/wrk/result.txt"
     expected_result = {
-      "duration": "10s",
+      "duration": { "value": 1.0, "unit": "m" },
       "url": "http://localhost",
       "threads": 10,
-      "connections": 25,
+      "connections": 125,
       "latency_stats": {
-        "avg": "5.84ms",
-        "stdev": "1.55ms",
-        "max": "24.01ms",
-        "percent_within_stdev": "97.20%"
+        "avg": { "value": 375.32, "unit": "us" },
+        "stdev": { "value": 620.53, "unit": "us" },
+        "max": { "value": 12.26, "unit": "ms" },
+        "within_stdev": { "value": 86.68, "unit": "%"}
       },
       "req_sec_stats": {
-        "avg": "343.46",
-        "stdev": "17.84",
-        "max": "383.00",
-        "percent_within_stdev": "70.30%"
+        "avg": { "value": 48.23, "unit": "k" },
+        "stdev": { "value": 21.85, "unit": "k" },
+        "max": { "value": 102.69, "unit": "k" },
+        "within_stdev": { "value": 67.24, "unit": "%"}
       },
       "latency_distribution": {
-        "50th_percentile": "5.59ms",
-        "75th_percentile": "5.69ms",
-        "90th_percentile": "5.81ms",
-        "99th_percentile": "15.08ms"
+        "50th_percentile": { "value": 116.0, "unit": "us" },
+        "75th_percentile": { "value": 211.0, "unit": "us" },
+        "90th_percentile": { "value": 1.25, "unit": "ms" },
+        "99th_percentile": { "value": 2.93, "unit": "ms" }
       },
-      "total_requests": 34221,
-      "requests_per_sec": 3418.87,
-      "transfer_per_sec": "2.80MB"
+      "total_requests": 20014600,
+      "total_read": { "value": 7.19, "unit": "GB"},
+      "socket_errors": {
+        "connect": 120,
+        "read": 0,
+        "write": 0,
+        "timeout": 0
+      },
+      "requests_per_sec": 333044.61,
+      "transfer_per_sec": {"value": 122.58, "unit": "MB"}
     }
 
     expected_result = json.dumps(expected_result)
