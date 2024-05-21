@@ -57,6 +57,16 @@ variable "storage_blob_config" {
   default = null
 }
 
+# TODO - Add support for storage network rules
+# variable "storage_network_rules_config" {
+#   description = "storage network rules config"
+#   type = object({
+#     default_action             = string
+#     virtual_network_subnet_ids = list(string)
+#   })
+#   default = null
+# }
+
 variable "enable_https_traffic_only" {
   description = "enable https traffic only"
   type        = bool
