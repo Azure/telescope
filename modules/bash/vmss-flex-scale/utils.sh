@@ -73,7 +73,7 @@ measure_create_delete_vmss() {
         - VM instances: $vm_instances
         - Region: $region
         - Network Security Group: $network_security_group
-		- VNet: $vnet_name
+        - VNet: $vnet_name
         - Subnet: $subnet
         - Security type: $security_type
         - Tags: $tags"
@@ -185,7 +185,7 @@ measure_create_vmss() {
     }"
 
     mkdir -p "$result_dir"
-    echo $result > "$result_dir/creation-$cloud-$vmss_name-$vmss_size-$(date +%s).json"
+    echo $result > "$result_dir/creation-$cloud-$vmss_name-$vm_instances-$(date +%s).json"
 
     if [[ "$creation_succeeded" == "true" ]]; then
         echo "$vmss_id"
@@ -260,7 +260,7 @@ measure_delete_vmss() {
     }"
 
     mkdir -p "$result_dir"
-    echo $result > "$result_dir/deletion-$cloud-$vmss_name-$vmss_size-$(date +%s).json"
+    echo $result > "$result_dir/deletion-$cloud-$vmss_name-$vm_instances-$(date +%s).json"
 
     if [[ "$deletion_succeeded" == "true" ]]; then
         echo "$vmss_name"

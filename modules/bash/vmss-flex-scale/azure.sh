@@ -60,7 +60,7 @@ create_vmss() {
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
                     --argjson vmss_data "${error:7}" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
