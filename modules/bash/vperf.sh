@@ -22,48 +22,30 @@ setup_cluster() {
     azure_aks_get_credentials $resource_group $aks_cluster
 }
 
-# Define the function to deploy a sample app
-deploy_sample_app() {
+# Define the function to create a pod
+create_pod() {
 
     # Create a file named virtual-node.yaml
     cat << EOF > virtual-node.yaml
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Pod
 metadata:
-  name: aci-helloworld
+  name: my-pod
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: aci-helloworld
-  template:
-    metadata:
-      labels:
-        app: aci-helloworld
-    spec:
-      containers:
-      - name: aci-helloworld
-        image: mcr.microsoft.com/azuredocs/aci-helloworld
-        ports:
-        - containerPort: 80
-      nodeSelector:
-        kubernetes.io/role: agent
-        beta.kubernetes.io/os: linux
-        type: virtual-kubelet
-      tolerations:
-      - key: virtual-kubelet.io/provider
-        operator: Exists
-      - key: azure.com/aci
-        effect: NoSchedule
+  containers:
+  - name: my-container
+    image: nginx
+    ports:
+    - containerPort: 80
 EOF
 
-    run_kubectl_command "apply -f virtual-node.yaml"
+    run_kubectl_command "create -f virtual-node.yaml"
 
     run_kubectl_command "get pods -o wide"
 }
 
-# Define the function to setup cluster, deploy app and get pods
-setup_deploy_and_get_pods() {
+# Define the function to setup cluster, create pod and get pods
+setup_create_and_get_pods() {
     local resource_group=$1
     local aks_cluster=$2
     local addons=$3
@@ -75,11 +57,11 @@ setup_deploy_and_get_pods() {
     # Setup cluster
     setup_cluster $resource_group $aks_cluster $addons $subnet_name
 
-    # Deploy sample app
-    deploy_sample_app
+    # Create pod
+    create_pod
 
     # Stop the timer
     end_time=$(date +%s)
     execution_time=$(expr $end_time - $start_time)
-    echo "Deployment completed in $execution_time seconds"
+    echo "Pod creation completed in $execution_time seconds"
 }
