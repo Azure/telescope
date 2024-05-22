@@ -27,21 +27,37 @@ create_pod() {
 
     # Create a file named virtual-node.yaml
     cat << EOF > virtual-node.yaml
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: my-pod
+  name: aci-helloworld
 spec:
-  containers:
-  - name: my-container
-    image: nginx
-    ports:
-    - containerPort: 80
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aci-helloworld
+  template:
+    metadata:
+      labels:
+        app: aci-helloworld
+    spec:
+      containers:
+      - name: aci-helloworld
+        image: mcr.microsoft.com/azuredocs/aci-helloworld
+        ports:
+        - containerPort: 80
+      nodeSelector:
+        kubernetes.io/role: agent
+        beta.kubernetes.io/os: linux
+        type: virtual-kubelet
+      tolerations:
+      - key: virtual-kubelet.io/provider
+        operator: Exists
+      - key: azure.com/aci
+        effect: NoSchedule
 EOF
 
-    run_kubectl_command "create -f virtual-node.yaml"
-
-    run_kubectl_command "get pods -o wide"
+    run_kubectl_command "apply -f virtual-node.yaml"
 }
 
 # Define the function to setup cluster, create pod and get pods
@@ -50,9 +66,7 @@ setup_create_and_get_pods() {
     local aks_cluster=$2
     local addons=$3
     local subnet_name=$4
-
-    # Start the timer
-    start_time=$(date +%s)
+    local namespace="default" # Pods will be created in the default namespace
 
     # Setup cluster
     setup_cluster $resource_group $aks_cluster $addons $subnet_name
@@ -60,8 +74,9 @@ setup_create_and_get_pods() {
     # Create pod
     create_pod
 
-    # Stop the timer
-    end_time=$(date +%s)
-    execution_time=$(expr $end_time - $start_time)
-    echo "Pod creation completed in $execution_time seconds"
+    # Measure the time it takes for the pod to reach the ready state
+    start_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "PodScheduled") | .lastTransitionTime' -)
+    end_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "Ready") | .lastTransitionTime' -)
+    execution_time=$(echo $(( $(date -d "$end_time" "+%s") - $(date -d "$start_time" "+%s") )))
+    echo "Pod reached ready state in $execution_time seconds"
 }
