@@ -68,7 +68,9 @@ jobs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
   terraform-plan:
-    permissions: read-all
+    permissions:
+      id-token: write
+      contents: read
     needs: setup-matrix
     if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != 'null' && needs.setup-matrix.outputs.matrix-combinations['inlcude'] != '[]' }}
     strategy:
@@ -107,7 +109,9 @@ jobs:
           if: ${{ matrix.cloud == 'azure' }}
           uses: azure/login@v1
           with:
-            creds: ${{ secrets.AZURE_CREDENTIALS }}
+            client-id: ${{ secrets.AZURE_MI }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: AWS login
           if: ${{ matrix.cloud == 'aws' }}
