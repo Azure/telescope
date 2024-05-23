@@ -107,7 +107,7 @@ jobs:
           if: ${{ matrix.cloud == 'azure' }}
           uses: azure/login@v1
           with:
-            creds: ${{ secrets.AZURE_CREDENTIALS }}
+            client-id: ${{ secrets.AZURE_MI }}
 
         - name: AWS login
           if: ${{ matrix.cloud == 'aws' }}
