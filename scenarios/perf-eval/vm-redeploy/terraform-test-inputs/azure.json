@@ -1,0 +1,6 @@
+{
+    "owner": "terraform_unit_tests",
+    "run_id": "ioancarp2",
+    "region": "eastus",
+    "machine_type": "Standard_D2s_v5"
+  }
