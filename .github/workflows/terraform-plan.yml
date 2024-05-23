@@ -107,7 +107,10 @@ jobs:
           if: ${{ matrix.cloud == 'azure' }}
           uses: azure/login@v1
           with:
+            auth-type: IDENTITY
             client-id: ${{ secrets.AZURE_MI }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: AWS login
           if: ${{ matrix.cloud == 'aws' }}
