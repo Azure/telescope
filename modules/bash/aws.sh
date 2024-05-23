@@ -216,3 +216,39 @@ aws_eks_deploy_fio_fileshare()
   kubectl apply -f "${file_source}/pvc.yml"
   kubectl apply -f "${file_source}/fio.yml"
 }
+
+aws_eks_delete_network_interfaces()
+{
+  local run_id=$1
+  echo "Deleting all the network Interfaces ..."
+  subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$run_id']].SubnetId" --output text)
+  for subnet_id in $subnet_ids; do
+    echo "Detaching Subnet: $subnet_id Network Interfaces ..."
+    network_interfaces_attachment_id=$(aws ec2 describe-network-interfaces --filters "Name=subnet-id,Values=$subnet_id" --query "NetworkInterfaces[].Attachment.AttachmentId" --output text)
+    for network_interface_attachment_id in $network_interfaces_attachment_id; do
+      device_index=$(aws ec2 describe-network-interfaces --filters "Name=attachment.attachment-id,Values=$network_interface_attachment_id" --query "NetworkInterfaces[].Attachment.DeviceIndex" --output text)
+      if [[ $device_index == 0 ]]; then
+        continue
+      fi
+      echo "Detaching Network Interface attachment id: $network_interface_attachment_id"
+      if ! aws ec2 detach-network-interface --attachment-id $network_interface_attachment_id; then
+        echo "##vso[task.logissue type=error;] Failed to detach Network Interface attachment id: $network_interface_attachment_id"
+      fi
+    done
+    echo "Deleting Subnet: $subnet_id Network Interfaces ..."
+    network_interfaces=$(aws ec2 describe-network-interfaces --filters "Name=subnet-id,Values=$subnet_id" "Name=status,Values=available" --query "NetworkInterfaces[].NetworkInterfaceId" --output text)
+    for network_interface in $network_interfaces; do
+      device_index=$(aws ec2 describe-network-interfaces --filters "Name=network-interface-id,Values=$network_interface" --query "NetworkInterfaces[].Attachment.DeviceIndex" --output text)
+      if [[ $device_index == 0 ]]; then
+        continue
+      fi
+      if aws ec2 wait network-interface-available --network-interface-ids $network_interface; then
+        echo "Network Interface: $network_interface is available"
+      fi
+      echo "Deleting Network Interface: $network_interface"
+      if ! aws ec2 delete-network-interface --network-interface-id $network_interface; then
+        echo "##vso[task.logissue type=error;] Failed to delete Network Interface: $network_interface"
+      fi
+    done
+  done
+}
