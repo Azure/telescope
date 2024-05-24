@@ -67,6 +67,10 @@ setup_create_and_get_pods() {
     local addons=$3
     local subnet_name=$4
     local namespace="default" # Pods will be created in the default namespace
+    local result_dir="results"
+    
+    # Create result directory if it doesn't exist
+    mkdir -p $result_dir
 
     # Setup cluster
     setup_cluster $resource_group $aks_cluster $addons $subnet_name
@@ -79,4 +83,24 @@ setup_create_and_get_pods() {
     end_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "Ready") | .lastTransitionTime' -)
     execution_time=$(echo $(( $(date -d "$end_time" "+%s") - $(date -d "$start_time" "+%s") )))
     echo "Pod reached ready state in $execution_time seconds"
+    
+    # Collect results
+    collect_results $result_dir $execution_time
 }
+
+# Define the function to collect results
+collect_results() {
+    local result_dir=$1
+    local execution_time=$2
+
+    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local data=$(jq --null-input \
+        --arg timestamp "$timestamp" \
+        --arg execution_time "$execution_time" \
+        '{timestamp: $timestamp, execution_time: $execution_time}')
+
+    echo $data >> $result_dir/results.json
+}
+
+
+# setup_create_and_get_pods "your_resource_group" "your_aks_cluster" "your_addons" "your_subnet_name"
