@@ -317,8 +317,7 @@ install_ec2_extension() {
         if [[ $exit_code -eq 0 ]]; then
             command_id="$(echo "$extension_data" | jq -r '.Command.CommandId')"
             aws ssm wait command-executed --command-id "$command_id" --instance-id "$instance_id" --region "$region"
-            command_status="$(aws ssm list-command-invocations \ 
-                --command-id "$command_id" \
+            command_status="$(aws ssm list-command-invocations --command-id "$command_id" \
                 --details --region "$region" \
                 --output text \
                 --query 'CommandInvocations[*].{Status:Status}')"
