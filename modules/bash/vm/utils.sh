@@ -179,6 +179,7 @@ measure_vm_extension() {
     local cloud=$1
     local run_id=$2
     local result_dir=$3
+    local region=$4
     local vm_name=$(get_vm_instances_name_by_run_id $run_id)
     
     echo "Measuring $cloud VM extension installation" 
@@ -191,6 +192,11 @@ measure_vm_extension() {
     case $cloud in
         azure)
             extension_data=$(install_vm_extension "$vm_name" "$run_id")
+        ;;
+        aws)
+            aws ec2 wait instance-running --instance-ids $vm_name --region $region
+            aws ec2 wait instance-status-ok --instance-ids $vm_name --region $region
+            extension_data=$(install_ec2_extension "$vm_name" "$region")
         ;;
         *)
             exit 1 # cloud provider unknown/not implemented
