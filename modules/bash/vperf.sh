@@ -17,9 +17,6 @@ setup_cluster() {
 
     # Enable add-ons
     azure_aks_enable_addons $resource_group $aks_cluster $addons $subnet_name
-
-    # Connect to cluster
-    azure_aks_get_credentials $resource_group $aks_cluster
 }
 
 # Define the function to create a pod
