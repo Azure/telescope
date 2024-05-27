@@ -15,6 +15,8 @@ function get_json_output() {
     local cloud=${4:-"azure"}
     local region=${5:-"eastus"}
     local data=${6:-"{}"}
+    local run_id=${RUN_ID:-""}
+    local run_url=${RUN_URL:-""}
     
 
     local json_template=$(jq -n -c \
@@ -24,6 +26,8 @@ function get_json_output() {
         --arg execution_time "$execution_time" \
         --arg cloud "$cloud" \
         --arg region "$region" \
+        --arg run_id "$run_id" \
+        --arg run_url "$run_url" \
         --argjson data "${data}" \
         '{
         "operation_info": $operation_info,
@@ -31,7 +35,9 @@ function get_json_output() {
         "success": $succeeded,
         "cloud": $cloud,
         "region": $region,
-        "data": $data
+        "data": $data,
+        "run_id": $run_id,
+        "run_url": $run_url
     }')
 
     echo "$json_template"
