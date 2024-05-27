@@ -2,8 +2,37 @@ scenario_type  = "perf-eval"
 scenario_name  = "vm-redeploy"  
 deletion_delay = "2h"  
 
-public_ip_config_list = [{
-  name = "vm-redeploy-pip"
+
+public_ip_config_list = [
+  {
+    name = "vm-redeploy-public-ip-1"
+  },
+  {
+    name = "vm-redeploy-public-ip-2"
+  },
+  {
+    name = "vm-redeploy-public-ip-3"
+  },
+  {
+    name = "vm-redeploy-public-ip-4"
+  },
+  {
+    name = "vm-redeploy-public-ip-5"
+  },
+  {
+    name = "vm-redeploy-public-ip-6"
+  },
+  {
+    name = "vm-redeploy-public-ip-7"
+  },
+  {
+    name = "vm-redeploy-public-ip-8"
+  },
+  {
+    name = "vm-redeploy-public-ip-9"
+  },
+  {
+    name = "vm-redeploy-public-ip-10"
   }
 ]
 
@@ -18,34 +47,203 @@ network_config_list = [
         address_prefix = "10.1.1.0/24"
       }
     ],
-    network_security_group_name = "vm-redeploy-nsg"
+    network_security_group_name = ""
     nic_public_ip_associations  = [
       {
-        nic_name              = "vm-redeploy-nic"
-        subnet_name           = "vm-redeploy-subnet"
-        ip_configuration_name = "vm-redeploy-config"
-        public_ip_name        = "vm-redeploy-pip"
+      nic_name              = "vm-redeploy-nic-1"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-1"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-2"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-2"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-3"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-3"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-4"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-4"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-5"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-5"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-6"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-6"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-7"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-7"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-8"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-8"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-9"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-9"
+      },
+      {
+      nic_name              = "vm-redeploy-nic-10"
+      subnet_name           = "vm-redeploy-subnet"
+      ip_configuration_name = "vm-redeploy-ip-config"
+      public_ip_name        = "vm-redeploy-public-ip-10"
       }
     ]
-    nsr_rules = [{  # List of Network Security Rules
-      name                       =  "nsr-ping"  # Name of the Network Security Rule (e.g., "nsr-ssh")
-      priority                   =  100  # Priority of the rule (e.g., 100)
-      direction                  =  "Inbound"  # Direction of traffic (e.g., "Inbound")
-      access                     =  "Allow"  # Access permission (e.g., "Allow")
-      protocol                   =  "Icmp"  # Protocol for the rule (e.g., "Tcp")
-      source_port_range          =  "*"  # Source port range (e.g., "*")
-      destination_port_range     =  "*"  # Destination port range (e.g., "2222")
-      source_address_prefix      =  "*"  # Source address prefix (e.g., "*")
-      destination_address_prefix =  "*"  # Destination address prefix (e.g., "*")
-      }
-    ]
+    nsr_rules                   = []
   }
 ]
 
 vm_config_list = [{  
   role           =  "vm-redeploy-role"  
-  vm_name        =  "vm-redeploy"  
-  nic_name       =  "vm-redeploy-nic"  
+  vm_name        =  "vm-redeploy-1"  
+  nic_name       =  "vm-redeploy-nic-1"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-2"  
+  nic_name       =  "vm-redeploy-nic-2"   
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-3"  
+  nic_name       =  "vm-redeploy-nic-3"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-4"  
+  nic_name       =  "vm-redeploy-nic-4"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-5"  
+  nic_name       =  "vm-redeploy-nic-5"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-6"  
+  nic_name       =  "vm-redeploy-nic-6"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-7"  
+  nic_name       =  "vm-redeploy-nic-7"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-8"  
+  nic_name       =  "vm-redeploy-nic-8"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-9"  
+  nic_name       =  "vm-redeploy-nic-9"  
+  admin_username =  "ubuntu"  
+  zone           =  "1"  
+  source_image_reference = {  
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+  create_vm_extension = false
+},
+{  
+  role           =  "vm-redeploy-role"  
+  vm_name        =  "vm-redeploy-10"  
+  nic_name       =  "vm-redeploy-nic-10"  
   admin_username =  "ubuntu"  
   zone           =  "1"  
   source_image_reference = {  
