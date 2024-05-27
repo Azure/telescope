@@ -76,7 +76,7 @@ function script_trap_err() {
     }')
 
     local json_output="$(get_json_output "$operation_info" "0" "false" "$cloud" "$region" "$json_error")"
-    echo "$json_output" >"$results_file"
+    echo "$json_output" > "$(printf "$results_file" "error")"
     # Exit with failure status
     exit "$exit_code"
 }

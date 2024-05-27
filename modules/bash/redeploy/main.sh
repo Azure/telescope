@@ -23,24 +23,26 @@ set -o errtrace # Ensure the error trap handler is inherited
 #       It calls the redeploy_vm function and writes the json to the results file. 
 function main() {
     local error_file="$RESULTS_TELESCOPE/vm-redeploy-error.txt"
-    local result_file="$RESULTS_TELESCOPE/results.json"
+    local result_file_template="$RESULTS_TELESCOPE/vm-redeploy-results-%s.json"
     local operation_info="vm-redeploy"
     local cloud=${CLOUD:-"azure"}
     local region=${REGION:-"eastus"}
 
     mkdir -p "$RESULTS_TELESCOPE"
-    trap 'script_trap_err $? $LINENO $operation_info $cloud $region $error_file $result_file' ERR
+    trap 'script_trap_err $? $LINENO $operation_info $cloud $region $error_file $result_file_template' ERR
 
     local run_id=$RUN_ID
-    local vm_name=$(get_vm_instances_name_by_run_id $run_id)
 
-    local execution_time="$(redeploy_vm "$vm_name" "$run_id" "$error_file")"
-    local data_json="$(build_data_json "$(get_vm_instance_view_json "$run_id" "$vm_name")")"
-    local json_output="$(get_json_output "$operation_info" "$execution_time" "true" "$cloud" "$region" "$data_json")"
+    local vm_names=($(get_vm_instances_name_by_run_id "$run_id"))
 
-    # apparently trap doesn't interrupt the script, so we need to check if the file was created
-    # already in case of an error to not override the erros with the success message
-    if [ ! -f $result_file ]; then
-        echo "$json_output" >$result_file
-    fi
+    for index in "${!vm_names[@]}"; do
+        vm_name="${vm_names[$index]}"
+        (
+            local execution_time="$(redeploy_vm "$vm_name" "$run_id" "$error_file")"
+            local data_json="$(build_data_json "$(get_vm_instance_view_json "$run_id" "$vm_name")")"
+            local json_output="$(get_json_output "$operation_info" "$execution_time" "true" "$cloud" "$region" "$data_json")"
+            echo "$json_output" > "$(printf "$result_file_template" $index)"
+        ) &
+    done
+    wait
 }
