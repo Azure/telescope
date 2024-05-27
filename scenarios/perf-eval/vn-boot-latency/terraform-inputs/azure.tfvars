@@ -3,7 +3,7 @@ scenario_type  = "perf-eval"
 deletion_delay = "24h"
 network_config_list = [
   {
-    role               = "network"
+    role               = "vnetwork"
     vnet_name          = "myVnet"
     vnet_address_space = "10.0.0.0/8"
     subnet = [
@@ -25,7 +25,7 @@ network_config_list = [
 
 aks_config_list = [
   {
-    role        = "client"
+    role        = "vperf"
     aks_name    = "vn-boot-latency"
     dns_prefix  = "vnboot"
     subnet_name = "myAKSSubnet"
