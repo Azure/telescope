@@ -7,7 +7,6 @@
 #       $4 (optional): Additional json data to include in the json
 # OUTS: The json
 # NOTE: None
-
 function get_json_output() {
     local operation_info=${1:-"compete-operation"}
     local execution_time=${2:-"0"}
@@ -42,6 +41,7 @@ function get_json_output() {
 
     echo "$json_template"
 }
+
 # DESC: Handle errors in the script
 # ARGS: $1 (required): The exit status of the command that failed
 #       $2 (required): The line number of the error
