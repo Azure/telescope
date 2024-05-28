@@ -21,7 +21,7 @@ function get_json_output() {
     
 
     local json_template=$(jq -n -c \
-        --arg timestamp "$(date +%s)" \
+        --arg timestamp "$(get_timestamp)" \
         --arg operation_info "$operation_info" \
         --arg succeeded "$succeeded" \
         --arg execution_time "$execution_time" \
@@ -31,6 +31,7 @@ function get_json_output() {
         --arg run_url "$run_url" \
         --argjson data "${data}" \
         '{
+        "timestamp": $timestamp,
         "operation_info": $operation_info,
         "$execution_time": $execution_time,
         "success": $succeeded,
@@ -130,4 +131,12 @@ build_data_json() {
     }')
 
     echo "$json_data"
+}
+
+# DESC: Get the current timestamp in format "2021-08-25T15:00:00Z"
+# ARGS: None
+# OUTS: The current timestamp
+# NOTE: None
+get_timestamp() {
+  date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
