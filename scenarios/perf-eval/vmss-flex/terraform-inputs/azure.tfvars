@@ -1,6 +1,11 @@
 scenario_type  = "perf-eval"
 scenario_name  = "vmss-flex-scale"
 deletion_delay = "2h"
+public_ip_config_list = [
+  {
+    name = "vmss-flex-scale-nat-gateway-pip"
+  }
+]
 network_config_list = [
   {
     role                        = "network"
