@@ -4,7 +4,9 @@
 # ARGS: $1 (optional): Compete scenario name
 #       $2 (optional): Time taken to execute the compete scenario
 #       $3 (optional): Whether the compete scenario was successful
-#       $4 (optional): Additional json data to include in the json
+#       $4 (optional): The cloud where the compete scenario was executed
+#       $5 (optional): The region where the compete scenario was executed
+#       $6 (optional): Additional json data to include in the json
 # OUTS: The json
 # NOTE: None
 function get_json_output() {
@@ -46,8 +48,10 @@ function get_json_output() {
 # ARGS: $1 (required): The exit status of the command that failed
 #       $2 (required): The line number of the error
 #       $3 (required): What compete scenario was being executed
-#       $4 (required): The path to the file where the error was written
-#       $5 (required): The path to the file where the results will be written
+#       $4 (required): The cloud where the compete scenario was executed
+#       $5 (required): The region where the compete scenario was executed
+#       $6 (required): The path to the error file
+#       $7 (required): The path to the results file
 # OUTS: None
 # NOTE: This function is used to handle errors in the script. It read the errors from the error path and
 #       writes them with in same json format in the result file. It also exits the script with the provided exit code. 

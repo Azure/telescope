@@ -11,7 +11,7 @@ redeploy_vm() {
     local resource_group=$2
     local error_file=$3
     local -i timeout=600
-    local -i interval_seconds=3
+    local -i interval_seconds=1
 
     start_time=$(date +%s)
 
