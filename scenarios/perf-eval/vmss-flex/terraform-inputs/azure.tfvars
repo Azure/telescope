@@ -11,7 +11,13 @@ network_config_list = [
       name           = "vmss-flex-scale-subnet"
       address_prefix = "10.2.1.0/24"
     }]
+    nat_gateway_associations = [{
+      nat_gateway_name = "vmss-flex-scale-nat-gateway"
+      subnet_name      = "vmss-flex-scale-subnet"
+      public_ip_name   = "vmss-flex-scale-nat-gateway-pip"
+    }]
     nic_public_ip_associations = []
     nsr_rules                  = []
+
   }
 ]
