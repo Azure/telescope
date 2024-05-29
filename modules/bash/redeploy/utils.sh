@@ -9,37 +9,22 @@
 #       $6 (optional): Additional json data to include in the json
 # OUTS: The json
 # NOTE: None
-function get_json_output() {
-    local operation_info=${1:-"compete-operation"}
-    local execution_time=${2:-"0"}
-    local succeeded=${3:-"true"}
-    local cloud=${4:-"azure"}
-    local region=${5:-"eastus"}
-    local data=${6:-"{}"}
-    local run_id=${RUN_ID:-""}
-    local run_url=${RUN_URL:-""}
+function build_json_output() {
+    local operation_info=${1:-"{}"}
+    local cloud_info=${2:-"{\"name\": \"azure\"}"}
+    local region=${3:-"eastus"}
     
 
     local json_template=$(jq -n -c \
         --arg timestamp "$(get_timestamp)" \
-        --arg operation_info "$operation_info" \
-        --arg succeeded "$succeeded" \
-        --arg execution_time "$execution_time" \
-        --arg cloud "$cloud" \
+        --argjson operation_info "$operation_info" \
         --arg region "$region" \
-        --arg run_id "$run_id" \
-        --arg run_url "$run_url" \
-        --argjson data "${data}" \
+        --argjson cloud_info "$cloud_info" \
         '{
         "timestamp": $timestamp,
         "operation_info": $operation_info,
-        "$execution_time": $execution_time,
-        "success": $succeeded,
-        "cloud": $cloud,
+        "cloud_info": $cloud_info,
         "region": $region,
-        "data": $data,
-        "run_id": $run_id,
-        "run_url": $run_url
     }')
 
     echo "$json_template"
@@ -58,12 +43,11 @@ function get_json_output() {
 #       writes them with in same json format in the result file. It also exits the script with the provided exit code. 
 function script_trap_err() {
     local exit_code=1
-    local lineno = $2
-    local operation_info=$3
-    local cloud=$4
-    local region=$5
-    local error_file=$6
-    local results_file=$7
+    local lineno=$2
+    local cloud=$3
+    local region=$4
+    local error_file=$5
+    local results_file=$6
 
     # Disable the error trap handler to prevent potential recursion
     trap - ERR
@@ -85,8 +69,10 @@ function script_trap_err() {
         "line": $lineno,
         "exit_status": $exit_code
     }')
+    local operation_info="$(build_operation_info_json "vm-redeploy" "false" "0" "seconds" "$json_error")"
+    local cloud_info="$(build_cloud_info_json "$cloud" "{}")"
 
-    local json_output="$(get_json_output "$operation_info" "0" "false" "$cloud" "$region" "$json_error")"
+    local json_output="$(build_json_output "$operation_info" "$cloud_info" "$region")"
     echo "$json_output" > "$(printf "$results_file" "error")"
     # Exit with failure status
     exit "$exit_code"
@@ -117,18 +103,50 @@ get_vm_instance_view_json() {
     echo $(az vm get-instance-view --resource-group $1 --name $2 )
 }
 
+# DESC: Build the cloud info json
+# ARGS: $1 (required): The cloud name
+#       $2 (required): Json about the pre-provisioned VM
+# OUTS: The json data
+# NOTE: None
+build_cloud_info_json() {
+    local cloud=${1:-"azure"}
+    local vm_info=${2:-"{}"}
+
+    local json_data=$(jq -n -c \
+        --arg cloud "$cloud" \
+        --argjson vm_info "$vm_info" \
+        '{
+            "cloud": $cloud,
+            "vm_info": $vm_info
+        }')
+
+    echo "$json_data"
+}
+
 # DESC: Get the data json 
 # ARGS: $1 (required): The json view of the instance
 # OUTS: The json data
 # NOTE: None
-build_data_json() {
-    local vm_info=$1
+build_operation_info_json() {
+    local name=${1:-"vm-redeploy"}
+    local succeeded=${2:-"false"}
+    local time=${3:-"0"}
+    local unit=${4:-"seconds"}
+    local data=${5:-"{}"}
 
     local json_data=$(jq -n -c \
-        --argjson vm_info "$vm_info" \
+        --arg name "$name" \
+        --arg succeeded "$succeeded" \
+        --arg time "$time" \
+        --arg unit "$unit" \
+        --argjson data "$data" \
         '{
-            "vm_info": $vm_info
-    }')
+            "name": $name,
+            "succeeded": $succeeded,
+            "time": $time,
+            "unit": $unit,
+            "data": $data
+        }')
 
     echo "$json_data"
 }

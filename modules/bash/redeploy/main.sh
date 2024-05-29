@@ -24,12 +24,11 @@ set -o errtrace # Ensure the error trap handler is inherited
 function main() {
     local error_file="$RESULT_DIR/vm-redeploy-error.txt"
     local result_file_template="$RESULT_DIR/vm-redeploy-results-%s.json"
-    local operation_info="vm-redeploy"
     local cloud=${CLOUD:-"azure"}
     local region=${REGION:-"eastus"}
 
     mkdir -p "$RESULT_DIR"
-    trap 'script_trap_err $? $LINENO $operation_info $cloud $region $error_file $result_file_template' ERR
+    trap 'script_trap_err $? $LINENO $cloud $region $error_file $result_file_template' ERR
 
     local run_id=$RUN_ID
 
@@ -39,8 +38,9 @@ function main() {
         vm_name="${vm_names[$index]}"
         (
             local execution_time="$(redeploy_vm "$vm_name" "$run_id" "$error_file")"
-            local data_json="$(build_data_json "$(get_vm_instance_view_json "$run_id" "$vm_name")")"
-            local json_output="$(get_json_output "$operation_info" "$execution_time" "true" "$cloud" "$region" "$data_json")"
+            local operation_info="$(build_operation_info_json "vm-redeploy" "true" "$execution_time" "seconds" "{}")"
+            local cloud_info="$(build_cloud_info_json "$cloud" "$(get_vm_instance_view_json "$run_id" "$vm_name")")"
+            local json_output="$(build_json_output "$operation_info" "$cloud_info" "$region")"
             echo "$json_output" > "$(printf "$result_file_template" $index)"
         ) &
     done

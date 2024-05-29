@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# DESC: Funtion for redeploying a VM in Azure
+# DESC: Function for redeploying a VM in Azure
 # ARGS: $1 (required): The name of the VM
 #       $2 (required): The resource group of the VM
 #       $3 (required): The path to the error file
@@ -23,7 +23,7 @@ redeploy_vm() {
         az vm redeploy --resource-group "$resource_group" --name "$vm_name" --no-wait
 
         # The VM state does not change to stopped/stopping in the subsequent redeployments.
-        # Sometimes it just dissapears from the instance view statuses.
+        # Sometimes it just disappears from the instance view statuses.
         # On status is ProvisioningState/succeeded and the other show the state of the VM.
 
         az vm wait -g $resource_group --name $vm_name \
@@ -32,7 +32,7 @@ redeploy_vm() {
 
         az vm wait -g $resource_group --name $vm_name \
             --custom "instanceView.statuses[?code=='PowerState/running']" --interval $interval_seconds --timeout $timeout
-    ) 2>$error_file
+    ) 2>>$error_file
 
     end_time=$(date +%s)
 
