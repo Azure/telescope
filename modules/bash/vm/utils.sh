@@ -180,7 +180,7 @@ measure_vm_extension() {
     local run_id=$2
     local result_dir=$3
     local region=$4
-    local vm_name=$(get_vm_instances_name_by_run_id $run_id)
+    local vm_name=$5
     
     echo "Measuring $cloud VM extension installation" 
 
