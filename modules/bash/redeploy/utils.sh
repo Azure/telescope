@@ -7,7 +7,7 @@
 #       $4 (optional): The cloud where the compete scenario was executed
 #       $5 (optional): The region where the compete scenario was executed
 #       $6 (optional): Additional json data to include in the json
-# OUTS: The json
+# OUTS: The json with the results
 # NOTE: None
 function build_json_output() {
     local operation_info=${1:-"{}"}
@@ -33,13 +33,12 @@ function build_json_output() {
 # DESC: Handle errors in the script
 # ARGS: $1 (required): The exit status of the command that failed
 #       $2 (required): The line number of the error
-#       $3 (required): What compete scenario was being executed
-#       $4 (required): The cloud where the compete scenario was executed
-#       $5 (required): The region where the compete scenario was executed
-#       $6 (required): The path to the error file
-#       $7 (required): The path to the results file
+#       $3 (required): The cloud where the compete scenario was executed
+#       $4 (required): The region where the compete scenario was executed
+#       $5 (required): The path to the error file
+#       $6 (required): The path to the results file
 # OUTS: None
-# NOTE: This function is used to handle errors in the script. It read the errors from the error path and
+# NOTE: This function is used to handle errors in the script. It reads the errors from the error path and
 #       writes them with in same json format in the result file. It also exits the script with the provided exit code. 
 function script_trap_err() {
     local exit_code=1
@@ -123,8 +122,12 @@ build_cloud_info_json() {
     echo "$json_data"
 }
 
-# DESC: Get the data json 
+# DESC: Build the data json 
 # ARGS: $1 (required): The json view of the instance
+#       $2 (required): If the VM was successful
+#       $3 (required): The time taken to execute the compete scenario
+#       $4 (required): The unit of the time taken
+#       $5 (required): Additional json data
 # OUTS: The json data
 # NOTE: None
 build_operation_info_json() {

@@ -22,8 +22,8 @@ set -o errtrace # Ensure the error trap handler is inherited
 # NOTE: This function is used to run the compete scenario. 
 #       It calls the redeploy_vm function and writes the json to the results file. 
 function main() {
-    local error_file="$RESULT_DIR/vm-redeploy-error.txt"
-    local result_file_template="$RESULT_DIR/vm-redeploy-results-%s.json"
+    local error_file="$RESULT_DIR/$SCENARIO_NAME-error.txt"
+    local result_file_template="$RESULT_DIR/$SCENARIO_NAME-results-%s.json"
     local cloud=${CLOUD:-"azure"}
     local region=${REGION:-"eastus"}
 

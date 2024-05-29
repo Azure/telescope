@@ -10,12 +10,12 @@ redeploy_vm() {
     local vm_name=$1
     local resource_group=$2
     local error_file=$3
-    local -i timeout=600
-    local -i interval_seconds=1
+    local -i timeout=${4:-300}
+    local -i interval_seconds=${5:-1}
 
     start_time=$(date +%s)
 
-    # First time we redeploy th command waits for the VM to be in a running state
+    # First time we redeploy, the command waits for the VM to be in a running state
     # Subsequent redeployments do not wait for the VM to be in a running state
     # We use --no-wait to have consistent runs
 
@@ -24,7 +24,7 @@ redeploy_vm() {
 
         # The VM state does not change to stopped/stopping in the subsequent redeployments.
         # Sometimes it just disappears from the instance view statuses.
-        # On status is ProvisioningState/succeeded and the other show the state of the VM.
+        # One status is ProvisioningState/succeeded and the other shows the state of the VM.
 
         az vm wait -g $resource_group --name $vm_name \
             --custom "length(instanceView.statuses) == \`1\` || \
