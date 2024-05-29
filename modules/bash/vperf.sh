@@ -8,15 +8,9 @@ execute_pod() {
     local aks_cluster=$4
     
 
-    # Function to enable add-ons and connect to cluster
-    setup_cluster() {
-        azure_aks_enable_addons $resource_group $aks_cluster $addons $subnet_name
-    }
-
-    # Function to create a pod
     create_pod() {
-        # Create a file named virtual-node.yaml
-        cat << EOF > virtual-node.yaml
+    # Create a file named virtual-node.yaml
+    cat << EOF > virtual-node.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,24 +29,15 @@ spec:
       - name: aci-helloworld
         image: mcr.microsoft.com/azuredocs/aci-helloworld
         ports:
-        - containerPort: 80
-      nodeSelector:
-        kubernetes.io/role: agent
-        beta.kubernetes.io/os: linux
-        type: virtual-kubelet
-      tolerations:
-      - key: virtual-kubelet.io/provider
-        operator: Exists
-      - key: azure.com/aci
-        effect: NoSchedule
+        - containerPort: 80      
 EOF
 
-        kubectl apply -f virtual-node.yaml
+    kubectl apply -f virtual-node.yaml || {
+        echo "Failed to apply Kubernetes configuration"
+        exit 1
     }
-
-    setup_cluster
-    create_pod
 }
+
 
 # Function to collect results
 collect_result() {
