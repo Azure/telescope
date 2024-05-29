@@ -93,7 +93,6 @@ Validate server VM is running and ready for iperf traffic
 SERVER_VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${SERVER_ROLE}')].id" --output tsv)
 SERVER_PUBLIC_IP=$(az vm list-ip-addresses --ids $SERVER_VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
 SERVER_PRIVATE_IP=$(az vm list-ip-addresses --ids $SERVER_VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
-server_vm_info=$(az vm show --ids $SERVER_VM_ID --query "{region:location, zone:zones, machineType:hardwareProfile.vmSize, id:id, vmId:vmId}" --output json)
 ```
 
 Validate client VM is running and ready for iperf traffic
@@ -101,7 +100,6 @@ Validate client VM is running and ready for iperf traffic
 CLIENT_VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${CLIENT_ROLE}')].id" --output tsv)
 CLIENT_PUBLIC_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
 CLIENT_PRIVATE_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
-client_vm_info=$(az vm show --ids $CLIENT_VM_ID --query "{region:location, zone:zones, machineType:hardwareProfile.vmSize, id:id, vmId:vmId}" --output json)
 ```
 
 ### Execute Tests
