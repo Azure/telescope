@@ -9,6 +9,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  PYTHON_MODULES_DIR: modules/python
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
@@ -68,7 +69,9 @@ jobs:
         matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
   terraform-plan:
-    permissions: read-all
+    permissions:
+      id-token: write
+      contents: read
     needs: setup-matrix
     if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != 'null' && needs.setup-matrix.outputs.matrix-combinations['inlcude'] != '[]' }}
     strategy:
@@ -97,9 +100,18 @@ jobs:
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Create JSON Input
+        - name: Create & Validate JSON Input
           run: |
             INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}", "public_key_path": "${{ env.SSH_KEY_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+            validation_response=$(python ${{ env.PYTHON_MODULES_DIR }}/terraform/validate_json_schema.py "${{ env.TERRAFORM_MODULES_DIR }}/${{ matrix.cloud }}_input_schema.json" ${{ env.TERRAFORM_TEST_INPUT_FILE }})            
+            is_valid=$(echo "$validation_response" | jq -r '.isValid')
+            errors=$(echo "$validation_response" | jq -r '.errors')
+            
+            # Check if the validation is valid
+            if [ "$is_valid" == "false" ]; then
+              echo "::error::JSON input validation failed: $errors"
+              exit 1
+            fi
             INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
             echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
@@ -107,7 +119,9 @@ jobs:
           if: ${{ matrix.cloud == 'azure' }}
           uses: azure/login@v1
           with:
-            creds: ${{ secrets.AZURE_CREDENTIALS }}
+            client-id: ${{ secrets.AZURE_MI }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: AWS login
           if: ${{ matrix.cloud == 'aws' }}
