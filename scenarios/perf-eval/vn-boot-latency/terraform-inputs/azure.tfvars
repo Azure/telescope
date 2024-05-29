@@ -36,7 +36,11 @@ aks_config_list = [
       network_plugin_mode = "overlay"
     }
     default_node_pool = {
+<<<<<<< HEAD
       name                         = "default"
+=======
+      name                         = "user"
+>>>>>>> 53cfeb69439b0d46bcab9a002cbc06c84d79df89
       node_count                   = 5
       vm_size                      = "Standard_D16s_v4"
       os_disk_type                 = "Managed"
