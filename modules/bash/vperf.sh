@@ -3,9 +3,10 @@
 # Function to setup the cluster and create a pod
 execute_pod() {
     local resource_group=$1
-    local aks_cluster=$2
-    local addons=$3
-    local subnet_name=$4
+    local addons=$2
+    local subnet_name=$3
+    local aks_cluster=$4
+    
 
     # Function to enable add-ons and connect to cluster
     setup_cluster() {
