@@ -1,31 +1,23 @@
 #!/bin/bash
 
 # DESC: Build the json used for logging results
-# ARGS: $1 (optional): Compete scenario name
-#       $2 (optional): Time taken to execute the compete scenario
-#       $3 (optional): Whether the compete scenario was successful
-#       $4 (optional): The cloud where the compete scenario was executed
-#       $5 (optional): The region where the compete scenario was executed
-#       $6 (optional): Additional json data to include in the json
+# ARGS: $1 (optional): Json that includes the data for the operation
+#       $2 (optional): Json that includes the data about the resources pre-provisioned
 # OUTS: The json with the results
 # NOTE: None
 function build_json_output() {
     local operation_info=${1:-"{}"}
     local cloud_info=${2:-"{\"name\": \"azure\"}"}
-    local region=${3:-"eastus"}
     
-
     local json_template=$(jq -n -c \
         --arg timestamp "$(get_timestamp)" \
         --argjson operation_info "$operation_info" \
-        --arg region "$region" \
         --argjson cloud_info "$cloud_info" \
         '{
-        "timestamp": $timestamp,
-        "operation_info": $operation_info,
-        "cloud_info": $cloud_info,
-        "region": $region,
-    }')
+            "timestamp": $timestamp,
+            "operation_info": $operation_info,
+            "cloud_info": $cloud_info,
+        }')
 
     echo "$json_template"
 }
@@ -33,20 +25,16 @@ function build_json_output() {
 # DESC: Handle errors in the script
 # ARGS: $1 (required): The exit status of the command that failed
 #       $2 (required): The line number of the error
-#       $3 (required): The cloud where the compete scenario was executed
-#       $4 (required): The region where the compete scenario was executed
-#       $5 (required): The path to the error file
-#       $6 (required): The path to the results file
+#       $3 (required): The path to the error file
+#       $4 (required): The path to the results file
 # OUTS: None
 # NOTE: This function is used to handle errors in the script. It reads the errors from the error path and
 #       writes them with in same json format in the result file. It also exits the script with the provided exit code. 
 function script_trap_err() {
     local exit_code=1
     local lineno=$2
-    local cloud=$3
-    local region=$4
-    local error_file=$5
-    local results_file=$6
+    local error_file=$3
+    local results_file=$4
 
     # Disable the error trap handler to prevent potential recursion
     trap - ERR
@@ -64,14 +52,14 @@ function script_trap_err() {
     local json_error=$(jq -n -c \
         --arg error "$error" \
         '{
-        "error": $error,
-        "line": $lineno,
-        "exit_status": $exit_code
-    }')
-    local operation_info="$(build_operation_info_json "vm-redeploy" "false" "0" "seconds" "$json_error")"
-    local cloud_info="$(build_cloud_info_json "$cloud" "{}")"
+            "error": $error,
+            "line": $lineno,
+            "exit_status": $exit_code
+        }')
+    local operation_info="$(build_operation_info_json $SCENARIO_NAME "false" "0" "seconds" "$json_error")"
+    local cloud_info="$(build_cloud_info_json "{}")"
 
-    local json_output="$(build_json_output "$operation_info" "$cloud_info" "$region")"
+    local json_output="$(build_json_output "$operation_info" "$cloud_info")"
     echo "$json_output" > "$(printf "$results_file" "error")"
     # Exit with failure status
     exit "$exit_code"
@@ -103,19 +91,15 @@ get_vm_instance_view_json() {
 }
 
 # DESC: Build the cloud info json
-# ARGS: $1 (required): The cloud name
-#       $2 (required): Json about the pre-provisioned VM
+# ARGS: $1 (required): Json about the pre-provisioned VM 
 # OUTS: The json data
 # NOTE: None
 build_cloud_info_json() {
-    local cloud=${1:-"azure"}
-    local vm_info=${2:-"{}"}
+    local vm_info=${1:-"{}"}
 
     local json_data=$(jq -n -c \
-        --arg cloud "$cloud" \
         --argjson vm_info "$vm_info" \
         '{
-            "cloud": $cloud,
             "vm_info": $vm_info
         }')
 
