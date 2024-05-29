@@ -1,14 +1,7 @@
 #!/bin/bash
 
 # Function to setup the cluster and create a pod
-execute_pod() {
-    local resource_group=$1
-    local addons=$2
-    local subnet_name=$3
-    local aks_cluster=$4
-    
-
-    create_pod() {
+create_pod() {
     # Create a file named virtual-node.yaml
     cat << EOF > virtual-node.yaml
 apiVersion: apps/v1
@@ -29,14 +22,18 @@ spec:
       - name: aci-helloworld
         image: mcr.microsoft.com/azuredocs/aci-helloworld
         ports:
-        - containerPort: 80      
+        - containerPort: 80
 EOF
 
+    # Apply the Kubernetes configuration
     kubectl apply -f virtual-node.yaml || {
         echo "Failed to apply Kubernetes configuration"
         exit 1
     }
 }
+
+
+
 
 
 # Function to collect results
