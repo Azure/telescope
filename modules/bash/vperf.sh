@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Function to setup the cluster and create a pod
-execute_pod() {
+create_pod() {
     # Create a file named virtual-node.yaml
     cat << EOF > virtual-node.yaml
 apiVersion: apps/v1
