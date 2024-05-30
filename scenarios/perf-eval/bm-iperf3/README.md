@@ -21,7 +21,7 @@ Set environment variables for testing
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=bm-iperf3
-RUN_ID=05292024
+RUN_ID="05292024"
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
@@ -93,6 +93,7 @@ Validate server VM is running and ready for iperf traffic
 SERVER_VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${SERVER_ROLE}')].id" --output tsv)
 SERVER_PUBLIC_IP=$(az vm list-ip-addresses --ids $SERVER_VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
 SERVER_PRIVATE_IP=$(az vm list-ip-addresses --ids $SERVER_VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
+SERVER_VM_INFO=$(az vm show --ids $SERVER_VM_ID --query "{region:location, zone:zones, machineType:hardwareProfile.vmSize, id:id, vmId:vmId}" --output json)
 ```
 
 Validate client VM is running and ready for iperf traffic
@@ -100,6 +101,7 @@ Validate client VM is running and ready for iperf traffic
 CLIENT_VM_ID=$(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '${CLIENT_ROLE}')].id" --output tsv)
 CLIENT_PUBLIC_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
 CLIENT_PRIVATE_IP=$(az vm list-ip-addresses --ids $CLIENT_VM_ID --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
+CLIENT_VM_INFO=$(az vm show --ids $CLIENT_VM_ID --query "{region:location, zone:zones, machineType:hardwareProfile.vmSize, id:id, vmId:vmId}" --output json)
 ```
 
 ### Execute Tests
@@ -113,10 +115,10 @@ inputs=(
   "tcp|1000|1|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 1 -w 640k"
   "tcp|2000|2|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 2 -w 640k"
   "tcp|4000|4|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 4 -w 640k"
-  "udp|100|1|--client $SERVER_PRIVATE_IP  --port 20002 --time 600 --udp --bandwidth 100M --parallel 1"
-  "udp|1000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --udp --bandwidth 1000M --parallel 1"
-  "udp|2000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --udp --bandwidth 2000M --parallel 1"
-  "udp|4000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --udp --bandwidth 4000M --parallel 1"
+  "udp|100|1|--client $SERVER_PRIVATE_IP  --port 20002 --time 600 --omit 10 --udp --bandwidth 100M --parallel 1"
+  "udp|1000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 1000M --parallel 1"
+  "udp|2000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 2000M --parallel 1"
+  "udp|4000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 4000M --parallel 1"
 )
 ```
 **Note:**
@@ -125,14 +127,14 @@ inputs=(
 * Use below input to run the draft run. make sure to delete the results after the run is successful, since this is just a test run to run UDP tests on same port.
 
 ```bash
-draft_tcp_run_inputs=(
-  "tcp|100|1|--client $SERVER_PRIVATE_IP --port 20002 --time 60 --bandwidth 100M --parallel 1 -w 640k"
-)
+inputs=(
+  "tcp|100|1|--client $SERVER_PRIVATE_IP --port 20002"
+) 
 ```
 
 ```bash
 source ./${TEST_MODULES_DIR}/iperf.sh
-mkdir -p $RESULT_DIR
+mkdir -p $RESULT_PATH
 # Loop through each input and run iperf3
 for input in "${inputs[@]}"; do
   IFS='|' read -r PROTOCOL BANDWIDTH PARALLEL IPERF_PROPERTIES <<< "$input"
@@ -149,7 +151,9 @@ cloud_info=$(jq -n \
       --arg region "$REGION" \
       --arg machine_type "$MACHINE_TYPE" \
       --arg accelerated_networking "$ACCERLATED_NETWORKING" \
-      '{cloud: $cloud, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking}')
+      --arg client_vm_info "$CLIENT_VM_INFO" \
+      --arg server_vm_info "$SERVER_VM_INFO" \
+      '{cloud: $cloud, region: $region, machine_type: $machine_type, accelerated_networking: $accelerated_networking, client_vm_info: $client_vm_info, server_vm_info: $server_vm_info}')
 cloud_info_str=$(echo $cloud_info | jq -c .)
 ```
 
