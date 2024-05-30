@@ -186,17 +186,18 @@ measure_vm_extension() {
     local installation_time=0
 
     local start_time=$(date +%s)
-    echo "Measuring $cloud VM extension installation for $vm_name. Started at $start_time"
-     
+    echo "Measuring $cloud VM extension installation for $vm_name. Started at $start_time."
+
     case $cloud in
         azure)
-            start_time=$(date +%s)
             extension_data=$(install_vm_extension "$vm_name" "$run_id")
         ;;
         aws)
+            echo "Waiting $vm_name to be in Running and Status OK state."
             aws ec2 wait instance-running --instance-ids $vm_name --region $region
             aws ec2 wait instance-status-ok --instance-ids $vm_name --region $region
             start_time=$(date +%s)
+            echo "The VM $vm_name in Running state. Started installation at $start_time."
             extension_data=$(install_ec2_extension "$vm_name" "$region")
         ;;
         *)
@@ -206,7 +207,7 @@ measure_vm_extension() {
     
     wait
     local end_time=$(date +%s)
-    echo "Finished $cloud VM extension installation for $vm_name. Ended at $end_time"
+    echo "Finished $cloud VM extension installation for $vm_name. Ended at $end_time."
 
     if [[ -n "$extension_data" ]]; then
         succeeded=$(echo "$extension_data" | jq -r '.succeeded')
