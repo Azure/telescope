@@ -66,13 +66,6 @@ vm_config_list = [{
   security_group_name         = "vm-extension-nsg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
-  ami_config = {
-    most_recent         = true
-    name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-    virtualization_type = "hvm"
-    architecture        = "x86_64"
-    owners              = ["099720109477"]
-  }
   },
   {
     vm_name                     = "vm-extension-2"
@@ -81,13 +74,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-3"
@@ -96,13 +82,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-4"
@@ -111,13 +90,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-5"
@@ -126,13 +98,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-6"
@@ -141,13 +106,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-7"
@@ -156,13 +114,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-8"
@@ -171,13 +122,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-9"
@@ -186,13 +130,6 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
   },
   {
     vm_name                     = "vm-extension-10"
@@ -201,11 +138,4 @@ vm_config_list = [{
     security_group_name         = "vm-extension-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    ami_config = {
-      most_recent         = true
-      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-22.04-amd64-server-*"
-      virtualization_type = "hvm"
-      architecture        = "x86_64"
-      owners              = ["099720109477"]
-    }
 }]
