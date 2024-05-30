@@ -182,13 +182,14 @@ measure_vm_extension() {
     local region=$4
     local vm_name=$5
     
-    echo "Measuring $cloud VM extension installation for $vm_name" 
+    
 
     local result=""
     local installation_succedded="false"
     local installation_time=0
 
     local start_time=$(date +%s)
+    echo "Measuring $cloud VM extension installation for $vm_name. Started at $start_time" 
     case $cloud in
         azure)
             extension_data=$(install_vm_extension "$vm_name" "$run_id")
@@ -205,7 +206,8 @@ measure_vm_extension() {
     
     wait
     local end_time=$(date +%s)
-
+    echo "Finished $cloud VM extension installation for $vm_name. Ended at $end_time"
+    
     if [[ -n "$extension_data" ]]; then
         succeeded=$(echo "$extension_data" | jq -r '.succeeded')
         if [[ "$succeeded" == "true" ]]; then
