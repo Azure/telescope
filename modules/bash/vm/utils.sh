@@ -182,7 +182,7 @@ measure_vm_extension() {
     local region=$4
     local vm_name=$5
     
-    echo "Measuring $cloud VM extension installation" 
+    echo "Measuring $cloud VM extension installation for $vm_name" 
 
     local result=""
     local installation_succedded="false"
