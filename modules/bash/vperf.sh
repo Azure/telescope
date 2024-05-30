@@ -1,22 +1,9 @@
 #!/bin/bash
- 
+
 # Function to setup the cluster and create a pod
-execute_pod() {
-    local resource_group=$1
-    local addons=$2
-    local subnet_name=$3
-    local aks_cluster=$4
-   
- 
-    # Function to enable add-ons and connect to cluster
-    setup_cluster() {
-        az aks enable-addons --resource-group $resource_group --name $aks_cluster --addons $addons --subnet-name $subnet_name
-    }
- 
-    # Function to create a pod
-    create_pod() {
-        # Create a file named virtual-node.yaml
-        cat << EOF > virtual-node.yaml
+create_pod() {
+    # Create a file named virtual-node.yaml
+    cat << EOF > virtual-node.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,39 +23,34 @@ spec:
         image: mcr.microsoft.com/azuredocs/aci-helloworld
         ports:
         - containerPort: 80
-      nodeSelector:
-        kubernetes.io/role: agent
-        beta.kubernetes.io/os: linux
-        type: virtual-kubelet
-      tolerations:
-      - key: virtual-kubelet.io/provider
-        operator: Exists
-      - key: azure.com/aci
-        effect: NoSchedule
 EOF
- 
-        kubectl apply -f virtual-node.yaml
+
+    # Apply the Kubernetes configuration
+    kubectl apply -f virtual-node.yaml || {
+        echo "Failed to apply Kubernetes configuration"
+        exit 1
     }
- 
-    setup_cluster
-    create_pod
 }
- 
+
+
+
+
+
 # Function to collect results
 collect_result() {
     local namespace="default"
     local result_dir=$1
     local run_url=$2
- 
+
     # Ensure the result directory exists
     mkdir -p $result_dir
- 
+
     # Measure the time it takes for the pod to reach the ready state
     start_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "PodScheduled") | .lastTransitionTime' -)
     end_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "Ready") | .lastTransitionTime' -)
     execution_time=$(( $(date -d "$end_time" "+%s") - $(date -d "$start_time" "+%s") ))
     echo "Pod reached ready state in $execution_time seconds"
- 
+
     # Collect results
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     local data=$(jq --null-input \
@@ -76,6 +58,6 @@ collect_result() {
         --arg execution_time "$execution_time" \
         --arg run_url "$run_url" \
         '{timestamp: $timestamp, execution_time: $execution_time, run_url: $run_url}')
- 
+
     echo $data >> $result_dir/results.json
 }
