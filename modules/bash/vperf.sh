@@ -46,21 +46,49 @@ EOF
         exit 1
     }
 
-    # Apply the Kubernetes configuration again
-    echo "Starting actual deployment..."
-    kubectl apply -f virtual-node.yaml || {
-        echo "Failed to apply Kubernetes configuration for actual deployment"
-        exit 1
-    }
+    # Sequentially deploy 10 pods
+    for i in {1..10}; do
+        deployment_name="aci-helloworld-$i"
+        
+        cat << EOF > virtual-node-${i}.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${deployment_name}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${deployment_name}
+  template:
+    metadata:
+      labels:
+        app: ${deployment_name}
+    spec:
+      containers:
+      - name: aci-helloworld
+        image: mcr.microsoft.com/azuredocs/aci-helloworld
+        ports:
+        - containerPort: 80
+EOF
 
-    # Wait for the pod to be ready
-    echo "Waiting for the pod to be ready again..."
-    kubectl wait --for=condition=ready pod -l app=aci-helloworld --timeout=120s || {
-        echo "Pod did not reach ready state in actual deployment"
-        exit 1
-    }
+        echo "Starting deployment $i..."
+        kubectl apply -f virtual-node-${i}.yaml || {
+            echo "Failed to apply Kubernetes configuration for deployment $i"
+            exit 1
+        }
 
-    echo "Pod is ready"
+        # Wait for the pod to be ready
+        echo "Waiting for the pod $i to be ready..."
+        kubectl wait --for=condition=ready pod -l app=${deployment_name} --timeout=120s || {
+            echo "Pod $i did not reach ready state"
+            exit 1
+        }
+
+        echo "Deployment $i is ready"
+    done
+
+    echo "All pods have been deployed successfully"
 }
 
 # Function to collect results
@@ -72,21 +100,48 @@ collect_result() {
     # Ensure the result directory exists
     mkdir -p $result_dir
 
-    # Measure the time it takes for the pod to reach the ready state
-    start_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "PodScheduled") | .lastTransitionTime' -)
-    end_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "Ready") | .lastTransitionTime' -)
-    execution_time=$(echo "$(date -d"$end_time" +%s.%N) - $(date -d"$start_time" +%s.%N)" | bc)
-    echo "Pod reached ready state in $execution_time seconds"
+    # Initialize an array to store individual pod deployment times
+    pod_times=()
+    
+    for i in {1..10}; do
+        deployment_name="aci-helloworld-$i"
+        
+        # Measure the time it takes for the pod to reach the ready state
+        start_time=$(kubectl -n ${namespace} get pods -l app=${deployment_name} -o jsonpath='{.items[*].status.conditions[?(@.type=="PodScheduled")].lastTransitionTime}')
+        end_time=$(kubectl -n ${namespace} get pods -l app=${deployment_name} -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].lastTransitionTime}')
+        
+        start_time_epoch=$(date -d"$start_time" +%s.%N)
+        end_time_epoch=$(date -d"$end_time" +%s.%N)
+        
+        execution_time=$(echo "$end_time_epoch - $start_time_epoch" | bc)
+        echo "Pod $i reached ready state in $execution_time seconds"
+        
+        # Add the execution time to the array
+        pod_times+=("$execution_time")
+        
+        # Collect result for this pod
+        local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        local data=$(jq --null-input \
+            --arg pod "aci-helloworld-$i" \
+            --arg timestamp "$timestamp" \
+            --arg execution_time "$execution_time" \
+            '{pod: $pod, timestamp: $timestamp, execution_time: $execution_time}')
+        
+        echo $data >> $result_dir/results.json
+    done
 
-    # Collect results
-    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    local data=$(jq --null-input \
-        --arg timestamp "$timestamp" \
-        --arg execution_time "$execution_time" \
-        --arg run_url "$run_url" \
-        '{timestamp: $timestamp, execution_time: $execution_time, run_url: $run_url}')
+    # Calculate the average deployment time
+    total_time=0
+    for time in "${pod_times[@]}"; do
+        total_time=$(echo "$total_time + $time" | bc)
+    done
+    average_time=$(echo "$total_time / ${#pod_times[@]}" | bc -l)
+    echo "Average deployment time: $average_time seconds"
 
-    echo $data >> $result_dir/results.json
+    # Append the average deployment time to the results file
+    local avg_data=$(jq --null-input \
+        --arg average_time "$average_time" \
+        '{average_execution_time: $average_time}')
+    
+    echo $avg_data >> $result_dir/results.json
 }
-
-
