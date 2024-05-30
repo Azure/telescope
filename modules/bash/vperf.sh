@@ -25,16 +25,43 @@ spec:
         - containerPort: 80
 EOF
 
-    # Apply the Kubernetes configuration
+    # Apply the Kubernetes configuration for warm-up
+    echo "Starting warm-up deployment..."
     kubectl apply -f virtual-node.yaml || {
-        echo "Failed to apply Kubernetes configuration"
+        echo "Failed to apply Kubernetes configuration for warm-up"
         exit 1
     }
+
+    # Wait for the pod to be ready
+    echo "Waiting for the pod to be ready..."
+    kubectl wait --for=condition=ready pod -l app=aci-helloworld --timeout=120s || {
+        echo "Pod did not reach ready state in warm-up"
+        exit 1
+    }
+
+    # Delete the warm-up deployment
+    echo "Deleting the warm-up deployment..."
+    kubectl delete -f virtual-node.yaml || {
+        echo "Failed to delete the warm-up deployment"
+        exit 1
+    }
+
+    # Apply the Kubernetes configuration again
+    echo "Starting actual deployment..."
+    kubectl apply -f virtual-node.yaml || {
+        echo "Failed to apply Kubernetes configuration for actual deployment"
+        exit 1
+    }
+
+    # Wait for the pod to be ready
+    echo "Waiting for the pod to be ready again..."
+    kubectl wait --for=condition=ready pod -l app=aci-helloworld --timeout=120s || {
+        echo "Pod did not reach ready state in actual deployment"
+        exit 1
+    }
+
+    echo "Pod is ready"
 }
-
-
-
-
 
 # Function to collect results
 collect_result() {
@@ -60,5 +87,6 @@ collect_result() {
         '{timestamp: $timestamp, execution_time: $execution_time, run_url: $run_url}')
 
     echo $data >> $result_dir/results.json
-
 }
+
+
