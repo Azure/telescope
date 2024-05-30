@@ -48,7 +48,7 @@ collect_result() {
     # Measure the time it takes for the pod to reach the ready state
     start_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "PodScheduled") | .lastTransitionTime' -)
     end_time=$(kubectl -n ${namespace} get pods -o yaml | yq e '.items[].status.conditions[] | select(.type == "Ready") | .lastTransitionTime' -)
-    execution_time=$(( $(date -d "$end_time" "+%s") - $(date -d "$start_time" "+%s") ))
+    execution_time=$(echo "$(date -d"$end_time" +%s.%N) - $(date -d"$start_time" +%s.%N)" | bc)
     echo "Pod reached ready state in $execution_time seconds"
 
     # Collect results
@@ -60,4 +60,5 @@ collect_result() {
         '{timestamp: $timestamp, execution_time: $execution_time, run_url: $run_url}')
 
     echo $data >> $result_dir/results.json
+
 }
