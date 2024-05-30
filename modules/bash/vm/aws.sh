@@ -13,7 +13,7 @@ get_vm_instances_name_by_run_id() {
 
     echo "$(aws ec2 describe-instances \
         --filters Name=tag:run_id,Values=$run_id Name=instance-state-name,Values=running \
-        --query "Reservations[].Instances.InstanceId" \
+        --query "Reservations[].Instances[].InstanceId" \
         --output text)"
 }
 
