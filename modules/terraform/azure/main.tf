@@ -291,4 +291,3 @@ module "private_endpoint" {
 
   pe_config = var.pe_config
 }
-
