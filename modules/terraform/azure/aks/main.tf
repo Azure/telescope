@@ -56,6 +56,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   os_sku                = each.value.os_sku
   os_disk_type          = each.value.os_disk_type
   max_pods              = each.value.max_pods
+  zones                 = try(each.value.zones, [])
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
