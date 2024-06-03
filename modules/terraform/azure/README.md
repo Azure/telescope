@@ -206,7 +206,7 @@ popd
 After terraform destroys all the resources delete resource group manually.
 
 ```bash
-az group delete --name $RUN_ID
+az group delete --name $RUN_ID -y
 ```
 
 ## References

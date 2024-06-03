@@ -39,16 +39,10 @@ run_iperf3() {
 
   local command="iperf3 $iperf_properties --json"
 
-  port=20001
-  if [ "$protocol" = "udp" ]; then
-    port=20002
-  fi
-
   echo "Wait for 1 minutes before running"
   sleep 60
-  local fullCommand="$command --port $port"
-  echo "Run iperf3 command: $fullCommand"
-  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
+  echo "Run iperf3 command: $command"
+  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/iperf3-${protocol}-${bandwidth}.json
 }
 
 run_iperf2_draft_run(){
