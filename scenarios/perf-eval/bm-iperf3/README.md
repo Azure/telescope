@@ -14,7 +14,7 @@ CLOUD=azure
 REGION=eastus2
 MACHINE_TYPE=Standard_E104id_v5
 ACCERLATED_NETWORKING=true
-ADMIN_USERNAME=ubuntu
+ADMIN_USERNAME=azureuser
 ```
 
 ### AWS Variables
