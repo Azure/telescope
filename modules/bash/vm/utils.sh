@@ -186,8 +186,6 @@ measure_vm_extension() {
     local installation_succedded="false"
     local installation_time=0
 
-    echo "Command: $command"
-
     local start_time=$(date +%s)
     echo "Measuring $cloud VM extension installation for $vm_name. Started at $start_time."
 
