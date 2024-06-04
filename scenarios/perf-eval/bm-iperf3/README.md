@@ -160,7 +160,16 @@ ami_config = {
     owners              = ["099720109477"]
 }
 ```
-
+AWS Ubuntu 22.04:
+```hcl
+ami_config = {
+    most_recent         = true
+    name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+    virtualization_type = "hvm"
+    architecture        = "x86_64"
+    owners              = ["099720109477"]
+}
+```
 ### Provision Resources:
 
 Create Azure Resource Group for Azure testing only
