@@ -10,14 +10,16 @@ This guide covers how to manually run vm iperf test on Azure
 
 ### Azure Variables
 ```bash
+CLOUD=azure
 REGION=eastus2
 MACHINE_TYPE=Standard_E104id_v5
 ACCERLATED_NETWORKING=true
-ADMIN_USERNAME=azureuser
+ADMIN_USERNAME=ubuntu
 ```
 
 ### AWS Variables
 ```bash
+CLOUD=aws
 REGION=us-east-2
 MACHINE_TYPE=c6in.metal
 ADMIN_USERNAME=ubuntu
