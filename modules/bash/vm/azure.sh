@@ -196,13 +196,14 @@ delete_nic() {
 install_vm_extension() {
     local vm_name=$1
     local resource_group=$2
+    local command=${3:-'{"commandToExecute": "echo Hello World"}'}
 
     az vm extension set \
         --resource-group "$resource_group" \
         --vm-name "$vm_name" \
         --name "CustomScript" \
         --publisher "Microsoft.Azure.Extensions" \
-        --settings '{"commandToExecute": "echo Hello World"}' 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
+        --settings "$command" 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
 
     exit_code=$?
 

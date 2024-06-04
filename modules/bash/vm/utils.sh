@@ -181,6 +181,7 @@ measure_vm_extension() {
     local result_dir=$3
     local region=$4
     local vm_name=$5
+    local command=$6
     local result=""
     local installation_succedded="false"
     local installation_time=0
@@ -190,10 +191,10 @@ measure_vm_extension() {
 
     case $cloud in
         azure)
-            extension_data=$(install_vm_extension "$vm_name" "$run_id")
+            extension_data=$(install_vm_extension "$vm_name" "$run_id" "$command")
         ;;
         aws)
-            extension_data=$(install_ec2_extension "$vm_name" "$region")
+            extension_data=$(install_ec2_extension "$vm_name" "$region" "$command")
         ;;
         *)
             exit 1 # cloud provider unknown/not implemented

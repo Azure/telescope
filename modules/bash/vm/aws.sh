@@ -288,13 +288,13 @@ function get_latest_image {
 install_ec2_extension() {
     local instance_id=$1
     local region=$2
-    local COMMANDS='{"commands":["echo \"Hello, World!\""]}'
+    local command=${3:-'{"commands":["echo \"Hello, World!\""]}'}
 
     aws ssm send-command \
         --instance-ids "$instance_id" \
         --document-name "AWS-RunShellScript" \
         --comment "Executing custom script" \
-        --parameters "$COMMANDS" \
+        --parameters "$command" \
         --region "$region" \
         --output json \
         2> /tmp/$instance_id-install-extension-error.txt \
