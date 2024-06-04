@@ -206,13 +206,13 @@ measure_vm_extension() {
     echo "Finished $cloud VM extension installation for $vm_name. Ended at $end_time."
 
     if [[ -n "$extension_data" ]]; then
-        succeeded=$(echo "$extension_data" | jq -r '.succeeded')
+        succeeded=$(jq -r '.succeeded' <<< "$extension_data")
         if [[ "$succeeded" == "true" ]]; then
             output_extension_data=$extension_data
             installation_time=$((end_time - start_time))
             installation_succedded="true"
         else
-            temporary_extension_data=$(echo "$extension_data" | jq -r '.data')
+            temporary_extension_data=$(jq -r '.data' <<< "$extension_data")
             if [[ -n "$temporary_extension_data" ]]; then
                 output_extension_data=$extension_data
             fi
@@ -223,7 +223,7 @@ measure_vm_extension() {
         \"operation\": \"install_vm_extension\", \
         \"succeeded\": \"$installation_succedded\", \
         \"extension_data\": $(jq -c -n \
-          --argjson extension_data "$(echo "$output_extension_data" | jq -r '.data')" \
+          --argjson extension_data "$(jq -r '.data' <<< "$output_extension_data")" \
           '$extension_data'), \
         \"time\": \"$installation_time\" \
     }"

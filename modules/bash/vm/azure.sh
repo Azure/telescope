@@ -199,9 +199,6 @@ install_vm_extension() {
     local resource_group=$2
     local command=${3:-'{"commandToExecute": "echo Hello World"}'}
 
-    set -x
-    echo "Command: $command"
-
     az vm extension set \
         --resource-group "$resource_group" \
         --vm-name "$vm_name" \
