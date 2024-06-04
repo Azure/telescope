@@ -181,7 +181,7 @@ measure_vm_extension() {
     local result_dir=$3
     local region=$4
     local vm_name=$5
-    local command=$6
+    local command=${6:-"''"}
     local result=""
     local installation_succedded="false"
     local installation_time=0
