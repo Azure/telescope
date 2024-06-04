@@ -82,7 +82,7 @@ measure_create_scale_delete_vmss() {
     
     vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
 
-    if [ -n "$scale" ] && [ "$scale" = "true" ]; then
+    if [ -n "$scale" ] && [ "$scale" = "True" ]; then
         measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$((vm_instances + 1))" "scale_up_vmss" "$result_dir" "$test_details" "$tags"
         measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$vm_instances" "scale_down_vmss" "$result_dir" "$test_details" "$tags"
     fi
