@@ -80,6 +80,24 @@ aws configure set aws_access_key_id <access-key>
 aws configure set aws_secret_access_key <secret-access-key>
 aws configure set region <test-region>
 ```
+
+### Update Iperf installation based on OS:
+
+Ubuntu
+```bash
+#Iperf2
+sudo apt-get update && sudo apt-get install iperf -y
+#Iperf3
+sudo apt-get update && sudo apt-get install iperf3 -y
+```
+mariner
+```bash
+#Iperf2
+sudo tdnf install iperf -y
+#Iperf3
+sudo tdnf install iperf3 -y
+```
+
 ### Provision Resources:
 
 Create Azure Resource Group for Azure testing only
