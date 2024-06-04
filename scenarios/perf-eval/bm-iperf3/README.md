@@ -269,32 +269,16 @@ Setup Iperf3 properties for TCP and UDP Protocols
 ```bash
 inputs=(
   # protocol|Bandwidth|concurrentconnections| iperf3 args
-  # "tcp|100|1|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 100M --parallel 1 -w 640k"
-  # "tcp|1000|1|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 1 -w 640k"
-  # "tcp|2000|2|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 2 -w 640k"
-  # "tcp|4000|4|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 4 -w 640k"
-  # "udp|100|1|--client $SERVER_PRIVATE_IP  --port 20002 --time 600 --omit 10 --udp --bandwidth 100M --parallel 1"
-  # "udp|1000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 1000M --parallel 1"
+  "tcp|100|1|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 100M --parallel 1 -w 640k"
+  "tcp|1000|1|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 1 -w 640k"
+  "tcp|2000|2|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 2 -w 640k"
+  "tcp|4000|4|--client $SERVER_PRIVATE_IP --port 20001 --time 600 --bandwidth 1000M --parallel 4 -w 640k"
+  "udp|100|1|--client $SERVER_PRIVATE_IP  --port 20002 --time 600 --omit 10 --udp --bandwidth 100M --parallel 1"
+  "udp|1000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 1000M --parallel 1"
   "udp|2000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 2000M --parallel 1"
   "udp|4000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 4000M --parallel 1"
 )
 ```
-
-Setup Iperf2 properties for TCP and UDP Protocols
-```bash
-inputs=(
-  # protocol|Bandwidth|concurrentconnections| iperf2 args
-  # "tcp|100|1|--client $SERVER_PRIVATE_IP  --time 600 --bandwidth 100M --parallel 1 -w 640k"
-  # "tcp|1000|1|--client $SERVER_PRIVATE_IP --time 600 --bandwidth 1000M --parallel 1 -w 640k"
-  # "tcp|2000|2|--client $SERVER_PRIVATE_IP  --time 600 --bandwidth 1000M --parallel 2 -w 640k"
-  # "tcp|4000|4|--client $SERVER_PRIVATE_IP  --time 600 --bandwidth 1000M --parallel 4 -w 640k"
-  # "udp|100|1|--client $SERVER_PRIVATE_IP   --time 600  --udp --bandwidth 100M --parallel 1"
-  # "udp|1000|1|--client $SERVER_PRIVATE_IP --time 600  --udp --bandwidth 1000M --parallel 1"
-  "udp|2000|1|--client $SERVER_PRIVATE_IP  --time 600  --udp --bandwidth 2000M --parallel 1"
-  "udp|4000|1|--client $SERVER_PRIVATE_IP  --time 600  --udp --bandwidth 4000M --parallel 1"
-)
-```
-
 Setup Iperf2 properties for TCP and UDP Protocols
 ```bash
 inputs=(
