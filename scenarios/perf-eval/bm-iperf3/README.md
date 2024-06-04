@@ -81,7 +81,7 @@ aws configure set aws_secret_access_key <secret-access-key>
 aws configure set region <test-region>
 ```
 
-### Update Iperf installation based on OS:
+### Update Iperf installation based on OS on userdata bash scripts:
 
 Ubuntu
 ```bash
