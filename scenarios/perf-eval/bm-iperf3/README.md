@@ -109,7 +109,7 @@ sudo yum install -y iperf3 -y
 
 ### Update OS in tfvars file.
 
-Azure Linux 20.04:
+Azure Ubuntu 20.04:
 ```hcl
     source_image_reference = {
       publisher = "Canonical"
@@ -119,7 +119,7 @@ Azure Linux 20.04:
     }
 ```
 
-Azure Linux 22.04:
+Azure Ubuntu 22.04:
 ```hcl
     source_image_reference = {
       publisher = "Canonical"
@@ -139,8 +139,8 @@ Azure Mariner:
   }
   ```
 
-  AWS AL2:
-  ```hcl
+AWS AL2:
+```hcl
   ami_config = {
       most_recent         = true
       name                = "amzn2-ami-hvm-*-x86_64-gp2"
@@ -148,9 +148,9 @@ Azure Mariner:
       architecture        = "x86_64"
       owners              = ["amazon"]
     }
-  ```
+```
 
-AWS Ubuntu:
+AWS Ubuntu 20.04:
 ```hcl
 ami_config = {
     most_recent         = true
