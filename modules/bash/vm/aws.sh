@@ -275,11 +275,12 @@ function get_latest_image {
 }
 
 # Description:
-#   This function is used to run custom script on EC2
+#   This function is used to run custom script commands on EC2
 #
 # Parameters:
 #   - $1: The instance id (e.g. i-9014ujtn1509)
 #   - $2: The region where the image is located (e.g. us-east-1)
+#   - $3: Commands to execute (e.g. '{"commands":["echo \"Hello, World!\""]}')
 #
 # Notes:
 #   - a json with the result is returned

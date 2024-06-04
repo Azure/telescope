@@ -188,6 +188,7 @@ delete_nic() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: Commands to execute (e.g. '{"commandToExecute": "echo Hello World"}')
 #
 # Notes:
 #   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
