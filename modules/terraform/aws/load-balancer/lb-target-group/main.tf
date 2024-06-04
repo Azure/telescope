@@ -1,24 +1,24 @@
 data "aws_vpc" "vpc" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.lb_tg_config.vpc_name}"]
+    values = [var.lb_tg_config.vpc_name]
   }
 }
 
 data "aws_instance" "vm_instance" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.lb_tg_config.lb_target_group_attachment.vm_name}"]
+    values = [var.lb_tg_config.lb_target_group_attachment.vm_name]
   }
 
   filter {

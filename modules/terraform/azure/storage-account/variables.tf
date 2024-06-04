@@ -45,14 +45,27 @@ variable "storage_share_config" {
   default = null
 }
 
-variable "storage_network_rules_config" {
-  description = "storage network rules config"
+variable "storage_blob_config" {
+  description = "storage container blob config"
   type = object({
-    default_action             = string
-    virtual_network_subnet_ids = list(string)
+    container_name   = string
+    container_access = string
+    blob_name        = string
+    blob_type        = string
+    source_file_path = string
   })
   default = null
 }
+
+# TODO - Add support for storage network rules
+# variable "storage_network_rules_config" {
+#   description = "storage network rules config"
+#   type = object({
+#     default_action             = string
+#     virtual_network_subnet_ids = list(string)
+#   })
+#   default = null
+# }
 
 variable "enable_https_traffic_only" {
   description = "enable https traffic only"

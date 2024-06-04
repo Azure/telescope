@@ -1,6 +1,23 @@
 #!/bin/bash
 
 # Description:
+#   This function gets the ids of the running VM instances (called name for Azure compatibility) by run id.
+
+# Parameters:
+#  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+# 
+# Returns: The ids of the VM instances
+# Usage: get_vm_instances_name_by_run_id <run_id>
+get_vm_instances_name_by_run_id() {
+    local run_id=$1
+
+    echo "$(aws ec2 describe-instances \
+        --filters Name=tag:run_id,Values=$run_id Name=instance-state-name,Values=running \
+        --query "Reservations[].Instances[].InstanceId" \
+        --output text)"
+}
+
+# Description:
 #   This function is used to create an EC2 instance in AWS.
 #
 # Parameters:
@@ -255,4 +272,63 @@ function get_latest_image {
         --output text)
 
     echo "$ami_id"
+}
+
+# Description:
+#   This function is used to run custom script commands on EC2
+#
+# Parameters:
+#   - $1: The instance id (e.g. i-9014ujtn1509)
+#   - $2: The region where the image is located (e.g. us-east-1)
+#   - $3: Commands to execute (e.g. '{"commands":["echo \"Hello, World!\""]}')
+#
+# Notes:
+#   - a json with the result is returned
+#
+# Usage: install_ec2_extension <instance_id> <region>
+install_ec2_extension() {
+    local instance_id=$1
+    local region=$2
+    local command=${3:-'{"commands":["echo \"Hello, World!\""]}'}
+
+    aws ssm send-command \
+        --instance-ids "$instance_id" \
+        --document-name "AWS-RunShellScript" \
+        --comment "Executing custom script" \
+        --parameters "$command" \
+        --region "$region" \
+        --output json \
+        2> /tmp/$instance_id-install-extension-error.txt \
+        > /tmp/$instance_id-install-extension-output.txt
+
+    exit_code=$?
+
+    (
+        extension_data=$(cat /tmp/$instance_id-install-extension-output.txt)
+        error=$(cat /tmp/$instance_id-install-extension-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            command_id="$(echo "$extension_data" | jq -r '.Command.CommandId')"
+            aws ssm wait command-executed --command-id "$command_id" --instance-id "$instance_id" --region "$region"
+            command_status="$(aws ssm list-command-invocations --command-id "$command_id" \
+                --details --region "$region" \
+                --output text \
+                --query 'CommandInvocations[*].{Status:Status}')"
+
+            if [ "$command_status" = "Success" ]; then
+                succeeded=true
+            else
+                succeeded=false
+            fi
+
+            echo $(jq -c -n \
+                --arg succeeded "$succeeded" \
+                --argjson extension_data "$extension_data" \
+            '{succeeded: $succeeded, data: $extension_data}')
+        else
+            echo $(jq -c -n \
+                --arg error "$error" \
+                '{succeeded: "false", data: {error: $error}}')
+        fi
+    )
 }

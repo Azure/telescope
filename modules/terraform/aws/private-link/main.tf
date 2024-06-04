@@ -2,36 +2,36 @@
 data "aws_vpc" "client_vpc" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.client_vpc_name}"]
+    values = [var.client_vpc_name]
   }
 }
 
 data "aws_subnet" "client_subnet" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.client_subnet_name}"]
+    values = [var.client_subnet_name]
   }
 }
 
 data "aws_security_group" "security_group" {
   filter {
     name   = "tag:run_id"
-    values = ["${var.run_id}"]
+    values = [var.run_id]
   }
 
   filter {
     name   = "tag:Name"
-    values = ["${var.client_security_group_name}"]
+    values = [var.client_security_group_name]
   }
 }
 
@@ -44,12 +44,18 @@ resource "aws_vpc_endpoint_service" "server_service" {
 }
 
 # Interface Endpoint
-resource "aws_vpc_endpoint" "client_endpoint" {
-  vpc_id             = data.aws_vpc.client_vpc.id
-  service_name       = aws_vpc_endpoint_service.server_service.service_name
-  vpc_endpoint_type  = "Interface"
-  subnet_ids         = [data.aws_subnet.client_subnet.id]
-  security_group_ids = [data.aws_security_group.security_group.id]
+module "privateendpoint" {
+  source = "../vpc-endpoint"
+
+  pe_config = {
+    pe_vpc_name        = var.client_vpc_name
+    pe_service_name    = aws_vpc_endpoint_service.server_service.service_name
+    vpc_endpoint_type  = "Interface"
+    subnet_ids         = [data.aws_subnet.client_subnet.id]
+    security_group_ids = [data.aws_security_group.security_group.id]
+  }
+  vpc_id = data.aws_vpc.client_vpc.id
 
   tags = var.tags
 }
+

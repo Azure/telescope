@@ -22,35 +22,53 @@ variable "subnet_id" {
   default     = ""
 }
 
-variable "vm_sku" {
-  description = "Value of the VM SKU"
-  type        = string
-  default     = "Standard_D2ds_v5"
-}
-
 variable "vnet_id" {
   description = "Vnet id"
   type        = string
   default     = ""
 }
 
+variable "subnets" {
+  description = "Maps of subnets"
+  type        = map(string)
+  default     = {}
+}
+
 variable "aks_config" {
   type = object({
-    role           = string
-    aks_name       = string
-    dns_prefix     = string
-    subnet_name    = string
-    network_plugin = string
+    role        = string
+    aks_name    = string
+    dns_prefix  = string
+    subnet_name = optional(string, null)
+    network_profile = optional(object({
+      network_plugin      = optional(string, null)
+      network_plugin_mode = optional(string, null)
+      network_policy      = optional(string, null)
+      outbound_type       = optional(string, null)
+      pod_cidr            = optional(string, null)
+    }))
+    sku_tier = string
     default_node_pool = object({
       name                         = string
+      subnet_name                  = optional(string, null)
       node_count                   = number
-      os_disk_type                 = string
+      vm_size                      = string
+      os_sku                       = optional(string, "Ubuntu")
+      os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
+      max_pods                     = optional(number, null)
     })
     extra_node_pool = list(object({
-      name       = string
-      node_count = number
+      name         = string
+      subnet_name  = optional(string, null)
+      node_count   = number
+      vm_size      = string
+      os_sku       = optional(string, "Ubuntu")
+      os_disk_type = optional(string, "Managed")
+      max_pods     = optional(number, null)
+      zones        = optional(list(string), [])
     }))
+    role_assignment_list = optional(list(string), [])
   })
 }

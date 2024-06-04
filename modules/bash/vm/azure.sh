@@ -1,6 +1,20 @@
 #!/bin/bash
 
 # Description:
+#   This function gets the names of disk instances by resource group(run id).
+#
+# Parameters:
+#  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+# 
+# Returns: name of the VM instance
+# Usage: get_vm_instances_by_run_id <run_id>
+get_vm_instances_name_by_run_id() {
+    local resource_group=$1
+
+    echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '"$resource_group"')].name" --output tsv)
+}
+
+# Description:
 #   This function is used to create a VM in Azure.
 #
 # Parameters:
@@ -60,7 +74,7 @@ create_vm() {
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
                     --argjson vm_data "${error:7}" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
@@ -166,4 +180,46 @@ delete_nic() {
     if az network nic delete --resource-group "$resource_group" --name "$nic_name" --output none; then
         echo "$nic_name"
     fi
+}
+
+# Description:
+#   This function is used to install CSE extension on a VM
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: Commands to execute (e.g. '{"commandToExecute": "echo Hello World"}')
+#
+# Notes:
+#   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
+#
+# Usage: install_vm_extension <vm_name> <resource_group>
+install_vm_extension() {
+    local vm_name=$1
+    local resource_group=$2
+    local command=${3:-'{"commandToExecute": "echo Hello World"}'}
+
+    az vm extension set \
+        --resource-group "$resource_group" \
+        --vm-name "$vm_name" \
+        --name "CustomScript" \
+        --publisher "Microsoft.Azure.Extensions" \
+        --settings "$command" 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
+
+    exit_code=$?
+
+    (
+        extension_data=$(cat /tmp/$resource_group-$vm_name-install-extension-output.txt)
+        error=$(cat /tmp/$resource_group-$vm_name-install-extension-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --argjson extension_data "$extension_data" \
+            '{succeeded: "true", data: $extension_data}')
+        else
+            echo $(jq -c -n \
+                --arg error "$error" \
+                '{succeeded: "false", data: {error: $error}}')
+        fi
+    )
 }

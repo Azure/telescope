@@ -123,11 +123,21 @@ aws_create_vpc_peering(){
     --query "VpcPeeringConnection.VpcPeeringConnectionId" --output text)
 
   # Wait until the peering connection is available
-  aws ec2 wait vpc-peering-connection-exists --vpc-peering-connection-ids $peering_id 
+  aws ec2 wait vpc-peering-connection-exists --region $client_vpc_region --vpc-peering-connection-ids $peering_id 
 
   # Step 3 Accept the Peering after it's been created. 
   echo "Accepting Peering ID $peering_id"
-  aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $peering_id --region $server_vpc_region
+  accept_peering_retry=5
+  accept_peering_interval=10
+  for ((i=1; i<=$accept_peering_retry; i++)); do
+    if aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $peering_id --region $server_vpc_region; then
+      echo "Peering connection accepted successfully."
+      break
+    else
+      echo "Failed to accept peering connection. Retrying in $accept_peering_interval seconds..."
+      sleep $accept_peering_interval
+    fi
+  done
 
   # Step 4 Modify internet-rt Route Tables for both VPCs to go to the peering connection   
   client_route_table=$(aws ec2 describe-route-tables --region $client_vpc_region --query "RouteTables[?VpcId=='$client_vpc_id' && Tags[?Key=='Name' && Value=='internet-rt']].RouteTableId" --output text)
@@ -180,4 +190,65 @@ aws_eks_deploy_fio()
   
   kubectl apply -f "${file_source}/pvc.yml"
   kubectl apply -f "${file_source}/fio.yml"
+}
+
+aws_eks_deploy_fio_fileshare()
+{
+  local region=$1
+  local eksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local fileSystemId=$5
+  local replica_count=$6
+
+  aws eks update-kubeconfig --region $region --name $eksName
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/aws
+
+  delete_time=$(date -ud '+2 hour' +'%FT%TZ')
+  deletion_tag="deletion_due_time=${delete_time}"
+
+  sed -i "s/\(fileSystemId: \).*/\1$fileSystemId/" "${file_source}/storage-class.yml"
+  sed -i "s/\(tagSpecification_1: \).*/\1\"$deletion_tag\"/" "${file_source}/storage-class.yml"
+  kubectl apply -f "${file_source}/storage-class.yml"
+
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}
+
+aws_eks_delete_network_interfaces()
+{
+  local run_id=$1
+  echo "Deleting all the network Interfaces ..."
+  subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$run_id']].SubnetId" --output text)
+  for subnet_id in $subnet_ids; do
+    echo "Detaching Subnet: $subnet_id Network Interfaces ..."
+    network_interfaces_attachment_id=$(aws ec2 describe-network-interfaces --filters "Name=subnet-id,Values=$subnet_id" --query "NetworkInterfaces[].Attachment.AttachmentId" --output text)
+    for network_interface_attachment_id in $network_interfaces_attachment_id; do
+      device_index=$(aws ec2 describe-network-interfaces --filters "Name=attachment.attachment-id,Values=$network_interface_attachment_id" --query "NetworkInterfaces[].Attachment.DeviceIndex" --output text)
+      if [[ $device_index == 0 ]]; then
+        continue
+      fi
+      echo "Detaching Network Interface attachment id: $network_interface_attachment_id"
+      if ! aws ec2 detach-network-interface --attachment-id $network_interface_attachment_id; then
+        echo "##vso[task.logissue type=error;] Failed to detach Network Interface attachment id: $network_interface_attachment_id"
+      fi
+    done
+    echo "Deleting Subnet: $subnet_id Network Interfaces ..."
+    network_interfaces=$(aws ec2 describe-network-interfaces --filters "Name=subnet-id,Values=$subnet_id" "Name=status,Values=available" --query "NetworkInterfaces[].NetworkInterfaceId" --output text)
+    for network_interface in $network_interfaces; do
+      device_index=$(aws ec2 describe-network-interfaces --filters "Name=network-interface-id,Values=$network_interface" --query "NetworkInterfaces[].Attachment.DeviceIndex" --output text)
+      if [[ $device_index == 0 ]]; then
+        continue
+      fi
+      if aws ec2 wait network-interface-available --network-interface-ids $network_interface; then
+        echo "Network Interface: $network_interface is available"
+      fi
+      echo "Deleting Network Interface: $network_interface"
+      if ! aws ec2 delete-network-interface --network-interface-id $network_interface; then
+        echo "##vso[task.logissue type=error;] Failed to delete Network Interface: $network_interface"
+      fi
+    done
+  done
 }

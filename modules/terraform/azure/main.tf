@@ -1,7 +1,6 @@
 locals {
   region                           = lookup(var.json_input, "region", "East US")
   machine_type                     = lookup(var.json_input, "machine_type", "Standard_D2ds_v5")
-  aks_machine_type                 = lookup(var.json_input, "aks_machine_type", "Standard_D2ds_v5")
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   public_key_path                  = lookup(var.json_input, "public_key_path", "")
@@ -15,12 +14,14 @@ locals {
   data_disk_mbps_read_only         = lookup(var.json_input, "data_disk_mbps_read_only", null)
   data_disk_tier                   = lookup(var.json_input, "data_disk_tier", null)
   data_disk_caching                = lookup(var.json_input, "data_disk_caching", "ReadOnly")
+  data_disk_count                  = lookup(var.json_input, "data_disk_count", 1)
   storage_account_tier             = lookup(var.json_input, "storage_account_tier", "")
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
-  storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
-  storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
   storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
+  # storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
+  # storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
+
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
@@ -32,24 +33,34 @@ locals {
   network_config_map                     = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   appgateway_config_map                  = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  agc_config_map                         = { for agc in var.agc_config_list : agc.role => agc }
   aks_config_map                         = { for aks in var.aks_config_list : aks.role => aks }
+  aks_cluster_oidc_issuer_map            = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
+  aks_cluster_kubeconfig_list            = [for aks in var.aks_config_list : module.aks[aks.role].aks_cluster_kubeconfig_path]
   vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
   all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
-  disk_association_map                   = { for config in var.data_disk_association_list : config.vm_name => config }
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
-  data_disk_config_map                   = { for config in var.data_disk_config_list : config.disk_name => config }
-  all_data_disks                         = { for disk in var.data_disk_config_list : disk.disk_name => module.data_disk[disk.disk_name].data_disk }
 }
 
 terraform {
+  required_version = ">=1.5.6"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "<= 3.93.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">=3.1.0"
+    }
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = "<= 2.13.1"
     }
   }
 }
@@ -58,13 +69,24 @@ provider "azurerm" {
   features {}
 }
 
+provider "helm" {
+  kubernetes {
+    config_paths = local.aks_cluster_kubeconfig_list
+  }
+
+  registry {
+    url      = "oci://mcr.microsoft.com"
+    username = ""
+    password = ""
+  }
+}
+
 module "public_ips" {
   source                = "./public-ip"
   resource_group_name   = local.run_id
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
   tags                  = local.tags
-
 }
 
 module "virtual_network" {
@@ -85,11 +107,11 @@ module "aks" {
   source              = "./aks"
   resource_group_name = local.run_id
   location            = local.region
-  vm_sku              = local.aks_machine_type
   subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   aks_config          = each.value
   tags                = local.tags
   vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets             = try(local.all_subnets, null)
 }
 
 module "load_balancer" {
@@ -117,13 +139,26 @@ module "appgateway" {
   tags                = local.tags
 }
 
+module "agc" {
+  for_each = local.agc_config_map
+
+  source                  = "./agc"
+  agc_config              = each.value
+  resource_group_name     = local.run_id
+  location                = local.region
+  association_subnet_id   = local.all_subnets[each.value.association_subnet_name]
+  tags                    = local.tags
+  aks_cluster_oidc_issuer = local.aks_cluster_oidc_issuer_map[each.value.role]
+  depends_on              = [module.aks]
+}
+
 module "data_disk" {
-  for_each = local.data_disk_config_map
+  count = var.data_disk_config == null ? 0 : local.data_disk_count
 
   source                         = "./data-disk"
   resource_group_name            = local.run_id
   location                       = local.region
-  data_disk_name                 = each.value.disk_name
+  data_disk_name                 = "${var.data_disk_config.name_prefix}-${count.index}"
   tags                           = local.tags
   data_disk_storage_account_type = local.data_disk_storage_account_type
   data_disk_size_gb              = local.data_disk_size_gb
@@ -132,7 +167,7 @@ module "data_disk" {
   data_disk_iops_read_only       = local.data_disk_iops_read_only
   data_disk_mbps_read_only       = local.data_disk_mbps_read_only
   data_disk_tier                 = local.data_disk_tier
-  zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : each.value.zone
+  zone                           = strcontains(lower(local.data_disk_storage_account_type), "_zrs") ? null : var.data_disk_config.zone
 }
 
 module "virtual_machine" {
@@ -177,11 +212,11 @@ resource "azurerm_network_interface_backend_address_pool_association" "nic-backe
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "disk-association" {
-  for_each = local.disk_association_map
+  count = try(var.data_disk_config.vm_name, null) != null ? local.data_disk_count : 0
 
-  managed_disk_id    = local.all_data_disks[each.value.data_disk_name].id
-  virtual_machine_id = local.all_vms[each.key].id
-  lun                = 0
+  managed_disk_id    = module.data_disk[count.index].data_disk.id
+  virtual_machine_id = local.all_vms[var.data_disk_config.vm_name].id
+  lun                = count.index
   caching            = (local.data_disk_caching == null || local.data_disk_caching == "") ? "ReadOnly" : local.data_disk_caching
 }
 
@@ -193,7 +228,6 @@ resource "random_string" "storage_account_random_suffix" {
   numeric          = true
   override_special = "_-"
 }
-
 
 module "storage_account" {
   source = "./storage-account"
@@ -215,6 +249,14 @@ module "storage_account" {
   #   access_tier      = local.storage_share_access_tier
   #   enabled_protocol = local.storage_share_enabled_protocol
   # }
+
+  storage_blob_config = var.blob_config == null ? null : {
+    container_name   = var.blob_config.container_name
+    container_access = var.blob_config.container_access
+    blob_name        = var.blob_config.blob_name
+    blob_type        = var.blob_config.blob_type
+    source_file_path = "${local.user_data_path}/${var.blob_config.source_file_name}"
+  }
 }
 
 module "privatelink" {
