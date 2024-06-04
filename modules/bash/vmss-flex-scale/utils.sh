@@ -50,7 +50,7 @@ measure_create_scale_delete_vmss() {
     local region=$7
     local run_id=$8
     local network_security_group=$9
-    local vnet_name=$10
+    local vnet_name=${10}
     local subnet=${11}
     local security_type=${12}
     local result_dir=${13}
@@ -208,13 +208,16 @@ measure_create_vmss() {
 #   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
 #   - $3: The region where the VMSS will be created (e.g. us-east1)
 #   - $4: The run id
-#   - $5: The result directory where to place the results in JSON format
-#   - $6: The test details in JSON format
+#   - $5: The new capacity for the VMSS (e.g. 20)
+#   - $6: A parameter that lets us know if we need to scale up or down
+#   - $7: The result directory where to place the results in JSON format
+#   - $8: The test details in JSON format
+#   - $9: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
 #
-# Usage: measure_delete_vmss <cloud> <vmss_name> <region> <run_id> <result_dir> <test_details>
+# Usage: measure_delete_vmss <cloud> <vmss_name> <region> <run_id> <new_capacity> <scale_type> <result_dir> <test_details> <tags>
 measure_scale_vmss() {
     local cloud=$1
     local vmss_name=$2
