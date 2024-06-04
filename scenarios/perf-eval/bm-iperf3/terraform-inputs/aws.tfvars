@@ -45,7 +45,7 @@ network_config_list = [
           protocol   = "udp"
           cidr_block = "0.0.0.0/0"
         },
-				        {
+        {
           from_port  = 20002
           to_port    = 20002
           protocol   = "tcp"
