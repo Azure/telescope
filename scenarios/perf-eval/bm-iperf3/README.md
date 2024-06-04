@@ -73,7 +73,6 @@ az login --service-principal --username <appId> --password <password> --tenant <
 ```
 
 ### AWS Login Setup:
-### AWS Login Setup:
 Create access key and secret key for AWS CLI following the instructions [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_CreateAccessKey) if you don't have one yet.
 
 Login using the access key and secret key
@@ -164,36 +163,7 @@ ami_config = {
 
 ### Provision Resources:
 
-Create Azure access key and secret key for AWS CLI following the instructions [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_CreateAccessKey) if you don't have one yet.
-
-Login using the access key and secret key
-
-```bash
-aws configure set aws_access_key_id <access-key>
-aws configure set aws_secret_access_key <secret-access-key>
-aws configure set region <test-region>
-```
-
-### Update Iperf installation based on OS on userdata bash scripts:
-
-Ubuntu
-```bash
-#Iperf2
-sudo apt-get update && sudo apt-get install iperf -y
-#Iperf3
-sudo apt-get update && sudo apt-get install iperf3 -y
-```
-mariner
-```bash
-#Iperf2
-sudo tdnf install iperf -y
-#Iperf3
-sudo tdnf install iperf3 -y
-```
-
-### Provision Resources:
-
-Create Azure Resource Group for Azure Azure testing only only
+Create Azure Resource Group for Azure testing only
 
 ```bash
 az group create --name $RUN_ID --location $REGION --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=$OWNER" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=$(date -u -d '+2 hour' +'%Y-%m-%dT%H:%M:%SZ')"
