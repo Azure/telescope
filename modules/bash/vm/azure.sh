@@ -209,24 +209,17 @@ install_vm_extension() {
     exit_code=$?
 
     (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-            '{succeeded: "false", data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
-        trap _catch ERR
-
         extension_data=$(cat /tmp/$resource_group-$vm_name-install-extension-output.txt)
         error=$(cat /tmp/$resource_group-$vm_name-install-extension-error.txt)
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --argjson extension_data "$extension_data" \
-            '{succeeded: "true", data: $extension_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", data: $extension_data}')
         else
             echo $(jq -c -n \
                 --arg error "$error" \
-                '{succeeded: "false", data: {error: $error}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", data: {error: $error}}')
         fi
     )
 }

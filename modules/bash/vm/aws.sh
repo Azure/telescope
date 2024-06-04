@@ -304,14 +304,6 @@ install_ec2_extension() {
     exit_code=$?
 
     (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-            '{succeeded: "false", data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
-        trap _catch ERR
-
-        set -x
         extension_data=$(cat /tmp/$instance_id-install-extension-output.txt)
         error=$(cat /tmp/$instance_id-install-extension-error.txt)
 
@@ -332,11 +324,11 @@ install_ec2_extension() {
             echo $(jq -c -n \
                 --arg succeeded "$succeeded" \
                 --argjson extension_data "$extension_data" \
-            '{succeeded: $succeeded, data: $extension_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: $succeeded, data: $extension_data}')
         else
             echo $(jq -c -n \
                 --arg error "$error" \
-                '{succeeded: "false", data: {error: $error}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", data: {error: $error}}')
         fi
     )
 }
