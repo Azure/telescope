@@ -201,7 +201,7 @@ measure_create_vmss() {
 }
 
 # Description:
-#   This function is used to to measure the time it takes to delete a VMSS and save results in JSON format
+#   This function is used to measure the time it takes to scale a VMSS and save results in JSON format
 #
 # Parameters:
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
