@@ -193,11 +193,6 @@ measure_vm_extension() {
             extension_data=$(install_vm_extension "$vm_name" "$run_id")
         ;;
         aws)
-            echo "Waiting $vm_name to be in Running and Status OK state."
-            aws ec2 wait instance-running --instance-ids $vm_name --region $region
-            aws ec2 wait instance-status-ok --instance-ids $vm_name --region $region
-            start_time=$(date +%s)
-            echo "The VM $vm_name in Running state. Started installation at $start_time."
             extension_data=$(install_ec2_extension "$vm_name" "$region")
         ;;
         *)
