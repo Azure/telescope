@@ -188,6 +188,7 @@ delete_nic() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: Commands to execute (e.g. '{"commandToExecute": "echo Hello World"}')
 #
 # Notes:
 #   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
@@ -196,35 +197,29 @@ delete_nic() {
 install_vm_extension() {
     local vm_name=$1
     local resource_group=$2
+    local command=${3:-'{"commandToExecute": "echo Hello World"}'}
 
     az vm extension set \
         --resource-group "$resource_group" \
         --vm-name "$vm_name" \
         --name "CustomScript" \
         --publisher "Microsoft.Azure.Extensions" \
-        --settings '{"commandToExecute": "echo Hello World"}' 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
+        --settings "$command" 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
 
     exit_code=$?
 
     (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-            '{succeeded: "false", data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
-        trap _catch ERR
-
         extension_data=$(cat /tmp/$resource_group-$vm_name-install-extension-output.txt)
         error=$(cat /tmp/$resource_group-$vm_name-install-extension-error.txt)
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --argjson extension_data "$extension_data" \
-            '{succeeded: "true", data: $extension_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", data: $extension_data}')
         else
             echo $(jq -c -n \
                 --arg error "$error" \
-                '{succeeded: "false", data: {error: $error}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", data: {error: $error}}')
         fi
     )
 }
