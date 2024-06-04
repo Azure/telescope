@@ -86,8 +86,41 @@ scale_vmss() {
     local vmss_name=$1
     local resource_group=$2
     local vmss_capacity=$3
+    local tags=${4:-"''"}
     
-    az vmss scale --name "$vmss_name" --new-capacity $vmss_capacity --resource-group "$resource_group" -o json 2> /tmp/$resource_group-$vmss_name-scale_vmss-error.txt > /tmp/$resource_group-$vmss_name-scale_vmss-output.txt
+    az vmss scale --name "$vmss_name" --new-capacity $vmss_capacity --resource-group "$resource_group" --tags $tags -o json 2> /tmp/$resource_group-$vmss_name-scale_vmss-error.txt > /tmp/$resource_group-$vmss_name-scale_vmss-output.txt
+
+    exit_code=$?
+
+    (
+        set -Ee
+        function _catch {
+            echo $(jq -c -n \
+                --arg vmss_name "$vmss_name" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        error=$(cat /tmp/$resource_group-$vmss_name-scale_vmss-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --arg vmss_name "$vmss_name" \
+            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+                echo $(jq -c -n \
+                    --arg vmss_name "$vmss_name" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+            else
+                echo $(jq -c -n \
+                    --arg vmss_name "$vmss_name" \
+                    --arg vmss_data "$error" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
+        fi
+    )
+
 }
 
 # Description:
