@@ -300,6 +300,88 @@ measure_scale_vmss() {
 #   - the VMSS ID is returned if no errors occurred
 #
 # Usage: measure_delete_vmss <cloud> <vmss_name> <region> <run_id> <result_dir> <test_details>
+measure_scale_vmss() {
+    local cloud=$1
+    local vmss_name=$2
+    local region=$3
+    local run_id=$4
+    local new_capacity=$5
+    local scale_type=$6
+    local result_dir=$7
+    local test_details=$8
+    local tags=$9
+
+    local scaling_succeeded=false
+    local scaling_time=-1
+    local output_vmss_data="{ \"vmss_data\": {}}"
+
+    local start_time=$(date +%s)
+    case $cloud in
+        azure)
+            vmss_data=$(scale_vmss "$vmss_name" "$run_id" "$new_capacity" "$tags")
+        ;;
+        aws)
+            vmss_data=$(scale_asg "$vmss_name" "$region")
+        ;;
+        gcp)
+            vmss_data=$(scale_asg "$vmss_name" "$region")
+        ;;
+        *)
+            exit 1 # cloud provider unknown
+        ;;
+    esac
+
+    wait
+    end_time=$(date +%s)
+
+    if [[ -n "$vmss_data" ]]; then
+        succeeded=$(echo "$vmss_data" | jq -r '.succeeded')
+        if [[ "$succeeded" == "true" ]]; then
+            output_vmss_data=$vmss_data
+            scaling_time=$((end_time - start_time))
+            scaling_succeeded=true
+        else
+            temporary_vmss_data=$(echo "$vmss_data" | jq -r '.vmss_data')
+            if [[ -n "$temporary_vmss_data" ]]; then
+                output_vmss_data=$vmss_data
+            fi
+        fi
+    fi
+
+    result="$test_details, \
+        \"vmss_id\": \"$vmss_name\", \
+        \"vmss_data\": $(jq -c -n \
+          --argjson vmss_data "$(echo "$output_vmss_data" | jq -r '.vmss_data')" \
+          '$vmss_data'), \
+        \"vm_target_instances\": \"$new_capacity\", \
+        \"operation\": \"$scale_type\", \
+        \"time\": \"$scaling_time\", \
+        \"succeeded\": \"$scaling_succeeded\" \
+    }"
+
+    mkdir -p "$result_dir"
+    echo $result > "$result_dir/scaling-$cloud-$vmss_name-$new_capacity-$(date +%s).json"
+
+    if [[ "$scaling_succeeded" == "true" ]]; then
+        echo "$vmss_name"
+    fi
+}
+
+# Description:
+#   This function is used to to measure the time it takes to delete a VMSS and save results in JSON format
+#
+# Parameters:
+#   - $1: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: The region where the VMSS will be created (e.g. us-east1)
+#   - $4: The run id
+#   - $5: The result directory where to place the results in JSON format
+#   - $6: The test details in JSON format
+#
+# Notes:
+#   - the VMSS ID is returned if no errors occurred
+#
+# Usage: measure_delete_vmss <cloud> <vmss_name> <region> <run_id> <result_dir> <test_details>
 measure_delete_vmss() {
     local cloud=$1
     local vmss_name=$2
