@@ -301,8 +301,10 @@ measure_create_vm() {
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
         if [[ "$succeeded" == "true" ]]; then
-            output_vm_data=$vm_data
             vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+            output_vm_data=$(jq -c -n \
+                    --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
+                '{vm_data: $vm_data}')
             creation_time=$((end_time - start_time))
             creation_succeeded=true
         else
