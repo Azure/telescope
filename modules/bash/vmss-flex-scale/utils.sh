@@ -24,20 +24,20 @@ get_vmss_name() {
 #   This function is used to measure the time it takes to create and delete a VMSS and save results in JSON format
 #
 # Parameters:
-#   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
-#   - $3: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
-#   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
-#   - $5: The number of VM instances in the VMSS (e.g. 1)
-#   - $6: Should the scenario scale up/down by one unit (e.g. false)
-#   - $7: The region where the VMSS will be created (e.g. us-east1)
-#   - $8: The run id
-#   - $9: The network security group (eg. my-nsg)
-#   - $10: The virtual network name (e.g. my-vnet)
-#   - $11: The subnet (e.g. my-subnet)
-#   - $12: The security type (e.g. TrustedLaunch)
-#   - $13: The result directory where to place the results in JSON format
-#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $1: cloud: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: vmss_name: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: vm_size: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
+#   - $4: vm_os: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
+#   - $5: instances: The number of VM instances in the VMSS (e.g. 1)
+#   - $6: scale: Should the scenario scale up/down by one unit (e.g. false)
+#   - $7: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $8: run_id: The run id
+#   - $9: network_security_group: The network security group (eg. my-nsg)
+#   - $10: vnet_name: The virtual network name (e.g. my-vnet)
+#   - $11: subnet: The subnet (e.g. my-subnet)
+#   - $12: security_type: The security type (e.g. TrustedLaunch)
+#   - $13: result_dir: The result directory where to place the results in JSON format
+#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
 measure_create_scale_delete_vmss() {
@@ -90,27 +90,26 @@ measure_create_scale_delete_vmss() {
     if [ -n "$vmss_id" ] && [[ "$vmss_id" != Error* ]]; then
         vmss_id=$(measure_delete_vmss "$cloud" "$vmss_id" "$region" "$run_id" "$result_dir" "$test_details")
     fi
-
 }
 
 # Description:
 #   This function is used to measure the time it takes to create a VMSS and save the results in JSON format
 #
 # Parameters:
-#   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
-#   - $3: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
-#   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
-#   - $5: The number of VM instances in the VMSS (e.g. 1)
-#   - $6: The region where the VMSS will be created (e.g. us-east1)
-#   - $7: The run id
-#   - $8: The network security group (eg. my-nsg)
-#   - $9: The virtual network name (e.g. my-vnet)
-#   - $10: The subnet (e.g. my-subnet)
-#   - $11: The security type (e.g. TrustedLaunch)
-#   - $12: The result directory where to place the results in JSON format
-#   - $13: The test details in JSON format
-#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $1: cloud: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: vmss_name: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: vm_size: The size of the VM used in the VMSS (e.g. c3-highcpu-4)
+#   - $4: vm_os: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
+#   - $5: instances: The number of VM instances in the VMSS (e.g. 1)
+#   - $6: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $7: run_id: The run id
+#   - $8: network_security_group: The network security group (eg. my-nsg)
+#   - $9: vnet_name: The virtual network name (e.g. my-vnet)
+#   - $10: subnet: The subnet (e.g. my-subnet)
+#   - $11: security_type: The security type (e.g. TrustedLaunch)
+#   - $12: result_dir: The result directory where to place the results in JSON format
+#   - $13: test_details: The test details in JSON format
+#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
@@ -144,8 +143,6 @@ measure_create_vmss() {
         ;;
         aws)
             # AWS Method call
-            #end time
-            # describe for data
             echo "AWS not implemented yet."
             exit 1
         ;;
@@ -160,11 +157,7 @@ measure_create_vmss() {
     esac
 
     wait
-
-
     end_time=$(date +%s)
-
-
 
     if [[ -n "$vmss_data" ]]; then
         succeeded=$(echo "$vmss_data" | jq -r '.succeeded')
@@ -204,15 +197,15 @@ measure_create_vmss() {
 #   This function is used to measure the time it takes to scale a VMSS and save results in JSON format
 #
 # Parameters:
-#   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
-#   - $3: The region where the VMSS will be created (e.g. us-east1)
-#   - $4: The run id
-#   - $5: The new capacity for the VMSS (e.g. 20)
-#   - $6: A parameter that lets us know if we need to scale up or down
-#   - $7: The result directory where to place the results in JSON format
-#   - $8: The test details in JSON format
-#   - $9: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $1: cloud: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: vmss_name: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $4: run_id: The run id
+#   - $5: new_capacity: The new capacity for the VMSS (e.g. 20)
+#   - $6: scale_type: A parameter that lets us know if we need to scale up or down
+#   - $7: result_dir: The result directory where to place the results in JSON format
+#   - $8: test_details: The test details in JSON format
+#   - $9: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
@@ -286,20 +279,23 @@ measure_scale_vmss() {
 }
 
 # Description:
-#   This function is used to to measure the time it takes to delete a VMSS and save results in JSON format
+#   This function is used to measure the time it takes to scale a VMSS and save results in JSON format
 #
 # Parameters:
-#   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
-#   - $3: The region where the VMSS will be created (e.g. us-east1)
-#   - $4: The run id
-#   - $5: The result directory where to place the results in JSON format
-#   - $6: The test details in JSON format
+#   - $1: cloud: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: vmss_name: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $4: run_id: The run id
+#   - $5: new_capacity: The new capacity for the VMSS (e.g. 20)
+#   - $6: scale_type: A parameter that lets us know if we need to scale up or down
+#   - $7: result_dir: The result directory where to place the results in JSON format
+#   - $8: test_details: The test details in JSON format
+#   - $9: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
 #
-# Usage: measure_delete_vmss <cloud> <vmss_name> <region> <run_id> <result_dir> <test_details>
+# Usage: measure_scale_vmss <cloud> <vmss_name> <region> <run_id> <new_capacity> <scale_type> <result_dir> <test_details> <tags>
 measure_scale_vmss() {
     local cloud=$1
     local vmss_name=$2
@@ -371,12 +367,12 @@ measure_scale_vmss() {
 #   This function is used to to measure the time it takes to delete a VMSS and save results in JSON format
 #
 # Parameters:
-#   - $1: The cloud provider (e.g. azure, aws, gcp)
-#   - $2: The name of the VMSS (e.g. vmss-1-1233213123)
-#   - $3: The region where the VMSS will be created (e.g. us-east1)
-#   - $4: The run id
-#   - $5: The result directory where to place the results in JSON format
-#   - $6: The test details in JSON format
+#   - $1: cloud: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: vmss_name: The name of the VMSS (e.g. vmss-1-1233213123)
+#   - $3: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $4: run_id: The run id
+#   - $5: result_dir: The result directory where to place the results in JSON format
+#   - $6: test_details: The test details in JSON format
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
