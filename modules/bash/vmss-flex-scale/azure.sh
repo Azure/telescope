@@ -48,7 +48,7 @@ create_vmss() {
         function _catch {
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}')
         }
         trap _catch ERR
 
@@ -59,18 +59,18 @@ create_vmss() {
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
                 --argjson vmss_data "$vmss_data" \
-            '{succeeded: "true", vmss_name: $vmss_name, vmss_data: $vmss_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", vmss_name: $vmss_name, vmss_data: $vmss_data}')
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
                     --argjson vmss_data "${error:7}" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')
             else
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
                     --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')
             fi
         fi
     )
@@ -102,7 +102,7 @@ scale_vmss() {
         function _catch {
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}')
         }
         trap _catch ERR
 
@@ -111,17 +111,17 @@ scale_vmss() {
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", vmss_name: $vmss_name}')
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')
             else
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
                     --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')
             fi
         fi
     )
@@ -149,7 +149,7 @@ delete_vmss() {
         function _catch {
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}')
         }
         trap _catch ERR
 
@@ -158,17 +158,17 @@ delete_vmss() {
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", vmss_name: $vmss_name}')
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')` | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'`
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')
             else
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
                     --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}')
             fi
         fi
     )
