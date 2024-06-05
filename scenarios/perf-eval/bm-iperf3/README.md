@@ -94,12 +94,82 @@ sudo apt-get update && sudo apt-get install iperf3 -y
 ```
 mariner
 ```bash
-#Iperf2
-sudo tdnf install iperf -y
 #Iperf3
 sudo tdnf install iperf3 -y
+#Iperf2
+# Need to install from external source
+```
+AL2
+```bash
+#Iperf3
+sudo yum install -y iperf3 -y
+#Iperf2
+# Needs to installed from external source: https://gist.github.com/n1mh/13b40127349351db07c3c14a32da2706 
 ```
 
+### Update OS in tfvars file.
+
+Azure Ubuntu 20.04:
+```hcl
+    source_image_reference = {
+      publisher = "Canonical"
+      offer     = "0001-com-ubuntu-server-focal"
+      sku       = "20_04-lts"
+      version   = "latest"
+    }
+```
+
+Azure Ubuntu 22.04:
+```hcl
+    source_image_reference = {
+      publisher = "Canonical"
+      offer     = "0001-com-ubuntu-server-jammy"
+    	sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+```
+
+Azure Mariner:
+```hcl
+    source_image_reference = {
+    publisher = "MicrosoftCBLMariner"
+    offer     = "cbl-mariner"
+    sku       = "cbl-mariner-2"
+    version   = "latest"
+  }
+  ```
+
+AWS AL2:
+```hcl
+  ami_config = {
+      most_recent         = true
+      name                = "amzn2-ami-hvm-*-x86_64-gp2"
+      virtualization_type = "hvm"
+      architecture        = "x86_64"
+      owners              = ["amazon"]
+    }
+```
+
+AWS Ubuntu 20.04:
+```hcl
+ami_config = {
+    most_recent         = true
+    name                = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
+    virtualization_type = "hvm"
+    architecture        = "x86_64"
+    owners              = ["099720109477"]
+}
+```
+AWS Ubuntu 22.04:
+```hcl
+ami_config = {
+    most_recent         = true
+    name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+    virtualization_type = "hvm"
+    architecture        = "x86_64"
+    owners              = ["099720109477"]
+}
+```
 ### Provision Resources:
 
 Create Azure Resource Group for Azure testing only
@@ -188,7 +258,6 @@ inputs=(
   "udp|4000|1|--client $SERVER_PRIVATE_IP --port 20002 --time 600 --omit 10 --udp --bandwidth 4000M --parallel 1"
 )
 ```
-
 Setup Iperf2 properties for TCP and UDP Protocols
 ```bash
 inputs=(
