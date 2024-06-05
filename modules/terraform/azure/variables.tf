@@ -6,7 +6,6 @@ variable "json_input" {
     region                           = string
     public_key_path                  = string
     machine_type                     = optional(string)
-    aks_machine_type                 = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
     data_disk_storage_account_type   = optional(string)
@@ -17,6 +16,7 @@ variable "json_input" {
     data_disk_iops_read_only         = optional(number)
     data_disk_mbps_read_only         = optional(number)
     data_disk_caching                = optional(string)
+    data_disk_count                  = optional(number, 1)
     ultra_ssd_enabled                = optional(bool)
     storage_account_tier             = optional(string)
     storage_account_kind             = optional(string)
@@ -67,6 +67,11 @@ variable "network_config_list" {
       address_prefix               = string
       service_endpoints            = optional(list(string))
       pls_network_policies_enabled = optional(bool)
+      delegations = optional(list(object({
+        name                       = string
+        service_delegation_name    = string
+        service_delegation_actions = list(string)
+      })))
     }))
     network_security_group_name = string
     nic_public_ip_associations = list(object({
@@ -110,10 +115,10 @@ variable "appgateway_config_list" {
       name         = string
       ip_addresses = list(string)
     }))
-    appgateway_frontendport = object({
+    appgateway_frontend_ports = list(object({
       name = string
       port = string
-    })
+    }))
     appgateway_backend_http_settings = list(object({
       name                  = string
       host_name             = string
@@ -128,7 +133,7 @@ variable "appgateway_config_list" {
       frontend_ip_configuration_name = string
       frontend_port_name             = string
       protocol                       = string
-      host_name                      = string
+      host_name                      = optional(string)
     }))
     appgateway_request_routing_rules = list(object({
       name                       = string
@@ -142,24 +147,53 @@ variable "appgateway_config_list" {
   default = []
 }
 
+variable "agc_config_list" {
+  description = "List of Application Gateway for Containers configurations"
+  type = list(object({
+    role                    = string
+    name                    = string
+    frontends               = list(string)
+    association_subnet_name = string
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
-    role           = string
-    aks_name       = string
-    subnet_name    = string
-    dns_prefix     = string
-    network_plugin = string
+    role        = string
+    aks_name    = string
+    subnet_name = optional(string)
+    dns_prefix  = string
+    network_profile = optional(object({
+      network_plugin      = optional(string, null)
+      network_plugin_mode = optional(string, null)
+      network_policy      = optional(string, null)
+      outbound_type       = optional(string, null)
+      pod_cidr            = optional(string, null)
+    }))
+    sku_tier = string
     default_node_pool = object({
       name                         = string
+      subnet_name                  = optional(string)
       node_count                   = number
-      os_disk_type                 = string
+      vm_size                      = string
+      os_sku                       = optional(string)
+      os_disk_type                 = optional(string)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
+      max_pods                     = optional(number)
     })
     extra_node_pool = list(object({
-      name       = string
-      node_count = number
+      name         = string
+      subnet_name  = optional(string)
+      node_count   = number
+      vm_size      = string
+      os_sku       = optional(string)
+      os_disk_type = optional(string)
+      max_pods     = optional(number)
+      zones        = optional(list(string), [])
     }))
+    role_assignment_list = optional(list(string), [])
   }))
   default = []
 }
@@ -193,11 +227,12 @@ variable "loadbalancer_config_list" {
 variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
-    role           = string
-    vm_name        = string
-    nic_name       = string
-    admin_username = string
-    zone           = optional(number)
+    role             = string
+    vm_name          = string
+    nic_name         = string
+    admin_username   = string
+    info_column_name = optional(string)
+    zone             = optional(number)
     source_image_reference = object({
       publisher = string
       offer     = string
@@ -241,22 +276,15 @@ variable "nic_backend_pool_association_list" {
   default = []
 }
 
-variable "data_disk_config_list" {
-  description = "List of configuration for data disks"
-  type = list(object({
-    disk_name = string
-    zone      = number
-  }))
-  default = []
-}
 
-variable "data_disk_association_list" {
-  description = "List of configuration for data_disk associations"
-  type = list(object({
-    data_disk_name = string
-    vm_name        = string
-  }))
-  default = []
+variable "data_disk_config" {
+  description = "List of data disks and disk associations with the same configuration to be created"
+  type = object({
+    name_prefix = string
+    zone        = number
+    vm_name     = optional(string)
+  })
+  default = null
 }
 
 variable "storage_account_name_prefix" {
@@ -285,6 +313,18 @@ variable "pe_config" {
     psc_name             = string
     is_manual_connection = bool
     subresource_names    = optional(list(string))
+  })
+  default = null
+}
+
+variable "blob_config" {
+  description = "storage container blob config"
+  type = object({
+    container_name   = string
+    container_access = string
+    blob_type        = string
+    blob_name        = string
+    source_file_name = string
   })
   default = null
 }

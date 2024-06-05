@@ -73,6 +73,20 @@ azure_get_vm_info() {
   echo $res
 }
 
+azure_get_1st_storage_account_name_by_rg() {
+  local resource_group=$1
+
+  resource_group_names=$(az group list --query "[?contains(name, '$resource_group')].name" -o tsv)
+
+  for resource_group_name in $resource_group_names; do
+    storage_account_name=$(az storage account list -g $resource_group_name --query "[].name" -o tsv | head -n 1)
+    if [ -n "$storage_account_name" ]; then
+      break
+    fi
+  done
+  echo $storage_account_name
+}
+
 azure_aks_start_nginx()
 {
   local resource_group=$1
@@ -131,6 +145,32 @@ azure_aks_deploy_fio()
   fi
 
   sed -i "s/\(storage: \).*/\1${disk_size_in_gb}Gi/" "${file_source}/pvc.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
+  
+  kubectl apply -f "${file_source}/pvc.yml"
+  kubectl apply -f "${file_source}/fio.yml"
+}
+
+azure_aks_deploy_fio_fileshare()
+{
+  local resource_group=$1
+  local aksName=$2
+  local scenario_type=$3
+  local scenario_name=$4
+  local protocol=$(echo $5 | tr '[:upper:]' '[:lower:]') # convert to lowercase
+  local share_size_in_gb=$6
+  local replica_count=$7
+
+  az aks get-credentials -n $aksName -g $resource_group
+  local file_source=./scenarios/${scenario_type}/${scenario_name}/yml-files/azure
+
+  if [ $protocol = "smb" ]; then
+    kubectl apply -f "${file_source}/storage-class-smb.yml"
+  else
+    kubectl apply -f "${file_source}/storage-class-nfs.yml"
+  fi
+
+  sed -i "s/\(storage: \).*/\1${share_size_in_gb}Gi/" "${file_source}/pvc.yml"
   sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/fio.yml"
   
   kubectl apply -f "${file_source}/pvc.yml"

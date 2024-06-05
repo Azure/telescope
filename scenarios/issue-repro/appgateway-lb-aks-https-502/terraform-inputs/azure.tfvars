@@ -86,10 +86,12 @@ appgateway_config_list = [
         ip_addresses = ["10.10.1.7", "10.10.1.8", "10.10.1.9"]
       }
     ]
-    appgateway_frontendport = {
-      name = "http"
-      port = 80
-    }
+    appgateway_frontend_ports = [
+      {
+        name = "http"
+        port = 80
+      }
+    ]
     appgateway_backend_http_settings = [
       {
         name                  = "aks-https-lb"
@@ -196,15 +198,20 @@ appgateway_config_list = [
 ]
 aks_config_list = [
   {
-    role           = "ingress"
-    aks_name       = "aks-instance"
-    dns_prefix     = "repro-502"
-    subnet_name    = "aks-network-aks"
-    network_plugin = "azure"
+    role        = "ingress"
+    aks_name    = "aks-instance"
+    dns_prefix  = "repro-502"
+    subnet_name = "aks-network-aks"
+    sku_tier    = "Free"
+    network_profile = {
+      network_plugin      = "azure"
+      network_plugin_mode = "overlay"
+    }
     default_node_pool = {
       name                         = "default"
       node_count                   = 3
       os_disk_type                 = "Managed"
+      vm_size                      = "Standard_D4s_v5"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
     }
@@ -212,8 +219,10 @@ aks_config_list = [
       {
         name       = "user"
         node_count = 3
+        vm_size    = "Standard_D4s_v5"
       }
     ]
+    role_assignment_list = ["Network Contributor"]
   }
 ]
 

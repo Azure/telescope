@@ -31,6 +31,11 @@ variable "network_config" {
       address_prefix               = string
       service_endpoints            = optional(list(string))
       pls_network_policies_enabled = optional(bool)
+      delegations = optional(list(object({
+        name                       = string
+        service_delegation_name    = string
+        service_delegation_actions = list(string)
+      })))
     }))
     network_security_group_name = string
     nic_public_ip_associations = list(object({

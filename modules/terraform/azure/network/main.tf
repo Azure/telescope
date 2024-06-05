@@ -26,6 +26,16 @@ resource "azurerm_subnet" "subnets" {
   address_prefixes                              = [each.value.address_prefix]
   service_endpoints                             = each.value.service_endpoints != null ? each.value.service_endpoints : []
   private_link_service_network_policies_enabled = each.value.pls_network_policies_enabled != null ? each.value.pls_network_policies_enabled : true
+  dynamic "delegation" {
+    for_each = each.value.delegations != null ? each.value.delegations : []
+    content {
+      name = delegation.value.name
+      service_delegation {
+        name    = delegation.value.service_delegation_name
+        actions = delegation.value.service_delegation_actions
+      }
+    }
+  }
 }
 
 

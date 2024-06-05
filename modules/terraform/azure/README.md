@@ -29,7 +29,7 @@ OWNER=$(whoami)
 CLOUD=azure
 REGIONS='["eastus"]' 
 MACHINE_TYPE=standard_D16_v3
-ACCERLATED_NETWORKING=true
+ACCELERATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 ```
@@ -101,7 +101,6 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg region $REGION \
   --arg machine_type "$MACHINE_TYPE" \
   --arg public_key_path $SSH_PUBLIC_KEY_PATH \
-  --arg aks_machine_type "$AKS_MACHINE_TYPE" \
   --arg accelerated_networking "$ACCELERATED_NETWORKING" \
   --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
   --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
@@ -111,6 +110,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
   --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
   --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
+  --arg data_disk_count "$DATA_DISK_COUNT" \
   --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
   --arg storage_account_tier "$STORAGE_TIER" \
   --arg storage_account_kind "$STORAGE_KIND" \
@@ -125,7 +125,6 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
     region: $region,
     machine_type: $machine_type,
     public_key_path: $public_key_path, 
-    aks_machine_type: $aks_machine_type,
     accelerated_networking: $accelerated_networking,
     data_disk_storage_account_type: $data_disk_storage_account_type,
     data_disk_size_gb: $data_disk_size_gb,
@@ -135,6 +134,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
     data_disk_iops_read_only: $data_disk_iops_read_only,
     data_disk_mbps_read_write: $data_disk_mbps_read_write,
     data_disk_mbps_read_only: $data_disk_mbps_read_only,
+    data_disk_count: $data_disk_count,
     ultra_ssd_enabled: $ultra_ssd_enabled,
     storage_account_tier: $storage_account_tier,
     storage_account_kind: $storage_account_kind,
@@ -206,7 +206,7 @@ popd
 After terraform destroys all the resources delete resource group manually.
 
 ```bash
-az group delete --name $RUN_ID
+az group delete --name $RUN_ID -y
 ```
 
 ## References

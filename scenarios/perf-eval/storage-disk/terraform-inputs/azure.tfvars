@@ -38,11 +38,6 @@ network_config_list = [
 ]
 loadbalancer_config_list = []
 
-data_disk_config_list = [{
-  disk_name = "data_disk0"
-  zone      = 1
-}]
-
 vm_config_list = [{
   role           = "client"
   vm_name        = "client-vm"
@@ -61,7 +56,8 @@ vm_config_list = [{
 vmss_config_list                  = []
 nic_backend_pool_association_list = []
 
-data_disk_association_list = [{
-  vm_name        = "client-vm"
-  data_disk_name = "data_disk0"
-}]
+data_disk_config = {
+  name_prefix = "data_disk"
+  vm_name     = "client-vm"
+  zone        = 1
+}

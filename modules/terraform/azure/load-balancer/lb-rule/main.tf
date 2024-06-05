@@ -1,7 +1,7 @@
 
 resource "azurerm_lb_rule" "lb-rule" {
   count                          = var.type == "Inbound" ? var.rule_count : 0
-  name                           = var.rule_count == 1 ? "${var.role}" : "${var.role}-${count.index + 1}"
+  name                           = var.rule_count == 1 ? var.role : "${var.role}-${count.index + 1}"
   protocol                       = var.protocol
   frontend_port                  = var.rule_count == 1 ? var.frontend_port : var.frontend_port + count.index + 1
   backend_port                   = var.rule_count == 1 ? var.backend_port : var.backend_port + count.index + 1
