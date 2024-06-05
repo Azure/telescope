@@ -13,7 +13,7 @@ set_up_ncps() {
   local role=$3
 
   run_scp_remote $privatekey_path ubuntu $public_ip 2222 ./modules/bash/ncps/src /home/ubuntu/ncps
-  run_ssh $privatekey_path ubuntu $public_ip 2222 "cd /home/ubuntu/ncps/src && sudo gcc sockwiz.c ncps.c -lpthread -O3 -o /bin/ncps"
+  run_ssh $privatekey_path ubuntu $public_ip 2222 "sudo cd /home/ubuntu/ncps/src && sudo gcc sockwiz.c ncps.c -lpthread -O3 -o /bin/ncps"
 
   if [ "$role" == "server" ]; then
     run_ssh $privatekey_path ubuntu $public_ip 2222 "nohup ncps -s &> /dev/null &"

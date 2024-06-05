@@ -15,6 +15,22 @@ get_vm_instances_name_by_run_id() {
 }
 
 # Description:
+#   This function gets the VM info by name and resource group.
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#
+# Returns: VM info
+# Usage: get_vm_info <vm_name> <resource_group>
+get_vm_info() {
+    local vm_name=$1
+    local resource_group=$2
+
+    az vm show --name "$vm_name" --resource-group "$resource_group" --output json
+}
+
+# Description:
 #   This function is used to create a VM in Azure.
 #
 # Parameters:
@@ -45,9 +61,9 @@ create_vm() {
     local admin_password="${11:-"Azur3User!FTW"}"
 
     if [[ -n "$nics" ]]; then
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> /tmp/$resource_group-$vm_name-create_vm-error.txt > /tmp/$resource_group-$vm_name-create_vm-output.txt
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> /tmp/$resource_group-$vm_name-create_vm-error.txt > /tmp/$resource_group-$vm_name-create_vm-output.txt
     else
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> /tmp/$resource_group-$vm_name-create_vm-error.txt > /tmp/$resource_group-$vm_name-create_vm-output.txt
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> /tmp/$resource_group-$vm_name-create_vm-error.txt > /tmp/$resource_group-$vm_name-create_vm-output.txt
     fi
 
     exit_code=$?
@@ -65,10 +81,16 @@ create_vm() {
         error=$(cat /tmp/$resource_group-$vm_name-create_vm-error.txt)
 
         if [[ $exit_code -eq 0 ]]; then
-            echo $(jq -c -n \
-                --arg vm_name "$vm_name" \
-                --argjson vm_data "$vm_data" \
-            '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            if az vm wait --created --name "$vm_name" --resource-group "$resource_group" --interval 1; then
+                echo $(jq -c -n \
+                    --arg vm_name "$vm_name" \
+                '{succeeded: "true", vm_name: $vm_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            else
+                echo $(jq -c -n \
+                    --arg vm_name "$vm_name" \
+                    --argjson vm_data "$vm_data" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Waiting for VM to be running failed"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
@@ -188,6 +210,7 @@ delete_nic() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: Commands to execute (e.g. '{"commandToExecute": "echo Hello World"}')
 #
 # Notes:
 #   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
@@ -196,35 +219,29 @@ delete_nic() {
 install_vm_extension() {
     local vm_name=$1
     local resource_group=$2
+    local command=${3:-'{"commandToExecute": "echo Hello World"}'}
 
     az vm extension set \
         --resource-group "$resource_group" \
         --vm-name "$vm_name" \
         --name "CustomScript" \
         --publisher "Microsoft.Azure.Extensions" \
-        --settings '{"commandToExecute": "echo Hello World"}' 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
+        --settings "$command" 2> /tmp/$resource_group-$vm_name-install-extension-error.txt > /tmp/$resource_group-$vm_name-install-extension-output.txt
 
     exit_code=$?
 
     (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-            '{succeeded: "false", data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
-        trap _catch ERR
-
         extension_data=$(cat /tmp/$resource_group-$vm_name-install-extension-output.txt)
         error=$(cat /tmp/$resource_group-$vm_name-install-extension-error.txt)
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --argjson extension_data "$extension_data" \
-            '{succeeded: "true", data: $extension_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", data: $extension_data}')
         else
             echo $(jq -c -n \
                 --arg error "$error" \
-                '{succeeded: "false", data: {error: $error}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                '{succeeded: "false", data: {error: $error}}')
         fi
     )
 }

@@ -179,18 +179,22 @@ measure_vm_extension() {
     local cloud=$1
     local run_id=$2
     local result_dir=$3
-    local vm_name=$(get_vm_instances_name_by_run_id $run_id)
-    
-    echo "Measuring $cloud VM extension installation" 
-
+    local region=$4
+    local vm_name=$5
+    local command=${6:-""}
     local result=""
     local installation_succedded="false"
     local installation_time=0
 
     local start_time=$(date +%s)
+    echo "Measuring $cloud VM extension installation for $vm_name. Started at $start_time."
+
     case $cloud in
         azure)
-            extension_data=$(install_vm_extension "$vm_name" "$run_id")
+            extension_data=$(install_vm_extension "$vm_name" "$run_id" "$command")
+        ;;
+        aws)
+            extension_data=$(install_ec2_extension "$vm_name" "$region" "$command")
         ;;
         *)
             exit 1 # cloud provider unknown/not implemented
@@ -199,15 +203,16 @@ measure_vm_extension() {
     
     wait
     local end_time=$(date +%s)
+    echo "Finished $cloud VM extension installation for $vm_name. Ended at $end_time."
 
     if [[ -n "$extension_data" ]]; then
-        succeeded=$(echo "$extension_data" | jq -r '.succeeded')
+        succeeded=$(jq -r '.succeeded' <<< "$extension_data")
         if [[ "$succeeded" == "true" ]]; then
             output_extension_data=$extension_data
             installation_time=$((end_time - start_time))
             installation_succedded="true"
         else
-            temporary_extension_data=$(echo "$extension_data" | jq -r '.data')
+            temporary_extension_data=$(jq -r '.data' <<< "$extension_data")
             if [[ -n "$temporary_extension_data" ]]; then
                 output_extension_data=$extension_data
             fi
@@ -218,7 +223,7 @@ measure_vm_extension() {
         \"operation\": \"install_vm_extension\", \
         \"succeeded\": \"$installation_succedded\", \
         \"extension_data\": $(jq -c -n \
-          --argjson extension_data "$(echo "$output_extension_data" | jq -r '.data')" \
+          --argjson extension_data "$(jq -r '.data' <<< "$output_extension_data")" \
           '$extension_data'), \
         \"time\": \"$installation_time\" \
     }"
@@ -296,8 +301,10 @@ measure_create_vm() {
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
         if [[ "$succeeded" == "true" ]]; then
-            output_vm_data=$vm_data
             vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+            output_vm_data=$(jq -c -n \
+                    --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
+                '{vm_data: $vm_data}')
             creation_time=$((end_time - start_time))
             creation_succeeded=true
         else
