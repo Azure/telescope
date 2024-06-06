@@ -98,13 +98,24 @@ mariner
 sudo tdnf install iperf3 -y
 #Iperf2
 # Need to install from external source
+sudo tdnf install -y binutils
+sudo tdnf install -y gcc gcc-c++ glibc-devel glibc-headers kernel-headers
+wget https://sourceforge.net/projects/iperf2/files/iperf-2.0.13.tar.gz
+tar -xzvf iperf-2.0.13.tar.gz
+cd iperf-2.0.13
+./configure
+make
+sudo make install
 ```
 AL2
 ```bash
 #Iperf3
 sudo yum install -y iperf3 -y
 #Iperf2
-# Needs to installed from external source: https://gist.github.com/n1mh/13b40127349351db07c3c14a32da2706 
+# Needs to installed from external source: https://gist.github.com/n1mh/13b40127349351db07c3c14a32da2706
+sudo yum update -y
+sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+sudo yum --enablerepo=epel install -y iperf
 ```
 
 ### Update OS in tfvars file.
