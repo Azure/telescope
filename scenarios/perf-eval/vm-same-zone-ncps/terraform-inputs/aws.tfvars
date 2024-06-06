@@ -29,7 +29,7 @@ network_config_list = [
       ingress = [
         {
           from_port  = 0
-          to_port    = 0
+          to_port    = 65535
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         }
