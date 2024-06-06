@@ -87,10 +87,10 @@ create_ec2() {
 
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
                 trap - ERR
-                successful_ping=$(ping_vm "$pip" "$port" "$timeout")
+                connection_successful=$(test_connection "$pip" "$port" "$timeout")
                 trap _catch ERR
 
-                if [ "$successful_ping" == "true" ]; then
+                if [ "$connection_successful" == "true" ]; then
                     echo $(jq -c -n \
                         --arg vm_name "$instance_id" \
                     '{succeeded: "true", vm_name: $vm_name}')

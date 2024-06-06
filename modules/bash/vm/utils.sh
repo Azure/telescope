@@ -450,27 +450,28 @@ measure_delete_vm() {
 }
 
 # Description:
-#   This function is used to ping a VM
+#   This function is used to test the connection to a VM using netcat
 #
 # Parameters:
 #   - $1: The IP of the VM
-#   - $2: The port to ping
-#   - $3: The timeout to wait for the ping operation to complete
+#   - $2: The port to use
+#   - $3: The timeout to wait for the operation to complete
 #
-# Usage: ping_vm <vm_ip> <port> <timeout>
-ping_vm() {
-    local vm_ip=$1
+# Usage: test_connection <ip> <port> <timeout>
+test_connection() {
+    local ip=$1
     local port=$2
     local timeout=$3
 
     local output=1
     local try=0
+    local wait_time=3
     
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
-        ncat -w 3 -z $vm_ip $port
+        netcat -w $wait_time -z $ip $port
         output=$?
-        try=$((try + 4))
+        try=$((try + $wait_time + 1))
         sleep 1
     done
     set -e
