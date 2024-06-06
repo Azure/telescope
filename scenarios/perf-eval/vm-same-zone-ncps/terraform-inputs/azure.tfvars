@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-wrk"
-deletion_delay = "240h"
+scenario_name  = "vm-same-zone-ncps"
+deletion_delay = "2h"
 public_ip_config_list = [
   {
     name = "ingress-pip"
@@ -43,50 +43,6 @@ network_config_list = [
       destination_port_range     = "2222"
       source_address_prefix      = "*"
       destination_address_prefix = "*"
-      },
-      {
-        name                       = "nsr-inbound-http"
-        priority                   = 101
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "80-80"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "nsr-inbound-https"
-        priority                   = 102
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Udp"
-        source_port_range          = "*"
-        destination_port_range     = "443-443"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "nsr-outbound-http"
-        priority                   = 101
-        direction                  = "Outbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "80-80"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "nsr-outbound-https"
-        priority                   = 102
-        direction                  = "Outbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "443-443"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
       }
     ]
   }
