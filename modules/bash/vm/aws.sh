@@ -17,6 +17,18 @@ get_vm_instances_name_by_run_id() {
         --output text)"
 }
 
+#   This function is used to retrieve the information of an EC2 instance in AWS.
+#
+# Parameters:
+#   - $1: The ID of the EC2 instance (e.g. i-0d5d9d301c853a04a)
+#
+# Usage: get_vm_info <instance_id>
+get_vm_info() {
+    local instance_id=$1
+    
+    aws ec2 describe-instances --instance-ids "$instance_id" --output json
+}
+
 # Description:
 #   This function is used to create an EC2 instance in AWS.
 #
@@ -70,8 +82,12 @@ create_ec2() {
                 if aws ec2 wait instance-running --region "$region" --instance-ids "$instance_id"; then
                     echo $(jq -c -n \
                         --arg vm_name "$instance_id" \
-                        --argjson vm_data "$instance_data" \
-                    '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                    '{succeeded: "true", vm_name: $vm_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                else
+                    echo $(jq -c -n \
+                        --arg vm_name "$instance_id" \
+                        --arg vm_data "$instance_data" \
+                    '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Waiting for instance to be running failed"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
                 fi
             else
                 echo $(jq -c -n \
