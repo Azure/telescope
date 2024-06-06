@@ -149,6 +149,8 @@ AWS AL2:
       owners              = ["amazon"]
     }
 ```
+**Note:**
+- For AL2 OS, the default admin user will be `ec2-user`
 
 AWS Ubuntu 20.04:
 ```hcl
@@ -216,7 +218,7 @@ CLIENT_VM_INFO=$(az vm show --ids $CLIENT_VM_ID --query "{region:location, zone:
 ### Validate Resources for AWS 
 Validate server VM is running and ready for iperf traffic
 ```bash
-SERVER_VM_ID=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:run_id,Values=$RUN_ID" "Name=tag:role,Values=$CLIENT_ROLE" --query "Reservations[].Instances[].InstanceId[]" --output text)
+SERVER_VM_ID=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:run_id,Values=$RUN_ID" "Name=tag:role,Values=$SERVER_ROLE" --query "Reservations[].Instances[].InstanceId[]" --output text)
 SERVER_PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $SERVER_VM_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 SERVER_PRIVATE_IP=$(aws ec2 describe-instances --instance-ids $SERVER_VM_ID --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
 ```
