@@ -86,22 +86,11 @@ create_ec2() {
             instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                output=1
-                try=0
-                # disable auto error handling
-                set +e
                 trap - ERR
-                while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
-                    ncat -w 3 -z $pip $port
-                    output=$?
-                    try=$((try + 4))
-                    sleep 1
-                done
-                # enable auto error handling
+                successful_ping=$(ping_vm "$pip" "$port" "$timeout")
                 trap _catch ERR
-                set -e
 
-                if [ $try -lt $timeout ]; then
+                if [ "$successful_ping" == "true" ]; then
                     echo $(jq -c -n \
                         --arg vm_name "$instance_id" \
                     '{succeeded: "true", vm_name: $vm_name}')

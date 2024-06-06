@@ -87,22 +87,11 @@ create_vm() {
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
-            output=1
-            try=0
-            # disable auto error handling
-            set +e
             trap - ERR
-            while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
-                ncat -w 3 -z $pip $port
-                output=$?
-                try=$((try + 4))
-                sleep 1
-            done
-            # enable auto error handling
+            successful_ping=$(ping_vm "$pip" "$port" "$timeout")
             trap _catch ERR
-            set -e
 
-            if [ $try -lt $timeout ]; then
+            if [ "$successful_ping" == "true" ]; then
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
                 '{succeeded: "true", vm_name: $vm_name}')

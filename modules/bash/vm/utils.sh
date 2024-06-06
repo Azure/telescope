@@ -448,3 +448,36 @@ measure_delete_vm() {
         echo "$vm_name"
     fi
 }
+
+# Description:
+#   This function is used to ping a VM
+#
+# Parameters:
+#   - $1: The IP of the VM
+#   - $2: The port to ping
+#   - $3: The timeout to wait for the ping operation to complete
+#
+# Usage: ping_vm <vm_ip> <port> <timeout>
+ping_vm() {
+    local vm_ip=$1
+    local port=$2
+    local timeout=$3
+
+    local output=1
+    local try=0
+    
+    set +e
+    while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
+        ncat -w 3 -z $vm_ip $port
+        output=$?
+        try=$((try + 4))
+        sleep 1
+    done
+    set -e
+
+    if [ $try -lt $timeout ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
