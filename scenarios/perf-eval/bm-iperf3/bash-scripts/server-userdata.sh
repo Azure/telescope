@@ -14,6 +14,11 @@ if [ "$ID" == "ubuntu" ]; then
     sudo apt-get update -y
     sudo apt-get install -y iperf
 elif [ "$ID" == "mariner" ]; then
+    sudo iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
+    sudo iptables -A INPUT -p tcp --dport 20001 -j ACCEPT
+    sudo iptables -A INPUT -p udp --dport 20002 -j ACCEPT
+    sudo iptables -A INPUT -p tcp --dport 20002 -j ACCEPT
+    
     sudo tdnf install -y binutils
     sudo tdnf install -y gcc gcc-c++ glibc-devel glibc-headers kernel-headers
     wget https://sourceforge.net/projects/iperf2/files/iperf-2.0.13.tar.gz

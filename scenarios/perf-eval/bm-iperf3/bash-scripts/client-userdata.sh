@@ -3,7 +3,7 @@
 sudo perl -pi -e 's/^#?Port 22$/Port 2222/' /etc/ssh/sshd_config
 sudo systemctl restart sshd
 
-sudo iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
+
 
 . /etc/os-release
 
@@ -11,6 +11,8 @@ if [ "$ID" == "ubuntu" ]; then
     sudo apt-get update -y
     sudo apt-get install -y iperf
 elif [ "$ID" == "mariner" ]; then
+    sudo iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
+    
     sudo tdnf install -y binutils
     sudo tdnf install -y gcc gcc-c++ glibc-devel glibc-headers kernel-headers
     wget https://sourceforge.net/projects/iperf2/files/iperf-2.0.13.tar.gz
