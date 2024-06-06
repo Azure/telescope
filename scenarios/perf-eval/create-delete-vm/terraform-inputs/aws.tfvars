@@ -13,7 +13,7 @@ network_config_list = [
       cidr_block  = "10.2.1.0/24"
       zone_suffix = "a"
     }]
-    route_tables             = [
+    route_tables = [
       {
         name       = "create-delete-vm-rt"
         cidr_block = "0.0.0.0/0"
@@ -41,7 +41,7 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         }
       ]
-      egress  = [
+      egress = [
         {
           from_port  = 0
           to_port    = 0

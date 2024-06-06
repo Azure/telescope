@@ -13,7 +13,7 @@ network_config_list = [
       address_prefix = "10.2.1.0/24"
     }]
     nic_public_ip_associations = []
-    nsr_rules                  = [
+    nsr_rules = [
       {
         name                       = "nsr-ssh"
         priority                   = 100
