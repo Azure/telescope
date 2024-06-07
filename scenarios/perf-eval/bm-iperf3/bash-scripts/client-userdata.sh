@@ -13,7 +13,7 @@ if [ "$ID" == "ubuntu" ]; then
 elif [ "$ID" == "mariner" ]; then
     sudo iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
     
-    wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.mariner.x86_64.rpm
+    wget https://telescopetools.z13.web.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.mariner.x86_64.rpm
     sudo tdnf install -y iperf2-2.0.13.mariner.x86_64.rpm
 elif [ "$ID" == "amzn" ]; then
     sudo yum update -y
