@@ -22,7 +22,7 @@ ADMIN_USERNAME=azureuser
 CLOUD=aws
 REGION=us-east-2
 MACHINE_TYPE=c6in.metal
-ADMIN_USERNAME=ubuntu
+ADMIN_USERNAME=ec2-user
 ```
 ## Generate SSH public and Private key using SSH-Keygen
 ```bash
@@ -97,15 +97,8 @@ mariner
 #Iperf3
 sudo tdnf install iperf3 -y
 #Iperf2
-# Need to install from external source
-sudo tdnf install -y binutils
-sudo tdnf install -y gcc gcc-c++ glibc-devel glibc-headers kernel-headers
-wget https://sourceforge.net/projects/iperf2/files/iperf-2.0.13.tar.gz
-tar -xzvf iperf-2.0.13.tar.gz
-cd iperf-2.0.13
-./configure
-make
-sudo make install
+wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.x86_64.rpm
+sudo tdnf install -y iperf2-2.0.13.x86_64.rpm
 ```
 AL2
 ```bash

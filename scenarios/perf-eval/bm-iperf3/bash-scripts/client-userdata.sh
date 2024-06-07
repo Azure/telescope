@@ -13,14 +13,8 @@ if [ "$ID" == "ubuntu" ]; then
 elif [ "$ID" == "mariner" ]; then
     sudo iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
     
-    sudo tdnf install -y binutils
-    sudo tdnf install -y gcc gcc-c++ glibc-devel glibc-headers kernel-headers
-    wget https://sourceforge.net/projects/iperf2/files/iperf-2.0.13.tar.gz
-    tar -xzvf iperf-2.0.13.tar.gz
-    cd iperf-2.0.13
-    ./configure
-    make
-    sudo make install
+    wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.x86_64.rpm
+    sudo tdnf install -y iperf2-2.0.13.x86_64.rpm
 elif [ "$ID" == "amzn" ]; then
     sudo yum update -y
     sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
