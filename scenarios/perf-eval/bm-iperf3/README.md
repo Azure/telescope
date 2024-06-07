@@ -22,7 +22,7 @@ ADMIN_USERNAME=azureuser
 CLOUD=aws
 REGION=us-east-2
 MACHINE_TYPE=c6in.metal
-ADMIN_USERNAME=ubuntu
+ADMIN_USERNAME=ec2-user
 ```
 ## Generate SSH public and Private key using SSH-Keygen
 ```bash
@@ -97,14 +97,18 @@ mariner
 #Iperf3
 sudo tdnf install iperf3 -y
 #Iperf2
-# Need to install from external source
+wget https://telescopetools.z13.web.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.mariner.x86_64.rpm
+sudo tdnf install -y iperf2-2.0.13.mariner.x86_64.rpm
 ```
 AL2
 ```bash
 #Iperf3
 sudo yum install -y iperf3 -y
 #Iperf2
-# Needs to installed from external source: https://gist.github.com/n1mh/13b40127349351db07c3c14a32da2706 
+# Needs to installed from external source: https://gist.github.com/n1mh/13b40127349351db07c3c14a32da2706
+sudo yum update -y
+sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+sudo yum --enablerepo=epel install -y iperf
 ```
 
 ### Update OS in tfvars file.
@@ -149,6 +153,8 @@ AWS AL2:
       owners              = ["amazon"]
     }
 ```
+**Note:**
+- For AL2 OS, the default admin user will be `ec2-user`
 
 AWS Ubuntu 20.04:
 ```hcl
@@ -216,7 +222,7 @@ CLIENT_VM_INFO=$(az vm show --ids $CLIENT_VM_ID --query "{region:location, zone:
 ### Validate Resources for AWS 
 Validate server VM is running and ready for iperf traffic
 ```bash
-SERVER_VM_ID=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:run_id,Values=$RUN_ID" "Name=tag:role,Values=$CLIENT_ROLE" --query "Reservations[].Instances[].InstanceId[]" --output text)
+SERVER_VM_ID=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:run_id,Values=$RUN_ID" "Name=tag:role,Values=$SERVER_ROLE" --query "Reservations[].Instances[].InstanceId[]" --output text)
 SERVER_PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $SERVER_VM_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 SERVER_PRIVATE_IP=$(aws ec2 describe-instances --instance-ids $SERVER_VM_ID --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
 ```
