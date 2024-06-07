@@ -14,8 +14,8 @@ elif [ "$ID" == "mariner" ]; then
     sudo iptables -A INPUT -p udp --dport 20002 -j ACCEPT
     sudo iptables -A INPUT -p tcp --dport 20002 -j ACCEPT
     
-    wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.x86_64.rpm
-    sudo tdnf install -y iperf2-2.0.13.x86_64.rpm
+    wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.mariner.x86_64.rpm
+    sudo tdnf install -y iperf2-2.0.13.mariner.x86_64.rpm
 elif [ "$ID" == "amzn" ]; then
     sudo yum update -y
     sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm

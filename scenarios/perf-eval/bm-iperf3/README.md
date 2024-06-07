@@ -97,8 +97,8 @@ mariner
 #Iperf3
 sudo tdnf install iperf3 -y
 #Iperf2
-wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.x86_64.rpm
-sudo tdnf install -y iperf2-2.0.13.x86_64.rpm
+wget https://telescopetools.blob.core.windows.net/packages/network-tools/iperf2/iperf2-2.0.13.mariner.x86_64.rpm
+sudo tdnf install -y iperf2-2.0.13.mariner.x86_64.rpm
 ```
 AL2
 ```bash
