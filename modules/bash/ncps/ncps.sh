@@ -1,26 +1,6 @@
 source ./modules/bash/utils.sh
 
 # Description:
-#   This function is used to set up ncps in the virtual machine
-#
-# Parameters:
-#   - $1: The public IP address of the virtual machine
-#   - $2: The private key path to use
-#   - $3: The role of the virtual machine (e.g. "server" or "client")
-set_up_ncps() {
-  local public_ip=$1
-  local privatekey_path=$2
-  local role=$3
-
-  run_scp_remote $privatekey_path ubuntu $public_ip 2222 ./modules/bash/ncps/src /home/ubuntu/ncps
-  run_ssh $privatekey_path ubuntu $public_ip 2222 "cd /home/ubuntu/ncps/src && sudo gcc sockwiz.c ncps.c -lpthread -O3 -o /bin/ncps"
-
-  if [ "$role" == "server" ]; then
-    run_ssh $privatekey_path ubuntu $public_ip 2222 "nohup ncps -s &> /dev/null &"
-  fi
-}
-
-# Description:
 #   This function is used to run wrk command
 #
 # Parameters:
