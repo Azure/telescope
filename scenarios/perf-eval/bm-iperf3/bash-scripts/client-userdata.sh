@@ -3,8 +3,6 @@
 sudo perl -pi -e 's/^#?Port 22$/Port 2222/' /etc/ssh/sshd_config
 sudo systemctl restart sshd
 
-
-
 . /etc/os-release
 
 if [ "$ID" == "ubuntu" ]; then
