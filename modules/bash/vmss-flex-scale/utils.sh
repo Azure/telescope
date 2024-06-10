@@ -34,11 +34,12 @@ get_vmss_name() {
 #   - $8: run_id: The run id
 #   - $9: network_security_group: The network security group (eg. my-nsg)
 #   - $10: vnet_name: The virtual network name (e.g. my-vnet)
-#   - $11: security_type: The security type (e.g. TrustedLaunch)
-#   - $12: result_dir: The result directory where to place the results in JSON format
-#   - $13: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $11: subnet: The subnet (e.g. my-subnet)
+#   - $12: security_type: The security type (e.g. TrustedLaunch)
+#   - $13: result_dir: The result directory where to place the results in JSON format
+#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <run_id> <region> <network_security_group> <vnet_name> <security_type> <result_dir> <tags>
+# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
 measure_create_scale_delete_vmss() {
     local cloud=$1
     local vmss_name=$2
@@ -50,9 +51,10 @@ measure_create_scale_delete_vmss() {
     local run_id=$8
     local network_security_group=$9
     local vnet_name=${10}
-    local security_type=${11}
-    local result_dir=${12}
-    local tags=${13}
+    local subnet=${11}
+    local security_type=${12}
+    local result_dir=${13}
+    local tags=${14}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
@@ -63,6 +65,7 @@ measure_create_scale_delete_vmss() {
         \"region\": \"$region\", \
         \"network_security_group\": \"$network_security_group\", \
         \"vnet_name\": \"$vnet_name\", \
+        \"subnet\": \"$subnet\", \
         \"security_type\": \"$security_type\""
     
     echo "Measuring $cloud VMSS creation/deletion for with the following details: 
@@ -73,10 +76,11 @@ measure_create_scale_delete_vmss() {
         - Region: $region
         - Network Security Group: $network_security_group
         - VNet: $vnet_name
+        - Subnet: $subnet
         - Security type: $security_type
         - Tags: $tags"
     
-    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$security_type" "$result_dir" "$test_details" "$tags")
+    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$scale" ] && [ "$scale" = "True" ]; then
         measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$((vm_instances + 1))" "scale_up_vmss" "$result_dir" "$test_details"
@@ -101,15 +105,16 @@ measure_create_scale_delete_vmss() {
 #   - $7: run_id: The run id
 #   - $8: network_security_group: The network security group (eg. my-nsg)
 #   - $9: vnet_name: The virtual network name (e.g. my-vnet)
-#   - $10: security_type: The security type (e.g. TrustedLaunch)
-#   - $11: result_dir: The result directory where to place the results in JSON format
-#   - $12: test_details: The test details in JSON format
-#   - $13: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $10: subnet: The subnet (e.g. my-subnet)
+#   - $11: security_type: The security type (e.g. TrustedLaunch)
+#   - $12: result_dir: The result directory where to place the results in JSON format
+#   - $13: test_details: The test details in JSON format
+#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
 #
-# Usage: measure_create_vmss <cloud> <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <run_id> <network_security_group> <vnet_name> <security_type> <result_dir> <test_details> <tags>
+# Usage: measure_create_vmss <cloud> <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <run_id> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <test_details> <tags>
 measure_create_vmss() {
     local cloud=$1
     local vmss_name=$2
@@ -120,10 +125,11 @@ measure_create_vmss() {
     local run_id=$7
     local network_security_group=$8
     local vnet_name=$9
-    local security_type=${10}
-    local result_dir=${11}
-    local test_details=${12}
-    local tags=${13}
+    local subnet=${10}
+    local security_type=${11}
+    local result_dir=${12}
+    local test_details=${13}
+    local tags=${14}
 
     local creation_succeeded=false
     local creation_time=-1
@@ -133,7 +139,7 @@ measure_create_vmss() {
     local start_time=$(date +%s)
     case $cloud in
         azure)
-            vmss_data=$(create_vmss "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$security_type" "$tags")
+            vmss_data=$(create_vmss "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$tags")
         ;;
         aws)
             # AWS Method call

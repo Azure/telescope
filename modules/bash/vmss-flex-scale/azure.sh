@@ -12,12 +12,13 @@
 #   - $6: resource_group: The resource group under which the VMSS was created (e.g. rg-my-vmss)
 #   - $7: network_security_group: The network security group (eg. my-nsg)
 #   - $8: vnet_name: The virtual network name (e.g. my-vnet)
-#   - $9: security_type: [optional] The security type (e.g. TrustedLaunch)
-#   - $10: tags: [optional] The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
-#   - $11: admin_username: [optional] The admin username to use (e.g. my_username, default value is azureuser)
-#   - $12: admin_password: [optional] The admin password to use (e.g. my_password, default value is Azur3User!FTW)
+#   - $9: subnet: The subnet (e.g. my-subnet)
+#   - $10: security_type: [optional] The security type (e.g. TrustedLaunch)
+#   - $11: tags: [optional] The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $12: admin_username: [optional] The admin username to use (e.g. my_username, default value is azureuser)
+#   - $13: admin_password: [optional] The admin password to use (e.g. my_password, default value is Azur3User!FTW)
 #
-# Usage: create_vmss <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <resource_group> <network_security_group> <vnet_name> [security_type] [tags] [admin_username] [admin_password]
+# Usage: create_vmss <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <resource_group> <network_security_group> <vnet_name> <subnet> [security_type] [tags] [admin_username] [admin_password]
 create_vmss() {
     local vmss_name=$1
     local vm_size=$2
@@ -27,15 +28,16 @@ create_vmss() {
     local resource_group=$6
     local network_security_group=$7
     local vnet_name=$8
-    local security_type="${9:-"TrustedLaunch"}"
-    local tags="${10:-"''"}"
-    local admin_username="${11:-"azureuser"}"
-    local admin_password="${12:-"Azur3User!FTW"}"
+    local subnet=$9
+    local security_type="${10:-"TrustedLaunch"}"
+    local tags="${11:-"''"}"
+    local admin_username="${12:-"azureuser"}"
+    local admin_password="${13:-"Azur3User!FTW"}"
 
     az vmss create --name "$vmss_name" --resource-group "$resource_group" \
         --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances \
         --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" \
-        --security-type "$security_type" --load-balancer "" --tags $tags \
+        --subnet "$subnet" --security-type "$security_type" --load-balancer "" --tags $tags \
         --admin-username "$admin_username" --admin-password "$admin_password" \
         -o json 2> "/tmp/$resource_group-$vmss_name-create_vmss-error.txt" > "/tmp/$resource_group-$vmss_name-create_vmss-output.txt"
 
