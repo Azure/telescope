@@ -23,18 +23,22 @@ function utils::build_json_output() {
 }
 
 # DESC: Handle errors in the script
-# ARGS: $1 (required): The exit status of the command that failed
+# ARGS: $1 (optional): The exit status of the command that failed (default: 1)
 #       $2 (required): The line number of the error
 #       $3 (required): The path to the error file
 #       $4 (required): The path to the results file
 # OUTS: None
 # NOTE: This function is used to handle errors in the script. It reads the errors from the error path and
-#       writes them with in same json format in the result file. It also exits the script with the provided exit code. 
+#       writes them with in same json format in the result file. 
+#       It also exits the script with the provided exit code if it is numerical, if not it exits with 1. 
 function utils::script_trap_err() {
     local exit_code=1
     local lineno=$2
     local error_file=$3
     local results_file=$4
+    local successful="false"
+    local time="0"
+    local time_unit="seconds"
 
     # Disable the error trap handler to prevent potential recursion
     trap - ERR
@@ -58,7 +62,7 @@ function utils::script_trap_err() {
             "line": $lineno,
             "exit_status": $exit_code
         }')
-    local operation_info="$(utils::build_operation_info_json $SCENARIO_NAME "false" "0" "seconds" "$json_error")"
+    local operation_info="$(utils::build_operation_info_json $SCENARIO_NAME $successful $time $time_unit "$json_error")"
     local cloud_info="$(utils::build_cloud_info_json "{}")"
 
     local json_output="$(utils::build_json_output "$operation_info" "$cloud_info")"
