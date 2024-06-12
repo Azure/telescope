@@ -16,7 +16,7 @@ network_config_list = [
     vnet_address_space = "10.2.0.0/16"
     subnet = [{
       name           = "same-subnet"
-      address_prefix = "10.2.1.0/21"
+      address_prefix = "10.2.1.0/24"
     }]
     network_security_group_name = "same-nsg"
     nic_public_ip_associations = [
