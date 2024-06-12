@@ -47,7 +47,7 @@ aws::redeploy_vm() {
     local error_file=$2
     local -i wait_time=${3:-30}
     local ssh_port="22"
-    local timeout="300"
+    local timeout="500"
 
     start_time=$(date +%s)
 
