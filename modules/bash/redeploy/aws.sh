@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # DESC: Get the instance view for a vm
-# ARGS: $1 (required): The resource group of the VM
-#       $2 (required): The name of the VM
+# ARGS: $1 (required): The instance id of the VM
 # OUTS: The json of the instance view
 # NOTE: None
 aws::get_vm_instance_view_json() {
