@@ -47,7 +47,7 @@ network_config_list = [
         address_prefix = "10.1.1.0/24"
       }
     ],
-    network_security_group_name = ""
+    network_security_group_name = "vm-redeploy-nsg"
     nic_public_ip_associations = [
       {
         nic_name              = "vm-redeploy-nic-1"
@@ -110,7 +110,40 @@ network_config_list = [
         public_ip_name        = "vm-redeploy-public-ip-10"
       }
     ]
-    nsr_rules = []
+    nsr_rules = [{
+      name                       = "nsr-ssh"
+      priority                   = 100
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = "*"
+      destination_address_prefix = "*"
+      },
+      {
+        name                       = "nsr-tcp"
+        priority                   = 101
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "20001-20001"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
+        name                       = "nsr-udp"
+        priority                   = 102
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Udp"
+        source_port_range          = "*"
+        destination_port_range     = "20002-20002"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      }
+    ]
   }
 ]
 

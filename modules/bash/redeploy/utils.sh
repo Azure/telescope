@@ -144,7 +144,7 @@ function utils::test_connection() {
     local wait_time=3
 
     set +e
-    while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
+    while [ $output -ne 0 ] && [ $try -lt $timeout ]; do 
         netcat -w $wait_time -z $ip $port
         output=$?
         try=$((try + $wait_time + 1))
@@ -157,4 +157,29 @@ function utils::test_connection() {
     else
         echo "false"
     fi
+}
+
+# DESC: Log a message and display the details of a VM redeploy
+# ARGS:
+#   $1 (optional): The name of the VM (default: "")
+#   $2 (optional): The size of the VM (default: "")
+#   $3 (optional): The OS of the VM (default: "")
+#   $4 (optional): The region of the VM (default: "")
+#   $5 (optional): The timeout for the redeploy (default: "")
+# OUTS: None
+# NOTE: This function logs a message and displays the details of a VM redeploy, including the VM name, size, OS, region, and timeout.
+function utils::write_log() {
+    local vm_name=${1-""}
+    local vm_size=${2-""}
+    local vm_os=${3-""}
+    local region=${4-""}
+    local cloud=${5-""}
+    local timeout=${6-""}
+
+    echo "Measuring $cloud VM redeploy with the following details: 
+    - VM name: $vm_name
+    - VM size: $vm_size
+    - VM OS: $vm_os
+    - Region: $region
+    - Timeout: $timeout"
 }

@@ -38,15 +38,17 @@ aws::get_vm_instances_name_by_run_id() {
 # ARGS: $1 (required): The instance-id of the VM
 #       $2 (required): The path to the error file
 #       $3 (optional): The wait time between stopping and starting the VM
+#       $4 (optional): The ssh port of the VM
+#       $5 (optional): The timeout for the connection test
 # OUTS: Execution time of the redeploy
 # NOTE: We wait some time (wait_time) between stop and start for maximizing the chance of the VM to end up in another node
 #       We also subtract it, to not end in the total execution time
 aws::redeploy_vm() {
     local instance_id=$1
     local error_file=$2
-    local -i wait_time=${3:-30}
-    local ssh_port="22"
-    local timeout="500"
+    local wait_time=${3:-"30"}
+    local ssh_port=${4:-"22"}
+    local timeout=${5:-"500"}
 
     start_time=$(date +%s)
 
@@ -59,8 +61,8 @@ aws::redeploy_vm() {
         aws ec2 start-instances --instance-id $instance_id 
         aws ec2 wait instance-running --instance-ids $instance_id
 
+        # the ip changes after redeploy that's why we get here the new ip
         current_ip=$(aws::get_vm_ip "$instance_id")
-
         connection_successful=$(utils::test_connection $current_ip $ssh_port $timeout) 
         if [ "$connection_successful" == "false" ]; then
             exit 1
