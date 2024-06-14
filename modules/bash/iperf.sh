@@ -64,6 +64,7 @@ run_iperf2_draft_run(){
 
   echo "Perform a draft run to warm up the vm"
   local command="iperf $iperf_properties"
+  echo "Run iperf2 command: $command"
  
   if [ -z "$jumpbox_public_ip_address" ]; then
     echo "run_ssh $privatekey_path $user_name $client_public_ip_address $command"
@@ -94,6 +95,7 @@ run_iperf2() {
 
   echo "Wait for 1 minutes before running"
   sleep 60
+  echo "Run iperf2 command: $command"
 
   if [ -z "$jumpbox_public_ip_address" ]; then
     echo "run_ssh $privatekey_path $user_name $client_public_ip_address $command"
