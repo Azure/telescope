@@ -93,8 +93,8 @@ run_iperf2() {
 
   local command="iperf $iperf_properties"
 
-  echo "Wait for 1 minutes before running"
-  sleep 60
+  echo "Wait for $wait_time seconds before running"
+  sleep $wait_time
   echo "Run iperf2 command: $command"
 
   if [ -z "$jumpbox_public_ip_address" ]; then
