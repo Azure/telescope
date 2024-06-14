@@ -41,7 +41,7 @@ get_vmss_name() {
 #   - $15: result_dir: The result directory where to place the results in JSON format
 #   - $16: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
+# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <vm_scale_instances_target> <scaling_step> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
 measure_create_scale_delete_vmss() {
     local cloud=$1
     local vmss_name=$2
