@@ -45,7 +45,7 @@ aks_config_list = [
     role        = "agcperf"
     aks_name    = "aks-instance"
     dns_prefix  = "agcperf"
-    sku_tier    = "Free"
+    sku_tier    = "premium"
     subnet_name = "aks-network-aks"
     network_profile = {
       network_plugin = "azure"
@@ -63,7 +63,7 @@ aks_config_list = [
       {
         name       = "userpool"
         node_count = 3
-        vm_size    = "Standard_D4s_v3"
+        vm_size    = "Standard_D8s_v3"
         max_pods   = 250
       }
     ]
