@@ -35,6 +35,26 @@ get_disk_instances_name_by_run_id() {
 }
 
 # Description:
+#   This function gets the attach status of a disk based on the disk ID and resource group.
+#
+# Parameters:
+#  - $1: disk_id: the ID of the disk
+#  - $2: resource_group: the name of the resource group
+#
+# Returns: the attach status of the disk
+# Usage: get_disk_attach_status_by_disk_id <disk_id> <resource_group>
+get_disk_attach_status_by_disk_id() {
+    local disk_id=$1
+    local resource_group=$2
+
+    echo "$(az disk show \
+        --name "$disk_id" \
+        --resource-group "$resource_group" \
+        --query "{diskState:diskState}" \
+        --output tsv)"
+}
+
+# Description:
 #   This function attaches or detaches a disk to/from a vm based on the operation parameter.
 #
 # Parameters:
@@ -52,11 +72,33 @@ attach_or_detach_disk() {
     local disk_name=$3
     local resource_group=$4
     local index=$5
+    local filename=&6
 
+    set -x
+
+    local status_req=$(if [ "$operation" == "attach" ]; 
+    then echo "Attached"; 
+    else echo "Unattached"; fi)
+
+    local attach_command=$(
     start_time=$(date +%s)
     local output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
     end_time=$(date +%s)
+    echo "$(build_output "$operation" "$output_message" "$(($end_time - $start_time))")" > "$filename"
+    )
     
+    local output_message="ERROR : Telescope polling timed out."
+    start_time=$(date +%s)
+    for ((i=1; i<=90; i++)); do
+        local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
+        if [ "$status" == "$status_req" ]; then
+            
+            break
+        fi
+        sleep 1
+    done
+    end_time=$(date +%s)
+
     echo "$(build_output "$operation" "$output_message" "$(($end_time - $start_time))")"
 }
 

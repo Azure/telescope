@@ -54,14 +54,14 @@ run_and_collect() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index")"
+        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index" "$result_dir/${disk_name}_attach_polling_$run_index.json")"
         wait
         succeeded=$(echo "$operation_info" | jq -r '.succeeded')
         if [ "$succeeded" == "false" ]; then
             unset disk_names[$index] # Prevents detach operation if attach operation fails
         fi
         output=$(fill_json_template "$operation_info")
-        filename="$result_dir/${disk_name}_attach_$run_index.json"
+        filename="$result_dir/${disk_name}_attach_no_polling_$run_index.json"
         echo "$output" > "$filename"
     done
 
