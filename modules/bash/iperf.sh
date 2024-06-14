@@ -46,13 +46,13 @@ run_iperf3() {
 }
 
 run_iperf2_draft_run(){
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local protocol=$3
-  local wait_time=$4
-  local privatekey_path=$5
-  local server_public_ip_address=$6
-  local result_dir=$7
+  local client_public_ip_address=$1
+  local protocol=$2
+  local wait_time=$3
+  local privatekey_path=$4
+  local user_name=$5
+  local result_dir=$6
+  local iperf_properties=$7
   local jumpbox_public_ip_address=${8:-''}
 
   if [ -n "$jumpbox_public_ip_address" ]; then
@@ -63,57 +63,44 @@ run_iperf2_draft_run(){
   sleep $wait_time
 
   echo "Perform a draft run to warm up the vm"
-  local command="iperf --enhancedreports --client $destination_ip_address --format m --time 30"
-  if [ "$protocol" = "udp" ]; then
-    command="$command --udp --port 20002"
-  else
-   command="$command --port 20001"
-  fi
-
+  local command="iperf $iperf_properties"
+ 
   if [ -z "$jumpbox_public_ip_address" ]; then
-    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command"
+    echo "run_ssh $privatekey_path $user_name $client_public_ip_address $command"
+    run_ssh $privatekey_path $user_name $client_public_ip_address 2222 "$command"
   else
-    echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
-    run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
+    echo "run_ssh_via_jumpbox $privatekey_path $user_name $jumpbox_public_ip_address $client_public_ip_address $command"
+    run_ssh_via_jumpbox $privatekey_path $user_name $jumpbox_public_ip_address $client_public_ip_address 2222 "$command"
   fi
   echo "Completed draft run"
 }
 
 run_iperf2() {
-  local destination_ip_address=$1
-  local client_public_ip_address=$2
-  local protocol=$3
-  local wait_time=$4
-  local privatekey_path=$5
-  local server_public_ip_address=$6
-  local result_dir=$7
-  local iperf_properties=$8
-  local bandwidth=$9
-  local jumpbox_public_ip_address=${10:-''}
+  local client_public_ip_address=$1
+  local protocol=$2
+  local wait_time=$3
+  local privatekey_path=$4
+  local user_name=$5
+  local result_dir=$6
+  local iperf_properties=$7
+  local bandwidth=$8
+  local jumpbox_public_ip_address=${9:-''}
 
   if [ -n "$jumpbox_public_ip_address" ]; then
     echo "Jumpbox public IP address is set to $jumpbox_public_ip_address, will test via jumpbox"
   fi
 
-  local command="iperf --enhancedreports $iperf_properties --format m"
-
-  if [ "$protocol" = "udp" ]; then
-    port=20002
-  else
-    port=20001
-  fi
-  command="$command --port $port"
+  local command="iperf $iperf_properties"
 
   echo "Wait for 1 minutes before running"
   sleep 60
 
   if [ -z "$jumpbox_public_ip_address" ]; then
-    echo "run_ssh $privatekey_path ubuntu $client_public_ip_address $command"
-    run_ssh $privatekey_path ubuntu $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    echo "run_ssh $privatekey_path $user_name $client_public_ip_address $command"
+    run_ssh $privatekey_path $user_name $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
   else
-    echo "run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address $command"
-    run_ssh_via_jumpbox $privatekey_path ubuntu $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
+    echo "run_ssh_via_jumpbox $privatekey_path $user_name $jumpbox_public_ip_address $client_public_ip_address $command"
+    run_ssh_via_jumpbox $privatekey_path $user_name $jumpbox_public_ip_address $client_public_ip_address 2222 "$command" > $result_dir/iperf2-${protocol}-${bandwidth}.log
   fi
   # for debug
   echo ======== iperf2-${protocol}-${bandwidth}.log ========
