@@ -53,8 +53,9 @@ measure_create_scale_delete_vmss() {
     local vnet_name=${10}
     local subnet=${11}
     local security_type=${12}
-    local result_dir=${13}
-    local tags=${14}
+    local lt_name=${13}
+    local result_dir=${14}
+    local tags=${15}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
@@ -141,6 +142,10 @@ measure_create_vmss() {
     local output_vmss_data="{ \"vmss_data\": {}}"
 
     local start_time=$(date +%s)
+
+    if [[ "$cloud" == "aws" ]]; then
+        # create launch template
+    fi
     case $cloud in
         azure)
             vmss_data=$(create_vmss "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$tags")
