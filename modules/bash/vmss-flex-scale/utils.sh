@@ -30,14 +30,16 @@ get_vmss_name() {
 #   - $4: vm_os: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
 #   - $5: instances: The number of VM instances in the VMSS (e.g. 1)
 #   - $6: scale: Should the scenario scale up/down by one unit (e.g. false)
-#   - $7: region: The region where the VMSS will be created (e.g. us-east1)
-#   - $8: run_id: The run id
-#   - $9: network_security_group: The network security group (eg. my-nsg)
-#   - $10: vnet_name: The virtual network name (e.g. my-vnet)
-#   - $11: subnet: The subnet (e.g. my-subnet)
-#   - $12: security_type: The security type (e.g. TrustedLaunch)
-#   - $13: result_dir: The result directory where to place the results in JSON format
-#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $7: vm_scale_instances_target: The target number of instances to scale to (e.g. 10)
+#   - $8: scaling_step: The number of instances to scale up/down by (e.g. 1)
+#   - $9: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $10: run_id: The run id
+#   - $11: network_security_group: The network security group (eg. my-nsg)
+#   - $12: vnet_name: The virtual network name (e.g. my-vnet)
+#   - $13: subnet: The subnet (e.g. my-subnet)
+#   - $14: security_type: The security type (e.g. TrustedLaunch)
+#   - $15: result_dir: The result directory where to place the results in JSON format
+#   - $16: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
 measure_create_scale_delete_vmss() {
@@ -47,21 +49,26 @@ measure_create_scale_delete_vmss() {
     local vm_os=$4
     local vm_instances=$5
     local scale=$6
-    local region=$7
-    local run_id=$8
-    local network_security_group=$9
-    local vnet_name=${10}
-    local subnet=${11}
-    local security_type=${12}
-    local result_dir=${13}
-    local tags=${14}
+    local vm_scale_instances_target=$7
+    local scaling_step=$8
+    local region=$9
+    local run_id=${10}
+    local network_security_group=${11}
+    local vnet_name=${12}
+    local subnet=${13}
+    local security_type=${14}
+    local result_dir=${15}
+    local tags=${16}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
         \"name\": \"$vmss_name\", \
         \"vm_size\": \"$vm_size\", \
         \"vm_os\": \"$vm_os\", \
+		\"vm_instances\": \"$vm_instances\", \
         \"scale\": \"$scale\", \
+		\"vm_scale_instances_target\": \"$vm_scale_instances_target\", \
+		\"scaling_step\": \"$scaling_step\", \
         \"region\": \"$region\", \
         \"network_security_group\": \"$network_security_group\", \
         \"vnet_name\": \"$vnet_name\", \
@@ -72,20 +79,30 @@ measure_create_scale_delete_vmss() {
         - VMSS name: $vmss_name
         - VM size: $vm_size
         - VM OS: $vm_os
+		- Instances: $vm_instances
         - Scale: $scale
+		- VM Scale Instances Target: $vm_scale_instances_target
+		- Scaling Step: $scaling_step
         - Region: $region
         - Network Security Group: $network_security_group
         - VNet: $vnet_name
         - Subnet: $subnet
         - Security type: $security_type
         - Tags: $tags"
+
+    set -x
     
     vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$scale" ] && [ "$scale" = "True" ]; then
-        measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$((vm_instances + 1))" "scale_up_vmss" "$result_dir" "$test_details"
-        measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$vm_instances" "scale_down_vmss" "$result_dir" "$test_details"
-    fi
+
+        for ((i=$((vm_instances + scaling_step)) ; i<=$vm_scale_instances_target; i+=$scaling_step)); do
+            measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$i" "scale_up_vmss" "$result_dir" "$test_details"
+        done
+
+        for ((i=$((vm_scale_instances_target - scaling_step)); i<=$vm_instances; i-=$scaling_step)); do
+            measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$vm_instances" "scale_down_vmss" "$result_dir" "$test_details"
+        done
 
     if [ -n "$vmss_id" ] && [[ "$vmss_id" != Error* ]]; then
         vmss_id=$(measure_delete_vmss "$cloud" "$vmss_id" "$region" "$run_id" "$result_dir" "$test_details")
