@@ -79,21 +79,20 @@ attach_or_detach_disk() {
     else echo "Unattached"; fi)
     local external_polling_output_message="ERROR : Telescope polling timed out"
     > "$filename"
-    internal_polling_result=""
-
-    (
+    internal_polling_result=$(
         internal_polling_start_time=$(date +%s)
         local internal_polling_output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
         internal_polling_end_time=$(date +%s)
         internal_polling_result="$(build_output "internal-polling-$operation" "$internal_polling_output_message" "$(($internal_polling_end_time - $internal_polling_start_time))")"
         echo "$internal_polling_result" >> "$filename"
+        echo "$internal_polling_result"
     ) &
 
     external_polling_start_time=$(date +%s)
     for ((i=1; i<=90; i++)); do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [ "$status" == "$status_req" ]; then
-            external_polling_output_message="Succes!"
+            external_polling_output_message="Success"
             break
         fi
         sleep 1

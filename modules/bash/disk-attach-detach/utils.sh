@@ -78,9 +78,9 @@ run_and_collect() {
             continue
         fi
         local temp_file=$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 10)
-        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
+        attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file"
         wait
-        $(fill_json_template "$operation_info")
+
         for line in $(cat $temp_file)
         do
             output=$(fill_json_template "$line")
