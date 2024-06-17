@@ -66,7 +66,7 @@ run_and_collect() {
         do
             output=$(fill_json_template "$line")
             local random_character=$(head -c 5 /dev/random)
-            result_file="$result_dir/${disk_name}_$run_index_$random_character.json"
+            result_file="$result_dir/${disk_name}_{$run_index}_{$random_character}.json"
             echo "$output" > "$result_file"
         done
     done
