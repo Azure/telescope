@@ -82,13 +82,11 @@ attach_or_detach_disk() {
     
     local output_message="ERROR : Telescope polling timed out"
 
-    operation_finnished="false"
     (
         start_time=$(date +%s)
         local output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
         end_time=$(date +%s)
         echo "$(build_output "internal-polling-{$operation}" "$output_message" "$(($end_time - $start_time))")" > "$filename"
-        operation_finnished="true"
     ) &
 
     start_time=$(date +%s)
@@ -103,12 +101,7 @@ attach_or_detach_disk() {
     end_time=$(date +%s)
 
     # Wait for the operation to finnish
-    while(true); do
-		if [ "$operation_finnished" == "true" ]; then
-			break
-		fi
-		sleep 1
-	done
+    wait
 
     echo "$(build_output "external-polling-{$operation}" "$output_message" "$(($end_time - $start_time))")"
 }
