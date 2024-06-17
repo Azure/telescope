@@ -53,7 +53,6 @@ run_and_collect() {
     local disk_names=($(get_disk_instances_name_by_run_id "$run_id"))
 
     for index in "${!disk_names[@]}"; do
-    set -x
         disk_name="${disk_names[$index]}"
         local temp_file=$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 10)
         succeeded="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
@@ -65,6 +64,7 @@ run_and_collect() {
 
         for line in $(cat $temp_file)
         do
+        echo $line
             output=$(fill_json_template "$line")
             local random_character=$(head -c 5 /dev/random)
             result_file="$result_dir/${disk_name}_{$run_index}_{$random_character}.json"
@@ -83,6 +83,7 @@ run_and_collect() {
 
         for line in $(cat $temp_file)
         do
+        echo $line
             output=$(fill_json_template "$line")
             local random_character=$(head -c 5 /dev/random)
             result_file="$result_dir/${disk_name}_{$run_index}_{$random_character}.json"
