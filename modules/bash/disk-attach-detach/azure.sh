@@ -74,36 +74,35 @@ attach_or_detach_disk() {
     local index=$5
     local filename=&6
 
-    set -x
-
     local status_req=$(if [ "$operation" == "attach" ]; 
     then echo "Attached"; 
     else echo "Unattached"; fi)
     
-    local output_message="ERROR : Telescope polling timed out"
+    local external_polling_output_message="ERROR : Telescope polling timed out"
 
     (
-        start_time=$(date +%s)
-        local output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
-        end_time=$(date +%s)
-        echo "$(build_output "internal-polling-{$operation}" "$output_message" "$(($end_time - $start_time))")" > "$filename"
+        set -x
+        internal_polling_start_time=$(date +%s)
+        local internal_polling_output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
+        internal_polling_end_time=$(date +%s)
+        echo "$(build_output "internal-polling-$operation" "$internal_polling_output_message" "$(($internal_polling_end_time - $internal_polling_start_time))")" > "$filename"
     ) &
 
-    start_time=$(date +%s)
+    external_polling_start_time=$(date +%s)
     for ((i=1; i<=90; i++)); do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [ "$status" == "$status_req" ]; then
-            output_message="Succes!"
+            external_polling_output_message="Succes!"
             break
         fi
         sleep 1
     done
-    end_time=$(date +%s)
+    external_polling_end_time=$(date +%s)
 
     # Wait for the operation to finnish
     wait
 
-    echo "$(build_output "external-polling-{$operation}" "$output_message" "$(($end_time - $start_time))")"
+    echo "$(build_output "external-polling-$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))")"
 }
 
 # Description:
