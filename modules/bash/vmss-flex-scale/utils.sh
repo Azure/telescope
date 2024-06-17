@@ -97,7 +97,7 @@ measure_create_scale_delete_vmss() {
             measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$i" "scale_up_vmss" "$result_dir" "$test_details"
         done
 
-        for ((i=$((vm_scale_instances_target - scaling_step)); i<=$vm_instances; i-=$scaling_step)); do
+        for ((i=$((vm_scale_instances_target - scaling_step)); i>=$vm_instances; i-=$scaling_step)); do
             measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$i" "scale_down_vmss" "$result_dir" "$test_details"
         done
     fi
