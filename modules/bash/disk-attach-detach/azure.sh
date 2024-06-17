@@ -72,7 +72,7 @@ attach_or_detach_disk() {
     local disk_name=$3
     local resource_group=$4
     local index=$5
-    local filename=&6
+    filename=&6
 
     local status_req=$(if [ "$operation" == "attach" ]; 
     then echo "Attached"; 
@@ -102,7 +102,7 @@ attach_or_detach_disk() {
     # Wait for the operation to finnish
     wait
 
-    echo "$(build_output "external-polling-$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))")"
+    echo "$(build_output "external-polling-$operation" "$external_polling_output_message" "$(($external_polling_end_time - $external_polling_start_time))")"
 }
 
 # Description:
