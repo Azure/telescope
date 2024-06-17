@@ -79,7 +79,7 @@ attach_or_detach_disk() {
     else echo "Unattached"; fi)
     local external_polling_output_message="ERROR : Telescope polling timed out"
 
-    echo -n "" > $filename
+    echo -n "" > "$filename"
     internal_polling_result=""
 
     (

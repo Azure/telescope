@@ -54,7 +54,7 @@ run_and_collect() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        local temp_file=$(head -c 10 /dev/random)
+        local temp_file=$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 10)
         succeeded="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
         wait
 
