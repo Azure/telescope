@@ -72,7 +72,7 @@ attach_or_detach_disk() {
     local disk_name=$3
     local resource_group=$4
     local index=$5
-    filename=&6
+    filename=$6
 
     local status_req=$(if [ "$operation" == "attach" ]; 
     then echo "Attached"; 
@@ -80,12 +80,14 @@ attach_or_detach_disk() {
     local external_polling_output_message="ERROR : Telescope polling timed out"
 
     echo -n "" > $filename
+    internal_polling_result=""
 
     (
         internal_polling_start_time=$(date +%s)
         local internal_polling_output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
         internal_polling_end_time=$(date +%s)
-        echo "$(build_output "internal-polling-$operation" "$internal_polling_output_message" "$(($internal_polling_end_time - $internal_polling_start_time))")" >> "$filename"
+        internal_polling_result="$(build_output "internal-polling-$operation" "$internal_polling_output_message" "$(($internal_polling_end_time - $internal_polling_start_time))")"
+        echo "$internal_polling_result" >> "$filename"
     ) &
 
     external_polling_start_time=$(date +%s)
@@ -103,6 +105,7 @@ attach_or_detach_disk() {
     wait
 
     echo "$(build_output "external-polling-$operation" "$external_polling_output_message" "$(($external_polling_end_time - $external_polling_start_time))")" >> "$filename"
+    echo $(echo "$internal_polling_result" | jq -r '.succeeded')
 }
 
 # Description:

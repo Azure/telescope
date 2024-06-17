@@ -55,20 +55,19 @@ run_and_collect() {
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
         local temp_file=$(head -c 10 /dev/random)
-        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
+        succeeded="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
         wait
 
-        succeeded=$(echo "$operation_info" | jq -r '.succeeded')
         if [ "$succeeded" == "false" ]; then
             unset disk_names[$index] # Prevents detach operation if attach operation fails
         fi
 
-        for line in $(cat $filename)
+        for line in $(cat $temp_file)
         do
             output=$(fill_json_template "$line")
             local random_character=$(head -c 5 /dev/random)
-            filename="$result_dir/${disk_name}_$run_index_$random_character.json"
-            echo "$output" > "$filename"
+            result_file="$result_dir/${disk_name}_$run_index_$random_character.json"
+            echo "$output" > "$result_file"
         done
     done
 
