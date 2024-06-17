@@ -30,16 +30,19 @@ get_vmss_name() {
 #   - $4: vm_os: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
 #   - $5: instances: The number of VM instances in the VMSS (e.g. 1)
 #   - $6: scale: Should the scenario scale up/down by one unit (e.g. false)
-#   - $7: region: The region where the VMSS will be created (e.g. us-east1)
-#   - $8: run_id: The run id
-#   - $9: network_security_group: The network security group (eg. my-nsg)
-#   - $10: vnet_name: The virtual network name (e.g. my-vnet)
-#   - $11: subnet: The subnet (e.g. my-subnet)
-#   - $12: security_type: The security type (e.g. TrustedLaunch)
-#   - $13: result_dir: The result directory where to place the results in JSON format
-#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $7: vm_scale_instances_target: The target number of instances to scale to (e.g. 10)
+#   - $8: scaling_step: The number of instances to scale up/down by (e.g. 1)
+#   - $9: region: The region where the VMSS will be created (e.g. us-east1)
+#   - $10: run_id: The run id
+#   - $11: network_security_group: The network security group (eg. my-nsg)
+#   - $12: vnet_name: The virtual network name (e.g. my-vnet)
+#   - $13: subnet: The subnet (e.g. my-subnet)
+#   - $14: security_type: The security type (e.g. TrustedLaunch)
+#   - $15: lt_name: The launch template name (e.g. my-launch-template)
+#   - $16: result_dir: The result directory where to place the results in JSON format
+#   - $17: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <tags>
+# Usage: measure_create_delete_vmss <cloud> <vmss_name> <vm_size> <vm_os> <instances> <scale> <vm_scale_instances_target> <scaling_step> <run_id> <region> <network_security_group> <vnet_name> <subnet> <security_type> <lt_name> <result_dir> <tags>
 measure_create_scale_delete_vmss() {
     local cloud=$1
     local vmss_name=$2
@@ -47,15 +50,17 @@ measure_create_scale_delete_vmss() {
     local vm_os=$4
     local vm_instances=$5
     local scale=$6
-    local region=$7
-    local run_id=$8
-    local network_security_group=$9
-    local vnet_name=${10}
-    local subnet=${11}
-    local security_type=${12}
-    local lt_name=${13}
-    local result_dir=${14}
-    local tags=${15}
+    local vm_scale_instances_target=$7
+    local scaling_step=$8
+    local region=$9
+    local run_id=${10}
+    local network_security_group=${11}
+    local vnet_name=${12}
+    local subnet=${13}
+    local security_type=${14}
+    local lt_name=${15}
+    local result_dir=${16}
+    local tags=${17}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
