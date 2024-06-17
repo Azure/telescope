@@ -20,7 +20,6 @@ create_asg() {
     local asg_name=$1
     local min_size=$2
     local max_size=$3
-    local desired_capacity=$4
     local launch_template_name=$5
     local region=$6
     local tag_specifications="${7:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
@@ -28,7 +27,6 @@ create_asg() {
     aws autoscaling create-auto-scaling-group \
         --auto-scaling-group-name $asg_name \
         --min-size $min_size --max-size $max_size \
-        --desired-capacity $desired_capacity \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
         --availability-zones $region --tag-specifications "$tag_specifications" \
         --output json 2> "/tmp/aws-$asg_name-create_asg-error.txt" > "/tmp/aws-$asg_name-create_asg-output.txt"
