@@ -5,5 +5,7 @@ sudo service ssh restart
 
 sudo apt-get update && sudo apt-get install iperf3 -y
 
+# set up tcp listener
 nohup iperf3 --server --port 20003 &> /dev/null &
-nohup iperf3 --server --udp --port 20004 &> /dev/null &
+# set up udp listener
+nohup iperf3 --server --port 20004 &> /dev/null &
