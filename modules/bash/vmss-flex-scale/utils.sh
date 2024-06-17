@@ -89,6 +89,8 @@ measure_create_scale_delete_vmss() {
         - Subnet: $subnet
         - Security type: $security_type
         - Tags: $tags"
+
+    set -x
     
     vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
 
