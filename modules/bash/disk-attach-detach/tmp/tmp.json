@@ -1,0 +1,134 @@
+{
+  "a": "lala",
+  "vm-info": {
+    "additionalCapabilities": {
+      "hibernationEnabled": null,
+      "ultraSsdEnabled": false
+    },
+    "applicationProfile": null,
+    "availabilitySet": null,
+    "billingProfile": null,
+    "capacityReservation": null,
+    "diagnosticsProfile": {
+      "bootDiagnostics": {
+        "enabled": false,
+        "storageUri": null
+      }
+    },
+    "etag": null,
+    "evictionPolicy": null,
+    "extendedLocation": null,
+    "extensionsTimeBudget": "PT1H30M",
+    "hardwareProfile": {
+      "vmSize": "Standard_D16_v3",
+      "vmSizeProperties": null
+    },
+    "host": null,
+    "hostGroup": null,
+    "id": "/subscriptions/8cf6c1b6-c80f-437c-87ad-45fbaff54f73/resourceGroups/010421234/providers/Microsoft.Compute/virtualMachines/Attach-Detach-VM-RAW",
+    "identity": null,
+    "instanceView": null,
+    "licenseType": null,
+    "location": "eastus",
+    "managedBy": null,
+    "name": "Attach-Detach-VM-RAW",
+    "networkProfile": {
+      "networkApiVersion": null,
+      "networkInterfaceConfigurations": null,
+      "networkInterfaces": [
+        {
+          "deleteOption": null,
+          "id": "/subscriptions/8cf6c1b6-c80f-437c-87ad-45fbaff54f73/resourceGroups/010421234/providers/Microsoft.Network/networkInterfaces/compete-disk-attach-detach-nic",
+          "primary": true,
+          "resourceGroup": "010421234"
+        }
+      ]
+    },
+    "osProfile": {
+      "adminPassword": null,
+      "adminUsername": "ubuntu",
+      "allowExtensionOperations": true,
+      "computerName": "Attach-Detach-VM-RAW",
+      "customData": null,
+      "linuxConfiguration": {
+        "disablePasswordAuthentication": true,
+        "enableVmAgentPlatformUpdates": false,
+        "patchSettings": {
+          "assessmentMode": "ImageDefault",
+          "automaticByPlatformSettings": null,
+          "patchMode": "ImageDefault"
+        },
+        "provisionVmAgent": true,
+        "ssh": {
+          "publicKeys": [
+            {
+              "keyData": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDtVLXWDawL94TjR4KvYcU+lleUO/zhhCHLbDPmmhz1lBaSQdHqE6acJbQ7zFfZeScxzhi3uhMZEEp8kf8Tk9gMASWj0txcE+FHnCS27BSMgqU+LV6HdNhypkffh/w19MB+i3dN2Rjw0L5JOMeVY7Qkl/KRFSZNIpxL6sNXK66di5Sqy7YITz11uMi+MstzdPgo4MippHHy4EpIDRBb7xM3vU0yH2cGsqoeHZhfbxquCCmbdTp9IPShazT+hKZ3lCUU/PdwHloqVS4foceIRqrnjh5tatSXgGP/2njIzZ9GdFkQR0AoloPCvSRiKQcfPrO0hRePrlIS/fVF6AeEQ3Hx nonroot@623659a2bf63\n",
+              "path": "/home/ubuntu/.ssh/authorized_keys"
+            }
+          ]
+        }
+      },
+      "requireGuestProvisionSignal": true,
+      "secrets": [],
+      "windowsConfiguration": null
+    },
+    "plan": null,
+    "platformFaultDomain": null,
+    "priority": "Regular",
+    "provisioningState": "Succeeded",
+    "proximityPlacementGroup": null,
+    "resourceGroup": "010421234",
+    "resources": null,
+    "scheduledEventsProfile": null,
+    "securityProfile": null,
+    "storageProfile": {
+      "dataDisks": [],
+      "diskControllerType": null,
+      "imageReference": {
+        "communityGalleryImageId": null,
+        "exactVersion": "22.04.202404090",
+        "id": null,
+        "offer": "0001-com-ubuntu-server-jammy",
+        "publisher": "Canonical",
+        "sharedGalleryImageId": null,
+        "sku": "22_04-lts",
+        "version": "latest"
+      },
+      "osDisk": {
+        "caching": "ReadWrite",
+        "createOption": "FromImage",
+        "deleteOption": "Detach",
+        "diffDiskSettings": null,
+        "diskSizeGb": 30,
+        "encryptionSettings": null,
+        "image": null,
+        "managedDisk": {
+          "diskEncryptionSet": null,
+          "id": "/subscriptions/8cf6c1b6-c80f-437c-87ad-45fbaff54f73/resourceGroups/010421234/providers/Microsoft.Compute/disks/Attach-Detach-VM-RAW_OsDisk_1_b0276be27eed46379160726e7b2f6822",
+          "resourceGroup": "010421234",
+          "securityProfile": null,
+          "storageAccountType": "Standard_LRS"
+        },
+        "name": "Attach-Detach-VM-RAW_OsDisk_1_b0276be27eed46379160726e7b2f6822",
+        "osType": "Linux",
+        "vhd": null,
+        "writeAcceleratorEnabled": false
+      }
+    },
+    "tags": {
+      "creation_time": "2024-04-17T14:55:45Z",
+      "deletion_due_time": "2024-04-17T16:55:45Z",
+      "info_column_name": "vm-info",
+      "owner": "nonroot",
+      "role": "vm-role",
+      "run_id": "010421234",
+      "scenario": "perf-eval-disk-attach-dettach"
+    },
+    "timeCreated": "2024-04-17T13:11:23.954124+00:00",
+    "type": "Microsoft.Compute/virtualMachines",
+    "userData": null,
+    "virtualMachineScaleSet": null,
+    "vmId": "3e33feac-4702-46a3-ad57-272d97901275",
+    "zones": null
+  }
+}
