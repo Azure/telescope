@@ -77,11 +77,17 @@ run_and_collect() {
         if [ -z "$disk_name" ]; then # Skip disks that failed to attach
             continue
         fi
-        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index")"
+        local temp_file=$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 10)
+        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
         wait
-        output=$(fill_json_template "$operation_info")
-        filename="$result_dir/${disk_name}_detach_$run_index.json"
-        echo "$output" > "$filename"
+        $(fill_json_template "$operation_info")
+        for line in $(cat $temp_file)
+        do
+            output=$(fill_json_template "$line")
+            local random_character=$(head -c 5 /dev/random)
+            result_file="$result_dir/${disk_name}_{$run_index}_{$random_character}.json"
+            echo "$output" > "$result_file"
+        done
     done
 }
 
