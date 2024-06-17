@@ -10,25 +10,25 @@
 #   - $4: desired_capacity: The number of instances to launch in the ASG (e.g. 5)
 #   - $5: launch_template_name: The name of the launch template to use to launch instances (e.g. my-lt)
 #   - $6: region: The region where the ASG instance will be created (e.g. us-east-1)
-#   - $7: tag_specifications: [optional] The tags to use (e.g. "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops},{Key=creation_time,Value=2024-03-11T19:12:01Z}]", default value is "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]")
+#   - $7: tags: [optional] The tags to use (e.g. "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops},{Key=creation_time,Value=2024-03-11T19:12:01Z}]", default value is "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]")
 #
 # Notes:
 #   - this commands waits for the ASG instance's state to be running before returning the instance id
 #
-# Usage: create_asg <asg_name> <min_size> <max_size> <desired_capacity> <launch_template_name> <region> [tag_specifications]
+# Usage: create_asg <asg_name> <min_size> <max_size> <desired_capacity> <launch_template_name> <region> [tags]
 create_asg() {
     local asg_name=$1
     local min_size=$2
     local max_size=$3
     local launch_template_name=$5
     local region=$6
-    local tag_specifications="${7:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
+    local tags="${7:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
     aws autoscaling create-auto-scaling-group \
         --auto-scaling-group-name $asg_name \
         --min-size $min_size --max-size $max_size \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
-        --availability-zones $region --tag-specifications "$tag_specifications" \
+        --availability-zones $region --tags "$tags" \
         --output json 2> "/tmp/aws-$asg_name-create_asg-error.txt" > "/tmp/aws-$asg_name-create_asg-output.txt"
 
     exit_code=$?
