@@ -80,16 +80,16 @@ attach_or_detach_disk() {
         status_req="Unattached"
     fi
 
+    pipe_filename="/tmp/pipe-$(date +%s)" # Used to store the output of the background process
     local external_polling_output_message="ERROR : Telescope polling timed out"
-    local pipe_filename="/tmp/pipe-$(date +%s)" # Used to store the output of the background process
     local external_polling_start_time=$(date +%s)
 
     (
         local internal_polling_start_time=$(date +%s)
         local internal_polling_output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
         local internal_polling_end_time=$(date +%s)
-        echo "$internal_polling_output_message" > "$filename"
-        echo "$(($internal_polling_end_time - $internal_polling_start_time))" >> "$filename"
+        echo "$internal_polling_output_message" > "$pipe_filename"
+        echo "$(($internal_polling_end_time - $internal_polling_start_time))" >> "$pipe_filename"
     ) &
 
     local pid_id=$!
@@ -107,10 +107,10 @@ attach_or_detach_disk() {
     # Wait for the operation to finish
     wait
 
-    local output_message=$(cat "$filename" | head -2)
-    local internal_polling_time=$(cat "$filename" | head -2)
+    local output_message=$(cat "$pipe_filename" | head -2)
+    local internal_polling_time=$(cat "$pipe_filename" | head -2)
 
-    echo "$(build_output "$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))")" "$internal_polling_time" >> "$filename"
+    echo "$(build_output "$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))")" "$internal_polling_time"
 }
 
 # Description:
