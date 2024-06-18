@@ -54,22 +54,15 @@ run_and_collect() {
 
     for index in "${!disk_names[@]}"; do
         disk_name="${disk_names[$index]}"
-        local temp_file=$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 10)
-        succeeded="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file")"
+        operation_info="$(attach_or_detach_disk "attach" "$vm_name" "$disk_name" "$run_id" "$index")"
         wait
-
+        succeeded=$(echo "$operation_info" | jq -r '.succeeded')
         if [ "$succeeded" == "false" ]; then
             unset disk_names[$index] # Prevents detach operation if attach operation fails
         fi
-
-        for line in $(cat $temp_file)
-        do
-        echo $line
-            output=$(fill_json_template "$line")
-            local random_character=$(head -c 5 /dev/random)
-            result_file="$result_dir/${disk_name}_{$run_index}_{$random_character}.json"
-            echo "$output" > "$result_file"
-        done
+        output=$(fill_json_template "$operation_info")
+        filename="$result_dir/${disk_name}_attach_$run_index.json"
+        echo "$output" > "$filename"
     done
 
     for index in "${!disk_names[@]}"; do
@@ -77,18 +70,11 @@ run_and_collect() {
         if [ -z "$disk_name" ]; then # Skip disks that failed to attach
             continue
         fi
-        local temp_file=$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 10)
-        attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index" "$temp_file"
+        operation_info="$(attach_or_detach_disk "detach" "$vm_name" "$disk_name" "$run_id" "$index")"
         wait
-
-        for line in $(cat $temp_file)
-        do
-        echo $line
-            output=$(fill_json_template "$line")
-            local random_character=$(head -c 5 /dev/random)
-            result_file="$result_dir/${disk_name}_{$run_index}_{$random_character}.json"
-            echo "$output" > "$result_file"
-        done
+        output=$(fill_json_template "$operation_info")
+        filename="$result_dir/${disk_name}_detach_$run_index.json"
+        echo "$output" > "$filename"
     done
 }
 

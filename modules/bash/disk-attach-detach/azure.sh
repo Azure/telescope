@@ -13,7 +13,7 @@ get_vm_instances_name_by_run_id() {
 
     echo $(az resource list \
         --resource-type Microsoft.Compute/virtualMachines \
-        --query "[?(tags.run_id == '"$resource_group"')].name" \
+        --query "[?(tags.run_id == '$resource_group')].name" \
         --output tsv)
 }
 
@@ -30,7 +30,7 @@ get_disk_instances_name_by_run_id() {
     
     echo "$(az resource list \
         --resource-type Microsoft.Compute/disks \
-        --query "[?(tags.run_id == '"$resource_group"') && (managedBy==null)].name" \
+        --query "[?(tags.run_id == '$resource_group') && (managedBy==null)].name" \
         --output tsv)"
 }
 
@@ -72,38 +72,46 @@ attach_or_detach_disk() {
     local disk_name=$3
     local resource_group=$4
     local index=$5
-    filename=$6
 
-    local status_req=$(if [ "$operation" == "attach" ]; 
-    then echo "Attached"; 
-    else echo "Unattached"; fi)
+    local status_req
+    if [ "$operation" == "attach" ]; then
+        status_req="Attached"
+    else
+        status_req="Unattached"
+    fi
+
     local external_polling_output_message="ERROR : Telescope polling timed out"
-    > "$filename"
-    internal_polling_result=$(
-        internal_polling_start_time=$(date +%s)
+    local pipe_filename="/tmp/pipe-$(date +%s)" # Used to store the output of the background process
+    local external_polling_start_time=$(date +%s)
+
+    (
+        local internal_polling_start_time=$(date +%s)
         local internal_polling_output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
-        internal_polling_end_time=$(date +%s)
-        internal_polling_result="$(build_output "internal-polling-$operation" "$internal_polling_output_message" "$(($internal_polling_end_time - $internal_polling_start_time))")"
-        echo "$internal_polling_result" >> "$filename"
-        echo "$internal_polling_result"
+        local internal_polling_end_time=$(date +%s)
+        echo "$internal_polling_output_message" > "$filename"
+        echo "$(($internal_polling_end_time - $internal_polling_start_time))" >> "$filename"
     ) &
 
-    external_polling_start_time=$(date +%s)
-    for ((i=1; i<=90; i++)); do
+    local pid_id=$!
+    local external_polling_start_time=$(date +%s)
+
+    while [ (ps $pid_id | wc -l) == 2];
+    do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [ "$status" == "$status_req" ]; then
-            external_polling_output_message="Success"
+            local external_polling_end_time=$(date +%s)
             break
         fi
         sleep 1
     done
-    external_polling_end_time=$(date +%s)
 
-    # Wait for the operation to finnish
+    local output_message=$(cat "$filename" | head -2)
+    local internal_polling_time=$(cat "$filename" | head -2)
+
+    # Wait for the operation to finish
     wait
 
-    echo "$(build_output "external-polling-$operation" "$external_polling_output_message" "$(($external_polling_end_time - $external_polling_start_time))")" >> "$filename"
-    echo $(echo "$internal_polling_result" | jq -r '.succeeded')
+    echo "$(build_output "$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))")" "$internal_polling_time" >> "$filename"
 }
 
 # Description:
@@ -119,7 +127,8 @@ attach_or_detach_disk() {
 build_output() {
     local operation=$1
     local output_message=$2
-    local execution_time=$3
+    local external_polling_execution_time=$3
+    local internal_polling_execution_time=$4
 
     set -Ee
 
@@ -139,8 +148,9 @@ build_output() {
 
     echo $(jq -n \
     --arg succeeded "$succeeded" \
-    --arg execution_time "$execution_time" \
+    --arg external_polling_execution_time "$external_polling_execution_time" \
+    --arg internal_polling_execution_time "$internal_polling_execution_time" \
     --arg operation "$operation" \
     --argjson data "$data" \
-    '{"name": $operation ,"succeeded": $succeeded, "time": $execution_time, "unit": "seconds", "data": $data}')
+    '{"name": $operation ,"succeeded": $succeeded, "internal_polling_execution_time": $internal_polling_execution_time ,"external_polling_execution_time": $external_polling_execution_time, "unit": "seconds", "data": $data}')
 }
