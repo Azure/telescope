@@ -50,6 +50,7 @@ run_and_collect() {
     local run_index=$3
     local cloud=$4
 
+    apt-get update && apt-get install procps
     local disk_names=($(get_disk_instances_name_by_run_id "$run_id"))
 
     for index in "${!disk_names[@]}"; do
