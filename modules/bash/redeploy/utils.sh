@@ -34,11 +34,7 @@ function utils::build_json_output() {
 function utils::script_trap_err() {
     local exit_code=1
     local lineno=$2
-    local error_file=$3
-    local results_file=$4
-    local successful="false"
-    local time="0"
-    local time_unit="seconds"
+    local error_file="$RESULT_DIR/$SCENARIO_NAME-error.txt"
 
     # Disable the error trap handler to prevent potential recursion
     trap - ERR
@@ -52,23 +48,35 @@ function utils::script_trap_err() {
         exit_code="$1"
     fi
 
-    local error="$(cat "$error_file")"
     local json_error=$(jq -n -c \
-        --arg error "$error" \
         --arg lineno "$lineno" \
         --arg exit_code "$exit_code" \
         '{
-            "error": $error,
             "line": $lineno,
             "exit_status": $exit_code
         }')
-    local operation_info="$(utils::build_operation_info_json $SCENARIO_NAME $successful $time $time_unit "$json_error")"
-    local cloud_info="$(utils::build_cloud_info_json "{}")"
-
-    local json_output="$(utils::build_json_output "$operation_info" "$cloud_info")"
-    echo "$json_output" > "$(printf "$results_file" "error")"
+    echo $json_error
+    echo $json_error >> "$error_file"
+    
     # Exit with failure status
     exit "$exit_code"
+}
+
+
+# DESC: Build an error message json
+# ARGS: $1 (required): The error message
+# OUTS: The json data
+# NOTE: None
+function utils::build_error_message() {
+    local error=${1:-""}
+
+    local json_error=$(jq -n -c \
+        --arg error "$error" \
+        '{
+            "error": $error
+        }')
+
+    echo "$json_error"
 }
 
 # DESC: Build the cloud info json
@@ -156,6 +164,28 @@ function utils::test_connection() {
         echo "true"
     else
         echo "false"
+    fi
+}
+
+
+# DESC: Wait for SSH connection to be established
+# ARGS: $1 (required): The hostname to connect to
+#       $2 (optional): The timeout for the connection
+# OUTS: None
+# NOTE: This function waits until an SSH connection can be established to the specified hostname.
+utils::wait_ssh_connection() {
+    local hostname=$1
+    local timeout=${2:-60}
+    local try=0
+    exit_code=$(ssh-keyscan -T $timeout $hostname >/dev/null 2>&1)
+
+    while [ $? -ne 0 ] && [ $try -lt $timeout ]; do
+        sleep 1
+        try=$((try + 1))
+        exit_code=$(ssh-keyscan $hostname >/dev/null 2>&1)
+    done
+    if [ $try -eq $timeout ]; then
+        exit 1
     fi
 }
 

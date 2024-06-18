@@ -65,7 +65,7 @@ aws::redeploy_vm() {
         current_ip=$(aws::get_vm_ip "$instance_id")
         connection_successful=$(utils::test_connection $current_ip $ssh_port $timeout) 
         if [ "$connection_successful" == "false" ]; then
-            exit 1
+            echo "SSH TIMEOUT" 1>&2
         fi
     ) 1> /dev/null 2>>$error_file
 

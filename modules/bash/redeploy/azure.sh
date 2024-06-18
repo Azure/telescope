@@ -50,8 +50,8 @@ azure::redeploy_vm() {
     local ssh_port=${4:-"22"}
     local timeout=${5:-"300"}
     local interval_seconds=${6:-"1"}
-    local current_ip=$(azure::get_vm_ip_address $resource_group $vm_name)
-    
+    local current_ip="$(azure::get_vm_ip_address $resource_group $vm_name)"
+
     start_time=$(date +%s)
     # First time we redeploy, the command waits for the VM to be in a running state
     # Subsequent redeploys do not wait for the VM to be in a running state
@@ -72,7 +72,7 @@ azure::redeploy_vm() {
         
         connection_successful=$(utils::test_connection $current_ip $ssh_port $timeout) 
         if [ "$connection_successful" == "false" ]; then
-            exit 1
+            echo "SSH TIMEOUT" 1>&2
         fi
     ) 1> /dev/null 2>>$error_file
     end_time=$(date +%s)
