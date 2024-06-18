@@ -101,7 +101,7 @@ attach_or_detach_disk() {
     local external_polling_start_time=$(date +%s)
     local external_polling_end_time="null"
 
-    while [ $(ps $operation_pid | wc -l) >= 2 ]; do
+    while [ $(ps $operation_pid | wc -l) == 2 ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [ "$status" == "$status_req" ]; then
             local external_polling_end_time=$(date +%s)
