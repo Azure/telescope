@@ -62,7 +62,6 @@ function utils::script_trap_err() {
     exit "$exit_code"
 }
 
-
 # DESC: Build an error message json
 # ARGS: $1 (required): The error message
 # OUTS: The json data
@@ -151,14 +150,11 @@ function utils::test_connection() {
     local try=0
     local wait_time=3
 
-    set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do 
-        netcat -w $wait_time -z $ip $port
-        output=$?
+        output=$(($(netcat -w $wait_time -z $ip $port &> /dev/null && echo 0 || echo 1)))
         try=$((try + $wait_time + 1))
         sleep 1
     done
-    set -e
 
     if [ $try -lt $timeout ]; then
         echo "true"
