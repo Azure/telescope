@@ -108,7 +108,7 @@ attach_or_detach_disk() {
     wait
 
     local output_message=$(cat "$pipe_filename" | head -2)
-    local internal_polling_time=$(cat "$pipe_filename" | head -2)
+    local internal_polling_time=$(cat "$pipe_filename" | head -2 | tr -d '\n')
 
     echo "$(build_output "$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))" "$internal_polling_time")"
 }
