@@ -86,16 +86,22 @@ attach_or_detach_disk() {
 
     (
         local internal_polling_start_time=$(date +%s)
-        local internal_polling_output_message="$(az vm disk "$operation" -g "$resource_group" --vm-name "$vm_name" --name "$disk_name" 2>&1)"
+        local internal_polling_output_message="$(az vm disk \
+            "$operation" \
+            -g "$resource_group" \
+            --vm-name "$vm_name" \
+            --name "$disk_name" \
+        )"
         local internal_polling_end_time=$(date +%s)
         echo "$internal_polling_output_message" > "$pipe_filename"
         echo "$(($internal_polling_end_time - $internal_polling_start_time))" >> "$pipe_filename"
     ) &
 
-    local pid_id=$!
+    local operation_pid=$!
     local external_polling_start_time=$(date +%s)
+    local external_polling_end_time="null"
 
-    while [ $(ps $pid_id | wc -l) == 2 ]; do
+    while [ $(ps $operation_pid | wc -l) >= 2 ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [ "$status" == "$status_req" ]; then
             local external_polling_end_time=$(date +%s)
@@ -109,8 +115,20 @@ attach_or_detach_disk() {
 
     local output_message=$(cat "$pipe_filename" | head -2)
     local internal_polling_time=$(cat "$pipe_filename" | head -2 | tr -d '\n')
+    local external_polling_time
 
-    echo "$(build_output "$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))" "$internal_polling_time")"
+    if [ "$external_polling_end_time" == "null" ]; then
+        external_polling_time="null"
+    else
+        external_polling_time="$(($external_polling_end_time - $external_polling_start_time))"
+    fi
+
+    echo "$(build_output \
+        "$operation" \
+        "$output_message" \
+        "$external_polling_time" \
+        "$internal_polling_time"\
+    )"
 }
 
 # Description:
@@ -119,7 +137,8 @@ attach_or_detach_disk() {
 # Parameters:
 #  - $1: operation: the operation to perform (attach or detach)
 #  - $2: output_message: the output message of the operation
-#  - $3: execution_time: the execution time of the operation
+#  - $3: external_polling_execution_time: the execution time of the operation when polling is done outside
+#  - $4: internal_polling_execution_time: the execution time of the operation when polling is done as part of the command
 #
 # Returns: The operation result JSON object
 # Usage: build_output <operation> <output_message> <execution_time>
@@ -151,5 +170,13 @@ build_output() {
     --arg internal_polling_execution_time "$internal_polling_execution_time" \
     --arg operation "$operation" \
     --argjson data "$data" \
-    '{"name": $operation ,"succeeded": $succeeded, "internal_polling_execution_time": $internal_polling_execution_time ,"external_polling_execution_time": $external_polling_execution_time, "unit": "seconds", "data": $data}')
+        '{ 
+            "name": $operation ,
+            "succeeded": $succeeded, 
+            "internal_polling_execution_time": $internal_polling_execution_time,
+            "external_polling_execution_time": $external_polling_execution_time,
+            "unit": "seconds",
+            "data": $data
+        }'
+    )
 }
