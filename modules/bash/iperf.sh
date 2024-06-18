@@ -38,12 +38,7 @@ run_iperf3() {
   echo "Run evaluation on $egress_ip_address with user name $user_name at $ssh_port and ssh key $privatekey_path and result path $result_dir"
 
   local command="iperf3 $iperf_properties --json"
-  if [ "$protocol" = "udp" ]; then
-    port=20004
-  else
-    port=20003
-  fi
-  command="$command --port $port"
+
   echo "Wait for 1 minutes before running"
   sleep 60
   echo "Run iperf3 command: $command"
