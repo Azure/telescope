@@ -20,9 +20,9 @@ create_asg() {
     local asg_name=$1
     local min_size=$2
     local max_size=$3
-    local launch_template_name=$5
-    local region=$6
-    local tags="${7:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
+    local launch_template_name=$4
+    local region=$5
+    local tags="${6:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
     aws autoscaling create-auto-scaling-group \
         --auto-scaling-group-name $asg_name \
