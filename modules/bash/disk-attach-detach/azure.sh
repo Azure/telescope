@@ -104,11 +104,11 @@ attach_or_detach_disk() {
         sleep 1
     done
 
-    local output_message=$(cat "$filename" | head -2)
-    local internal_polling_time=$(cat "$filename" | head -2)
-
     # Wait for the operation to finish
     wait
+
+    local output_message=$(cat "$filename" | head -2)
+    local internal_polling_time=$(cat "$filename" | head -2)
 
     echo "$(build_output "$operation" "$output_message" "$(($external_polling_end_time - $external_polling_start_time))")" "$internal_polling_time" >> "$filename"
 }
