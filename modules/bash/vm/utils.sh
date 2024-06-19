@@ -315,11 +315,12 @@ measure_create_vm() {
     local creation_time=-1
     local vm_id="$vm_name"
     local output_vm_data="{ \"vm_data\": {}}"
+    pipe_filename="/tmp/pipe-$(date +%s)"
 
     local start_time=$(date +%s)
     case $cloud in
         azure)
-            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$pip" "$port" "$security_type" "$storage_type" "$timeout" "$tags")
+            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$pip" "$port" "$security_type" "$storage_type" "$timeout" "$tags" "$pipe_filename")
         ;;
         aws)
             vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$subnet" "$timeout" "$tags")
@@ -345,6 +346,7 @@ measure_create_vm() {
                 '{vm_data: $vm_data}')
             creation_time=$((end_time - start_time))
             creation_succeeded=true
+            command_finish_time=$(cat "$pipe_filename" | head -1 | tr -d '\n')
         else
             temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
             if [[ -n "$temporary_vm_data" ]]; then
@@ -360,7 +362,8 @@ measure_create_vm() {
           '$vm_data'), \
         \"operation\": \"create_vm\", \
         \"time\": \"$creation_time\", \
-        \"succeeded\": \"$creation_succeeded\" \
+        \"succeeded\": \"$creation_succeeded\", \
+        \"command_finish_time\": \"$command_finish_time\" \
     }"
 
     mkdir -p $result_dir

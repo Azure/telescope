@@ -63,14 +63,20 @@ create_vm() {
     local storage_type="${10:-"Standard_LRS"}"
     local timeout="${11:-"300"}"
     local tags="${12:-"''"}"
-    local admin_username="${13:-"azureuser"}"
-    local admin_password="${14:-"Azur3User!FTW"}"
+    local admin_username="${14:-"azureuser"}"
+    local admin_password="${15:-"Azur3User!FTW"}"
+    pipe_filename="${13}"
 
-    if [[ -n "$nics" ]]; then
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
-    else
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
-    fi
+    (
+        local command_start_time=$(date +%s)
+        if [[ -n "$nics" ]]; then
+            az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
+        else
+            az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
+        fi
+        local command_end_time=$(date +%s)
+        echo "$(($command_end_time - $command_start_time))" >> "$pipe_filename"
+    ) &
 
     exit_code=$?
 
