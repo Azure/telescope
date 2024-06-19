@@ -316,7 +316,7 @@ measure_create_vm() {
     local vm_id="$vm_name"
     local output_vm_data="{ \"vm_data\": {}}"
     pipe_filename="/tmp/pipe-$(date +%s)"
-
+    > $pipe_filename
     local start_time=$(date +%s)
     case $cloud in
         azure)
@@ -336,6 +336,7 @@ measure_create_vm() {
 
     wait
     end_time=$(date +%s)
+    local command_finish_time
 
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
