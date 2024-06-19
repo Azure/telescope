@@ -315,6 +315,7 @@ measure_create_vm() {
     local creation_time=-1
     local vm_id="$vm_name"
     local output_vm_data="{ \"vm_data\": {}}"
+    set -x
     pipe_filename="/tmp/pipe-$(date +%s)"
     > $pipe_filename
     local start_time=$(date +%s)
@@ -353,6 +354,7 @@ measure_create_vm() {
             if [[ -n "$temporary_vm_data" ]]; then
                 output_vm_data=$vm_data
             fi
+            command_finish_time="null"
         fi
     fi
 
