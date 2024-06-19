@@ -82,7 +82,6 @@ attach_or_detach_disk() {
 
     pipe_filename="/tmp/pipe-$(date +%s)" # Used to store the output of the background process
     local external_polling_output_message="ERROR : Telescope polling timed out"
-    local external_polling_start_time=$(date +%s)
 
     (
         local internal_polling_start_time=$(date +%s)
