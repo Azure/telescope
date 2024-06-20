@@ -117,7 +117,7 @@ network_config_list = [
       access                     = "Allow"
       protocol                   = "Tcp"
       source_port_range          = "*"
-      destination_port_range     = "22"
+      destination_port_range     = "2222"
       source_address_prefix      = "*"
       destination_address_prefix = "*"
       },
@@ -148,7 +148,7 @@ vm_config_list = [{
     sku       = "22_04-lts"
     version   = "latest"
   }
-  create_vm_extension = false
+  create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -162,7 +162,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -176,7 +176,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -190,7 +190,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -204,7 +204,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -218,7 +218,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -232,7 +232,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -246,7 +246,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -260,7 +260,7 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
   },
   {
     role           = "vm-redeploy-role"
@@ -274,5 +274,5 @@ vm_config_list = [{
       sku       = "22_04-lts"
       version   = "latest"
     }
-    create_vm_extension = false
+    create_vm_extension = true
 }]
