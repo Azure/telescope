@@ -28,8 +28,8 @@ network_config_list = [
     sg_rules = {
       ingress = [
         {
-          from_port  = 22
-          to_port    = 22
+          from_port  = 2222
+          to_port    = 2222
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
         },
