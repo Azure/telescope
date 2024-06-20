@@ -23,7 +23,7 @@ get_vm_name() {
 }
 
 # Description:
-#   This function is used to pre-create a NIC if needed
+#   This function is used to pre-create a NIC and PIP if needed
 #
 # Parameters:
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
@@ -33,13 +33,13 @@ get_vm_name() {
 #   - $5: The security group (e.g. my-security-group)
 #   - $6: The subnet (e.g. my-subnet)
 #   - $7: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
-#   - $8: Whether to pre-create the NIC or let it be part of the VM creation/deletion measurement (e.g. true)
+#   - $8: Whether to pre-create the NIC and PIP or let them be part of the VM creation/deletion measurement (e.g. true)
 #
 # Notes:
-#   - the NIC name is returned if no errors occurred
+#   - the NIC name and Public IP are returned if no errors occurred
 #
-# Usage: precreate_nic_if_needed <cloud> <vm_name> <run_id> <region> <security_group> <subnet> <tags> <precreate_nic>
-precreate_nic_if_needed()
+# Usage: precreate_nic_and_pip_if_needed <cloud> <vm_name> <run_id> <region> <security_group> <subnet> <tags> <precreate_nic>
+precreate_nic_and_pip_if_needed()
 {
     local cloud=$1
     local vm_name=$2
@@ -48,25 +48,35 @@ precreate_nic_if_needed()
     local security_group=$5
     local subnet=$6
     local tags=$7
-    local precreate_nic=$8
+    local precreate_nic_and_pip=$8
 
     local nic=""
+    local pip=""
     if [[ "$precreate_nic" == "true" ]]; then
         # we will use defaults here to not clobber the method signature, but we may want to parameterize these in the future
         local nic_name="nic_$vm_name"
+        local pip_name="pip_$vm_name"
 
         case $cloud in
             azure)
                 local vnet="create-delete-vm-vnet"
+                local nsg="create-delete-vm-nsg"
                 subnet="create-delete-vm-subnet"
                 local accelerated_networking=true
-                nic=$(create_nic "$nic_name" "$run_id" "$vnet" "$subnet" "$accelerated_networking" "$tags")
+                pip=$(create_pip "$run_id" "$pip_name" "$region" "$tags")
+                pip_id=$pip_name
+                nic=$(create_nic "$nic_name" "$run_id" "$pip_name" "$nsg" "$vnet" "$subnet" "$accelerated_networking" "$tags")
             ;;
             aws)
+                local pip_tags="${tags/ResourceType=instance/ResourceType=elastic-ip}"
                 local nic_tags="${tags/ResourceType=instance/ResourceType=network-interface}"
-                nic=$(create_nic "$nic_name" "$subnet" "$security_group" "$nic_tags")
+                pip_data=$(create_pip "$region" "$pip_tags")
+                pip_id=$(echo "$pip_data" | jq -r '.AllocationId')
+                pip=$(echo "$pip_data" | jq -r '.PublicIp')
+                nic=$(create_nic "$nic_name" "$subnet" "$security_group" "$pip_id" "$nic_tags")
             ;;
             gcp)
+                # TODO: this will need to be reviewed once we have the GCP implementation
                 nic=$(create_nic_instance_template "it_$nic_name" "$region" "$subnet" "$tags")
             ;;
             *)
@@ -75,23 +85,35 @@ precreate_nic_if_needed()
         esac
     fi
 
-    echo "$nic"
+    echo $(jq -c -n \
+        --arg nic "$nic" \
+        --arg pip_id "$pip_id" \
+        --arg pip "$pip" \
+    '{nic: $nic, pip: {id: $pip_id, ip: $pip}}')
 }
 
 # Description:
-#   This function is used to delete a NIC if needed
+#   This function is used to delete a NIC and PIP if needed
 #
 # Parameters:
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
 #   - $2: The NIC name
+#   - $3: The PIP name
+#   - $4: The run id
 #
-# Usage: delete_nic_if_needed <cloud> <nic_name>
-delete_nic_if_needed() {
+# Usage: delete_nic_and_pip_if_needed <cloud> <nic_name> <pip_name> <run_id>
+delete_nic_and_pip_if_needed() {
     local cloud=$1
     local nic_name=$2
+    local pip_name=$3
+    local run_id=$4
 
     if [[ -n "$nic_name" ]] && [[ "$cloud" == "aws" ]]; then
         delete_nic "$nic_name"
+    fi
+
+    if [[ -n "$pip_name" ]]; then
+        delete_pip "$pip_name" "$nic_name" "$run_id"
     fi
 }
 
@@ -111,10 +133,12 @@ delete_nic_if_needed() {
 #   - $10: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
 #   - $11: The security type (e.g. TrustedLaunch)
 #   - $12: The storage type (e.g. Premium_LRS)
-#   - $13: The result directory where to place the results in JSON format
-#   - $14: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - #13: The port to use for pinging the VM (e.g. 3389)
+#   - $14: The timeout to wait for a VM creation operation to complete
+#   - $15: The result directory where to place the results in JSON format
+#   - $16: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
-# Usage: measure_create_delete_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <precreate_nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <tags>
+# Usage: measure_create_delete_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <precreate_nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <port> <timeout> <result_dir> <tags
 measure_create_delete_vm() {
     local cloud=$1
     local vm_name=$2
@@ -128,8 +152,10 @@ measure_create_delete_vm() {
     local accelerator=${10}
     local security_type=${11}
     local storage_type=${12}
-    local result_dir=${13}
-    local tags=${14}
+    local port=${13}
+    local timeout=${14}
+    local result_dir=${15}
+    local tags=${16}
 
     local test_details="{ \
         \"cloud\": \"$cloud\", \
@@ -140,7 +166,8 @@ measure_create_delete_vm() {
         \"precreate_nic\": \"$precreate_nic\", \
         \"accelerator\": \"$accelerator\", \
         \"security_type\": \"$security_type\", \
-        \"storage_type\": \"$storage_type\""
+        \"storage_type\": \"$storage_type\", \
+        \"timeout\": \"$timeout\""
     
     echo "Measuring $cloud VM creation/deletion for with the following details: 
 - VM name: $vm_name
@@ -153,17 +180,21 @@ measure_create_delete_vm() {
 - Accelerator: $accelerator
 - Security type: $security_type
 - Storage type: $storage_type
+- Timeout: $timeout
 - Tags: $tags"
 
-    nic=$(precreate_nic_if_needed "$cloud" "$vm_name" "$run_id" "$region" "$security_group" "$subnet" "$tags" "$precreate_nic")
-    
-    vm_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$result_dir" "$test_details" "$tags")
+    nic_and_pip=$(precreate_nic_and_pip_if_needed "$cloud" "$vm_name" "$run_id" "$region" "$security_group" "$subnet" "$tags" "$precreate_nic")
+    nic=$(echo "$nic_and_pip" | jq -r '.nic')
+    pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
+    pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
+
+    vm_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$timeout" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$vm_id" ] && [[ "$vm_id" != Error* ]]; then
         vm_id=$(measure_delete_vm "$cloud" "$vm_id" "$region" "$run_id" "$result_dir" "$test_details")
     fi
 
-    delete_nic=$(delete_nic_if_needed "$cloud" "$nic")
+    delete_nic=$(delete_nic_and_pip_if_needed "$cloud" "$nic" "$pip_id" "$run_id")
 }
 
 # Description:
@@ -179,18 +210,22 @@ measure_vm_extension() {
     local cloud=$1
     local run_id=$2
     local result_dir=$3
-    local vm_name=$(get_vm_instances_name_by_run_id $run_id)
-    
-    echo "Measuring $cloud VM extension installation" 
-
+    local region=$4
+    local vm_name=$5
+    local command=${6:-""}
     local result=""
     local installation_succedded="false"
     local installation_time=0
 
     local start_time=$(date +%s)
+    echo "Measuring $cloud VM extension installation for $vm_name. Started at $start_time."
+
     case $cloud in
         azure)
-            extension_data=$(install_vm_extension "$vm_name" "$run_id")
+            extension_data=$(install_vm_extension "$vm_name" "$run_id" "$command")
+        ;;
+        aws)
+            extension_data=$(install_ec2_extension "$vm_name" "$region" "$command")
         ;;
         *)
             exit 1 # cloud provider unknown/not implemented
@@ -199,15 +234,16 @@ measure_vm_extension() {
     
     wait
     local end_time=$(date +%s)
+    echo "Finished $cloud VM extension installation for $vm_name. Ended at $end_time."
 
     if [[ -n "$extension_data" ]]; then
-        succeeded=$(echo "$extension_data" | jq -r '.succeeded')
+        succeeded=$(jq -r '.succeeded' <<< "$extension_data")
         if [[ "$succeeded" == "true" ]]; then
             output_extension_data=$extension_data
             installation_time=$((end_time - start_time))
             installation_succedded="true"
         else
-            temporary_extension_data=$(echo "$extension_data" | jq -r '.data')
+            temporary_extension_data=$(jq -r '.data' <<< "$extension_data")
             if [[ -n "$temporary_extension_data" ]]; then
                 output_extension_data=$extension_data
             fi
@@ -218,7 +254,7 @@ measure_vm_extension() {
         \"operation\": \"install_vm_extension\", \
         \"succeeded\": \"$installation_succedded\", \
         \"extension_data\": $(jq -c -n \
-          --argjson extension_data "$(echo "$output_extension_data" | jq -r '.data')" \
+          --argjson extension_data "$(jq -r '.data' <<< "$output_extension_data")" \
           '$extension_data'), \
         \"time\": \"$installation_time\" \
     }"
@@ -238,20 +274,23 @@ measure_vm_extension() {
 #   - $4: The OS identifier the VM will use (e.g. projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20240229)
 #   - $5: The region where the VM will be created (e.g. us-east1)
 #   - $6: Optional NIC to be used for VM creation/deletion measurement
-#   - $7: The run id
-#   - $8: The security group (e.g. my-security-group)
-#   - $9: The subnet (e.g. my-subnet)
-#   - $10: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
-#   - $11: The security type (e.g. TrustedLaunch)
-#   - $12: The storage type (e.g. Premium_LRS)
-#   - $13: The result directory where to place the results in JSON format
-#   - $14: The test details in JSON format
-#   - $15: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $7: Optional PIP to be used for VM creation/deletion measurement
+#   - $8: The port to use for pinging the VM (e.g. 3389)
+#   - $9: The run id
+#   - $10: The security group (e.g. my-security-group)
+#   - $11: The subnet (e.g. my-subnet)
+#   - $12: [optional] The accelerator to use (e.g. count=8,type=nvidia-h100-80gb, default value is empty)
+#   - $13: The security type (e.g. TrustedLaunch)
+#   - $14: The storage type (e.g. Premium_LRS)
+#   - $15: The timeout to wait for a VM creation operation to complete
+#   - $16: The result directory where to place the results in JSON format
+#   - $17: The test details in JSON format
+#   - $18: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VM ID is returned if no errors occurred
 #
-# Usage: measure_create_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <nic> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <result_dir> <test_details> <tags>
+# Usage: measure_create_vm <cloud> <vm_name> <vm_size> <vm_os> <region> <nic> <pip> <port> <run_id> <security_group> <subnet> <accelerator> <security_type> <storage_type> <timeout> <result_dir> <test_details> <tags>
 measure_create_vm() {
     local cloud=$1
     local vm_name=$2
@@ -259,15 +298,18 @@ measure_create_vm() {
     local vm_os=$4
     local region=$5
     local nic=$6
-    local run_id=$7
-    local security_group=$8
-    local subnet=$9
-    local accelerator=${10}
-    local security_type=${11}
-    local storage_type=${12}
-    local result_dir=${13}
-    local test_details=${14}
-    local tags=${15}
+    local pip=$7
+    local port=$8
+    local run_id=$9
+    local security_group=$10
+    local subnet=$11
+    local accelerator=${12}
+    local security_type=${13}
+    local storage_type=${14}
+    local timeout=${15}
+    local result_dir=${16}
+    local test_details=${17}
+    local tags=${18}
 
     local creation_succeeded=false
     local creation_time=-1
@@ -277,13 +319,14 @@ measure_create_vm() {
     local start_time=$(date +%s)
     case $cloud in
         azure)
-            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$security_type" "$storage_type" "$tags")
+            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$pip" "$port" "$security_type" "$storage_type" "$timeout" "$tags")
         ;;
         aws)
-            vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$subnet" "$tags")
+            vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$subnet" "$timeout" "$tags")
         ;;
         gcp)
-            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$accelerator" "$tags")
+            # TODO: this will need to be reviewed once we have the GCP implementation
+            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$accelerator" "$timeout" "$tags")
         ;;
         *)
             exit 1 # cloud provider unknown
@@ -296,8 +339,10 @@ measure_create_vm() {
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
         if [[ "$succeeded" == "true" ]]; then
-            output_vm_data=$vm_data
             vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+            output_vm_data=$(jq -c -n \
+                    --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
+                '{vm_data: $vm_data}')
             creation_time=$((end_time - start_time))
             creation_succeeded=true
         else
@@ -401,5 +446,39 @@ measure_delete_vm() {
 
     if [[ "$deletion_succeeded" == "true" ]]; then
         echo "$vm_name"
+    fi
+}
+
+# Description:
+#   This function is used to test the connection to a VM using netcat
+#
+# Parameters:
+#   - $1: The IP of the VM
+#   - $2: The port to use
+#   - $3: The timeout to wait for the operation to complete
+#
+# Usage: test_connection <ip> <port> <timeout>
+test_connection() {
+    local ip=$1
+    local port=$2
+    local timeout=$3
+
+    local output=1
+    local try=0
+    local wait_time=3
+    
+    set +e
+    while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
+        netcat -w $wait_time -z $ip $port
+        output=$?
+        try=$((try + $wait_time + 1))
+        sleep 1
+    done
+    set -e
+
+    if [ $try -lt $timeout ]; then
+        echo "true"
+    else
+        echo "false"
     fi
 }

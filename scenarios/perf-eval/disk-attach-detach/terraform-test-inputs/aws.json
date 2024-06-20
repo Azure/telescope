@@ -4,6 +4,6 @@
   "region"                           : "us-east-1",
   "machine_type"                     : "m5.4xlarge",
   "data_disk_storage_account_type"   : "gp3",
-  "data_disk_size_gb"                : 1024,
+  "data_disk_size_gb"                : "1024",
   "data_disk_count"                  : 2
 }

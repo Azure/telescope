@@ -1,6 +1,23 @@
 #!/bin/bash
 
 # Description:
+#   This function gets the VM info by name and zone.
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#
+# Returns: VM info
+# Usage: get_vm_info <vm_name> <resource_group>
+get_vm_info() {
+    local vm_name=$1
+    # local not_used=$2
+    local region=$3
+
+    gcloud compute instances describe "$vm_name" --zone "$region" --format json
+}
+
+# Description:
 #   This function is used to create a VM in GCP.
 #
 # Parameters:
@@ -41,7 +58,6 @@ create_vm() {
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
-                --argjson vm_data "$vm_data" \
             '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             echo $(jq -c -n \
