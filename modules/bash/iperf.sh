@@ -35,7 +35,7 @@ run_iperf3() {
 
 
   mkdir -p $result_dir
-  echo "Run evaluation on $egress_ip_address with user name $user_name and ssh key $privatekey_path and result path $result_dir"
+  echo "Run evaluation on $egress_ip_address with user name $user_name at $ssh_port and ssh key $privatekey_path and result path $result_dir"
 
   local command="iperf3 $iperf_properties --json"
 
