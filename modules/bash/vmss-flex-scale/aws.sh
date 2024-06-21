@@ -37,35 +37,28 @@ create_asg() {
         set -Ee
         function _catch {
             echo $(jq -c -n \
-                --arg asg_name "$asg_name" \
-            '{succeeded: "false", asg_name: $asg_name, asg_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                --arg vmss_name "$asg_name" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
         trap _catch ERR
 
-        instance_data=$(cat "/tmp/aws-$asg_name-create_asg-output.txt")
         error=$(cat "/tmp/aws-$asg_name-create_asg-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
-            instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
-
-            if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                if aws ec2 wait instance-running --region "$region" --instance-ids "$instance_id"; then
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                        --argjson vm_data "$instance_data" \
-                    '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-                fi
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+                echo $(jq -c -n \
+                    --arg vmss_name "$asg_name" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
-                    --arg vm_name "$instance_id" \
-                    --arg vm_data "$instance_data" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                    --arg vmss_name "$asg_name" \
+                    --arg vmss_data "$error" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
-        else
-            echo $(jq -c -n \
-                --arg vm_name "$instance_name" \
-                --arg vm_data "$error" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }
@@ -85,6 +78,37 @@ scale_asg() {
     aws autoscaling set-desired-capacity --auto-scaling-group-name $asg_name \
     --desired-capacity $desired_capacity --output json \
     2> "/tmp/aws-$asg_name-scale_asg-error.txt" > "/tmp/aws-$asg_name-scale_asg-output.txt"
+
+        exit_code=$?
+    
+    (
+        set -Ee
+        function _catch {
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        }
+        trap _catch ERR
+
+        error=$(cat "/tmp/aws-$asg_name-scale_asg-error.txt")
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+                echo $(jq -c -n \
+                    --arg vmss_name "$asg_name" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            else
+                echo $(jq -c -n \
+                    --arg vmss_name "$asg_name" \
+                    --arg vmss_data "$error" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
+        fi
+    )
 }
 
 delete_asg() {
@@ -99,35 +123,28 @@ delete_asg() {
         set -Ee
         function _catch {
             echo $(jq -c -n \
-                --arg vm_name "$instance_id" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                --arg vmss_name "$asg_name" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
         trap _catch ERR
 
-        instance_data=$(cat "/tmp/aws-$instance_id-delete_ec2-output.txt")
-        error=$(cat "/tmp/aws-$instance_id-delete_ec2-error.txt")
+        error=$(cat "/tmp/aws-$asg_name-delete_asg-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
-            instance_id=$(echo "$instance_data" | jq -r '.TerminatingInstances[0].InstanceId')
-
-            if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                if aws ec2 wait instance-terminated --region "$region" --instance-ids "$instance_id"; then
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                        --argjson vm_data "$(echo "$instance_data" | jq -r)" \
-                    '{succeeded: "true", vm_name: $vm_name, vm_data: $vm_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-                fi
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+                echo $(jq -c -n \
+                    --arg vmss_name "$asg_name" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
-                    --arg vm_name "$instance_id" \
-                    --arg vm_data "$instance_data" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                    --arg vmss_name "$asg_name" \
+                    --arg vmss_data "$error" \
+                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
-        else
-            echo $(jq -c -n \
-                --arg vm_name "$instance_id" \
-                --arg vm_data "$error" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }
