@@ -104,12 +104,13 @@ scale_vmss() {
         }
         trap _catch ERR
 
+        vmss_data=$(cat "/tmp/$resource_group-$vmss_name-scale_vmss-output.txt")
         error=$(cat "/tmp/$resource_group-$vmss_name-scale_vmss-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", vmss_name: $vmss_name, vmss_data: $vmss_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
@@ -132,7 +133,7 @@ scale_vmss() {
 #   - $1: vmss_name: The name of the VMSS (e.g. my-vmss)
 #   - $2: resource_group: The resource group under which the VMSS was created (e.g. rg-my-vmss)
 #
-# Usage: delete_vm <vmss_name> <resource_group>
+# Usage: delete_vmss <vmss_name> <resource_group>
 delete_vmss() {
     local vmss_name=$1
     local resource_group=$2
