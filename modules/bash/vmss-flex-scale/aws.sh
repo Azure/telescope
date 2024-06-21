@@ -22,10 +22,14 @@ create_asg() {
 
     aws autoscaling create-auto-scaling-group \
         --auto-scaling-group-name $asg_name \
-        --min-size $min_size --max-size $max_size \
+        --min-size $min_size \
+        --max-size $max_size \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
-        --availability-zones $region --tags "$tags" \
-        --output json 2> "/tmp/aws-$asg_name-create_asg-error.txt" > "/tmp/aws-$asg_name-create_asg-output.txt"
+        --availability-zones $region \
+        --tags "$tags" \
+        --output json \
+        2> "/tmp/aws-$asg_name-create_asg-error.txt" \
+        > "/tmp/aws-$asg_name-create_asg-output.txt"
 
     exit_code=$?
 
@@ -71,9 +75,12 @@ scale_asg() {
     local asg_name=$1
     local desired_capacity=$2
 
-    aws autoscaling set-desired-capacity --auto-scaling-group-name $asg_name \
-    --desired-capacity $desired_capacity --output json \
-    2> "/tmp/aws-$asg_name-scale_asg-error.txt" > "/tmp/aws-$asg_name-scale_asg-output.txt"
+    aws autoscaling set-desired-capacity \
+        --auto-scaling-group-name $asg_name \
+        --desired-capacity $desired_capacity \
+        --output json \
+        2> "/tmp/aws-$asg_name-scale_asg-error.txt" \
+        > "/tmp/aws-$asg_name-scale_asg-output.txt"
 
         exit_code=$?
     
@@ -117,8 +124,11 @@ scale_asg() {
 delete_asg() {
     local asg_name=$1
 
-    aws autoscaling delete-auto-scaling-group --auto-scaling-group-name $asg_name --output json \
-    2> "/tmp/aws-$asg_name-delete_asg-error.txt" > "/tmp/aws-$asg_name-delete_asg-output.txt"
+    aws autoscaling delete-auto-scaling-group \
+    --auto-scaling-group-name $asg_name \
+    --output json \
+    2> "/tmp/aws-$asg_name-delete_asg-error.txt" \
+    > "/tmp/aws-$asg_name-delete_asg-output.txt"
 
     exit_code=$?
     
@@ -183,21 +193,21 @@ create_lt() {
 #
 # Usage: delete_lt <lt_name>
 delete_lt() {
-	local lt_name=$1
+    local lt_name=$1
 
-	if aws ec2 delete-launch-template --launch-template-name $lt_name; then
+    if aws ec2 delete-launch-template --launch-template-name $lt_name; then
         echo "$lt_name"
-	fi
+    fi
 }
 
 # Description:
 #   This function is used to retrieve the latest image id for a given OS type, version, and architecture
 #
 # Parameters:
-#   - $1: The region where the image is located (e.g. us-east-1)
-#   - $2: The OS type (e.g. ubuntu)
-#   - $3: The OS version (e.g. 22.04)
-#   - $4: The architecture (e.g. x86_64)
+#   - $1: region: The region where the image is located (e.g. us-east-1)
+#   - $2: os_type: The OS type (e.g. ubuntu)
+#   - $3: os_version: The OS version (e.g. 22.04)
+#   - $4: architecture: The architecture (e.g. x86_64)
 #
 # Notes:
 #   - the image id is returned if no errors occurred
