@@ -104,12 +104,13 @@ scale_vmss() {
         }
         trap _catch ERR
 
+        vmss_data=$(cat "/tmp/$resource_group-$vmss_name-scale_vmss-output.txt")
         error=$(cat "/tmp/$resource_group-$vmss_name-scale_vmss-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
-            '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            '{succeeded: "true", vmss_name: $vmss_name, vmss_data: $vmss_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
