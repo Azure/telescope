@@ -47,7 +47,7 @@ azure::redeploy_vm() {
     local vm_name=$1
     local resource_group=$2
     local error_file=$3
-    local ssh_port=${4:-"22"}
+    local ssh_port=${4:-"2222"}
     local timeout=${5:-"300"}
     local interval_seconds=${6:-"1"}
     local current_ip="$(azure::get_vm_ip_address $resource_group $vm_name)"

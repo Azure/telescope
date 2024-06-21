@@ -56,7 +56,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-1"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -65,7 +65,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-2"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -74,7 +74,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-3"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -83,7 +83,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-4"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -92,7 +92,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-5"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -101,7 +101,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-6"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -110,7 +110,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-7"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -119,7 +119,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-8"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -128,7 +128,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-9"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
@@ -137,7 +137,7 @@ vm_config_list = [
   {
     info_column_name            = "cloud_info.vm_info"
     vm_name                     = "vm-redeploy-vm-10"
-    role                        = "vm-redeploy-target-vm-role"
+    role                        = "vm-redeploy-role"
     subnet_name                 = "vm-redeploy-subnet"
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true

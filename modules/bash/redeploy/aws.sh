@@ -25,7 +25,7 @@ aws::get_vm_ip() {
 # ARGS: $1 (required): The run_id from the pipeline
 # OUTS: A list of instance ids to STDOUT
 # NOTE: None
-aws::get_vm_instances_name_by_run_id() {
+aws::get_vm_instances_id_by_run_id() {
     local run_id=$1
 
     aws ec2 describe-instances \

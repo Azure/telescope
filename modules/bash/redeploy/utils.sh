@@ -68,11 +68,14 @@ function utils::script_trap_err() {
 # NOTE: None
 function utils::build_error_message() {
     local error=${1:-""}
+    local error_type=${2:-"error"}
 
     local json_error=$(jq -n -c \
         --arg error "$error" \
+        --arg error_type "$error_type" \
         '{
             "error": $error
+            "type": $error_type
         }')
 
     echo "$json_error"
@@ -190,22 +193,26 @@ utils::wait_ssh_connection() {
 #   $1 (optional): The name of the VM (default: "")
 #   $2 (optional): The size of the VM (default: "")
 #   $3 (optional): The OS of the VM (default: "")
-#   $4 (optional): The region of the VM (default: "")
-#   $5 (optional): The timeout for the redeploy (default: "")
+#   $4 (optional): The OS type of the VM (default: "")
+#   $5 (optional): The region of the VM (default: "")
+#   $6 (optional): The cloud provider (default: "")
+#   $7 (optional): Timeout for ssh connection (default: "")
 # OUTS: None
 # NOTE: This function logs a message and displays the details of a VM redeploy, including the VM name, size, OS, region, and timeout.
 function utils::write_log() {
     local vm_name=${1-""}
     local vm_size=${2-""}
     local vm_os=${3-""}
-    local region=${4-""}
-    local cloud=${5-""}
-    local timeout=${6-""}
+    local vm_os_type=${4-""}
+    local region=${5-""}
+    local cloud=${6-""}
+    local timeout=${7-""}
 
     echo "Measuring $cloud VM redeploy with the following details: 
     - VM name: $vm_name
     - VM size: $vm_size
     - VM OS: $vm_os
+    - VM OS type: $vm_os_type
     - Region: $region
     - Timeout: $timeout"
 }

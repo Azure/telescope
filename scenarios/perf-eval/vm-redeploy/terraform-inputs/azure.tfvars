@@ -1,8 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "vm-redeploy"
 deletion_delay = "2h"
-
-
 public_ip_config_list = [
   {
     name = "vm-redeploy-public-ip-1"
