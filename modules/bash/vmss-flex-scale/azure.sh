@@ -132,7 +132,7 @@ scale_vmss() {
 #   - $1: vmss_name: The name of the VMSS (e.g. my-vmss)
 #   - $2: resource_group: The resource group under which the VMSS was created (e.g. rg-my-vmss)
 #
-# Usage: delete_vm <vmss_name> <resource_group>
+# Usage: delete_vmss <vmss_name> <resource_group>
 delete_vmss() {
     local vmss_name=$1
     local resource_group=$2

@@ -7,15 +7,11 @@
 #   - $1: asg_name: The name of the ASG instance (e.g. my-asg)
 #   - $2: min_size: Minimum number of instances in the ASG (e.g. 1)
 #   - $3: max_size: Maximum number of instances in the ASG (e.g. 10)
-#   - $4: desired_capacity: The number of instances to launch in the ASG (e.g. 5)
-#   - $5: launch_template_name: The name of the launch template to use to launch instances (e.g. my-lt)
-#   - $6: region: The region where the ASG instance will be created (e.g. us-east-1)
-#   - $7: tags: [optional] The tags to use (e.g. "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops},{Key=creation_time,Value=2024-03-11T19:12:01Z}]", default value is "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]")
+#   - $4: launch_template_name: The name of the launch template to use to launch instances (e.g. my-lt)
+#   - $5: region: The region where the ASG instance will be created (e.g. us-east-1)
+#   - $6: tags: [optional] The tags to use (e.g. "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops},{Key=creation_time,Value=2024-03-11T19:12:01Z}]", default value is "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]")
 #
-# Notes:
-#   - this commands waits for the ASG instance's state to be running before returning the instance id
-#
-# Usage: create_asg <asg_name> <min_size> <max_size> <desired_capacity> <launch_template_name> <region> [tags]
+# Usage: create_asg <asg_name> <min_size> <max_size> <launch_template_name> <region> [tags]
 create_asg() {
     local asg_name=$1
     local min_size=$2
@@ -111,6 +107,13 @@ scale_asg() {
     )
 }
 
+# Description:
+#   This function is used to delete an ASG in AWS.
+#
+# Parameters:
+#   - $1: asg_name: The name of the ASG (e.g. my-asg)
+#
+# Usage: delete_asg <asg_name>
 delete_asg() {
     local asg_name=$1
 
@@ -149,6 +152,15 @@ delete_asg() {
     )
 }
 
+# Description:
+#   This function is used to create a Launch Template in AWS.
+#
+# Parameters:
+#   - $1: lt_name: The name of the launch template (e.g. my-lt)
+#   - $2: vm_size: The size of the VM used in the ASG (e.g. m5i.large)
+#   - $3: vm_os: The OS identifier the VM will use (e.g. ubuntu:22.04:x86_64)
+#
+# Usage: create_lt <lt_name> <vm_size> <vm_os>
 create_lt() {
     local lt_name=$1
     local vm_size=$2
@@ -163,6 +175,13 @@ create_lt() {
     fi
 }
 
+# Description:
+#   This function is used to delete a Launch Template in AWS.
+#
+# Parameters:
+#   - $1: lt_name: The name of the launch template (e.g. my-lt)
+#
+# Usage: delete_lt <lt_name>
 delete_lt() {
 	local lt_name=$1
 
