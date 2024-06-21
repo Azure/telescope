@@ -47,7 +47,7 @@ aws::redeploy_vm() {
     local instance_id=$1
     local error_file=$2
     local wait_time=${3:-"30"}
-    local ssh_port=${4:-"22"}
+    local ssh_port=${4:-"2222"}
     local timeout=${5:-"500"}
 
     start_time=$(date +%s)
@@ -60,16 +60,17 @@ aws::redeploy_vm() {
 
         aws ec2 start-instances --instance-id $instance_id 
         aws ec2 wait instance-running --instance-ids $instance_id
-
-        # the ip changes after redeploy that's why we get here the new ip
-        current_ip=$(aws::get_vm_ip "$instance_id")
-        connection_successful=$(utils::test_connection $current_ip $ssh_port $timeout) 
-        if [ "$connection_successful" == "false" ]; then
-            echo "SSH TIMEOUT" 1>&2
-        fi
     ) 1> /dev/null 2>>$error_file
+    echo "VM $instance_id was start/stopped successfully " >&2
+    # the ip changes after redeploy that's why we get here the new ip
+    echo "Trying to netcat into port $ssh_port on $instance_id" >&2
+    current_ip=$(aws::get_vm_ip "$instance_id")
+    connection_successful=$(utils::test_connection $current_ip $ssh_port $timeout) 
+    if [ "$connection_successful" == "false" ]; then
+        echo "SSH TIMEOUT" >>$error_file
+    fi
 
     end_time=$(date +%s)
-
+    echo "Total time form $instance_id $(($end_time - $start_time - $wait_time))" >&2
     echo "$(($end_time - $start_time - $wait_time))"
 }
