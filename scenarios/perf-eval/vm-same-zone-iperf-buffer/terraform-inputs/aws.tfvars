@@ -71,7 +71,7 @@ vm_config_list = [{
     virtualization_type = "hvm"
     architecture        = "x86_64"
     owners              = ["099720109477"]
-  }  
+  }
   },
   {
     vm_name                     = "server-vm"
