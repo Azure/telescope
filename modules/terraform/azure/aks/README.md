@@ -54,6 +54,7 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
     - `node_count`: Number of nodes in the node pool
     - `vm_size`: Size of Virtual Machines to create as Kubernetes nodes.
     - `max_pods`: Maximum pods per node on the node pool.
+    - `zones`: Zones of the node pool
 
 ## Usage Example
 

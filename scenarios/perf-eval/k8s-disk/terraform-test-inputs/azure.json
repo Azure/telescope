@@ -5,7 +5,7 @@
     "machine_type"                     : "Standard_D16s_v3",
     "accelerated_networking"           : true,
     "data_disk_storage_account_type"   : "Premium_LRS",
-    "data_disk_size_gb"                : 1024,
+    "data_disk_size_gb"                : "1024",
     "data_disk_tier"                   : "P30",
     "data_disk_caching"                : "None"
   }

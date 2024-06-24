@@ -4,5 +4,5 @@
     "region"                                : "us-east-2",
     "efs_performance_mode"                  : "generalPurpose",
     "efs_throughput_mode"                   : "provisioned",
-    "efs_provisioned_throughput_in_mibps"   : "1024"
+    "efs_provisioned_throughput_in_mibps"   : 1024
 }
