@@ -26,7 +26,7 @@ create_asg() {
         --max-size $max_size \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
         --availability-zones $region \
-        --tags "$tags" \
+        --tags $tags \
         --output json \
         2> "/tmp/aws-$asg_name-create_asg-error.txt" \
         > "/tmp/aws-$asg_name-create_asg-output.txt"
