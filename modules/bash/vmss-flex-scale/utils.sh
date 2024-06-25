@@ -96,7 +96,7 @@ measure_create_scale_delete_vmss() {
     
     vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
 
-    if [ -n "$scale" ] && [ "$scale" = "True" ]; then
+    if [ -n "$scale" ] && [ "$scale" == "True" ]; then
         for ((i=$((vm_instances + scaling_step)) ; i<=$vm_scale_instances_target; i+=$scaling_step)); do
             measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$i" "scale_up_vmss" "$result_dir" "$test_details"
         done
