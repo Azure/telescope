@@ -94,7 +94,7 @@ measure_create_scale_delete_vmss() {
 
     set -x
     
-    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$result_dir" "$test_details" "$tags")
+    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$lt_name" "$security_type" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$scale" ] && [ "$scale" = "True" ]; then
         for ((i=$((vm_instances + scaling_step)) ; i<=$vm_scale_instances_target; i+=$scaling_step)); do
@@ -137,7 +137,7 @@ measure_create_scale_delete_vmss() {
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
 #
-# Usage: measure_create_vmss <cloud> <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <run_id> <network_security_group> <vnet_name> <subnet> <security_type> <result_dir> <test_details> <tags>
+# Usage: measure_create_vmss <cloud> <vmss_name> <vm_size> <vm_os> <vm_instances> <region> <run_id> <network_security_group> <vnet_name> <subnet> <security_type> <lt_name> <result_dir> <test_details> <tags>
 measure_create_vmss() {
     local cloud=$1
     local vmss_name=$2
@@ -150,9 +150,10 @@ measure_create_vmss() {
     local vnet_name=$9
     local subnet=${10}
     local security_type=${11}
-    local result_dir=${12}
-    local test_details=${13}
-    local tags=${14}
+    local lt_name=${12}
+    local result_dir=${13}
+    local test_details=${14}
+    local tags=${15}
 
     local creation_succeeded=false
     local creation_time=-1

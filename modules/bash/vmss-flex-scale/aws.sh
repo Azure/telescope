@@ -82,7 +82,7 @@ scale_asg() {
         2> "/tmp/aws-$asg_name-scale_asg-error.txt" \
         > "/tmp/aws-$asg_name-scale_asg-output.txt"
 
-        exit_code=$?
+    exit_code=$?
     
     (
         set -Ee
