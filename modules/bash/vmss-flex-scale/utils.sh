@@ -94,7 +94,7 @@ measure_create_scale_delete_vmss() {
 
     set -x
     
-    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$lt_name" "$security_type" "$result_dir" "$test_details" "$tags")
+    vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$lt_name" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$scale" ] && [ "$scale" == "True" ]; then
         for ((i=$((vm_instances + scaling_step)) ; i<=$vm_scale_instances_target; i+=$scaling_step)); do
@@ -130,9 +130,10 @@ measure_create_scale_delete_vmss() {
 #   - $9: vnet_name: The virtual network name (e.g. my-vnet)
 #   - $10: subnet: The subnet (e.g. my-subnet)
 #   - $11: security_type: The security type (e.g. TrustedLaunch)
-#   - $12: result_dir: The result directory where to place the results in JSON format
-#   - $13: test_details: The test details in JSON format
-#   - $14: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
+#   - $12: lt_name: The launch template name (e.g. my-launch-template)
+#   - $13: result_dir: The result directory where to place the results in JSON format
+#   - $14: test_details: The test details in JSON format
+#   - $15: tags: The tags to use (e.g. "owner=azure_devops,creation_time=2024-03-11T19:12:01Z")
 #
 # Notes:
 #   - the VMSS ID is returned if no errors occurred
