@@ -69,8 +69,8 @@ measure_create_scale_delete_vmss() {
         \"vm_os\": \"$vm_os\", \
         \"vm_instances\": \"$vm_instances\", \
         \"scale\": \"$scale\", \
-		\"vm_scale_instances_target\": \"$vm_scale_instances_target\", \
-		\"scaling_step\": \"$scaling_step\", \
+        \"vm_scale_instances_target\": \"$vm_scale_instances_target\", \
+        \"scaling_step\": \"$scaling_step\", \
         \"region\": \"$region\", \
         \"network_security_group\": \"$network_security_group\", \
         \"vnet_name\": \"$vnet_name\", \
@@ -81,10 +81,10 @@ measure_create_scale_delete_vmss() {
         - VMSS name: $vmss_name
         - VM size: $vm_size
         - VM OS: $vm_os
-		- Instances: $vm_instances
+        - Instances: $vm_instances
         - Scale: $scale
         - VM Scale Instances Target: $vm_scale_instances_target
-		- Scaling Step: $scaling_step
+        - Scaling Step: $scaling_step
         - Region: $region
         - Network Security Group: $network_security_group
         - VNet: $vnet_name
@@ -96,7 +96,7 @@ measure_create_scale_delete_vmss() {
     
     vmss_id=$(measure_create_vmss "$cloud" "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$lt_name" "$security_type" "$result_dir" "$test_details" "$tags")
 
-    if [ -n "$scale" ] && [ "$scale" = "True" ]; then
+    if [ -n "$scale" ] && [ "$scale" == "True" ]; then
         for ((i=$((vm_instances + scaling_step)) ; i<=$vm_scale_instances_target; i+=$scaling_step)); do
             measure_scale_vmss "$cloud" "$vmss_name" "$region" "$run_id" "$i" "scale_up_vmss" "$result_dir" "$test_details"
         done
