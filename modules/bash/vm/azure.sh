@@ -82,7 +82,7 @@ create_vm() {
                 --arg vm_name "$vm_name" \
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
-        trap _catch ERR
+
         (test_connection "$pip" "$port" "$timeout" > "ssh_result.txt") &
 
         start_time=$(date +%s)
@@ -92,6 +92,8 @@ create_vm() {
         end_time=$(date +%s)
         creation_time=$(($end_time - $start_time))
         wait
+        set -x
+        trap _catch ERR
         ssh_time=$(cat "ssh_result.txt")
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
