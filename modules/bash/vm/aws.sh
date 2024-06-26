@@ -93,6 +93,7 @@ create_ec2() {
 
         trap _catch ERR
 
+        set -x
         ssh_result=$(cat "$ssh_filename")
         instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
@@ -125,32 +126,6 @@ create_ec2() {
                     --arg vm_data "$instance_data" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
-        fi
-
-        if [[ $exit_code -eq 0 ]]; then
-            instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
-
-            if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                if [ "$connection_successful" == "true" ]; then
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                    '{succeeded: "true", vm_name: $vm_name}')
-                else
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                    '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-                fi
-            else
-                echo $(jq -c -n \
-                    --arg vm_name "$instance_id" \
-                    --arg vm_data "$instance_data" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
-        else
-            echo $(jq -c -n \
-                --arg vm_name "$instance_name" \
-                --arg vm_data "$error" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }

@@ -98,7 +98,7 @@ create_vm() {
         wait
 
         trap _catch ERR
-
+        set -x
         ssh_result=$(cat "$ssh_filename")
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
