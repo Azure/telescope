@@ -118,8 +118,8 @@ create_vm() {
         else
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
-                --arg ssh_connection_time "$ssh_time"
-                --arg command_execution_time "$creation_time"
+                --arg ssh_connection_time "$ssh_time" \
+                --arg command_execution_time "$creation_time" \
                 '{succeeded: "true", vm_name: $vm_name}')
         fi
     )
