@@ -87,15 +87,19 @@ create_vm() {
         (test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
 
         start_time=$(date +%s)
+
         while [ $(ps $pid | wc -l) == 2 ]; do
             sleep 1
         done
+
         end_time=$(date +%s)
         command_execution_time=$(($end_time - $start_time))
+
         wait
-        set -x
+
         trap _catch ERR
-        ssh_time=$(cat "$ssh_filename")
+
+        ssh_result=$(cat "$ssh_filename")
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         if [[ -n "$error" ]]; then
@@ -110,18 +114,16 @@ create_vm() {
                     --arg vm_data "$error" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
-        fi
-
-        if [ "$ssh_time" == "false" ]; then
+        elif [ "$ssh_result" == "false" ]; then
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
-                --arg ssh_connection_time "$ssh_time" \
+                --arg ssh_connection_time "$ssh_result" \
                 --arg command_execution_time "$command_execution_time" \
-                '{succeeded: "true", vm_name: $vm_name}')
+                '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
         fi
     )
 }
