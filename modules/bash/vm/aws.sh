@@ -87,13 +87,13 @@ create_ec2() {
         done
 
         end_time=$(date +%s)
-        command_execution_time=$(($end_time - $start_time))
 
         wait
 
         trap _catch ERR
 
         set -x
+        command_execution_time=$(($end_time - $start_time))
         ssh_result=$(cat "$ssh_filename")
         instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
