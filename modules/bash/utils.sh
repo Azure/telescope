@@ -19,7 +19,7 @@ run_scp_remote() {
   local source=$5
   local destination=$6
 
-  scpCommand="scp -i $privatekey_path -P $port -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $source $user@$ip:$destination"
+  scpCommand="scp -i $privatekey_path -P $port -r -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o ConnectTimeout=5 -o GSSAPIAuthentication=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $source $user@$ip:$destination"
   $scpCommand
 }
 
