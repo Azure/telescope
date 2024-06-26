@@ -164,7 +164,8 @@ measure_create_vmss() {
     local start_time=$(date +%s)
 
     if [[ "$cloud" == "aws" ]]; then
-        create_lt "$lt_name" "$vm_size" "$vm_os" "$network_security_group"
+        vpc_id=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=vmss-flex-scale-vpc" --query "Vpcs[0].VpcId" --output text)
+        create_lt "$lt_name" "$vm_size" "$vm_os" "$vpc_id"
     fi
     case $cloud in
         azure)
