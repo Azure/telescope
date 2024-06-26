@@ -65,7 +65,8 @@ create_vm() {
     local tags="${12:-"''"}"
     local admin_username="${14:-"azureuser"}"
     local admin_password="${15:-"Azur3User!FTW"}"
-    pipe_filename="${13}"
+    
+    ssh_filename="/tmp/ssh-$(date +%s)"
 
     if [[ -n "$nics" ]]; then
         az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt" &
@@ -83,18 +84,18 @@ create_vm() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
-        (test_connection "$pip" "$port" "$timeout" > "ssh_result.txt") &
+        (test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
 
         start_time=$(date +%s)
         while [ $(ps $pid | wc -l) == 2 ]; do
             sleep 1
         done
         end_time=$(date +%s)
-        creation_time=$(($end_time - $start_time))
+        command_execution_time=$(($end_time - $start_time))
         wait
         set -x
         trap _catch ERR
-        ssh_time=$(cat "ssh_result.txt")
+        ssh_time=$(cat "$ssh_filename")
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         if [[ -n "$error" ]]; then
@@ -119,7 +120,7 @@ create_vm() {
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
                 --arg ssh_connection_time "$ssh_time" \
-                --arg command_execution_time "$creation_time" \
+                --arg command_execution_time "$command_execution_time" \
                 '{succeeded: "true", vm_name: $vm_name}')
         fi
     )
