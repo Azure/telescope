@@ -97,7 +97,7 @@ create_vm() {
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         if [[ -n "$error" ]]; then
-            if [[ "${error:0:8}" == "ERROR: {" ]]
+            if [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
                     --argjson vm_data "${error:7}" \
