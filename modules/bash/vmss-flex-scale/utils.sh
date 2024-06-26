@@ -164,7 +164,7 @@ measure_create_vmss() {
     local start_time=$(date +%s)
 
     if [[ "$cloud" == "aws" ]]; then
-        security_group_id=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=$network_security_group" --query "SecurityGroups[*].GroupId" --output text)
+        security_group_id=$(aws ec2 describe-security-groups --filters "Name=tag:Name,Values=$network_security_group" --query "SecurityGroups[*].GroupId" --output text)
         create_lt "$lt_name" "$vm_size" "$vm_os" "$security_group_id"
     fi
     case $cloud in
