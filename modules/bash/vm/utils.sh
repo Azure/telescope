@@ -477,6 +477,7 @@ test_connection() {
     local try=0
     local wait_time=3
     
+    set -x
     set +e
     start_time=$(date +%s)
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
