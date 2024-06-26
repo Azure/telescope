@@ -6,6 +6,7 @@ locals {
 }
 provider "azurerm" {
   features {}
+  use_msi = true
 }
 
 # Resource Group
