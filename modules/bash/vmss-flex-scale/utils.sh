@@ -164,7 +164,7 @@ measure_create_vmss() {
     local start_time=$(date +%s)
 
     if [[ "$cloud" == "aws" ]]; then
-        create_lt "$lt_name" "$vm_size" "$vm_os"
+        create_lt "$lt_name" "$vm_size" "$vm_os" "$network_security_group"
     fi
     case $cloud in
         azure)

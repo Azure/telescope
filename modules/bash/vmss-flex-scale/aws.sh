@@ -169,15 +169,17 @@ delete_asg() {
 #   - $1: lt_name: The name of the launch template (e.g. my-lt)
 #   - $2: vm_size: The size of the VM used in the ASG (e.g. m5i.large)
 #   - $3: vm_os: The OS identifier the VM will use (e.g. ubuntu:22.04:x86_64)
+#   - $4: security_group: The security group to use for the VM (e.g. sg-1234567890)
 #
-# Usage: create_lt <lt_name> <vm_size> <vm_os>
+# Usage: create_lt <lt_name> <vm_size> <vm_os> <security_group>
 create_lt() {
     local lt_name=$1
     local vm_size=$2
     local vm_os=$3
+    local security_group=$4
 
     launch_template_id=$(aws ec2 create-launch-template --launch-template-name $lt_name  \
-                            --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\"}" \
+                            --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":{\"Groups\":[\"$security_group\"]}}" \
                             --output text --query 'LaunchTemplate.LaunchTemplateId')
 
     if [[ -n "$launch_template_id" ]]; then
