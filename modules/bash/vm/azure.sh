@@ -67,18 +67,13 @@ create_vm() {
     local admin_password="${15:-"Azur3User!FTW"}"
     pipe_filename="${13}"
 
-    (
-        local command_start_time=$(date +%s)
-        if [[ -n "$nics" ]]; then
-            az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
-        else
-            az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
-        fi
-        local command_end_time=$(date +%s)
-        echo "$(($command_end_time - $command_start_time))" > "$pipe_filename"
-    ) &
+    if [[ -n "$nics" ]]; then
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt" &
+    else
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt" &
+    fi
 
-    exit_code=$?
+    pid=$!
 
     (
         set -Ee
@@ -88,36 +83,42 @@ create_vm() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
         trap _catch ERR
+        
+        (test_connection "$pip" "$port" "$timeout") > "ssh_result.txt" &
 
-        vm_data=$(cat "/tmp/$vm_name-create_vm-output.txt")
+        start_time=$(date +%s)
+        while [ $(ps $pid | wc -l) == 2 ]; do
+            sleep 1
+        done
+        end_time=$(date +%s)
+        creation_time=$(($end_time - $start_time))
+        wait
+        ssh_time = $(cat "ssh_result.txt")
+
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
-
-        if [[ $exit_code -eq 0 ]]; then
-            trap - ERR
-            connection_successful=$(test_connection "$pip" "$port" "$timeout")
-            trap _catch ERR
-
-            if [ "$connection_successful" == "true" ]; then
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                '{succeeded: "true", vm_name: $vm_name}')
-            else
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
-        else
-            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
+        if [[ -n "$error" ]]; then
+            if [[ "${error:0:8}" == "ERROR: {" ]]
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
                     --argjson vm_data "${error:7}" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+            fi
             else
                 echo $(jq -c -n \
                     --arg vm_name "$vm_name" \
                     --arg vm_data "$error" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
+        fi
+
+        if [ "$ssh_time" == "false" ]; then
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                '{succeeded: "true", vm_name: $vm_name}')
         fi
     )
 }

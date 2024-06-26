@@ -108,13 +108,17 @@ delete_nic_and_pip_if_needed() {
     local pip_name=$3
     local run_id=$4
 
+    set -x
     if [[ -n "$nic_name" ]] && [[ "$cloud" == "aws" ]]; then
         delete_nic "$nic_name"
+        echo "Deleting $nic_name"
     fi
 
     if [[ -n "$pip_name" ]]; then
         delete_pip "$pip_name" "$nic_name" "$run_id"
+        echo "Deleting $pip_name"
     fi
+    set +x
 }
 
 # Description:
@@ -474,6 +478,7 @@ test_connection() {
     local wait_time=3
     
     set +e
+    start_time=$(date +%s)
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
         netcat -w $wait_time -z $ip $port
         output=$?
@@ -481,9 +486,10 @@ test_connection() {
         sleep 1
     done
     set -e
+    end_time=$(date +%s)
 
     if [ $try -lt $timeout ]; then
-        echo "true"
+        echo $(($end_time - $start_time))
     else
         echo "false"
     fi
