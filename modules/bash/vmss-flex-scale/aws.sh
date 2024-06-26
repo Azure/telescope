@@ -179,7 +179,7 @@ create_lt() {
     local vpc_id=$4
 
     launch_template_id=$(aws ec2 create-launch-template --launch-template-name $lt_name  \
-                            --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":[{\"SubnetId\":[\"$vpc_id\"]}]}" \
+                            --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":[{\"SubnetId\":\"$vpc_id\"}]}" \
                             --output text --query 'LaunchTemplate.LaunchTemplateId')
 
     if [[ -n "$launch_template_id" ]]; then
