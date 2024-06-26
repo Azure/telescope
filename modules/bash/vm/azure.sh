@@ -93,7 +93,7 @@ create_vm() {
         end_time=$(date +%s)
         creation_time=$(($end_time - $start_time))
         wait
-        ssh_time = $(cat "ssh_result.txt")
+        ssh_time=$(cat "ssh_result.txt")
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         if [[ -n "$error" ]]; then
