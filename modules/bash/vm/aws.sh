@@ -68,7 +68,6 @@ create_ec2() {
         aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt"
     fi
 
-    set -x
     instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
     instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
     aws ec2 wait instance-running --instance-ids "$instance_id" &
@@ -97,7 +96,6 @@ create_ec2() {
 
         trap _catch ERR
 
-        set -x
         command_execution_time=$(($end_time - $start_time))
         ssh_result=$(cat "$ssh_filename")
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")

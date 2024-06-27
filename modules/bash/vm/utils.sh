@@ -108,7 +108,6 @@ delete_nic_and_pip_if_needed() {
     local pip_name=$3
     local run_id=$4
 
-    set -x
     if [[ -n "$nic_name" ]] && [[ "$cloud" == "aws" ]]; then
         delete_nic "$nic_name"
         echo "Deleting $nic_name"
@@ -118,7 +117,6 @@ delete_nic_and_pip_if_needed() {
         delete_pip "$pip_name" "$nic_name" "$run_id"
         echo "Deleting $pip_name"
     fi
-    set +x
 }
 
 # Description:
