@@ -341,7 +341,6 @@ measure_create_vm() {
 
     wait
     end_time=$(date +%s)
-    local command_finish_time
 
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
@@ -350,15 +349,16 @@ measure_create_vm() {
             output_vm_data=$(jq -c -n \
                     --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
                 '{vm_data: $vm_data}')
-            creation_time=$((end_time - start_time))
+            ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
+            command_execution_time=$(echo "$vm_data" | jq -r '.command_execution_time')
             creation_succeeded=true
-            command_finish_time=$(cat "$pipe_filename" | head -1 | tr -d '\n')
         else
             temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
             if [[ -n "$temporary_vm_data" ]]; then
                 output_vm_data=$vm_data
             fi
-            command_finish_time="null"
+            ssh_connection_time="null"
+            command_execution_time="null"
         fi
     fi
 
@@ -368,9 +368,9 @@ measure_create_vm() {
           --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
           '$vm_data'), \
         \"operation\": \"create_vm\", \
-        \"time\": \"$creation_time\", \
+        \"ssh_connection_time\": \"$ssh_connection_time\", \
+        \"command_execution_time\": \"$command_execution_time\", \
         \"succeeded\": \"$creation_succeeded\", \
-        \"command_finish_time\": \"$command_finish_time\" \
     }"
 
     mkdir -p $result_dir
