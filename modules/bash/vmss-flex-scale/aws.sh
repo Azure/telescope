@@ -183,7 +183,7 @@ create_lt() {
     local region=$6
 
     launch_template_id=$(aws ec2 create-launch-template --launch-template-name $lt_name  \
-                            --launch-template-data '{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":[{\"DeviceIndex\":0, \"Groups\":[\"$security_group_id\"], \"SubnetId\":\"$subnet_id\"}]}' \
+                            --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":[{\"DeviceIndex\":0, \"Groups\":[\"$security_group_id\"], \"SubnetId\":\"$subnet_id\"}]}" \
                             --region $region \
                             --output text \
                             --query 'LaunchTemplate.LaunchTemplateId')
