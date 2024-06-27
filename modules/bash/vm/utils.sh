@@ -370,7 +370,7 @@ measure_create_vm() {
         \"operation\": \"create_vm\", \
         \"ssh_connection_time\": \"$ssh_connection_time\", \
         \"command_execution_time\": \"$command_execution_time\", \
-        \"succeeded\": \"$creation_succeeded\", \
+        \"succeeded\": \"$creation_succeeded\" \
     }"
 
     mkdir -p $result_dir
