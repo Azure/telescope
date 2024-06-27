@@ -166,7 +166,7 @@ measure_create_vmss() {
     if [[ "$cloud" == "aws" ]]; then
         security_group_id=$(aws ec2 describe-security-groups --filters "Name=tag:Name,Values=$network_security_group" --query "SecurityGroups[*].GroupId" --output text)
         subnet_id=$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=$subnet" --query "Subnets[0].SubnetId" --output text)
-        create_lt "$lt_name" "$vm_size" "$vm_os" "$security_group_id" "$subnet_id"
+        create_lt "$lt_name" "$vm_size" "$vm_os" "$security_group_id" "$subnet_id" "$region"
     fi
     case $cloud in
         azure)
