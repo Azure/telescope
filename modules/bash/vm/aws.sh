@@ -89,7 +89,7 @@ create_ec2() {
 
         trap _catch ERR
 
-        ssh_timestamp=$(cat "$ssh_filename")
+        ssh_timestamp=$(cat "$ssh_file")
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
 
         echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
@@ -101,7 +101,7 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                if [ "$ssh_result" == "false" ]; then
+                if [ "$ssh_timestamp" == "null" ]; then
                     echo $(jq -c -n \
                         --arg vm_name "$instance_id" \
                     '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'

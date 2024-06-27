@@ -86,6 +86,8 @@ create_vm() {
         }
 
         set -x
+        error=$(cat "/tmp/$vm_name-create_vm-error.txt")
+        aux=$(cat "/tmp/$vm_name-create_vm-output.txt")
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
         (get_vm_status_timestamp "$vm_name" "$resource_group" "Running" "$timeout" > "$cli_file"  ) &
 
