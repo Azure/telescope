@@ -338,7 +338,7 @@ get_vm_status_timestamp() {
     local end_time=$((start_time + timeout))
 
     while true; do
-        local actual_status=$(az vm show --name "$vm_name" --resource-group "$resource_group" --query "powerState" --output tsv)
+        local actual_status=$(az vm show --name "$vm_name" --resource-group "$resource_group" --show-details --query "powerState" --output tsv)
 
         if [[ "$actual_status" == "$expected_status" ]]; then
             local current_time=$(date +%s)
