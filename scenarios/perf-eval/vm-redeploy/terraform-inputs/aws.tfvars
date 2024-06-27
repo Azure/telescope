@@ -142,6 +142,96 @@ vm_config_list = [
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-11"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-12"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-13"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-14"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-15"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-16"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-17"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-18"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-19"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
+  },
+  {
+    info_column_name            = "cloud_info.vm_info"
+    vm_name                     = "vm-redeploy-vm-20"
+    role                        = "vm-redeploy-role"
+    subnet_name                 = "vm-redeploy-subnet"
+    security_group_name         = "vm-redeploy-nsg"
+    associate_public_ip_address = true
+    zone_suffix                 = "a"
   }
 ]
 loadbalancer_config_list = []
