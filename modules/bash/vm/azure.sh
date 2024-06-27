@@ -63,8 +63,8 @@ create_vm() {
     local storage_type="${10:-"Standard_LRS"}"
     local timeout="${11:-"300"}"
     local tags="${12:-"''"}"
-    local admin_username="${14:-"azureuser"}"
-    local admin_password="${15:-"Azur3User!FTW"}"
+    local admin_username="${13:-"azureuser"}"
+    local admin_password="${14:-"Azur3User!FTW"}"
     
     ssh_filename="/tmp/ssh-$(date +%s)"
 
