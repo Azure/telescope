@@ -80,7 +80,7 @@ create_ec2() {
         instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
         instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
-        (test_connection "$pip" "$port" "$timeout" > "$ssh_file") &
+        (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
         aws ec2 wait instance-running --instance-ids "$instance_id"
         set -x
         end_time=$(date +%s)
