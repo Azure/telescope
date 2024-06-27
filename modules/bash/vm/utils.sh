@@ -465,8 +465,8 @@ measure_delete_vm() {
 #   - $2: The port to use
 #   - $3: The timeout to wait for the operation to complete
 #
-# Usage: test_connection <ip> <port> <timeout>
-test_connection() {
+# Usage: get_connection_time <ip> <port> <timeout>
+get_connection_timestamp() {
     local ip=$1
     local port=$2
     local timeout=$3
@@ -476,7 +476,6 @@ test_connection() {
     local wait_time=3
     
     set +e
-    start_time=$(date +%s)
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
         netcat -w $wait_time -z $ip $port
         output=$?
@@ -487,8 +486,8 @@ test_connection() {
     end_time=$(date +%s)
 
     if [ $try -lt $timeout ]; then
-        echo $(($end_time - $start_time))
+        echo "$end_time"
     else
-        echo "false"
+        echo "null"
     fi
 }

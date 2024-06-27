@@ -66,15 +66,16 @@ create_vm() {
     local admin_username="${13:-"azureuser"}"
     local admin_password="${14:-"Azur3User!FTW"}"
     
-    ssh_filename="/tmp/ssh-$(date +%s)"
+    ssh_file="/tmp/ssh-$(date +%s)"
+    cli_file="/tmp/cli-$(date +%s)"
+
+    start_time=$(date +%s)
 
     if [[ -n "$nics" ]]; then
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt" &
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --no-wait --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
     else
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt" &
+        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
     fi
-
-    pid=$!
 
     (
         set -Ee
@@ -84,21 +85,16 @@ create_vm() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
-        (test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
-
-        start_time=$(date +%s)
-
-        while [ $(ps $pid | wc -l) == 2 ]; do
-            sleep 1
-        done
-
-        end_time=$(date +%s)
-        command_execution_time=$(($end_time - $start_time))
+        set -x
+        (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
+        (get_vm_status_timestamp "$vm_name" "$resource_group" "Running" "$timeout" > "$cli_file"  ) &
 
         wait
+        cli_timestamp=$(cat "$cli_file")
+        ssh_timestamp=$(cat "$ssh_time")
+        set +x
 
         trap _catch ERR
-        ssh_result=$(cat "$ssh_filename")
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         if [[ -n "$error" ]]; then
@@ -113,15 +109,17 @@ create_vm() {
                     --arg vm_data "$error" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
-        elif [ "$ssh_result" == "false" ]; then
+        elif [ "$ssh_timestamp" == "null" ]; then
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
+            ssh_time=$(($ssh_timestamp - $start_time))
+            cli_time=$(($cli_timestamp - $start_time))
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
-                --arg ssh_connection_time "$ssh_result" \
-                --arg command_execution_time "$command_execution_time" \
+                --arg ssh_connection_time "$ssh_time" \
+                --arg command_execution_time "$cli_time" \
                 '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
         fi
     )
@@ -315,4 +313,43 @@ install_vm_extension() {
                 '{succeeded: "false", data: {error: $error}}')
         fi
     )
+}
+
+# Description:
+#   This function checks the status of a VM in Azure.
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: The expected status of the VM (e.g. running, stopped)
+#   - $4: The timeout value in seconds (e.g. 300)
+#
+# Returns: true if the VM has the expected status within the timeout, false otherwise
+# Usage: wait_for_vm_status <vm_name> <resource_group> <expected_status> <timeout>
+get_vm_status_timestamp() {
+    local vm_name=$1
+    local resource_group=$2
+    local expected_status=$3
+    local timeout=$4
+
+    local start_time=$(date +%s)
+    local end_time=$((start_time + timeout))
+
+    while true; do
+        local actual_status=$(az vm show --name "$vm_name" --resource-group "$resource_group" --query "powerState" --output tsv)
+
+        if [[ "$actual_status" == "$expected_status" ]]; then
+            local current_time=$(date +%s)
+            echo "$current_time"
+            break
+        fi
+
+        local current_time=$(date +%s)
+        if [[ "$current_time" -ge "$end_time" ]]; then
+            echo "null"
+            break
+        fi
+
+        sleep 1
+    done
 }
