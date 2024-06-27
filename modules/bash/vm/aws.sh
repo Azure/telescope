@@ -83,7 +83,7 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
         
-        #(test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
+        (test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
 
         start_time=$(date +%s)
 
