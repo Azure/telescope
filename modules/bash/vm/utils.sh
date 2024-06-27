@@ -318,12 +318,10 @@ measure_create_vm() {
     local vm_id="$vm_name"
     local output_vm_data="{ \"vm_data\": {}}"
 
-    pipe_filename="/tmp/pipe-$(date +%s)"
-    > $pipe_filename
     local start_time=$(date +%s)
     case $cloud in
         azure)
-            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$pip" "$port" "$security_type" "$storage_type" "$timeout" "$tags" "$pipe_filename")
+            vm_data=$(create_vm "$vm_name" "$vm_size" "$vm_os" "$region" "$run_id" "$nic" "$pip" "$port" "$security_type" "$storage_type" "$timeout" "$tags")
         ;;
         aws)
             vm_data=$(create_ec2 "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$subnet" "$timeout" "$tags")
