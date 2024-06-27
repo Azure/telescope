@@ -63,10 +63,15 @@ create_ec2() {
     ssh_filename="/tmp/ssh-$(date +%s)"
 
     if [[ -n "$nic" ]]; then
-        "aws ec2 wait run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt" &"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt" &
     else
-        "aws ec2 wait run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt" &"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt" &
     fi
+
+    set -x
+    instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
+    instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
+    aws ec2 wait instance-running --instance-ids "$instance_id" &
 
     pid=$!
 
@@ -78,7 +83,7 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
         
-        (test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
+        #(test_connection "$pip" "$port" "$timeout" > "$ssh_filename") &
 
         start_time=$(date +%s)
 
@@ -95,7 +100,6 @@ create_ec2() {
         set -x
         command_execution_time=$(($end_time - $start_time))
         ssh_result=$(cat "$ssh_filename")
-        instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
 
         echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
@@ -106,8 +110,6 @@ create_ec2() {
                 --arg vm_data "$error" \
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
-            instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
-
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
                 if [ "$ssh_result" == "false" ]; then
                     echo $(jq -c -n \
