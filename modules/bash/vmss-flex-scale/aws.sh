@@ -25,7 +25,7 @@ create_asg() {
         --min-size $min_size \
         --max-size $max_size \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
-        --availability-zones $region \
+        --region $region \
         --tags $tags \
         --output json \
         2> "/tmp/aws-$asg_name-create_asg-error.txt" \
@@ -171,18 +171,22 @@ delete_asg() {
 #   - $3: vm_os: The OS identifier the VM will use (e.g. ubuntu:22.04:x86_64)
 #   - $4: security_group_id: The security group id to use for the VM (e.g. sg-1234567890)
 #   - $5: subnet_id: The subnet id to use for the VM (e.g. subnet-1234567890)
+#   - $6: region: The region where the Launch Template will be created (e.g. us-east-1)
 #
-# Usage: create_lt <lt_name> <vm_size> <vm_os> <security_group_id> <subnet_id>
+# Usage: create_lt <lt_name> <vm_size> <vm_os> <security_group_id> <subnet_id> <region>
 create_lt() {
     local lt_name=$1
     local vm_size=$2
     local vm_os=$3
     local security_group_id=$4
     local subnet_id=$5
+    local region=$6
 
     launch_template_id=$(aws ec2 create-launch-template --launch-template-name $lt_name  \
                             --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":[{\"DeviceIndex\":0, \"Groups\":[\"$security_group_id\"], \"SubnetId\":\"$subnet_id\"}]}" \
-                            --output text --query 'LaunchTemplate.LaunchTemplateId')
+                            --region $region \
+                            --output text \
+                            --query 'LaunchTemplate.LaunchTemplateId')
 
     if [[ -n "$launch_template_id" ]]; then
         echo "$launch_template_id"
