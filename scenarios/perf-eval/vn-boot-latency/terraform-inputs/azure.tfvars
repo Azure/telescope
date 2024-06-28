@@ -6,6 +6,7 @@ network_config_list = [
     role               = "vnetwork"
     vnet_name          = "myVnet"
     vnet_address_space = "10.0.0.0/8"
+    resource_group_name = "shuvpranjal"
     subnet = [
       {
         name           = "myAKSSubnet"
@@ -22,7 +23,6 @@ network_config_list = [
   }
 ]
 
-
 aks_config_list = [
   {
     role        = "vperf"
@@ -30,6 +30,7 @@ aks_config_list = [
     dns_prefix  = "vnboot"
     subnet_name = "myAKSSubnet"
     sku_tier    = "Free"
+    resource_group_name = "shuvpranjal"
     network_profile = {
       network_plugin      = "azure"
       pod_cidr            = "172.16.0.0/16" # Change this to a non-overlapping range
