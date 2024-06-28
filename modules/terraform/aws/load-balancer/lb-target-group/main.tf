@@ -23,7 +23,7 @@ data "aws_instance" "vm_instance" {
 
   filter {
     name   = "tag:Name"
-    values = [var.lb_tg_config.lb_target_group_attachment.vm_name]
+    values = [local.target_group_attachment_map[0].vm_name]
   }
 
   filter {
@@ -59,7 +59,7 @@ resource "aws_lb_listener" "nlb_listener" {
   load_balancer_arn = var.load_balancer_arn
   port              = var.lb_tg_config.rule_count > 1 ? each.value.port + count.index + 1 : each.value.port
   protocol          = each.value.protocol
-  certificate_arn   = veach.value.protocol == "HTTPS" ? "arn:aws:acm:us-east-2:891516228446:certificate/df5291b7-c950-4fa2-b7b9-971a796030ea" : ""
+  certificate_arn   = each.value.protocol == "HTTPS" ? "arn:aws:acm:us-east-2:891516228446:certificate/df5291b7-c950-4fa2-b7b9-971a796030ea" : ""
 
   default_action {
     type             = "forward"
