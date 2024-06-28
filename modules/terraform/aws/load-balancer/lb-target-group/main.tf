@@ -1,6 +1,6 @@
 locals {
-  lb_listener_map                   = { for lb_listener in var.lb_tg_config.lb_listener : "${lb_listener.port}-${lb_listener.protocol}" => lb_listener }
-  target_group_attachment_map       = { for target_group_attachment in var.lb_tg_config.lb_target_group_attachment : "${target_group_attachment.vm_name}-${target_group_attachment.port}" => target_group_attachment }
+  lb_listener_map             = { for lb_listener in var.lb_tg_config.lb_listener : "${lb_listener.port}-${lb_listener.protocol}" => lb_listener }
+  target_group_attachment_map = { for target_group_attachment in var.lb_tg_config.lb_target_group_attachment : "${target_group_attachment.vm_name}-${target_group_attachment.port}" => target_group_attachment }
 }
 
 data "aws_vpc" "vpc" {
@@ -54,8 +54,8 @@ resource "aws_lb_target_group" "target_group" {
 }
 
 resource "aws_lb_listener" "nlb_listener" {
-  for_each local.lb_listener_map
-  
+  for_each = local.lb_listener_map
+
   count = var.lb_tg_config.rule_count
 
   load_balancer_arn = var.load_balancer_arn
@@ -72,7 +72,7 @@ resource "aws_lb_listener" "nlb_listener" {
 }
 
 resource "aws_lb_target_group_attachment" "nlb_target_group_attachment" {
-  for_each local.target_group_attachment_map
+  for_each = local.target_group_attachment_map
 
   count = var.lb_tg_config.rule_count
 
