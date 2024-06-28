@@ -54,7 +54,7 @@ resource "aws_lb_listener" "nlb_listener" {
   load_balancer_arn = var.load_balancer_arn
   port              = var.lb_tg_config.rule_count > 1 ? var.lb_tg_config.lb_listener.port + count.index + 1 : var.lb_tg_config.lb_listener.port
   protocol          = var.lb_tg_config.lb_listener.protocol
-  certificate_arn   = var.lb_tg_config.lb_listener.protocol == "https" ? "arn:aws:acm:us-east-2:891516228446:certificate/df5291b7-c950-4fa2-b7b9-971a796030ea" : ""
+  certificate_arn   = var.lb_tg_config.lb_listener.protocol == "HTTPS" ? "arn:aws:acm:us-east-2:891516228446:certificate/df5291b7-c950-4fa2-b7b9-971a796030ea" : ""
 
   default_action {
     type             = "forward"
