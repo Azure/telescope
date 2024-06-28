@@ -54,7 +54,7 @@ resource "aws_lb_target_group" "target_group" {
 }
 
 resource "aws_lb_listener" "nlb_listener" {
-  foreach local.lb_listener_map
+  for_each local.lb_listener_map
   
   count = var.lb_tg_config.rule_count
 
@@ -72,7 +72,7 @@ resource "aws_lb_listener" "nlb_listener" {
 }
 
 resource "aws_lb_target_group_attachment" "nlb_target_group_attachment" {
-  foreach local.target_group_attachment_map
+  for_each local.target_group_attachment_map
 
   count = var.lb_tg_config.rule_count
 
