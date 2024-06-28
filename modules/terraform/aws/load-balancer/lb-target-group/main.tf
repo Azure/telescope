@@ -56,8 +56,6 @@ resource "aws_lb_target_group" "target_group" {
 resource "aws_lb_listener" "nlb_listener" {
   for_each = local.lb_listener_map
 
-  count = var.lb_tg_config.rule_count
-
   load_balancer_arn = var.load_balancer_arn
   port              = var.lb_tg_config.rule_count > 1 ? each.value.port + count.index + 1 : each.value.port
   protocol          = each.value.protocol
@@ -73,8 +71,6 @@ resource "aws_lb_listener" "nlb_listener" {
 
 resource "aws_lb_target_group_attachment" "nlb_target_group_attachment" {
   for_each = local.target_group_attachment_map
-
-  count = var.lb_tg_config.rule_count
 
   target_group_arn = aws_lb_target_group.target_group[count.index].arn
   target_id        = data.aws_instance.vm_instance.id
