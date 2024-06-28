@@ -120,7 +120,7 @@ loadbalancer_config_list = [{
     tg_suffix  = "http"
     port       = 80
     protocol   = "HTTP"
-    rule_count = 2
+    rule_count = 1
     vpc_name   = "server-vpc"
     health_check = {
       port                = "80"
@@ -130,22 +130,23 @@ loadbalancer_config_list = [{
       healthy_threshold   = 3
       unhealthy_threshold = 3
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 80
       protocol = "HTTP"
-    }
-    lb_target_group_attachment = {
+      },
+      {
+        port     = 443
+        protocol = "HTTPS"
+      }
+    ]
+    lb_target_group_attachment = [{
       vm_name = "server-vm"
       port    = 80
-    }
-    lb_listener = {
-      port     = 443
-      protocol = "HTTPS"
-    }
-    lb_target_group_attachment = {
-      vm_name = "server-vm"
-      port    = 443
-    }
+      },
+      {
+        vm_name = "server-vm"
+        port    = 443
+    }]
     }
   ]
 }]

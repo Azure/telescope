@@ -31,13 +31,13 @@ variable "lb_tg_config" {
       healthy_threshold   = number
       unhealthy_threshold = number
     })
-    lb_listener = object({
+    lb_listener = list(object({
       port     = number
       protocol = string
-    })
-    lb_target_group_attachment = object({
+    }))
+    lb_target_group_attachment = list(object({
       vm_name = string
       port    = number
-    })
+    }))
   })
 }
