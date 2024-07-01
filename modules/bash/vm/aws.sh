@@ -104,7 +104,7 @@ create_ec2() {
         else
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
                 if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
-                    cli_time=$(($cli_timestampe - $start_time))
+                    cli_time=$(($cli_timestamp - $start_time))
                     ssh_time=$(($ssh_timestamp - $start_time))
                     echo $(jq -c -n \
                         --arg vm_name "$instance_id" \
