@@ -318,7 +318,6 @@ get_running_state_timestamp() {
     fi
 }
 
-
 # Description:
 #   This method processes the results of SSH and CLI commands and returns the appropriate response.
 
