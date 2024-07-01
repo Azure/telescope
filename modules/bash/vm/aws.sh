@@ -63,6 +63,7 @@ create_ec2() {
     ssh_file="/tmp/ssh-$(date +%s)"
     cli_file="/tmp/cli-$(date +%s)"
     error_File="/tmp/aws-$instance_name-create_ec2-output.txt"
+    > "$error_file"
 
     start_time=$(date +%s)
     if [[ -n "$nic" ]]; then
