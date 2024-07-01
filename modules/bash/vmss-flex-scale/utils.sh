@@ -7,14 +7,14 @@
 #   - $1: The run id
 #
 # Notes:
-#   - the VMSS name is truncated to 15 characters due to Windows limitations
+#   - the VMSS name is truncated to 64 characters due to naming limitations
 #
 # Usage: get_vmss_name <run_id>
 get_vmss_name() {
     local run_id=$1
 
     local vmss_name="vmss-$run_id"
-    vmss_name="${vmss_name:0:15}"
+    vmss_name="${vmss_name:0:64}"
     vmss_name="${vmss_name%-}"
 
     echo "$vmss_name"
