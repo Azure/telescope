@@ -349,7 +349,7 @@ get_running_state_timestamp() {
         echo "ERROR: CLI timed out"
     else
         echo "true"
-        echo $(date %s)
+        echo $(date +%s)
     fi
 }
 
