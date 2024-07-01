@@ -30,7 +30,6 @@ collect_result_sockperf() {
   local cloud_info=$4
   local run_id=$5
   local protocol=$6
-  local bandwidth=$7
 
   touch $result_dir/results.json
 
