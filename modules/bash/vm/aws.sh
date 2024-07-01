@@ -133,7 +133,6 @@ create_ec2() {
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
         fi
-    )
 }
 
 # Description:
