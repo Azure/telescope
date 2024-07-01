@@ -92,9 +92,9 @@ create_vm() {
 
         wait
         set -x
-        ssh_result=$(cat "$ssh_file" | head -1 | tr -d '\n')
+        ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
         ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
-        cli_result=$(cat "$cli_file" | head -1 | tr -d '\n')
+        cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
         cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
 
         trap _catch ERR
@@ -339,7 +339,7 @@ install_vm_extension() {
 get_running_state_timestamp() {
     local vm_name=$1
     local resource_group=$2
-    local timeout=$4
+    local timeout=$3
 
     timeout $timeout az vm wait -g "$resource_group" -n "$vm_name" --created
     local exit_code=$?

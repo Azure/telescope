@@ -88,10 +88,10 @@ create_ec2() {
         trap _catch ERR
 
         set -x
-        ssh_result=$(cat "$ssh_file" | head -1 | tr -d '\n')
-        ssh_timestamp=$(cat "$ssh_file" | head -2 | tr -d '\n')
-        cli_result=$(cat "$cli_file" | head -1 | tr -d '\n')
-        cli_timestamp=$(cat "$cli_file" | head -2 | tr -d '\n')
+        ssh_result=$(cat "$ssh_file" | sed -n '1p'1 | tr -d '\n')
+        ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
+        cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
+        cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
 
         echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
@@ -104,7 +104,7 @@ create_ec2() {
         else
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
                 if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
-                    cli_time=$(($end_time - $start_time))
+                    cli_time=$(($cli_timestampe - $start_time))
                     ssh_time=$(($ssh_timestamp - $start_time))
                     echo $(jq -c -n \
                         --arg vm_name "$instance_id" \
