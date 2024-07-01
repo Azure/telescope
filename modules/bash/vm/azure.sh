@@ -51,6 +51,7 @@ get_vm_info() {
 #
 # Usage: create_vm <vm_name> <vm_size> <vm_os> <region> <resource_group> <nics> <pip> [port] [security_type] [storage_type] [timeout] [tags] [admin_username] [admin_password]
 create_vm() {
+    set -x
     local vm_name=$1
     local vm_size=$2
     local vm_os=$3
@@ -65,7 +66,7 @@ create_vm() {
     local tags="${12:-"''"}"
     local admin_username="${13:-"azureuser"}"
     local admin_password="${14:-"Azur3User!FTW"}"
-    
+
     ssh_file="/tmp/ssh-$(date +%s)"
     cli_file="/tmp/cli-$(date +%s)"
 
