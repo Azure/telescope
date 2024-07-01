@@ -85,16 +85,17 @@ create_vm() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
-        set -x
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         aux=$(cat "/tmp/$vm_name-create_vm-output.txt")
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
         (get_vm_status_timestamp "$vm_name" "$resource_group" "VM running" "$timeout" > "$cli_file"  ) &
 
         wait
-        cli_timestamp=$(cat "$cli_file")
-        ssh_timestamp=$(cat "$ssh_time")
-        set +x
+        set -x
+        ssh_result=$(cat "$ssh_file" | head -1 | tr -d '\n')
+        ssh_timestamp=$(cat "$ssh_file" | head -2 | tr -d '\n')
+        cli_result=$(cat "$cli_file" | head -1 | tr -d '\n')
+        cli_timestamp=$(cat "$cli_file" | head -2 | tr -d '\n')
 
         trap _catch ERR
 
@@ -111,11 +112,7 @@ create_vm() {
                     --arg vm_data "$error" \
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
-        elif [ "$ssh_timestamp" == "null" ]; then
-            echo $(jq -c -n \
-                --arg vm_name "$vm_name" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        else
+        elif [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
             ssh_time=$(($ssh_timestamp - $start_time))
             cli_time=$(($cli_timestamp - $start_time))
             echo $(jq -c -n \
@@ -123,6 +120,18 @@ create_vm() {
                 --arg ssh_connection_time "$ssh_time" \
                 --arg command_execution_time "$cli_time" \
                 '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
+        else
+            local error_message
+            if [ "$ssh_result" == "false" ]; then
+                error_message="$error_message $ssh_timestamp"
+            fi
+            if [ "$cli_result" == "false" ]; then
+                error_message="$error_message $cli_timestamp"
+            fi
+            echo $(jq -c -n \
+            --arg vm_name "$instance_id" \
+            --arg error "$error_message" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }

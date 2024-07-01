@@ -121,10 +121,10 @@ create_ec2() {
                     if [ "$cli_result" == "false" ]; then
                         error_message="$error_message $cli_timestamp"
                     fi
-                     echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                        --arg error "$error_message" \
-                    '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+                    echo $(jq -c -n \
+                    --arg vm_name "$instance_id" \
+                    --arg error "$error_message" \
+                '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
                 fi
             else
                 echo $(jq -c -n \
@@ -133,6 +133,7 @@ create_ec2() {
                 '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             fi
         fi
+    )
 }
 
 # Description:
