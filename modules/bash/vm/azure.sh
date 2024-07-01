@@ -51,7 +51,6 @@ get_vm_info() {
 #
 # Usage: create_vm <vm_name> <vm_size> <vm_os> <region> <resource_group> <nics> <pip> [port] [security_type] [storage_type] [timeout] [tags] [admin_username] [admin_password]
 create_vm() {
-    set -x
     local vm_name=$1
     local vm_size=$2
     local vm_os=$3
@@ -85,8 +84,6 @@ create_vm() {
                 --arg vm_name "$vm_name" \
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
-
-        set -x
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &

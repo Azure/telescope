@@ -53,7 +53,6 @@ precreate_nic_and_pip_if_needed()
     local nic=""
     local pip=""
     if [[ "$precreate_nic" == "true" ]]; then
-        set -x
         # we will use defaults here to not clobber the method signature, but we may want to parameterize these in the future
         local nic_name="nic_$vm_name"
         local pip_name="pip_$vm_name"
@@ -104,7 +103,6 @@ precreate_nic_and_pip_if_needed()
 #
 # Usage: delete_nic_and_pip_if_needed <cloud> <nic_name> <pip_name> <run_id>
 delete_nic_and_pip_if_needed() {
-    set -x
     local cloud=$1
     local nic_name=$2
     local pip_name=$3
