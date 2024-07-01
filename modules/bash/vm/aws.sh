@@ -103,8 +103,6 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                if [ "$ssh_timestamp" == "null" ]; then
-                   
                 if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
                     cli_time=$(($end_time - $start_time))
                     ssh_time=$(($ssh_timestamp - $start_time))
