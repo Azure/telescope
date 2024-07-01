@@ -53,6 +53,7 @@ precreate_nic_and_pip_if_needed()
     local nic=""
     local pip=""
     if [[ "$precreate_nic" == "true" ]]; then
+        set -x
         # we will use defaults here to not clobber the method signature, but we may want to parameterize these in the future
         local nic_name="nic_$vm_name"
         local pip_name="pip_$vm_name"
