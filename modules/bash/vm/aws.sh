@@ -68,7 +68,7 @@ create_ec2() {
     if [[ -n "$nic" ]]; then
         aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "/tmp/aws-$instance_name-create_ec2-output.txt"
     else
-        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "$error_file"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "/tmp/aws-$instance_name-create_ec2-error.txt"
     fi
 
     (
@@ -399,7 +399,12 @@ get_running_state_timestamp() {
 
     if [[ $exit_code -eq 124 ]]; then
         echo "false"
+        echo "null"
         echo "ERROR: CLI timed out"
+    elif [[ $exit_code -ne 0]]
+        echo "false"
+        echo "null"
+        echo "ERROR: CLI failed with exitcode $exit_code"
     else
         echo "true"
         echo $(date +%s)
@@ -427,10 +432,6 @@ create_vm_output() {
     local cli_file="$6"
     local error_file="$7"
 
-    ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
-    ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
-    cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
-    cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
     error=$(cat "$error_file")
 
     echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
@@ -442,27 +443,7 @@ create_vm_output() {
         '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
     else
         if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-            if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
-                cli_time=$(($cli_timestamp - $start_time))
-                ssh_time=$(($ssh_timestamp - $start_time))
-                echo $(jq -c -n \
-                    --arg vm_name "$instance_id" \
-                    --arg ssh_connection_time "$ssh_time" \
-                    --arg command_execution_time "$cli_time" \
-                '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
-            else
-                local error_message
-                if [ "$ssh_result" == "false" ]; then
-                    error_message="$error_message $ssh_timestamp"
-                fi
-                if [ "$cli_result" == "false" ]; then
-                    error_message="$error_message $cli_timestamp"
-                fi
-                echo $(jq -c -n \
-                --arg vm_name "$instance_id" \
-                --arg error "$error_message" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
+            echo $(process_results "$ssh_file" "$cli_file" "$start_time" "$instance_id")
         else
             echo $(jq -c -n \
                 --arg vm_name "$instance_id" \

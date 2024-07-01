@@ -487,6 +487,52 @@ get_connection_timestamp() {
         echo $(date +%s)
     else
         echo "false"
+        echo "null"
         echo "ERROR: SSH timed out."
+    fi
+}
+
+# Description:
+#   This function is used to process the results of SSH and CLI commands
+#
+# Parameters:
+#   - $1: The path to the SSH result file
+#   - $2: The path to the CLI result file
+#   - $3: The start time of the commands
+#   - $4: The instance ID
+#
+# Usage: process_results <ssh_file> <cli_file> <start_time> <instance_id>
+process_results() {
+    local ssh_file=$1
+    local cli_file=$2
+    local start_time=$3
+    local instance_name=$4
+
+    local ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
+    local cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
+    if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
+        local cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
+        local ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
+        local cli_time=$(($cli_timestamp - $start_time))
+        local ssh_time=$(($ssh_timestamp - $start_time))
+        echo $(jq -c -n \
+            --arg vm_name "$instance_id" \
+            --arg ssh_connection_time "$ssh_time" \
+            --arg command_execution_time "$cli_time" \
+        '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
+    else
+        local error_message=""
+        local ssh_error=$(cat "$ssh_file" | sed -n '3p' | tr -d '\n')
+        local cli_error=$(cat "$cli_file" | sed -n '3p' | tr -d '\n')
+        if [ "$ssh_result" == "false" ]; then
+            error_message="$error_message $ssh_error"
+        fi
+        if [ "$cli_result" == "false" ]; then
+            error_message="$error_message $cli_error"
+        fi
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+            --arg error "$error_message" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
     fi
 }

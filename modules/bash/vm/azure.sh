@@ -344,7 +344,12 @@ get_running_state_timestamp() {
 
     if [[ $exit_code -eq 124 ]]; then
         echo "false"
+        echo "null"
         echo "ERROR: CLI timed out"
+    elif [[ $exit_code -ne 0]]
+        echo "false"
+        echo "null"
+        echo "ERROR: CLI failed with exitcode $exit_code"
     else
         echo "true"
         echo $(date +%s)
