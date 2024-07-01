@@ -92,45 +92,7 @@ create_vm() {
 
         trap _catch ERR
 
-        ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
-        ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
-        cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
-        cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
-
-        error=$(cat "/tmp/$vm_name-create_vm-error.txt")
-        if [[ -n "$error" ]]; then
-            if [[ "${error:0:8}" == "ERROR: {" ]]; then
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                    --argjson vm_data "${error:7}" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            else
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                    --arg vm_data "$error" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
-        elif [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
-            ssh_time=$(($ssh_timestamp - $start_time))
-            cli_time=$(($cli_timestamp - $start_time))
-            echo $(jq -c -n \
-                --arg vm_name "$vm_name" \
-                --arg ssh_connection_time "$ssh_time" \
-                --arg command_execution_time "$cli_time" \
-                '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
-        else
-            local error_message
-            if [ "$ssh_result" == "false" ]; then
-                error_message="$error_message $ssh_timestamp"
-            fi
-            if [ "$cli_result" == "false" ]; then
-                error_message="$error_message $cli_timestamp"
-            fi
-            echo $(jq -c -n \
-            --arg vm_name "$instance_id" \
-            --arg error "$error_message" \
-        '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        fi
+        echo "$(create_vm_output "$vm_name" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
 }
 
@@ -356,3 +318,41 @@ get_running_state_timestamp() {
     fi
 }
 
+
+# Description:
+#   This method processes the results of SSH and CLI commands and returns the appropriate response.
+
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The start time of the command execution
+#   - $3: The SSH file path
+#   - $4: The CLI file path
+#   - $5: The error file path
+#
+# Returns: The response JSON string
+# Usage: process_result <vm_name> <start_time> <ssh_file> <cli_file>
+create_vm_output() {
+    local vm_name="$1"
+    local start_time="$2"
+    local ssh_file="$3"
+    local cli_file="$4"
+    local error_file="$5"
+
+    local error=$(cat "$error_file")
+
+    if [[ -n "$error" ]]; then
+        if [[ "${error:0:8}" == "ERROR: {" ]]; then
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --argjson vm_data "${error:7}" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --arg vm_data "$error" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        fi
+    else
+        echo "$(process_result "$ssh_file" "$cli_file" "$start_time" "$vm_name")"
+    fi
+}

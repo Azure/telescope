@@ -401,7 +401,7 @@ get_running_state_timestamp() {
         echo "false"
         echo "null"
         echo "ERROR: CLI timed out"
-    elif [[ $exit_code -ne 0]]
+    elif [[ $exit_code -ne 0]]; then
         echo "false"
         echo "null"
         echo "ERROR: CLI failed with exitcode $exit_code"
@@ -432,7 +432,7 @@ create_vm_output() {
     local cli_file="$6"
     local error_file="$7"
 
-    error=$(cat "$error_file")
+    local error=$(cat "$error_file")
 
     echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
 

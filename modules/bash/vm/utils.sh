@@ -501,12 +501,13 @@ get_connection_timestamp() {
 #   - $3: The start time of the commands
 #   - $4: The instance ID
 #
+# Returns: The results in JSON format
 # Usage: process_results <ssh_file> <cli_file> <start_time> <instance_id>
 process_results() {
-    local ssh_file=$1
-    local cli_file=$2
-    local start_time=$3
-    local instance_name=$4
+    local ssh_file="$1"
+    local cli_file="$2"
+    local start_time="$3"
+    local instance_name="$4"
 
     local ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
     local cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
