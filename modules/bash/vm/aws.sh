@@ -89,7 +89,7 @@ create_ec2() {
         trap _catch ERR
         
         set -x
-        echo "$(create_vm_output "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
+        echo "$(create_vm_output "$instance_name" "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
 }
 
@@ -419,12 +419,13 @@ get_running_state_timestamp() {
 
 # Usage: create_vm_output <instance_name> <instance_id> <start_time> <ssh_file> <cli_file> <error_file>
 create_vm_output() {
-    local instance_name=$1
-    local instance_id=$2
-    local start_time=$3
-    local ssh_file=$4
-    local cli_file=$5
-    local error_file=$6
+    local instance_name="$1"
+    local instance_id="$2"
+    local instance_data="$3"
+    local start_time="$4"
+    local ssh_file="$5"
+    local cli_file="$6"
+    local error_file="$7"
 
     ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
     ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
