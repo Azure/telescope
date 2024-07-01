@@ -86,17 +86,16 @@ create_vm() {
         }
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
-        aux=$(cat "/tmp/$vm_name-create_vm-output.txt")
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
         (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file"  ) &
-
         wait
+
+        trap _catch ERR
+
         ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
         ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
         cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
         cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
-
-        trap _catch ERR
 
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         if [[ -n "$error" ]]; then
