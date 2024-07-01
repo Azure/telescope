@@ -88,6 +88,7 @@ create_ec2() {
 
         trap _catch ERR
         
+        set -x
         echo "$(create_vm_output "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
 }
