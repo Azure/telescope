@@ -91,7 +91,6 @@ create_vm() {
         (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file"  ) &
 
         wait
-        set -x
         ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
         ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
         cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')

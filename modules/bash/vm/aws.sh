@@ -87,7 +87,6 @@ create_ec2() {
 
         trap _catch ERR
 
-        set -x
         ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
         ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
         cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
