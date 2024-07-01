@@ -481,11 +481,12 @@ get_connection_timestamp() {
         sleep 1
     done
     set -e
-    end_time=$(date +%s)
 
     if [ $try -lt $timeout ]; then
-        echo "$end_time"
+        echo "true"
+        echo $(date +%s)
     else
-        echo "null"
+        echo "false"
+        echo "ERROR: SSH timed out."
     fi
 }

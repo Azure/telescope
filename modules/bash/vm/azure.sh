@@ -323,35 +323,24 @@ install_vm_extension() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
-#   - $3: The expected status of the VM (e.g. running, stopped)
 #   - $4: The timeout value in seconds (e.g. 300)
 #
 # Returns: true if the VM has the expected status within the timeout, false otherwise
-# Usage: wait_for_vm_status <vm_name> <resource_group> <expected_status> <timeout>
-get_vm_status_timestamp() {
+# Usage: get_running_state_timestamp <vm_name> <resource_group> <timeout>
+get_running_state_timestamp() {
     local vm_name=$1
     local resource_group=$2
-    local expected_status=$3
     local timeout=$4
 
-    local start_time=$(date +%s)
-    local end_time=$((start_time + timeout))
+    timeout $timeout (az vm wait -g "$resource_group" -n "$vm_name" --created)
+    local exit_code=$?
 
-    while true; do
-        local actual_status=$(az vm show --name "$vm_name" --resource-group "$resource_group" --show-details --query "powerState" --output tsv)
-
-        if [[ "$actual_status" == "$expected_status" ]]; then
-            local current_time=$(date +%s)
-            echo "$current_time"
-            break
-        fi
-
-        local current_time=$(date +%s)
-        if [[ "$current_time" -ge "$end_time" ]]; then
-            echo "null"
-            break
-        fi
-
-        sleep 1
-    done
+    if [[ $exit_code -eq 124 ]]; then
+        echo "false"
+        echo "ERROR: CLI timed out"
+    else
+        echo "true"
+        echo $(date %s)
+    fi
 }
+

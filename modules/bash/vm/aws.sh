@@ -61,6 +61,7 @@ create_ec2() {
     local tag_specifications="${10:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
     ssh_file="/tmp/ssh-$(date +%s)"
+    cli_file="/tmp/cli-$(date +%s)"
 
     start_time=$(date +%s)
     if [[ -n "$nic" ]]; then
@@ -81,15 +82,16 @@ create_ec2() {
         instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
-        aws ec2 wait instance-running --instance-ids "$instance_id"
-        set -x
-        end_time=$(date +%s)
-
+        (get_running_state_timestamp "$instance_id" "$timeout" > "$cli_file") &
         wait
 
         trap _catch ERR
 
-        ssh_timestamp=$(cat "$ssh_file")
+        set -x
+        ssh_result=$(cat "$ssh_file" | head -1 | tr -d '\n')
+        ssh_timestamp=$(cat "$ssh_file" | head -2 | tr -d '\n')
+        cli_result=$(cat "$cli_file" | head -1 | tr -d '\n')
+        cli_timestamp=$(cat "$cli_file" | head -2 | tr -d '\n')
         error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
 
         echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
@@ -102,10 +104,8 @@ create_ec2() {
         else
             if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
                 if [ "$ssh_timestamp" == "null" ]; then
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                    '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-                else
+                   
+                if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
                     cli_time=$(($end_time - $start_time))
                     ssh_time=$(($ssh_timestamp - $start_time))
                     echo $(jq -c -n \
@@ -113,6 +113,18 @@ create_ec2() {
                         --arg ssh_connection_time "$ssh_time" \
                         --arg command_execution_time "$cli_time" \
                     '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
+                else
+                    local error_message
+                    if [ "$ssh_result" == "false" ]; then
+                        error_message="$error_message $ssh_timestamp"
+                    fi
+                    if [ "$cli_result" == "false" ]; then
+                        error_message="$error_message $cli_timestamp"
+                    fi
+                     echo $(jq -c -n \
+                        --arg vm_name "$instance_id" \
+                        --arg error "$error_message" \
+                    '{succeeded: "false", vm_name: $vm_name, vm_data: $error_message}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
                 fi
             else
                 echo $(jq -c -n \
@@ -411,4 +423,28 @@ install_ec2_extension() {
                 '{succeeded: "false", data: {error: $error}}')
         fi
     )
+}
+
+# Description:
+#   This function waits for an EC2 instance to reach the running state and returns the timestamp when it does.
+
+# Parameters:
+#   - $1: The ID of the EC2 instance (e.g. i-0d5d9d301c853a04a)
+#   - $2: Number of seconds after which the command times out
+
+# Usage: get_running_state_timestamp <instance_id> <region>
+get_running_state_timestamp() {
+    local instance_id=$1
+    local timeout=$2
+
+    timeout $timeout (aws ec2 wait instance-running --instance-ids "$instance_id")
+    local exit_code=$?
+
+    if [[ $exit_code -eq 124 ]]; then
+        echo "false"
+        echo "ERROR: CLI timed out"
+    else
+        echo "true"
+        echo $(date %s)
+    fi
 }
