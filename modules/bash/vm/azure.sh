@@ -85,6 +85,8 @@ create_vm() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
+        set -x
+
         error=$(cat "/tmp/$vm_name-create_vm-error.txt")
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
         (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file"  ) &
