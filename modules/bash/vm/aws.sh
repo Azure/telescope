@@ -436,7 +436,7 @@ get_running_state_timestamp() {
     local instance_id=$1
     local timeout=$2
 
-    timeout $timeout (aws ec2 wait instance-running --instance-ids "$instance_id")
+    timeout $timeout aws ec2 wait instance-running --instance-ids "$instance_id"
     local exit_code=$?
 
     if [[ $exit_code -eq 124 ]]; then

@@ -332,7 +332,7 @@ get_running_state_timestamp() {
     local resource_group=$2
     local timeout=$4
 
-    timeout $timeout (az vm wait -g "$resource_group" -n "$vm_name" --created)
+    timeout $timeout az vm wait -g "$resource_group" -n "$vm_name" --created
     local exit_code=$?
 
     if [[ $exit_code -eq 124 ]]; then
