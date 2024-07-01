@@ -104,6 +104,7 @@ precreate_nic_and_pip_if_needed()
 #
 # Usage: delete_nic_and_pip_if_needed <cloud> <nic_name> <pip_name> <run_id>
 delete_nic_and_pip_if_needed() {
+    set -x
     local cloud=$1
     local nic_name=$2
     local pip_name=$3
