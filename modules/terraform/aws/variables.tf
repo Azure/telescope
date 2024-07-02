@@ -100,11 +100,11 @@ variable "loadbalancer_config_list" {
     is_internal_lb      = optional(bool, false)
     security_group_name = optional(string)
     lb_target_group = list(object({
-      role       = string
-      tg_suffix  = string
-      port       = number
-      protocol   = string
-      vpc_name   = string
+      role      = string
+      tg_suffix = string
+      port      = number
+      protocol  = string
+      vpc_name  = string
       health_check = object({
         port                = number
         protocol            = string

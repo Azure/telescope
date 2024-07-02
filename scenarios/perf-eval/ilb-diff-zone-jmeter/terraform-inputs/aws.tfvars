@@ -76,11 +76,11 @@ loadbalancer_config_list = [{
   load_balancer_type = "network",
   is_internal_lb     = true,
   lb_target_group = [{
-    role       = "nlb-tg"
-    tg_suffix  = "http"
-    port       = 80
-    protocol   = "TCP"
-    vpc_name   = "same-vpc"
+    role      = "nlb-tg"
+    tg_suffix = "http"
+    port      = 80
+    protocol  = "TCP"
+    vpc_name  = "same-vpc"
     health_check = {
       port                = "80"
       protocol            = "TCP"
@@ -99,11 +99,11 @@ loadbalancer_config_list = [{
     }]
     },
     {
-      role       = "nlb-tg"
-      tg_suffix  = "https"
-      port       = 443
-      protocol   = "TCP"
-      vpc_name   = "same-vpc"
+      role      = "nlb-tg"
+      tg_suffix = "https"
+      port      = 443
+      protocol  = "TCP"
+      vpc_name  = "same-vpc"
       health_check = {
         port                = "443"
         protocol            = "TCP"
