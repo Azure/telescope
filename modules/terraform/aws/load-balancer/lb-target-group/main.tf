@@ -35,6 +35,7 @@ data "aws_instance" "vm_instance" {
 }
 
 data "aws_acm_certificate" "telescope_cert" {
+  count    = var.lb_tg_config.certificate_domain_name != null ? 1 : 0
   domain   = var.lb_tg_config.certificate_domain_name
   statuses = ["ISSUED"]
 }
@@ -64,7 +65,7 @@ resource "aws_lb_listener" "nlb_listener" {
   load_balancer_arn = var.load_balancer_arn
   port              = each.value.port
   protocol          = each.value.protocol
-  certificate_arn   = each.value.protocol == "HTTPS" ? data.aws_acm_certificate.telescope_cert.arn : ""
+  certificate_arn   = each.value.protocol == "HTTPS" ? data.aws_acm_certificate.telescope_cert[0].arn : ""
 
   default_action {
     type             = "forward"
