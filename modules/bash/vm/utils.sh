@@ -522,7 +522,7 @@ process_results() {
         local cli_time=$(($cli_timestamp - $start_time))
         local ssh_time=$(($ssh_timestamp - $start_time))
         echo $(jq -c -n \
-            --arg vm_name "$instance_id" \
+            --arg vm_name "$instance_name" \
             --arg ssh_connection_time "$ssh_time" \
             --arg command_execution_time "$cli_time" \
         '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
