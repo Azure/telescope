@@ -66,6 +66,7 @@ create_ec2() {
     output_file="/tmp/aws-$instance_name-create_ec2-output.txt"
 
     start_time=$(date +%s)
+    set -x
     if [[ -n "$nic" ]]; then
         aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     else
