@@ -60,13 +60,13 @@ create_ec2() {
     local timeout="${9:-"300"}"
     local tag_specifications="${10:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
-    ssh_file="/tmp/ssh-$(date +%s)"
-    cli_file="/tmp/cli-$(date +%s)"
-    error_file="/tmp/aws-$instance_name-create_ec2-error.txt"
-    output_file="/tmp/aws-$instance_name-create_ec2-output.txt"
+    local ssh_file="/tmp/ssh-$(date +%s)"
+    local cli_file="/tmp/cli-$(date +%s)"
+    local error_file="/tmp/aws-$instance_name-create_ec2-error.txt"
+    local output_file="/tmp/aws-$instance_name-create_ec2-output.txt"
 
-    start_time=$(date +%s)
-    set -x
+    local start_time=$(date +%s)
+
     if [[ -n "$nic" ]]; then
         aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     else

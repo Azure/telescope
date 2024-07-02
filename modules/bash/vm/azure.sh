@@ -66,12 +66,13 @@ create_vm() {
     local admin_username="${13:-"azureuser"}"
     local admin_password="${14:-"Azur3User!FTW"}"
 
-    ssh_file="/tmp/ssh-$(date +%s)"
-    cli_file="/tmp/cli-$(date +%s)"
-    error_file="/tmp/$vm_name-create_vm-error.txt"
-    output_file="/tmp/$vm_name-create_vm-output.txt"
+    local ssh_file="/tmp/ssh-$(date +%s)"
+    local cli_file="/tmp/cli-$(date +%s)"
+    local error_file="/tmp/$vm_name-create_vm-error.txt"
+    local output_file="/tmp/$vm_name-create_vm-output.txt"
 
-    start_time=$(date +%s)
+    local start_time=$(date +%s)
+
     if [[ -n "$nics" ]]; then
         az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --no-wait --output json --tags $tags 2> "$error_file" > "$output_file"
     else
@@ -350,6 +351,6 @@ create_vm_output() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     else
-        echo "$(process_result "$ssh_file" "$cli_file" "$start_time" "$vm_name")"
+        echo "$(process_results "$ssh_file" "$cli_file" "$start_time" "$vm_name")"
     fi
 }
