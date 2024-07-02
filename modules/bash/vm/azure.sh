@@ -301,21 +301,16 @@ get_running_state_timestamp() {
     local resource_group=$2
     local timeout=$3
 
-    timeout $timeout az vm wait -g "$resource_group" -n "$vm_name" --created
+    local error_file="/tmp/azure-cli-"$(date +%s)"-error.txt"
+    az vm wait --timeout $timeout -g "$resource_group" -n "$vm_name" --created 2> $error_file
     local exit_code=$?
 
-    if [[ $exit_code -eq 124 ]]; then
-        echo "false"
-        echo "null"
-        echo "ERROR: CLI timed out"
-    elif [[ $exit_code -ne 0]] then
-        echo "false"
-        echo "null"
-        echo "ERROR: CLI failed with exitcode $exit_code"
-    else
-        echo "true"
+    echo $exit_code
+    if [[ $exit_code -eq 0]]; then
         echo $(date +%s)
-    fi
+    else
+        echo $(cat $error_file)
+	fi
 }
 
 # Description:

@@ -481,13 +481,11 @@ get_connection_timestamp() {
         sleep 1
     done
     set -e
-
+    
+    echo $output
     if [ $try -lt $timeout ]; then
-        echo "true"
         echo $(date +%s)
     else
-        echo "false"
-        echo "null"
         echo "ERROR: SSH timed out."
     fi
 }
@@ -509,9 +507,9 @@ process_results() {
     local start_time="$3"
     local instance_name="$4"
 
-    local ssh_result=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
-    local cli_result=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
-    if [[ "$ssh_result" == "true" && "$cli_result" == "true" ]]; then
+    local cli_exitcode=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
+    local ssh_exitcode=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
+    if [[ "$ssh_exitcode" -eq 0 && "$cli_result" -eq 0 ]]; then
         local cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
         local ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
         local cli_time=$(($cli_timestamp - $start_time))
@@ -523,8 +521,8 @@ process_results() {
         '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
     else
         local error_message=""
-        local ssh_error=$(cat "$ssh_file" | sed -n '3p' | tr -d '\n')
-        local cli_error=$(cat "$cli_file" | sed -n '3p' | tr -d '\n')
+        local ssh_error=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
+        local cli_error=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
         if [ "$ssh_result" == "false" ]; then
             error_message="$error_message $ssh_error"
         fi

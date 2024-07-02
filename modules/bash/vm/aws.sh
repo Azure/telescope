@@ -394,21 +394,16 @@ get_running_state_timestamp() {
     local instance_id=$1
     local timeout=$2
 
-    timeout $timeout aws ec2 wait instance-running --instance-ids "$instance_id"
+    local error_file="/tmp/azure-cli-"$(date +%s)"-error.txt"
+    timeout $timeout aws ec2 wait instance-running --instance-ids "$instance_id" 2> "$error_file"
     local exit_code=$?
 
-    if [[ $exit_code -eq 124 ]]; then
-        echo "false"
-        echo "null"
-        echo "ERROR: CLI timed out"
-    elif [[ $exit_code -ne 0]] then
-        echo "false"
-        echo "null"
-        echo "ERROR: CLI failed with exitcode $exit_code"
-    else
-        echo "true"
+    echo $exit_code
+    if [[ $exit_code -eq 0]]; then
         echo $(date +%s)
-    fi
+    else
+        echo $(cat $error_file)
+	fi
 }
 
 # Description:
