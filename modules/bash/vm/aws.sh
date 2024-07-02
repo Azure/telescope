@@ -63,13 +63,16 @@ create_ec2() {
     ssh_file="/tmp/ssh-$(date +%s)"
     cli_file="/tmp/cli-$(date +%s)"
     error_file="/tmp/aws-$instance_name-create_ec2-error.txt"
+    output_file="/tmp/aws-$instance_name-create_ec2-output.txt"
 
     start_time=$(date +%s)
     if [[ -n "$nic" ]]; then
-        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "/tmp/aws-$instance_name-create_ec2-output.txt"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     else
-        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "/tmp/aws-$instance_name-create_ec2-error.txt"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     fi
+
+    local exit_code=$?
 
     (
         set -Ee
@@ -79,14 +82,16 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
         
-        instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
+        trap _catch ERR
+
+        instance_data="$output_file"
         instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
-        (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
-        (get_running_state_timestamp "$instance_id" "$timeout" > "$cli_file") &
-        wait
-
-        trap _catch ERR
+        if [[ $exit_code -eq 0 ]]; then
+            (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
+            (get_running_state_timestamp "$instance_id" "$timeout" > "$cli_file") &
+            wait
+        fi
         
         set -x
         echo "$(create_vm_output "$instance_name" "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"

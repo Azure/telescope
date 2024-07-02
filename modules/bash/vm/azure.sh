@@ -91,7 +91,7 @@ create_vm() {
 
         trap _catch ERR
 
-        if($exit_code -eq 0)
+        if [[ $exit_code -eq 0 ]]; then
             (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
             (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file"  ) &
             wait
