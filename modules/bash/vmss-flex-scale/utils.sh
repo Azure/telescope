@@ -263,7 +263,7 @@ measure_scale_vmss() {
             vmss_data=$(scale_vmss "$vmss_name" "$run_id" "$new_capacity")
         ;;
         aws)
-            vmss_data=$(scale_asg "$vmss_name" "$new_capacity")
+            vmss_data=$(scale_asg_and_wait "$vmss_name" "$new_capacity")
         ;;
         gcp)
             # GCP Method call

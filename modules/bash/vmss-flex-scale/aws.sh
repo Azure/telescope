@@ -70,8 +70,8 @@ create_asg() {
 #   - $1: asg_name: The name of the ASG (e.g. my-asg)
 #   - $2: desired_capacity: The new VM capacity for the ASG (e.g. 20)
 #
-# Usage: scale_asg <asg_name> <desired_capacity>
-scale_asg() {
+# Usage: scale_asg_and_wait <asg_name> <desired_capacity>
+scale_asg_and_wait() {
     local asg_name=$1
     local desired_capacity=$2
 
@@ -83,6 +83,8 @@ scale_asg() {
         > "/tmp/aws-$asg_name-scale_asg-output.txt"
 
     exit_code=$?
+
+    wait_for_scaling_activities $asg_name
     
     (
         set -Ee
@@ -112,6 +114,28 @@ scale_asg() {
             fi
         fi
     )
+}
+
+# Description:
+#   This function waits for all scaling activities to complete for a given Auto Scaling group.
+#
+# Parameters:
+#   - $1: asg_name: The name of the Auto Scaling group
+#
+# Usage: wait_for_scaling_activities <asg_name>
+wait_for_scaling_activities() {
+    local asg_name=$1
+
+    echo "Waiting for scaling activities to complete for ASG: $asg_name"
+
+    while true; do
+        local activities=$(aws autoscaling describe-scaling-activities --auto-scaling-group-name "$asg_name" --query "ScalingActivities[?StatusCode=='InProgress']" --output json)
+        if [ "$activities" == "[]" ]; then
+            echo "No scaling activities in progress for ASG: $asg_name"
+            break
+        fi
+        echo "Scaling activities in progress for ASG: $asg_name. Waiting..."
+    done
 }
 
 # Description:
