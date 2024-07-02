@@ -35,7 +35,7 @@ data "aws_instance" "vm_instance" {
 }
 
 data "aws_acm_certificate" "telescope_cert" {
-  domain   = "aks-telescope.com"
+  domain   = var.lb_tg_config.certificate_domain_name
   statuses = ["ISSUED"]
 }
 

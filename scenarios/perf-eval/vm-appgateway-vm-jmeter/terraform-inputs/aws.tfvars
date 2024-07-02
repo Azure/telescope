@@ -121,6 +121,7 @@ loadbalancer_config_list = [{
     port      = 80
     protocol  = "HTTP"
     vpc_name  = "server-vpc"
+		certificate_domain_name = "aks-telescope.com"
     health_check = {
       port                = "80"
       protocol            = "HTTP"
