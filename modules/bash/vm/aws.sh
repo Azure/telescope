@@ -83,8 +83,8 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
-        instance_data="$(cat $output_file)"
-        instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
+        local instance_data="$(cat $output_file)"
+        local instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
         if [[ $exit_code -eq 0 ]]; then
             (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
@@ -437,8 +437,6 @@ create_vm_output() {
     local error_file="$7"
 
     local error=$(cat "$error_file")
-
-    echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
 
     if [[ -n "$error" ]]; then
         echo $(jq -c -n \
