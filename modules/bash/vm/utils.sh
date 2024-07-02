@@ -502,16 +502,18 @@ get_connection_timestamp() {
 # Parameters:
 #   - $1: The path to the SSH result file
 #   - $2: The path to the CLI result file
-#   - $3: The start time of the commands
-#   - $4: The instance ID
+#   - $3: The path to the error file
+#   - $4: The start time of the commands
+#   - $5: The instance ID
 #
 # Returns: The results in JSON format
 # Usage: process_results <ssh_file> <cli_file> <start_time> <instance_id>
 process_results() {
     local ssh_file="$1"
     local cli_file="$2"
-    local start_time="$3"
-    local instance_name="$4"
+    local error_file="$3"
+    local start_time="$4"
+    local instance_name="$5"
 
     local cli_exitcode=$(jq -r '.exit_code' "$cli_file")
     local ssh_exitcode=$(jq -r '.exit_code' "$ssh_file")
@@ -521,11 +523,13 @@ process_results() {
         local ssh_timestamp=$(jq -r '.timestamp' "$ssh_file")
         local cli_time=$(($cli_timestamp - $start_time))
         local ssh_time=$(($ssh_timestamp - $start_time))
+        local warning_message=$(cat $error_file)
         echo $(jq -c -n \
             --arg vm_name "$instance_name" \
             --arg ssh_connection_time "$ssh_time" \
             --arg command_execution_time "$cli_time" \
-        '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
+            --arg warning_message "$warning_message" \
+        '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, warning_message: $warning_message}')
     else
         local error_message=""
         local ssh_error=$(jq -r '.error' "$ssh_file")

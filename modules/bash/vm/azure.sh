@@ -81,22 +81,13 @@ create_vm() {
 
     local exit_code=$?
 
-    (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-                --arg vm_name "$vm_name" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
+    if [[ $exit_code -eq 0 ]]; then
+        (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file" ) &
+        (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file" ) &
+        wait
+    fi
 
-        if [[ $exit_code -eq 0 ]]; then
-            (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file" ) &
-            (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file" ) &
-            wait
-        fi
-        trap _catch ERR
-        echo "$(create_vm_output "$vm_name" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
-    )
+    echo "$(create_vm_output "$vm_name" "$start_time" "$ssh_file" "$cli_file" "$error_file" "$exit_code")"
 }
 
 # Description:
@@ -331,6 +322,7 @@ get_running_state_timestamp() {
 #   - $3: The SSH file path
 #   - $4: The CLI file path
 #   - $5: The error file path
+#   - $6: The create command exit code
 #
 # Returns: The response JSON string
 # Usage: process_result <vm_name> <start_time> <ssh_file> <cli_file>
@@ -340,6 +332,15 @@ create_vm_output() {
     local ssh_file="$3"
     local cli_file="$4"
     local error_file="$5"
+    local command_exit_code="$6"
+
+    set -Ee
+    function _catch {
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+    }
+    trap _catch ERR
 
     local error=$(cat "$error_file")
 
@@ -355,7 +356,12 @@ create_vm_output() {
                 --arg vm_data "$error" \
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
+    elif [[ "$command_exit_code" -ne 0]]; then
+        echo $(jq -c -n \
+			--arg vm_name "$vm_name" \
+			--arg command_exit_code "$command_exit_code" \
+		'{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Command exited with code $command_exit_code. No error available."}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
     else
-        echo "$(process_results "$ssh_file" "$cli_file" "$start_time" "$vm_name")"
+        echo "$(process_results "$ssh_file" "$cli_file" "$start_time" "$vm_name "$error_file")"
     fi
 }
