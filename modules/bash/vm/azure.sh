@@ -69,10 +69,9 @@ create_vm() {
     ssh_file="/tmp/ssh-$(date +%s)"
     cli_file="/tmp/cli-$(date +%s)"
     error_file="/tmp/$vm_name-create_vm-error.txt"
-    output_file="/tmp/tmp/$vm_name-create_vm-output.txt"
+    output_file="/tmp/$vm_name-create_vm-output.txt"
 
     start_time=$(date +%s)
-    set -x
     if [[ -n "$nics" ]]; then
         az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --no-wait --output json --tags $tags 2> "$error_file" > "$output_file"
     else
@@ -89,14 +88,13 @@ create_vm() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
-        trap _catch ERR
-
         if [[ $exit_code -eq 0 ]]; then
             (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
             (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file"  ) &
             wait
         fi
 
+        trap _catch ERR
         echo "$(create_vm_output "$vm_name" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
 }

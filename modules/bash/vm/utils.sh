@@ -472,8 +472,6 @@ get_connection_timestamp() {
     local output=1
     local try=0
     local wait_time=3
-    
-    trap - ERR
 
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do

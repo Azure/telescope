@@ -82,8 +82,6 @@ create_ec2() {
                 --arg vm_name "$instance_name" \
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
-        
-        trap _catch ERR
 
         instance_data="$output_file"
         instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
@@ -94,7 +92,7 @@ create_ec2() {
             wait
         fi
         
-        set -x
+        trap _catch ERR
         echo "$(create_vm_output "$instance_name" "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
 }
