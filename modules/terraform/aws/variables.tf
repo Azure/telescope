@@ -104,7 +104,6 @@ variable "loadbalancer_config_list" {
       tg_suffix  = string
       port       = number
       protocol   = string
-      rule_count = number
       vpc_name   = string
       health_check = object({
         port                = number

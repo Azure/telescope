@@ -28,7 +28,6 @@ This module provisions a target group for an AWS load balancer. It allows you to
   - `tg_suffix`: Suffix for the target group
   - `port`: Port for the load balancer target group
   - `protocol`: Protocol for the load balancer target group
-  - `rule_count`: Number of rules for the load balancer target group
   - `vpc_name`: Name of the VPC
   - `health_check`: Health check configuration for the load balancer target group
     - `port`: Port for health check
@@ -63,7 +62,6 @@ module "load_balancer_target_group" {
     tg_suffix  = "tg"
     port       = 80
     protocol   = "HTTP"
-    rule_count = 1
     vpc_name   = "my-vpc"
     health_check = {
       port                = 80
@@ -73,14 +71,14 @@ module "load_balancer_target_group" {
       healthy_threshold   = 2
       unhealthy_threshold = 2
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 80
       protocol = "HTTP"
-    }
-    lb_target_group_attachment = {
+    }]
+    lb_target_group_attachment = [{
       vm_name = "web-server"
       port    = 80
-    }
+    }]
   }
 }
 ```

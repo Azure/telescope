@@ -120,7 +120,6 @@ loadbalancer_config_list = [{
     tg_suffix  = "http"
     port       = 80
     protocol   = "HTTP"
-    rule_count = 1
     vpc_name   = "server-vpc"
     health_check = {
       port                = "80"
