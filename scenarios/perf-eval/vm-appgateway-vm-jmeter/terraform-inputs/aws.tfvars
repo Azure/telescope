@@ -142,11 +142,7 @@ loadbalancer_config_list = [{
     lb_target_group_attachment = [{
       vm_name = "server-vm"
       port    = 80
-      },
-      {
-        vm_name = "server-vm"
-        port    = 443
-    }]
+      }]
     }
   ]
 }]
