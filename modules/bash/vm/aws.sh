@@ -66,7 +66,7 @@ create_ec2() {
     local output_file="/tmp/aws-$instance_name-create_ec2-output.txt"
 
     local start_time=$(date +%s)
-    set -x
+
     if [[ -n "$nic" ]]; then
         aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     else
@@ -91,7 +91,6 @@ create_ec2() {
             (get_running_state_timestamp "$instance_id" "$timeout" > "$cli_file") &
             wait
         fi
-        set -x
         trap _catch ERR
         echo "$(create_vm_output "$instance_name" "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
