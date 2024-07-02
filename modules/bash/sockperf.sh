@@ -18,7 +18,7 @@ run_sockperf() {
     local command="sockperf $sockperf_properties --pps=max --full-rtt"
 
     echo "Wait for 1 minutes before running"
-    sleep 10
+    sleep 60
     echo "Run sockperf command: $command"
     run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/sockperf-${protocol}.log
 }

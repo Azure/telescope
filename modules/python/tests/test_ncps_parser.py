@@ -2,7 +2,7 @@ import unittest
 import json
 from ncps.parser import parse_ncps_result
 
-class TestWrkParser(unittest.TestCase):
+class TestNcpsParser(unittest.TestCase):
 
   def test_parse_ncps_output_file(self):
     file_name = "tests/ncps/result.txt"

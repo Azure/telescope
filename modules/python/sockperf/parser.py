@@ -13,6 +13,7 @@ def parse_sockperf_tcp_result(result_file, indent = None):
         sys.exit(1)
     
     parsed_result = {}
+    parsed_result['raw'] = result
 
     # Parse SentMessages
     send_messages = re.search(r'SentMessages=(.+);', result)
