@@ -29,6 +29,7 @@ This module provisions a target group for an AWS load balancer. It allows you to
   - `port`: Port for the load balancer target group
   - `protocol`: Protocol for the load balancer target group
   - `vpc_name`: Name of the VPC
+  - `certificate_domain_name`: (Optional) The domain name for the certificate.
   - `health_check`: Health check configuration for the load balancer target group
     - `port`: Port for health check
     - `protocol`: Protocol for health check
@@ -63,6 +64,7 @@ module "load_balancer_target_group" {
     port       = 80
     protocol   = "HTTP"
     vpc_name   = "my-vpc"
+    certificate_domain_name = "example.com"
     health_check = {
       port                = 80
       protocol            = "HTTP"
@@ -95,3 +97,4 @@ module "load_balancer_target_group" {
 
 - [aws_vpc Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc)
 - [aws_instance Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/instance)
+- [aws_acm_certificate Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/acm_certificate) 

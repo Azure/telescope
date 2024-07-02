@@ -19,6 +19,7 @@ This module provisions an AWS load balancer and associated target groups. It pro
     - `port`: The port for the target group.
     - `protocol`: The protocol for the target group.
     - `vpc_name`: The name of the VPC for the target group.
+    - `certificate_domain_name`: (Optional) The domain name for the certificate.
     - `health_check`: An object representing health check configuration.
       - `port`: The port for health check.
       - `protocol`: The protocol for health check.
@@ -62,6 +63,7 @@ module "aws_lb" {
         port       = 80
         protocol   = "HTTP"
         vpc_name   = "my-vpc"
+        certificate_domain_name = "example.com"
         health_check = {
           port                = 80
           protocol            = "HTTP"
