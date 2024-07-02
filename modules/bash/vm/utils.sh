@@ -473,6 +473,8 @@ get_connection_timestamp() {
     local try=0
     local wait_time=3
     
+    trap - ERR
+
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
         netcat -w $wait_time -z $ip $port
@@ -481,7 +483,7 @@ get_connection_timestamp() {
         sleep 1
     done
     set -e
-    
+
     echo $output
     if [ $try -lt $timeout ]; then
         echo $(date +%s)
