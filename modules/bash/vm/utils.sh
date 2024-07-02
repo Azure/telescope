@@ -513,8 +513,8 @@ process_results() {
     local start_time="$3"
     local instance_name="$4"
 
-    local cli_exitcode=$(jq -r '.exitcode' "$cli_file")
-    local ssh_exitcode=$(jq -r '.exitcode' "$ssh_file")
+    local cli_exitcode=$(jq -r '.exit_code' "$cli_file")
+    local ssh_exitcode=$(jq -r '.exit_code' "$ssh_file")
 
     if [[ "$ssh_exitcode" -eq 0 && "$cli_result" -eq 0 ]]; then
         local cli_timestamp=$(jq -r '.timestamp' "$cli_file")
