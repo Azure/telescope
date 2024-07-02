@@ -516,7 +516,7 @@ process_results() {
     local cli_exitcode=$(jq -r '.exit_code' "$cli_file")
     local ssh_exitcode=$(jq -r '.exit_code' "$ssh_file")
 
-    if [[ "$ssh_exitcode" -eq 0 && "$cli_result" -eq 0 ]]; then
+    if [[ "$ssh_exitcode" -eq 0 && "$cli_exitcode" -eq 0 ]]; then
         local cli_timestamp=$(jq -r '.timestamp' "$cli_file")
         local ssh_timestamp=$(jq -r '.timestamp' "$ssh_file")
         local cli_time=$(($cli_timestamp - $start_time))
@@ -530,10 +530,10 @@ process_results() {
         local error_message=""
         local ssh_error=$(jq -r '.error' "$ssh_file")
         local cli_error=$(jq -r '.error' "$cli_file")
-        if [ "$ssh_result" == "false" ]; then
+        if [[ "$ssh_exitcode" -eq 0 ]]; then
             error_message="$error_message $ssh_error"
         fi
-        if [ "$cli_result" == "false" ]; then
+        if [[ "$cli_exitcode" -eq 0 ]]; then
             error_message="$error_message $cli_error"
         fi
         echo $(jq -c -n \
