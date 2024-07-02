@@ -149,8 +149,8 @@ loadbalancer_config_list = [{
       }
       lb_listener = [{
         port     = 20002
-        protocol = "U]DP"
-      }
+        protocol = "UDP"
+      }]
       lb_target_group_attachment = [{
         vm_name = "server-vm"
         port    = 20002
