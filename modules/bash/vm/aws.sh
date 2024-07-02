@@ -420,10 +420,11 @@ get_running_state_timestamp() {
 # Parameters:
 #   - $1: The instance name
 #   - $2: The instance ID
-#   - $3: The start time of the instance creation
-#   - $4: The path to the ssh file
-#   - $5: The path to the cli file
-#   - $6: The path to the error file
+#   - $3: The instance data
+#   - $4: The start time of the instance creation
+#   - $5: The path to the ssh file
+#   - $6: The path to the cli file
+#   - $7: The path to the error file
 
 # Usage: create_vm_output <instance_name> <instance_id> <start_time> <ssh_file> <cli_file> <error_file>
 create_vm_output() {
