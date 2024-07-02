@@ -482,11 +482,17 @@ get_connection_timestamp() {
     done
     set -e
 
-    echo $output
-    if [ $try -lt $timeout ]; then
-        echo $(date +%s)
+    local exit_code=$output
+    if [[ $exit_code -eq 0 ]]; then
+        echo $(jq -c -n \
+            --arg exit_code "$exit_code" \
+            --arg timestamp "$(date +%s)" \
+        '{exit_code: $exit_code, timestamp: $timestamp}')
     else
-        echo "ERROR: SSH timed out."
+        echo $(jq -c -n \
+            --arg exit_code "$exit_code" \
+            --arg error "ERROR: SSH timed out!" \
+        '{exit_code: $exit_code, error: $error}')
     fi
 }
 
@@ -507,11 +513,12 @@ process_results() {
     local start_time="$3"
     local instance_name="$4"
 
-    local cli_exitcode=$(cat "$cli_file" | sed -n '1p' | tr -d '\n')
-    local ssh_exitcode=$(cat "$ssh_file" | sed -n '1p' | tr -d '\n')
+    local cli_exitcode=$(jq -r '.exitcode' "$cli_file")
+    local ssh_exitcode=$(jq -r '.exitcode' "$ssh_file")
+
     if [[ "$ssh_exitcode" -eq 0 && "$cli_result" -eq 0 ]]; then
-        local cli_timestamp=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
-        local ssh_timestamp=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
+        local cli_timestamp=$(jq -r '.timestamp' "$cli_file")
+        local ssh_timestamp=$(jq -r '.timestamp' "$ssh_file")
         local cli_time=$(($cli_timestamp - $start_time))
         local ssh_time=$(($ssh_timestamp - $start_time))
         echo $(jq -c -n \
@@ -521,8 +528,8 @@ process_results() {
         '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time}')
     else
         local error_message=""
-        local ssh_error=$(cat "$ssh_file" | sed -n '2p' | tr -d '\n')
-        local cli_error=$(cat "$cli_file" | sed -n '2p' | tr -d '\n')
+        local ssh_error=$(jq -r '.error' "$ssh_file")
+        local cli_error=$(jq -r '.error' "$cli_file")
         if [ "$ssh_result" == "false" ]; then
             error_message="$error_message $ssh_error"
         fi

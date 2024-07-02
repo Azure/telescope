@@ -91,7 +91,7 @@ create_ec2() {
             (get_running_state_timestamp "$instance_id" "$timeout" > "$cli_file") &
             wait
         fi
-        
+        set -x
         trap _catch ERR
         echo "$(create_vm_output "$instance_name" "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file")"
     )
@@ -402,12 +402,17 @@ get_running_state_timestamp() {
     timeout $timeout aws ec2 wait instance-running --instance-ids "$instance_id" 2> "$error_file"
     local exit_code=$?
 
-    echo $exit_code
     if [[ $exit_code -eq 0 ]]; then
-        echo $(date +%s)
+        echo $(jq -c -n \
+            --arg exit_code "$exit_code" \
+            --arg timestamp "$(date +%s)" \
+        '{exit_code: $exit_code, timestamp: $timestamp}')
     else
-        echo $(cat $error_file)
-	fi
+        echo $(jq -c -n \
+            --arg exit_code "$exit_code" \
+            --arg error "$(cat $error_file)" \
+        '{exit_code: $exit_code, error: $error}')
+    fi
 }
 
 # Description:
