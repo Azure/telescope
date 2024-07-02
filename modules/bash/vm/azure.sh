@@ -311,7 +311,7 @@ get_running_state_timestamp() {
     local exit_code=$?
 
     echo $exit_code
-    if [[ $exit_code -eq 0]]; then
+    if [[ $exit_code -eq 0 ]]; then
         echo $(date +%s)
     else
         echo $(cat $error_file)
