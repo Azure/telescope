@@ -1,3 +1,8 @@
+locals {
+  lb_listener_map             = { for lb_listener in var.lb_tg_config.lb_listener : "${lb_listener.port}-${lb_listener.protocol}" => lb_listener }
+  target_group_attachment_map = { for target_group_attachment in var.lb_tg_config.lb_target_group_attachment : "${target_group_attachment.vm_name}-${target_group_attachment.port}" => target_group_attachment }
+}
+
 data "aws_vpc" "vpc" {
   filter {
     name   = "tag:run_id"
@@ -18,7 +23,7 @@ data "aws_instance" "vm_instance" {
 
   filter {
     name   = "tag:Name"
-    values = [var.lb_tg_config.lb_target_group_attachment.vm_name]
+    values = [local.target_group_attachment_map[0].vm_name]
   }
 
   filter {
@@ -49,24 +54,25 @@ resource "aws_lb_target_group" "target_group" {
 }
 
 resource "aws_lb_listener" "nlb_listener" {
-  count = var.lb_tg_config.rule_count
+  for_each = local.lb_listener_map
 
   load_balancer_arn = var.load_balancer_arn
-  port              = var.lb_tg_config.rule_count > 1 ? var.lb_tg_config.lb_listener.port + count.index + 1 : var.lb_tg_config.lb_listener.port
-  protocol          = var.lb_tg_config.lb_listener.protocol
+  port              = each.value.port
+  protocol          = each.value.protocol
+  certificate_arn   = each.value.protocol == "HTTPS" ? "arn:aws:acm:us-east-2:891516228446:certificate/df5291b7-c950-4fa2-b7b9-971a796030ea" : ""
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.target_group[count.index].arn
+    target_group_arn = aws_lb_target_group.target_group[0].arn
   }
 
   tags = var.tags
 }
 
 resource "aws_lb_target_group_attachment" "nlb_target_group_attachment" {
-  count = var.lb_tg_config.rule_count
+  for_each = local.target_group_attachment_map
 
-  target_group_arn = aws_lb_target_group.target_group[count.index].arn
+  target_group_arn = aws_lb_target_group.target_group[0].arn
   target_id        = data.aws_instance.vm_instance.id
-  port             = var.lb_tg_config.lb_target_group_attachment.port
+  port             = each.value.port
 }

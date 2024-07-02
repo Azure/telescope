@@ -130,14 +130,23 @@ loadbalancer_config_list = [{
       healthy_threshold   = 3
       unhealthy_threshold = 3
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 80
       protocol = "HTTP"
-    }
-    lb_target_group_attachment = {
+      },
+      {
+        port     = 443
+        protocol = "HTTPS"
+      }
+    ]
+    lb_target_group_attachment = [{
       vm_name = "server-vm"
       port    = 80
-    }
+      },
+      {
+        vm_name = "server-vm"
+        port    = 443
+    }]
     }
   ]
 }]
