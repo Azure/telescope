@@ -83,7 +83,7 @@ create_ec2() {
             '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         }
 
-        instance_data="$output_file"
+        instance_data="$(cat $output_file)"
         instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
         if [[ $exit_code -eq 0 ]]; then
