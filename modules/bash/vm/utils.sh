@@ -110,12 +110,10 @@ delete_nic_and_pip_if_needed() {
 
     if [[ -n "$nic_name" ]] && [[ "$cloud" == "aws" ]]; then
         delete_nic "$nic_name"
-        echo "Deleting $nic_name"
     fi
 
     if [[ -n "$pip_name" ]]; then
         delete_pip "$pip_name" "$nic_name" "$run_id"
-        echo "Deleting $pip_name"
     fi
 }
 

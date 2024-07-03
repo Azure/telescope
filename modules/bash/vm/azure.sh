@@ -296,7 +296,7 @@ get_running_state_timestamp() {
     local timeout=$3
 
     local error_file="/tmp/azure-cli-"$(date +%s)"-error.txt"
-    az vm wait --timeout $timeout -g "$resource_group" -n "$vm_name" --created 2> $error_file
+    az vm wait --timeout $timeout -g "$resource_group" -n "$vm_name" --interval 15 --created 2> $error_file
     local exit_code=$?
 
 
