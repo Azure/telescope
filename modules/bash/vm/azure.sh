@@ -286,7 +286,7 @@ install_vm_extension() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
-#   - $4: The timeout value in seconds (e.g. 300)
+#   - $3: The timeout value in seconds (e.g. 300)
 #
 # Returns: true if the VM has the expected status within the timeout, false otherwise
 # Usage: get_running_state_timestamp <vm_name> <resource_group> <timeout>
@@ -302,14 +302,14 @@ get_running_state_timestamp() {
 
     if [[ $exit_code -eq 0 ]]; then
         echo $(jq -c -n \
-            --arg exit_code "$exit_code" \
+            --arg result "success" \
             --arg timestamp "$(date +%s)" \
-        '{exit_code: $exit_code, timestamp: $timestamp}')
+        '{exit_code: $result, timestamp: $timestamp}')
     else
         echo $(jq -c -n \
-            --arg exit_code "$exit_code" \
+            --arg result "fail" \
             --arg error "$(cat $error_file)" \
-        '{exit_code: $exit_code, error: $error}')
+        '{exit_code: $result, error: $error}')
     fi
 }
 

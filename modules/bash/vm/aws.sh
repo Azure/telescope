@@ -388,20 +388,20 @@ get_running_state_timestamp() {
     local instance_id=$1
     local timeout=$2
 
-    local error_file="/tmp/azure-cli-"$(date +%s)"-error.txt"
+    local error_file="/tmp/aws-cli-"$(date +%s)"-error.txt"
     timeout $timeout aws ec2 wait instance-running --instance-ids "$instance_id" 2> "$error_file"
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
         echo $(jq -c -n \
-            --arg exit_code "$exit_code" \
+            --arg result "success" \
             --arg timestamp "$(date +%s)" \
-        '{exit_code: $exit_code, timestamp: $timestamp}')
+        '{exit_code: $result, timestamp: $timestamp}')
     else
         echo $(jq -c -n \
-            --arg exit_code "$exit_code" \
+            --arg result "fail" \
             --arg error "$(cat $error_file)" \
-        '{exit_code: $exit_code, error: $error}')
+        '{exit_code: $result, error: $error}')
     fi
 }
 
