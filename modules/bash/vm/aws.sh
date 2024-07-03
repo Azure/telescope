@@ -444,7 +444,7 @@ create_vm_output() {
             --arg vm_name "$instance_name" \
             --arg vm_data "$error" \
         '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-    elif [[ "$command_exit_code" -ne 0]]; then
+    elif [[ "$command_exit_code" -ne 0 ]]; then
         echo $(jq -c -n \
 			--arg vm_name "$vm_name" \
 			--arg command_exit_code "$command_exit_code" \
