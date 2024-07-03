@@ -33,6 +33,8 @@ create_asg() {
 
     exit_code=$?
 
+    creation_wait = wait_for_desired_capacity $asg_name $min_size
+
     (
         set -Ee
         function _catch {
@@ -84,7 +86,7 @@ scale_asg_and_wait() {
 
     exit_code=$?
 
-    wait_for_scaling_activities $asg_name
+    scaling_wait = wait_for_desired_capacity $asg_name $desired_capacity
     
     (
         set -Ee
@@ -135,6 +137,30 @@ wait_for_scaling_activities() {
             break
         fi
         echo "Scaling activities in progress for ASG: $asg_name. Waiting..."
+    done
+}
+
+# Description:
+#   This function waits for the Auto Scaling group to have the desired capacity.
+#
+# Parameters:
+#   - $1: asg_name: The name of the Auto Scaling group
+#   - $2: desired_capacity: The desired capacity of the Auto Scaling group
+#
+# Usage: wait_for_desired_capacity <asg_name> <desired_capacity>
+wait_for_desired_capacity() {
+    local asg_name=$1
+    local desired_capacity=$2
+
+    echo "Waiting for Auto Scaling group $asg_name to reach desired capacity of $desired_capacity"
+
+    while true; do
+        local in_service_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" --output json | jq length)
+        if [ "$in_service_count" -eq "$desired_capacity" ]; then
+            echo "Auto Scaling group $asg_name has reached the desired capacity of $desired_capacity"
+            break
+        fi
+        echo "Current in-service instances: $in_service_count. Waiting..."
     done
 }
 
