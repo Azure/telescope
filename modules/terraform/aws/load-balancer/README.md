@@ -18,8 +18,8 @@ This module provisions an AWS load balancer and associated target groups. It pro
     - `tg_suffix`: The suffix for the target group.
     - `port`: The port for the target group.
     - `protocol`: The protocol for the target group.
-    - `rule_count`: The number of rules for the target group.
     - `vpc_name`: The name of the VPC for the target group.
+    - `certificate_domain_name`: (Optional) The domain name for the certificate.
     - `health_check`: An object representing health check configuration.
       - `port`: The port for health check.
       - `protocol`: The protocol for health check.
@@ -27,10 +27,10 @@ This module provisions an AWS load balancer and associated target groups. It pro
       - `timeout`: The timeout for health check.
       - `healthy_threshold`: The healthy threshold for health check.
       - `unhealthy_threshold`: The unhealthy threshold for health check.
-    - `lb_listener`: An object representing listener configuration.
+    - `lb_listener`: A List of objects representing listener configuration.
       - `port`: The port for the listener.
       - `protocol`: The protocol for the listener.
-    - `lb_target_group_attachment`: An object representing target group attachment configuration.
+    - `lb_target_group_attachment`: A List of objects representing target group attachment configuration.
       - `vm_name`: The name of the VM.
       - `port`: The port for the target group attachment.
 
@@ -62,8 +62,8 @@ module "aws_lb" {
         tg_suffix  = "web-tg"
         port       = 80
         protocol   = "HTTP"
-        rule_count = 2
         vpc_name   = "my-vpc"
+        certificate_domain_name = "example.com"
         health_check = {
           port                = 80
           protocol            = "HTTP"
@@ -72,14 +72,14 @@ module "aws_lb" {
           healthy_threshold   = 2
           unhealthy_threshold = 2
         }
-        lb_listener = {
+        lb_listener = [{
           port     = 80
           protocol = "HTTP"
-        }
-        lb_target_group_attachment = {
+        }]
+        lb_target_group_attachment = [{
           vm_name = "web-server"
           port    = 80
-        }
+        }]
       }
     ]
   }

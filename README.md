@@ -289,7 +289,6 @@ loadbalancer_config_list = [{  # List of load balancer configurations
     tg_suffix  = "http"  # Suffix for the target group (e.g., "http")
     port       = 80  # Port for the target group (e.g., 80)
     protocol   = "TCP"  # Protocol for the target group (e.g., "TCP")
-    rule_count = 1  # Number of rules for the target group (e.g., 1)
     vpc_name   = "server-vpc"  # Name of the VPC (e.g., "server-vpc")
     health_check = {  # Health check configuration
       port                = "80"  # Port for health checks (e.g., "80")
@@ -299,21 +298,20 @@ loadbalancer_config_list = [{  # List of load balancer configurations
       healthy_threshold   = 3  # Healthy threshold for health checks (e.g., 3)
       unhealthy_threshold = 3  # Unhealthy threshold for health checks (e.g., 3)
     }
-    lb_listener = {  # Load balancer listener configuration
+    lb_listener = [{  # Load balancer listener configuration
       port     = 80  # Port for the listener (e.g., 80)
       protocol = "TCP"  # Protocol for the listener (e.g., "TCP")
-    }
-    lb_target_group_attachment = {  # Load balancer target group attachment configuration
+    }]
+    lb_target_group_attachment = [{  # Load balancer target group attachment configuration
       vm_name = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
       port    = 80  # Port for the target group attachment (e.g., 80)
-    }
+    }]
     },
     {
       role       = "nlb-tg"  # Role of the target group (e.g., "nlb-tg")
       tg_suffix  = "https"  # Suffix for the target group (e.g., "https")
       port       = 443  # Port for the target group (e.g., 443)
       protocol   = "TCP"  # Protocol for the target group (e.g., "TCP")
-      rule_count = 1  # Number of rules for the target group (e.g., 1)
       vpc_name   = "same-vpc"  # Name of the VPC (e.g., "same-vpc")
       health_check = {  # Health check configuration
         port                = "443"  # Port for health checks (e.g., "443")
@@ -323,14 +321,14 @@ loadbalancer_config_list = [{  # List of load balancer configurations
         healthy_threshold   = 3  # Healthy threshold for health checks (e.g., 3)
         unhealthy_threshold = 3  # Unhealthy threshold for health checks (e.g., 3)
       }
-      lb_listener = {  # Load balancer listener configuration
+      lb_listener = [{  # Load balancer listener configuration
         port     = 443  # Port for the listener (e.g., 443)
         protocol = "TCP"  # Protocol for the listener (e.g., "TCP")
-      }
-      lb_target_group_attachment = {  # Load balancer target group attachment configuration
+      }]
+      lb_target_group_attachment = [{  # Load balancer target group attachment configuration
         vm_name = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
         port    = 443  # Port for the target group attachment (e.g., 443)
-      }
+      }]
     }
   ]
 }]

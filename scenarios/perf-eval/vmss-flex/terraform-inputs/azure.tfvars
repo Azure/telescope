@@ -14,7 +14,7 @@ network_config_list = [
     network_security_group_name = "vmss-flex-scale-nsg"
     subnet = [{
       name           = "vmss-flex-scale-subnet"
-      address_prefix = "10.2.1.0/24"
+      address_prefix = "10.2.0.0/21"
     }]
     nat_gateway_associations = [{
       nat_gateway_name = "vmss-flex-scale-nat-gateway"
