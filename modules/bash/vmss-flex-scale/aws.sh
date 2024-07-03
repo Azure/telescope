@@ -33,8 +33,6 @@ create_asg() {
 
     exit_code=$?
 
-    creation_wait = wait_for_desired_capacity $asg_name $min_size
-
     (
         set -Ee
         function _catch {
@@ -72,8 +70,8 @@ create_asg() {
 #   - $1: asg_name: The name of the ASG (e.g. my-asg)
 #   - $2: desired_capacity: The new VM capacity for the ASG (e.g. 20)
 #
-# Usage: scale_asg_and_wait <asg_name> <desired_capacity>
-scale_asg_and_wait() {
+# Usage: scale_asg <asg_name> <desired_capacity>
+scale_asg() {
     local asg_name=$1
     local desired_capacity=$2
 
@@ -85,8 +83,6 @@ scale_asg_and_wait() {
         > "/tmp/aws-$asg_name-scale_asg-output.txt"
 
     exit_code=$?
-
-    scaling_wait = wait_for_desired_capacity $asg_name $desired_capacity
     
     (
         set -Ee
