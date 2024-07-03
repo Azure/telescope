@@ -487,7 +487,7 @@ get_connection_timestamp() {
         echo $(jq -c -n \
             --arg result "success" \
             --arg timestamp "$(date +%s)" \
-        '{exit_code: $result, timestamp: $timestamp}')
+        '{result: $result, timestamp: $timestamp}')
     else
         echo $(jq -c -n \
             --arg result "fail" \
@@ -551,6 +551,6 @@ process_results() {
             --arg ssh_connection_time "$ssh_time" \
             --arg command_execution_time "$cli_time" \
             --arg error_message "$error_message" \
-        '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, error_message: $error_message}')
+        '{succeeded: "false", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, error_message: $error_message}')
     fi
 }

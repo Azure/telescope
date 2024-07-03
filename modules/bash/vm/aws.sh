@@ -396,12 +396,12 @@ get_running_state_timestamp() {
         echo $(jq -c -n \
             --arg result "success" \
             --arg timestamp "$(date +%s)" \
-        '{exit_code: $result, timestamp: $timestamp}')
+        '{result: $result, timestamp: $timestamp}')
     else
         echo $(jq -c -n \
             --arg result "fail" \
             --arg error "$(cat $error_file)" \
-        '{exit_code: $result, error: $error}')
+        '{result: $result, error: $error}')
     fi
 }
 
