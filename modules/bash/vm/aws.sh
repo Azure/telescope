@@ -451,7 +451,7 @@ create_vm_output() {
 		'{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Command exited with code $command_exit_code. No error available."}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
     else
         if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-            echo $(process_results "$ssh_file" "$cli_file" "$start_time" "$instance_id" "$error_file")
+            echo "$(process_results "$ssh_file" "$cli_file" "$error_file" "$start_time" "$instance_id" )"
         else
             echo $(jq -c -n \
                 --arg vm_name "$instance_id" \
