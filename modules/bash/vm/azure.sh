@@ -65,7 +65,7 @@ create_vm() {
     local tags="${12:-"''"}"
     local admin_username="${13:-"azureuser"}"
     local admin_password="${14:-"Azur3User!FTW"}"
-
+    set -x
     local ssh_file="/tmp/ssh-$(date +%s)"
     local cli_file="/tmp/cli-$(date +%s)"
     local error_file="/tmp/$vm_name-create_vm-error.txt"
@@ -362,6 +362,6 @@ create_vm_output() {
 			--arg command_exit_code "$command_exit_code" \
 		'{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Command exited with code $command_exit_code. No error available."}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
     else
-        echo "$(process_results "$ssh_file" "$cli_file" "$start_time" "$vm_name "$error_file")"
+        echo "$(process_results "$ssh_file" "$cli_file" "$start_time" "$vm_name" "$error_file" )"
     fi
 }

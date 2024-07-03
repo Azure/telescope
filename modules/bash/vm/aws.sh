@@ -59,7 +59,7 @@ create_ec2() {
     local subnet="${8:-""}"
     local timeout="${9:-"300"}"
     local tag_specifications="${10:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
-
+    set -x
     local ssh_file="/tmp/ssh-$(date +%s)"
     local cli_file="/tmp/cli-$(date +%s)"
     local error_file="/tmp/aws-$instance_name-create_ec2-error.txt"
