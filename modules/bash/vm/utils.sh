@@ -485,14 +485,12 @@ get_connection_timestamp() {
     local exit_code=$output
     if [[ $exit_code -eq 0 ]]; then
         echo $(jq -c -n \
-            --arg result "success" \
             --arg timestamp "$(date +%s)" \
-        '{result: $result, timestamp: $timestamp}')
+        '{success: "true", timestamp: $timestamp}')
     else
         echo $(jq -c -n \
-            --arg result "fail" \
             --arg error "$(cat $error_file)" \
-        '{exit_code: $result, error: $error}')
+        '{sucess: "false", error: $error}')
     fi
 }
 
@@ -516,10 +514,10 @@ process_results() {
     local instance_name="$5"
     
     local error_message=""
-    local cli_result=$(jq -r '.result' "$cli_file")
-    local ssh_result=$(jq -r '.result' "$ssh_file")
+    local cli_success=$(jq -r '.success' "$cli_file")
+    local ssh_success=$(jq -r '.success' "$ssh_file")
 
-    if [[ "$ssh_result" == "success" ]]; then
+    if [[ "$ssh_success" == "true" ]]; then
         local ssh_timestamp=$(jq -r '.timestamp' "$ssh_file")
         local ssh_time=$(($ssh_timestamp - $start_time))
     else
@@ -528,7 +526,7 @@ process_results() {
         error_message="$error_message $ssh_error"
     fi
 
-    if [[ "$cli_result" == "success" ]]; then
+    if [[ "$cli_success" == "true" ]]; then
         local cli_timestamp=$(jq -r '.timestamp' "$cli_file")
         local cli_time=$(($cli_timestamp - $start_time))
     else
@@ -537,7 +535,7 @@ process_results() {
         error_message="$error_message $cli_error"
     fi
 
-    if [[ "$ssh_result" == "success" && "$cli_result" == "success" ]]; then
+    if [[ "$ssh_success" == "true" && "$cli_success" == "true" ]]; then
         local warning_message=$(cat $error_file)
         echo $(jq -c -n \
             --arg vm_name "$instance_name" \
