@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf-buffer"
+scenario_name  = "vm-same-zone-ncps"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -34,7 +34,7 @@ network_config_list = [
       }
     ]
     nsr_rules = [{
-      name                       = "nsr-ssh"
+      name                       = "nsr-inbound-ssh"
       priority                   = 100
       direction                  = "Inbound"
       access                     = "Allow"
@@ -43,55 +43,34 @@ network_config_list = [
       destination_port_range     = "2222"
       source_address_prefix      = "*"
       destination_address_prefix = "*"
-      },
-      {
-        name                       = "nsr-tcp"
-        priority                   = 101
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "20001-20001"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "nsr-udp"
-        priority                   = 102
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Udp"
-        source_port_range          = "*"
-        destination_port_range     = "20002-20002"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
       }
     ]
   }
 ]
 loadbalancer_config_list = []
-vm_config_list = [{
-  role           = "client"
-  vm_name        = "client-vm"
-  nic_name       = "client-nic"
-  admin_username = "ubuntu"
-  zone           = "1"
-  source_image_reference = {
-    publisher = "canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-  create_vm_extension = true
+vm_config_list = [
+  {
+    role           = "client"
+    vm_name        = "client-vm"
+    nic_name       = "client-nic"
+    admin_username = "ubuntu"
+    zone           = "3"
+    source_image_reference = {
+      publisher = "Canonical"
+      offer     = "0001-com-ubuntu-server-jammy"
+      sku       = "22_04-lts"
+      version   = "latest"
+    }
+    create_vm_extension = true
   },
   {
     role           = "server"
     vm_name        = "server-vm"
     nic_name       = "server-nic"
     admin_username = "ubuntu",
-    zone           = "1"
+    zone           = "3"
     source_image_reference = {
-      publisher = "canonical"
+      publisher = "Canonical"
       offer     = "0001-com-ubuntu-server-jammy"
       sku       = "22_04-lts"
       version   = "latest"
