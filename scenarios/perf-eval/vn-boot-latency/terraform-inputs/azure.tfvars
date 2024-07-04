@@ -2,11 +2,9 @@ scenario_name  = "vn-boot-latency"
 scenario_type  = "perf-eval"
 deletion_delay = "24h"
 
-resource_group_name = "shuvpranjal"
-
 network_config_list = [
   {
-    role               = "vnetwork"
+    role               = "vperf"
     vnet_name          = "myVnet"
     vnet_address_space = "10.0.0.0/8"
     subnet = [
@@ -53,5 +51,6 @@ aks_config_list = [
         vm_size    = "Standard_D16s_v4"
       }
     ]
+    role_assignment_list = ["Contributor"]
   }
 ]
