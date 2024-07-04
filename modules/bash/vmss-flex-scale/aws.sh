@@ -174,6 +174,7 @@ delete_asg() {
 
     aws autoscaling delete-auto-scaling-group \
     --auto-scaling-group-name $asg_name \
+    --force-delete \
     --output json \
     2> "/tmp/aws-$asg_name-delete_asg-error.txt" \
     > "/tmp/aws-$asg_name-delete_asg-output.txt"
@@ -208,6 +209,32 @@ delete_asg() {
             fi
         fi
     )
+}
+
+# Description:
+#   This script waits until there are no more Auto Scaling groups with a given name.
+#
+# Parameters:
+#   - $1: asg_name: The name of the Auto Scaling group
+#
+# Usage: wait_until_no_autoscaling_groups <asg_name>
+wait_until_no_autoscaling_groups() {
+    local asg_name=$1
+
+    echo "Waiting for Auto Scaling group $asg_name to be deleted..."
+
+    while true; do
+        local group_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" --query "AutoScalingGroups" --output json 2>/dev/null | jq length)
+
+        if [ "$group_count" -eq 0 ]; then
+            echo "No Auto Scaling groups found with the name: $asg_name"
+            break
+        else
+            echo "Auto Scaling group with the name $asg_name still exists. Waiting..."
+        fi
+
+        sleep 1
+    done
 }
 
 # Description:

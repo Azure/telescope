@@ -178,7 +178,8 @@ measure_create_vmss() {
         ;;
         aws)
             vmss_data=$(create_asg "$vmss_name" "$vm_instances" "$vm_scale_instances_target" "$lt_name" "$region" "$tags")
-            wait_for_desired_capacity $vmss_name "$vm_instances"
+#            wait_for_desired_capacity $vmss_name "$vm_instances"
+			wait_for_scaling_activities "$vmss_name"
         ;;
         gcp)
             # GCP Method call
@@ -265,7 +266,7 @@ measure_scale_vmss() {
         ;;
         aws)
             vmss_data=$(scale_asg "$vmss_name" "$new_capacity")
-            wait_for_desired_capacity "$vmss_name" "$new_capacity"
+#            wait_for_desired_capacity "$vmss_name" "$new_capacity"
             wait_for_scaling_activities "$vmss_name"
         ;;
         gcp)
