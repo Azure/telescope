@@ -437,7 +437,7 @@ create_vm_output() {
 
     local error=$(cat "$error_file")
 
-    if [[ -n "$error" ]]; then
+    if [[ -n "$error" && "$command_exit_code" -ne 0 ]]; then
         echo $(jq -c -n \
             --arg vm_name "$instance_name" \
             --arg vm_data "$error" \

@@ -510,7 +510,7 @@ process_results() {
     local error_file="$3"
     local start_time="$4"
     local instance_name="$5"
-    set -x
+
     local error_message=""
     local cli_success=$(jq -r '.success' "$cli_file")
     local ssh_success=$(jq -r '.success' "$ssh_file")

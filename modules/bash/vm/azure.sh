@@ -51,6 +51,7 @@ get_vm_info() {
 #
 # Usage: create_vm <vm_name> <vm_size> <vm_os> <region> <resource_group> <nics> <pip> [port] [security_type] [storage_type] [timeout] [tags] [admin_username] [admin_password]
 create_vm() {
+    set -x
     local vm_name=$1
     local vm_size=$2
     local vm_os=$3
@@ -80,7 +81,7 @@ create_vm() {
     fi
 
     local exit_code=$?
-
+    x=$(cat $error_file)
     if [[ $exit_code -eq 0 ]]; then
         (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file" ) &
         (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file" ) &
@@ -342,7 +343,7 @@ create_vm_output() {
 
     local error=$(cat "$error_file")
 
-    if [[ -n "$error" ]]; then
+    if [[ -n "$error" && $command_exit_code -ne 0 ]]; then
         if [[ "${error:0:8}" == "ERROR: {" ]]; then
             echo $(jq -c -n \
                 --arg vm_name "$vm_name" \
