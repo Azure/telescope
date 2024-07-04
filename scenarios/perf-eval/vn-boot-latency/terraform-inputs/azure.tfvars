@@ -50,6 +50,7 @@ aks_config_list = [
         vm_size    = "Standard_D16_v3" # Updated VM size
       }
     ]
-    role_assignment_list = ["Contributor"]
+    role_assignment_list = ["Network Contributor"]
+    resource_group_name = ["shuvpranjal1"]
   }
 ]

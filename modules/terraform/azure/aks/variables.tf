@@ -1,9 +1,3 @@
-variable "resource_group_name" {
-  description = "Value of the resource group name"
-  type        = string
-  default     = "rg"
-}
-
 variable "location" {
   description = "Value of the location"
   type        = string
@@ -36,19 +30,19 @@ variable "subnets" {
 
 variable "aks_config" {
   type = object({
-    role        = string
-    aks_name    = string
-    dns_prefix  = string
-    subnet_name = optional(string, null)
-    network_profile = optional(object({
+    role                = string
+    aks_name            = string
+    dns_prefix          = string
+    subnet_name         = optional(string, null)
+    network_profile     = optional(object({
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))
-    sku_tier = string
-    default_node_pool = object({
+    sku_tier            = string
+    default_node_pool   = object({
       name                         = string
       subnet_name                  = optional(string, null)
       node_count                   = number
@@ -59,7 +53,7 @@ variable "aks_config" {
       temporary_name_for_rotation  = string
       max_pods                     = optional(number, null)
     })
-    extra_node_pool = list(object({
+    extra_node_pool     = list(object({
       name         = string
       subnet_name  = optional(string, null)
       node_count   = number
@@ -70,5 +64,6 @@ variable "aks_config" {
       zones        = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
+    resource_group_name  = optional(list(string), []) # Made resource_group_name optional
   })
 }
