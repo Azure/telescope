@@ -503,14 +503,14 @@ get_connection_timestamp() {
 #   - $5: The instance ID
 #
 # Returns: The results in JSON format
-# Usage: process_results <ssh_file> <cli_file> <start_time> <instance_id>
+# Usage: process_results <ssh_file> <cli_file> <error_file> <start_time> <instance_id>
 process_results() {
     local ssh_file="$1"
     local cli_file="$2"
     local error_file="$3"
     local start_time="$4"
     local instance_name="$5"
-    
+    set -x
     local error_message=""
     local cli_success=$(jq -r '.success' "$cli_file")
     local ssh_success=$(jq -r '.success' "$ssh_file")

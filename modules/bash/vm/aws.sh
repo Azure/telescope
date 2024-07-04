@@ -383,7 +383,7 @@ install_ec2_extension() {
 #   - $1: The ID of the EC2 instance (e.g. i-0d5d9d301c853a04a)
 #   - $2: Number of seconds after which the command times out
 
-# Usage: get_running_state_timestamp <instance_id> <region>
+# Usage: get_running_state_timestamp <instance_id> <timeout>
 get_running_state_timestamp() {
     local instance_id=$1
     local timeout=$2
