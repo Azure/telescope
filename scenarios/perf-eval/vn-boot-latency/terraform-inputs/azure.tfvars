@@ -51,6 +51,5 @@ aks_config_list = [
       }
     ]
     role_assignment_list = ["Network Contributor"]
-    resource_group_name = ["shuvpranjal1"]
   }
 ]

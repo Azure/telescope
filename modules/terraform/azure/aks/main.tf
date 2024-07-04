@@ -4,7 +4,6 @@ locals {
   extra_pool_map       = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
   role_assignment_list = var.aks_config.role_assignment_list
   subnets              = var.subnets
-  resource_group_name  = var.aks_config.resource_group_name[0]
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -71,7 +70,7 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
 resource "azurerm_role_assignment" "agent_pool_role_assignment" {
   name               = "${local.name}-agentpool"
   scope              = azurerm_resource_group.rg.id
-  role_definition_name = "Contributor" # or any other role you need
+  role_definition_name = "Contributor" 
   principal_id       = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
 }
 
