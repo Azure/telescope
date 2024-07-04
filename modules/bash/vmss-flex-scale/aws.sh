@@ -148,15 +148,15 @@ wait_for_desired_capacity() {
     local asg_name=$1
     local desired_capacity=$2
 
-    echo "Waiting for Auto Scaling group $asg_name to reach desired capacity of $desired_capacity"
+    >&2 echo "Waiting for Auto Scaling group $asg_name to reach desired capacity of $desired_capacity"
 
     while true; do
         local in_service_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" --output json | jq length)
         if [ "$in_service_count" -eq "$desired_capacity" ]; then
-            echo "Auto Scaling group $asg_name has reached the desired capacity of $desired_capacity"
+            >&2 echo "Auto Scaling group $asg_name has reached the desired capacity of $desired_capacity"
             break
         fi
-        echo "Current in-service instances: $in_service_count. Waiting..."
+        >&2 echo "Current in-service instances: $in_service_count. Waiting..."
     done
 }
 
