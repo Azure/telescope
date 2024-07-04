@@ -18,9 +18,9 @@ network_config_list = [
 
         delegations = [{
           name                       = "delegation"
-          service_delegation {
+          service_delegation = [{
             name    = "Microsoft.ContainerInstance/containerGroups"
-          }          
+          }]          
         }]
       }
     ]
