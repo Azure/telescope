@@ -323,7 +323,7 @@ get_running_state_timestamp() {
 #   - $6: The create command exit code
 #
 # Returns: The response JSON string
-# Usage: process_result <vm_name> <start_time> <ssh_file> <cli_file>
+# Usage: process_result <vm_name> <start_time> <ssh_file> <cli_file> <error_file> <command_exit_code>
 create_vm_output() {
     local vm_name="$1"
     local start_time="$2"

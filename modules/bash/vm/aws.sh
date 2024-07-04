@@ -416,7 +416,7 @@ get_running_state_timestamp() {
 #   - $7: The path to the error file
 #   - $8: The exit code of the create command
 
-# Usage: create_vm_output <instance_name> <instance_id> <start_time> <ssh_file> <cli_file> <error_file>
+# Usage: create_vm_output <instance_name> <instance_id> <instance_data> <start_time> <ssh_file> <cli_file> <error_file> <command_exit_code>
 create_vm_output() {
     local instance_name="$1"
     local instance_id="$2"
