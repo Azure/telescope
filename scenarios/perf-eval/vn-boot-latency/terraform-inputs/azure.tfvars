@@ -17,8 +17,10 @@ network_config_list = [
         address_prefix = "10.241.0.0/16"
 
         delegations = [{
-        name                       = "Microsoft.ContainerInstance.containerGroups"
-        service_delegation_name    = "Microsoft.ContainerInstance/containerGroups"
+          name                       = "delegation"
+          service_delegation {
+            name    = "Microsoft.ContainerInstance/containerGroups"
+          }          
         }]
       }
     ]
