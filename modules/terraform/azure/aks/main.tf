@@ -67,13 +67,6 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "agent_pool_role_assignment" {
-  name               = "${local.name}-agentpool"
-  scope              = azurerm_resource_group.rg.id
-  role_definition_name = "Contributor" 
-  principal_id       = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
-}
-
 resource "local_file" "kube_config" {
   filename = "/tmp/${azurerm_kubernetes_cluster.aks.fqdn}"
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
