@@ -127,7 +127,7 @@ wait_for_scaling_activities() {
     >&2 echo "Waiting for scaling activities to complete for ASG: $asg_name"
 
     while true; do
-        local activities=$(aws autoscaling describe-scaling-activities --auto-scaling-group-name "$asg_name" --query "ScalingActivities[?StatusCode=='InProgress']" --output json)
+        local activities=$(aws autoscaling describe-scaling-activities --auto-scaling-group-name "$asg_name" --query "Activities[?StatusCode=='InProgress']" --output json)
         if [ "$activities" == "null" ] || [ "$activities" == "[]" ]; then
             >&2 echo "No scaling activities in progress for ASG: $asg_name"
             break
