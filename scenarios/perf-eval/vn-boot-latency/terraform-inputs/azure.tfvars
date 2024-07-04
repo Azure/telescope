@@ -18,9 +18,8 @@ network_config_list = [
 
         delegations = [{
           name                       = "delegation"
-          service_delegation = [{
-            name    = "Microsoft.ContainerInstance/containerGroups"
-          }]          
+          service_delegation_name    = "Microsoft.ContainerInstance/containerGroups"
+          service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]        
         }]
       }
     ]
