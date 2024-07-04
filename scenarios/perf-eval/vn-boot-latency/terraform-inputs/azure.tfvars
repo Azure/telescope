@@ -23,7 +23,6 @@ network_config_list = [
   }
 ]
 
-
 aks_config_list = [
   {
     role        = "vperf"
@@ -39,7 +38,7 @@ aks_config_list = [
     default_node_pool = {
       name                         = "default"
       node_count                   = 3
-      vm_size                      = "Standard_DS2_v2"
+      vm_size                      = "Standard_D2_v3" # Updated VM size
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
