@@ -221,18 +221,17 @@ delete_asg() {
 wait_until_no_autoscaling_groups() {
     local asg_name=$1
 
-    echo "Waiting for Auto Scaling group $asg_name to be deleted..."
+    >&2 echo "Waiting for Auto Scaling group $asg_name to be deleted..."
 
     while true; do
         local group_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" --query "AutoScalingGroups" --output json 2>/dev/null | jq length)
 
         if [ "$group_count" -eq 0 ]; then
-            echo "No Auto Scaling groups found with the name: $asg_name"
+            >&2 echo "No Auto Scaling groups found with the name: $asg_name"
             break
         else
-            echo "Auto Scaling group with the name $asg_name still exists. Waiting..."
+            >&2 echo "Auto Scaling group with the name $asg_name still exists. Waiting..."
         fi
-
         sleep 1
     done
 }
