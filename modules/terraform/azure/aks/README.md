@@ -48,6 +48,9 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
     - `network_policy`: Network policy used by the AKS cluster
     - `outbound_type`: Outbound type used by the AKS cluster
     - `pod_cidr`: Pod cidr used by the AKS cluster
+    - `ebpf_data_plane`: Data plane used by the AKS cluster, default `azure`
+  - `service_mesh_profile`: Istio addon profile
+    - `mode`: Enable addon by setting to "Istio"
   - `default_node_pool`: Configuration for the default node pool
   - `extra_node_pool`: Additional node pools for the AKS cluster
     - `name`: Name of the node pool
