@@ -16,12 +16,10 @@ network_config_list = [
         name           = "myVirtualNodeSubnet"
         address_prefix = "10.241.0.0/16"
 
-        delegation     = [
-          name = "delegation",
-          service_delegation = [
-            name    = "Microsoft.ContainerInstance/containerGroups"
-          ]
-        ]
+        delegations = [{
+        name                       = "Microsoft.ContainerInstance.containerGroups"
+        service_delegation_name    = "Microsoft.ContainerInstance/containerGroups"
+        }]
       }
     ]
     network_security_group_name = ""
