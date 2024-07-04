@@ -47,7 +47,7 @@ aks_config_list = [
       {
         name       = "user"
         node_count = 1
-        vm_size    = "Standard_D16s_v4"
+        vm_size    = "Standard_D16_v3" # Updated VM size
       }
     ]
     role_assignment_list = ["Contributor"]
