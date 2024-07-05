@@ -178,7 +178,7 @@ measure_create_vmss() {
         ;;
         aws)
             vmss_data=$(create_asg "$vmss_name" "$vm_instances" "$vm_scale_instances_target" "$lt_name" "$region" "$tags")
-			wait_for_scaling_activities "$vmss_name"
+            wait_for_desired_capacity "$vmss_name" "$vm_instances"
         ;;
         gcp)
             # GCP Method call
