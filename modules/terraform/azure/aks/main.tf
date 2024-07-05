@@ -72,7 +72,29 @@ resource "local_file" "kube_config" {
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
 }
 
-resource "helm_release" "vn2" {
-  name       = "vn2"
-  chart      = "https://shuvstorageaccount.blob.core.windows.net/mycontainer/virtualnode2-0.0.1.tgz"
+resource "helm_release" "alb_controller" {
+  name       = "alb-controller"
+  repository = "oci://mcr.microsoft.com"
+  chart      = "application-lb/charts/alb-controller"
+
+  provider = helm
+
+  namespace        = "azure-alb-system"
+  create_namespace = true
+  version          = "1.0.2"
+  values = [
+    jsonencode({
+      "albController" : {
+        "podIdentity" : {
+          "clientID" : azurerm_user_assigned_identity.userassignedidentity.client_id
+        },
+        "env" : [
+          {
+            "name" : "CUSTOM_LOGGING"
+            "value" : "true"
+          }
+        ]
+      }
+    })
+  ]
 }
