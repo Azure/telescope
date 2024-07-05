@@ -163,6 +163,34 @@ wait_for_desired_capacity() {
 }
 
 # Description:
+#   This function updates the minimum size and desired capacity of an Auto Scaling group.
+#
+# Parameters:
+#   - $1: asg_name: The name of the Auto Scaling group
+#   - $2: min_size: The new minimum size of the Auto Scaling group
+#   - $3: desired_capacity: The new desired capacity of the Auto Scaling group
+#
+# Usage: update_autoscaling_group <asg_name> <min_size> <desired_capacity>
+update_autoscaling_group() {
+    local asg_name=$1
+    local min_size=$2
+    local desired_capacity=$3
+
+    >&2 echo "Updating Auto Scaling group $asg_name to min size $min_size and desired capacity $desired_capacity..."
+
+    aws autoscaling update-auto-scaling-group \
+        --auto-scaling-group-name "$asg_name" \
+        --min-size "$min_size" \
+        --desired-capacity "$desired_capacity"
+
+    if [ $? -eq 0 ]; then
+        >&2 echo "Auto Scaling group $asg_name updated successfully."
+    else
+        >&2 echo "Failed to update Auto Scaling group $asg_name."
+    fi
+}
+
+# Description:
 #   This function is used to delete an ASG in AWS.
 #
 # Parameters:
@@ -174,7 +202,7 @@ delete_asg() {
 
     aws autoscaling delete-auto-scaling-group \
     --auto-scaling-group-name $asg_name \
-    --force-delete \
+#    --force-delete \
     --output json \
     2> "/tmp/aws-$asg_name-delete_asg-error.txt" \
     > "/tmp/aws-$asg_name-delete_asg-output.txt"
