@@ -349,6 +349,7 @@ measure_delete_vmss() {
         aws)
             update_autoscaling_group "$vmss_name" 0 0
             wait_for_desired_capacity "$vmss_name" 0
+            wait_for_scaling_activities "$vmss_name"
             vmss_data=$(delete_asg "$vmss_name")
             wait_until_no_autoscaling_groups $vmss_name
         ;;
