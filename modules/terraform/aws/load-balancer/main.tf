@@ -61,4 +61,5 @@ module "lb_target_group" {
       "role" = local.role
     },
   )
+  depends_on = [aws_lb.nlb]
 }

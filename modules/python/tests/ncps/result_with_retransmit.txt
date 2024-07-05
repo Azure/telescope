@@ -1,0 +1,33 @@
+=== CMDLINE: ncps -c 10.2.1.4 -wt 5 -t 60 -r 10
+
+=== VERSION 1.1
+
+###RXGBPS 0.13
+###TXGBPS 0.13
+
+=== Time (ms) to Nth connection establishment for first 880267 connections:
+===       N   T(ms)     CPS
+===  100000    6641   15057
+===  200000   12909   15493
+===  300000   19100   15706
+===  400000   25250   15841
+===  500000   31437   15904
+===  600000   37692   15918
+===  700000   43943   15929
+===  800000   50078   15975
+===  880267   55007   16002
+
+###ENDCPS 16002
+
+###CPS,100000:6641,200000:12909,300000:19100,400000:25250,500000:31437,600000:37692,700000:43943,800000:50078,880267:55007
+
+=== SYN RTT (us) stats for first 880267 connections:
+===      P25   Median     Mean      P75      P90      P95      P99    P99.9   P99.99
+===      794     1361    29229     4340   112028   117808   211674   244072  1219000
+
+###SYNRTT,25:794,Median:1361,Mean:29229,75:4340,90:112028,95:117808,99:211674,99.9:244072,99.99:1219000
+
+=== Percentage of connections with retransmits in the first 880267 connections: 0.2015%
+=== Average retransmit count per connection (excluding 0-retransmit cases): 1.0073
+
+###REXMIT,rtconnpercentage:0.2015,rtperconn:1.0073
