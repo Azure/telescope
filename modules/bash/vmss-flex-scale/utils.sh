@@ -265,7 +265,6 @@ measure_scale_vmss() {
         ;;
         aws)
             vmss_data=$(scale_asg "$vmss_name" "$new_capacity")
-            wait_for_desired_capacity "$vmss_name" "$new_capacity"
             wait_for_scaling_activities "$vmss_name"
         ;;
         gcp)
