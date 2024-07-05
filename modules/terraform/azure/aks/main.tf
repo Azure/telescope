@@ -80,4 +80,5 @@ resource "helm_release" "vn2" {
 
   namespace        = "vn2-namespace"
   create_namespace = true  
+  depends_on = [azurerm_kubernetes_cluster.aks]
 }
