@@ -82,7 +82,4 @@ resource "helm_release" "my_helm_chart" {
   name       = "my-helm-release"
   chart      = "https://shuvstorageaccount.blob.core.windows.net/mycontainer/virtualnode2-0.0.1.tgz"
   namespace  = "default"
-
-  # `depends_on` should only be here, not on the module
-  depends_on = [azurerm_kubernetes_cluster.aks]
 }
