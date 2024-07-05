@@ -72,12 +72,18 @@ resource "local_file" "kube_config" {
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
 }
 
+provider "helm" {
+  kubernetes {
+    config_path = local_file.kube_config.filename
+  }
+}
+
 resource "helm_release" "vn2" {
   name       = "vn2"
   chart      = "https://shuvstorageaccount.blob.core.windows.net/mycontainer/virtualnode2-0.0.1.tgz"
 
-  provider = helm
-
   namespace        = "vn2-namespace"
   create_namespace = true  
+
+  depends_on = [azurerm_kubernetes_cluster.aks]
 }
