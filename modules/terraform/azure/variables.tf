@@ -168,8 +168,12 @@ variable "aks_config_list" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
+      ebpf_data_plane     = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+    }))
+    service_mesh_profile = optional(object({
+      mode = string
     }))
     sku_tier = string
     default_node_pool = object({
