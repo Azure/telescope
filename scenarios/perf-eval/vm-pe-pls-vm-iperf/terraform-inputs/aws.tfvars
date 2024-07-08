@@ -117,12 +117,11 @@ loadbalancer_config_list = [{
   subnet_names       = ["server-subnet"]
   load_balancer_type = "network"
   lb_target_group = [{
-    role       = "nlb-tg"
-    tg_suffix  = "tcp"
-    port       = 20001
-    protocol   = "TCP"
-    rule_count = 1
-    vpc_name   = "server-vpc"
+    role      = "nlb-tg"
+    tg_suffix = "tcp"
+    port      = 20001
+    protocol  = "TCP"
+    vpc_name  = "server-vpc"
     health_check = {
       port                = "20000"
       protocol            = "TCP"
@@ -131,14 +130,14 @@ loadbalancer_config_list = [{
       healthy_threshold   = 2
       unhealthy_threshold = 2
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 20001
       protocol = "TCP"
-    }
-    lb_target_group_attachment = {
+    }]
+    lb_target_group_attachment = [{
       vm_name = "server-vm"
       port    = 20001
-    }
+    }]
     }
   ]
 }]
