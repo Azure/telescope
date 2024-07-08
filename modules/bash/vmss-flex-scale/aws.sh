@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Description:
-#   This function is used to create an ASG instance in AWS.
+#   This function is used to create an Auto Scaling group instance in AWS.
 #
 # Parameters:
-#   - $1: asg_name: The name of the ASG instance (e.g. my-asg)
-#   - $2: min_size: Minimum number of instances in the ASG (e.g. 1)
-#   - $3: max_size: Maximum number of instances in the ASG (e.g. 10)
+#   - $1: asg_name: The name of the Auto Scaling group instance (e.g. my-asg)
+#   - $2: min_size: Minimum number of instances in the Auto Scaling group (e.g. 1)
+#   - $3: max_size: Maximum number of instances in the Auto Scaling group (e.g. 10)
 #   - $4: launch_template_name: The name of the launch template to use to launch instances (e.g. my-lt)
-#   - $5: region: The region where the ASG instance will be created (e.g. us-east-1)
+#   - $5: region: The region where the Auto Scaling group instance will be created (e.g. us-east-1)
 #   - $6: tags: [optional] The tags to use (e.g. "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops},{Key=creation_time,Value=2024-03-11T19:12:01Z}]", default value is "ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]")
 #
 # Usage: create_asg <asg_name> <min_size> <max_size> <launch_template_name> <region> [tags]
@@ -19,17 +19,19 @@ create_asg() {
     local launch_template_name=$4
     local region=$5
     local tags="${6:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
+    local operation_output = "/tmp/aws-$asg_name-create_asg-output.txt"
+    local operation_error = "/tmp/aws-$asg_name-create_asg-error.txt"
 
     aws autoscaling create-auto-scaling-group \
-        --auto-scaling-group-name $asg_name \
-        --min-size $min_size \
-        --max-size $max_size \
+        --auto-scaling-group-name "$asg_name" \
+        --min-size "$min_size" \
+        --max-size "$max_size" \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
-        --region $region \
-        --tags $tags \
+        --region "$region" \
+        --tags "$tags" \
         --output json \
-        2> "/tmp/aws-$asg_name-create_asg-error.txt" \
-        > "/tmp/aws-$asg_name-create_asg-output.txt"
+        2> "$operation_error" \
+        > "$operation_output"
 
     exit_code=$?
 
@@ -42,7 +44,7 @@ create_asg() {
         }
         trap _catch ERR
 
-        error=$(cat "/tmp/aws-$asg_name-create_asg-error.txt")
+        error=$(cat "$operation_error")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
@@ -64,23 +66,25 @@ create_asg() {
 }
 
 # Description:
-#   This function is used to scale (in/out) an ASG in AWS.
+#   This function is used to scale (in/out) an Auto Scaling group in AWS.
 #
 # Parameters:
-#   - $1: asg_name: The name of the ASG (e.g. my-asg)
-#   - $2: desired_capacity: The new VM capacity for the ASG (e.g. 20)
+#   - $1: asg_name: The name of the Auto Scaling group (e.g. my-asg)
+#   - $2: desired_capacity: The new VM capacity for the Auto Scaling group (e.g. 20)
 #
 # Usage: scale_asg <asg_name> <desired_capacity>
 scale_asg() {
     local asg_name=$1
     local desired_capacity=$2
+    local operation_output = "/tmp/aws-$asg_name-scale_asg-output.txt"
+    local operation_error = "/tmp/aws-$asg_name-scale_asg-error.txt"
 
     aws autoscaling set-desired-capacity \
-        --auto-scaling-group-name $asg_name \
-        --desired-capacity $desired_capacity \
+        --auto-scaling-group-name "$asg_name" \
+        --desired-capacity "$desired_capacity" \
         --output json \
-        2> "/tmp/aws-$asg_name-scale_asg-error.txt" \
-        > "/tmp/aws-$asg_name-scale_asg-output.txt"
+        2> "$operation_error" \
+        > "$operation_output"
 
     exit_code=$?
     
@@ -93,7 +97,7 @@ scale_asg() {
         }
         trap _catch ERR
 
-        error=$(cat "/tmp/aws-$asg_name-scale_asg-error.txt")
+        error=$(cat "$operation_error")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
@@ -191,20 +195,22 @@ update_autoscaling_group() {
 }
 
 # Description:
-#   This function is used to delete an ASG in AWS.
+#   This function is used to delete an Auto Scaling group in AWS.
 #
 # Parameters:
-#   - $1: asg_name: The name of the ASG (e.g. my-asg)
+#   - $1: asg_name: The name of the Auto Scaling group (e.g. my-asg)
 #
 # Usage: delete_asg <asg_name>
 delete_asg() {
     local asg_name=$1
+    local operation_output = "/tmp/aws-$asg_name-delete_asg-output.txt"
+    local operation_error = "/tmp/aws-$asg_name-delete_asg-error.txt"
 
     aws autoscaling delete-auto-scaling-group \
-    --auto-scaling-group-name $asg_name \
+    --auto-scaling-group-name "$asg_name" \
     --output json \
-    2> "/tmp/aws-$asg_name-delete_asg-error.txt" \
-    > "/tmp/aws-$asg_name-delete_asg-output.txt"
+    2> "$operation_error" \
+    > "$operation_output"
 
     exit_code=$?
     
@@ -217,7 +223,7 @@ delete_asg() {
         }
         trap _catch ERR
 
-        error=$(cat "/tmp/aws-$asg_name-delete_asg-error.txt")
+        error=$(cat "$operation_error")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
@@ -268,7 +274,7 @@ wait_until_no_autoscaling_groups() {
 #
 # Parameters:
 #   - $1: lt_name: The name of the launch template (e.g. my-lt)
-#   - $2: vm_size: The size of the VM used in the ASG (e.g. m5i.large)
+#   - $2: vm_size: The size of the VM used in the Auto Scaling group (e.g. m5i.large)
 #   - $3: vm_os: The OS identifier the VM will use (e.g. ubuntu:22.04:x86_64)
 #   - $4: security_group_id: The security group id to use for the VM (e.g. sg-1234567890)
 #   - $5: subnet_id: The subnet id to use for the VM (e.g. subnet-1234567890)
@@ -283,9 +289,9 @@ create_lt() {
     local subnet_id=$5
     local region=$6
 
-    launch_template_id=$(aws ec2 create-launch-template --launch-template-name $lt_name  \
+    launch_template_id=$(aws ec2 create-launch-template --launch-template-name "$lt_name"  \
                             --launch-template-data "{\"ImageId\":\"$vm_os\",\"InstanceType\":\"$vm_size\", \"NetworkInterfaces\":[{\"DeviceIndex\":0, \"Groups\":[\"$security_group_id\"], \"SubnetId\":\"$subnet_id\"}]}" \
-                            --region $region \
+                            --region "$region" \
                             --output text \
                             --query 'LaunchTemplate.LaunchTemplateId')
 
@@ -304,7 +310,7 @@ create_lt() {
 delete_lt() {
     local lt_name=$1
 
-    if aws ec2 delete-launch-template --launch-template-name $lt_name; then
+    if aws ec2 delete-launch-template --launch-template-name "$lt_name"; then
         echo "$lt_name"
     fi
 }
