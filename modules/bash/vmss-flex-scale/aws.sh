@@ -202,7 +202,6 @@ delete_asg() {
 
     aws autoscaling delete-auto-scaling-group \
     --auto-scaling-group-name $asg_name \
-#    --force-delete \
     --output json \
     2> "/tmp/aws-$asg_name-delete_asg-error.txt" \
     > "/tmp/aws-$asg_name-delete_asg-output.txt"
