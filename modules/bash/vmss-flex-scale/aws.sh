@@ -54,6 +54,7 @@ create_asg() {
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$asg_name" \
+                    --arg vmss_data "$error" \
                 '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
@@ -107,6 +108,7 @@ scale_asg() {
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$asg_name" \
+                    --arg vmss_data "$error" \
                 '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
@@ -233,6 +235,7 @@ delete_asg() {
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$asg_name" \
+                    --arg vmss_data "$error" \
                 '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
