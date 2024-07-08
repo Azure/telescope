@@ -73,7 +73,8 @@ create_vm() {
     local output_file="/tmp/$vm_name-create_vm-output.txt"
 
     local start_time=$(date +%s)
-
+    az config get
+    az config get core
     if [[ -n "$nics" ]]; then
         az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --no-wait --output json --tags $tags
     else
