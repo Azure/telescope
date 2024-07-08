@@ -114,6 +114,11 @@ module "aks" {
   subnets             = try(local.all_subnets, null)
 }
 
+module "helm_release" {
+  source = "./helm_release"
+  depends_on = [module.aks]
+}
+
 module "load_balancer" {
   for_each = local.loadbalancer_config_map
 
