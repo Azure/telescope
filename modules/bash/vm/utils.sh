@@ -534,7 +534,7 @@ process_results() {
     fi
 
     if [[ "$ssh_success" == "true" && "$cli_success" == "true" ]]; then
-        local warning_message=$(cat $error_file)
+        local warning_message="$(cat $error_file | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
         echo $(jq -c -n \
             --arg vm_name "$instance_name" \
             --arg ssh_connection_time "$ssh_time" \
