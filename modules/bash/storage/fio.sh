@@ -143,12 +143,31 @@ run_fio_fileopenclose_multiple_pods_setup() {
 
 wait_fio_done() {
   local pod_name=$1
+  local result_dir=$2
 
   local command="ps"
   run_kubectl_exec $pod_name fio "$command"
   echo "Polling for setup command"
 
-  while run_kubectl_exec $pod_name fio "$command" | grep -q 'fio'; do echo "Still running fio"; sleep 60; done
+  # while run_kubectl_exec $pod_name fio "$command" | grep -q 'fio'; do echo "Still running fio"; sleep 60; done
+  while true; do
+    output=$(run_kubectl_exec $pod_name fio "$command")
+    if [ $? -ne 0 ]; then
+      echo "Error executing command in pod $pod_name. Retrying in 60 seconds..."
+      sleep 60
+      continue
+    fi
+
+    if ! echo "$output" | grep -q 'fio'; then
+      echo "fio process not found in pod $pod_name. Exiting loop."
+      kubectl logs $pod_name > $result_dir/log-${pod_name}.log
+      kubectl get events --field-selector involvedObject.name=$pod_name > $result_dir/events-${pod_name}.log
+      break
+    fi
+
+    echo "Still running fio"
+    sleep 60
+  done
 }
 
 run_fio_fileopenclose_multiple_pods_run() {
@@ -173,7 +192,7 @@ run_fio_fileopenclose_multiple_pods_run() {
   # execute the actual run for metrics collection
   echo "Run command: $command"
   start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-  run_kubectl_exec $pod_name fio "$command" | tee $result_dir/result-${pod_name}.log &
+  run_kubectl_exec $pod_name fio "$command" > >(tee $result_dir/result-${pod_name}.log) 2> >(tee $result_dir/error-${pod_name}.log >&2) &
   end_time=$(date -u -d "$start_time + $runtime seconds" +"%Y-%m-%dT%H:%M:%SZ")
 
   metadata_json="{\"NumFiles\": \"$num_files\", \"IoDepth\": \"$num_jobs_parallel\", \"StorageName\": \"$storage_name\", \"StartTime\": \"$start_time\", \"EndTime\": \"$end_time\"}"
@@ -455,6 +474,21 @@ collect_result_fileshare_fio_mulitple_pods() {
   cd $result_dir
   results=$(ls -N result*)
   echo $results
+  errors=$(ls -N error*)
+  for error in $errors
+  {
+    cat $error
+  }
+  logs=$(ls -N log*)
+  for log in $logs
+  {
+    cat $log
+  }
+  events=$(ls -N event*)
+  for event in $events
+  {
+    cat $event
+  }
 
   for result in $results
   {
