@@ -126,8 +126,9 @@ collect_result_iperf3() {
   local ingress_ip_address=$3
   local cloud_info=$4
   local run_id=$5
-  local protocol=$6
-  local bandwidth=$7
+  local run_url=$6
+  local protocol=$7
+  local bandwidth=$8
 
   touch $result_dir/results.json
 
@@ -151,7 +152,7 @@ collect_result_iperf3() {
     --arg egress_ip "$egress_ip_address" \
     --arg ingress_ip "$ingress_ip_address" \
     --arg run_id "$run_id" \
-    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
+    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
 
   echo $data >> $result_dir/results.json
 }
