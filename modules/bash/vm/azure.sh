@@ -115,8 +115,8 @@ delete_vm() {
         }
         trap _catch ERR
 
-        vm_data=$(cat "/tmp/$vm_name-delete_vm-output.txt")
-        error=$(cat "/tmp/$vm_name-delete_vm-error.txt")
+        vm_data=$(cat "/tmp/$vm_name-delete-vm-output.txt")
+        error=$(cat "/tmp/$vm_name-delete-vm-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
