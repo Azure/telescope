@@ -42,7 +42,7 @@ create_asg() {
         --max-size "$max_size" \
         --launch-template "{\"LaunchTemplateName\":\"$launch_template_name\"}" \
         --region "$region" \
-        --tags "$tags" \
+        --tags $tags \
         --output json \
         2> "$operation_error"
 
