@@ -19,7 +19,6 @@ create_asg() {
     local launch_template_name=$4
     local region=$5
     local tags="${6:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
-    local operation_output = "/tmp/aws-$asg_name-create_asg-output.txt"
     local operation_error = "/tmp/aws-$asg_name-create_asg-error.txt"
 
     aws autoscaling create-auto-scaling-group \
@@ -30,8 +29,7 @@ create_asg() {
         --region "$region" \
         --tags "$tags" \
         --output json \
-        2> "$operation_error" \
-        > "$operation_output"
+        2> "$operation_error"
 
     exit_code=$?
 
@@ -51,17 +49,10 @@ create_asg() {
                 --arg vmss_name "$asg_name" \
             '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
-            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
-                echo $(jq -c -n \
-                    --arg vmss_name "$asg_name" \
-                    --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            else
-                echo $(jq -c -n \
-                    --arg vmss_name "$asg_name" \
-                    --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+                --arg vmss_data "$error" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }
@@ -84,8 +75,7 @@ scale_asg() {
         --auto-scaling-group-name "$asg_name" \
         --desired-capacity "$desired_capacity" \
         --output json \
-        2> "$operation_error" \
-        > "$operation_output"
+        2> "$operation_error"
 
     exit_code=$?
     
@@ -105,17 +95,10 @@ scale_asg() {
                 --arg vmss_name "$asg_name" \
             '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
-            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
-                echo $(jq -c -n \
-                    --arg vmss_name "$asg_name" \
-                    --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            else
-                echo $(jq -c -n \
-                    --arg vmss_name "$asg_name" \
-                    --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+                --arg vmss_data "$error" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }
@@ -205,15 +188,13 @@ update_autoscaling_group() {
 # Usage: delete_asg <asg_name>
 delete_asg() {
     local asg_name=$1
-    local operation_output = "/tmp/aws-$asg_name-delete_asg-output.txt"
     local operation_error = "/tmp/aws-$asg_name-delete_asg-error.txt"
 
     aws autoscaling delete-auto-scaling-group \
     --auto-scaling-group-name "$asg_name" \
     --force-delete \
     --output json \
-    2> "$operation_error" \
-    > "$operation_output"
+    2> "$operation_error"
 
     exit_code=$?
     
@@ -233,17 +214,10 @@ delete_asg() {
                 --arg vmss_name "$asg_name" \
             '{succeeded: "true", vmss_name: $vmss_name}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
-            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
-                echo $(jq -c -n \
-                    --arg vmss_name "$asg_name" \
-                    --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            else
-                echo $(jq -c -n \
-                    --arg vmss_name "$asg_name" \
-                    --arg vmss_data "$error" \
-                '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
+            echo $(jq -c -n \
+                --arg vmss_name "$asg_name" \
+                --arg vmss_data "$error" \
+            '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         fi
     )
 }
