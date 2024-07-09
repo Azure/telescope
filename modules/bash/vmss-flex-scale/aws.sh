@@ -11,7 +11,6 @@ get_lt_name() {
     local run_id=$1
 
     local lt_name="lt-$run_id"
-    lt_name="${lt_name%-}"
 
     echo "$lt_name"
 }
@@ -35,7 +34,7 @@ create_asg() {
     local launch_template_name=$4
     local region=$5
     local tags="${6:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
-    local operation_error = "/tmp/aws-$asg_name-create_asg-error.txt"
+    local operation_error="/tmp/aws-$asg_name-create_asg-error.txt"
 
     aws autoscaling create-auto-scaling-group \
         --auto-scaling-group-name "$asg_name" \
@@ -84,8 +83,7 @@ create_asg() {
 scale_asg() {
     local asg_name=$1
     local desired_capacity=$2
-    local operation_output = "/tmp/aws-$asg_name-scale_asg-output.txt"
-    local operation_error = "/tmp/aws-$asg_name-scale_asg-error.txt"
+    local operation_error="/tmp/aws-$asg_name-scale_asg-error.txt"
 
     aws autoscaling set-desired-capacity \
         --auto-scaling-group-name "$asg_name" \
@@ -204,7 +202,7 @@ update_autoscaling_group() {
 # Usage: delete_asg <asg_name>
 delete_asg() {
     local asg_name=$1
-    local operation_error = "/tmp/aws-$asg_name-delete_asg-error.txt"
+    local operation_error="/tmp/aws-$asg_name-delete_asg-error.txt"
 
     aws autoscaling delete-auto-scaling-group \
     --auto-scaling-group-name "$asg_name" \
