@@ -28,8 +28,8 @@ This module provisions a target group for an AWS load balancer. It allows you to
   - `tg_suffix`: Suffix for the target group
   - `port`: Port for the load balancer target group
   - `protocol`: Protocol for the load balancer target group
-  - `rule_count`: Number of rules for the load balancer target group
   - `vpc_name`: Name of the VPC
+  - `certificate_domain_name`: (Optional) The domain name for the certificate.
   - `health_check`: Health check configuration for the load balancer target group
     - `port`: Port for health check
     - `protocol`: Protocol for health check
@@ -63,8 +63,8 @@ module "load_balancer_target_group" {
     tg_suffix  = "tg"
     port       = 80
     protocol   = "HTTP"
-    rule_count = 1
     vpc_name   = "my-vpc"
+    certificate_domain_name = "example.com"
     health_check = {
       port                = 80
       protocol            = "HTTP"
@@ -73,14 +73,14 @@ module "load_balancer_target_group" {
       healthy_threshold   = 2
       unhealthy_threshold = 2
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 80
       protocol = "HTTP"
-    }
-    lb_target_group_attachment = {
+    }]
+    lb_target_group_attachment = [{
       vm_name = "web-server"
       port    = 80
-    }
+    }]
   }
 }
 ```
@@ -97,3 +97,4 @@ module "load_balancer_target_group" {
 
 - [aws_vpc Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc)
 - [aws_instance Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/instance)
+- [aws_acm_certificate Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/acm_certificate) 

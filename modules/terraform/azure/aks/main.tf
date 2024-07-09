@@ -34,11 +34,19 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_plugin      = var.aks_config.network_profile.network_plugin
     network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
     network_policy      = var.aks_config.network_profile.network_policy
+    ebpf_data_plane     = var.aks_config.network_profile.ebpf_data_plane
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
   }
   identity {
     type = "SystemAssigned"
+  }
+
+  dynamic "service_mesh_profile" {
+    for_each = try(var.aks_config.service_mesh_profile != null ? [var.aks_config.service_mesh_profile] : [])
+    content {
+      mode = service_mesh_profile.value.mode
+    }
   }
 
   oidc_issuer_enabled       = true

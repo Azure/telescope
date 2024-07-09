@@ -64,18 +64,19 @@ Login with web browser access
 az login
 ```
 
-Login without web browser like from a Linux devbox or VM, please create a service principle first to login with the service principle
+Login without web browser like from a Linux devbox or VM, you'll need to create an user-assigned identity and assign it the the VM using this [instruction](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-configure-managed-identities?pivots=qs-configure-cli-windows-vm#user-assigned-managed-identity)
 
 ```bash
-az ad sp create-for-rbac --name <servicePrincipleName> --role contributor --scopes /subscriptions/<subscriptionId>
-{
-  "appId": "xxx",
-  "displayName": "xxx",
-  "password": "xxx",
-  "tenant": "xxx"
-}
+az identity create -g <identityResourceGroup> -n <userAssignedIdentityName>
+az vm identity assign -g <vmResourceGroup> -n <vmName> --identities <userAssignedIdentityName>
 
-az login --service-principal --username <appId> --password <password> --tenant <tenant>
+az login --identity --username <userAssignedIdentityClientID>
+```
+
+Ask owners to give the newly created identity Contributor role if not already having that. Before running any terraform command, make sure to run this command so Terraform will interact with the subscription using Managed Identity
+
+```bash
+export ARM_USE_MSI=true ARM_TENANT_ID=<tenantID> ARM_CLIENT_ID=<userAssignedIdentityClientId> ARM_SUBSCRIPTION_ID=<subscriptionId>
 ```
 
 Set subscription for testing

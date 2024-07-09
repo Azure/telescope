@@ -74,12 +74,11 @@ loadbalancer_config_list = [{
   load_balancer_type  = "application"
   security_group_name = "server-sg"
   lb_target_group = [{
-    role       = "nlb-tg"
-    tg_suffix  = "http"
-    port       = 80
-    protocol   = "HTTP"
-    rule_count = 1
-    vpc_name   = "server-vpc"
+    role      = "nlb-tg"
+    tg_suffix = "http"
+    port      = 80
+    protocol  = "HTTP"
+    vpc_name  = "server-vpc"
     health_check = {
       port                = "80"
       protocol            = "HTTP"
@@ -88,14 +87,14 @@ loadbalancer_config_list = [{
       healthy_threshold   = 3
       unhealthy_threshold = 3
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 80
       protocol = "HTTP"
-    }
-    lb_target_group_attachment = {
+    }]
+    lb_target_group_attachment = [{
       vm_name = "server-vm"
       port    = 80
-    }
+    }]
     }
   ]
 }]
