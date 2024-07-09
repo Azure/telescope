@@ -7,9 +7,14 @@ network_config_list = [
     vpc_name       = "same-vpc"
     vpc_cidr_block = "10.2.0.0/16"
     subnet = [{
-      name        = "same-subnet"
+      name        = "client-subnet"
       cidr_block  = "10.2.1.0/24"
       zone_suffix = "a"
+      },
+      {
+        name        = "server-subnet"
+        cidr_block  = "10.2.2.0/24"
+        zone_suffix = "b"
     }]
     security_group_name = "same-sg"
     route_tables = [
@@ -20,8 +25,13 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "same-subnet-rt-assoc"
-        subnet_name      = "same-subnet"
+        name             = "client-subnet-rt-assoc"
+        subnet_name      = "client-subnet"
+        route_table_name = "internet-rt"
+      },
+      {
+        name             = "server-subnet-rt-assoc"
+        subnet_name      = "server-subnet"
         route_table_name = "internet-rt"
       }
     ]
@@ -55,7 +65,7 @@ loadbalancer_config_list = []
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  subnet_name                 = "same-subnet"
+  subnet_name                 = "client-subnet"
   security_group_name         = "same-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
@@ -70,7 +80,7 @@ vm_config_list = [{
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    subnet_name                 = "same-subnet"
+    subnet_name                 = "server-subnet"
     security_group_name         = "same-sg"
     associate_public_ip_address = true
     zone_suffix                 = "b"
