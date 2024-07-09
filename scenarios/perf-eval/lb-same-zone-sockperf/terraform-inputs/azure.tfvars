@@ -32,24 +32,13 @@ network_config_list = [
     ]
     nsr_rules = [
       {
-        name                       = "server-nsr-tcp"
-        priority                   = 100
+        name                       = "nsr-tcp"
+        priority                   = 101
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20001"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "server-nsr-udp"
-        priority                   = 101
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Udp"
-        source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "20005-20005"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
       },
@@ -94,24 +83,13 @@ network_config_list = [
       destination_address_prefix = "*"
       },
       {
-        name                       = "client-nsr-tcp"
+        name                       = "nsr-tcp"
         priority                   = 101
-        direction                  = "Outbound"
+        direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
-        destination_port_range     = "20001-20002"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      },
-      {
-        name                       = "client-nsr-udp"
-        priority                   = 102
-        direction                  = "Outbound"
-        access                     = "Allow"
-        protocol                   = "Udp"
-        source_port_range          = "*"
-        destination_port_range     = "20002-20002"
+        destination_port_range     = "20005-20005"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
     }]
@@ -123,28 +101,18 @@ loadbalancer_config_list = [{
   public_ip_name        = "lb-pip"
   loadbalance_pool_name = "ingress-lb-pool"
   probe_protocol        = "Tcp"
-  probe_port            = 20000
+  probe_port            = 20005
   probe_request_path    = null,
   lb_rules = [{
     type                     = "Inbound"
     rule_count               = 1
     role                     = "ingress-lb-tcp-rule"
     protocol                 = "Tcp"
-    frontend_port            = 20001
-    backend_port             = 20001
+    frontend_port            = 20005
+    backend_port             = 20005
     fronend_ip_config_prefix = "ingress"
     enable_tcp_reset         = false
     idle_timeout_in_minutes  = 4
-    },
-    {
-      type                    = "Inbound"
-      rule_count              = 1
-      role                    = "ingress-lb-udp-rule"
-      protocol                = "Udp"
-      frontend_port           = 20002
-      backend_port            = 20002
-      enable_tcp_reset        = false
-      idle_timeout_in_minutes = 4
   }]
 }]
 
@@ -155,9 +123,9 @@ vm_config_list = [{
   admin_username = "ubuntu"
   zone           = "1"
   source_image_reference = {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-focal"
-    sku       = "20_04-lts"
+    publisher = "canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
   create_vm_extension = true
@@ -169,9 +137,9 @@ vm_config_list = [{
     admin_username = "ubuntu"
     zone           = "1"
     source_image_reference = {
-      publisher = "Canonical"
-      offer     = "0001-com-ubuntu-server-focal"
-      sku       = "20_04-lts"
+      publisher = "canonical"
+      offer     = "0001-com-ubuntu-server-jammy"
+      sku       = "22_04-lts"
       version   = "latest"
     }
     create_vm_extension = true
