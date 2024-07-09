@@ -321,7 +321,7 @@ measure_vm_run_command() {
     fi
 
     result="{\
-        \"operation\": \"install_vm_extension\", \
+        \"operation\": \"run_command\", \
         \"succeeded\": \"$execution_succedded\", \
         \"run_command_data\": $(jq -c -n \
           --argjson run_command_data "$(jq -r '.data' <<< "$output_run_command_data")" \
