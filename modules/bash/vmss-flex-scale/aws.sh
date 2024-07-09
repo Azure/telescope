@@ -1,6 +1,22 @@
 #!/bin/bash
 
 # Description:
+#   This function is used to generate a launch template name
+#
+# Parameters:
+#   - $1: The run id
+#
+# Usage: get_lt_name <run_id>
+get_lt_name() {
+    local run_id=$1
+
+    local lt_name="lt-$run_id"
+    lt_name="${lt_name%-}"
+
+    echo "$lt_name"
+}
+
+# Description:
 #   This function is used to create an Auto Scaling group instance in AWS.
 #
 # Parameters:
