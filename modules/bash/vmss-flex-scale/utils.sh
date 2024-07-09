@@ -167,16 +167,12 @@ measure_create_vmss() {
     fi
 
     local start_time=$(date +%s)
-
-    if [[ "$cloud" == "aws" ]]; then
-        lt_id=$(create_lt "$lt_name" "$vm_size" "$vm_os" "$security_group_id" "$subnet_id" "$region")
-    fi
-
     case $cloud in
         azure)
             vmss_data=$(create_vmss "$vmss_name" "$vm_size" "$vm_os" "$vm_instances" "$region" "$run_id" "$network_security_group" "$vnet_name" "$subnet" "$security_type" "$tags")
         ;;
         aws)
+            lt_id=$(create_lt "$lt_name" "$vm_size" "$vm_os" "$security_group_id" "$subnet_id" "$region")
             vmss_data=$(create_asg "$vmss_name" "$vm_instances" "$vm_scale_instances_target" "$lt_name" "$region" "$tags")
             wait_for_desired_capacity "$vmss_name" "$vm_instances"
         ;;
@@ -347,9 +343,6 @@ measure_delete_vmss() {
             vmss_data=$(delete_vmss "$vmss_name" "$run_id")
         ;;
         aws)
-            update_autoscaling_group "$vmss_name" 0 0
-            wait_for_desired_capacity "$vmss_name" 0
-            wait_for_scaling_activities "$vmss_name"
             vmss_data=$(delete_asg "$vmss_name")
             wait_until_no_autoscaling_groups $vmss_name
         ;;
