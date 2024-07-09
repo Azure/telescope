@@ -25,6 +25,7 @@ aks_config_list = [
         name       = "user"
         node_count = 1
         vm_size    = "Standard_D16s_v4"
+        zones      = ["1"]
       }
     ]
   }
