@@ -66,8 +66,8 @@ create_vm() {
     local admin_username="${13:-"azureuser"}"
     local admin_password="${14:-"Azur3User!FTW"}"
 
-    local ssh_file="/tmp/ssh-$(date +%s)"
-    local cli_file="/tmp/cli-$(date +%s)"
+    local ssh_file="/tmp/ssh-$vm_name-$(date +%s)"
+    local cli_file="/tmp/cli-$vm_name-$(date +%s)"
     local error_file="/tmp/$vm_name-create_vm-error.txt"
     local output_file="/tmp/$vm_name-create_vm-output.txt"
 
