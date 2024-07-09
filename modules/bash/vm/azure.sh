@@ -356,8 +356,8 @@ create_vm_output() {
 		fi
 	elif [[ "$command_exit_code" -ne 0 ]]; then
 		echo $(jq -c -n \
-			--arg vm_name "$vm_name" \
-			--arg command_exit_code "$command_exit_code" \
+		--arg vm_name "$vm_name" \
+		--arg command_exit_code "$command_exit_code" \
 		'{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Command exited with code $command_exit_code. No error available."}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
 	else
 		echo "$(process_results "$ssh_file" "$cli_file" "$error_file" "$start_time" "$vm_name" )"
