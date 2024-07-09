@@ -279,7 +279,7 @@ measure_vm_extension() {
 #   - $6: The script command to be executed
 #
 # Usage: measure_run_command <cloud> <run_id> <result_dir>
-measure_run_command() {
+measure_vm_run_command() {
     local cloud=$1
     local run_id=$2
     local result_dir=$3
