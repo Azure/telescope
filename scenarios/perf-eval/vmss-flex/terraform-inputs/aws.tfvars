@@ -9,7 +9,7 @@ network_config_list = [
     security_group_name = "vmss-flex-scale-sg"
     subnet = [{
       name        = "vmss-flex-scale-subnet"
-      cidr_block  = "10.2.1.0/24"
+      cidr_block  = "10.2.1.0/21"
       zone_suffix = "a"
     }]
     route_tables             = []
