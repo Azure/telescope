@@ -204,6 +204,9 @@ measure_create_delete_vm() {
 #   - $1: The cloud provider (e.g. azure, aws, gcp)
 #   - $2: The run id
 #   - $3: The result directory where to place the results in JSON format
+#   - $4: The region
+#   - $5: The name of the VM
+#   - $6: The script command to be executed after installation
 #
 # Usage: measure_vm_extension <cloud> <run_id> <result_dir>
 measure_vm_extension() {
@@ -261,6 +264,73 @@ measure_vm_extension() {
 
     mkdir -p $result_dir
     echo $result > "$result_dir/vm-extension-$cloud-$vm_name-$(date +%s).json"
+    echo $result
+}
+
+# Description:
+#   This function is used to to measure the time it takes to run a command on a created VM and save results in JSON format
+#
+# Parameters:
+#   - $1: The cloud provider (e.g. azure, aws, gcp)
+#   - $2: The run id
+#   - $3: The result directory where to place the results in JSON format
+#   - $4: The region
+#   - $5: The name of the VM
+#   - $6: The script command to be executed
+#
+# Usage: measure_run_command <cloud> <run_id> <result_dir>
+measure_run_command() {
+    local cloud=$1
+    local run_id=$2
+    local result_dir=$3
+    local region=$4
+    local vm_name=$5
+    local command=${6:-""}
+    local result=""
+    local installation_succedded="false"
+    local installation_time=0
+
+    local start_time=$(date +%s)
+    echo "Measuring $cloud VM RunCommand for $vm_name. Started at $start_time."
+
+    case $cloud in
+        azure)
+            run_command_data=$(run_command "$vm_name" "$run_id" "$command")
+        ;;
+        *)
+            exit 1 # cloud provider unknown/not implemented
+        ;;
+    esac
+    
+    wait
+    local end_time=$(date +%s)
+    echo "Finished $cloud VM RunCommand for $vm_name. Ended at $end_time."
+
+    if [[ -n "$run_command_data" ]]; then
+        succeeded=$(jq -r '.succeeded' <<< "$run_command_data")
+        if [[ "$succeeded" == "true" ]]; then
+            output_run_command_data=$run_command_data
+            execution_time=$((end_time - start_time))
+            execution_succedded="true"
+        else
+            temporary_run_command_data=$(jq -r '.data' <<< "$run_command_data")
+            if [[ -n "$temporary_run_command_data" ]]; then
+                output_run_command_data=$run_command_data
+            fi
+        fi
+    fi
+
+    result="{\
+        \"operation\": \"install_vm_extension\", \
+        \"succeeded\": \"$execution_succedded\", \
+        \"run_command_data\": $(jq -c -n \
+          --argjson run_command_data "$(jq -r '.data' <<< "$output_run_command_data")" \
+          '$run_command_data'), \
+        \"time\": \"$execution_time\" \
+    }"
+
+    mkdir -p $result_dir
+    echo $result > "$result_dir/vm-run-command-$cloud-$vm_name-$(date +%s).json"
     echo $result
 }
 

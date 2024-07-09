@@ -275,7 +275,7 @@ delete_pip() {
 # Notes:
 #   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
 #
-# Usage: install_vm_extension <vm_name> <resource_group>
+# Usage: install_vm_extension <vm_name> <resource_group> <command>
 install_vm_extension() {
     local vm_name=$1
     local resource_group=$2
@@ -298,6 +298,47 @@ install_vm_extension() {
             echo $(jq -c -n \
                 --argjson extension_data "$extension_data" \
             '{succeeded: "true", data: $extension_data}')
+        else
+            echo $(jq -c -n \
+                --arg error "$error" \
+                '{succeeded: "false", data: {error: $error}}')
+        fi
+    )
+}
+
+# Description:
+#   This function is used to run a command on a VM
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: Commands to execute (e.g. 'echo "Hello world"')
+#
+# Notes:
+#   - an object with keys 'succeeded' and 'data' is returned, representing if the execution of the command was successful or not and the command response
+#
+# Usage: run_command <vm_name> <resource_group> <command>
+run_command() {
+    local vm_name=$1
+    local resource_group=$2
+    local command=${3:-'echo "Hello world"'}
+
+    az vm run-command invoke \
+        --resource-group "$resource_group" \
+        --name "$vm_name" \
+        --command-id RunShellScript \
+        --scripts "$command" 2> /tmp/$resource_group-$vm_name-run-command-error.txt > /tmp/$resource_group-$vm_name-run-command-output.txt
+
+    exit_code=$?
+
+    (
+        run_command_data=$(cat /tmp/$resource_group-$vm_name-run-command-output.txt)
+        error=$(cat /tmp/$resource_group-$vm_name-run-command-error.txt)
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo $(jq -c -n \
+                --argjson run_command_data "$run_command_data" \
+            '{succeeded: "true", data: $run_command_data}')
         else
             echo $(jq -c -n \
                 --arg error "$error" \
