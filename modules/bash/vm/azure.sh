@@ -275,7 +275,7 @@ install_vm_extension() {
 		else
 			echo $(jq -c -n \
 				--arg error "$error" \
-				'{succeeded: "false", data: {error: $error}}')
+			'{succeeded: "false", data: {error: $error}}')
 		fi
 	)
 }
