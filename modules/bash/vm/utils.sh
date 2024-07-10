@@ -471,9 +471,10 @@ get_connection_timestamp() {
     local try=0
     local wait_time=3
 
+    error_file="/tmp/ssh-$ip-$(date +%s).txt"
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
-        netcat -w $wait_time -z $ip $port
+        netcat -w $wait_time -z $ip $port 2>$error_file
         output=$?
         try=$((try + $wait_time + 1))
         sleep 1
