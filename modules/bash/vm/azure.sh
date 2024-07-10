@@ -270,12 +270,12 @@ delete_pip() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
-#   - $3: Commands to execute (e.g. '{"commandToExecute": "echo Hello World"}')
+#   - $3: [optional] Commands to execute (e.g. '{"commandToExecute": "echo Hello World"}')
 #
 # Notes:
 #   - an object with keys 'succeeded' and 'data' is returned, representing if the installation was successful or not and the command response
 #
-# Usage: install_vm_extension <vm_name> <resource_group> <command>
+# Usage: install_vm_extension <vm_name> <resource_group> [command]
 install_vm_extension() {
     local vm_name=$1
     local resource_group=$2
@@ -312,12 +312,12 @@ install_vm_extension() {
 # Parameters:
 #   - $1: The name of the VM (e.g. my-vm)
 #   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
-#   - $3: Commands to execute (e.g. 'echo "Hello world"')
+#   - $3: [optional] Commands to execute (e.g. 'echo "Hello world"')
 #
 # Notes:
 #   - an object with keys 'succeeded' and 'data' is returned, representing if the execution of the command was successful or not and the command response
 #
-# Usage: run_command <vm_name> <resource_group> <command>
+# Usage: run_command <vm_name> <resource_group> [command]
 run_command() {
     local vm_name=$1
     local resource_group=$2

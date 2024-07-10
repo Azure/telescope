@@ -206,9 +206,9 @@ measure_create_delete_vm() {
 #   - $3: The result directory where to place the results in JSON format
 #   - $4: The region
 #   - $5: The name of the VM
-#   - $6: The script command to be executed after installation
+#   - $6: [optional] The script command to be executed after installation (default: 'echo "Hello world"')
 #
-# Usage: measure_vm_extension <cloud> <run_id> <result_dir>
+# Usage: measure_vm_extension <cloud> <run_id> <result_dir> <region> <vm_name> [command]
 measure_vm_extension() {
     local cloud=$1
     local run_id=$2
@@ -276,9 +276,9 @@ measure_vm_extension() {
 #   - $3: The result directory where to place the results in JSON format
 #   - $4: The region
 #   - $5: The name of the VM
-#   - $6: The script command to be executed
+#   - $6: [optional] The script command to be executed (default: 'echo "Hello world"')
 #
-# Usage: measure_run_command <cloud> <run_id> <result_dir>
+# Usage: measure_run_command <cloud> <run_id> <result_dir> <region> <vm_name> [command]
 measure_vm_run_command() {
     local cloud=$1
     local run_id=$2
