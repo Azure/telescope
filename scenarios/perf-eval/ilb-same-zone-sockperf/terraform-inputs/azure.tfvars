@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-same-zone-sockperf"
+scenario_name  = "ilb-same-zone-sockperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
