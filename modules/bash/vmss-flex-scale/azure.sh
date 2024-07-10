@@ -33,13 +33,15 @@ create_vmss() {
     local tags="${11:-"''"}"
     local admin_username="${12:-"azureuser"}"
     local admin_password="${13:-"Azur3User!FTW"}"
+    local operation_output="/tmp/$resource_group-$vmss_name-create_vmss-output.txt"
+    local operation_error="/tmp/$resource_group-$vmss_name-create_vmss-error.txt"
 
     az vmss create --name "$vmss_name" --resource-group "$resource_group" \
         --image "$vm_os" --vm-sku "$vm_size" --instance-count $vm_instances \
         --location "$region" --nsg "$network_security_group" --vnet-name "$vnet_name" \
         --subnet "$subnet" --security-type "$security_type" --load-balancer "" --tags $tags \
         --admin-username "$admin_username" --admin-password "$admin_password" \
-        -o json 2> "/tmp/$resource_group-$vmss_name-create_vmss-error.txt" > "/tmp/$resource_group-$vmss_name-create_vmss-output.txt"
+        -o json 2> "$operation_error" > "$operation_output"
 
     exit_code=$?
 
@@ -52,8 +54,8 @@ create_vmss() {
         }
         trap _catch ERR
 
-        vmss_data=$(cat "/tmp/$resource_group-$vmss_name-create_vmss-output.txt")
-        error=$(cat "/tmp/$resource_group-$vmss_name-create_vmss-error.txt")
+        vmss_data=$(cat "$operation_output")
+        error=$(cat "$operation_error")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
@@ -89,9 +91,11 @@ scale_vmss() {
     local vmss_name=$1
     local resource_group=$2
     local vmss_capacity=$3
+    local operation_output="/tmp/$resource_group-$vmss_name-scale_vmss-output.txt"
+    local operation_error="/tmp/$resource_group-$vmss_name-scale_vmss-error.txt"
     
     az vmss scale --name "$vmss_name" --new-capacity $vmss_capacity --resource-group "$resource_group" \
-        -o json 2> "/tmp/$resource_group-$vmss_name-scale_vmss-error.txt" > "/tmp/$resource_group-$vmss_name-scale_vmss-output.txt"
+                  -o json 2> "$operation_error" > "$operation_output"
 
     exit_code=$?
 
@@ -104,17 +108,19 @@ scale_vmss() {
         }
         trap _catch ERR
 
-        vmss_data=$(cat "/tmp/$resource_group-$vmss_name-scale_vmss-output.txt")
-        error=$(cat "/tmp/$resource_group-$vmss_name-scale_vmss-error.txt")
+        vmss_data=$(cat "$operation_output")
+        error=$(cat "$operation_error")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
                 --arg vmss_name "$vmss_name" \
+                --argjson vmss_data "$vmss_data" \
             '{succeeded: "true", vmss_name: $vmss_name, vmss_data: $vmss_data}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
         else
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
+                    --argjson vmss_data "${error:7}" \
                 '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
@@ -137,9 +143,10 @@ scale_vmss() {
 delete_vmss() {
     local vmss_name=$1
     local resource_group=$2
+    local operation_error="/tmp/$resource_group-$vmss_name-delete_vmss-error.txt"
 
     az vmss delete --name "$vmss_name" --resource-group "$resource_group" \
-        -o json 2> "/tmp/$resource_group-$vmss_name-delete_vmss-error.txt" > "/tmp/$resource_group-$vmss_name-delete_vmss-output.txt"
+                   -o json 2> "$operation_error"
 
     exit_code=$?
 
@@ -162,6 +169,7 @@ delete_vmss() {
             if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
                 echo $(jq -c -n \
                     --arg vmss_name "$vmss_name" \
+                    --argjson vmss_data "${error:7}" \
                 '{succeeded: "false", vmss_name: $vmss_name, vmss_data: {error: $vmss_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
             else
                 echo $(jq -c -n \
