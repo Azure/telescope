@@ -60,58 +60,31 @@ create_ec2() {
     local timeout="${9:-"300"}"
     local tag_specifications="${10:-"ResourceType=instance,Tags=[{Key=owner,Value=azure_devops}]"}"
 
+    local ssh_file="/tmp/ssh-$instance_name-$(date +%s).txt"
+    local cli_file="/tmp/cli-$instance_name-$(date +%s).txt"
+    local error_file="/tmp/aws-$instance_name-create_ec2-error.txt"
+    local output_file="/tmp/aws-$instance_name-create_ec2-output.txt"
+
+    local start_time=$(date +%s)
+
     if [[ -n "$nic" ]]; then
-        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     else
-        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "/tmp/aws-$instance_name-create_ec2-error.txt" > "/tmp/aws-$instance_name-create_ec2-output.txt"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     fi
 
-    exit_code=$?
+    local exit_code=$?
 
-    (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-                --arg vm_name "$instance_name" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
-        trap _catch ERR
+    local instance_data="$(cat $output_file)"
+    local instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
 
-        instance_data=$(cat "/tmp/aws-$instance_name-create_ec2-output.txt")
-        error=$(cat "/tmp/aws-$instance_name-create_ec2-error.txt")
+    if [[ $exit_code -eq 0 ]]; then
+        (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file") &
+        (get_running_state_timestamp "$instance_id" "$timeout" > "$cli_file") &
+        wait
+    fi
 
-        echo "Create VM output:" >> "/tmp/$instance_name-debug.log"
-
-        if [[ $exit_code -eq 0 ]]; then
-            instance_id=$(echo "$instance_data" | jq -r '.Instances[0].InstanceId')
-
-            if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
-                trap - ERR
-                connection_successful=$(test_connection "$pip" "$port" "$timeout")
-                trap _catch ERR
-
-                if [ "$connection_successful" == "true" ]; then
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                    '{succeeded: "true", vm_name: $vm_name}')
-                else
-                    echo $(jq -c -n \
-                        --arg vm_name "$instance_id" \
-                    '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-                fi
-            else
-                echo $(jq -c -n \
-                    --arg vm_name "$instance_id" \
-                    --arg vm_data "$instance_data" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
-        else
-            echo $(jq -c -n \
-                --arg vm_name "$instance_name" \
-                --arg vm_data "$error" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        fi
-    )
+    echo "$(create_vm_output "$instance_name" "$instance_id" "$instance_data" "$start_time" "$ssh_file" "$cli_file" "$error_file" "$exit_code")"
 }
 
 # Description:
@@ -401,4 +374,87 @@ install_ec2_extension() {
                 '{succeeded: "false", data: {error: $error}}')
         fi
     )
+}
+
+# Description:
+#   This function waits for an EC2 instance to reach the running state and returns the timestamp when it does.
+
+# Parameters:
+#   - $1: The ID of the EC2 instance (e.g. i-0d5d9d301c853a04a)
+#   - $2: Number of seconds after which the command times out
+
+# Usage: get_running_state_timestamp <instance_id> <timeout>
+get_running_state_timestamp() {
+    local instance_id=$1
+    local timeout=$2
+
+    local error_file="/tmp/aws-cli-"$(date +%s)"-error.txt"
+    timeout $timeout aws ec2 wait instance-running --instance-ids "$instance_id" 2> "$error_file"
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        echo $(jq -c -n \
+            --arg timestamp "$(date +%s)" \
+        '{success: "true", timestamp: $timestamp}')
+    else
+        echo $(jq -c -n \
+            --arg error "$(cat $error_file)" \
+        '{sucess: "false", error: $error}')
+    fi
+}
+
+# Description:
+#   This function is used to execute the code for creating VM output.
+
+# Parameters:
+#   - $1: The instance name
+#   - $2: The instance ID
+#   - $3: The instance data
+#   - $4: The start time of the instance creation
+#   - $5: The path to the ssh file
+#   - $6: The path to the cli file
+#   - $7: The path to the error file
+#   - $8: The exit code of the create command
+
+# Usage: create_vm_output <instance_name> <instance_id> <instance_data> <start_time> <ssh_file> <cli_file> <error_file> <command_exit_code>
+create_vm_output() {
+    local instance_name="$1"
+    local instance_id="$2"
+    local instance_data="$3"
+    local start_time="$4"
+    local ssh_file="$5"
+    local cli_file="$6"
+    local error_file="$7"
+    local command_exit_code="$8"
+
+    set -Ee
+    function _catch {
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+    }
+    trap _catch ERR
+
+    local error=$(cat "$error_file")
+
+    if [[ -n "$error" && "$command_exit_code" -ne 0 ]]; then
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+            --arg vm_data "$error" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+    elif [[ "$command_exit_code" -ne 0 ]]; then
+        echo $(jq -c -n \
+            --arg vm_name "$vm_name" \
+            --arg command_exit_code "$command_exit_code" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Command exited with code $command_exit_code. No error available."}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+    else
+        if [[ -n "$instance_id" ]] && [[ "$instance_id" != "null" ]]; then
+            echo "$(process_results "$ssh_file" "$cli_file" "$error_file" "$start_time" "$instance_id" )"
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$instance_id" \
+                --arg vm_data "$instance_data" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        fi
+    fi
 }

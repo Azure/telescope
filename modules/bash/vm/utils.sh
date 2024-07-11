@@ -408,12 +408,14 @@ measure_create_vm() {
 
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+        ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
+        command_execution_time=$(echo "$vm_data" | jq -r '.command_execution_time')
         if [[ "$succeeded" == "true" ]]; then
             vm_id=$(echo "$vm_data" | jq -r '.vm_name')
             output_vm_data=$(jq -c -n \
                     --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
                 '{vm_data: $vm_data}')
-            creation_time=$((end_time - start_time))
+            warning_message=$(echo "$vm_data" | jq -r '.warning_message')
             creation_succeeded=true
         else
             temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
@@ -429,8 +431,10 @@ measure_create_vm() {
           --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
           '$vm_data'), \
         \"operation\": \"create_vm\", \
-        \"time\": \"$creation_time\", \
-        \"succeeded\": \"$creation_succeeded\" \
+        \"ssh_connection_time\": \"$ssh_connection_time\", \
+        \"command_execution_time\": \"$command_execution_time\", \
+        \"succeeded\": \"$creation_succeeded\", \
+        \"warning_message\": \"$warning_message\" \
     }"
 
     mkdir -p $result_dir
@@ -527,8 +531,8 @@ measure_delete_vm() {
 #   - $2: The port to use
 #   - $3: The timeout to wait for the operation to complete
 #
-# Usage: test_connection <ip> <port> <timeout>
-test_connection() {
+# Usage: get_connection_time <ip> <port> <timeout>
+get_connection_timestamp() {
     local ip=$1
     local port=$2
     local timeout=$3
@@ -536,19 +540,84 @@ test_connection() {
     local output=1
     local try=0
     local wait_time=3
-    
+
+    error_file="/tmp/ssh-$ip-$(date +%s).txt"
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
-        netcat -w $wait_time -z $ip $port
+        netcat -w $wait_time -z $ip $port 2>$error_file
         output=$?
         try=$((try + $wait_time + 1))
         sleep 1
     done
     set -e
 
-    if [ $try -lt $timeout ]; then
-        echo "true"
+    local exit_code=$output
+    if [[ $exit_code -eq 0 ]]; then
+        echo $(jq -c -n \
+            --arg timestamp "$(date +%s)" \
+        '{success: "true", timestamp: $timestamp}')
     else
-        echo "false"
+        echo $(jq -c -n \
+            --arg error "$(cat $error_file)" \
+        '{sucess: "false", error: $error}')
+    fi
+}
+
+# Description:
+#   This function is used to process the results of SSH and CLI commands
+#
+# Parameters:
+#   - $1: The path to the SSH result file
+#   - $2: The path to the CLI result file
+#   - $3: The path to the error file
+#   - $4: The start time of the commands
+#   - $5: The instance ID
+#
+# Returns: The results in JSON format
+# Usage: process_results <ssh_file> <cli_file> <error_file> <start_time> <instance_id>
+process_results() {
+    local ssh_file="$1"
+    local cli_file="$2"
+    local error_file="$3"
+    local start_time="$4"
+    local instance_name="$5"
+
+    local error_message=""
+    local cli_success=$(jq -r '.success' "$cli_file")
+    local ssh_success=$(jq -r '.success' "$ssh_file")
+
+    if [[ "$ssh_success" == "true" ]]; then
+        local ssh_timestamp=$(jq -r '.timestamp' "$ssh_file")
+        local ssh_time=$(($ssh_timestamp - $start_time))
+    else
+        ssh_time=-1
+        local ssh_error=$(jq -r '.error' "$ssh_file")
+        error_message="$error_message $ssh_error"
+    fi
+
+    if [[ "$cli_success" == "true" ]]; then
+        local cli_timestamp=$(jq -r '.timestamp' "$cli_file")
+        local cli_time=$(($cli_timestamp - $start_time))
+    else
+        cli_time=-1
+        local cli_error=$(jq -r '.error' "$cli_file")
+        error_message="$error_message $cli_error"
+    fi
+
+    if [[ "$ssh_success" == "true" && "$cli_success" == "true" ]]; then
+        local warning_message="$(cat $error_file | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+            --arg ssh_connection_time "$ssh_time" \
+            --arg command_execution_time "$cli_time" \
+            --arg warning_message "$warning_message" \
+        '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, warning_message: $warning_message}')
+    else
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+            --arg ssh_connection_time "$ssh_time" \
+            --arg command_execution_time "$cli_time" \
+            --arg error_message "$error_message" \
+        '{succeeded: "false", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, error_message: $error_message}')
     fi
 }

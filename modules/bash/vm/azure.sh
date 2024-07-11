@@ -66,54 +66,28 @@ create_vm() {
     local admin_username="${13:-"azureuser"}"
     local admin_password="${14:-"Azur3User!FTW"}"
 
+    local ssh_file="/tmp/ssh-$vm_name-$(date +%s).txt"
+    local cli_file="/tmp/cli-$vm_name-$(date +%s).txt"
+    local error_file="/tmp/$vm_name-create_vm-error.txt"
+    local output_file="/tmp/$vm_name-create_vm-output.txt"
+
+    local start_time=$(date +%s)
+
     if [[ -n "$nics" ]]; then
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
+        az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --no-wait --output json --tags $tags 2>"$error_file" > "$output_file"
     else
-        az vm create --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2> "/tmp/$vm_name-create_vm-error.txt" > "/tmp/$vm_name-create_vm-output.txt"
+        az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2>"$error_file" > "$output_file"
     fi
 
-    exit_code=$?
+    local exit_code=$?
 
-    (
-        set -Ee
-        function _catch {
-            echo $(jq -c -n \
-                --arg vm_name "$vm_name" \
-            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-        }
-        trap _catch ERR
+    if [[ $exit_code -eq 0 ]]; then
+        (get_connection_timestamp "$pip" "$port" "$timeout" > "$ssh_file" ) &
+        (get_running_state_timestamp "$vm_name" "$resource_group" "$timeout" > "$cli_file" ) &
+        wait
+    fi
 
-        vm_data=$(cat "/tmp/$vm_name-create_vm-output.txt")
-        error=$(cat "/tmp/$vm_name-create_vm-error.txt")
-
-        if [[ $exit_code -eq 0 ]]; then
-            trap - ERR
-            connection_successful=$(test_connection "$pip" "$port" "$timeout")
-            trap _catch ERR
-
-            if [ "$connection_successful" == "true" ]; then
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                '{succeeded: "true", vm_name: $vm_name}')
-            else
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "VM creation timed out"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
-        else
-            if [[ -n "$error" ]] && [[ "${error:0:8}" == "ERROR: {" ]]; then
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                    --argjson vm_data "${error:7}" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            else
-                echo $(jq -c -n \
-                    --arg vm_name "$vm_name" \
-                    --arg vm_data "$error" \
-                '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
-            fi
-        fi
-    )
+    echo "$(create_vm_output "$vm_name" "$start_time" "$ssh_file" "$cli_file" "$error_file" "$exit_code")"
 }
 
 # Description:
@@ -141,8 +115,8 @@ delete_vm() {
         }
         trap _catch ERR
 
-        vm_data=$(cat "/tmp/$vm_name-delete_vm-output.txt")
-        error=$(cat "/tmp/$vm_name-delete_vm-error.txt")
+        vm_data=$(cat "/tmp/$vm_name-delete-vm-output.txt")
+        error=$(cat "/tmp/$vm_name-delete-vm-error.txt")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
@@ -301,7 +275,7 @@ install_vm_extension() {
         else
             echo $(jq -c -n \
                 --arg error "$error" \
-                '{succeeded: "false", data: {error: $error}}')
+            '{succeeded: "false", data: {error: $error}}')
         fi
     )
 }
@@ -345,4 +319,88 @@ run_command() {
                 '{succeeded: "false", data: {error: $error}}')
         fi
     )
+}
+
+# Description:
+#   This function checks the status of a VM in Azure.
+#
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The resource group under which the VM was created (e.g. rg-my-vm)
+#   - $3: The timeout value in seconds (e.g. 300)
+#
+# Returns: true if the VM has the expected status within the timeout, false otherwise
+# Usage: get_running_state_timestamp <vm_name> <resource_group> <timeout>
+get_running_state_timestamp() {
+    local vm_name=$1
+    local resource_group=$2
+    local timeout=$3
+
+    local error_file="/tmp/azure-cli-"$(date +%s)"-error.txt"
+    az vm wait --timeout $timeout -g "$resource_group" -n "$vm_name" --interval 15 --created 2> $error_file
+    local exit_code=$?
+
+
+    if [[ $exit_code -eq 0 ]]; then
+        echo $(jq -c -n \
+            --arg timestamp "$(date +%s)" \
+        '{success: "true", timestamp: $timestamp}')
+    else
+        echo $(jq -c -n \
+            --arg error "$(cat $error_file)" \
+        '{sucess: "false", error: $error}')
+    fi
+}
+
+# Description:
+#   This method processes the results of SSH and CLI commands and returns the appropriate response.
+
+# Parameters:
+#   - $1: The name of the VM (e.g. my-vm)
+#   - $2: The start time of the command execution
+#   - $3: The SSH file path
+#   - $4: The CLI file path
+#   - $5: The error file path
+#   - $6: The create command exit code
+#
+# Returns: The response JSON string
+# Usage: process_result <vm_name> <start_time> <ssh_file> <cli_file> <error_file> <command_exit_code>
+create_vm_output() {
+    local vm_name="$1"
+    local start_time="$2"
+    local ssh_file="$3"
+    local cli_file="$4"
+    local error_file="$5"
+    local command_exit_code="$6"
+
+    set -Ee
+    function _catch {
+        echo $(jq -c -n \
+            --arg vm_name "$instance_name" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Unknown error"}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+    }
+    trap _catch ERR
+
+    local error=$(cat "$error_file")
+
+    if [[ -n "$error" && $command_exit_code -ne 0 ]]; then
+        if [[ "${error:0:8}" == "ERROR: {" ]]; then
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --argjson vm_data "${error:7}" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        else
+            echo $(jq -c -n \
+                --arg vm_name "$vm_name" \
+                --arg vm_data "$error" \
+            '{succeeded: "false", vm_name: $vm_name, vm_data: {error: $vm_data}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+        fi
+    elif [[ "$command_exit_code" -ne 0 ]]; then
+        echo $(jq -c -n \
+            --arg vm_name "$vm_name" \
+            --arg command_exit_code "$command_exit_code" \
+        '{succeeded: "false", vm_name: $vm_name, vm_data: {error: "Command exited with code $command_exit_code. No error available."}}') | sed -E 's/\\n|\\r|\\t|\\s| /\|/g'
+    else
+        echo "$(process_results "$ssh_file" "$cli_file" "$error_file" "$start_time" "$vm_name" )"
+    fi
 }
