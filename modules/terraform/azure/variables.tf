@@ -24,6 +24,7 @@ variable "json_input" {
     storage_share_quota              = optional(number)
     storage_share_access_tier        = optional(string)
     storage_share_enabled_protocol   = optional(string)
+    vm_count_override                = optional(number, 0)
   })
 }
 
@@ -49,6 +50,7 @@ variable "public_ip_config_list" {
   description = "A list of public IP names"
   type = list(object({
     name              = string
+    count             = optional(number, 1)
     allocation_method = optional(string, "Static")
     sku               = optional(string, "Standard")
     zones             = optional(list(string), [])
@@ -79,6 +81,7 @@ variable "network_config_list" {
       subnet_name           = string
       ip_configuration_name = string
       public_ip_name        = string
+      count                 = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string
@@ -237,6 +240,7 @@ variable "vm_config_list" {
     admin_username   = string
     info_column_name = optional(string)
     zone             = optional(number)
+    count            = optional(number, 1)
     source_image_reference = object({
       publisher = string
       offer     = string

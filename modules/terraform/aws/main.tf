@@ -9,6 +9,7 @@ locals {
   data_disk_iops_read_write = lookup(var.json_input, "data_disk_iops_read_write", null)
   data_disk_mbps_read_write = lookup(var.json_input, "data_disk_mbps_read_write", null)
   data_disk_count           = lookup(var.json_input, "data_disk_count", 1)
+  vm_count_override         = lookup(var.json_input, "vm_count_override", null)
 
   efs_performance_mode                = lookup(var.json_input, "efs_performance_mode", null)
   efs_throughput_mode                 = lookup(var.json_input, "efs_throughput_mode", null)
@@ -24,12 +25,25 @@ locals {
 
   network_config_map      = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
-  vm_config_map           = { for vm in var.vm_config_list : vm.vm_name => vm }
+  expanded_vm_config_list = flatten([
+  for vm in var.vm_config_list : [
+    for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
+      vm_name                     = vm.count > 1 ? "${vm.vm_name}-${i+1}" : vm.vm_name
+      zone_suffix                 = vm.zone_suffix
+      role                        = vm.role
+      subnet_name                 = vm.subnet_name
+      security_group_name         = vm.security_group_name
+      associate_public_ip_address = vm.associate_public_ip_address
+      info_column_name            = vm.info_column_name
+      ami_config                  = vm.ami_config
+    }]
+  ])
+  vm_config_map           = { for vm in local.expanded_vm_config_list : vm.vm_name => vm }
   eks_config_map          = { for eks in var.eks_config_list : eks.eks_name => eks }
 
   all_lb_arns          = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
   all_vpcs             = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
-  all_vms              = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
+  all_vms              = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
   all_devices_suffixes = ["f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p"]
 }
 

@@ -43,6 +43,7 @@ variable "network_config" {
       subnet_name           = string
       ip_configuration_name = string
       public_ip_name        = string
+      count                 = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string
@@ -68,4 +69,10 @@ variable "tags" {
   type = map(string)
   default = {
   }
+}
+
+variable "nic_count_override" {
+  description = "value the number of modules to create, overrides tfvars definition if greater than 0"
+  type = number
+  default = 0
 }

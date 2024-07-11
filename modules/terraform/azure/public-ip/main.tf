@@ -1,5 +1,16 @@
 locals {
-  public_ip_config_map = { for ip in var.public_ip_config_list : ip.name => ip }
+  expanded_public_ip_config_list = flatten([
+    for ip in var.public_ip_config_list : [
+      for i in range(var.pip_count_override > 0 ? var.pip_count_override : ip.count) : {
+        name                = ip.count > 1 ? "${ip.name}-${i+1}" : ip.name
+        zones               = ip.zones
+        allocation_method   = ip.allocation_method
+        sku                 = ip.sku
+      }
+    ]
+  ])
+
+  public_ip_config_map = { for ip in local.expanded_public_ip_config_list : ip.name => ip }
 }
 
 resource "azurerm_public_ip" "pip" {

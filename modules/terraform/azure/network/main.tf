@@ -5,7 +5,17 @@ locals {
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
   subnets_map                  = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
   network_security_group_name  = var.network_config.network_security_group_name
-  nic_association_map          = { for nic in var.network_config.nic_public_ip_associations : nic.nic_name => nic }
+  expanded_nic_association_map = flatten([
+    for nic in var.network_config.nic_public_ip_associations : [
+      for i in range(var.nic_count_override > 0 ? var.nic_count_override : nic.count) : {
+        nic_name                  = nic.count > 1 ? "${nic.nic_name}-${i+1}" : nic.nic_name
+        subnet_name               = nic.subnet_name
+        ip_configuration_name     = nic.ip_configuration_name
+        public_ip_name            = nic.count > 1 ? "${nic.public_ip_name}-${i+1}" : nic.public_ip_name
+      }
+    ]
+  ])
+  nic_association_map          = { for nic in local.expanded_nic_association_map : nic.nic_name => nic }
   tags                         = merge(var.tags, { "role" = var.network_config.role })
 }
 

@@ -60,82 +60,11 @@ network_config_list = [
 ]
 
 vm_config_list = [{
-  vm_name                     = "vm-extension-1"
+  vm_name                     = "vm-extension"
   role                        = "vm-role"
   subnet_name                 = "vm-extension-subnet"
   security_group_name         = "vm-extension-nsg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-2"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-3"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-4"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-5"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-6"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-7"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-8"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-9"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
-  },
-  {
-    vm_name                     = "vm-extension-10"
-    role                        = "vm-role"
-    subnet_name                 = "vm-extension-subnet"
-    security_group_name         = "vm-extension-nsg"
-    associate_public_ip_address = true
-    zone_suffix                 = "a"
+  count                       = 10
 }]
