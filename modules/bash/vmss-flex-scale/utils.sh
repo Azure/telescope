@@ -162,8 +162,8 @@ measure_create_vmss() {
     local output_vmss_data="{ \"vmss_data\": {}}"
 
     if [[ "$cloud" == "aws" ]]; then
-        security_group_id=$(aws ec2 describe-security-groups --filters "Name=tag:Name,Values=$network_security_group" --query "SecurityGroups[0].GroupId" --output text)
-        subnet_id=$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=$subnet" --query "Subnets[0].SubnetId" --output text)
+        security_group_id=$(aws ec2 describe-security-groups --filters "Name=tag:ResourceGroup,Values=$run_id" "Name=tag:Name,Values=$network_security_group" --query "SecurityGroups[0].GroupId" --output text)
+        subnet_id=$(aws ec2 describe-subnets --filters "Name=tag:ResourceGroup,Values=$run_id" "Name=tag:Name,Values=$subnet" --query "Subnets[0].SubnetId" --output text)
     fi
 
     local start_time=$(date +%s)
