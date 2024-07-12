@@ -28,7 +28,7 @@ locals {
   expanded_vm_config_list = flatten([
   for vm in var.vm_config_list : [
     for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
-      vm_name                     = vm.count > 1 ? "${vm.vm_name}-${i+1}" : vm.vm_name
+      vm_name                     = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i+1}" : vm.vm_name
       zone_suffix                 = vm.zone_suffix
       role                        = vm.role
       subnet_name                 = vm.subnet_name

@@ -8,10 +8,10 @@ locals {
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
       for i in range(var.nic_count_override > 0 ? var.nic_count_override : nic.count) : {
-        nic_name                  = nic.count > 1 ? "${nic.nic_name}-${i+1}" : nic.nic_name
+        nic_name                  = (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1 ? "${nic.nic_name}-${i+1}" : nic.nic_name
         subnet_name               = nic.subnet_name
         ip_configuration_name     = nic.ip_configuration_name
-        public_ip_name            = nic.count > 1 ? "${nic.public_ip_name}-${i+1}" : nic.public_ip_name
+        public_ip_name            = (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1 ? "${nic.public_ip_name}-${i+1}" : nic.public_ip_name
       }
     ]
   ])

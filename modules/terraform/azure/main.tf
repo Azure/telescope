@@ -42,8 +42,8 @@ locals {
     for vm in var.vm_config_list : [
       for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
         role                   = vm.role
-        vm_name                = vm.count > 1 ? "${vm.vm_name}-${i+1}" : vm.vm_name
-        nic_name               = vm.count > 1 ? "${vm.nic_name}-${i+1}" : vm.nic_name
+        vm_name                = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i+1}" : vm.vm_name
+        nic_name               = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i+1}" : vm.nic_name
         admin_username         = vm.admin_username
         info_column_name       = vm.info_column_name
         zone                   = vm.zone
