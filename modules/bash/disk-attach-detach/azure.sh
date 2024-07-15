@@ -168,12 +168,12 @@ wait_for_disk_status() {
     local timeout="${4:-300}"
 
     local total_waited_time=0
+    local start_time=$(date +%s)
+
     while [ "$total_waited_time" -lt "$timeout" ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [[ "$status" == "$status_req" ]]; then
-            # Build the JSON object with the desired fields
-            local json_result="{\"Succeeded\": \"true\", \"Time\": $total_waited_time}"
-            echo "$json_result"
+            echo "{\"Succeeded\": \"true\", \"Time\": $(($(date +%s) - $start_time))}"
             break
         fi
         sleep 1
