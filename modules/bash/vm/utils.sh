@@ -404,10 +404,9 @@ measure_create_vm() {
     esac
 
     wait
-    end_time=$(date +%s)
-    set -x
+
     warning_message="No warnings."
-    vm_data=""
+
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
         ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
