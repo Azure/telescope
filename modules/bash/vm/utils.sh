@@ -405,6 +405,7 @@ measure_create_vm() {
 
     wait
 
+    vm_data=""
     if [[ -n "$vm_data" ]]; then
         local succeeded=$(echo "$vm_data" | jq -r '.succeeded')
         local ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
@@ -499,25 +500,27 @@ measure_delete_vm() {
             deletion_time=$((end_time - start_time))
             deletion_succeeded=true
         else
+            deletion_succeeded=true
+            deletion_time=-1
             temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
             if [[ -n "$temporary_vm_data" ]]; then
                 output_vm_data=$temporary_vm_data
             fi
         fi
+
+        result="$test_details, \
+            \"vm_id\": \"$vm_name\", \
+            \"vm_data\": $(jq -c -n \
+              --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
+              '$vm_data'), \
+            \"operation\": \"delete_vm\", \
+            \"time\": \"$deletion_time\", \
+            \"succeeded\": \"$deletion_succeeded\" \
+        }"
+
+        mkdir -p $result_dir
+        echo $result > "$result_dir/deletion-$cloud-$vm_name-$vm_size-$(date +%s).json"mkdir -p $result_dir
     fi
-
-    result="$test_details, \
-        \"vm_id\": \"$vm_name\", \
-        \"vm_data\": $(jq -c -n \
-          --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
-          '$vm_data'), \
-        \"operation\": \"delete_vm\", \
-        \"time\": \"$deletion_time\", \
-        \"succeeded\": \"$deletion_succeeded\" \
-    }"
-
-    mkdir -p $result_dir
-    echo $result > "$result_dir/deletion-$cloud-$vm_name-$vm_size-$(date +%s).json"
 
     if [[ "$deletion_succeeded" == "true" ]]; then
         echo "$vm_name"
