@@ -405,6 +405,7 @@ measure_create_vm() {
 
     wait
 
+    set -x
     vm_data=""
     if [[ -n "$vm_data" ]]; then
         local succeeded=$(echo "$vm_data" | jq -r '.succeeded')
