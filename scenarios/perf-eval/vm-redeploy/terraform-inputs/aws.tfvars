@@ -61,7 +61,7 @@ vm_config_list = [
     security_group_name         = "vm-redeploy-nsg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
-    count = 20
+    count                       = 20
   }
 ]
 loadbalancer_config_list = []

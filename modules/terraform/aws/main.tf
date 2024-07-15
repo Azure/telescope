@@ -26,20 +26,20 @@ locals {
   network_config_map      = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   expanded_vm_config_list = flatten([
-  for vm in var.vm_config_list : [
-    for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
-      vm_name                     = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i+1}" : vm.vm_name
-      zone_suffix                 = vm.zone_suffix
-      role                        = vm.role
-      subnet_name                 = vm.subnet_name
-      security_group_name         = vm.security_group_name
-      associate_public_ip_address = vm.associate_public_ip_address
-      info_column_name            = vm.info_column_name
-      ami_config                  = vm.ami_config
+    for vm in var.vm_config_list : [
+      for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
+        vm_name                     = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
+        zone_suffix                 = vm.zone_suffix
+        role                        = vm.role
+        subnet_name                 = vm.subnet_name
+        security_group_name         = vm.security_group_name
+        associate_public_ip_address = vm.associate_public_ip_address
+        info_column_name            = vm.info_column_name
+        ami_config                  = vm.ami_config
     }]
   ])
-  vm_config_map           = { for vm in local.expanded_vm_config_list : vm.vm_name => vm }
-  eks_config_map          = { for eks in var.eks_config_list : eks.eks_name => eks }
+  vm_config_map  = { for vm in local.expanded_vm_config_list : vm.vm_name => vm }
+  eks_config_map = { for eks in var.eks_config_list : eks.eks_name => eks }
 
   all_lb_arns          = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => module.load_balancer[loadbalancer.role].lb_arn }
   all_vpcs             = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }

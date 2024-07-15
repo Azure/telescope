@@ -73,6 +73,6 @@ variable "tags" {
 
 variable "nic_count_override" {
   description = "value the number of modules to create, overrides tfvars definition if greater than 0"
-  type = number
-  default = 0
+  type        = number
+  default     = 0
 }
