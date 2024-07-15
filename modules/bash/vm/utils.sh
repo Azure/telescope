@@ -427,15 +427,15 @@ measure_create_vm() {
         fi
 
         result="$test_details, \
-        \"vm_id\": \"$vm_id\", \
-        \"vm_data\": $(jq -c -n \
-          --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
-          '$vm_data'), \
-        \"operation\": \"create_vm\", \
-        \"ssh_connection_time\": \"$ssh_connection_time\", \
-        \"command_execution_time\": \"$command_execution_time\", \
-        \"succeeded\": \"$creation_succeeded\", \
-        \"warning_message\": \"$warning_message\" \
+            \"vm_id\": \"$vm_id\", \
+            \"vm_data\": $(jq -c -n \
+                --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
+                '$vm_data'), \
+            \"operation\": \"create_vm\", \
+            \"ssh_connection_time\": \"$ssh_connection_time\", \
+            \"command_execution_time\": \"$command_execution_time\", \
+            \"succeeded\": \"$creation_succeeded\", \
+            \"warning_message\": \"$warning_message\" \
         }"
 
         mkdir -p $result_dir
