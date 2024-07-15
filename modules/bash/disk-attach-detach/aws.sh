@@ -70,7 +70,7 @@ attach_or_detach_disk() {
     local disk_id=$3
     local run_id=$4
     local index=$5
-    local timeout=${6:-90}
+    local timeout=${6:-300}
 
     local start_time=$(date +%s)
     local status_req=$(if [ "$operation" == "attach" ]; 
