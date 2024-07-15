@@ -88,7 +88,7 @@ attach_or_detach_disk() {
 
     measure_disk_command "$operation" "$vm_name" "$disk_name" "$resource_group" > "$internal_polling_result_file" &
 
-    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$external_polling_result_file" "$time_out" >"$external_polling_result_file"
+    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$time_out" >"$external_polling_result_file"
 
     # Wait for the operation to finish
     wait
@@ -212,22 +212,22 @@ build_output() {
     local internal_polling_result="$(cat "$internal_polling_result_file")"
     local external_polling_result="$(cat "$external_polling_result_file")"
 
-    if [[ "$(jq -r '.Succeeded' "$internal_polling_result")" == "true" && "$(jq -r '.Succeeded' "$external_polling_result")" == "true" ]]; then
+    if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "true" && "$(jq -r '.Succeeded' "$external_polling_result_file")" == "true" ]]; then
         local succeded="True"
-        local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result")"
-        local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result")"
-        local data="$(jq -r '.Output' "$internal_polling_result")"
+        local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result_file")"
+        local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
+        local data="$(jq -r '.Output' "$internal_polling_result_file")"
     else
         local err_message
         local succeded="false"
-        if [[ "$(jq -r '.Succeeded' "$internal_polling_result")" == "false" ]]; then
+        if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "false" ]]; then
             local internal_polling_execution_time=-1
-            err_message="$(jq -r '.Error' "$internal_polling_result")"
+            err_message="$(jq -r '.Error' "$internal_polling_result_file")"
         fi
 
-        if [[ "$(jq -r '.Succeeded' "$external_polling_result")" == "false" ]]; then
+        if [[ "$(jq -r '.Succeeded' "$external_polling_result_file")" == "false" ]]; then
             local external_polling_execution_time=-1
-            err_message="$err_message $(jq -r '.Error' "$external_polling_result")"
+            err_message="$err_message $(jq -r '.Error' "$external_polling_result_file")"
         fi
         local data="{\"error\": \"$err_message\"}"
     fi
