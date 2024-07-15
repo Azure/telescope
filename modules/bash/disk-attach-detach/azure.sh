@@ -63,7 +63,7 @@ get_disk_attach_status_by_disk_id() {
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk (not used in Azure)
-#  -$6: time_out: the time out for the operation (default is 300 seconds)
+#  - $6: timeout(optional, default 300): the time out for the operation (default is 300 seconds)
 # 
 # Returns: Information about each operation
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group> <time_out>
@@ -73,7 +73,7 @@ attach_or_detach_disk() {
     local disk_name="$3"
     local resource_group="$4"
     local index="$5"
-    local time_out="${6:-300}"
+    local timeout="${6:-300}"
 
     local status_req
     if [ "$operation" == "attach" ]; then
@@ -87,7 +87,7 @@ attach_or_detach_disk() {
 
     measure_disk_command "$operation" "$vm_name" "$disk_name" "$resource_group" > "$internal_polling_result_file" &
 
-    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$time_out" >"$external_polling_result_file"
+    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$timeout" >"$external_polling_result_file" &
 
     # Wait for the operation to finish
     wait
@@ -107,7 +107,7 @@ attach_or_detach_disk() {
 #  - $2: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $3: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #
-# Returns: A file ocntaing the result of the operation.
+# Returns: Success status of the command, execution time or error.
 # Usage: measure_disk_command <vm_name> <disk_name> <resource_group>
 measure_disk_command() {
     local operation="$1"
@@ -157,7 +157,7 @@ measure_disk_command() {
 #  - $1: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $2: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $3: status_req: the desired status of the disk
-#  - $54 time_out: the time out for the operation (default is 300 seconds)
+#  - $5 timeout(optional, default 300): the time out for the operation
 #
 # Returns: Output information
 # Usage: wait_for_disk_status <disk_name> <resource_group> <status_req> <time_out>
@@ -165,10 +165,10 @@ wait_for_disk_status() {
     local disk_name="$1"
     local resource_group="$2"
     local status_req="$3"
-    local time_out="${4:-300}"
+    local timeout="${4:-300}"
 
     local total_waited_time=0
-    while [ "$total_waited_time" -lt "$time_out" ]; do
+    while [ "$total_waited_time" -lt "$timeout" ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [[ "$status" == "$status_req" ]]; then
             # Build the JSON object with the desired fields
@@ -180,7 +180,7 @@ wait_for_disk_status() {
         total_waited_time=$((total_waited_time + 1))
     done
 
-    if [[ "$total_waited_time" -ge "$time_out" ]]; then
+    if [[ "$total_waited_time" -ge "$timeout" ]]; then
         local json_result="{\"Succeeded\": \"talse\", \"Error\": \"The operation has timed out\"}"
         echo "$json_result"
     fi
@@ -202,7 +202,7 @@ build_output() {
     local internal_polling_result_file="$3"
 
     set -Ee
-    set -x
+
     _catch() {
         echo '{"succeeded": "false", "time": "-1", "unit": "seconds", "data": {"error": "Unknown error"}}'
     }
@@ -217,7 +217,7 @@ build_output() {
         local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
         local data="{$(jq -r '.Output' "$internal_polling_result_file")}"
     else
-        local err_message
+        local err_message=""
         local succeeded="false"
         if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "false" ]]; then
             local internal_polling_execution_time=-1
