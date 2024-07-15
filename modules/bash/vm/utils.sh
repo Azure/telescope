@@ -416,7 +416,7 @@ measure_create_vm() {
             local output_vm_data=$(jq -c -n \
                     --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
                 '{vm_data: $vm_data}')
-            local warning_message=$(echo "$vm_data" | jq -r '.warning_message')
+            #local warning_message=$(echo "$vm_data" | jq -r '.warning_message')
             local creation_succeeded=true
         else
             local temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
