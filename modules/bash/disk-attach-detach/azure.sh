@@ -208,30 +208,33 @@ build_output() {
     }
     trap _catch ERR
 
-    local internal_polling_result="$(cat "$internal_polling_result_file")"
-    local external_polling_result="$(cat "$external_polling_result_file")"
+    external_succeeded=$(jq -r '.Succeeded' "$external_polling_result_file")
+    internal_succeeded=$(jq -r '.Succeeded' "$internal_polling_result_file")
+    local err_message=""
 
-    if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "true" && "$(jq -r '.Succeeded' "$external_polling_result_file")" == "true" ]]; then
-        local succeeded="true"
+    if [[ "$external_succeeded" == "true" ]]; then
         local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result_file")"
+    else
+        local external_polling_execution_time=-1
+        err_message="$(jq -r '.Error' "$external_polling_result_file")"
+    fi
+
+    if [[ "$internal_succeeded" ]]; then
         local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
+    else
+        local internal_polling_execution_time=-1
+        err_message="$err_message $(jq -r '.Error' "$internal_polling_result_file")"
+    fi
+
+    if [[ $external_succeeded == "true" && $internal_succeeded == "true" ]]; then
+        local succeeded="true"
         local data="{$(jq -r '.Output' "$internal_polling_result_file")}"
     else
-        local err_message=""
         local succeeded="false"
-        if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "false" ]]; then
-            local internal_polling_execution_time=-1
-            err_message="$(jq -r '.Error' "$internal_polling_result_file")"
-        fi
-
-        if [[ "$(jq -r '.Succeeded' "$external_polling_result_file")" == "false" ]]; then
-            local external_polling_execution_time=-1
-            err_message="$err_message $(jq -r '.Error' "$external_polling_result_file")"
-        fi
         local data="{\"error\": \"$err_message\"}"
     fi
 
-    echo $(jq -n \
+    echo "$(jq -n \
     --arg succeeded "$succeeded" \
     --arg external_polling_execution_time "$external_polling_execution_time" \
     --arg internal_polling_execution_time "$internal_polling_execution_time" \
@@ -245,5 +248,5 @@ build_output() {
             "unit": "seconds",
             "data": $data
         }'
-    )
+    )"
 }
