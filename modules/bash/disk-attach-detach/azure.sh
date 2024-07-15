@@ -41,7 +41,7 @@ get_disk_instances_name_by_run_id() {
 #  - $1: disk_id: the ID of the disk
 #  - $2: resource_group: the name of the resource group
 #
-# Returns: the attach status of the disk
+# Returns: the attach status of the disk.
 # Usage: get_disk_attach_status_by_disk_id <disk_id> <resource_group>
 get_disk_attach_status_by_disk_id() {
     local disk_id=$1
@@ -63,9 +63,9 @@ get_disk_attach_status_by_disk_id() {
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk (not used in Azure)
-#  - $6: timeout(optional, default 300): the time out for the operation
+#  - $6: timeout(optional, default 300): the time out for the operation (e.g. 300)
 # 
-# Returns: Information about each operation
+# Returns: Success status of the operation, execution time, error messages, additional messages if they exist.
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group> <time_out>
 attach_or_detach_disk() {
     local operation="$1"
@@ -156,11 +156,11 @@ measure_disk_command() {
 # Parameters:
 #  - $1: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $2: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#  - $3: status_req: the desired status of the disk
-#  - $5 timeout(optional, default 300): the time out for the operation
+#  - $3: status_req: the desired status of the disk (e.g. attach)
+#  - $5 timeout(optional, default 300): the time out for the operation (e.g. 300)
 #
-# Returns: Output information
-# Usage: wait_for_disk_status <disk_name> <resource_group> <status_req> <time_out>
+# Returns: The success status of the operation and the execution time or error message
+# Usage: wait_for_disk_status <disk_name> <resource_group> <status_req> <timeout>
 wait_for_disk_status() {
     local disk_name="$1"
     local resource_group="$2"
