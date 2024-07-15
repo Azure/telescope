@@ -213,13 +213,13 @@ build_output() {
     local external_polling_result="$(cat "$external_polling_result_file")"
 
     if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "true" && "$(jq -r '.Succeeded' "$external_polling_result_file")" == "true" ]]; then
-        local succeded="True"
+        local succeeded="true"
         local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result_file")"
         local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
-        local data="$(jq -r '.Output' "$internal_polling_result_file")"
+        local data="{$(jq -r '.Output' "$internal_polling_result_file")}"
     else
         local err_message
-        local succeded="false"
+        local succeeded="false"
         if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" == "false" ]]; then
             local internal_polling_execution_time=-1
             err_message="$(jq -r '.Error' "$internal_polling_result_file")"
