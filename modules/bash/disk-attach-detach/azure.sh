@@ -86,11 +86,9 @@ attach_or_detach_disk() {
     local internal_polling_result_file="/tmp/internal_polling_result-$(date +%s)" # Used to store the output of the background waitting process
     local external_polling_result_file="/tmp/external_polling_result-$(date +%s)" # Used to store the output of the foreground waitting process
 
-    local internal_polling_start_time=$(date +%s)
-
     measure_disk_command "$operation" "$vm_name" "$disk_name" "$resource_group" > "$internal_polling_result_file" &
 
-    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$external_polling_result_file" "$time_out"
+    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$external_polling_result_file" "$time_out" >"$external_polling_result_file"
 
     # Wait for the operation to finish
     wait
@@ -132,7 +130,7 @@ measure_disk_command() {
     local internal_polling_end_time=$(date +%s)
     local exit_code=$?
 
-    if [[ "$exit_code" == 0 ]]; then
+    if [[ "$exit_code" -eq 0 ]]; then
         echo $(jq -n \
             --arg output "$(cat "$internal_output_file")" \
             --arg time "$(($internal_polling_end_time - $internal_polling_start_time))"
@@ -160,25 +158,23 @@ measure_disk_command() {
 #  - $1: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $2: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $3: status_req: the desired status of the disk
-#  - $4: external_polling_result_file the path to the file containing the output of the external polling process
-#  - $5: time_out: the time out for the operation (default is 300 seconds)
+#  - $54 time_out: the time out for the operation (default is 300 seconds)
 #
-# Returns: Creates a file that contains the output information
-# Usage: wait_for_disk_status <disk_name> <resource_group> <status_req> <external_polling_result_file> <time_out>
+# Returns: Output information
+# Usage: wait_for_disk_status <disk_name> <resource_group> <status_req> <time_out>
 wait_for_disk_status() {
     local disk_name="$1"
     local resource_group="$2"
     local status_req="$3"
-    local external_polling_result_file="$4"
-    local time_out="${5:-300}"
+    local time_out="${4:-300}"
 
     local total_waited_time=0
     while [ "$total_waited_time" -lt "$time_out" ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
-        if [[ "$status"=="$status_req" ]]; then
+        if [[ "$status" == "$status_req" ]]; then
             # Build the JSON object with the desired fields
             local json_result="{\"Succeeded\": \"true\", \"Time\": $total_waited_time}"
-            echo "$json_result" > "$external_polling_result_file"
+            echo "$json_result"
             break
         fi
         sleep 1
@@ -187,7 +183,7 @@ wait_for_disk_status() {
 
     if [[ "$total_waited_time" -ge "$time_out" ]]; then
         local json_result="{\"Succeeded\": \"talse\", \"Error\": \"The operation has timed out\"}"
-        echo "$json_result" > "$external_polling_result_file"
+        echo "$json_result"
     fi
 }
 
@@ -216,22 +212,22 @@ build_output() {
     local internal_polling_result="$(cat "$internal_polling_result_file")"
     local external_polling_result="$(cat "$external_polling_result_file")"
 
-    if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")"=="true" && "$(jq -r '.Succeeded' "$External_polling_result_file")"=="true" ]]; then
+    if [[ "$(jq -r '.Succeeded' "$internal_polling_result")" == "true" && "$(jq -r '.Succeeded' "$external_polling_result")" == "true" ]]; then
         local succeded="True"
-        local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result_file")"
-        local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
-        local data="$(jq -r '.Output' "$internal_polling_result_file")"
+        local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result")"
+        local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result")"
+        local data="$(jq -r '.Output' "$internal_polling_result")"
     else
         local err_message
         local succeded="false"
-        if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")"=="false" ]]; then
+        if [[ "$(jq -r '.Succeeded' "$internal_polling_result")" == "false" ]]; then
             local internal_polling_execution_time=-1
-            err_message="$(jq -r '.Error' "$internal_polling_result_file")"
+            err_message="$(jq -r '.Error' "$internal_polling_result")"
         fi
 
-        if [[ "$(jq -r '.Succeeded' "$external_polling_result_file")"=="false" ]]; then
+        if [[ "$(jq -r '.Succeeded' "$external_polling_result")" == "false" ]]; then
             local external_polling_execution_time=-1
-            err_message="$err_message $(jq -r '.Error' "$internal_polling_result_file")"
+            err_message="$err_message $(jq -r '.Error' "$external_polling_result")"
         fi
         local data="{\"error\": \"$err_message\"}"
     fi
