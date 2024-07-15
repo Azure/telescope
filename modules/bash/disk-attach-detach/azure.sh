@@ -175,7 +175,7 @@ wait_for_disk_status() {
     local total_waited_time=0
     while [ "$total_waited_time" -lt "$time_out" ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
-        if [[ "$status" -eq "$status_req" ]]; then
+        if [[ "$status"=="$status_req" ]]; then
             # Build the JSON object with the desired fields
             local json_result="{\"Succeeded\": \"true\", \"Time\": $total_waited_time}"
             echo "$json_result" > "$external_polling_result_file"
@@ -224,12 +224,12 @@ build_output() {
     else
         local err_message
         local succeded="false"
-        if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" -eq "false" ]]; then
+        if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")"=="false" ]]; then
             local internal_polling_execution_time=-1
             err_message="$(jq -r '.Error' "$internal_polling_result_file")"
         fi
 
-        if [[ "$(jq -r '.Succeeded' "$external_polling_result_file")" -eq "false" ]]; then
+        if [[ "$(jq -r '.Succeeded' "$external_polling_result_file")"=="false" ]]; then
             local external_polling_execution_time=-1
             err_message="$err_message $(jq -r '.Error' "$internal_polling_result_file")"
         fi
