@@ -113,7 +113,7 @@ loadbalancer_config_list = [{
   lb_target_group = [{
     role      = "nlb-tg"
     tg_suffix = "tcp"
-    port      = 20001
+    port      = 20003
     protocol  = "TCP"
     vpc_name  = "server-vpc"
     health_check = {
@@ -125,19 +125,19 @@ loadbalancer_config_list = [{
       unhealthy_threshold = 2
     }
     lb_listener = [{
-      port     = 20001
+      port     = 20003
       protocol = "TCP"
     }]
     lb_target_group_attachment = [{
       vm_name = "server-vm"
-      port    = 20001
+      port    = 20003
     }]
     },
     {
       role      = "nlb-tg"
-      tg_suffix = "udp"
-      port      = 20002
-      protocol  = "UDP"
+      tg_suffix = "tcp"
+      port      = 20004
+      protocol  = "TCP"
       vpc_name  = "server-vpc"
       health_check = {
         port                = "20000"
@@ -148,12 +148,12 @@ loadbalancer_config_list = [{
         unhealthy_threshold = 2
       }
       lb_listener = [{
-        port     = 20002
-        protocol = "UDP"
+        port     = 20004
+        protocol = "TCP"
       }]
       lb_target_group_attachment = [{
         vm_name = "server-vm"
-        port    = 20002
+        port    = 20004
       }]
     }
   ]
@@ -167,6 +167,13 @@ vm_config_list = [{
   security_group_name         = "client-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
+  ami_config = {
+      most_recent         = true
+      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+      virtualization_type = "hvm"
+      architecture        = "x86_64"
+      owners              = ["099720109477"]
+    }
   },
   {
     vm_name                     = "server-vm"
@@ -175,5 +182,12 @@ vm_config_list = [{
     security_group_name         = "server-sg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
+    ami_config = {
+      most_recent         = true
+      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+      virtualization_type = "hvm"
+      architecture        = "x86_64"
+      owners              = ["099720109477"]
+    }
   }
 ]
