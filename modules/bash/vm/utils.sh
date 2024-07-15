@@ -426,7 +426,7 @@ measure_create_vm() {
         fi
     fi
 
-    if [[ -z "$warning_message" ]]; then
+    if [[ -z "${warning_message}" ]]; then
         warning_message="No warning message."
     fi
 
