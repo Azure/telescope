@@ -408,20 +408,20 @@ measure_create_vm() {
     wait
 
     if [[ -n "$vm_data" ]]; then
-        local succeeded=$(echo "$vm_data" | jq -r '.succeeded')
-        local ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
-        local command_execution_time=$(echo "$vm_data" | jq -r '.command_execution_time')
+        succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+        ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
+        command_execution_time=$(echo "$vm_data" | jq -r '.command_execution_time')
         if [[ "$succeeded" == "true" ]]; then
-            local vm_id=$(echo "$vm_data" | jq -r '.vm_name')
-            local output_vm_data=$(jq -c -n \
+            vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+            output_vm_data=$(jq -c -n \
                     --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
                 '{vm_data: $vm_data}')
-            local warning_message=$(echo "$vm_data" | jq -r '.warning_message')
-            local creation_succeeded=true
+            warning_message=$(echo "$vm_data" | jq -r '.warning_message')
+            creation_succeeded=true
         else
             local temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
             if [[ -n "$temporary_vm_data" ]]; then
-                local output_vm_data=$vm_data
+                output_vm_data=$vm_data
             fi
         fi
     fi
