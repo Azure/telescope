@@ -517,7 +517,7 @@ measure_delete_vm() {
     }"
 
     mkdir -p $result_dir
-    echo $result > "$result_dir/deletion-$cloud-$vm_name-$vm_size-$(date +%s).json"mkdir -p $result_dir
+    echo $result > "$result_dir/deletion-$cloud-$vm_name-$vm_size-$(date +%s).json"
 
     if [[ "$deletion_succeeded" == "true" ]]; then
         echo "$vm_name"
