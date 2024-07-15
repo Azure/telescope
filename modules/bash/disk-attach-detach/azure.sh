@@ -68,7 +68,6 @@ get_disk_attach_status_by_disk_id() {
 # Returns: Information about each operation
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group> <time_out>
 attach_or_detach_disk() {
-    set -x
     local operation="$1"
     local vm_name="$2"
     local disk_name="$3"
