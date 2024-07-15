@@ -133,7 +133,7 @@ measure_disk_command() {
     if [[ "$exit_code" -eq 0 ]]; then
         echo "$(jq -n \
             --arg output "$(cat "$internal_output_file")" \
-            --arg time "$(($internal_polling_end_time - $internal_polling_start_time))"
+            --arg time "$(($internal_polling_end_time - $internal_polling_start_time))" \
             '{ 
                 "Succeeded": "true",
                 "Output": $output,
