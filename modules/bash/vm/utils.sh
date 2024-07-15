@@ -405,28 +405,27 @@ measure_create_vm() {
 
     wait
 
-    warning_message="No warnings."
-
     if [[ -n "$vm_data" ]]; then
-        succeeded=$(echo "$vm_data" | jq -r '.succeeded')
-        ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
-        command_execution_time=$(echo "$vm_data" | jq -r '.command_execution_time')
+        local succeeded=$(echo "$vm_data" | jq -r '.succeeded')
+        local ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
+        local command_execution_time=$(echo "$vm_data" | jq -r '.command_execution_time')
         if [[ "$succeeded" == "true" ]]; then
-            vm_id=$(echo "$vm_data" | jq -r '.vm_name')
-            output_vm_data=$(jq -c -n \
+            local vm_id=$(echo "$vm_data" | jq -r '.vm_name')
+            local output_vm_data=$(jq -c -n \
                     --arg vm_data "$(get_vm_info "$vm_id" "$run_id" "$region")" \
                 '{vm_data: $vm_data}')
-            warning_message=$(echo "$vm_data" | jq -r '.warning_message')
-            creation_succeeded=true
+            local warning_message=$(echo "$vm_data" | jq -r '.warning_message')
+            local creation_succeeded=true
         else
-            temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
-            creation_succeeded=false
+            local temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+            local creation_succeeded=false
+            local warning_message=""
             if [[ -n "$temporary_vm_data" ]]; then
-                output_vm_data=$vm_data
+                local output_vm_data=$vm_data
             fi
         fi
 
-        result="$test_details, \
+        local result="$test_details, \
             \"vm_id\": \"$vm_id\", \
             \"vm_data\": $(jq -c -n \
                 --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
@@ -439,7 +438,7 @@ measure_create_vm() {
         }"
 
         mkdir -p $result_dir
-        echo $result > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
+        echo "$result" > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
     fi
 
     if [[ "$creation_succeeded" == "true" ]]; then
