@@ -202,6 +202,30 @@ variable "aks_config_list" {
   default = []
 }
 
+variable "aks_cli_config_list" {
+  type = list(object({
+    role     = string
+    aks_name = string
+    sku_tier = string
+
+    aks_custom_headers = optional(list(string))
+
+    default_node_pool = object({
+      name       = string
+      node_count = number
+      vm_size    = string
+    })
+    extra_node_pool = optional(
+      list(object({
+        name       = string
+        node_count = number
+        vm_size    = string
+      }))
+    )
+  }))
+  default = []
+}
+
 variable "loadbalancer_config_list" {
   description = "List of Loadbalancer configurations"
   type = list(object({
