@@ -421,13 +421,13 @@ measure_create_vm() {
             creation_succeeded=true
         else
             temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+            creation_succeeded=false
             if [[ -n "$temporary_vm_data" ]]; then
                 output_vm_data=$vm_data
             fi
         fi
-    fi
 
-    result="$test_details, \
+        result="$test_details, \
         \"vm_id\": \"$vm_id\", \
         \"vm_data\": $(jq -c -n \
           --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
@@ -437,10 +437,11 @@ measure_create_vm() {
         \"command_execution_time\": \"$command_execution_time\", \
         \"succeeded\": \"$creation_succeeded\", \
         \"warning_message\": \"$warning_message\" \
-    }"
+        }"
 
-    mkdir -p $result_dir
-    echo $result > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
+        mkdir -p $result_dir
+        echo $result > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
+    fi
 
     if [[ "$creation_succeeded" == "true" ]]; then
         echo "$vm_id"
