@@ -164,7 +164,7 @@ measure_disk_command() {
 #  - $5: timeout(optional, default 300): the time out for the operation (e.g. 300)
 #
 # Returns: The success status of the operation and the execution time or error message
-# Usage: wait_for_disk_status <disk_name> <resource_group> <start_time> <status_req> <timeout>
+# Usage: wait_for_disk_status <disk_name> <resource_group> <start_time> <status_req> [timeout]
 wait_for_disk_status() {
     local disk_name="$1"
     local resource_group="$2"
