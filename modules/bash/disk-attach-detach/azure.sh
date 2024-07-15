@@ -131,7 +131,7 @@ measure_disk_command() {
     local exit_code=$?
 
     if [[ "$exit_code" -eq 0 ]]; then
-        echo $(jq -n \
+        echo "$(jq -n \
             --arg output "$(cat "$internal_output_file")" \
             --arg time "$(($internal_polling_end_time - $internal_polling_start_time))"
             '{ 
@@ -139,15 +139,15 @@ measure_disk_command() {
                 "Output": $output,
                 "Time": $time
             }'
-        )
+        )"
     else
-        echo $(jq -n \
+        echo "$(jq -n \
             --arg error "$(cat "$internal_err_file")" \
             '{ 
                 "Succeeded": "false",
                 "Error": $error
             }'
-        )
+        )"
     fi
 }
 
