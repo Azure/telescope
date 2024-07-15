@@ -66,7 +66,7 @@ get_disk_attach_status_by_disk_id() {
 #  - $6: timeout(optional, default 300): the time out for the operation (e.g. 300)
 # 
 # Returns: Success status of the operation, execution time, error messages, additional messages if they exist.
-# Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group> <time_out>
+# Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group> [timeout]
 attach_or_detach_disk() {
     local operation="$1"
     local vm_name="$2"
@@ -164,7 +164,7 @@ measure_disk_command() {
 #  - $5: timeout(optional, default 300): the time out for the operation (e.g. 300)
 #
 # Returns: The success status of the operation and the execution time or error message
-# Usage: wait_for_disk_status <disk_name> <resource_group> <start_time> <status_req> <timeout>
+# Usage: wait_for_disk_status <disk_name> <resource_group> <start_time> <status_req> [timeout]
 wait_for_disk_status() {
     local disk_name="$1"
     local resource_group="$2"
