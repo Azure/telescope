@@ -173,7 +173,7 @@ wait_for_disk_status() {
     local time_out="${5:-300}"
 
     local total_waited_time=0
-    while [ "$total_waited_time" -lt "$time_out"]; do
+    while [ "$total_waited_time" -lt "$time_out" ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
         if [[ "$status" -eq "$status_req" ]]; then
             # Build the JSON object with the desired fields
