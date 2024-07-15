@@ -84,10 +84,11 @@ attach_or_detach_disk() {
 
     local internal_polling_result_file="/tmp/internal_polling_result-$(date +%s)" # Used to store the output of the background waitting process
     local external_polling_result_file="/tmp/external_polling_result-$(date +%s)" # Used to store the output of the foreground waitting process
+    local start_time=$(date +%s)
 
-    measure_disk_command "$operation" "$vm_name" "$disk_name" "$resource_group" > "$internal_polling_result_file" &
+    measure_disk_command "$operation" "$vm_name" "$disk_name" "$resource_group" > "$internal_polling_result_file" "$start_time" &
 
-    wait_for_disk_status "$disk_name" "$resource_group" "$status_req" "$timeout" >"$external_polling_result_file" &
+    wait_for_disk_status "$disk_name" "$resource_group" "$start_time" "$status_req" "$timeout" >"$external_polling_result_file" &
 
     # Wait for the operation to finish
     wait
@@ -106,18 +107,20 @@ attach_or_detach_disk() {
 #  - $1: vm_name: the name of the VM instance (e.g. vm-1)
 #  - $2: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $3: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $4: start_time: the start time of the operation (e.g. output of $(date +%s))
+#  - $5: operation: the operation to perform (attach or detach)
 #
 # Returns: Success status of the command, execution time or error.
-# Usage: measure_disk_command <vm_name> <disk_name> <resource_group>
+# Usage: measure_disk_command <vm_name> <disk_name> <resource_group> <start_time> <operation>
 measure_disk_command() {
     local operation="$1"
     local vm_name="$2"
     local disk_name="$3"
     local resource_group="$4"
+    local start_time="$5"
     
     local internal_err_file="/tmp/internal_err_file-$(date +%s)"
     local internal_output_file="/tmp/internal_output_file-$(date +%s)"
-    local internal_polling_start_time=$(date +%s)
 
     az vm disk \
         "$operation" \
@@ -126,13 +129,13 @@ measure_disk_command() {
         --name "$disk_name" \
         2> "$internal_err_file" > "$internal_output_file"
         
-    local internal_polling_end_time=$(date +%s)
+    local end_time=$(date +%s)
     local exit_code=$?
 
     if [[ "$exit_code" -eq 0 ]]; then
         echo "$(jq -n \
             --arg output "$(cat "$internal_output_file")" \
-            --arg time "$(($internal_polling_end_time - $internal_polling_start_time))" \
+            --arg time "$(($end_time - $start_time))" \
             '{ 
                 "Succeeded": "true",
                 "Output": $output,
@@ -156,19 +159,20 @@ measure_disk_command() {
 # Parameters:
 #  - $1: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $2: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#  - $3: status_req: the desired status of the disk (e.g. attach)
-#  - $5 timeout(optional, default 300): the time out for the operation (e.g. 300)
+#  - $3: start_time: the start time of the operation (e.g. output of $(date +%s))
+#  - $4: status_req: the desired status of the disk (e.g. attach)
+#  - $5: timeout(optional, default 300): the time out for the operation (e.g. 300)
 #
 # Returns: The success status of the operation and the execution time or error message
-# Usage: wait_for_disk_status <disk_name> <resource_group> <status_req> <timeout>
+# Usage: wait_for_disk_status <disk_name> <resource_group> <start_time> <status_req> <timeout>
 wait_for_disk_status() {
     local disk_name="$1"
     local resource_group="$2"
-    local status_req="$3"
-    local timeout="${4:-300}"
+    local start_time="$3"
+    local status_req="$4"
+    local timeout="${5:-300}"
 
     local total_waited_time=0
-    local start_time=$(date +%s)
 
     while [ "$total_waited_time" -lt "$timeout" ]; do
         local status=$(get_disk_attach_status_by_disk_id "$disk_name" "$resource_group")
