@@ -63,7 +63,7 @@ get_disk_attach_status_by_disk_id() {
 #  - $3: disk_name: the name of the disk instance (e.g. disk-1)
 #  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk (not used in Azure)
-#  - $6: timeout(optional, default 300): the time out for the operation (default is 300 seconds)
+#  - $6: timeout(optional, default 300): the time out for the operation
 # 
 # Returns: Information about each operation
 # Usage: attach_or_detach_disk <operation> <vm_name> <disk_name> <resource_group> <time_out>
