@@ -406,7 +406,8 @@ measure_create_vm() {
     wait
     end_time=$(date +%s)
 
-    local warning_message="" # This si nitialized as an empty string in case the vm create fails.
+    set -x
+    local warning_message="" # This si intialized as an empty string in case the vm create fails.
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
         ssh_connection_time=$(echo "$vm_data" | jq -r '.ssh_connection_time')
