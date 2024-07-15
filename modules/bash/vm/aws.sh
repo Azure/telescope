@@ -68,9 +68,9 @@ create_ec2() {
     local start_time=$(date +%s)
 
     if [[ -n "$nic" ]]; then
-        aws ec2 run-instances --region "fake region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --network-interfaces "[{\"NetworkInterfaceId\": \"$nic\", \"DeviceIndex\": 0}]" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     else
-        aws ec2 run-instances --region "fake region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
+        aws ec2 run-instances --region "$region" --image-id "$instance_os" --instance-type "$instance_size" --subnet-id "$subnet" --tag-specifications "$tag_specifications" --output json 2> "$error_file" > "$output_file"
     fi
 
     local exit_code=$?
