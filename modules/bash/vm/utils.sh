@@ -406,6 +406,7 @@ measure_create_vm() {
     wait
     end_time=$(date +%s)
     set -x
+    warning_message="No warnings."
     vm_data=""
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
@@ -424,10 +425,6 @@ measure_create_vm() {
                 output_vm_data=$vm_data
             fi
         fi
-    fi
-
-    if [[ -z "${warning_message}" ]]; then
-        warning_message="No warning message."
     fi
 
     result="$test_details, \
