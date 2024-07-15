@@ -216,7 +216,7 @@ build_output() {
     local internal_polling_result="$(cat "$internal_polling_result_file")"
     local external_polling_result="$(cat "$external_polling_result_file")"
 
-    if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" -eq "true" & "$(jq -r '.Succeeded' "$External_polling_result_file")" -eq "true"]]
+    if [[ "$(jq -r '.Succeeded' "$internal_polling_result_file")" -eq "true" && "$(jq -r '.Succeeded' "$External_polling_result_file")" -eq "true"]]
         local succeded="True"
         local external_polling_execution_time="$(jq -r '.Time' "$external_polling_result_file")"
         local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
