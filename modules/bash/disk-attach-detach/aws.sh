@@ -61,7 +61,8 @@ get_disk_attach_status_by_disk_id() {
 #  - $3: disk_id: the id of the disk instance (e.g. vol-0f76f3f3f3f3f3f3f)
 #  - $4: run_id: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 #  - $5: index: the index of the disk
-#  - $6: timeout: (optional, default 90) seconds to wait for the operation to complete
+#  - $6: timeout: (optional, default 300) seconds to wait for the operation to complete
+#
 # Returns: A json object with the operation results
 # Usage: attach_or_detach_disk <operation> <vm_id> <disk_id> <run_id> <index>
 attach_or_detach_disk() {

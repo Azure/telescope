@@ -111,7 +111,7 @@ attach_or_detach_disk() {
 #  - $5: operation: the operation to perform (attach or detach)
 #
 # Returns: Success status of the command, execution time or error.
-# Usage: measure_disk_command <vm_name> <disk_name> <resource_group> <operation> <start_time>
+# Usage: measure_disk_command <operation> <vm_name> <disk_name> <resource_group> <start_time>
 measure_disk_command() {
     local operation="$1"
     local vm_name="$2"
