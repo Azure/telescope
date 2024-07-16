@@ -85,7 +85,7 @@ network_config_list = [
       {
         name                       = "client-nsr-tcp"
         priority                   = 101
-        direction                  = "Outbound"
+        direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
         source_port_range          = "*"
@@ -96,7 +96,7 @@ network_config_list = [
       {
         name                       = "client-nsr-udp"
         priority                   = 102
-        direction                  = "Outbound"
+        direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Udp"
         source_port_range          = "*"
