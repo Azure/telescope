@@ -383,8 +383,10 @@ measure_create_vm() {
 
     local creation_succeeded=false
     local creation_time=-1
+    local ssh_connection_time=-1
     local vm_id="$vm_name"
     local output_vm_data="{ \"vm_data\": {}}"
+    local warning_message=""
 
     local start_time=$(date +%s)
     case $cloud in
@@ -404,7 +406,6 @@ measure_create_vm() {
     esac
 
     wait
-    end_time=$(date +%s)
 
     if [[ -n "$vm_data" ]]; then
         succeeded=$(echo "$vm_data" | jq -r '.succeeded')
@@ -418,14 +419,14 @@ measure_create_vm() {
             warning_message=$(echo "$vm_data" | jq -r '.warning_message')
             creation_succeeded=true
         else
-            temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
+            local temporary_vm_data=$(echo "$vm_data" | jq -r '.vm_data')
             if [[ -n "$temporary_vm_data" ]]; then
                 output_vm_data=$vm_data
             fi
         fi
     fi
 
-    result="$test_details, \
+    local result="$test_details, \
         \"vm_id\": \"$vm_id\", \
         \"vm_data\": $(jq -c -n \
           --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
@@ -438,7 +439,7 @@ measure_create_vm() {
     }"
 
     mkdir -p $result_dir
-    echo $result > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
+    echo "$result" > "$result_dir/creation-$cloud-$vm_name-$vm_size-$(date +%s).json"
 
     if [[ "$creation_succeeded" == "true" ]]; then
         echo "$vm_id"
