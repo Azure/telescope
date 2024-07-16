@@ -4,7 +4,7 @@ locals {
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   public_key_path                  = lookup(var.json_input, "public_key_path", "")
-  vm_count_override                = lookup(var.json_input, "vm_count_override", null)
+  vm_count_override                = lookup(var.json_input, "vm_count_override", 0)
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
   data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
   data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")

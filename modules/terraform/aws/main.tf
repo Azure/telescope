@@ -9,7 +9,7 @@ locals {
   data_disk_iops_read_write = lookup(var.json_input, "data_disk_iops_read_write", null)
   data_disk_mbps_read_write = lookup(var.json_input, "data_disk_mbps_read_write", null)
   data_disk_count           = lookup(var.json_input, "data_disk_count", 1)
-  vm_count_override         = lookup(var.json_input, "vm_count_override", null)
+  vm_count_override         = lookup(var.json_input, "vm_count_override", 0)
 
   efs_performance_mode                = lookup(var.json_input, "efs_performance_mode", null)
   efs_throughput_mode                 = lookup(var.json_input, "efs_throughput_mode", null)
