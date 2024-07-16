@@ -185,7 +185,7 @@ wait_for_disk_status() {
     done
 
     if [[ "$total_waited_time" -ge "$timeout" ]]; then
-        local json_result="{\"Succeeded\": \"talse\", \"Error\": \"The operation has timed out\"}"
+        local json_result="{\"Succeeded\": \"false\", \"Error\": \"The operation has timed out\"}"
         echo "$json_result"
     fi
 }
@@ -223,7 +223,7 @@ build_output() {
         err_message="$(jq -r '.Error' "$external_polling_result_file")"
     fi
 
-    if [[ "$internal_succeeded" ]]; then
+    if [[ "$internal_succeeded" == "true" ]]; then
         local internal_polling_execution_time="$(jq -r '.Time' "$internal_polling_result_file")"
     else
         local internal_polling_execution_time=-1
