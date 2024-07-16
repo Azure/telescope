@@ -9,10 +9,11 @@ run_sockperf() {
     local privatekey_path=$4
     local result_dir=$5
     local protocol=$6
-    local sockperf_properties=$7
+    local datapath=$7
+    local sockperf_properties=$8
 
     mkdir -p $result_dir
-    echo "Run evaluation on $egress_ip_address with user name $user_name at $ssh_port and ssh key $privatekey_path and result path $result_dir"
+    echo "Run evaluation on $egress_ip_address with user name $user_name at $ssh_port and ssh key $privatekey_path and $datapath and result path $result_dir"
 
     # sockperf ping-pong -i 10.2.1.122 -p 20004 -t 20 --tcp --pps=max --full-rtt
     local command="sockperf $sockperf_properties --pps=max --full-rtt"
@@ -20,7 +21,7 @@ run_sockperf() {
     echo "Wait for 1 minutes before running"
     sleep 60
     echo "Run sockperf command: $command"
-    run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/sockperf-${protocol}.log
+    run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/sockperf-${protocol}-${datapath}.log
 }
 
 collect_result_sockperf() {
@@ -35,7 +36,7 @@ collect_result_sockperf() {
   
   touch $result_dir/results.json
 
-  sockperf_result="$result_dir/sockperf-${protocol}.log"
+  sockperf_result="$result_dir/sockperf-${protocol}-${datapath}.log"
   cat $sockperf_result
   sockperf_info=$(python3 ./modules/python/sockperf/parser.py $protocol $sockperf_result)
   timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
