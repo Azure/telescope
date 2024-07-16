@@ -102,8 +102,8 @@ delete_vm() {
     local vm_name=$1
     local resource_group=$2
 
-    local error_file="/tmp/$vm_name-delete-vm-error.txt"
-    local output_file="/tmp/$vm_name-delete-vm-output.txt"
+    local error_file="/tmp/$vm_name-delete_vm-error.txt"
+    local output_file="/tmp/$vm_name-delete_vm-output.txt"
 
     az vm delete --resource-group "$resource_group" --name "$vm_name" --force-deletion true --yes --output json 2> "$error_file" > "$output_file"
 
@@ -118,8 +118,8 @@ delete_vm() {
         }
         trap _catch ERR
 
-        vm_data=$(cat "$error_file")
-        error=$(cat "$output_file")
+        local vm_data=$(cat "$output_file")
+        local error=$(cat "$error_file")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \

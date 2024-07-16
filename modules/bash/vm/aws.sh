@@ -102,7 +102,9 @@ delete_ec2() {
     local instance_id=$1
     local region=$2
 
-    aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2> "/tmp/aws-$instance_id-delete_ec2-error.txt" > "/tmp/aws-$instance_id-delete_ec2-output.txt"
+    local error_file="/tmp/aws-$instance_id-delete_ec2-output.txt"
+    local output_file="/tmp/aws-$instance_id-delete_ec2-error.txt"
+    aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2> "$error_file" > "$output_file"
 
     exit_code=$?
     
@@ -115,8 +117,8 @@ delete_ec2() {
         }
         trap _catch ERR
 
-        instance_data=$(cat /tmp/aws-$instance_id-delete_ec2-output.txt)
-        error=$(cat /tmp/aws-$instance_id-delete_ec2-error.txt)
+        local instance_data=$(cat "$output_file")
+        local error=$(cat "$error_file")
 
         if [[ $exit_code -eq 0 ]]; then
             instance_id=$(echo "$instance_data" | jq -r '.TerminatingInstances[0].InstanceId')
