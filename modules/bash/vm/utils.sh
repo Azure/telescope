@@ -429,8 +429,8 @@ measure_create_vm() {
     local result="$test_details, \
         \"vm_id\": \"$vm_id\", \
         \"vm_data\": $(jq -c -n \
-            --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
-            '$vm_data'), \
+          --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
+          '$vm_data'), \
         \"operation\": \"create_vm\", \
         \"ssh_connection_time\": \"$ssh_connection_time\", \
         \"command_execution_time\": \"$command_execution_time\", \
@@ -509,8 +509,8 @@ measure_delete_vm() {
     result="$test_details, \
         \"vm_id\": \"$vm_name\", \
         \"vm_data\": $(jq -c -n \
-            --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
-            '$vm_data'), \
+          --argjson vm_data "$(echo "$output_vm_data" | jq -r '.vm_data')" \
+          '$vm_data'), \
         \"operation\": \"delete_vm\", \
         \"time\": \"$deletion_time\", \
         \"succeeded\": \"$deletion_succeeded\" \
