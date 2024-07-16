@@ -104,11 +104,12 @@ attach_or_detach_disk() {
 #   This function measures an operation on a disk.
 #
 # Parameters:
-#  - $1: vm_name: the name of the VM instance (e.g. vm-1)
-#  - $2: disk_name: the name of the disk instance (e.g. disk-1)
-#  - $3: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
-#  - $4: start_time: the start time of the operation (e.g. output of $(date +%s))
-#  - $5: operation: the operation to perform (attach or detach)
+#  - $1: operation: the operation to perform (attach or detach)
+#  - $2: vm_name: the name of the VM instance (e.g. vm-1)
+#  - $3: disk_name: the name of the disk instance (e.g. disk-1)
+#  - $4: resource_group: the name of the resource group (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+#  - $5: start_time: the start time of the operation (e.g. output of $(date +%s))
+#  - $6: operation: the operation to perform (attach or detach)
 #
 # Returns: Success status of the command, execution time or error.
 # Usage: measure_disk_command <operation> <vm_name> <disk_name> <resource_group> <start_time>
