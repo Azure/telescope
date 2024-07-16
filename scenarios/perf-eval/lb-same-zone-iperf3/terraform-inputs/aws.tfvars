@@ -135,7 +135,7 @@ loadbalancer_config_list = [{
     },
     {
       role      = "nlb-tg"
-      tg_suffix = "tcp"
+      tg_suffix = "tcp1"
       port      = 20004
       protocol  = "TCP"
       vpc_name  = "server-vpc"
