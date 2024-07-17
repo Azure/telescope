@@ -113,12 +113,12 @@ loadbalancer_config_list = [{
       unhealthy_threshold = 2
     }
     lb_listener = [{
-      port     = 20001
+      port     = 20005
       protocol = "TCP"
     }]
     lb_target_group_attachment = [{
       vm_name = "server-vm"
-      port    = 20001
+      port    = 20005
     }]
     }
   ]
