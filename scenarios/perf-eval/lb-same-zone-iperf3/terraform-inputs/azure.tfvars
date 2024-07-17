@@ -140,6 +140,16 @@ loadbalancer_config_list = [{
       type                    = "Inbound"
       rule_count              = 1
       role                    = "ingress-lb-udp-rule"
+      protocol                = "Udp"
+      frontend_port           = 20004
+      backend_port            = 20004
+      enable_tcp_reset        = false
+      idle_timeout_in_minutes = 4
+    },
+    {
+      type                    = "Inbound"
+      rule_count              = 1
+      role                    = "ingress-lb-tcp-rule2"
       protocol                = "Tcp"
       frontend_port           = 20004
       backend_port            = 20004
