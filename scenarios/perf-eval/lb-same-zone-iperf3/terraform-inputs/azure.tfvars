@@ -43,6 +43,17 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
+        name                       = "server-nsr-udp"
+        priority                   = 101
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Udp"
+        source_port_range          = "*"
+        destination_port_range     = "20004-20004"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      },
+      {
         name                       = "server-nsr-ssh"
         priority                   = 102
         direction                  = "Inbound"
@@ -100,7 +111,7 @@ network_config_list = [
         access                     = "Allow"
         protocol                   = "Udp"
         source_port_range          = "*"
-        destination_port_range     = "20003-20004"
+        destination_port_range     = "20004-20004"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
     }]
