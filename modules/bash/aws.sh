@@ -106,9 +106,9 @@ aws_create_vpc_peering(){
 
   # Step 1: Check for the VPC IDs of the Server and Client VPC 
   echo "Checking for VPC with run Id $run_id"
-  
+
   if [ "$client_vpc_region" = "$server_vpc_region" ]; then
-    vpc_ids=($(aws ec2 describe-vpcs --region $region --filters "Name=tag:run_id,Values=$RUN_ID" --query "Vpcs[].VpcId" --output text))
+    vpc_ids=($(aws ec2 describe-vpcs --region $client_vpc_region --filters "Name=tag:run_id,Values=$RUN_ID" --query "Vpcs[].VpcId" --output text))
     client_vpc_id="${vpc_ids[0]}"
     server_vpc_id="${vpc_ids[1]}"
   else
