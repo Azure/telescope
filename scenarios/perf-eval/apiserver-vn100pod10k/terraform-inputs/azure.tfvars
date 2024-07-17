@@ -1,24 +1,20 @@
 scenario_type  = "perf-eval"
 scenario_name  = "apiserver-vn100pod10k"
 deletion_delay = "20h"
-aks_config_list = [
+aks_cli_config_list = [
   {
-    role        = "client"
-    aks_name    = "virtualnodes100-pods10k"
-    dns_prefix  = "kperf"
-    subnet_name = "aks-network"
-    sku_tier    = "Standard"
-    network_profile = {
-      network_plugin      = "azure"
-      network_plugin_mode = "overlay"
-    }
+    role     = "client"
+    aks_name = "virtualnodes100-pods10k"
+    sku_tier = "standard"
+
+    aks_custom_headers = [
+      "ControlPlaneUnderlay=hcp-underlay-eastus2-cx-382"
+    ]
+
     default_node_pool = {
-      name                         = "default"
-      node_count                   = 2
-      vm_size                      = "Standard_D2s_v3"
-      os_disk_type                 = "Managed"
-      only_critical_addons_enabled = true
-      temporary_name_for_rotation  = "defaulttmp"
+      name       = "default"
+      node_count = 2
+      vm_size    = "Standard_D2s_v3"
     }
     extra_node_pool = [
       {

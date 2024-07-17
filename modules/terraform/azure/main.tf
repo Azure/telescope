@@ -44,6 +44,8 @@ locals {
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
+
+  aks_cli_config_map = { for aks in var.aks_cli_config_list : aks.role => aks }
 }
 
 terraform {
@@ -112,6 +114,16 @@ module "aks" {
   tags                = local.tags
   vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
   subnets             = try(local.all_subnets, null)
+}
+
+module "aks-cli" {
+  for_each = local.aks_cli_config_map
+
+  source              = "./aks-cli"
+  resource_group_name = local.run_id
+  location            = local.region
+  aks_cli_config      = each.value
+  tags                = local.tags
 }
 
 module "load_balancer" {
