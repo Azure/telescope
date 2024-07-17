@@ -40,7 +40,7 @@ run_iperf3() {
   local command="iperf3 $iperf_properties --json"
 
   echo "Wait for 1 minutes before running"
-  sleep 60
+  sleep 10
   echo "Run iperf3 command: $command"
   run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/iperf3-${protocol}-${bandwidth}.json
 }
