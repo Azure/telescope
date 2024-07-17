@@ -161,6 +161,29 @@ loadbalancer_config_list = [{
         vm_name = "server-vm"
         port    = 20004
       }]
+    },
+    {
+      role      = "nlb-tg"
+      tg_suffix = "udp"
+      port      = 20004
+      protocol  = "UDP"
+      vpc_name  = "server-vpc"
+      health_check = {
+        port                = "20000"
+        protocol            = "TCP"
+        interval            = 10
+        timeout             = 10
+        healthy_threshold   = 2
+        unhealthy_threshold = 2
+      }
+      lb_listener = [{
+        port     = 20004
+        protocol = "UDP"
+      }]
+      lb_target_group_attachment = [{
+        vm_name = "server-vm"
+        port    = 20004
+      }]
     }
   ]
 }]
