@@ -90,7 +90,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
         --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
         --arg data_disk_count "$DATA_DISK_COUNT" \
-        --arg vm_count_override "$VM_COUNT_OVERRIDE \
+        --arg vm_count_override "$VM_COUNT_OVERRIDE"  \
         --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
         --arg user_data_path $TERRAFORM_USER_DATA_PATH \
         --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
