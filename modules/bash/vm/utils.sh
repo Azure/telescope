@@ -615,7 +615,7 @@ process_results() {
 
     if [[ $succeeded == "true" ]]; then
         warning_message="$(cat "$error_file" | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
-    else
+    fi
 
     echo $(jq -c -n \
         --arg succeeded "$succeeded" \
