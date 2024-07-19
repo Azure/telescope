@@ -189,9 +189,10 @@ measure_create_delete_vm() {
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
     pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
 
-    pip_id=""
-    nic=""
-    pip=""
+    if [[ -z "$nic" || -z "$pip" ]]; then
+        echo "Failed to create NIC and PIP for $cloud VM $vm_name. Exiting..."
+        exit 1
+    fi
 
     vm_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$timeout" "$result_dir" "$test_details" "$tags")
 
