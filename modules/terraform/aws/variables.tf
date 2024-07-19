@@ -16,6 +16,7 @@ variable "json_input" {
     data_disk_mbps_read_write = optional(number)
     data_disk_count           = optional(number, 1)
     ultra_ssd_enabled         = optional(bool)
+    vm_count_override         = optional(number, 0)
 
     efs_performance_mode                = optional(string)
     efs_throughput_mode                 = optional(string)
@@ -137,6 +138,7 @@ variable "vm_config_list" {
     security_group_name         = string
     associate_public_ip_address = bool
     info_column_name            = optional(string)
+    count                       = optional(number, 1)
 
     ami_config = optional(object({
       most_recent         = bool

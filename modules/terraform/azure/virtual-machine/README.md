@@ -57,6 +57,7 @@ This module provisions virtual machines in Azure. It allows you to create and co
   - `zone`: Availability zone for the virtual machine (optional)
   - `source_image_reference`: Reference to the source image for the virtual machine
   - `create_vm_extension`: Boolean value indicating whether to create a VM extension
+  - `count`: Optional, how many vm copies with this definition to create, with nic_name and vm_name acting as prefix
 - **Example:** Refer to your specific configuration
 
 ### `tags`
@@ -97,6 +98,7 @@ module "virtual_machine" {
       version   = "latest"
     }
     create_vm_extension = true
+    count       = 2 # Optional, will create copies with vm_name web-vm-1 web-vm-2 and nic_name web-nic-1 and web-nic-2
   }
 
   tags = {

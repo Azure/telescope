@@ -109,6 +109,7 @@ public_ip_config_list = [  # List of public IP address configurations to be crea
     allocation_method = "Static"  # Optional: Allocation method for the public IP (e.g., "Static")
     sku               = "Standard"  # Optional: SKU of the public IP (e.g., "Standard")
     zones             = [1, 2]  # Optional: Zones for the public IP (e.g., [1,2])
+    count             = 2 # Optional: number of copies to make, with name as prefix and "-{index}" as sufix (e.g. ingress-pip-1 ingress-pip-2) 
   }
 ]
 network_config_list = [
@@ -129,6 +130,7 @@ network_config_list = [
         subnet_name           =  "same-subnet"  # Name of the subnet associated with the NIC (e.g., "same-subnet")
         ip_configuration_name =  "server-ipconfig"  # Name of the IP configuration for the NIC (e.g., "server-ipconfig")
         public_ip_name        =  "ingress-pip"  # Name of the public IP associated with the NIC (e.g., "ingress-pip")
+        count                 =  2 # Optional: Number of copies of the NIC to make, with nic_name as prefix and "-{index}" as sufix (e.g. server-nic-1 server-nic-2). Will associate public_ip_name with the same naming rule (eg. ingress-pip-1 ingress-pip-2)
       }
     ]
     nsr_rules = [{  # List of Network Security Rules
@@ -173,6 +175,7 @@ vm_config_list = [{  # List of virtual machine configurations
   nic_name       =  "server-nic"  # Name of the associated Network Interface Card (NIC) (e.g., "server-nic")
   admin_username =  "ubuntu"  # Username for accessing the virtual machine (e.g., "ubuntu")
   zone           =  "1"  # Availability zone for the virtual machine (e.g., "1")
+  count          =  2 # Optional: Number of copies of the VM to make, with vm_name as prefix and "-{index}" as sufix (e.g. server-vm-1 server-vm-2). Will associate nic_name with the same naming rule (eg. server-nic-1 server-nic-2)
   source_image_reference = {  # Reference to the source image for the virtual machine
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
@@ -340,6 +343,7 @@ vm_config_list = [{  # List of virtual machine configurations
   security_group_name         = "same-sg"  # Name of the security group (e.g., "same-sg")
   associate_public_ip_address = true  # Flag indicating whether to associate a public IP address (e.g., true)
   zone_suffix                 = "a"  # Availability zone suffix for the VM (e.g., "a")
+  count                       = 2 # Optional, number of copies to make, with vm_name as prefix (eg. client-vm-1 client-vm-2)
 },
 {
   vm_name                     = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
