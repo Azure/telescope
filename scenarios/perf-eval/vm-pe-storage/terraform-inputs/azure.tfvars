@@ -108,7 +108,7 @@ storage_account_name_prefix = "vmpestorage"
 
 blob_config = {
   container_name   = "container"
-  container_access = "container"
+  container_access = "private"
   blob_type        = "Block"
   blob_name        = "test"
   source_file_name = "client-userdata.sh"
