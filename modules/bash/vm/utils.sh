@@ -613,7 +613,7 @@ process_results() {
     fi
 
     if [[ $succeeded == "true" ]]; then
-        local warning_message="$(cat $error_file | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
+        warning_message="$(cat "$error_file" | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
     else
 
     echo $(jq -c -n \
