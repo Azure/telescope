@@ -4,6 +4,7 @@ locals {
   accelerated_networking           = lookup(var.json_input, "accelerated_networking", true)
   run_id                           = lookup(var.json_input, "run_id", "123456")
   public_key_path                  = lookup(var.json_input, "public_key_path", "")
+  vm_count_override                = lookup(var.json_input, "vm_count_override", 0)
   user_data_path                   = lookup(var.json_input, "user_data_path", "")
   data_disk_storage_account_type   = lookup(var.json_input, "data_disk_storage_account_type", "")
   data_disk_size_gb                = lookup(var.json_input, "data_disk_size_gb", "")
@@ -30,22 +31,35 @@ locals {
     "run_id"            = local.run_id
   }
 
-  network_config_map                     = { for network in var.network_config_list : network.role => network }
-  loadbalancer_config_map                = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
-  appgateway_config_map                  = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
-  agc_config_map                         = { for agc in var.agc_config_list : agc.role => agc }
-  aks_config_map                         = { for aks in var.aks_config_list : aks.role => aks }
-  aks_cluster_oidc_issuer_map            = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
-  aks_cluster_kubeconfig_list            = [for aks in var.aks_config_list : module.aks[aks.role].aks_cluster_kubeconfig_path]
-  vm_config_map                          = { for vm in var.vm_config_list : vm.vm_name => vm }
+  network_config_map          = { for network in var.network_config_list : network.role => network }
+  loadbalancer_config_map     = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
+  appgateway_config_map       = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  agc_config_map              = { for agc in var.agc_config_list : agc.role => agc }
+  aks_config_map              = { for aks in var.aks_config_list : aks.role => aks }
+  aks_cluster_oidc_issuer_map = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
+  aks_cluster_kubeconfig_list = [for aks in var.aks_config_list : module.aks[aks.role].aks_cluster_kubeconfig_path]
+  expanded_vm_config_list = flatten([
+    for vm in var.vm_config_list : [
+      for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
+        role                   = vm.role
+        vm_name                = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
+        nic_name               = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
+        admin_username         = vm.admin_username
+        info_column_name       = vm.info_column_name
+        zone                   = vm.zone
+        source_image_reference = vm.source_image_reference
+        create_vm_extension    = vm.create_vm_extension
+      }
+    ]
+  ])
+  vm_config_map                          = { for vm in local.expanded_vm_config_list : vm.vm_name => vm }
   vmss_config_map                        = { for vmss in var.vmss_config_list : vmss.vmss_name => vmss }
   nic_backend_pool_association_map       = { for config in var.nic_backend_pool_association_list : config.nic_name => config }
   all_nics                               = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
-  all_vms                                = { for vm in var.vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
-
-  aks_cli_config_map = { for aks in var.aks_cli_config_list : aks.role => aks }
+  all_vms                                = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
+  aks_cli_config_map                     = { for aks in var.aks_cli_config_list : aks.role => aks }
 }
 
 terraform {
@@ -88,6 +102,7 @@ module "public_ips" {
   resource_group_name   = local.run_id
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
+  pip_count_override    = local.vm_count_override
   tags                  = local.tags
 }
 
@@ -100,6 +115,7 @@ module "virtual_network" {
   location               = local.region
   accelerated_networking = local.accelerated_networking
   public_ips             = module.public_ips.pip_ids
+  nic_count_override     = local.vm_count_override
   tags                   = local.tags
 }
 

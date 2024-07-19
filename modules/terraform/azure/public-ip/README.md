@@ -24,6 +24,7 @@ This module provisions public IP addresses in Azure. It allows you to create one
   - `allocation_method`: Allocation method for the public IP (optional, default: "Static")
   - `sku`: SKU for the public IP (optional, default: "Standard")
   - `zones`: Availability zones for the public IP (optional, default: [])
+  - `count`: Optional parameter to specify how many copies of the module to create, with the name acting as prefix
 - **Example:**
   ```
   public_ip_config_list = [
@@ -34,9 +35,10 @@ This module provisions public IP addresses in Azure. It allows you to create one
       zones             = ["1", "2"]
     },
     {
-      name              = "example-ip-2"
+      name              = "example-ip-copy"
       allocation_method = "Dynamic"
       sku               = "Basic"
+      count             = 2 # will copy this pip with names example-ip-copy-1 and example-ip-copy-2
     }
   ]
 
