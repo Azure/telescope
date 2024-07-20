@@ -5,6 +5,7 @@ variable "json_input" {
     run_id                           = string
     region                           = string
     public_key_path                  = string
+    pool_type                        = optional(string, "vmss")
     machine_type                     = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
@@ -209,17 +210,20 @@ variable "aks_cli_config_list" {
     sku_tier = string
 
     aks_custom_headers = optional(list(string))
+    use_aks_preview_cli_extension = optional(bool, false)
 
     default_node_pool = object({
-      name       = string
-      node_count = number
-      vm_size    = string
+      name        = string
+      node_count  = number
+      vm_size     = string
+      vm_set_type = optional(string, "VirtualMachineScaleSets")
     })
     extra_node_pool = optional(
       list(object({
-        name       = string
-        node_count = number
-        vm_size    = string
+        name        = string
+        node_count  = number
+        vm_size     = string
+        vm_set_type = optional(string, "VirtualMachineScaleSets")
       }))
     )
   }))

@@ -20,7 +20,24 @@ locals {
   )
 }
 
+resource "terraform_data" "aks_cli_preview" {
+  count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
+
+  provisioner "local-exec" {
+    command = join(" ", [
+      "az",
+      "extension",
+      "add",
+      "-n", "aks-preview",
+    ])
+  }
+} 
+
 resource "terraform_data" "aks_cli" {
+  depends_on = [
+    terraform_data.aks_cli_preview
+  ]
+
   input = {
     group_name = var.resource_group_name,
     name       = var.aks_cli_config.aks_name
@@ -42,6 +59,7 @@ resource "terraform_data" "aks_cli" {
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
+      "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
     ])
   }
 
@@ -54,6 +72,20 @@ resource "terraform_data" "aks_cli" {
       "-g", self.input.group_name,
       "-n", self.input.name,
       "--yes",
+    ])
+  }
+}
+
+resource "terraform_data" "uninstall_aks_preview_cli" {
+  count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
+
+  provisioner "local-exec" {
+    when = destroy
+    command = join(" ", [
+      "az",
+      "extension",
+      "remove",
+      "-n", "aks-preview",
     ])
   }
 }
@@ -76,6 +108,7 @@ resource "terraform_data" "aks_nodepool_cli" {
       "--nodepool-name", each.value.name,
       "--node-count", each.value.node_count,
       "--node-vm-size", each.value.vm_size,
+      "--vm-set-type", each.value.vm_set_type,
     ])
   }
 }
