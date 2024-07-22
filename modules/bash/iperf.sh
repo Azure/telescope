@@ -32,7 +32,7 @@ run_iperf3() {
   local protocol=$7
   local bandwidth=$8
   local datapath=$9
-  local iperf_properties=$10
+  local iperf_properties=${10}
 
 
   mkdir -p $result_dir
