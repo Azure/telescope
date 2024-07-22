@@ -188,9 +188,12 @@ measure_create_delete_vm() {
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
     pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
 
+    pip=""
+
     if [[ -z "$nic" || -z "$pip" ]] && [[ "$precreate_nic" == "true" ]]; then
       local status_file="/tmp/test-info/$vm_name.json"
       echo "{\"succeeded\": \"false\", \"error_message\": \"No NIC or PIP could be created.\"}" > "$status_file"
+      delete_nic_and_pip_if_needed "$cloud" "$nic" "$pip_id" "$run_id"
       exit 1
     fi
 
