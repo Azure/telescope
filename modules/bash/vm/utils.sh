@@ -192,7 +192,7 @@ measure_create_delete_vm() {
     
     if [[ -z "$nic" ]] || [[ -z "$pip" ]]; then
       local status_file="/tmp/test-info/$vm_name.json"
-      echo "{\"succeeded\": false, \"error_message\": No NIC or PIP could be created.}" > "$status_file"
+      echo "{\"succeeded\": \"false\", \"error_message\": \"No NIC or PIP could be created.\"}" > "$status_file"
       exit 1
     fi
 
