@@ -158,7 +158,6 @@ delete_ec2() {
 #
 # Usage: create_pip <region> [tag_specifications]
 create_pip() {
-    set -x
     local region=$1
     local tag_specifications="${2:-"ResourceType=elastic-ip,Tags=[{Key=owner,Value=azure_devops}]"}"
 
