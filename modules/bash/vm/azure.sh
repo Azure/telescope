@@ -76,7 +76,7 @@ create_vm() {
     if [[ -n "$nics" ]]; then
         az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --no-wait  --nic-delete-option delete --os-disk-delete-option delete  --output json --tags $tags 2>"$error_file" > "$output_file"
     else
-        az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2>"$error_file" > "$output_file"
+        az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --no-wait --nic-delete-option delete --os-disk-delete-option delete --output json --tags $tags 2>"$error_file" > "$output_file"
     fi
 
     local exit_code=$?
