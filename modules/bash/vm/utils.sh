@@ -188,7 +188,7 @@ measure_create_delete_vm() {
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
     pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
 
-    if [[ -z "$nic" ]] || [[ -z "$pip" ]]; then
+    if [[ -z "$nic" || -z "$pip" ]] && [[ "$precreate_nic" == "true" ]]; then
       local status_file="/tmp/test-info/$vm_name.json"
       echo "{\"succeeded\": \"false\", \"error_message\": \"No NIC or PIP could be created.\"}" > "$status_file"
       exit 1
@@ -196,7 +196,9 @@ measure_create_delete_vm() {
 
     vm_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$timeout" "$result_dir" "$test_details" "$tags")
 
-    vm_id=$(measure_delete_vm "$cloud" "$vm_id" "$region" "$run_id" "$result_dir" "$test_details")
+    if [ -n "$vm_id" ] && [[ "$vm_id" != Error* ]]; then
+        vm_id=$(measure_delete_vm "$cloud" "$vm_id" "$region" "$run_id" "$result_dir" "$test_details")
+    fi
 
     delete_nic=$(delete_nic_and_pip_if_needed "$cloud" "$nic" "$pip_id" "$run_id")
 }
