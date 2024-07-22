@@ -548,7 +548,7 @@ get_connection_timestamp() {
     local output=1
     local try=0
     local wait_time=3
-    timeout=0
+    timeout=1
     error_file="/tmp/ssh-$ip-$(date +%s).txt"
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
