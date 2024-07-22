@@ -28,10 +28,22 @@ resource "terraform_data" "aks_cli_preview" {
       "az",
       "extension",
       "add",
-      "-n", "aks-preview",
+      "-n",
+      "aks-preview",
     ])
   }
-} 
+
+  provisioner "local-exec" {
+    when = destroy
+    command = join(" ", [
+      "az",
+      "extension",
+      "remove",
+      "-n",
+      "aks-preview",
+    ])
+  }
+}
 
 resource "terraform_data" "aks_cli" {
   depends_on = [
@@ -72,20 +84,6 @@ resource "terraform_data" "aks_cli" {
       "-g", self.input.group_name,
       "-n", self.input.name,
       "--yes",
-    ])
-  }
-}
-
-resource "terraform_data" "uninstall_aks_preview_cli" {
-  count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
-
-  provisioner "local-exec" {
-    when = destroy
-    command = join(" ", [
-      "az",
-      "extension",
-      "remove",
-      "-n", "aks-preview",
     ])
   }
 }
