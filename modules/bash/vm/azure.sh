@@ -74,7 +74,7 @@ create_vm() {
     local start_time=$(date +%s)
 
     if [[ -n "$nics" ]]; then
-        az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --no-wait --output json --tags $tags 2>"$error_file" > "$output_file"
+        az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --nics "$nics" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type"  --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2>"$error_file" > "$output_file"
     else
         az vm create  --resource-group "$resource_group" --name "$vm_name" --size "$vm_size" --image "$vm_os" --location "$region" --admin-username "$admin_username" --admin-password "$admin_password" --security-type "$security_type" --storage-sku "$storage_type" --nic-delete-option delete --os-disk-delete-option delete --output json --no-wait --tags $tags 2>"$error_file" > "$output_file"
     fi
@@ -102,7 +102,10 @@ delete_vm() {
     local vm_name=$1
     local resource_group=$2
 
-    az vm delete --resource-group "$resource_group" --name "$vm_name" --force-deletion true --yes --output json 2> "/tmp/$vm_name-delete_vm-error.txt" > "/tmp/$vm_name-delete_vm-output.txt"
+    local error_file="/tmp/$vm_name-delete_vm-error.txt"
+    local output_file="/tmp/$vm_name-delete_vm-output.txt"
+
+    az vm delete --resource-group "$resource_group" --name "$vm_name" --force-deletion true --yes --output json 2> "$error_file" > "$output_file"
 
     exit_code=$?
 
@@ -115,8 +118,8 @@ delete_vm() {
         }
         trap _catch ERR
 
-        vm_data=$(cat "/tmp/$vm_name-delete-vm-output.txt")
-        error=$(cat "/tmp/$vm_name-delete-vm-error.txt")
+        vm_data=$(cat "$output_file")
+        error=$(cat "$error_file")
 
         if [[ $exit_code -eq 0 ]]; then
             echo $(jq -c -n \
