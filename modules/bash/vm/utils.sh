@@ -188,6 +188,7 @@ measure_create_delete_vm() {
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
     pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
 
+    pip=""
     
     if [[ -z "$nic" ]] || [[ -z "$pip" ]]; then
         echo "{\"succeeded\": true}" > "/tmp/test-info/$vm_id"
