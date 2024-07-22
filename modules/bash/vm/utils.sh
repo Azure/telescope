@@ -182,7 +182,7 @@ measure_create_delete_vm() {
 - Storage type: $storage_type
 - Timeout: $timeout
 - Tags: $tags"
-    
+
     nic_and_pip=$(precreate_nic_and_pip_if_needed "$cloud" "$vm_name" "$run_id" "$region" "$security_group" "$subnet" "$tags" "$precreate_nic")
     nic=$(echo "$nic_and_pip" | jq -r '.nic')
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
