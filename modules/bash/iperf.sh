@@ -31,7 +31,8 @@ run_iperf3() {
   local result_dir=$6
   local protocol=$7
   local bandwidth=$8
-  local iperf_properties=$9
+  local datapath=$9
+  local iperf_properties=$10
 
 
   mkdir -p $result_dir
@@ -42,7 +43,7 @@ run_iperf3() {
   echo "Wait for 1 minutes before running"
   sleep 60
   echo "Run iperf3 command: $command"
-  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/iperf3-${protocol}-${bandwidth}.json
+  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/iperf3-${protocol}-${bandwidth}-${datapath}.json
 }
 
 run_iperf2_draft_run(){
@@ -129,10 +130,11 @@ collect_result_iperf3() {
   local run_url=$6
   local protocol=$7
   local bandwidth=$8
+  local datapath=$9
 
   touch $result_dir/results.json
 
-  iperf_result="$result_dir/iperf3-${protocol}-${bandwidth}.json"
+  iperf_result="$result_dir/iperf3-${protocol}-${bandwidth}-${datapath}.json"
   cat $iperf_result
   iperf_info=$(python3 ./modules/python/iperf3/parser.py $protocol $iperf_result)
 
@@ -153,7 +155,8 @@ collect_result_iperf3() {
     --arg ingress_ip "$ingress_ip_address" \
     --arg run_id "$run_id" \
     --arg run_url "$run_url" \
-    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
+    --arg datapath "$datapath" \
+    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url, datapath: $datapath}')
 
   echo $data >> $result_dir/results.json
 }
