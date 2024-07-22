@@ -1,0 +1,7 @@
+{
+    "owner"                            : "terraform_unit_tests",
+    "run_id"                           : "123456789",
+    "region"                           : "eastus",
+    "machine_type"                     : "Standard_D2s_v5",
+    "accelerated_networking"           : false
+  }
