@@ -32,6 +32,7 @@ MACHINE_TYPE=standard_D16_v3
 ACCELERATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+VM_COUNT_OVERRIDE=1
 ```
 
 **Note**:
@@ -39,6 +40,7 @@ TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scr
 * `RUN_ID` should be a unique identifier since it is used to name the resource group in Azure.
 * These variables are not exhaustive and may vary depending on the scenario.
 * `REGIONS` contains list of regions
+* `VM_COUNT_OVERRIDE` optional, will create this number copies of all the vms in vm_config_list with associated nics and pips
 
 ### Set Input File
 
@@ -64,18 +66,19 @@ Login with web browser access
 az login
 ```
 
-Login without web browser like from a Linux devbox or VM, please create a service principle first to login with the service principle
+Login without web browser like from a Linux devbox or VM, you'll need to create an user-assigned identity and assign it the the VM using this [instruction](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-configure-managed-identities?pivots=qs-configure-cli-windows-vm#user-assigned-managed-identity)
 
 ```bash
-az ad sp create-for-rbac --name <servicePrincipleName> --role contributor --scopes /subscriptions/<subscriptionId>
-{
-  "appId": "xxx",
-  "displayName": "xxx",
-  "password": "xxx",
-  "tenant": "xxx"
-}
+az identity create -g <identityResourceGroup> -n <userAssignedIdentityName>
+az vm identity assign -g <vmResourceGroup> -n <vmName> --identities <userAssignedIdentityName>
 
-az login --service-principal --username <appId> --password <password> --tenant <tenant>
+az login --identity --username <userAssignedIdentityClientID>
+```
+
+Ask owners to give the newly created identity Contributor role if not already having that. Before running any terraform command, make sure to run this command so Terraform will interact with the subscription using Managed Identity
+
+```bash
+export ARM_USE_MSI=true ARM_TENANT_ID=<tenantID> ARM_CLIENT_ID=<userAssignedIdentityClientId> ARM_SUBSCRIPTION_ID=<subscriptionId>
 ```
 
 Set subscription for testing
@@ -111,6 +114,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
   --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
   --arg data_disk_count "$DATA_DISK_COUNT" \
+  --arg vm_count_override "$VM_COUNT_OVERRIDE \
   --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
   --arg storage_account_tier "$STORAGE_TIER" \
   --arg storage_account_kind "$STORAGE_KIND" \
@@ -135,6 +139,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
     data_disk_mbps_read_write: $data_disk_mbps_read_write,
     data_disk_mbps_read_only: $data_disk_mbps_read_only,
     data_disk_count: $data_disk_count,
+    vm_count_override: $vm_count_override,
     ultra_ssd_enabled: $ultra_ssd_enabled,
     storage_account_tier: $storage_account_tier,
     storage_account_kind: $storage_account_kind,
@@ -206,7 +211,7 @@ popd
 After terraform destroys all the resources delete resource group manually.
 
 ```bash
-az group delete --name $RUN_ID
+az group delete --name $RUN_ID -y
 ```
 
 ## References

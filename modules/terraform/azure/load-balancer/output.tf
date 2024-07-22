@@ -3,5 +3,5 @@ output "lb_pool_id" {
 }
 
 output "lb_fipc_id" {
-  value = azurerm_lb.lb.frontend_ip_configuration.0.id
+  value = azurerm_lb.lb.frontend_ip_configuration[0].id
 }

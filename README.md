@@ -109,6 +109,7 @@ public_ip_config_list = [  # List of public IP address configurations to be crea
     allocation_method = "Static"  # Optional: Allocation method for the public IP (e.g., "Static")
     sku               = "Standard"  # Optional: SKU of the public IP (e.g., "Standard")
     zones             = [1, 2]  # Optional: Zones for the public IP (e.g., [1,2])
+    count             = 2 # Optional: number of copies to make, with name as prefix and "-{index}" as sufix (e.g. ingress-pip-1 ingress-pip-2) 
   }
 ]
 network_config_list = [
@@ -129,6 +130,7 @@ network_config_list = [
         subnet_name           =  "same-subnet"  # Name of the subnet associated with the NIC (e.g., "same-subnet")
         ip_configuration_name =  "server-ipconfig"  # Name of the IP configuration for the NIC (e.g., "server-ipconfig")
         public_ip_name        =  "ingress-pip"  # Name of the public IP associated with the NIC (e.g., "ingress-pip")
+        count                 =  2 # Optional: Number of copies of the NIC to make, with nic_name as prefix and "-{index}" as sufix (e.g. server-nic-1 server-nic-2). Will associate public_ip_name with the same naming rule (eg. ingress-pip-1 ingress-pip-2)
       }
     ]
     nsr_rules = [{  # List of Network Security Rules
@@ -173,6 +175,7 @@ vm_config_list = [{  # List of virtual machine configurations
   nic_name       =  "server-nic"  # Name of the associated Network Interface Card (NIC) (e.g., "server-nic")
   admin_username =  "ubuntu"  # Username for accessing the virtual machine (e.g., "ubuntu")
   zone           =  "1"  # Availability zone for the virtual machine (e.g., "1")
+  count          =  2 # Optional: Number of copies of the VM to make, with vm_name as prefix and "-{index}" as sufix (e.g. server-vm-1 server-vm-2). Will associate nic_name with the same naming rule (eg. server-nic-1 server-nic-2)
   source_image_reference = {  # Reference to the source image for the virtual machine
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
@@ -289,7 +292,6 @@ loadbalancer_config_list = [{  # List of load balancer configurations
     tg_suffix  = "http"  # Suffix for the target group (e.g., "http")
     port       = 80  # Port for the target group (e.g., 80)
     protocol   = "TCP"  # Protocol for the target group (e.g., "TCP")
-    rule_count = 1  # Number of rules for the target group (e.g., 1)
     vpc_name   = "server-vpc"  # Name of the VPC (e.g., "server-vpc")
     health_check = {  # Health check configuration
       port                = "80"  # Port for health checks (e.g., "80")
@@ -299,21 +301,20 @@ loadbalancer_config_list = [{  # List of load balancer configurations
       healthy_threshold   = 3  # Healthy threshold for health checks (e.g., 3)
       unhealthy_threshold = 3  # Unhealthy threshold for health checks (e.g., 3)
     }
-    lb_listener = {  # Load balancer listener configuration
+    lb_listener = [{  # Load balancer listener configuration
       port     = 80  # Port for the listener (e.g., 80)
       protocol = "TCP"  # Protocol for the listener (e.g., "TCP")
-    }
-    lb_target_group_attachment = {  # Load balancer target group attachment configuration
+    }]
+    lb_target_group_attachment = [{  # Load balancer target group attachment configuration
       vm_name = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
       port    = 80  # Port for the target group attachment (e.g., 80)
-    }
+    }]
     },
     {
       role       = "nlb-tg"  # Role of the target group (e.g., "nlb-tg")
       tg_suffix  = "https"  # Suffix for the target group (e.g., "https")
       port       = 443  # Port for the target group (e.g., 443)
       protocol   = "TCP"  # Protocol for the target group (e.g., "TCP")
-      rule_count = 1  # Number of rules for the target group (e.g., 1)
       vpc_name   = "same-vpc"  # Name of the VPC (e.g., "same-vpc")
       health_check = {  # Health check configuration
         port                = "443"  # Port for health checks (e.g., "443")
@@ -323,14 +324,14 @@ loadbalancer_config_list = [{  # List of load balancer configurations
         healthy_threshold   = 3  # Healthy threshold for health checks (e.g., 3)
         unhealthy_threshold = 3  # Unhealthy threshold for health checks (e.g., 3)
       }
-      lb_listener = {  # Load balancer listener configuration
+      lb_listener = [{  # Load balancer listener configuration
         port     = 443  # Port for the listener (e.g., 443)
         protocol = "TCP"  # Protocol for the listener (e.g., "TCP")
-      }
-      lb_target_group_attachment = {  # Load balancer target group attachment configuration
+      }]
+      lb_target_group_attachment = [{  # Load balancer target group attachment configuration
         vm_name = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
         port    = 443  # Port for the target group attachment (e.g., 443)
-      }
+      }]
     }
   ]
 }]
@@ -342,6 +343,7 @@ vm_config_list = [{  # List of virtual machine configurations
   security_group_name         = "same-sg"  # Name of the security group (e.g., "same-sg")
   associate_public_ip_address = true  # Flag indicating whether to associate a public IP address (e.g., true)
   zone_suffix                 = "a"  # Availability zone suffix for the VM (e.g., "a")
+  count                       = 2 # Optional, number of copies to make, with vm_name as prefix (eg. client-vm-1 client-vm-2)
 },
 {
   vm_name                     = "server-vm"  # Name of the virtual machine (e.g., "server-vm")
@@ -404,7 +406,7 @@ For example, if you want to update the `lb-same-zone-iperf` test scenario, then 
 
 ### CI checks
 
-We currently have 3 CI checks in place for GitHub Workflows:
+We currently have 4 CI checks in place for GitHub Workflows:
 
 * [Terraform Validate](https://github.com/Azure/telescope/actions/workflows/terraform-validate.yml): this one performs a dry run of the terraform code to validate that the `hcl` format and syntax is correct. It's triggered automatically when a PR is created or updated based on the changes in the PR.
   * To run the local format check run  this command `terraform fmt --check -recursive --diff`
@@ -416,6 +418,14 @@ We currently have 3 CI checks in place for GitHub Workflows:
 * [Terraform Plan](https://github.com/Azure/telescope/blob/main/.github/workflows/terraform-plan.yml): This workflow creates terraform plan for all the tests scenarios to make sure all terraform inputs are provided properly and check all required inputs for a test scenario. It's triggered automatically when a PR is created or updated based on the test scenario changes in the PR.
 * [Python Unit Tests](https://github.com/Azure/telescope/actions/workflows/python-unit-tests.yml): this one runs the unit tests for all `py` related files to make sure python code is tested and validated. It's triggered automatically when a PR is created or updated based on the changes in the PR.
   * To run the tests locally, you can run the `python -m unittest discover` command in the python module folder of the repository.
+* [Lint Checker](https://github.com/Azure/telescope/actions/workflows/code-format-validation.yml): This workflow checks for terraform lint errors and also check if the scenario folder name is not greater than 30 characters long.
+  * Use these command to setup tflint on local machine.
+      ```bash
+      curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+      tflint --init
+      tflint --recursive --config "$(pwd)/.tflint.hcl"  --minimum-failure-severity=warning
+      ```
+  * To fix terraform lint errors that are fixable use this command `tflint --recursive --config "$(pwd)/.tflint.hcl" --fix`
 
 # GitHub tag Scenarios:
 - Sample github tag looks like this v1.0.33 which represents Version MAJOR.MINOR.PATCH
@@ -446,9 +456,21 @@ Note:
  - Tags displayed in the above table are examples.
  - All the GitHub Version tags are found [here](https://github.com/Azure/telescope/tags)
 
+## Modify properties in JSON schema:
+To Modify the AWS and Azure input JSON schema, follow these steps:
+
+- [AWS-Schema](./modules/terraform/aws/aws_input_schema.json) 
+- [Azure-Schema](./modules/terraform/azure/azure_input_schema.json)
+
+1. Use schemas referenced above to Add or modify necessary properties in the JSON schema file.
+2. Update the schema whenever there is change in input json
+3. Make sure to include unit tests for updated changes.
+
 ## References
 
 * [GitHub Workflows](https://docs.github.com/en/actions/using-workflows)
 * [Terraform Fmt command](https://developer.hashicorp.com/terraform/cli/commands/fmt)
 * [Terraform validate command](https://developer.hashicorp.com/terraform/cli/commands/validate)
 * [Python Unit Tests](https://docs.python.org/3/library/unittest.html)
+* [JSON-Schema](https://json-schema.org/learn/getting-started-step-by-step)
+* [Tflint](https://github.com/terraform-linters/tflint?tab=readme-ov-file)

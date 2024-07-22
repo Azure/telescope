@@ -35,20 +35,14 @@ run_iperf3() {
 
 
   mkdir -p $result_dir
-  echo "Run evaluation on $egress_ip_address with user name $user_name and ssh key $privatekey_path and result path $result_dir"
+  echo "Run evaluation on $egress_ip_address with user name $user_name at $ssh_port and ssh key $privatekey_path and result path $result_dir"
 
   local command="iperf3 $iperf_properties --json"
 
-  port=20001
-  if [ "$protocol" = "udp" ]; then
-    port=20002
-  fi
-
   echo "Wait for 1 minutes before running"
   sleep 60
-  local fullCommand="$command --port $port"
-  echo "Run iperf3 command: $fullCommand"
-  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$fullCommand" > $result_dir/iperf3-${protocol}-${bandwidth}.json
+  echo "Run iperf3 command: $command"
+  run_ssh $privatekey_path $user_name $egress_ip_address $ssh_port "$command" > $result_dir/iperf3-${protocol}-${bandwidth}.json
 }
 
 run_iperf2_draft_run(){
@@ -132,8 +126,9 @@ collect_result_iperf3() {
   local ingress_ip_address=$3
   local cloud_info=$4
   local run_id=$5
-  local protocol=$6
-  local bandwidth=$7
+  local run_url=$6
+  local protocol=$7
+  local bandwidth=$8
 
   touch $result_dir/results.json
 
@@ -157,7 +152,8 @@ collect_result_iperf3() {
     --arg egress_ip "$egress_ip_address" \
     --arg ingress_ip "$ingress_ip_address" \
     --arg run_id "$run_id" \
-    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id}')
+    --arg run_url "$run_url" \
+    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, iperf_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url}')
 
   echo $data >> $result_dir/results.json
 }

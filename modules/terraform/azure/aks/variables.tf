@@ -44,6 +44,7 @@ variable "aks_config" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
+      ebpf_data_plane     = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))
@@ -67,7 +68,11 @@ variable "aks_config" {
       os_sku       = optional(string, "Ubuntu")
       os_disk_type = optional(string, "Managed")
       max_pods     = optional(number, null)
+      zones        = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
+    service_mesh_profile = optional(object({
+      mode = string
+    }))
   })
 }

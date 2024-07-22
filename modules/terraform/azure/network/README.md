@@ -39,6 +39,11 @@ This module provisions virtual networks in Azure. It allows you to create and co
   - `subnet`: List of subnets within the virtual network
   - `network_security_group_name`: Name of the network security group
   - `nic_public_ip_associations`: List of NIC public IP associations
+    - `nic_name`: Name of the NIC
+    - `subnet_name`: Name of the subnet
+    - `ip_configuration_name`: Name of the ip configuration
+    - `public_ip_name`: Name of the pip associated to this NIC
+    - `count`: Optional, copies of this nic association to make, with nic_name and public_ip_name acting as prefix
   - `nsr_rules`: List of network security rules
   - `nat_gateway_associations`: Optional list of NAT gateway associations
 - **Example:** Refer to your specific configuration
@@ -80,6 +85,9 @@ module "virtual_network" {
         subnet_name           = "web-subnet"
         ip_configuration_name = "web-ip-config"
         public_ip_name        = "web-public-ip"
+        count                 = 1 # Optional. Will leave the definition unchanged if its 1, but if greater than 1 
+                                  # will create copies with nic_name web-nic-1 web-nic-2 etc 
+                                  # and public_ip_name web-public-ip-1 web-public-ip-2 etc
       }
     ]
     nsr_rules = [

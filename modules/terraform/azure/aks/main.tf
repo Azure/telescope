@@ -34,11 +34,19 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_plugin      = var.aks_config.network_profile.network_plugin
     network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
     network_policy      = var.aks_config.network_profile.network_policy
+    ebpf_data_plane     = var.aks_config.network_profile.ebpf_data_plane
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
   }
   identity {
     type = "SystemAssigned"
+  }
+
+  dynamic "service_mesh_profile" {
+    for_each = try(var.aks_config.service_mesh_profile != null ? [var.aks_config.service_mesh_profile] : [])
+    content {
+      mode = service_mesh_profile.value.mode
+    }
   }
 
   oidc_issuer_enabled       = true
@@ -56,6 +64,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   os_sku                = each.value.os_sku
   os_disk_type          = each.value.os_disk_type
   max_pods              = each.value.max_pods
+  zones                 = try(each.value.zones, [])
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {

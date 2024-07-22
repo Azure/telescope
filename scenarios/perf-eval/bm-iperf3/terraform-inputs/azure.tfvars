@@ -56,11 +56,11 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-        name                       = "nsr-udp"
+        name                       = "nsr-tcp-udp"
         priority                   = 102
         direction                  = "Inbound"
         access                     = "Allow"
-        protocol                   = "Udp"
+        protocol                   = "*"
         source_port_range          = "*"
         destination_port_range     = "20002-20002"
         source_address_prefix      = "*"

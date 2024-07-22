@@ -116,12 +116,12 @@ loadbalancer_config_list = [{
   load_balancer_type  = "application"
   security_group_name = "server-sg"
   lb_target_group = [{
-    role       = "nlb-tg"
-    tg_suffix  = "http"
-    port       = 80
-    protocol   = "HTTP"
-    rule_count = 1
-    vpc_name   = "server-vpc"
+    role                    = "nlb-tg"
+    tg_suffix               = "http"
+    port                    = 80
+    protocol                = "HTTP"
+    vpc_name                = "server-vpc"
+    certificate_domain_name = "aks-telescope.com"
     health_check = {
       port                = "80"
       protocol            = "HTTP"
@@ -130,14 +130,19 @@ loadbalancer_config_list = [{
       healthy_threshold   = 3
       unhealthy_threshold = 3
     }
-    lb_listener = {
+    lb_listener = [{
       port     = 80
       protocol = "HTTP"
-    }
-    lb_target_group_attachment = {
+      },
+      {
+        port     = 443
+        protocol = "HTTPS"
+      }
+    ]
+    lb_target_group_attachment = [{
       vm_name = "server-vm"
       port    = 80
-    }
+    }]
     }
   ]
 }]

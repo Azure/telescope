@@ -24,6 +24,7 @@ variable "json_input" {
     storage_share_quota              = optional(number)
     storage_share_access_tier        = optional(string)
     storage_share_enabled_protocol   = optional(string)
+    vm_count_override                = optional(number, 0)
   })
 }
 
@@ -49,6 +50,7 @@ variable "public_ip_config_list" {
   description = "A list of public IP names"
   type = list(object({
     name              = string
+    count             = optional(number, 1)
     allocation_method = optional(string, "Static")
     sku               = optional(string, "Standard")
     zones             = optional(list(string), [])
@@ -79,6 +81,7 @@ variable "network_config_list" {
       subnet_name           = string
       ip_configuration_name = string
       public_ip_name        = string
+      count                 = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string
@@ -168,8 +171,12 @@ variable "aks_config_list" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
+      ebpf_data_plane     = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+    }))
+    service_mesh_profile = optional(object({
+      mode = string
     }))
     sku_tier = string
     default_node_pool = object({
@@ -191,8 +198,33 @@ variable "aks_config_list" {
       os_sku       = optional(string)
       os_disk_type = optional(string)
       max_pods     = optional(number)
+      zones        = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
+  }))
+  default = []
+}
+
+variable "aks_cli_config_list" {
+  type = list(object({
+    role     = string
+    aks_name = string
+    sku_tier = string
+
+    aks_custom_headers = optional(list(string))
+
+    default_node_pool = object({
+      name       = string
+      node_count = number
+      vm_size    = string
+    })
+    extra_node_pool = optional(
+      list(object({
+        name       = string
+        node_count = number
+        vm_size    = string
+      }))
+    )
   }))
   default = []
 }
@@ -232,6 +264,7 @@ variable "vm_config_list" {
     admin_username   = string
     info_column_name = optional(string)
     zone             = optional(number)
+    count            = optional(number, 1)
     source_image_reference = object({
       publisher = string
       offer     = string
