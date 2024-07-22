@@ -188,8 +188,6 @@ measure_create_delete_vm() {
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
     pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
 
-    pip=""
-
     if [[ -z "$nic" || -z "$pip" ]] && [[ "$precreate_nic" == "true" ]]; then
       local status_file="/tmp/test-info/$vm_name.json"
       echo "{\"succeeded\": \"false\", \"error_message\": \"No NIC or PIP could be created.\"}" > "$status_file"
@@ -550,7 +548,7 @@ get_connection_timestamp() {
     local output=1
     local try=0
     local wait_time=3
-
+    timeout=0
     error_file="/tmp/ssh-$ip-$(date +%s).txt"
     set +e
     while [ $output -ne 0 ] && [ $try -lt $timeout ]; do
