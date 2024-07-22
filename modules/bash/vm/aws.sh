@@ -188,6 +188,7 @@ create_nic() {
     local security_group=$3
     local pip_id=$4
     local tag_specifications="${5:-"ResourceType=network-interface,Tags=[{Key=owner,Value=azure_devops}]"}"
+
     nic_id=$(aws ec2 create-network-interface --description "$nic_name" --subnet-id "$subnet" --groups "$security_group" --tag-specifications "$tag_specifications" --output text --query 'NetworkInterface.NetworkInterfaceId')
 
     if [[ -n "$nic_id" ]]; then
