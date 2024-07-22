@@ -191,7 +191,7 @@ measure_create_delete_vm() {
     pip=""
     
     if [[ -z "$nic" ]] || [[ -z "$pip" ]]; then
-        echo "{\"succeeded\": false, \"error_message\": No NIC or PIP could be created.}" > "/tmp/test-info/$vm_id"
+        echo "{\"succeeded\": false, \"error_message\": No NIC or PIP could be created.}" > "/tmp/test-info/$vm_name"
         exit 1
     fi
 
