@@ -1,6 +1,5 @@
 {
     "owner"                            : "terraform_unit_tests",
     "run_id"                           : "123456789",
-    "region"                           : "eastus",
-    "pool_type"                        : "vms"
+    "region"                           : "eastus"
 }
