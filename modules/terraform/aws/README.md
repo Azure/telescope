@@ -31,6 +31,7 @@ REGIONS='["us-east-2"]'
 MACHINE_TYPE=m5.4xlarge
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+VM_COUNT_OVERRIDE=1
 ```
 
 **Note**:
@@ -38,6 +39,7 @@ TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scr
 * `RUN_ID` should be a unique identifier since it is used to identify the resources based on tags as AWS has no concept of a resource group.
 * These variables are not exhaustive and may vary depending on the scenario.
 * `REGIONS` contains list of regions
+* `VM_COUNT_OVERRIDE` optional, will create this number copies of all the vms in vm_config_list
 
 ## Set Input File
 
@@ -88,6 +90,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
         --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
         --arg data_disk_count "$DATA_DISK_COUNT" \
+        --arg vm_count_override "$VM_COUNT_OVERRIDE"  \
         --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
         --arg user_data_path $TERRAFORM_USER_DATA_PATH \
         --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
@@ -107,6 +110,7 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         data_disk_mbps_read_write: $data_disk_mbps_read_write,
         data_disk_mbps_read_only: $data_disk_mbps_read_only,
         data_disk_count: $data_disk_count,
+        vm_count_override: $vm_count_override,
         ultra_ssd_enabled: $ultra_ssd_enabled,
         user_data_path: $user_data_path,
         efs_performance_mode: $efs_performance_mode,
