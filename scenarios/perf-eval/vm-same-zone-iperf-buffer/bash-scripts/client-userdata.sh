@@ -1,7 +1,7 @@
 #!/bin/bash
 
-sudo sysctl -w net.core.rmem_max=8388608
-sudo sysctl -w net.core.rmem_default=1425984
+sudo sysctl -w net.core.rmem_max=1048576
+sudo sysctl -w net.core.rmem_default=1048576
 
 sudo perl -pi -e 's/^#?Port 22$/Port 2222/' /etc/ssh/sshd_config
 sudo service ssh restart
