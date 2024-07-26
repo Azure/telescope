@@ -10,11 +10,6 @@ network_config_list = [
       name        = "server-subnet"
       cidr_block  = "10.1.1.0/24"
       zone_suffix = "a"
-    },
-    {
-      name        = "server-subnet"
-      cidr_block  = "10.2.2.0/24"
-      zone_suffix = "b"
     }]
     security_group_name = "server-sg"
     route_tables = [
