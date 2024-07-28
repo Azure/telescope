@@ -66,7 +66,7 @@ network_config_list = [
       },
       {
         name                       = "nsr-sockperf-tcp"
-        priority                   = 101
+        priority                   = 103
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -128,7 +128,7 @@ network_config_list = [
       },
       {
           name                       = "nsr-sockperf-tcp"
-          priority                   = 101
+          priority                   = 103
           direction                  = "Inbound"
           access                     = "Allow"
           protocol                   = "Tcp"
