@@ -56,6 +56,12 @@ network_config_list = [
           to_port    = 20004
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20005
+          to_port    = 20005
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
         }
       ]
       egress = [
@@ -161,6 +167,29 @@ loadbalancer_config_list = [{
         vm_name = "server-vm"
         port    = 20004
       }]
+    },
+    {
+    role      = "nlb-tg"
+    tg_suffix = "tcp"
+    port      = 20005
+    protocol  = "TCP"
+    vpc_name  = "server-vpc2"
+    health_check = {
+      port                = "20005"
+      protocol            = "TCP"
+      interval            = 10
+      timeout             = 10
+      healthy_threshold   = 2
+      unhealthy_threshold = 2
+    }
+    lb_listener = [{
+      port     = 20005
+      protocol = "TCP"
+    }]
+    lb_target_group_attachment = [{
+      vm_name = "server-vm"
+      port    = 20005
+    }]
     }
   ]
 }]
