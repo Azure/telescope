@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-peer-same-zone-iperf3-sockperf"
+scenario_name  = "lb-peer-iperf3-sockperf"
 deletion_delay = "2h"
 network_config_list = [
   {
