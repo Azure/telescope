@@ -234,7 +234,7 @@ module "virtual_machine_scale_set" {
 
 module "proximity_placement_group" {
   count               = var.proximity_placement ? 1 : 0
-  source              = "./proximity_placement_group"
+  source              = "./proximity-placement-group"
   tags                = local.tags
   resource_group_name = local.run_id
   location            = local.region
