@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-peer-same-zone-iperf3"
+scenario_name  = "lb-peer-iperf3-sockperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -63,6 +63,17 @@ network_config_list = [
         destination_port_range     = "2222"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
+      },
+      {
+        name                       = "nsr-sockperf-tcp"
+        priority                   = 103
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "20005-20005"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
       }
     ]
   },
@@ -114,6 +125,17 @@ network_config_list = [
         destination_port_range     = "20004-20004"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
+      },
+      {
+        name                       = "nsr-sockperf-tcp"
+        priority                   = 103
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "20005-20005"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
     }]
   }
 ]
@@ -155,6 +177,17 @@ loadbalancer_config_list = [{
       backend_port            = 20004
       enable_tcp_reset        = false
       idle_timeout_in_minutes = 4
+    },
+    {
+      type                     = "Inbound"
+      rule_count               = 1
+      role                     = "ingress-lb-tcp-rule3"
+      protocol                 = "Tcp"
+      frontend_port            = 20005
+      backend_port             = 20005
+      fronend_ip_config_prefix = "ingress"
+      enable_tcp_reset         = false
+      idle_timeout_in_minutes  = 4
   }]
 }]
 
