@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "lb-peer-same-zone-iperf3"
+scenario_name  = "lb-peer-same-zone-iperf3-sockperf"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -127,15 +127,15 @@ network_config_list = [
         destination_address_prefix = "*"
       },
       {
-          name                       = "nsr-sockperf-tcp"
-          priority                   = 103
-          direction                  = "Inbound"
-          access                     = "Allow"
-          protocol                   = "Tcp"
-          source_port_range          = "*"
-          destination_port_range     = "20005-20005"
-          source_address_prefix      = "*"
-          destination_address_prefix = "*"
+        name                       = "nsr-sockperf-tcp"
+        priority                   = 103
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "20005-20005"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
     }]
   }
 ]
