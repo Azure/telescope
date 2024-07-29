@@ -212,6 +212,7 @@ module "virtual_machine" {
   user_data_path      = local.user_data_path
   tags                = local.tags
   ultra_ssd_enabled   = local.ultra_ssd_enabled
+  proximity_placement = var.proximity_placement
 }
 
 module "virtual_machine_scale_set" {
@@ -229,6 +230,14 @@ module "virtual_machine_scale_set" {
   public_key            = file(local.public_key_path)
   user_data_path        = local.user_data_path
   tags                  = local.tags
+}
+
+module "proximity_placement_group" {
+  count               = var.proximity_placement ? 1 : 0
+  source              = "./proximity_placement_group"
+  tags                = local.tags
+  resource_group_name = local.run_id
+  location            = local.region
 }
 
 resource "azurerm_network_interface_backend_address_pool_association" "nic-backend-pool-association" {

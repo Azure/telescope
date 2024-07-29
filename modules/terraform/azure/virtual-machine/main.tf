@@ -5,6 +5,12 @@ locals {
   version   = var.vm_config.source_image_reference.version
 }
 
+data "azurerm_proximity_placement_group" "proximity_placement_group" {
+  name                = "vmProximityPlacementGroup"
+  resource_group_name = var.resource_group_name
+  count               = var.proximity_placement ? 1 : 0
+}
+
 resource "azurerm_linux_virtual_machine" "vm" {
   name                  = var.name
   resource_group_name   = var.resource_group_name
@@ -39,6 +45,12 @@ resource "azurerm_linux_virtual_machine" "vm" {
   )
 
   zone = var.vm_config.zone
+
+  proximity_placement_group_id = var.proximity_placement ? azurerm_proximity_placement_group.proximity_placement_group[0].id : null
+
+  depends_on = [
+    var.proximity_placement ? azurerm_proximity_placement_group.proximity_placement_group : []
+  ]
 
   additional_capabilities {
     ultra_ssd_enabled = var.ultra_ssd_enabled

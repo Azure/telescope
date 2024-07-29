@@ -69,3 +69,9 @@ variable "ultra_ssd_enabled" {
   type        = bool
   default     = false
 }
+
+variable "proximity_placement" {
+  description = "whether or not to create proximity group"
+  type        = bool
+  default     = false
+}

@@ -364,3 +364,9 @@ variable "blob_config" {
   })
   default = null
 }
+
+variable "proximity_placement" {
+  description = "whether or not to create proximity group"
+  type        = bool
+  default     = false
+}

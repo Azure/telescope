@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf3"
+scenario_name  = "vm-same-zone-placement-iperf3"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -88,7 +88,7 @@ vm_config_list = [{
     role           = "server"
     vm_name        = "server-vm"
     nic_name       = "server-nic"
-    admin_username = "ubuntu",
+    admin_username = "ubuntu"
     zone           = "1"
     source_image_reference = {
       publisher = "canonical"
@@ -99,5 +99,6 @@ vm_config_list = [{
     create_vm_extension = true
   }
 ]
+proximity_placement               = true
 vmss_config_list                  = []
 nic_backend_pool_association_list = []
