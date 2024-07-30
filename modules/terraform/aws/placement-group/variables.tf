@@ -3,7 +3,12 @@ variable "pg_config" {
   type = object({
     name           = string
     strategy       = string
-    parition_count = optional(string)
+    partition_count = optional(string)
     spread_level   = optional(string)
   })
+}
+
+variable "tags" {
+  type    = map(string)
+  default = {}
 }
