@@ -1,4 +1,4 @@
 output "proximity_placement_group_id" {
-  description = "vnet id"
-  value       = azurerm_virtual_network.vnet.id
+  description = "proximity placement group id"
+  value       = azurerm_proximity_placement_group.placement_group.id
 }
