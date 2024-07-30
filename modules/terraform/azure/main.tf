@@ -50,6 +50,7 @@ locals {
         zone                   = vm.zone
         source_image_reference = vm.source_image_reference
         create_vm_extension    = vm.create_vm_extension
+        proximity_placement_group_name = vm.proximity_placement_group_name
       }
     ]
   ])
