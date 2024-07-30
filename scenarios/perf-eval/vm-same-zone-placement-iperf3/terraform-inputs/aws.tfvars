@@ -71,7 +71,7 @@ vm_config_list = [{
   security_group_name         = "same-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
-  placement_group_name        = "1a-placement-group"
+  placement_group_name        = "1a-placement-group-test"
   ami_config = {
     most_recent         = true
     name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
@@ -98,6 +98,6 @@ vm_config_list = [{
 ]
 
 pg_config = {
-  name     = "1a-placement-group"
+  name     = "1a-placement-group-test"
   strategy = "cluster"
 }
