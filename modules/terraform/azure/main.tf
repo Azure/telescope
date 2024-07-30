@@ -211,18 +211,19 @@ module "data_disk" {
 module "virtual_machine" {
   for_each = local.vm_config_map
 
-  source              = "./virtual-machine"
-  name                = each.value.vm_name
-  resource_group_name = local.run_id
-  location            = local.region
-  vm_sku              = local.machine_type
-  nic                 = local.all_nics[each.value.nic_name]
-  vm_config           = each.value
-  public_key          = file(local.public_key_path)
-  user_data_path      = local.user_data_path
-  tags                = local.tags
-  ultra_ssd_enabled   = local.ultra_ssd_enabled
-  proximity_placement = var.proximity_placement
+  source                       = "./virtual-machine"
+  name                         = each.value.vm_name
+  resource_group_name          = local.run_id
+  location                     = local.region
+  vm_sku                       = local.machine_type
+  nic                          = local.all_nics[each.value.nic_name]
+  vm_config                    = each.value
+  public_key                   = file(local.public_key_path)
+  user_data_path               = local.user_data_path
+  tags                         = local.tags
+  ultra_ssd_enabled            = local.ultra_ssd_enabled
+  proximity_placement          = var.proximity_placement
+  proximity_placement_group_id = proximity_placement_group_id
 }
 
 module "virtual_machine_scale_set" {
