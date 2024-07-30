@@ -277,7 +277,7 @@ variable "vm_config_list" {
     info_column_name             = optional(string)
     zone                         = optional(number)
     count                        = optional(number, 1)
-    proximity_placement_group_id = optional(string)
+    proximity_placement_group_name = optional(string)
     source_image_reference = object({
       publisher = string
       offer     = string
