@@ -10,14 +10,14 @@ variable "location" {
   default     = "East US"
 }
 
+variable "name" {
+  description = "Name of the placement group"
+  type = "string"
+  default = ""
+}
+
 variable "tags" {
   type = map(string)
   default = {
   }
-}
-
-variable "proximity_placement" {
-  description = "whether or not to create proximity group"
-  type        = bool
-  default     = false
 }

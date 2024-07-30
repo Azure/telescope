@@ -99,6 +99,5 @@ vm_config_list = [{
     create_vm_extension = true
   }
 ]
-proximity_placement               = false
 vmss_config_list                  = []
 nic_backend_pool_association_list = []

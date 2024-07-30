@@ -151,6 +151,13 @@ variable "appgateway_config_list" {
   default = []
 }
 
+variable "proximity_group_config_list" {
+  description = "List of proximity groups"
+  type = list(object({
+    name = string
+  }))
+}
+
 variable "agc_config_list" {
   description = "List of Application Gateway for Containers configurations"
   type = list(object({
