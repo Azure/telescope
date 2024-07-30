@@ -60,6 +60,7 @@ locals {
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
   aks_cli_config_map                     = { for aks in var.aks_cli_config_list : aks.role => aks }
+  proximity_placement_group_id           = module.proximity-placement-group.proximity_placement_group_id
 }
 
 terraform {
@@ -117,6 +118,15 @@ module "virtual_network" {
   public_ips             = module.public_ips.pip_ids
   nic_count_override     = local.vm_count_override
   tags                   = local.tags
+}
+
+module "proximity_placement_group" {
+  count               = var.proximity_placement ? 1 : 0
+  source              = "./proximity-placement-group"
+  tags                = local.tags
+  resource_group_name = local.run_id
+  location            = local.region
+  proximity_placement = var.proximity_placement
 }
 
 module "aks" {
@@ -232,14 +242,6 @@ module "virtual_machine_scale_set" {
   tags                  = local.tags
 }
 
-module "proximity_placement_group" {
-  count               = var.proximity_placement ? 1 : 0
-  source              = "./proximity-placement-group"
-  tags                = local.tags
-  resource_group_name = local.run_id
-  location            = local.region
-  proximity_placement = var.proximity_placement
-}
 
 resource "azurerm_network_interface_backend_address_pool_association" "nic-backend-pool-association" {
   for_each = local.nic_backend_pool_association_map
