@@ -49,7 +49,6 @@ variable "vm_config" {
     admin_username               = string
     info_column_name             = optional(string)
     zone                         = optional(number)
-    proximity_placement_group_id = optional(string)
     source_image_reference = object({
       publisher = string
       offer     = string
@@ -69,4 +68,10 @@ variable "ultra_ssd_enabled" {
   description = "Value of the ultra_ssd_enabled"
   type        = bool
   default     = false
+}
+
+variable "proximity_placement_group_id" {
+  description = " proximity placement group id"
+  type = string 
+  default = ""
 }
