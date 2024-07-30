@@ -42,14 +42,14 @@ locals {
   expanded_vm_config_list = flatten([
     for vm in var.vm_config_list : [
       for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
-        role                   = vm.role
-        vm_name                = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
-        nic_name               = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
-        admin_username         = vm.admin_username
-        info_column_name       = vm.info_column_name
-        zone                   = vm.zone
-        source_image_reference = vm.source_image_reference
-        create_vm_extension    = vm.create_vm_extension
+        role                           = vm.role
+        vm_name                        = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
+        nic_name                       = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
+        admin_username                 = vm.admin_username
+        info_column_name               = vm.info_column_name
+        zone                           = vm.zone
+        source_image_reference         = vm.source_image_reference
+        create_vm_extension            = vm.create_vm_extension
         proximity_placement_group_name = vm.proximity_placement_group_name
       }
     ]
@@ -225,7 +225,7 @@ module "virtual_machine" {
   user_data_path               = local.user_data_path
   tags                         = local.tags
   ultra_ssd_enabled            = local.ultra_ssd_enabled
-  proximity_placement_group_id = local.all_proximity_groups[each.value.proximity_placement_group_name]
+  proximity_placement_group_id = each.value.proximity_placement_group_name != null ? local.all_proximity_groups[each.value.proximity_placement_group_name] : ""
 }
 
 module "virtual_machine_scale_set" {
