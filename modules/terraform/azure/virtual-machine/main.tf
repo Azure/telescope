@@ -48,10 +48,6 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
   proximity_placement_group_id = var.proximity_placement ? azurerm_proximity_placement_group.proximity_placement_group[0].id : null
 
-  depends_on = [
-    var.proximity_placement ? azurerm_proximity_placement_group.proximity_placement_group : []
-  ]
-
   additional_capabilities {
     ultra_ssd_enabled = var.ultra_ssd_enabled
   }
