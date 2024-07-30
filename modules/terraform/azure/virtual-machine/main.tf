@@ -40,7 +40,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
   zone = var.vm_config.zone
 
-  proximity_placement_group_id = var.proximity_placement_group_id != null ? var.proximity_placement_group_id : ""
+  proximity_placement_group_id = try(var.proximity_placement_group_id, null)
 
   additional_capabilities {
     ultra_ssd_enabled = var.ultra_ssd_enabled
