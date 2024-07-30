@@ -28,12 +28,6 @@ variable "nic" {
   default     = ""
 }
 
-variable "proximity_placement_group_id" {
-  description = "Proximity Placement Group ID"
-  type        = string
-  default     = ""
-}
-
 variable "public_key" {
   description = "public key"
   type        = string
