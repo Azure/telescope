@@ -156,6 +156,7 @@ variable "proximity_group_config_list" {
   type = list(object({
     name = string
   }))
+  default = []
 }
 
 variable "agc_config_list" {

@@ -101,7 +101,7 @@ vm_config_list = [{
     create_vm_extension = true
   }
 ]
-proximity_placement_group_list = [{
+proximity_group_config_list = [{
   name = "vmProximityPlacementGroup"
 }]
 vmss_config_list                  = []
