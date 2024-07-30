@@ -236,3 +236,14 @@ variable "pe_config" {
   })
   default = null
 }
+
+variable "pg_config" {
+  description = "Configuration for deployment of placement group"
+  type = object({
+    name           = string
+    strategy       = string
+    parition_count = optional(string)
+    spread_level   = optional(string)
+  })
+  default = null
+}

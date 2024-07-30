@@ -181,3 +181,9 @@ module "privateendpoint" {
 
   tags = local.tags
 }
+
+module "placement_group" {
+  source = "./placement-group"
+
+  pg_config = var.pg_config
+}

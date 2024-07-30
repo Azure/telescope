@@ -8,6 +8,7 @@ variable "vm_config" {
     associate_public_ip_address = bool
     zone_suffix                 = string
     info_column_name            = optional(string)
+    placement_group_name        = optional(string)
 
     ami_config = optional(object({
       most_recent         = bool
