@@ -223,7 +223,7 @@ module "virtual_machine" {
   tags                         = local.tags
   ultra_ssd_enabled            = local.ultra_ssd_enabled
   proximity_placement          = var.proximity_placement
-  proximity_placement_group_id = proximity_placement_group_id
+  proximity_placement_group_id = local.proximity_placement_group_id
 }
 
 module "virtual_machine_scale_set" {
