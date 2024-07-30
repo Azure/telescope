@@ -12,8 +12,8 @@ variable "location" {
 
 variable "name" {
   description = "Name of the placement group"
-  type = "string"
-  default = ""
+  type        = string
+  default     = ""
 }
 
 variable "tags" {
