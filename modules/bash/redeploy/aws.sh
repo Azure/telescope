@@ -21,19 +21,6 @@ aws::get_vm_ip() {
      --query "Reservations[0].Instances[0].PublicIpAddress" --output text
 }
 
-# DESC: Get the instances from aws based on run_id from tags
-# ARGS: $1 (required): The run_id from the pipeline
-# OUTS: A list of instance ids to STDOUT
-# NOTE: None
-aws::get_vm_instances_id_by_run_id() {
-    local run_id=$1
-
-    aws ec2 describe-instances \
-        --filters Name=tag:run_id,Values=$run_id Name=instance-state-name,Values=running \
-        --query "Reservations[].Instances[0].InstanceId" \
-        --output text
-}
-
 # DESC: Function for redeploying a VM in AWS
 # ARGS: $1 (required): The instance-id of the VM
 #       $2 (required): The path to the error file

@@ -26,7 +26,7 @@ execute() {
     mkdir -p "$result_dir"
 
     # get vm name and disk names
-    local vm_name=$(get_vm_instances_name_by_run_id "$run_id")
+    local vm_name=$(get_first_vm_instance_name_by_run_id "$run_id")
 
     for ((i=1; i <= $iterations_number; i++)); do
         run_and_collect "$run_id" "$vm_name" "$i" "$cloud"
