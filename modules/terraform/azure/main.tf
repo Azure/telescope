@@ -34,7 +34,7 @@ locals {
   network_config_map          = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map     = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   appgateway_config_map       = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
-  proximity_group_config_map  = { for group in var.proximity_config_list : group.name => group }
+  proximity_group_config_map  = { for group in var.proximity_group_config_list : group.name => group }
   agc_config_map              = { for agc in var.agc_config_list : agc.role => agc }
   aks_config_map              = { for aks in var.aks_config_list : aks.role => aks }
   aks_cluster_oidc_issuer_map = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
