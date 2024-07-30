@@ -34,6 +34,7 @@ locals {
   network_config_map          = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map     = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   appgateway_config_map       = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  proximity_group_config_map  = { for group in var.proximity_group_config_list : group.name => group }
   agc_config_map              = { for agc in var.agc_config_list : agc.role => agc }
   aks_config_map              = { for aks in var.aks_config_list : aks.role => aks }
   aks_cluster_oidc_issuer_map = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
@@ -41,14 +42,15 @@ locals {
   expanded_vm_config_list = flatten([
     for vm in var.vm_config_list : [
       for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
-        role                   = vm.role
-        vm_name                = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
-        nic_name               = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
-        admin_username         = vm.admin_username
-        info_column_name       = vm.info_column_name
-        zone                   = vm.zone
-        source_image_reference = vm.source_image_reference
-        create_vm_extension    = vm.create_vm_extension
+        role                           = vm.role
+        vm_name                        = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
+        nic_name                       = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
+        admin_username                 = vm.admin_username
+        info_column_name               = vm.info_column_name
+        zone                           = vm.zone
+        source_image_reference         = vm.source_image_reference
+        create_vm_extension            = vm.create_vm_extension
+        proximity_placement_group_name = vm.proximity_placement_group_name
       }
     ]
   ])
@@ -59,8 +61,8 @@ locals {
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
+  all_proximity_groups                   = { for group in var.proximity_group_config_list : group.name => module.proximity_placement_group[group.name].proximity_placement_group_id }
   aks_cli_config_map                     = { for aks in var.aks_cli_config_list : aks.role => aks }
-  proximity_placement_group_id           = var.proximity_placement ? module.proximity_placement_group[0].proximity_placement_group_id : "none"
 }
 
 terraform {
@@ -121,12 +123,13 @@ module "virtual_network" {
 }
 
 module "proximity_placement_group" {
-  count               = var.proximity_placement ? 1 : 0
+  for_each = local.proximity_group_config_map
+
   source              = "./proximity-placement-group"
+  name                = each.value.name
   tags                = local.tags
   resource_group_name = local.run_id
   location            = local.region
-  proximity_placement = var.proximity_placement
 }
 
 module "aks" {
@@ -222,8 +225,7 @@ module "virtual_machine" {
   user_data_path               = local.user_data_path
   tags                         = local.tags
   ultra_ssd_enabled            = local.ultra_ssd_enabled
-  proximity_placement          = var.proximity_placement
-  proximity_placement_group_id = local.proximity_placement_group_id
+  proximity_placement_group_id = each.value.proximity_placement_group_name != null ? local.all_proximity_groups[each.value.proximity_placement_group_name] : null
 }
 
 module "virtual_machine_scale_set" {
