@@ -61,7 +61,6 @@ locals {
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
   aks_cli_config_map                     = { for aks in var.aks_cli_config_list : aks.role => aks }
-  all_proximity_groups                   = merge([for group in var.proximity_group_config_list : module.proximity_placement_group[group.name].proximity_placement_group_id]...)
 }
 
 terraform {
@@ -224,7 +223,7 @@ module "virtual_machine" {
   user_data_path               = local.user_data_path
   tags                         = local.tags
   ultra_ssd_enabled            = local.ultra_ssd_enabled
-  proximity_placement_group_id = local.all_proximity_groups[each.value.proximity_placement_group_id]
+  proximity_placement_group_id = each.value.proximity_placement_group_id
 }
 
 module "virtual_machine_scale_set" {
