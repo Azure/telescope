@@ -15,3 +15,9 @@ variable "tags" {
   default = {
   }
 }
+
+variable "proximity_placement" {
+  description = "whether or not to create proximity group"
+  type        = bool
+  default     = false
+}

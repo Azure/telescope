@@ -238,6 +238,7 @@ module "proximity_placement_group" {
   tags                = local.tags
   resource_group_name = local.run_id
   location            = local.region
+  proximity_placement = var.proximity_placement
 }
 
 resource "azurerm_network_interface_backend_address_pool_association" "nic-backend-pool-association" {
