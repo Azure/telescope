@@ -7,3 +7,8 @@ variable "pg_config" {
     spread_level   = optional(string)
   })
 }
+
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
