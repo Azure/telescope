@@ -6,8 +6,8 @@ locals {
 }
 
 data "azurerm_proximity_placement_group" "proximity_group" {
-  count = var.vm_config.proximity_placement_group_id ? 1 : 0  
-  name  = var.vm_config.proximity_placement_group_id
+  count = var.vm_config.proximity_placement_group_id != null ? 1 : 0  
+  name  = var.vm_config.proximity_placement_group_id != null ? var.vm_config.proximity_placement_group_id : ""
   resource_group_name = var.resource_group_name
 }
 
