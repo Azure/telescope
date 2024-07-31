@@ -185,6 +185,7 @@ module "privateendpoint" {
 module "placement_group" {
   source = "./placement-group"
 
+  count = var.pg_config == null ? 0 : 1
   pg_config = var.pg_config
   pg_name = local.run_id
 }
