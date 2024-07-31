@@ -237,7 +237,7 @@ variable "pe_config" {
   default = null
 }
 
-variable "pg_config" {
+variable "placement_group_config" {
   description = "Configuration for deployment of placement group"
   type = object({
     name           = string

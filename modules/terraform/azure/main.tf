@@ -226,6 +226,7 @@ module "virtual_machine" {
   tags                         = local.tags
   ultra_ssd_enabled            = local.ultra_ssd_enabled
   proximity_placement_group_id = each.value.proximity_placement_group_name != null ? local.all_proximity_groups[each.value.proximity_placement_group_name] : null
+  depends_on                   = [module.proximity_placement_group]
 }
 
 module "virtual_machine_scale_set" {

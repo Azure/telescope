@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf3"
+scenario_name  = "vm-same-zone-placement-iperf3"
 deletion_delay = "2h"
 network_config_list = [
   {
@@ -97,7 +97,7 @@ vm_config_list = [{
   }
 ]
 
-pg_config = {
+placement_group_config = {
   name     = "1a-placement-group-test"
   strategy = "cluster"
 }
