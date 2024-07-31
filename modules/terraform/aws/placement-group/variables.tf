@@ -8,6 +8,12 @@ variable "pg_config" {
   })
 }
 
+variiable "pg_name" {
+    description = "Dynamically created name for placement group"
+    type = string
+    default = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

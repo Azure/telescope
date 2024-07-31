@@ -237,16 +237,10 @@ variable "pe_config" {
   default = null
 }
 
-variable "pg_name" {
-  description = "Value of the placement group name"
-  type = optional(string)
-  default = ""
-}
-
 variable "pg_config" {
   description = "Configuration for deployment of placement group"
   type = object({
-    name           = var.pg_name
+    name           = string
     strategy       = string
     parition_count = optional(string)
     spread_level   = optional(string)
