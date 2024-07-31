@@ -8,7 +8,7 @@ variable "pg_config" {
   })
 }
 
-variiable "pg_name" {
+variable "pg_name" {
     description = "Dynamically created name for placement group"
     type = string
     default = ""
