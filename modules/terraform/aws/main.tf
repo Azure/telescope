@@ -87,7 +87,7 @@ module "virtual_machine" {
   run_id              = local.run_id
   machine_type        = local.machine_type
   user_data_path      = local.user_data_path
-  depends_on          = [module.virtual_network]
+  depends_on          = [module.virtual_network, module.placement_group]
   region              = local.region
 }
 
