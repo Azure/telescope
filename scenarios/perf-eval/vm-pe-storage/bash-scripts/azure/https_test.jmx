@@ -168,45 +168,6 @@
           <boolProp name="HTTPSampler.md5">false</boolProp>
           <intProp name="HTTPSampler.ipSourceType">0</intProp>
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
-            <collectionProp name="Arguments.arguments">
-              <elementProp name="X-Amz-Credential" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(aws_credential, AKIA47EUCCNPCDKWZV6V%2F20240416%2Fus-east-2%2Fs3%2Faws4_request)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">X-Amz-Credential</stringProp>
-              </elementProp>
-              <elementProp name="X-Amz-Date" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(aws_date, 20240416T004000Z)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">X-Amz-Date</stringProp>
-              </elementProp>
-              <elementProp name="X-Amz-Expires" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(aws_expiry, 3600)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">X-Amz-Expires</stringProp>
-              </elementProp>
-              <elementProp name="X-Amz-SignedHeaders" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">host</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">X-Amz-SignedHeaders</stringProp>
-              </elementProp>
-              <elementProp name="X-Amz-Signature" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(aws_signature, 9538055761a09e581cafbe48ec228ee998134c44894edb164e5816ba3f65278b)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">X-Amz-Signature</stringProp>
-              </elementProp>
-            </collectionProp>
-          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <KeystoreConfig guiclass="TestBeanGUI" testclass="KeystoreConfig" testname="Keystore Configuration" enabled="true">
