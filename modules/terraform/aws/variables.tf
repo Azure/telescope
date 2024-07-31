@@ -139,7 +139,7 @@ variable "vm_config_list" {
     associate_public_ip_address = bool
     info_column_name            = optional(string)
     count                       = optional(number, 1)
-
+    placement_group             = optional(bool, false)
     ami_config = optional(object({
       most_recent         = bool
       name                = string
