@@ -186,4 +186,5 @@ module "placement_group" {
   source = "./placement-group"
 
   pg_config = var.pg_config
+  pg_config.name = local.run_id
 }
