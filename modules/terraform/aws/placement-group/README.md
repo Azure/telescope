@@ -11,7 +11,6 @@ This module provisions proximity placement groups in AWS
 
 - **Description:**  Required placement strategy. Can be cluster, partition, or spread 
 - **Type:** String
-- **Default:** "partition"
 
 ### `name`
 
