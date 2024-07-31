@@ -57,7 +57,7 @@ resource "aws_instance" "vm" {
 
   user_data = file("${var.user_data_path}/${var.vm_config.role}-userdata.sh")
 
-  placement_group = var.vm_config.placement_group == false ? null : var.run_id
+  placement_group = var.vm_config.use_placement_group ? var.run_id : null
 
   tags = merge(var.tags, {
     "role"             = var.vm_config.role,

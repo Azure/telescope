@@ -36,7 +36,7 @@ locals {
         associate_public_ip_address = vm.associate_public_ip_address
         info_column_name            = vm.info_column_name
         ami_config                  = vm.ami_config
-        placement_group             = vm.placement_group
+        use_placement_group         = vm.use_placement_group
     }]
   ])
   vm_config_map  = { for vm in local.expanded_vm_config_list : vm.vm_name => vm }
