@@ -69,3 +69,9 @@ variable "ultra_ssd_enabled" {
   type        = bool
   default     = false
 }
+
+variable "proximity_placement_group_id" {
+  description = " proximity placement group id"
+  type        = string
+  default     = null
+}
