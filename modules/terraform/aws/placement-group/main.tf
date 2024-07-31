@@ -1,5 +1,5 @@
 resource "aws_placement_group" "placement-group" {
-  name            = var.pg_name
+  name            = var.placement_group_name
   strategy        = var.placement_group_config.strategy
   tags            = var.tags
   partition_count = var.placement_group_config.partition_count

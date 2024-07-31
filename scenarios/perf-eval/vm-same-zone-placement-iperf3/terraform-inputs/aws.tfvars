@@ -98,6 +98,5 @@ vm_config_list = [{
 ]
 
 placement_group_config = {
-  name     = "1a-placement-group-test"
   strategy = "cluster"
 }

@@ -187,7 +187,7 @@ module "placement_group" {
 
   count                  = var.placement_group_config == null ? 0 : 1
   placement_group_config = var.placement_group_config
-  pg_name                = local.run_id
+  placement_group_name   = local.run_id
 
   tags = local.tags
 }

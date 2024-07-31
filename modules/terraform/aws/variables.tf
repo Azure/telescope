@@ -240,7 +240,6 @@ variable "pe_config" {
 variable "placement_group_config" {
   description = "Configuration for deployment of placement group"
   type = object({
-    name           = string
     strategy       = string
     parition_count = optional(string)
     spread_level   = optional(string)
