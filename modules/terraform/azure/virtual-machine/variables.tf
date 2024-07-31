@@ -43,12 +43,12 @@ variable "user_data_path" {
 variable "vm_config" {
   description = "Configuration for virtual machine"
   type = object({
-    role                         = string
-    vm_name                      = string
-    nic_name                     = string
-    admin_username               = string
-    info_column_name             = optional(string)
-    zone                         = optional(number)
+    role             = string
+    vm_name          = string
+    nic_name         = string
+    admin_username   = string
+    info_column_name = optional(string)
+    zone             = optional(number)
     source_image_reference = object({
       publisher = string
       offer     = string
@@ -72,6 +72,6 @@ variable "ultra_ssd_enabled" {
 
 variable "proximity_placement_group_id" {
   description = " proximity placement group id"
-  type = string 
-  default = null
+  type        = string
+  default     = null
 }

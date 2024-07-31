@@ -71,11 +71,11 @@ network_config_list = [
 ]
 loadbalancer_config_list = []
 vm_config_list = [{
-  role                         = "client"
-  vm_name                      = "client-vm"
-  nic_name                     = "client-nic"
-  admin_username               = "ubuntu"
-  zone                         = "1"
+  role                           = "client"
+  vm_name                        = "client-vm"
+  nic_name                       = "client-nic"
+  admin_username                 = "ubuntu"
+  zone                           = "1"
   proximity_placement_group_name = "vmProximityPlacementGroup"
   source_image_reference = {
     publisher = "canonical"
@@ -86,11 +86,11 @@ vm_config_list = [{
   create_vm_extension = true
   },
   {
-    role                         = "server"
-    vm_name                      = "server-vm"
-    nic_name                     = "server-nic"
-    admin_username               = "ubuntu"
-    zone                         = "1"
+    role                           = "server"
+    vm_name                        = "server-vm"
+    nic_name                       = "server-nic"
+    admin_username                 = "ubuntu"
+    zone                           = "1"
     proximity_placement_group_name = "vmProximityPlacementGroup"
     source_image_reference = {
       publisher = "canonical"
