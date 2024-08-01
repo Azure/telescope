@@ -26,6 +26,20 @@ variable "json_input" {
     storage_share_access_tier        = optional(string)
     storage_share_enabled_protocol   = optional(string)
     vm_count_override                = optional(number, 0)
+    aks_cli_default_node_pool = optional(object({
+      name        = string
+      node_count  = number
+      vm_size     = string
+      vm_set_type = string
+    }))
+    aks_cli_extra_node_pool = optional(
+      list(object({
+        name        = string
+        node_count  = number
+        vm_size     = string
+        vm_set_type = string
+      }))
+    )
   })
 }
 
@@ -215,12 +229,12 @@ variable "aks_cli_config_list" {
     aks_custom_headers            = optional(list(string))
     use_aks_preview_cli_extension = optional(bool, false)
 
-    default_node_pool = object({
+    default_node_pool = optional(object({
       name        = string
       node_count  = number
       vm_size     = string
       vm_set_type = optional(string, "VirtualMachineScaleSets")
-    })
+    }))
     extra_node_pool = optional(
       list(object({
         name        = string

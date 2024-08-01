@@ -97,7 +97,7 @@ module "aks" {
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=k8s-cluster-crud
-RUN_ID=07192024
+RUN_ID=$(whoami)
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
@@ -106,7 +106,9 @@ POOL_TYPE=vms
 MACHINE_TYPE=standard_D4_v3
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TEST_MODULES_DIR=modules/bash
-TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}-${POOL_TYPE}-pool.tfvars
+TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
+DEFAULT_NODE_POOL="{\"name\":\"default\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}"
+EXTRA_NODE_POOL="[{\"name\":\"pool1\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"},{\"name\":\"pool2\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}]"
 ```
 1. az login with your sub
 1. run following command to apply terraform config
@@ -116,9 +118,11 @@ INPUT_JSON=$(jq -n \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --arg machine_type $MACHINE_TYPE \
---arg pool_type $POOL_TYPE \
---arg public_key_path ~/.ssh/id_rsa.pub \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, public_key_path: $public_key_path, pool_type: $pool_type}')
+--argjson aks_cli_default_node_pool "$DEFAULT_NODE_POOL" \
+--argjson aks_cli_extra_node_pool "$EXTRA_NODE_POOL" \
+--arg public_key_path "$SSH_PUBLIC_KEY_PATH" \
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, public_key_path: $public_key_path, aks_cli_default_node_pool: $aks_cli_default_node_pool, aks_cli_extra_node_pool: $aks_cli_extra_node_pool}')
+```
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
