@@ -36,6 +36,7 @@ locals {
         associate_public_ip_address = vm.associate_public_ip_address
         info_column_name            = vm.info_column_name
         ami_config                  = vm.ami_config
+        use_placement_group         = vm.use_placement_group
     }]
   ])
   vm_config_map  = { for vm in local.expanded_vm_config_list : vm.vm_name => vm }
@@ -86,7 +87,7 @@ module "virtual_machine" {
   run_id              = local.run_id
   machine_type        = local.machine_type
   user_data_path      = local.user_data_path
-  depends_on          = [module.virtual_network]
+  depends_on          = [module.virtual_network, module.placement_group]
   region              = local.region
 }
 
@@ -178,6 +179,16 @@ module "privateendpoint" {
   pe_config = var.pe_config
 
   vpc_id = local.all_vpcs[var.pe_config.pe_vpc_name].id
+
+  tags = local.tags
+}
+
+module "placement_group" {
+  source = "./placement-group"
+
+  count                  = var.placement_group_config == null ? 0 : 1
+  placement_group_config = var.placement_group_config
+  placement_group_name   = local.run_id
 
   tags = local.tags
 }
