@@ -7,5 +7,6 @@ aks_cli_config_list = [
     aks_name                      = "vms-pool"
     sku_tier                      = "standard"
     use_aks_preview_cli_extension = true
+    default_node_pool             = null
   }
 ]

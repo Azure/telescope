@@ -77,8 +77,8 @@ locals {
       }
     ]
   ]) : []
-  aks_cli_config_map = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
-  all_proximity_groups                   = { for group in var.proximity_group_config_list : group.name => module.proximity_placement_group[group.name].proximity_placement_group_id }
+  aks_cli_config_map   = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+  all_proximity_groups = { for group in var.proximity_group_config_list : group.name => module.proximity_placement_group[group.name].proximity_placement_group_id }
 }
 
 terraform {
