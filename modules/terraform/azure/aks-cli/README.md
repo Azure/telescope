@@ -102,7 +102,6 @@ OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
 REGION=eastus
-POOL_TYPE=vms
 MACHINE_TYPE=standard_D4_v3
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TEST_MODULES_DIR=modules/bash
@@ -118,10 +117,10 @@ INPUT_JSON=$(jq -n \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --arg machine_type $MACHINE_TYPE \
---argjson aks_cli_default_node_pool "$DEFAULT_NODE_POOL" \
---argjson aks_cli_extra_node_pool "$EXTRA_NODE_POOL" \
+--argjson aks_cli_default_node_pool $DEFAULT_NODE_POOL \
+--argjson aks_cli_extra_node_pool $EXTRA_NODE_POOL \
 --arg public_key_path "$SSH_PUBLIC_KEY_PATH" \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, public_key_path: $public_key_path, aks_cli_default_node_pool: $aks_cli_default_node_pool, aks_cli_extra_node_pool: $aks_cli_extra_node_pool}')
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, public_key_path: $public_key_path, aks_cli_default_node_pool: $aks_cli_default_node_pool, aks_cli_extra_node_pool: $aks_cli_extra_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
 ```
 
 pushd $TERRAFORM_MODULES_DIR
