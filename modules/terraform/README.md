@@ -11,6 +11,7 @@ This folder contains Terraform modules for provisioning various resources on clo
 - **[Private Link:](./aws/private-link/README.md)** Module for managing AWS PrivateLink connections.
 - **[Virtual Machine:](./aws/virtual-machine/README.md)** Module for deploying virtual machines on AWS.
 - **[Virtual Network:](./aws/virtual-network/README.md)** Module for configuring networking resources on AWS including a VPC, subnets, security groups, route tables, and associated resources.
+- **[Placement Group:](./aws/placement-group/README.md)** Module for deploying a placement group on AWS .
 
 ## Azure Modules
 
@@ -25,6 +26,7 @@ This folder contains Terraform modules for provisioning various resources on clo
 - **[Storage Account:](./azure/storage-account/README.md)** Module for creating storage accounts on Azure.
 - **[Virtual Machine:](./azure/virtual-machine/README.md)** Module for deploying virtual machines on Azure.
 - **[VMSS:](./azure/virtual-machine-scale-set/README.md)** Module for deploying virtual machine scale sets on Azure.
+- **[Proximity Placement Group:](./aws/proximity-placement-group/README.md)** Module for deploying a proximity placement group on Azure .
 
 ## Usage
 Each module contains its own README with specific instructions on usage and configuration.
