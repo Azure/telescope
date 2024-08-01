@@ -93,7 +93,15 @@ module "aks" {
 
 ## How to test above setting locally
 1. you should have `terraform` and `azure cli` installed to your local machine
-1. set environment vars with your own scenario name, 
+2. Generate SSH public and Private key using SSH-Keygen
+
+```bash
+CLOUD=azure
+ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
+ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
+SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
+```
+3. set environment vars with your own scenario name, 
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=k8s-cluster-crud
