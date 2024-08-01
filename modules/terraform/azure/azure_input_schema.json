@@ -24,8 +24,8 @@
       "storage_share_quota": {"type": "number"},
       "storage_share_access_tier": {"type": "string"},
       "storage_share_enabled_protocol": {"type": "string"},
-      "aks_cli_default_node_pool": {"type": "object"},
-      "aks_cli_extra_node_pool": {"type": "object"}
+      "aks_cli_default_node_pool": {"type": "string"},
+      "aks_cli_extra_node_pool": {"type": "string"}
   },
   "required": ["owner", "run_id", "region"],
   "additionalProperties": false
