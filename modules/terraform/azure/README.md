@@ -33,8 +33,8 @@ ACCELERATED_NETWORKING=true
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
 VM_COUNT_OVERRIDE=1
-DEFAULT_NODE_POOL=${DEFAULT_NODE_POOL:-null}
-EXTRA_NODE_POOL=${EXTRA_NODE_POOL:-null}
+SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
+USER_NODE_POOL=${USER_NODE_POOL:-null}
 ```
 
 **Note**:
@@ -125,8 +125,8 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg storage_share_access_tier "$STORAGE_SHARE_ACCESS_TIER" \
   --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
   --arg user_data_path $TERRAFORM_USER_DATA_PATH \
-  --argjson aks_cli_default_node_pool "$DEFAULT_NODE_POOL" \
-  --argjson aks_cli_extra_node_pool "$EXTRA_NODE_POOL" \
+  --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
+  --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
     owner: $owner,
     run_id: $run_id,
@@ -152,8 +152,8 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
     storage_share_access_tier: $storage_share_access_tier,
     storage_share_enabled_protocol: $storage_share_enabled_protocol,
     user_data_path: $user_data_path,
-    aks_cli_default_node_pool: $aks_cli_default_node_pool,
-    aks_cli_extra_node_pool: $aks_cli_extra_node_pool
+    aks_cli_system_node_pool: $aks_cli_system_node_pool,
+    aks_cli_user_node_pool: $aks_cli_user_node_pool
   }' | jq 'with_entries(select(.value != null and .value != ""))')
   input_json_str=$(echo $INPUT_JSON | jq -c .)
   regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_json_str" \

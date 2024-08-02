@@ -26,13 +26,13 @@ variable "json_input" {
     storage_share_access_tier        = optional(string)
     storage_share_enabled_protocol   = optional(string)
     vm_count_override                = optional(number, 0)
-    aks_cli_default_node_pool = optional(object({
+    aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
       vm_size     = string
       vm_set_type = string
     }))
-    aks_cli_extra_node_pool = optional(
+    aks_cli_user_node_pool = optional(
       list(object({
         name        = string
         node_count  = number

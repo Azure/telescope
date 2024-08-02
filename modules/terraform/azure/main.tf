@@ -20,8 +20,8 @@ locals {
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
   storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
-  aks_cli_default_node_pool        = lookup(var.json_input, "aks_cli_default_node_pool", null)
-  aks_cli_extra_node_pool          = lookup(var.json_input, "aks_cli_extra_node_pool", null)
+  aks_cli_system_node_pool         = lookup(var.json_input, "aks_cli_system_node_pool", null)
+  aks_cli_user_node_pool           = lookup(var.json_input, "aks_cli_user_node_pool", null)
   # storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
   # storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
 
@@ -64,7 +64,7 @@ locals {
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
-  updated_aks_cli_config_list = (length(var.aks_cli_config_list) == 1 && (local.aks_cli_default_node_pool != null || local.aks_cli_extra_node_pool != null)) ? flatten([
+  updated_aks_cli_config_list = (length(var.aks_cli_config_list) == 1 && (local.aks_cli_system_node_pool != null || local.aks_cli_user_node_pool != null)) ? flatten([
     for aks in var.aks_cli_config_list : [
       {
         role                          = aks.role
@@ -72,8 +72,8 @@ locals {
         sku_tier                      = aks.sku_tier
         aks_custom_headers            = aks.aks_custom_headers
         use_aks_preview_cli_extension = aks.use_aks_preview_cli_extension
-        default_node_pool             = local.aks_cli_default_node_pool != null ? local.aks_cli_default_node_pool : aks.default_node_pool
-        extra_node_pool               = local.aks_cli_extra_node_pool != null ? local.aks_cli_extra_node_pool : aks.extra_node_pool
+        default_node_pool             = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
+        extra_node_pool               = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
       }
     ]
   ]) : []
