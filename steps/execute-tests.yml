@@ -13,7 +13,7 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml
+- template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}

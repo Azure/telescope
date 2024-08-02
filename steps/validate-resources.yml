@@ -9,7 +9,7 @@ parameters:
   type: string
 
 steps:
-- template: /steps/topology/${{ parameters.topology }}/validate-resources.yml
+- template: /steps/topology/${{ parameters.topology }}/validate-resources.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}

@@ -12,7 +12,7 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml
+- template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
