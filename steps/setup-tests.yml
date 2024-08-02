@@ -1,0 +1,70 @@
+parameters:
+- name: cloud
+  type: string
+- name: region
+  type: string
+- name: test_modules_dir
+  type: string
+  default: ''
+- name: run_id
+  type: string
+  default: ''
+- name: retry_attempt_count
+  type: number
+  default: 3
+
+steps:
+- script: |
+    if [ -n "$RUN_ID" ]; then
+      run_id=$RUN_ID
+    else
+      run_id=$(System.JobId)-$(Build.BuildId)
+    fi
+    echo "Run ID: $run_id"
+    echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+  displayName: "Set Run ID"
+  env:
+    RUN_ID: ${{ parameters.run_id }}
+
+- script: |
+    repo_name=$(basename "$SCENARIO_REPO")
+    echo "Repo name: $repo_name"
+    echo "##vso[task.setvariable variable=SCENARIO_REPO_NAME]$repo_name"
+  displayName: "Set Scenario Repo Name"
+
+- script: |
+    git clone "https://${GH_PAT}@github.com/${SCENARIO_REPO}.git"
+    cd "$SCENARIO_REPO_NAME"
+    git checkout "$SCENARIO_VERSION"
+  displayName: "Git Clone Scenario Repo"
+  retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
+  env:
+    GH_PAT: $(PERSONAL_ACCESS_TOKEN)
+
+- script: |
+    python3 --version && pip3 --version
+    jq --version
+  displayName: "Check Dependencies"
+
+- script: |
+    set -e
+    if [ -f "$SCENARIO_REPO_NAME/modules/python/requirements.txt" ]; then
+      pip3 install -r $SCENARIO_REPO_NAME/modules/python/requirements.txt
+    fi
+  displayName: "Install Python Dependencies"
+
+- template: /steps/cloud/${{ parameters.cloud }}/login.yml
+  parameters:
+    region: ${{ parameters.region }}
+
+- script: |
+    if [ -n "${TEST_MODULES_DIR}" ]; then
+      test_modules_directory=$(System.DefaultWorkingDirectory)/$SCENARIO_REPO_NAME/${TEST_MODULES_DIR}
+    else
+      test_modules_directory=$(System.DefaultWorkingDirectory)/$SCENARIO_REPO_NAME/modules/bash
+    fi
+    echo "Test modules directory: $test_modules_directory"
+    echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
+  displayName: 'Set Script Module Directory'
+  env:
+    TEST_MODULES_DIR: ${{ parameters.test_modules_dir }}

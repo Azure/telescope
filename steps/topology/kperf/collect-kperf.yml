@@ -1,0 +1,4 @@
+steps:
+- script: |
+    echo NOTHING
+  displayName: "DO NOTHING"

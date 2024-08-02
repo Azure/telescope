@@ -1,0 +1,84 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default:
+    runner_image: telescope.azurecr.io/oss/kperf:v0.0.8
+- name: flowcontrol
+  type: string
+  default: "workload-low:1000"
+- name: extra_benchmark_subcmd_args
+  type: string
+  default: ""
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+    set -x
+
+    temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+    docker pull ${RUNNER_IMAGE}
+    docker run --rm -v ${temp_dir}:/install-dir \
+      ${RUNNER_IMAGE} bash -c "set -x; install /kperf /runkperf /install-dir"
+
+    sudo install ${temp_dir}/kperf ${temp_dir}/runkperf /usr/local/bin
+    rm -rf ${temp_dir}
+    docker rmi ${RUNNER_IMAGE}
+  env:
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+  displayName: "Install runkperf binary"
+- script: |
+    set -euo pipefail
+    set -x
+
+    if [[ "${CLOUD}" != "aws" ]]; then
+      exit 0
+    fi
+
+    sudo -E $(command -v runkperf) -v 3 ekswarmup \
+      --kubeconfig ~/.kube/config \
+      --runner-image ${RUNNER_IMAGE} \
+      --total 12000
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+  displayName: "Warmup if cloud is aws"
+- script: |
+    set -euo pipefail
+    set -x
+
+    is_eks=""
+    if [[ "${CLOUD}" == "aws" ]]; then
+      is_eks="--eks"
+    fi
+
+    mkdir -p $RESULT_DIR
+
+    sudo -E $(command -v runkperf) -v 3 bench ${is_eks} \
+      --kubeconfig ~/.kube/config \
+      --runner-image="${RUNNER_IMAGE}" \
+      --runner-flowcontrol="${FLOWCONTROL}" \
+      --result ${RESULT_DIR}/tmp_results.json \
+      ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
+
+    cat ${RESULT_DIR}/tmp_results.json \
+      | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\"}" \
+      | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
+      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > ${RESULT_DIR}/results.json
+
+    cat ${RESULT_DIR}/results.json | jq .
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+    BENCHMARK_SUBCMD: ${{ parameters.engine_input.benchmark_subcmd }}
+    BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
+    EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    FLOWCONTROL: ${{ parameters.flowcontrol }}
+    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
+  displayName: "Run benchmark"
