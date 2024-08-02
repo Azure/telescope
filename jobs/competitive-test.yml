@@ -7,8 +7,6 @@ parameters:
   type: string
 - name: engine
   type: string
-  values:
-  - kperf
 - name: engine_input
   type: object
   default: {}
