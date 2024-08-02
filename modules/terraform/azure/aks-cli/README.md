@@ -93,20 +93,29 @@ module "aks" {
 
 ## How to test above setting locally
 1. you should have `terraform` and `azure cli` installed to your local machine
-1. set environment vars with your own scenario name, 
+2. Generate SSH public and Private key using SSH-Keygen
+
+```bash
+CLOUD=azure
+ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
+ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
+SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
+```
+3. set environment vars with your own scenario name, 
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=k8s-cluster-crud
-RUN_ID=07192024
+RUN_ID=08022024
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
 REGION=eastus
-POOL_TYPE=vms
 MACHINE_TYPE=standard_D4_v3
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TEST_MODULES_DIR=modules/bash
-TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}-${POOL_TYPE}-pool.tfvars
+TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
+SYSTEM_NODE_POOL="{\"name\":\"default\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}"
+USER_NODE_POOL="[{\"name\":\"pool1\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"},{\"name\":\"pool2\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}]"
 ```
 1. az login with your sub
 1. run following command to apply terraform config
@@ -116,9 +125,11 @@ INPUT_JSON=$(jq -n \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --arg machine_type $MACHINE_TYPE \
---arg pool_type $POOL_TYPE \
---arg public_key_path ~/.ssh/id_rsa.pub \
-'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, public_key_path: $public_key_path, pool_type: $pool_type}')
+--argjson aks_cli_system_node_pool $SYSTEM_NODE_POOL \
+--argjson aks_cli_user_node_pool $USER_NODE_POOL \
+--arg public_key_path "$SSH_PUBLIC_KEY_PATH" \
+'{owner: $owner, run_id: $run_id, region: $region, machine_type: $machine_type, public_key_path: $public_key_path, aks_cli_system_node_pool: $aks_cli_system_node_pool, aks_cli_user_node_pool: $aks_cli_user_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
+```
 
 pushd $TERRAFORM_MODULES_DIR
 terraform init
