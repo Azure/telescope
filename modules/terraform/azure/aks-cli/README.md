@@ -105,7 +105,7 @@ SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=k8s-cluster-crud
-RUN_ID=$(whoami)
+RUN_ID=08022024
 OWNER=$(whoami)
 RESULT_PATH=/tmp/$RUN_ID
 CLOUD=azure
