@@ -498,10 +498,14 @@ collect_result_fileshare_fio_mulitple_pods() {
     echo "========= collecting ${result} ==========="
     cat $result
 
-    read_iops_avg=$(cat $result | jq '.jobs[0].read.iops_mean')
+    read_count=$(cat $result | jq '.jobs[0].read.clat_ns.N')
+    read_runtime_ms=$(cat $result | jq '.jobs[0].read.runtime')
+    read_iops_avg=$(echo "scale=2; $read_count * 1000 / $read_runtime_ms" | bc)
+    write_count=$(cat $result | jq '.jobs[0].write.clat_ns.N')
+    write_runtime_ms=$(cat $result | jq '.jobs[0].write.runtime')
+    write_iops_avg=$(echo "scale=2; $write_count * 1000 / $write_runtime_ms" | bc)
     read_bw_avg=$(cat $result | jq '.jobs[0].read.bw_mean')
     read_lat_avg=$(cat $result | jq '.jobs[0].read.clat_ns.mean')
-    write_iops_avg=$(cat $result | jq '.jobs[0].write.iops_mean')
     write_bw_avg=$(cat $result | jq '.jobs[0].write.bw_mean')
     write_lat_avg=$(cat $result | jq '.jobs[0].write.clat_ns.mean')
     read_lat_p50=$(cat $result | jq '.jobs[0].read.clat_ns.percentile."50.000000"')
