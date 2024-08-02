@@ -1,0 +1,28 @@
+parameters:
+  source_file_name: $(System.DefaultWorkingDirectory)/$(RUN_ID)/results.json
+  destination_file_name: $(System.JobId)-$(Build.BuildId).json
+  subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
+  container_name: $(SCENARIO_TYPE)
+
+steps:
+- template: /steps/cloud/azure/login.yml
+  parameters:
+    region: eastus
+    subscription: $(AZURE_STORAGE_SUBSCRIPTION)
+
+- bash: |
+    set -eux
+
+    az storage blob upload \
+      --file $SOURCE_FILE_NAME \
+      --name ${SUBFOLDER}/${DESTINATION_FILE_NAME} \
+      --account-name $AZURE_STORAGE_ACCOUNT_NAME \
+      --container-name $CONTAINER_NAME \
+      --auth-mode login
+  displayName: "Upload Result"
+  env:
+    SOURCE_FILE_NAME: ${{ parameters.source_file_name }}
+    DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
+    SUBFOLDER: ${{ parameters.subfolder }}
+    CONTAINER_NAME: ${{ parameters.container_name}}
+    AZURE_STORAGE_ACCOUNT_NAME: $(AKS_TELESCOPE_ACCOUNT_NAME)
