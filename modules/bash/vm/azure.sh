@@ -1,17 +1,35 @@
 #!/bin/bash
 
 # Description:
-#   This function gets the names of disk instances by resource group(run id).
+#   This function gets the names of vm instances by resource group(run id).
 #
 # Parameters:
 #  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
 # 
 # Returns: name of the VM instance
-# Usage: get_vm_instances_by_run_id <run_id>
+# Usage: get_vm_instances_name_by_run_id <run_id>
 get_vm_instances_name_by_run_id() {
     local resource_group=$1
 
     echo $(az resource list --resource-type Microsoft.Compute/virtualMachines --query "[?(tags.run_id == '"$resource_group"')].name" --output tsv)
+}
+
+# Description:
+#   This function gets the first running VM instance name by run id (being the same as resource group).
+
+# Parameters:
+#  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+# 
+# Returns: The name of the first VM instance
+# Usage: get_first_vm_instance_name_by_run_id <run_id>
+get_first_vm_instance_name_by_run_id() {
+    local resource_group=$1
+
+    az vm list \
+        --resource-group "$resource_group" \
+        --query "[0].name" \
+        --output tsv
+
 }
 
 # Description:
