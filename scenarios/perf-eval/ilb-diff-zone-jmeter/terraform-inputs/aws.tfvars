@@ -130,6 +130,13 @@ vm_config_list = [{
   security_group_name         = "same-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
+  ami_config = {
+    most_recent         = true
+    name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+    virtualization_type = "hvm"
+    architecture        = "x86_64"
+    owners              = ["099720109477"]
+  }   
   },
   {
     vm_name                     = "server-vm"
@@ -138,5 +145,12 @@ vm_config_list = [{
     security_group_name         = "same-sg"
     associate_public_ip_address = true
     zone_suffix                 = "b"
+    ami_config = {
+      most_recent         = true
+      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+      virtualization_type = "hvm"
+      architecture        = "x86_64"
+      owners              = ["099720109477"]
+    }     
   }
 ]
