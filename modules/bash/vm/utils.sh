@@ -188,6 +188,13 @@ measure_create_delete_vm() {
     pip=$(echo "$nic_and_pip" | jq -r '.pip.ip')
     pip_id=$(echo "$nic_and_pip" | jq -r '.pip.id')
 
+    if [[ -z "$nic" || -z "$pip" ]] && [[ "$precreate_nic" == "true" ]]; then
+      local status_file="/tmp/test-info/$vm_name.json"
+      echo "{\"succeeded\": \"false\", \"error_message\": \"No NIC or PIP could be created.\"}" > "$status_file"
+      delete_nic=$(delete_nic_and_pip_if_needed "$cloud" "$nic" "$pip_id" "$run_id")
+      exit 1
+    fi
+
     vm_id=$(measure_create_vm "$cloud" "$vm_name" "$vm_size" "$vm_os" "$region" "$nic" "$pip" "$port" "$run_id" "$security_group" "$subnet" "$accelerator" "$security_type" "$storage_type" "$timeout" "$result_dir" "$test_details" "$tags")
 
     if [ -n "$vm_id" ] && [[ "$vm_id" != Error* ]]; then
@@ -583,11 +590,14 @@ process_results() {
     local start_time="$4"
     local instance_name="$5"
 
+    local succeeded="false"
     local error_message=""
+    local warning_message=""
     local cli_success=$(jq -r '.success' "$cli_file")
     local ssh_success=$(jq -r '.success' "$ssh_file")
 
     if [[ "$ssh_success" == "true" ]]; then
+        succeeded="true"
         local ssh_timestamp=$(jq -r '.timestamp' "$ssh_file")
         local ssh_time=$(($ssh_timestamp - $start_time))
     else
@@ -597,6 +607,7 @@ process_results() {
     fi
 
     if [[ "$cli_success" == "true" ]]; then
+        succeeded="true"
         local cli_timestamp=$(jq -r '.timestamp' "$cli_file")
         local cli_time=$(($cli_timestamp - $start_time))
     else
@@ -605,20 +616,15 @@ process_results() {
         error_message="$error_message $cli_error"
     fi
 
-    if [[ "$ssh_success" == "true" && "$cli_success" == "true" ]]; then
-        local warning_message="$(cat $error_file | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
-        echo $(jq -c -n \
-            --arg vm_name "$instance_name" \
-            --arg ssh_connection_time "$ssh_time" \
-            --arg command_execution_time "$cli_time" \
-            --arg warning_message "$warning_message" \
-        '{succeeded: "true", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, warning_message: $warning_message}')
-    else
-        echo $(jq -c -n \
-            --arg vm_name "$instance_name" \
-            --arg ssh_connection_time "$ssh_time" \
-            --arg command_execution_time "$cli_time" \
-            --arg error_message "$error_message" \
-        '{succeeded: "false", vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, error_message: $error_message}')
+    if [[ $succeeded == "true" ]]; then
+        warning_message="$(cat "$error_file" | sed -E 's/\\n|\\r|\\t|\\s| /\|/g')"
     fi
+
+    echo $(jq -c -n \
+        --arg succeeded "$succeeded" \
+        --arg vm_name "$instance_name" \
+        --arg ssh_connection_time "$ssh_time" \
+        --arg command_execution_time "$cli_time" \
+        --arg warning_message "$warning_message" \
+    '{succeeded: $succeeded, vm_name: $vm_name, ssh_connection_time: $ssh_connection_time, command_execution_time: $command_execution_time, warning_message: $warning_message}')
 }

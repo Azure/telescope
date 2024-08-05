@@ -20,8 +20,11 @@ locals {
   storage_account_kind             = lookup(var.json_input, "storage_account_kind", "")
   storage_account_replication_type = lookup(var.json_input, "storage_account_replication_type", "")
   storage_share_enabled_protocol   = lookup(var.json_input, "storage_share_enabled_protocol", null)
+  aks_cli_system_node_pool         = lookup(var.json_input, "aks_cli_system_node_pool", null)
+  aks_cli_user_node_pool           = lookup(var.json_input, "aks_cli_user_node_pool", null)
   # storage_share_quota              = lookup(var.json_input, "storage_share_quota", null)
   # storage_share_access_tier        = lookup(var.json_input, "storage_share_access_tier", null)
+
 
   tags = {
     "owner"             = lookup(var.json_input, "owner", "github_actions")
@@ -34,6 +37,7 @@ locals {
   network_config_map          = { for network in var.network_config_list : network.role => network }
   loadbalancer_config_map     = { for loadbalancer in var.loadbalancer_config_list : loadbalancer.role => loadbalancer }
   appgateway_config_map       = { for appgateway in var.appgateway_config_list : appgateway.role => appgateway }
+  proximity_group_config_map  = { for group in var.proximity_group_config_list : group.name => group }
   agc_config_map              = { for agc in var.agc_config_list : agc.role => agc }
   aks_config_map              = { for aks in var.aks_config_list : aks.role => aks }
   aks_cluster_oidc_issuer_map = { for aks in var.aks_config_list : aks.role => module.aks[aks.role].aks_cluster_oidc_issuer }
@@ -41,14 +45,15 @@ locals {
   expanded_vm_config_list = flatten([
     for vm in var.vm_config_list : [
       for i in range(local.vm_count_override > 0 ? local.vm_count_override : vm.count) : {
-        role                   = vm.role
-        vm_name                = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
-        nic_name               = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
-        admin_username         = vm.admin_username
-        info_column_name       = vm.info_column_name
-        zone                   = vm.zone
-        source_image_reference = vm.source_image_reference
-        create_vm_extension    = vm.create_vm_extension
+        role                           = vm.role
+        vm_name                        = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.vm_name}-${i + 1}" : vm.vm_name
+        nic_name                       = (local.vm_count_override > 0 ? local.vm_count_override : vm.count) > 1 ? "${vm.nic_name}-${i + 1}" : vm.nic_name
+        admin_username                 = vm.admin_username
+        info_column_name               = vm.info_column_name
+        zone                           = vm.zone
+        source_image_reference         = vm.source_image_reference
+        create_vm_extension            = vm.create_vm_extension
+        proximity_placement_group_name = vm.proximity_placement_group_name
       }
     ]
   ])
@@ -59,7 +64,21 @@ locals {
   all_subnets                            = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_loadbalancer_backend_address_pools = { for key, lb in module.load_balancer : "${key}-lb-pool" => lb.lb_pool_id }
   all_vms                                = { for vm in local.expanded_vm_config_list : vm.vm_name => module.virtual_machine[vm.vm_name].vm }
-  aks_cli_config_map                     = { for aks in var.aks_cli_config_list : aks.role => aks }
+  updated_aks_cli_config_list = (length(var.aks_cli_config_list) == 1 && (local.aks_cli_system_node_pool != null || local.aks_cli_user_node_pool != null)) ? flatten([
+    for aks in var.aks_cli_config_list : [
+      {
+        role                          = aks.role
+        aks_name                      = aks.aks_name
+        sku_tier                      = aks.sku_tier
+        aks_custom_headers            = aks.aks_custom_headers
+        use_aks_preview_cli_extension = aks.use_aks_preview_cli_extension
+        default_node_pool             = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
+        extra_node_pool               = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+      }
+    ]
+  ]) : []
+  aks_cli_config_map   = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+  all_proximity_groups = { for group in var.proximity_group_config_list : group.name => module.proximity_placement_group[group.name].proximity_placement_group_id }
 }
 
 terraform {
@@ -84,6 +103,7 @@ terraform {
 provider "azurerm" {
   features {}
 }
+
 
 provider "helm" {
   kubernetes {
@@ -117,6 +137,16 @@ module "virtual_network" {
   public_ips             = module.public_ips.pip_ids
   nic_count_override     = local.vm_count_override
   tags                   = local.tags
+}
+
+module "proximity_placement_group" {
+  for_each = local.proximity_group_config_map
+
+  source              = "./proximity-placement-group"
+  name                = each.value.name
+  tags                = local.tags
+  resource_group_name = local.run_id
+  location            = local.region
 }
 
 module "aks" {
@@ -201,17 +231,19 @@ module "data_disk" {
 module "virtual_machine" {
   for_each = local.vm_config_map
 
-  source              = "./virtual-machine"
-  name                = each.value.vm_name
-  resource_group_name = local.run_id
-  location            = local.region
-  vm_sku              = local.machine_type
-  nic                 = local.all_nics[each.value.nic_name]
-  vm_config           = each.value
-  public_key          = file(local.public_key_path)
-  user_data_path      = local.user_data_path
-  tags                = local.tags
-  ultra_ssd_enabled   = local.ultra_ssd_enabled
+  source                       = "./virtual-machine"
+  name                         = each.value.vm_name
+  resource_group_name          = local.run_id
+  location                     = local.region
+  vm_sku                       = local.machine_type
+  nic                          = local.all_nics[each.value.nic_name]
+  vm_config                    = each.value
+  public_key                   = file(local.public_key_path)
+  user_data_path               = local.user_data_path
+  tags                         = local.tags
+  ultra_ssd_enabled            = local.ultra_ssd_enabled
+  proximity_placement_group_id = each.value.proximity_placement_group_name != null ? local.all_proximity_groups[each.value.proximity_placement_group_name] : null
+  depends_on                   = [module.proximity_placement_group]
 }
 
 module "virtual_machine_scale_set" {
@@ -230,6 +262,7 @@ module "virtual_machine_scale_set" {
   user_data_path        = local.user_data_path
   tags                  = local.tags
 }
+
 
 resource "azurerm_network_interface_backend_address_pool_association" "nic-backend-pool-association" {
   for_each = local.nic_backend_pool_association_map

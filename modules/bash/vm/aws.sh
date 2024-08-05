@@ -17,6 +17,23 @@ get_vm_instances_name_by_run_id() {
         --output text)"
 }
 
+# Description:
+#   This function gets the first running VM instance id (called name for Azure compatibility) by run id.
+
+# Parameters:
+#  - $1: run_id: the ID of the test run (e.g. c23f34-vf34g34g-3f34gf3gf4-fd43rf3f43)
+# 
+# Returns: The id of the first VM instance
+# Usage: get_first_vm_instance_name_by_run_id <run_id>
+get_first_vm_instance_name_by_run_id() {
+    local run_id=$1
+
+    echo "$(aws ec2 describe-instances \
+        --filters Name=tag:run_id,Values=$run_id Name=instance-state-name,Values=running \
+        --query "Reservations[].Instances[0].InstanceId" \
+        --output text)"
+}
+
 #   This function is used to retrieve the information of an EC2 instance in AWS.
 #
 # Parameters:
@@ -102,7 +119,10 @@ delete_ec2() {
     local instance_id=$1
     local region=$2
 
-    aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2> "/tmp/aws-$instance_id-delete_ec2-error.txt" > "/tmp/aws-$instance_id-delete_ec2-output.txt"
+    local error_file="/tmp/aws-$instance_id-delete_ec2-error.txt"
+    local output_file="/tmp/aws-$instance_id-delete_ec2-output.txt"
+
+    aws ec2 terminate-instances --region "$region" --instance-ids "$instance_id" --output json 2> "$error_file" > "$output_file"
 
     exit_code=$?
     
@@ -115,8 +135,8 @@ delete_ec2() {
         }
         trap _catch ERR
 
-        instance_data=$(cat /tmp/aws-$instance_id-delete_ec2-output.txt)
-        error=$(cat /tmp/aws-$instance_id-delete_ec2-error.txt)
+        instance_data=$(cat "$output_file")
+        error=$(cat "$error_file")
 
         if [[ $exit_code -eq 0 ]]; then
             instance_id=$(echo "$instance_data" | jq -r '.TerminatingInstances[0].InstanceId')

@@ -1,18 +1,5 @@
 #!/bin/bash
 
-# DESC: Get the name of the virtual machine instances by run id
-# ARGS: $1 (required): The run id
-# OUTS: The name of the virtual machine instances
-# NOTE: The run id is usually the resource group name
-azure::get_vm_instances_name_by_run_id() {
-    local resource_group=$1
-
-    az resource list \
-        --resource-type Microsoft.Compute/virtualMachines \
-        --query "[?(tags.run_id == '"$resource_group"')].name" \
-        --output tsv
-}
-
 # DESC: Get the instance view for a vm
 # ARGS: $1 (required): The resource group of the VM
 #       $2 (required): The name of the VM

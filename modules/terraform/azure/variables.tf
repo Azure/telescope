@@ -5,6 +5,7 @@ variable "json_input" {
     run_id                           = string
     region                           = string
     public_key_path                  = string
+    pool_type                        = optional(string, "vmss")
     machine_type                     = optional(string)
     accelerated_networking           = optional(bool)
     user_data_path                   = optional(string)
@@ -25,6 +26,20 @@ variable "json_input" {
     storage_share_access_tier        = optional(string)
     storage_share_enabled_protocol   = optional(string)
     vm_count_override                = optional(number, 0)
+    aks_cli_system_node_pool = optional(object({
+      name        = string
+      node_count  = number
+      vm_size     = string
+      vm_set_type = string
+    }))
+    aks_cli_user_node_pool = optional(
+      list(object({
+        name        = string
+        node_count  = number
+        vm_size     = string
+        vm_set_type = string
+      }))
+    )
   })
 }
 
@@ -150,6 +165,14 @@ variable "appgateway_config_list" {
   default = []
 }
 
+variable "proximity_group_config_list" {
+  description = "List of proximity groups"
+  type = list(object({
+    name = string
+  }))
+  default = []
+}
+
 variable "agc_config_list" {
   description = "List of Application Gateway for Containers configurations"
   type = list(object({
@@ -211,18 +234,21 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
-    aks_custom_headers = optional(list(string))
+    aks_custom_headers            = optional(list(string))
+    use_aks_preview_cli_extension = optional(bool, false)
 
     default_node_pool = object({
-      name       = string
-      node_count = number
-      vm_size    = string
+      name        = string
+      node_count  = number
+      vm_size     = string
+      vm_set_type = optional(string, "VirtualMachineScaleSets")
     })
     extra_node_pool = optional(
       list(object({
-        name       = string
-        node_count = number
-        vm_size    = string
+        name        = string
+        node_count  = number
+        vm_size     = string
+        vm_set_type = optional(string, "VirtualMachineScaleSets")
       }))
     )
   }))
@@ -258,13 +284,14 @@ variable "loadbalancer_config_list" {
 variable "vm_config_list" {
   description = "List of configuration for virtual machines"
   type = list(object({
-    role             = string
-    vm_name          = string
-    nic_name         = string
-    admin_username   = string
-    info_column_name = optional(string)
-    zone             = optional(number)
-    count            = optional(number, 1)
+    role                           = string
+    vm_name                        = string
+    nic_name                       = string
+    admin_username                 = string
+    info_column_name               = optional(string)
+    zone                           = optional(number)
+    count                          = optional(number, 1)
+    proximity_placement_group_name = optional(string)
     source_image_reference = object({
       publisher = string
       offer     = string

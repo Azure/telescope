@@ -139,7 +139,7 @@ variable "vm_config_list" {
     associate_public_ip_address = bool
     info_column_name            = optional(string)
     count                       = optional(number, 1)
-
+    use_placement_group         = optional(bool, false)
     ami_config = optional(object({
       most_recent         = bool
       name                = string
@@ -233,6 +233,16 @@ variable "pe_config" {
     subnet_ids         = optional(list(string), [])
     security_group_ids = optional(list(string), [])
     route_table_ids    = optional(list(string), [])
+  })
+  default = null
+}
+
+variable "placement_group_config" {
+  description = "Configuration for deployment of placement group"
+  type = object({
+    strategy       = string
+    parition_count = optional(string)
+    spread_level   = optional(string)
   })
   default = null
 }
