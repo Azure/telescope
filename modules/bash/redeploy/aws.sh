@@ -1,15 +1,5 @@
 #!/bin/bash
 
-# DESC: Get the instance view for a vm
-# ARGS: $1 (required): The instance id of the VM
-# OUTS: The json of the instance view
-# NOTE: None
-aws::get_vm_instance_view_json() {
-    local instance_id=$1
-
-    aws ec2 describe-instances --instance-ids $instance_id
-}
-
 # DESC: Get the ip of the instance
 # ARGS: $1 (required): The instance id
 # OUTS: The IP to STDOUT
