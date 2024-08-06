@@ -68,7 +68,17 @@ resource "azurerm_kusto_cluster" "cluster" {
     name     = "Standard_E16ads_v5"
     capacity = 2
   }
+  identity {
+    type = "SystemAssigned"
+  }
   tags = local.tags
+}
+
+# Role Assignment
+resource "azurerm_role_assignment" "storage_role_assignment" {
+  scope                = azurerm_storage_account.storage.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_kusto_cluster.cluster.identity[0].principal_id
 }
 
 # Kusto Database

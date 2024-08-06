@@ -55,7 +55,7 @@ data "azurerm_eventhub_namespace" "eventhub_ns" {
 
 resource "azurerm_eventhub_namespace" "eventhub_ns" {
   count               = tobool(var.json_input.create_eventhub_namespace) ? 1 : 0
-  name                = "ADX-EG-akstelescope-${formatdate("MM-DD-YYYY", timestamp())}"
+  name                = "ADX-EG-akstelescope-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   location            = data.azurerm_resource_group.rg.location
   resource_group_name = data.azurerm_resource_group.rg.name
   sku                 = "Standard"
