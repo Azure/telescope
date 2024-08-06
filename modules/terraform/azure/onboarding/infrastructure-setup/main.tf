@@ -9,6 +9,7 @@ locals {
     owner  = var.json_input.owner
     run_id = var.json_input.run_id
   }
+  database_names = var.json_input.kusto_database_names
 }
 
 # Resource Group
@@ -18,21 +19,42 @@ resource "azurerm_resource_group" "rg" {
   tags     = local.tags
 }
 
+# Managed Identity
+resource "azurerm_user_assigned_identity" "mi" {
+  name                = "telescope-identity"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+}
+
+# Role Assignment
+resource "azurerm_role_assignment" "owner_role_assignment" {
+  role_definition_name = "owner"
+  scope                = azurerm_resource_group.rg.id
+  principal_id         = azurerm_user_assigned_identity.mi.principal_id
+}
 
 # Storage Account
 resource "azurerm_storage_account" "storage" {
-  name                     = var.json_input.storage_account_name
-  resource_group_name      = azurerm_resource_group.rg.name
-  location                 = azurerm_resource_group.rg.location
-  account_tier             = "Standard"
-  account_replication_type = "RA-GRS"
-  tags                     = local.tags
+  name                      = var.json_input.storage_account_name
+  resource_group_name       = azurerm_resource_group.rg.name
+  location                  = azurerm_resource_group.rg.location
+  account_tier              = "Standard"
+  account_replication_type  = "RAGRS"
+  shared_access_key_enabled = false
+  tags                      = local.tags
 }
 
+# Role Assignment
+resource "azurerm_role_assignment" "blob_contributor_role_assignment" {
+  role_definition_name = "Storage Blob Data Contributor"
+  scope                = azurerm_storage_account.storage.id
+  principal_id         = azurerm_user_assigned_identity.mi.principal_id
+}
 
 # Storage Container
 resource "azurerm_storage_container" "container" {
-  name                 = var.json_input.scenario_type
+  count                = length(local.database_names)
+  name                 = local.database_names[count.index]
   storage_account_name = azurerm_storage_account.storage.name
 }
 
@@ -51,15 +73,11 @@ resource "azurerm_kusto_cluster" "cluster" {
 
 # Kusto Database
 resource "azurerm_kusto_database" "database" {
-  name                = var.json_input.kusto_database_name
+  count               = length(local.database_names)
+  name                = local.database_names[count.index]
   resource_group_name = azurerm_resource_group.rg.name
   cluster_name        = azurerm_kusto_cluster.cluster.name
   location            = azurerm_resource_group.rg.location
-}
-
-# Managed Identity
-resource "azurerm_user_assigned_identity" "userassignedidentity" {
-  name                = "telescope-identity"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+  hot_cache_period    = "P31D"
+  soft_delete_period  = "P365D"
 }
