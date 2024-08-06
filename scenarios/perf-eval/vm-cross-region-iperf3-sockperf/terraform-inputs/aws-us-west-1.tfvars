@@ -41,6 +41,18 @@ network_config_list = [
         },
         {
           from_port  = 20003
+          to_port    = 20003
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20004
+          to_port    = 20004
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20005
           to_port    = 20005
           protocol   = "tcp"
           cidr_block = "0.0.0.0/0"
