@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-cross-region-iperf3-sockperf"
+scenario_name  = "vm-cross-region-iperf3"
 deletion_delay = "2h"
 public_ip_config_list = [
   {
@@ -68,8 +68,8 @@ vm_config_list = [{
   zone           = "1"
   source_image_reference = {
     publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-focal"
-    sku       = "20_04-lts"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
   create_vm_extension = true

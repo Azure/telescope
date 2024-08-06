@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-cross-region-iperf3-sockperf"
+scenario_name  = "vm-cross-region-iperf3"
 deletion_delay = "2h"
 network_config_list = [
   {
