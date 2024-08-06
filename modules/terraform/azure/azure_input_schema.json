@@ -23,7 +23,9 @@
       "storage_account_replication_type": {"type": "string"},
       "storage_share_quota": {"type": "number"},
       "storage_share_access_tier": {"type": "string"},
-      "storage_share_enabled_protocol": {"type": "string"}
+      "storage_share_enabled_protocol": {"type": "string"},
+      "aks_cli_system_node_pool": {"type": "object"},
+      "aks_cli_user_node_pool": {"type": "array"}
   },
   "required": ["owner", "run_id", "region"],
   "additionalProperties": false
