@@ -1,12 +1,13 @@
+provider "azurerm" {
+  features {}
+  storage_use_azuread = true
+}
+
 locals {
   tags = {
     owner  = var.json_input.owner
     run_id = var.json_input.run_id
   }
-}
-provider "azurerm" {
-  features {}
-  storage_use_azuread = true
 }
 
 # Resource Group
