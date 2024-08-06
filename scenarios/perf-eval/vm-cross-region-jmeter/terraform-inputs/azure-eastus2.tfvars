@@ -89,9 +89,9 @@ vm_config_list = [{
   admin_username = "ubuntu"
   zone           = "1"
   source_image_reference = {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-focal"
-    sku       = "20_04-lts"
+    publisher = "canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
   create_vm_extension = true
