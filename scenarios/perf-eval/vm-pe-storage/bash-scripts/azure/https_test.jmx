@@ -39,22 +39,70 @@
               <stringProp name="Argument.desc">Azure storage container name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="blob" elementType="Argument">
-              <stringProp name="Argument.name">blob</stringProp>
-              <stringProp name="Argument.value">blob</stringProp>
-              <stringProp name="Argument.desc">Azure storage blob name</stringProp>
+            <elementProp name="param_1" elementType="Argument">
+              <stringProp name="Argument.name">param_1</stringProp>
+              <stringProp name="Argument.value">param_1</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 1</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="storage_key" elementType="Argument">
-              <stringProp name="Argument.name">storage_key</stringProp>
-              <stringProp name="Argument.value">storage_key</stringProp>
-              <stringProp name="Argument.desc">Azure storage account shared storage key name</stringProp>
+            <elementProp name="param_2" elementType="Argument">
+              <stringProp name="Argument.name">param_2</stringProp>
+              <stringProp name="Argument.value">param_2</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 2</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="xmsversion" elementType="Argument">
-              <stringProp name="Argument.name">xmsversion</stringProp>
-              <stringProp name="Argument.value">2024-05-04</stringProp>
-              <stringProp name="Argument.desc">Azure Storage REST Api xmsversion header value</stringProp>
+            <elementProp name="param_3" elementType="Argument">
+              <stringProp name="Argument.name">param_3</stringProp>
+              <stringProp name="Argument.value">param_3</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 3</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_4" elementType="Argument">
+              <stringProp name="Argument.name">param_4</stringProp>
+              <stringProp name="Argument.value">param_4</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 4</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_5" elementType="Argument">
+              <stringProp name="Argument.name">param_5</stringProp>
+              <stringProp name="Argument.value">param_5</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 5</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_6" elementType="Argument">
+              <stringProp name="Argument.name">param_6</stringProp>
+              <stringProp name="Argument.value">param_6</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 6</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_7" elementType="Argument">
+              <stringProp name="Argument.name">param_7</stringProp>
+              <stringProp name="Argument.value">param_7</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 7</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_8" elementType="Argument">
+              <stringProp name="Argument.name">param_8</stringProp>
+              <stringProp name="Argument.value">param_8</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 8</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_9" elementType="Argument">
+              <stringProp name="Argument.name">param_9</stringProp>
+              <stringProp name="Argument.value">param_9</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 9</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_10" elementType="Argument">
+              <stringProp name="Argument.name">param_10</stringProp>
+              <stringProp name="Argument.value">param_10</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 10</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="param_11" elementType="Argument">
+              <stringProp name="Argument.name">param_11</stringProp>
+              <stringProp name="Argument.value">param_11</stringProp>
+              <stringProp name="Argument.desc">Azure presign url param 11</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="request_delay" elementType="Argument">
@@ -96,49 +144,6 @@
           </collectionProp>
         </Arguments>
         <hashTree/>
-        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor" enabled="true">
-        <stringProp name="cacheKey">true</stringProp>
-        <stringProp name="filename"></stringProp>
-        <stringProp name="parameters"></stringProp>
-        <stringProp name="script">import javax.crypto.Mac;
-        import javax.crypto.spec.SecretKeySpec;
-        import org.apache.commons.codec.binary.Base64;
-        import java.text.SimpleDateFormat;
-        import java.util.Locale;
-        import java.util.TimeZone;
-
-        //Generate the RCF1123 date
-        SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
-        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-        String rfc1123Date = dateFormat.format(new Date());
-        vars.put("xmsdate", rfc1123Date);
-
-        // Your storage account name.
-        String storageAccount = props.get("storage_account");
-
-        // Your storage account access key.
-        String storageKey = props.get("storage_key");
-
-        // Specify the blob type (BlockBlob|PageBlob|AppendBlob).
-        String blobType = "BlockBlob";
-
-        // Specify your container name.
-        String containerName = props.get("container");
-
-        // Specify your blob name.
-        String blobName = props.get("blob");
-
-        // Create the canonicalized string.
-        String canonicalizedString = "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:" + vars.get("xmsdate") + "\nx-ms-range:bytes=0-0\nx-ms-version:" + props.get("xmsversion") + "\n/" + storageAccount + "/" + containerName + "/" + blobName;
-
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(Base64.decodeBase64(storageKey), "HmacSHA256"));
-        String authKey = new String(Base64.encodeBase64(mac.doFinal(canonicalizedString.getBytes("UTF-8"))));
-        String auth_header = "SharedKey ${storageAccount}:${authKey}"
-        vars.put("auth_header", auth_header);
-        </stringProp>
-        <stringProp name="scriptLanguage">groovy</stringProp>
-        </JSR223PreProcessor>
         <hashTree/>
         <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
           <collectionProp name="CookieManager.cookies"/>
@@ -155,7 +160,7 @@
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">/${__P(container, "container")}/${__P(blob, "test")}</stringProp>
+          <stringProp name="HTTPSampler.path">/${__P(container, "container")}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -168,6 +173,87 @@
           <boolProp name="HTTPSampler.md5">false</boolProp>
           <intProp name="HTTPSampler.ipSourceType">0</intProp>
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="param_1" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_1, p1)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_1</stringProp>
+              </elementProp>
+              <elementProp name="param_2" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_2, p2)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_2</stringProp>
+              </elementProp>
+              <elementProp name="param_3" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_3, p3)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_3</stringProp>
+              </elementProp>
+              <elementProp name="param_4" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_4, p4)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_4</stringProp>
+              </elementProp>
+              <elementProp name="param_5" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_5, p5)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_5</stringProp>
+              </elementProp>
+              <elementProp name="param_6" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_6, p6)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_6</stringProp>
+              </elementProp>
+              <elementProp name="param_7" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_7, p7)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_7</stringProp>
+              </elementProp>
+              <elementProp name="param_8" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_8, p8)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_8</stringProp>
+              </elementProp>
+              <elementProp name="param_9" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_9, p9)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_9</stringProp>
+              </elementProp>
+              <elementProp name="param_10" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_10, p10)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_10</stringProp>
+              </elementProp>
+              <elementProp name="param_11" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">true</boolProp>
+                <stringProp name="Argument.value">${__P(param_11, p11)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                <stringProp name="Argument.name">param_11</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <KeystoreConfig guiclass="TestBeanGUI" testclass="KeystoreConfig" testname="Keystore Configuration" enabled="true">
@@ -177,26 +263,6 @@
             <stringProp name="startIndex">0</stringProp>
           </KeystoreConfig>
           <hashTree/>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
-            <collectionProp name="HeaderManager.headers">
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">${auth_header}</stringProp>
-              </elementProp>
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">x-ms-date</stringProp>
-                <stringProp name="Header.value">${xmsdate}</stringProp>
-              </elementProp>
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">x-ms-version</stringProp>
-                <stringProp name="Header.value">${__P(xmsversion, "")}</stringProp>
-              </elementProp>
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">x-ms-range</stringProp>
-                <stringProp name="Header.value">bytes=0-0</stringProp>
-              </elementProp>
-            </collectionProp>
-          </HeaderManager>
           <hashTree/>
         </hashTree>
         <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
