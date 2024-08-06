@@ -39,70 +39,10 @@
               <stringProp name="Argument.desc">Azure storage container name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="param_1" elementType="Argument">
-              <stringProp name="Argument.name">param_1</stringProp>
-              <stringProp name="Argument.value">param_1</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 1</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_2" elementType="Argument">
-              <stringProp name="Argument.name">param_2</stringProp>
-              <stringProp name="Argument.value">param_2</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 2</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_3" elementType="Argument">
-              <stringProp name="Argument.name">param_3</stringProp>
-              <stringProp name="Argument.value">param_3</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 3</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_4" elementType="Argument">
-              <stringProp name="Argument.name">param_4</stringProp>
-              <stringProp name="Argument.value">param_4</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 4</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_5" elementType="Argument">
-              <stringProp name="Argument.name">param_5</stringProp>
-              <stringProp name="Argument.value">param_5</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 5</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_6" elementType="Argument">
-              <stringProp name="Argument.name">param_6</stringProp>
-              <stringProp name="Argument.value">param_6</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 6</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_7" elementType="Argument">
-              <stringProp name="Argument.name">param_7</stringProp>
-              <stringProp name="Argument.value">param_7</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 7</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_8" elementType="Argument">
-              <stringProp name="Argument.name">param_8</stringProp>
-              <stringProp name="Argument.value">param_8</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 8</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_9" elementType="Argument">
-              <stringProp name="Argument.name">param_9</stringProp>
-              <stringProp name="Argument.value">param_9</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 9</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_10" elementType="Argument">
-              <stringProp name="Argument.name">param_10</stringProp>
-              <stringProp name="Argument.value">param_10</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 10</stringProp>
-              <stringProp name="Argument.metadata">=</stringProp>
-            </elementProp>
-            <elementProp name="param_11" elementType="Argument">
-              <stringProp name="Argument.name">param_11</stringProp>
-              <stringProp name="Argument.value">param_11</stringProp>
-              <stringProp name="Argument.desc">Azure presign url param 11</stringProp>
+            <elementProp name="sas_token" elementType="Argument">
+              <stringProp name="Argument.name">sas_token</stringProp>
+              <stringProp name="Argument.value">sas_token</stringProp>
+              <stringProp name="Argument.desc">User delegated SAS token</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="request_delay" elementType="Argument">
@@ -174,82 +114,12 @@
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
             <collectionProp name="Arguments.arguments">
-              <elementProp name="param_1" elementType="HTTPArgument">
+              <elementProp name="sas_token" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_1, p1)}</stringProp>
+                <stringProp name="Argument.value">${__P(sas_token, token)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_1</stringProp>
-              </elementProp>
-              <elementProp name="param_2" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_2, p2)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_2</stringProp>
-              </elementProp>
-              <elementProp name="param_3" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_3, p3)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_3</stringProp>
-              </elementProp>
-              <elementProp name="param_4" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_4, p4)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_4</stringProp>
-              </elementProp>
-              <elementProp name="param_5" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_5, p5)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_5</stringProp>
-              </elementProp>
-              <elementProp name="param_6" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_6, p6)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_6</stringProp>
-              </elementProp>
-              <elementProp name="param_7" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_7, p7)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_7</stringProp>
-              </elementProp>
-              <elementProp name="param_8" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_8, p8)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_8</stringProp>
-              </elementProp>
-              <elementProp name="param_9" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_9, p9)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_9</stringProp>
-              </elementProp>
-              <elementProp name="param_10" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_10, p10)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_10</stringProp>
-              </elementProp>
-              <elementProp name="param_11" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(param_11, p11)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">param_11</stringProp>
+                <stringProp name="Argument.name">sas_token</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
