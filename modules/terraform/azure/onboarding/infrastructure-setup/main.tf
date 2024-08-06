@@ -56,3 +56,10 @@ resource "azurerm_kusto_database" "database" {
   cluster_name        = azurerm_kusto_cluster.cluster.name
   location            = azurerm_resource_group.rg.location
 }
+
+# Managed Identity
+resource "azurerm_user_assigned_identity" "userassignedidentity" {
+  name                = "telescope-identity"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+}
