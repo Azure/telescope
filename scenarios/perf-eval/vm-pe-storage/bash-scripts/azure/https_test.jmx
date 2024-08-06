@@ -144,7 +144,6 @@
           </collectionProp>
         </Arguments>
         <hashTree/>
-        <hashTree/>
         <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
           <collectionProp name="CookieManager.cookies"/>
           <boolProp name="CookieManager.clearEachIteration">true</boolProp>
@@ -262,7 +261,6 @@
             <stringProp name="preload">True</stringProp>
             <stringProp name="startIndex">0</stringProp>
           </KeystoreConfig>
-          <hashTree/>
           <hashTree/>
         </hashTree>
         <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
