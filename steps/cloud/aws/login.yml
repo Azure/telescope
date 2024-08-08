@@ -1,6 +1,8 @@
 parameters:
 - name: region
   type: string
+- name: credential_type
+  type: string
 
 steps:
 - bash: |

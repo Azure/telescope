@@ -6,9 +6,9 @@ parameters:
 steps:
 - script: |
     if [ -v "$USER_DATA_PATH" ]; then
-      terraform_user_data_path=$(System.DefaultWorkingDirectory)/$SCENARIO_REPO_NAME/$USER_DATA_PATH
+      terraform_user_data_path=$(Pipeline.Workspace)/s/$SCENARIO_REPO_NAME/$USER_DATA_PATH
     else
-      terraform_user_data_path=$(System.DefaultWorkingDirectory)/$SCENARIO_REPO_NAME/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+      terraform_user_data_path=$(Pipeline.Workspace)/s/$SCENARIO_REPO_NAME/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
     fi
     echo $terraform_user_data_path
     echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$terraform_user_data_path"
