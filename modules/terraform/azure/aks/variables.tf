@@ -16,22 +16,10 @@ variable "tags" {
   }
 }
 
-variable "subnet_id" {
-  description = "Subnet ID"
-  type        = string
-  default     = ""
-}
-
 variable "vnet_id" {
   description = "Vnet id"
   type        = string
   default     = ""
-}
-
-variable "subnets" {
-  description = "Maps of subnets"
-  type        = map(string)
-  default     = {}
 }
 
 variable "aks_config" {
