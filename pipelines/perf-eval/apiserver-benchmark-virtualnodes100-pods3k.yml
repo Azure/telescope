@@ -14,6 +14,9 @@ variables:
   SCENARIO_NAME: apiserver-vn100pod3k
   SCENARIO_VERSION: v1.1.5
 
+pool:
+  name: "1ES-Telescope-Ubuntu-EastUS"
+
 stages:
   - stage: aws_eastus2
     dependsOn: []
