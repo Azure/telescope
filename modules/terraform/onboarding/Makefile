@@ -9,9 +9,9 @@ TF_INFRASTRUCTURE_INPUT_FILE := infrastructure/setup.tfvars
 .DEFAULT_GOAL := help
 # Help target to display usage
 help:
-  @echo "Usage:"
-	@echo " make infrastructure_setup    - Create infrastructure setup"
-  @echo " make create_pipeline        - Create a new pipeline"
+	@echo "Usage:"
+	@echo " make infrastructure_setup  - Create infrastructure setup"
+	@echo "  make create_pipeline        - Create a new pipeline"
 # Target to create a new Azure Pipeline
 create_pipeline:
 	cd $(TF_PIPELINE_DIR) && terraform init && terraform plan -var-file=$(TF_PIPELINE_INPUT_FILE) && terraform apply -var-file=$(TF_PIPELINE_INPUT_FILE) --auto-approve
