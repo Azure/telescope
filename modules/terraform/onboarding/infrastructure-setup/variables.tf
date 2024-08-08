@@ -1,25 +1,3 @@
-variable "json_input" {
-  description = "value of the json input for creating one time infrasturcture setup "
-  type = object({
-    owner                = string
-    run_id               = string
-    location             = string
-    resource_group_name  = string
-    storage_account_name = string
-    kusto_cluster_name   = string
-    kusto_database_names = list(string)
-  })
-  default = {
-    owner                = "schinnapulla"
-    run_id               = "08062024"
-    location             = "eastus"
-    resource_group_name  = "schinnapulla"
-    storage_account_name = "schinnapulla"
-    kusto_cluster_name   = "schinnapulla"
-    kusto_database_names = ["perf-eval", "issue-repro"]
-  }
-}
-
 variable "tags" {
   description = "Tags to be applied to all resources"
   type        = map(string)
