@@ -45,7 +45,7 @@
               <stringProp name="Argument.desc">Azure storage blob name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
-            <elementProp name="sas_token" elementType="Argument">
+            <elementProp name="token" elementType="Argument">
               <stringProp name="Argument.name">token</stringProp>
               <stringProp name="Argument.value">token</stringProp>
               <stringProp name="Argument.desc">AAD auth token</stringProp>
@@ -132,6 +132,10 @@
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
                 <stringProp name="Header.value">Bearer ${token}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">x-ms-version</stringProp>
+                <stringProp name="Header.value">2024-11-04</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Range</stringProp>
