@@ -162,13 +162,13 @@
               <encoding>false</encoding>
               <assertions>false</assertions>
               <subresults>true</subresults>
-              <responseData>false</responseData>
+              <responseData>true</responseData>
               <samplerData>false</samplerData>
               <xml>false</xml>
               <fieldNames>true</fieldNames>
-              <responseHeaders>false</responseHeaders>
+              <responseHeaders>true</responseHeaders>
               <requestHeaders>false</requestHeaders>
-              <responseDataOnError>false</responseDataOnError>
+              <responseDataOnError>true</responseDataOnError>
               <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
               <assertionsResultsToSave>0</assertionsResultsToSave>
               <bytes>true</bytes>
