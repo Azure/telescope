@@ -1,26 +1,9 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    owner                     = string
-    run_id                    = string
-    region                    = string
-    public_key_path           = string
-    machine_type              = optional(string)
-    user_data_path            = optional(string)
-    data_disk_volume_type     = optional(string)
-    data_disk_size_gb         = optional(number)
-    data_disk_tier            = optional(string)
-    data_disk_iops_read_only  = optional(number)
-    data_disk_iops_read_write = optional(number)
-    data_disk_mbps_read_only  = optional(number)
-    data_disk_mbps_read_write = optional(number)
-    data_disk_count           = optional(number, 1)
-    ultra_ssd_enabled         = optional(bool)
-    vm_count_override         = optional(number, 0)
-
-    efs_performance_mode                = optional(string)
-    efs_throughput_mode                 = optional(string)
-    efs_provisioned_throughput_in_mibps = optional(number)
+    owner  = string
+    run_id = string
+    region = string
   })
 }
 
@@ -91,90 +74,6 @@ variable "network_config_list" {
   default = []
 }
 
-variable "loadbalancer_config_list" {
-  description = "List of Loadbalancer configurations"
-  type = list(object({
-    role                = string
-    vpc_name            = string
-    subnet_names        = list(string)
-    load_balancer_type  = string
-    is_internal_lb      = optional(bool, false)
-    security_group_name = optional(string)
-    lb_target_group = list(object({
-      role                    = string
-      tg_suffix               = string
-      port                    = number
-      protocol                = string
-      vpc_name                = string
-      certificate_domain_name = optional(string)
-      health_check = object({
-        port                = number
-        protocol            = string
-        interval            = number
-        timeout             = number
-        healthy_threshold   = number
-        unhealthy_threshold = number
-      })
-      lb_listener = list(object({
-        port     = number
-        protocol = string
-      }))
-      lb_target_group_attachment = list(object({
-        vm_name = string
-        port    = number
-      }))
-    }))
-  }))
-  default = []
-}
-
-variable "vm_config_list" {
-  description = "List of configuration for virtual machines"
-  type = list(object({
-    vm_name                     = string
-    zone_suffix                 = string
-    role                        = string
-    subnet_name                 = string
-    security_group_name         = string
-    associate_public_ip_address = bool
-    info_column_name            = optional(string)
-    count                       = optional(number, 1)
-    use_placement_group         = optional(bool, false)
-    ami_config = optional(object({
-      most_recent         = bool
-      name                = string
-      virtualization_type = string
-      architecture        = string
-      owners              = list(string)
-    }))
-  }))
-  default = []
-}
-
-variable "data_disk_config" {
-  description = "Data disk and optional attachment target (up to 11 per vm) to be created <data_disk_count> times"
-  type = object({
-    zone_suffix = string
-    vm_name     = optional(string)
-  })
-  default = null
-}
-
-variable "bucket_name_prefix" {
-  description = "Value of the bucket name prefix"
-  type        = string
-  default     = ""
-}
-
-variable "bucket_object_config" {
-  description = "Configuration for deployment of bucket object with bucket"
-  type = object({
-    bucket_source_file_name = string
-    bucket_file_key         = string
-  })
-  default = null
-}
-
 variable "eks_config_list" {
   type = list(object({
     role        = string
@@ -204,45 +103,4 @@ variable "eks_config_list" {
     }))
   }))
   default = []
-}
-
-variable "efs_name_prefix" {
-  description = "Value of the bucket name prefix"
-  type        = string
-  default     = ""
-}
-
-variable "private_link_conf" {
-  description = "configuration for private link"
-  type = object({
-    service_lb_role = string
-
-    client_vpc_name            = string
-    client_subnet_name         = string
-    client_security_group_name = string
-  })
-  default = null
-}
-
-variable "pe_config" {
-  description = "configuration for vpc private endpoint"
-  type = object({
-    pe_vpc_name        = string
-    pe_service_name    = string
-    vpc_endpoint_type  = string
-    subnet_ids         = optional(list(string), [])
-    security_group_ids = optional(list(string), [])
-    route_table_ids    = optional(list(string), [])
-  })
-  default = null
-}
-
-variable "placement_group_config" {
-  description = "Configuration for deployment of placement group"
-  type = object({
-    strategy       = string
-    parition_count = optional(string)
-    spread_level   = optional(string)
-  })
-  default = null
 }
