@@ -29,9 +29,11 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: true
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: true
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:node10-job1-pod100
             benchmark_subcmd: node10_job1_pod100
