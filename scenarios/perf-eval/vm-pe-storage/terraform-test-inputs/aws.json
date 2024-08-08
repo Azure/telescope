@@ -1,6 +1,0 @@
-{
-    "owner"                            : "terraform_unit_tests",
-    "run_id"                           : "vm-pe-storage",
-    "region"                           : "us-east-2",
-    "machine_type"                     : "m6i.4xlarge"
-  }
