@@ -39,10 +39,16 @@
               <stringProp name="Argument.desc">Azure storage container name</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
+            <elementProp name="blob" elementType="Argument">
+              <stringProp name="Argument.name">blob</stringProp>
+              <stringProp name="Argument.value">blob</stringProp>
+              <stringProp name="Argument.desc">Azure storage blob name</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
             <elementProp name="sas_token" elementType="Argument">
-              <stringProp name="Argument.name">sas_token</stringProp>
-              <stringProp name="Argument.value">sas_token</stringProp>
-              <stringProp name="Argument.desc">User delegated SAS token</stringProp>
+              <stringProp name="Argument.name">token</stringProp>
+              <stringProp name="Argument.value">token</stringProp>
+              <stringProp name="Argument.desc">AAD auth token</stringProp>
               <stringProp name="Argument.metadata">=</stringProp>
             </elementProp>
             <elementProp name="request_delay" elementType="Argument">
@@ -99,7 +105,7 @@
           <stringProp name="HTTPSampler.port">${__P(port, 443)}</stringProp>
           <stringProp name="HTTPSampler.protocol">https</stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">/${__P(container, "container")}</stringProp>
+          <stringProp name="HTTPSampler.path">/${__P(container, "container")}/${__P(blob, "test")}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -112,17 +118,6 @@
           <boolProp name="HTTPSampler.md5">false</boolProp>
           <intProp name="HTTPSampler.ipSourceType">0</intProp>
           <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
-            <collectionProp name="Arguments.arguments">
-              <elementProp name="sas_token" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">true</boolProp>
-                <stringProp name="Argument.value">${__P(sas_token, token)}</stringProp>
-                <stringProp name="Argument.metadata">=</stringProp>
-                <boolProp name="HTTPArgument.use_equals">true</boolProp>
-                <stringProp name="Argument.name">sas_token</stringProp>
-              </elementProp>
-            </collectionProp>
-          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <KeystoreConfig guiclass="TestBeanGUI" testclass="KeystoreConfig" testname="Keystore Configuration" enabled="true">
@@ -131,6 +126,19 @@
             <stringProp name="preload">True</stringProp>
             <stringProp name="startIndex">0</stringProp>
           </KeystoreConfig>
+          <hashTree/>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Bearer ${token}</stringProp>
+              </elementProp>
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Range</stringProp>
+                <stringProp name="Header.value">bytes=0-0</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
           <hashTree/>
         </hashTree>
         <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
