@@ -1,0 +1,100 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: regions
+    type: object
+  - name: input_variables
+    type: object
+    default: {}
+
+steps:
+  - script: |
+      # Note: value set in matrix of a job will be available as environment variable with the same name using the syntax: $VARIABLE_NAME
+      set -e
+
+      if [[ "${DEBUG,,}" =~ "true" ]]; then
+        set -x
+      fi
+
+      SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
+      USER_NODE_POOL=${USER_NODE_POOL:-null}
+
+      regional_config=$REGIONAL_CONFIG
+      for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
+        if [ -z "$INPUT_VARIABLES" ]; then
+          echo "Set input variables for region $REGION"
+          INPUT_VARIABLES=$(jq -n \
+                --arg owner azure_devops \
+                --arg run_id $RUN_ID \
+                --arg region $REGION \
+                --arg public_key_path $SSH_PUBLIC_KEY_PATH \
+                --arg machine_type "$MACHINE_TYPE" \
+                --arg aks_machine_type "$AKS_MACHINE_TYPE" \
+                --arg accelerated_networking "$ACCELERATED_NETWORKING" \
+                --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
+                --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
+                --arg data_disk_count "$DATA_DISK_COUNT" \
+                --arg data_disk_tier "$DATA_DISK_TIER" \
+                --arg data_disk_caching "$DATA_DISK_CACHING" \
+                --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
+                --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
+                --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
+                --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
+                --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
+                --arg storage_account_tier "$STORAGE_TIER" \
+                --arg storage_account_kind "$STORAGE_KIND" \
+                --arg storage_account_replication_type "$STORAGE_REPLICATION" \
+                --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
+                --arg storage_share_access_tier "$STORAGE_SHARE_ACCESS_TIER" \
+                --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
+                --arg user_data_path $TERRAFORM_USER_DATA_PATH \
+                --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
+                --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
+                '{
+                  owner: $owner,
+                  run_id: $run_id,
+                  region: $region,
+                  machine_type: $machine_type,
+                  public_key_path: $public_key_path,
+                  aks_machine_type: $aks_machine_type,
+                  accelerated_networking: $accelerated_networking,
+                  data_disk_storage_account_type: $data_disk_storage_account_type,
+                  data_disk_size_gb: $data_disk_size_gb,
+                  data_disk_tier: $data_disk_tier,
+                  data_disk_caching: $data_disk_caching,
+                  data_disk_iops_read_write: $data_disk_iops_read_write,
+                  data_disk_iops_read_only: $data_disk_iops_read_only,
+                  data_disk_mbps_read_write: $data_disk_mbps_read_write,
+                  data_disk_mbps_read_only: $data_disk_mbps_read_only,
+                  data_disk_count: $data_disk_count,
+                  ultra_ssd_enabled: $ultra_ssd_enabled,
+                  storage_account_tier: $storage_account_tier,
+                  storage_account_kind: $storage_account_kind,
+                  storage_account_replication_type: $storage_account_replication_type,
+                  storage_share_quota: $storage_share_quota,
+                  storage_share_access_tier: $storage_share_access_tier,
+                  storage_share_enabled_protocol: $storage_share_enabled_protocol,
+                  user_data_path: $user_data_path,
+                  aks_cli_system_node_pool: $aks_cli_system_node_pool,
+                  aks_cli_user_node_pool: $aks_cli_user_node_pool
+                }' | jq 'with_entries(select(.value != null and .value != ""))')
+        fi
+        input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
+        echo "Input variables: $input_variables_str"
+        regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_variables_str" \
+            '.[$region].TERRAFORM_INPUT_VARIABLES += $input_variable')
+        echo "Regional config: $regional_config"
+        INPUT_VARIABLES=""
+      done
+      regional_config_str=$(echo $regional_config | jq -c .)
+      echo "Final regional config: $regional_config_str"
+      echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
+
+    displayName: 'Set Terraform Input Variables'
+    condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    env:
+      CLOUD: ${{ parameters.cloud }}
+      REGIONS: ${{ convertToJson(parameters.regions) }}
+      RUN_ID: $(RUN_ID)
+      INPUT_VARIABLES: ${{ convertToJson(parameters.input_variables) }}
+      DEBUG: $(System.Debug)

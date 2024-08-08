@@ -1,0 +1,68 @@
+trigger: none
+
+schedules:
+  - cron: "0 0 * * *"
+    displayName: "Daily midnight build"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_REPO: Azure/telescope # must keep as is
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-vn10pod100
+  SCENARIO_VERSION: anson-open-source
+
+pool:
+  name: "1ES-Telescope-Ubuntu-EastUS"
+
+stages:
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: true
+            exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: true
+          engine_input:
+            runner_image: telescope.azurecr.io/oss/kperf:node10-job1-pod100
+            benchmark_subcmd: node10_job1_pod100
+            benchmark_subcmd_args: "--total 1000"
+          max_parallel: 2
+          timeout_in_minutes: 360
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+            exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: ""
+          engine_input:
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.3
+            benchmark_subcmd: node10_job1_pod100
+            benchmark_subcmd_args: "--total 1000"
+          max_parallel: 2
+          timeout_in_minutes: 360
