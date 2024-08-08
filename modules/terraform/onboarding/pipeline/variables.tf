@@ -5,7 +5,7 @@ variable "azure_devops_config" {
     variable_groups_to_link = list(string)
     pipeline_config = object({
       name = string
-      path = string
+      path = optional(string, "//")
       repository = object({
         repo_type               = string
         repository_name         = string
