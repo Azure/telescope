@@ -12,8 +12,7 @@ locals {
     "run_id"            = local.run_id
   }
 
-  aks_config_map              = { for aks in var.aks_config_list : aks.role => aks }
-  aks_cluster_kubeconfig_list = [for aks in var.aks_config_list : module.aks[aks.role].aks_cluster_kubeconfig_path]
+  aks_config_map = { for aks in var.aks_config_list : aks.role => aks }
 
   updated_aks_cli_config_list = (length(var.aks_cli_config_list) == 1 && (local.aks_cli_system_node_pool != null || local.aks_cli_user_node_pool != null)) ? flatten([
     for aks in var.aks_cli_config_list : [
