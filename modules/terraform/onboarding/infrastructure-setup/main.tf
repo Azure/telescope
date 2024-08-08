@@ -13,12 +13,17 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "<= 3.93.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 2.15.0"
+    }
   }
 }
 
 provider "azurerm" {
   features {}
   storage_use_azuread = true
+  subscription_id     = var.azure_config.subscription.id
 }
 
 provider "aws" {
@@ -28,12 +33,50 @@ provider "aws" {
 provider "azuredevops" {
 }
 
+provider "azuread" {
+  tenant_id = var.azure_config.subscription.tenant
+}
+
+## Step 1: Set up service connection to Azure
+
+data "azuredevops_project" "ado_project" {
+  name = var.azuredevops_config.project_name
+}
+
+resource "azuredevops_serviceendpoint_azurerm" "service_connection" {
+  project_id                             = data.azuredevops_project.ado_project.id
+  service_endpoint_name                  = var.azure_config.subscription.id
+  service_endpoint_authentication_scheme = "WorkloadIdentityFederation"
+  azurerm_spn_tenantid                   = var.azure_config.subscription.tenant
+  azurerm_subscription_id                = var.azure_config.subscription.id
+  azurerm_subscription_name              = var.azure_config.subscription.name
+}
+
+## Step 2: Set up resource group and grant service principal permission in Azure
+
 # Locals for tags
 locals {
   tags = var.tags
   database_config_map = {
-    for db in var.azure_config.kusto_databases : dd.name => db
+    for db in var.azure_config.kusto_cluster.kusto_databases : db.name => db
   }
+}
+
+# Service Principal
+data "azuread_service_principal" "service_principal" {
+  application_id = azuredevops_serviceendpoint_azurerm.service_connection.service_principal_id
+}
+
+# Subscription
+data "azurerm_subscription" "subscription" {
+  subscription_id = var.azure_config.subscription.id
+}
+
+# Role Assignment
+resource "azurerm_role_assignment" "subscription_owner_role_assignment" {
+  role_definition_name = "owner"
+  scope                = data.azurerm_subscription.subscription.id
+  principal_id         = data.azuread_service_principal.service_principal.object_id
 }
 
 # Azure Resource Group
@@ -41,22 +84,6 @@ resource "azurerm_resource_group" "rg" {
   name     = var.azure_config.resource_group.name
   location = var.azure_config.resource_group.location
   tags     = local.tags
-}
-
-# Managed Identity
-resource "azurerm_user_assigned_identity" "mi" {
-  count               = var.azure_config.managed_identity != null ? 1 : 0
-  name                = var.azure_config.managed_identity.name
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-}
-
-# Role Assignment
-resource "azurerm_role_assignment" "owner_role_assignment" {
-  count                = var.azure_config.managed_identity != null ? 1 : 0
-  role_definition_name = var.azure_config.managed_identity.role_definition_name
-  scope                = azurerm_resource_group.rg.id
-  principal_id         = azurerm_user_assigned_identity.mi.principal_id
 }
 
 # Storage Account
@@ -70,17 +97,17 @@ resource "azurerm_storage_account" "storage" {
   tags                      = local.tags
 }
 
-# Role Assignment
-resource "azurerm_role_assignment" "blob_contributor_role_assignment" {
+# Storage Role Assignment
+resource "azurerm_role_assignment" "storage_blob_contributor_role_assignment" {
   role_definition_name = "Storage Blob Data Contributor"
   scope                = azurerm_storage_account.storage.id
-  principal_id         = azurerm_user_assigned_identity.mi.principal_id
+  principal_id         = data.azuread_service_principal.service_principal.object_id
 }
 
 # Storage Container
 resource "azurerm_storage_container" "container" {
   for_each             = local.database_config_map
-  name                 = each.key
+  name                 = replace(each.key, "_", "-")
   storage_account_name = azurerm_storage_account.storage.name
 }
 
@@ -100,11 +127,16 @@ resource "azurerm_kusto_cluster" "cluster" {
   tags = local.tags
 }
 
-# Role Assignment
-resource "azurerm_role_assignment" "storage_role_assignment" {
-  scope                = azurerm_storage_account.storage.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_kusto_cluster.cluster.identity[0].principal_id
+# Kusto Role Assignment
+resource "azurerm_kusto_cluster_principal_assignment" "kusto_role_assignment" {
+  name                = data.azuread_service_principal.service_principal.display_name
+  resource_group_name = azurerm_resource_group.rg.name
+  cluster_name        = azurerm_kusto_cluster.cluster.name
+
+  tenant_id      = data.azuread_service_principal.service_principal.application_tenant_id
+  principal_id   = data.azuread_service_principal.service_principal.object_id
+  principal_type = "App"
+  role           = "AllDatabasesAdmin"
 }
 
 # Kusto Database
@@ -122,74 +154,77 @@ resource "azurerm_kusto_database" "database" {
 resource "azurerm_management_lock" "resource-group-level" {
   name       = "LockResourceGroup"
   scope      = azurerm_resource_group.rg.id
-  lock_level = "Delete"
+  lock_level = "CanNotDelete"
   notes      = "This Resource Group is not allowed to be deleted"
 }
 
-# AWS IAM User
+# ## Step 3: Set up AWS IAM User and Access Key
+# # AWS IAM User
 
-resource "aws_iam_user" "user" {
-  name = var.aws_config.user_name
-  path = "/"
-}
+# resource "aws_iam_user" "user" {
+#   name = var.aws_config.user_name
+#   path = "/"
+# }
 
-# AWS IAM Access Key
-resource "aws_iam_access_key" "access_key" {
-  user = aws_iam_user.user.name
-}
+# # AWS IAM Access Key
+# resource "aws_iam_access_key" "access_key" {
+#   user = aws_iam_user.user.name
+# }
 
-locals {
-  credentials_variables = [{
-    name        = "AWS Credentials"
-    description = "This variable group contains all the AWS secrets required for the infrastructure"
-    variables = [
-      {
-        name  = "AWS_ACCESS_KEY_ID"
-        value = aws_iam_access_key.access_key.id
-      },
-      {
-        name  = "AWS_SECRET_ACCESS_KEY"
-        value = aws_iam_access_key.access_key.secret
-      }
-    ]
-  }]
-}
+# locals {
+#   credentials_variables = [{
+#     name        = "AWS Credentials"
+#     description = "This variable group contains all the AWS secrets required for the infrastructure"
+#     variables = [
+#       {
+#         name  = "AWS_ACCESS_KEY_ID"
+#         value = aws_iam_access_key.access_key.id
+#       },
+#       {
+#         name  = "AWS_SECRET_ACCESS_KEY"
+#         value = aws_iam_access_key.access_key.secret
+#       }
+#     ]
+#   }]
+# }
 
-# Azure DevOps 
-data "azuredevops_project" "project" {
-  name = var.azuredevops_config.project_name
-}
+## Step 4: Set up service connection to AWS
 
-# Azure DevOps Non-Secret Variable Groups
-resource "azuredevops_variable_group" "variable_groups" {
-  for_each     = { for group in var.azuredevops_config.variable_groups : group.name => group }
-  project_id   = data.azuredevops_project.project.id
-  name         = each.value.name
-  description  = each.value.description
-  allow_access = each.value.allow_access
+# # Azure DevOps 
+# data "azuredevops_project" "project" {
+#   name = var.azuredevops_config.project_name
+# }
 
-  dynamic "variable" {
-    for_each = each.value.variables
-    content {
-      name  = variable.value.name
-      value = variable.value.value
-    }
-  }
-}
+# # Azure DevOps Non-Secret Variable Groups
+# resource "azuredevops_variable_group" "variable_groups" {
+#   for_each     = { for group in var.azuredevops_config.variable_groups : group.name => group }
+#   project_id   = data.azuredevops_project.project.id
+#   name         = each.value.name
+#   description  = each.value.description
+#   allow_access = each.value.allow_access
 
-# Azure DevOps Secret Variable Groups
-resource "azuredevops_variable_group" "secret_variable_groups" {
-  for_each   = { for group in local.credentials_variables : group.name => group }
-  project_id = data.azuredevops_project.project.id
+#   dynamic "variable" {
+#     for_each = each.value.variables
+#     content {
+#       name  = variable.value.name
+#       value = variable.value.value
+#     }
+#   }
+# }
 
-  name         = each.value.name
-  description  = each.value.description
-  allow_access = false
-  dynamic "variable" {
-    for_each = each.value.variables
-    content {
-      name         = variable.value.name
-      secret_value = variable.value.value
-    }
-  }
-}
+# # Azure DevOps Secret Variable Groups
+# resource "azuredevops_variable_group" "secret_variable_groups" {
+#   for_each   = { for group in local.credentials_variables : group.name => group }
+#   project_id = data.azuredevops_project.project.id
+
+#   name         = each.value.name
+#   description  = each.value.description
+#   allow_access = false
+#   dynamic "variable" {
+#     for_each = each.value.variables
+#     content {
+#       name         = variable.value.name
+#       secret_value = variable.value.value
+#     }
+#   }
+# }

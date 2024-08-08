@@ -7,14 +7,15 @@ variable "tags" {
 variable "azure_config" {
   description = "All the resources that are required for the infrastructure setup"
   type = object({
+    subscription = object({
+      id     = string
+      name   = string
+      tenant = string
+    })
     resource_group = object({
       name     = string
       location = string
     })
-    managed_identity = optional(object({
-      name                 = string
-      role_definition_name = string
-    }))
     storage_account = object({
       name                      = string
       account_tier              = string
@@ -36,28 +37,28 @@ variable "azure_config" {
   })
 }
 
-variable "aws_config" {
-  description = "All the resources that are required for the infrastructure setup"
-  type = object({
-    region    = string
-    user_name = string
-  })
-}
+# variable "aws_config" {
+#   description = "All the resources that are required for the infrastructure setup"
+#   type = object({
+#     region    = string
+#     user_name = string
+#   })
+# }
 
 variable "azuredevops_config" {
   description = "All the resources that are required for the infrastructure setup"
   type = object({
-    project_name = string
-    variable_groups = list(object({
-      name         = string
-      description  = string
-      allow_access = optional(bool, false)
-      variables = list(object({
-        name  = string
-        value = string
-      }))
-    }))
-    service_connections = list(string)
+    organization_name = string
+    project_name      = string
+    # variable_groups = list(object({
+    #   name         = string
+    #   description  = string
+    #   allow_access = optional(bool, false)
+    #   variables = list(object({
+    #     name  = string
+    #     value = string
+    #   }))
+    # }))
   })
 
 }
