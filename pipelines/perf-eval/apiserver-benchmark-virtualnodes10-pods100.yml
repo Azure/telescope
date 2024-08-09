@@ -4,8 +4,8 @@ variables:
   SCENARIO_VERSION: next
 
 schedules:
-  - cron: "0 0 * * *"
-    displayName: "Daily midnight build"
+  - cron: "30 * * * *"
+    displayName: Every hour at minute 30
     branches:
       include:
         - ${SCENARIO_VERSION}
