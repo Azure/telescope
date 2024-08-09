@@ -13,6 +13,7 @@ steps:
       terraform_working_directory=$(Pipeline.Workspace)/s/$SCENARIO_REPO_NAME/modules/terraform/$CLOUD
     fi
     echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$terraform_working_directory"
+    echo "Terraform Working Directory: $terraform_working_directory" && ls -l $terraform_working_directory
 
   displayName: 'Set Terraform Working Directory'
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')

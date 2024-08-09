@@ -63,7 +63,7 @@ steps:
   displayName: "Check Dependencies"
 
 - script: |
-    set -e
+    set -ex
     if [ -f "$SCENARIO_REPO_NAME/modules/python/requirements.txt" ]; then
       pip3 install -r $SCENARIO_REPO_NAME/modules/python/requirements.txt
     fi
@@ -81,6 +81,7 @@ steps:
       test_modules_directory=$(System.DefaultWorkingDirectory)/$SCENARIO_REPO_NAME/modules/bash
     fi
     echo "Test modules directory: $test_modules_directory"
+    echo "Files in test modules directory:" && ls -l $test_modules_directory
     echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
   displayName: 'Set Script Module Directory'
   env:
