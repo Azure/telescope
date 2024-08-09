@@ -45,17 +45,17 @@ steps:
     path: s/${{ parameters.repo_name }}
     displayName: 'Conditionally Checkout ${{ parameters.repo_name }}'
 
-- script: |
-    if [[ ${{ parameters.checkout_another_repo }} == 'true' ]]; then
-      cd ..
-    fi
-    git clone "https://${GH_PAT}@github.com/${SCENARIO_REPO}.git"
-    cd "$SCENARIO_REPO_NAME"
-    git checkout "$SCENARIO_VERSION"
-  displayName: "Git Clone Scenario Repo"
-  retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
-  env:
-    GH_PAT: $(PERSONAL_ACCESS_TOKEN)
+# - script: |
+#     if [[ ${{ parameters.checkout_another_repo }} == 'true' ]]; then
+#       cd ..
+#     fi
+#     git clone "https://${GH_PAT}@github.com/${SCENARIO_REPO}.git"
+#     cd "$SCENARIO_REPO_NAME"
+#     git checkout "$SCENARIO_VERSION"
+#   displayName: "Git Clone Scenario Repo"
+#   retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
+#   env:
+#     GH_PAT: $(PERSONAL_ACCESS_TOKEN)
 
 - script: |
     python3 --version && pip3 --version
