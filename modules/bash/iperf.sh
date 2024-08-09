@@ -156,7 +156,7 @@ collect_result_iperf3() {
     --arg run_id "$run_id" \
     --arg run_url "$run_url" \
     --arg datapath "$datapath" \
-    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, result_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url, datapath: $datapath}')
+    '{timestamp: $timestamp, metric: $metric, target_bandwidth: $target_bw, unit: $unit, result_info: $iperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url, datapath: $datapath, test_engine: iperf3}')
 
   echo $data >> $result_dir/results.json
 }
