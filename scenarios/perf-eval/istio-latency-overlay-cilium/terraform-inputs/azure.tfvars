@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "istio-latency-overlay-cilium"
-deletion_delay = "24h"
+deletion_delay = "36h"
 aks_config_list = [
   {
     role        = "overlaycilium"
