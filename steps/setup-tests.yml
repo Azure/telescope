@@ -34,28 +34,10 @@ steps:
   env:
     RUN_ID: ${{ parameters.run_id }}
 
-# - script: |
-#     repo_name=$(basename "$SCENARIO_REPO")
-#     echo "Repo name: $repo_name"
-#     echo "##vso[task.setvariable variable=SCENARIO_REPO_NAME]$repo_name"
-#   displayName: "Set Scenario Repo Name"
-
 - ${{ if eq(parameters.checkout_another_repo, true) }}:
   - checkout: ${{ parameters.repo_name }}
     path: s/${{ parameters.repo_name }}
     displayName: 'Conditionally Checkout ${{ parameters.repo_name }}'
-
-# - script: |
-#     if [[ ${{ parameters.checkout_another_repo }} == 'true' ]]; then
-#       cd ..
-#     fi
-#     git clone "https://${GH_PAT}@github.com/${SCENARIO_REPO}.git"
-#     cd "$SCENARIO_REPO_NAME"
-#     git checkout "$SCENARIO_VERSION"
-#   displayName: "Git Clone Scenario Repo"
-#   retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
-#   env:
-#     GH_PAT: $(PERSONAL_ACCESS_TOKEN)
 
 - script: |
     python3 --version && pip3 --version
@@ -63,12 +45,9 @@ steps:
   displayName: "Check Dependencies"
 
 - script: |
-    set -ex
-    echo "Current directory: $(pwd)"
-    echo "Files in current directory:" && ls -l
-    echo " find modules directory:" &&  find $(Pipeline.Workspace) -type d -wholename '*modules/python*' | head -n 1
+    set -e
     if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
-      pip3 install -r modules/python/requirements.txt
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     fi
   displayName: "Install Python Dependencies"
 
@@ -79,9 +58,9 @@ steps:
 
 - script: |
     if [ -n "${TEST_MODULES_DIR}" ]; then
-      test_modules_directory=$(System.DefaultWorkingDirectory)/${TEST_MODULES_DIR}
+      test_modules_directory=$(Pipeline.Workspace)/s/${TEST_MODULES_DIR}
     else
-      test_modules_directory=$(System.DefaultWorkingDirectory)/modules/bash
+      test_modules_directory=$(Pipeline.Workspace)/s/modules/bash
     fi
     echo "Test modules directory: $test_modules_directory"
     echo "Files in test modules directory:" && ls -l $test_modules_directory

@@ -4,7 +4,7 @@ parameters:
 
 steps:
 - bash: |
-    set -eux
+    set -eu
 
     ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem"
     public_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem.pub"
