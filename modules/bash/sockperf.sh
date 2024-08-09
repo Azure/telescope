@@ -45,14 +45,14 @@ collect_result_sockperf() {
     --arg timestamp "$timestamp" \
     --arg metric "$protocol" \
     --arg unit "usec" \
-    --arg sockperf_info "$sockperf_info" \
+    --arg result_info "$sockperf_info" \
     --arg cloud_info "$cloud_info" \
     --arg egress_ip "$egress_ip_address" \
     --arg ingress_ip "$ingress_ip_address" \
     --arg run_id "$run_id" \
     --arg run_url "$run_url" \
     --arg datapath "$datapath" \
-    '{timestamp: $timestamp, metric: $metric, unit: $unit, sockperf_info: $sockperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url, datapath: $datapath}')
+    '{timestamp: $timestamp, metric: $metric, unit: $unit, result_info: $sockperf_info, cloud_info: $cloud_info, egress_ip: $egress_ip, ingress_ip: $ingress_ip, run_id: $run_id, run_url: $run_url, datapath: $datapath}')
 
   echo $data >> $result_dir/results.json
 }
