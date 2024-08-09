@@ -56,6 +56,12 @@ network_config_list = [
           to_port    = 20004
           protocol   = "udp"
           cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20005
+          to_port    = 20005
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
         }
       ]
       egress = [
@@ -169,7 +175,7 @@ loadbalancer_config_list = [{
       protocol  = "TCP"
       vpc_name  = "server-vpc"
       health_check = {
-        port                = "20005"
+        port                = "20000"
         protocol            = "TCP"
         interval            = 10
         timeout             = 10
