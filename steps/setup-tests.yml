@@ -62,8 +62,7 @@ steps:
     else
       test_modules_directory=$(Pipeline.Workspace)/s/modules/bash
     fi
-    echo "Test modules directory: $test_modules_directory"
-    echo "Files in test modules directory:" && ls -l $test_modules_directory
+    echo "Script modules directory: $test_modules_directory"
     echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
   displayName: 'Set Script Module Directory'
   env:
