@@ -6,8 +6,8 @@ steps:
 - bash: |
     set -eu
 
-    ssh_key_path="$(Pipeline.Workspace)/s/${SCENARIO_REPO_NAME}/modules/terraform/${CLOUD}/private_key.pem"
-    public_key_path="$(Pipeline.Workspace)/s/${SCENARIO_REPO_NAME}/modules/terraform/${CLOUD}/private_key.pem.pub"
+    ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem"
+    public_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem.pub"
     ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N "" > /dev/null 2>&1
     chmod 600 $ssh_key_path
 

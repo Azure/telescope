@@ -75,6 +75,7 @@ steps:
         fi
       done
     else
+      git config --global url."https://${GH_PAT}@github.com".insteadOf "https://github.com"
       terraform ${{ parameters.command }} ${{ parameters.arguments }}
     fi
   displayName: "Run Terraform ${{ parameters.command }} Command"
@@ -87,3 +88,4 @@ steps:
     ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
     ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
     ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
+    GH_PAT: $(PERSONAL_ACCESS_TOKEN)
