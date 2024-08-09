@@ -64,6 +64,9 @@ steps:
 
 - script: |
     set -ex
+    echo "Current directory: $(pwd)"
+    echo "Files in current directory:" && ls -l
+    echo " find modules directory:" &&  find $(Pipeline.Workspace) -type d -wholename '*modules/python*' | head -n 1
     if [ -f "$(Pipeline.Workspace)/s/$SCENARIO_REPO_NAME/modules/python/requirements.txt" ]; then
       pip3 install -r $SCENARIO_REPO_NAME/modules/python/requirements.txt
     fi
