@@ -64,7 +64,7 @@ steps:
 
 - script: |
     set -ex
-    if [ -f "$SCENARIO_REPO_NAME/modules/python/requirements.txt" ]; then
+    if [ -f "$(Pipeline.Workspace)/s/$SCENARIO_REPO_NAME/modules/python/requirements.txt" ]; then
       pip3 install -r $SCENARIO_REPO_NAME/modules/python/requirements.txt
     fi
   displayName: "Install Python Dependencies"
