@@ -1,18 +1,15 @@
-trigger: none
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-vn10pod100
+  SCENARIO_VERSION: next
 
 schedules:
   - cron: "0 0 * * *"
     displayName: "Daily midnight build"
     branches:
       include:
-        - main
+        - ${SCENARIO_VERSION}
     always: true
-
-variables:
-  SCENARIO_REPO: Azure/telescope # must keep as is
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: apiserver-vn10pod100
-  SCENARIO_VERSION: anson-open-source
 
 pool:
   name: "1ES-Telescope-Ubuntu-EastUS"

@@ -1,18 +1,15 @@
-trigger: none
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-vn100pod3k
+  SCENARIO_VERSION: v1.1.5
 
 schedules:
   - cron: "0 0 * * *"
     displayName: "Daily midnight build"
-    branches:
+    tags:
       include:
-        - main
+        - ${SCENARIO_VERSION}
     always: true
-
-variables:
-  SCENARIO_REPO: Azure/telescope # must keep as is
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: apiserver-vn100pod3k
-  SCENARIO_VERSION: v1.1.5
 
 pool:
   name: "1ES-Telescope-Ubuntu-EastUS"
