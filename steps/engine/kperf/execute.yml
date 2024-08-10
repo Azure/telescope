@@ -4,8 +4,7 @@ parameters:
   default: ''
 - name: engine_input
   type: object
-  default:
-    runner_image: telescope.azurecr.io/oss/kperf:v0.0.8
+  default: {}
 - name: flowcontrol
   type: string
   default: "workload-low:1000"
@@ -13,8 +12,8 @@ parameters:
   type: string
   default: ""
 - name: disable_warmup
-  type: boolean
-  default: false
+  type: string
+  default: "false"
 - name: region
   type: string
 
@@ -45,7 +44,7 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
-  condition: ${{ and(eq(parameters.cloud, 'aws'), eq(parameters.disable_warmup, false)) }}
+  condition: ${{ and(eq(parameters.cloud, 'aws'), eq(parameters.disable_warmup, 'false')) }}
   displayName: "Warmup if cloud is aws"
 - script: |
     set -euo pipefail
@@ -65,12 +64,6 @@ steps:
       --result ${RESULT_DIR}/tmp_results.json \
       ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
 
-    cat ${RESULT_DIR}/tmp_results.json \
-      | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\"}" \
-      | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
-      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > ${RESULT_DIR}/results.json
-
-    cat ${RESULT_DIR}/results.json | jq .
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
