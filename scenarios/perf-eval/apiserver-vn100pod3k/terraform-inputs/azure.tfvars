@@ -4,7 +4,7 @@ deletion_delay = "20h"
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "virtualnodes100-pods3k"
+    aks_name    = "vn100-p3k"
     dns_prefix  = "kperf"
     subnet_name = "aks-network"
     sku_tier    = "Standard"

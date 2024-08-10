@@ -4,7 +4,7 @@ deletion_delay = "720h"
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "apiservervn100pod3k28day"
+    aks_name    = "vn100-p3k-d28"
     dns_prefix  = "kperf"
     subnet_name = "aks-network"
     sku_tier    = "Standard"

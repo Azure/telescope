@@ -4,7 +4,7 @@ deletion_delay = "20h"
 aks_cli_config_list = [
   {
     role     = "client"
-    aks_name = "virtualnodes100-pods10k"
+    aks_name = "vn100-p10k"
     sku_tier = "standard"
 
     aks_custom_headers = [
