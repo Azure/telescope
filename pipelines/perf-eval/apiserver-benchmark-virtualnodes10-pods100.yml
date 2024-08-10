@@ -4,11 +4,11 @@ variables:
   SCENARIO_VERSION: next
 
 schedules:
-  - cron: "30 * * * *"
-    displayName: Every hour at minute 30
+  - cron: "0 */1 * * *"
+    displayName: "Every 1 Hour"
     branches:
       include:
-        - ${SCENARIO_VERSION}
+        - next
     always: true
 
 pool:

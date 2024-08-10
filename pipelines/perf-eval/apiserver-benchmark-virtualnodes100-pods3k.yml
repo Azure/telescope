@@ -6,9 +6,9 @@ variables:
 schedules:
   - cron: "0 0 * * *"
     displayName: "Daily midnight build"
-    tags:
+    branches:
       include:
-        - ${SCENARIO_VERSION}
+        - next
     always: true
 
 pool:

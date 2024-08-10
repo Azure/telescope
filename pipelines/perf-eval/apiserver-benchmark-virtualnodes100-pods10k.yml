@@ -6,9 +6,9 @@ variables:
 schedules:
   - cron: "0 */4 * * *"
     displayName: "Every 4 Hours"
-    tags:
+    branches:
       include:
-        - ${SCENARIO_VERSION}
+        - next
     always: true
 
 pool:
