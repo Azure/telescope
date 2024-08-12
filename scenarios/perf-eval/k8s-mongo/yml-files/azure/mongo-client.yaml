@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-client
+  labels:
+    test: mongo-client
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      test: mongo-client
+  template:
+    metadata:
+      labels:
+        test: mongo-client
+    spec:
+      nodeSelector:
+        agentpool: user
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            test: mongo-client
+      containers:
+      - name: mongo-client
+        image: telescope.azurecr.io/perf-eval/mongo:0.0.1
+        command: ["/bin/sh"]
+        args: ["-c", "sleep infinity"]
+        volumeMounts:
+        - name: azure
+          mountPath: /mnt/azure
+      volumes:
+      - name: azure
+        persistentVolumeClaim:
+          claimName: files-pvc
