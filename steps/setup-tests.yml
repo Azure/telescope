@@ -22,6 +22,7 @@ parameters:
   type: string
 
 steps:
+- checkout: telescope
 - script: |
     if [ -n "$RUN_ID" ]; then
       run_id=$RUN_ID
