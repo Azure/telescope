@@ -22,7 +22,7 @@ variable "aks_cli_config" {
     aks_name                      = string
     sku_tier                      = string
     aks_custom_headers            = optional(list(string), [])
-    use_aks_preview_cli_extension = optional(bool, false)
+    use_aks_preview_cli_extension = optional(bool, true)
     default_node_pool = object({
       name        = string
       node_count  = number

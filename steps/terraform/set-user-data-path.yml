@@ -1,0 +1,19 @@
+parameters:
+- name: user_data_path
+  type: string
+  default: ''
+
+steps:
+- script: |
+    if [ -v "$USER_DATA_PATH" ]; then
+      terraform_user_data_path=$(Pipeline.Workspace)/s/$USER_DATA_PATH
+    else
+      terraform_user_data_path=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+    fi
+    echo $terraform_user_data_path
+    echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$terraform_user_data_path"
+
+  displayName: 'Set Terraform User Data Path'
+  condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+  env:
+    USER_DATA_PATH: ${{ parameters.user_data_path }}

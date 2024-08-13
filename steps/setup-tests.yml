@@ -1,0 +1,72 @@
+parameters:
+- name: cloud
+  type: string
+- name: region
+  type: string
+- name: test_modules_dir
+  type: string
+  default: ''
+- name: run_id
+  type: string
+  default: ''
+- name: retry_attempt_count
+  type: number
+  default: 3
+- name: checkout_another_repo
+  type: string
+  default: 'false'
+- name: repo_name
+  type: string
+  default: ''
+- name: credential_type
+  type: string
+
+steps:
+- script: |
+    git checkout $(SCENARIO_VERSION)
+  displayName: "Checkout Scenario Version"
+- script: |
+    if [ -n "$RUN_ID" ]; then
+      run_id=$RUN_ID
+    else
+      run_id=$(System.JobId)-$(Build.BuildId)
+    fi
+    echo "Run ID: $run_id"
+    echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+  displayName: "Set Run ID"
+  env:
+    RUN_ID: ${{ parameters.run_id }}
+
+- ${{ if eq(parameters.checkout_another_repo, true) }}:
+  - checkout: ${{ parameters.repo_name }}
+    path: s/${{ parameters.repo_name }}
+    displayName: 'Conditionally Checkout ${{ parameters.repo_name }}'
+
+- script: |
+    python3 --version && pip3 --version
+    jq --version
+  displayName: "Check Dependencies"
+
+- script: |
+    set -e
+    if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    fi
+  displayName: "Install Python Dependencies"
+
+- template: /steps/cloud/${{ parameters.cloud }}/login.yml
+  parameters:
+    region: ${{ parameters.region }}
+    credential_type: ${{ parameters.credential_type }}
+
+- script: |
+    if [ -n "${TEST_MODULES_DIR}" ]; then
+      test_modules_directory=$(Pipeline.Workspace)/s/${TEST_MODULES_DIR}
+    else
+      test_modules_directory=$(Pipeline.Workspace)/s/modules/bash
+    fi
+    echo "Script modules directory: $test_modules_directory"
+    echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
+  displayName: 'Set Script Module Directory'
+  env:
+    TEST_MODULES_DIR: ${{ parameters.test_modules_dir }}

@@ -1,0 +1,17 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+# TODO(weifu):
+#
+# * We should have helper to update-kubeconfig for each cluster.
+# * Maybe we should pass region information to /steps/execute-tests.yml
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
