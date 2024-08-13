@@ -1,14 +1,14 @@
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
-  SCENARIO_VERSION: next
+  SCENARIO_VERSION: main
 
 schedules:
   - cron: "0 */1 * * *"
     displayName: "Every 1 Hour"
     branches:
       include:
-        - next
+        - main
     always: true
 
 pool:

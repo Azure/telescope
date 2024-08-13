@@ -8,7 +8,7 @@ schedules:
     displayName: "Every 4 Hours"
     branches:
       include:
-        - next
+        - main
     always: true
 
 pool:
