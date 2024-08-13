@@ -26,7 +26,8 @@ This folder contains Terraform modules for provisioning various resources on clo
 - **[Storage Account:](./azure/storage-account/README.md)** Module for creating storage accounts on Azure.
 - **[Virtual Machine:](./azure/virtual-machine/README.md)** Module for deploying virtual machines on Azure.
 - **[VMSS:](./azure/virtual-machine-scale-set/README.md)** Module for deploying virtual machine scale sets on Azure.
-- **[Proximity Placement Group:](./aws/proximity-placement-group/README.md)** Module for deploying a proximity placement group on Azure .
+- **[Proximity Placement Group:](./azure/proximity-placement-group/README.md)** Module for deploying a proximity placement group on Azure .
+- **[ExpressRoute:](./azure/express-route/README.md)** Module for deploying an express Route on Azure. 
 
 ## Usage
 Each module contains its own README with specific instructions on usage and configuration.
