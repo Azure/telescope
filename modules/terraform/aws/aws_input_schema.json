@@ -3,7 +3,7 @@
   "properties": {
     "owner": {"type": "string"},
     "run_id": {"type": "string"},
-    "region": {"type": "string"},
+    "region": {"type": "string"}
   },
   "required": ["owner", "run_id", "region"],
   "additionalProperties": false
