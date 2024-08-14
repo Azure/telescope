@@ -3,7 +3,7 @@ locals {
   name                 = var.aks_config.aks_name
   extra_pool_map       = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
   role_assignment_list = var.aks_config.role_assignment_list
-	subnets							= var.subnets
+  subnets              = var.subnets
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -22,7 +22,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count
     vm_size                      = var.aks_config.default_node_pool.vm_size
-		vnet_subnet_id = try(local.subnets[var.aks_config.default_node_pool.subnet_name], try(var.subnet_id, null))
+    vnet_subnet_id               = try(local.subnets[var.aks_config.default_node_pool.subnet_name], try(var.subnet_id, null))
     os_sku                       = var.aks_config.default_node_pool.os_sku
     os_disk_type                 = var.aks_config.default_node_pool.os_disk_type
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
@@ -60,7 +60,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
   node_count            = each.value.node_count
   vm_size               = each.value.vm_size
-	vnet_subnet_id = try(local.subnets[each.value.subnet_name], null)
+  vnet_subnet_id        = try(local.subnets[each.value.subnet_name], null)
   os_sku                = each.value.os_sku
   os_disk_type          = each.value.os_disk_type
   max_pods              = each.value.max_pods
