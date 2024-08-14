@@ -13,7 +13,9 @@ RUN apt install -y numactl
 
 RUN mkdir -p /data/db
 RUN mkdir -p /app
-CMD ["mongod", "--bind_ip", "0.0.0.0"]
+COPY scripts /app/scripts
+
+CMD ["mongod", "--bind_ip", "0.0.0.0", "--replSet", "rs0"]
 
 WORKDIR /app
 

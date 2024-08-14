@@ -1,0 +1,44 @@
+# TO BE DELETED
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-server
+  labels:
+    test: mongo-server
+    app: mongo-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      test: mongo-server
+      app: mongo-server
+  template:
+    metadata:
+      labels:
+        test: mongo-server
+        app: mongo-server
+    spec:
+      nodeSelector:
+        agentpool: user
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            test: mongo-server
+      containers:
+      - name: mongo-server
+        image: telescope.azurecr.io/perf-eval/mongo:0.0.2
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--dbpath", "/mnt/azure", "--logpath", "/mnt/azure/mongod.log", "--replSet", "rs0"]
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: azure
+          mountPath: /mnt/azure
+      volumes:
+      - name: azure
+        persistentVolumeClaim:
+          claimName: prem-pvc1

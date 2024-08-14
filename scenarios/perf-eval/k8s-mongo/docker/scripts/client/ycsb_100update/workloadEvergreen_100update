@@ -1,0 +1,12 @@
+mongodb.url=mongodb://username:password@10.2.0.200:27017/admin?replicaSet=rs0
+mongodb.fle=False
+recordcount=56320000
+operationcount=20000000
+maxexecutiontime=360
+workload=com.yahoo.ycsb.workloads.CoreWorkload
+readallfields=true
+readproportion=0
+updateproportion=1.0
+scanproportion=0
+insertproportion=0.0
+requestdistribution=zipfian
