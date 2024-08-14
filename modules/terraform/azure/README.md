@@ -8,31 +8,19 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 * Install [Azure CLI - 2.57.0](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 
-## Generate SSH public and Private key using SSH-Keygen
-
-```bash
-CLOUD=azure
-ssh_key_path=$(pwd)/modules/terraform/$CLOUD/private_key.pem
-ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
-SSH_PUBLIC_KEY_PATH="${ssh_key_path}.pub"
-```
 
 ## Define Variables
 
-Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/vm-same-zone-iperf` scenario as the example and set the following variables:
+Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/apiserver-vn10pod100` scenario as the example and set the following variables:
 
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=vm-same-zone-iperf
-RUN_ID=123456789
+SCENARIO_NAME=apiserver-vn10pod100
+RUN_ID=08142024
 OWNER=$(whoami)
 CLOUD=azure
-REGIONS='["eastus"]' 
-MACHINE_TYPE=standard_D16_v3
-ACCELERATED_NETWORKING=true
+REGIONS='["eastus2"]' 
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
-TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
-VM_COUNT_OVERRIDE=1
 SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
 USER_NODE_POOL=${USER_NODE_POOL:-null}
 ```
@@ -42,7 +30,6 @@ USER_NODE_POOL=${USER_NODE_POOL:-null}
 * `RUN_ID` should be a unique identifier since it is used to name the resource group in Azure.
 * These variables are not exhaustive and may vary depending on the scenario.
 * `REGIONS` contains list of regions
-* `VM_COUNT_OVERRIDE` optional, will create this number copies of all the vms in vm_config_list with associated nics and pips
 
 ### Set Input File
 
@@ -104,54 +91,12 @@ for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
   --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg machine_type "$MACHINE_TYPE" \
-  --arg public_key_path $SSH_PUBLIC_KEY_PATH \
-  --arg accelerated_networking "$ACCELERATED_NETWORKING" \
-  --arg data_disk_storage_account_type "$DATA_DISK_TYPE" \
-  --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
-  --arg data_disk_tier "$DATA_DISK_TIER" \
-  --arg data_disk_caching "$DATA_DISK_CACHING" \
-  --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
-  --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
-  --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
-  --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
-  --arg data_disk_count "$DATA_DISK_COUNT" \
-  --arg vm_count_override "$VM_COUNT_OVERRIDE \
-  --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
-  --arg storage_account_tier "$STORAGE_TIER" \
-  --arg storage_account_kind "$STORAGE_KIND" \
-  --arg storage_account_replication_type "$STORAGE_REPLICATION" \
-  --arg storage_share_quota "$STORAGE_SHARE_QUOTA" \
-  --arg storage_share_access_tier "$STORAGE_SHARE_ACCESS_TIER" \
-  --arg storage_share_enabled_protocol "$STORAGE_SHARE_ENABLED_PROTOCOL" \
-  --arg user_data_path $TERRAFORM_USER_DATA_PATH \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
   --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
     owner: $owner,
     run_id: $run_id,
     region: $region,
-    machine_type: $machine_type,
-    public_key_path: $public_key_path, 
-    accelerated_networking: $accelerated_networking,
-    data_disk_storage_account_type: $data_disk_storage_account_type,
-    data_disk_size_gb: $data_disk_size_gb,
-    data_disk_tier: $data_disk_tier,
-    data_disk_caching: $data_disk_caching,
-    data_disk_iops_read_write: $data_disk_iops_read_write,
-    data_disk_iops_read_only: $data_disk_iops_read_only,
-    data_disk_mbps_read_write: $data_disk_mbps_read_write,
-    data_disk_mbps_read_only: $data_disk_mbps_read_only,
-    data_disk_count: $data_disk_count,
-    vm_count_override: $vm_count_override,
-    ultra_ssd_enabled: $ultra_ssd_enabled,
-    storage_account_tier: $storage_account_tier,
-    storage_account_kind: $storage_account_kind,
-    storage_account_replication_type: $storage_account_replication_type,
-    storage_share_quota: $storage_share_quota,
-    storage_share_access_tier: $storage_share_access_tier,
-    storage_share_enabled_protocol: $storage_share_enabled_protocol,
-    user_data_path: $user_data_path,
     aks_cli_system_node_pool: $aks_cli_system_node_pool,
     aks_cli_user_node_pool: $aks_cli_user_node_pool
   }' | jq 'with_entries(select(.value != null and .value != ""))')
