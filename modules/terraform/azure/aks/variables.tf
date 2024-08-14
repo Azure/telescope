@@ -19,13 +19,13 @@ variable "tags" {
 variable "subnet_id" {
   description = "Subnet ID"
   type        = string
-  default     = ""
+  default     = null
 }
 
 variable "vnet_id" {
   description = "Vnet id"
   type        = string
-  default     = ""
+  default     = null
 }
 
 variable "subnets" {
