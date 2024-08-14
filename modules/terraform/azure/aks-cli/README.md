@@ -96,13 +96,12 @@ module "aks" {
 2. set environment vars with your own scenario name, 
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=k8s-cluster-crud
+SCENARIO_NAME=apiserver-vn100pod10k
 RUN_ID=08022024
 OWNER=$(whoami)
 CLOUD=azure
 REGION=eastus
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
-TEST_MODULES_DIR=modules/bash
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
 SYSTEM_NODE_POOL="{\"name\":\"default\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}"
 USER_NODE_POOL="[{\"name\":\"pool1\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"},{\"name\":\"pool2\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}]"
