@@ -13,6 +13,7 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 
 Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/apiserver-vn10pod100` scenario as the example and set the following variables:
 
+Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=apiserver-vn10pod100
