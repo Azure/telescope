@@ -1,7 +1,7 @@
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn100pod3k
-  SCENARIO_VERSION: sumanth/update-Azure-modules
+  SCENARIO_VERSION: v1.1.5
 
 schedules:
   - cron: "0 0 * * *"
