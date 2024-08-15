@@ -71,7 +71,7 @@ popd
 Cleanup test resources using terraform
 ```bash 
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
+terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 

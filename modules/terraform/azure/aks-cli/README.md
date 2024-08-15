@@ -94,7 +94,7 @@ module "aks" {
 ## How to test above setting locally
 1. you should have `terraform` and `azure cli` installed to your local machine
 2. Login with your subscription using azure cli
-3. set environment vars with your test scenario name, 
+3. set environment vars with your test scenario name.
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=apiserver-vn100pod10k
@@ -117,4 +117,4 @@ INPUT_JSON=$(jq -n \
 --argjson aks_cli_user_node_pool $USER_NODE_POOL \
 '{owner: $owner, run_id: $run_id, region: $region, aks_cli_system_node_pool: $aks_cli_system_node_pool, aks_cli_user_node_pool: $aks_cli_user_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
 ```
-5. Run provision commands from this [README.md](./../README.md)
+5. Run terraform provision commands from [here](./../README.md)
