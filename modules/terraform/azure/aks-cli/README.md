@@ -117,4 +117,4 @@ INPUT_JSON=$(jq -n \
 --argjson aks_cli_user_node_pool $USER_NODE_POOL \
 '{owner: $owner, run_id: $run_id, region: $region, aks_cli_system_node_pool: $aks_cli_system_node_pool, aks_cli_user_node_pool: $aks_cli_user_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
 ```
-5. Run terraform provision commands from [here](./../README.md)
+5. Run terraform provisioning commands from [here](./../README.md#provision-resources-using-terraform)
