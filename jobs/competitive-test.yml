@@ -38,12 +38,6 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
-- name: checkout_another_repo
-  type: string
-  default: 'false'
-- name: repo_name
-  type: string
-  default: ''
 - name: credential_type
   type: string
   default: managed_identity
@@ -66,8 +60,6 @@ jobs:
       run_id: ${{ parameters.run_id }}
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      checkout_another_repo: ${{ parameters.checkout_another_repo }}
-      repo_name: ${{ parameters.repo_name }}
       credential_type: ${{ parameters.credential_type }}
   - template: /steps/provision-resources.yml
     parameters:

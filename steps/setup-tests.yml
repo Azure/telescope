@@ -12,12 +12,6 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
-- name: checkout_another_repo
-  type: string
-  default: 'false'
-- name: repo_name
-  type: string
-  default: ''
 - name: credential_type
   type: string
 
@@ -36,11 +30,6 @@ steps:
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
-
-- ${{ if eq(parameters.checkout_another_repo, true) }}:
-  - checkout: ${{ parameters.repo_name }}
-    path: s/${{ parameters.repo_name }}
-    displayName: 'Conditionally Checkout ${{ parameters.repo_name }}'
 
 - script: |
     python3 --version && pip3 --version
