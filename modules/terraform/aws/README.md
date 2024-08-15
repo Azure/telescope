@@ -16,7 +16,7 @@ Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=apiserver-vn10pod100
-RUN_ID=08142024
+RUN_ID=$(date +%s)
 OWNER=$(whoami)
 CLOUD=aws
 REGION="us-east-2"
@@ -62,7 +62,8 @@ INPUT_JSON=$(jq -n \
 ```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
+terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
@@ -70,7 +71,7 @@ popd
 Cleanup test resources using terraform
 ```bash 
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
 popd
 ```
 

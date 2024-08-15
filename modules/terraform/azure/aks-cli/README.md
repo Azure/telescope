@@ -93,11 +93,12 @@ module "aks" {
 
 ## How to test above setting locally
 1. you should have `terraform` and `azure cli` installed to your local machine
-2. set environment vars with your own scenario name, 
+2. Login with your subscription using azure cli
+3. set environment vars with your test scenario name, 
 ```bash
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=apiserver-vn100pod10k
-RUN_ID=08022024
+RUN_ID=$(date +%s)
 OWNER=$(whoami)
 CLOUD=azure
 REGION=eastus
@@ -106,8 +107,7 @@ TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-in
 SYSTEM_NODE_POOL="{\"name\":\"default\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}"
 USER_NODE_POOL="[{\"name\":\"pool1\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"},{\"name\":\"pool2\",\"vm_size\":\"Standard_D2s_v3\",\"node_count\":1,\"vm_set_type\":\"VirtualMachineScaleSets\"}]"
 ```
-1. az login with your sub
-1. run following command to apply terraform config
+4. Run following command to set `INPUT_JSON` variable
 ```bash
 INPUT_JSON=$(jq -n \
 --arg owner $OWNER \
@@ -117,15 +117,4 @@ INPUT_JSON=$(jq -n \
 --argjson aks_cli_user_node_pool $USER_NODE_POOL \
 '{owner: $owner, run_id: $run_id, region: $region, aks_cli_system_node_pool: $aks_cli_system_node_pool, aks_cli_user_node_pool: $aks_cli_user_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
 ```
-
-pushd $TERRAFORM_MODULES_DIR
-terraform init
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-popd
-### Cleanup Resources
-Cleanup test resources using terraform
-```
-pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-popd
-```
+5. Run provision commands from this [README.md](./../README.md)
