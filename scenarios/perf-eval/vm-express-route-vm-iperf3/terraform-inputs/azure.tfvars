@@ -12,7 +12,7 @@ public_ip_config_list = [
 network_config_list = [
   {
     role               = "server"
-    vnet_name          = "server-vnet"
+    vnet_name          = "server-vnetEG"
     vnet_address_space = "10.2.0.0/16"
     subnet = [{
       name           = "server-subnet"
@@ -64,7 +64,7 @@ network_config_list = [
   },
   {
     role               = "client"
-    vnet_name          = "client-vnet"
+    vnet_name          = "client-vnetEG"
     vnet_address_space = "10.1.0.0/16"
     subnet = [{
       name           = "client-subnet"
