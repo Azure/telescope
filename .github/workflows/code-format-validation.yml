@@ -40,7 +40,7 @@ jobs:
       run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
 
     - name: Yamllint Check
-      run: yamllint -c $GITHUB_WORKSPACE/.yamllint .
+      run: yamllint -c $GITHUB_WORKSPACE/.yamllint . --no-warnings
 
     - name: Scenario name check
       if: always()
