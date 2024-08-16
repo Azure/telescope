@@ -11,6 +11,20 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Python Version Check
+      run: python --version
+
+    - name: Install Yamllint
+      run: pip install yamllint
+
+    - name: Yamllint Version Check
+      run: yamllint --version
+
     - uses: terraform-linters/setup-tflint@v4
       name: Setup TFLint
 
@@ -21,16 +35,19 @@ jobs:
       run: tflint --init
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Terraform Lint Check
       run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
+
+    - name: Yamllint Check
+      run: yamllint -c $GITHUB_WORKSPACE/.yamllint.yml .
 
     - name: Scenario name check
       if: always()
       run: |
         set -eu
         SCENARIO_NAME_MAX_LENGTH=30
-        check_failed=false    
+        check_failed=false
         scenario_names=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{print $9}' | sort -u)
         for name in $scenario_names; do
           if [ ${#name} -gt $SCENARIO_NAME_MAX_LENGTH ]; then
@@ -41,4 +58,3 @@ jobs:
         if [ "$check_failed" = true ]; then
           exit 1
         fi
-    
