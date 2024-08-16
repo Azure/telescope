@@ -5,6 +5,10 @@ variables:
   SCENARIO_NAME: apiserver-vn10pod100
   SCENARIO_VERSION: main
 
+  AKS_TELESCOPE_ACCOUNT_NAME: akstelescope
+  AZURE_STORAGE_SUBSCRIPTION: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
+  AZURE_SUBSCRIPTION_ID: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
+
 # schedules:
 #   - cron: "0 */1 * * *"
 #     displayName: "Every 1 Hour"
