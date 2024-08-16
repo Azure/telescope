@@ -1,16 +1,16 @@
 azure_devops_config = {
 	project_name = "telescope"
-	variable_groups_to_link = [ "Telescope Storage Account", "Telescope AWS Credentials", "Telescope Azure Credentials" ]
+	variable_groups_to_link = [ "AKS Telescope Github"]
 	pipeline_config = {
-		name = "Telescope Pipeline"
+		name = "Telescope Test Pipeline "
 		path = "\\"
 		repository = {
-			repo_type = "TfsGit "
-			repository_name = "telescope"
-			branch_name = "main"
-			yml_path = "azure-pipelines.yml"
-			service_connection_name = "telescope-github"
+			repo_type = "GitHub"
+			repository_name = "Azure/telescope"
+			branch_name = "sumanth/poc"
+			yml_path = "test.yml"
+			service_connection_name = "telescope"
 		}
-		agent_pool_name = "Hosted Ubuntu 1604"
+		agent_pool_name = "Azure Pipelines"
 	}
 }
