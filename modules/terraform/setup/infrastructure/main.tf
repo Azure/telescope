@@ -43,7 +43,7 @@ data "azuredevops_project" "ado_project" {
   name = var.azuredevops_config.project_name
 }
 
-resource "azuredevops_serviceendpoint_azurerm" "service_connection" {
+resource "azuredevops_serviceendpoint_azurerm" "azure_service_connection" {
   project_id                             = data.azuredevops_project.ado_project.id
   service_endpoint_name                  = var.azure_config.subscription.id
   service_endpoint_authentication_scheme = "WorkloadIdentityFederation"
@@ -64,7 +64,7 @@ locals {
 
 # Service Principal
 data "azuread_service_principal" "service_principal" {
-  application_id = azuredevops_serviceendpoint_azurerm.service_connection.service_principal_id
+  application_id = azuredevops_serviceendpoint_azurerm.azure_service_connection.service_principal_id
 }
 
 # Subscription
@@ -158,18 +158,28 @@ resource "azurerm_management_lock" "resource-group-level" {
   notes      = "This Resource Group is not allowed to be deleted"
 }
 
-# ## Step 3: Set up AWS IAM User and Access Key
-# # AWS IAM User
+## Step 3: Set up AWS IAM User and Access Key
 
-# resource "aws_iam_user" "user" {
-#   name = var.aws_config.user_name
-#   path = "/"
-# }
+# AWS IAM User
+resource "aws_iam_user" "user" {
+  name = var.aws_config.user_name
+  path = "/"
+}
 
-# # AWS IAM Access Key
-# resource "aws_iam_access_key" "access_key" {
-#   user = aws_iam_user.user.name
-# }
+# AWS IAM Access Key
+resource "aws_iam_access_key" "access_key" {
+  user = aws_iam_user.user.name
+}
+
+## Step 4: Set up service connection to AWS
+
+resource "azuredevops_serviceendpoint_aws" "aws_service_connection" {
+  project_id            = data.azuredevops_project.ado_project.id
+  service_endpoint_name = "AWS-for-Telescope"
+  secret_access_key     = aws_iam_access_key.access_key.id
+  access_key_id         = aws_iam_access_key.access_key.secret
+  description           = "AWS service connection for Telescope"
+}
 
 # locals {
 #   credentials_variables = [{
@@ -186,13 +196,6 @@ resource "azurerm_management_lock" "resource-group-level" {
 #       }
 #     ]
 #   }]
-# }
-
-## Step 4: Set up service connection to AWS
-
-# # Azure DevOps 
-# data "azuredevops_project" "project" {
-#   name = var.azuredevops_config.project_name
 # }
 
 # # Azure DevOps Non-Secret Variable Groups

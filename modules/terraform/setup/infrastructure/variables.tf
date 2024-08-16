@@ -37,13 +37,13 @@ variable "azure_config" {
   })
 }
 
-# variable "aws_config" {
-#   description = "All the resources that are required for the infrastructure setup"
-#   type = object({
-#     region    = string
-#     user_name = string
-#   })
-# }
+variable "aws_config" {
+  description = "All the resources that are required for the infrastructure setup"
+  type = object({
+    region    = string
+    user_name = string
+  })
+}
 
 variable "azuredevops_config" {
   description = "All the resources that are required for the infrastructure setup"
@@ -60,5 +60,4 @@ variable "azuredevops_config" {
     #   }))
     # }))
   })
-
 }
