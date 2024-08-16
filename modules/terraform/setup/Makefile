@@ -1,7 +1,6 @@
 
 SHELL := /bin/bash
 
-
 TF_PIPELINE_DIR := pipeline
 TF_PIPELINE_INPUT_FILE := pipeline.tfvars
 TF_INFRASTRUCTURE_DIR := infrastructure
@@ -20,7 +19,4 @@ create_pipeline:
 
 infrastructure_setup:
 	cd $(TF_INFRASTRUCTURE_DIR) && terraform init && terraform plan -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE) && terraform apply -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE)
-
-
-
 

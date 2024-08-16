@@ -27,6 +27,7 @@ data "azuredevops_serviceendpoint_github" "service_connection" {
 }
 
 data "azuredevops_git_repository" "repository" {
+  count      = var.azure_devops_config.pipeline_config.repository.repo_type == "TfsGit" ? 1 : 0
   project_id = data.azuredevops_project.project.id
   name       = var.azure_devops_config.pipeline_config.repository.repository_name
 }
@@ -39,13 +40,13 @@ resource "azuredevops_build_definition" "Pipeline" {
 
   repository {
     repo_type             = var.azure_devops_config.pipeline_config.repository.repo_type
-    repo_id               = data.azuredevops_git_repository.repository.id
+    repo_id               = var.azure_devops_config.pipeline_config.repository.repo_type == "TfsGit" ? data.azuredevops_git_repository.repository[0].id : var.azure_devops_config.pipeline_config.repository.repository_name
     branch_name           = var.azure_devops_config.pipeline_config.repository.branch_name
     yml_path              = var.azure_devops_config.pipeline_config.repository.yml_path
-    service_connection_id = data.azuredevops_serviceendpoint_github.service_connection[0].id
+    service_connection_id = var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" ? data.azuredevops_serviceendpoint_github.service_connection[0].id : null
   }
 
-  variable_groups = [data.azuredevops_variable_group.variable_groups.*.id]
+  variable_groups = [for group in data.azuredevops_variable_group.variable_groups : group.id]
 }
 
 
