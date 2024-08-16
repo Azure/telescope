@@ -1,21 +1,15 @@
-trigger: none
-
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
   SCENARIO_VERSION: main
 
-  AKS_TELESCOPE_ACCOUNT_NAME: akstelescope
-  AZURE_STORAGE_SUBSCRIPTION: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
-  AZURE_SUBSCRIPTION_ID: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
-
-# schedules:
-#   - cron: "0 */1 * * *"
-#     displayName: "Every 1 Hour"
-#     branches:
-#       include:
-#         - main
-#     always: true
+schedules:
+  - cron: "0 */1 * * *"
+    displayName: "Every 1 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 stages:
   - stage: aws_eastus2
@@ -43,27 +37,26 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
-          credential_type: service_connection
-  # - stage: azure_eastus2
-  #   dependsOn: []
-  #   jobs:
-  #     - template: /jobs/competitive-test.yml
-  #       parameters:
-  #         cloud: azure
-  #         regions:
-  #           - eastus2
-  #         engine: kperf
-  #         topology: kperf
-  #         matrix:
-  #           workload-low:
-  #             flowcontrol: "workload-low:1000"
-  #             extra_benchmark_subcmd_args: ""
-  #           exempt:
-  #             flowcontrol: "exempt:5"
-  #             extra_benchmark_subcmd_args: ""
-  #         engine_input:
-  #           runner_image: telescope.azurecr.io/oss/kperf:v0.1.3
-  #           benchmark_subcmd: node10_job1_pod100
-  #           benchmark_subcmd_args: "--total 1000"
-  #         max_parallel: 2
-  #         timeout_in_minutes: 360
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+            exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: ""
+          engine_input:
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.3
+            benchmark_subcmd: node10_job1_pod100
+            benchmark_subcmd_args: "--total 1000"
+          max_parallel: 2
+          timeout_in_minutes: 360
