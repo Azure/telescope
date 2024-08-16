@@ -1,0 +1,16 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+- name: topology
+  type: string
+- name: engine
+  type: string
+
+steps:
+- template: /steps/topology/${{ parameters.topology }}/validate-resources.yml@self
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    regions: ${{ parameters.regions }}
+    engine: ${{ parameters.engine }}

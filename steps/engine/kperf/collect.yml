@@ -1,0 +1,31 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: flowcontrol
+  type: string
+  default: "workload-low:1000"
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+    set -x
+
+    cat ${RESULT_DIR}/tmp_results.json \
+      | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\"}" \
+      | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
+      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > ${RESULT_DIR}/results.json
+
+    cat ${RESULT_DIR}/results.json | jq .
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    FLOWCONTROL: ${{ parameters.flowcontrol }}
+    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
+  displayName: "Collect results"

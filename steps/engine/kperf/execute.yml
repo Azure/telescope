@@ -1,0 +1,77 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: flowcontrol
+  type: string
+  default: "workload-low:1000"
+- name: extra_benchmark_subcmd_args
+  type: string
+  default: ""
+- name: disable_warmup
+  type: string
+  default: "false"
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+    set -x
+
+    temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+    docker pull ${RUNNER_IMAGE}
+    docker run --rm -v ${temp_dir}:/install-dir \
+      ${RUNNER_IMAGE} bash -c "set -x; install /kperf /runkperf /install-dir"
+
+    sudo install ${temp_dir}/kperf ${temp_dir}/runkperf /usr/local/bin
+    rm -rf ${temp_dir}
+    docker rmi ${RUNNER_IMAGE}
+  env:
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+  displayName: "Install runkperf binary"
+- script: |
+    set -euo pipefail
+    set -x
+
+    sudo -E $(command -v runkperf) -v 3 ekswarmup \
+      --kubeconfig ~/.kube/config \
+      --runner-image ${RUNNER_IMAGE} \
+      --total 12000
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+  condition: ${{ and(eq(parameters.cloud, 'aws'), eq(parameters.disable_warmup, 'false')) }}
+  displayName: "Warmup if cloud is aws"
+- script: |
+    set -euo pipefail
+    set -x
+
+    is_eks=""
+    if [[ "${CLOUD}" == "aws" ]]; then
+      is_eks="--eks"
+    fi
+
+    mkdir -p $RESULT_DIR
+
+    sudo -E $(command -v runkperf) -v 3 bench ${is_eks} \
+      --kubeconfig ~/.kube/config \
+      --runner-image="${RUNNER_IMAGE}" \
+      --runner-flowcontrol="${FLOWCONTROL}" \
+      --result ${RESULT_DIR}/tmp_results.json \
+      ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
+
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+    BENCHMARK_SUBCMD: ${{ parameters.engine_input.benchmark_subcmd }}
+    BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
+    EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    FLOWCONTROL: ${{ parameters.flowcontrol }}
+    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
+  displayName: "Run benchmark"

@@ -56,7 +56,7 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "virtualnodes100-pods3k"
+  eks_name    = "vn100-p3k"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [

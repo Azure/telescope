@@ -50,13 +50,13 @@ jobs:
               module_matrix=$(echo "$matrix_array")
             fi
             echo "module_matrix: $module_matrix"
-            if [ "$run_all_tests" = false ]; then                      
+            if [ "$run_all_tests" = false ]; then
               changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | tr ' ' '\n' | sort -u)
-              echo "Test scenarios changed: $changed_scenario_names"            
+              echo "Test scenarios changed: $changed_scenario_names"
               for scenario_name in $changed_scenario_names; do
                 filtered_objects=$(echo "$matrix_array" | jq --arg scenario_value "$scenario_name" '. | map(select(.scenario_name == $scenario_value))')
                 scenario_matrix=$(echo "$scenario_matrix $filtered_objects" | jq -s 'flatten | unique')
-              done           
+              done
             fi
             updated_matrix=$(echo "$module_matrix $scenario_matrix" | jq -s 'flatten | unique')
             echo "Test scenarios to run: $updated_matrix"
@@ -66,7 +66,7 @@ jobs:
           fi
           echo "matrix_combinations: $matrix_combinations"
     outputs:
-        matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
+      matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
   terraform-plan:
     permissions:
@@ -82,64 +82,49 @@ jobs:
     name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }} ${{ matrix.region }}
 
     steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-        - name: Get job id and set env
-          run: |
-            echo "RUN_ID=123456789" >> "$GITHUB_ENV"
-            echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.file_name }}.tfvars" >> "$GITHUB_ENV"
-            echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.file_name }}.json" >> "$GITHUB_ENV"          
-            echo "USER_DATA_PATH=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/bash-scripts" >> "$GITHUB_ENV"
-            echo "TERRAFORM_MODULES_DIR=modules/terraform/${{ matrix.cloud }}" >> "$GITHUB_ENV"
-            ssh_key_path=$GITHUB_WORKSPACE/modules/terraform/${{ matrix.cloud }}/private_key.pem
-            ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N ""
-            public_key_path="${ssh_key_path}.pub"
-            echo "SSH_KEY_PATH=$public_key_path" >> "$GITHUB_ENV"
-            chmod 600 $ssh_key_path
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get job id and set env
+        run: |
+          echo "RUN_ID=123456789" >> "$GITHUB_ENV"
+          echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.file_name }}.tfvars" >> "$GITHUB_ENV"
+          echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.file_name }}.json" >> "$GITHUB_ENV"
+          echo "TERRAFORM_MODULES_DIR=modules/terraform/${{ matrix.cloud }}" >> "$GITHUB_ENV"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Create & Validate JSON Input
-          run: |
-            INPUT_JSON_OBJECT=$(jq '. + { "user_data_path": "${{ env.USER_DATA_PATH }}", "public_key_path": "${{ env.SSH_KEY_PATH }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-            validation_response=$(python ${{ env.PYTHON_MODULES_DIR }}/terraform/validate_json_schema.py "${{ env.TERRAFORM_MODULES_DIR }}/${{ matrix.cloud }}_input_schema.json" ${{ env.TERRAFORM_TEST_INPUT_FILE }})            
-            is_valid=$(echo "$validation_response" | jq -r '.isValid')
-            errors=$(echo "$validation_response" | jq -r '.errors')
-            
-            # Check if the validation is valid
-            if [ "$is_valid" == "false" ]; then
-              echo "::error::JSON input validation failed: $errors"
-              exit 1
-            fi
-            INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
-            echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
+      - name: Create JSON Input
+        run: |
+          INPUT_JSON_OBJECT=$(jq . ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
+          echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
-        - name: Azure login
-          if: ${{ matrix.cloud == 'azure' }}
-          uses: azure/login@v1
-          with:
-            client-id: ${{ secrets.AZURE_MI }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure login
+        if: ${{ matrix.cloud == 'azure' }}
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_MI }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-        - name: AWS login
-          if: ${{ matrix.cloud == 'aws' }}
-          uses: aws-actions/configure-aws-credentials@v2
-          with:
-            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            aws-region: ${{ env.AWS_REGION }}
+      - name: AWS login
+        if: ${{ matrix.cloud == 'aws' }}
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-        - name: Setup Terraform
-          uses: hashicorp/setup-terraform@v2
-          with:
-            terraform_version: 1.5.6
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.6
 
-        - name: Terraform Init
-          working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
-          run: terraform init
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+        run: terraform init
 
-        - name: Terraform Plan
-          working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
-          run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
+      - name: Terraform Plan
+        working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+        run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"

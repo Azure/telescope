@@ -1,10 +1,10 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-vn100pod3k"
+scenario_name  = "apiserver-vn10pod100"
 deletion_delay = "20h"
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "vn100-p3k"
+    aks_name    = "vn10-p100"
     dns_prefix  = "kperf"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
