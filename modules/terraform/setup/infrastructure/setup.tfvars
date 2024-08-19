@@ -3,6 +3,7 @@ tags = {
   "owner"   = "AKS Team"
 }
 azure_config = {
+	service_connection_name = "Azure-for-Telescope"
   subscription = {
     id     = "00000000-0000-0000-0000-000000000000"
     name   = "Subscription Name"
@@ -33,35 +34,29 @@ azure_config = {
     ]
   }
 }
-# aws_config = {
-# 	region = "us-east-1"
-# 	user_name = "telescope"
-# }
+aws_config = {
+	region = "us-east-1"
+	user_name = "telescope"
+	service_endpoint_name = "AWS-for-Telescope"
+}
 azuredevops_config = {
   organization_name = "akstelescope"
   project_name      = "telescope"
-  # variable_groups = [
-  #   {
-  #     name         = "telescope"
-  #     description  = "Variable group for telescope project"
-  #     allow_access = false
-  #     variables = [
-  #       {
-  #         name  = "CLIENT_ID"
-  #         value = "12345678-1234-1234-1234-123456789012"
-  #       },
-  #       {
-  #         name  = "SUBSCRIPTION_ID"
-  #         value = "12345678-1234-1234-1234-123456789012"
-  #       },
-  #       {
-  #         name  = "TENANT_ID"
-  #         value = "12345678-1234-1234-1234-123456789012"
-  #       }
-  #     ]
-  #   }
-  # ]
-  # service_connections = [
-  #   "telescope-azure", "telescope-aws"
-  # ]
+  variable_groups = [
+    {
+      name         = "telescope"
+      description  = "Variable group for telescope project"
+      allow_access = false
+      variables = [
+        {
+          name  = "SUBSCRIPTION_ID"
+          value = "12345678-1234-1234-1234-123456789012"
+        },
+        {
+          name  = "TENANT_ID"
+          value = "12345678-1234-1234-1234-123456789012"
+        }
+      ]
+    }
+  ]
 }

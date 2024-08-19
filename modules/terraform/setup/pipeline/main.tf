@@ -46,7 +46,16 @@ resource "azuredevops_build_definition" "Pipeline" {
     service_connection_id = var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" ? data.azuredevops_serviceendpoint_github.service_connection[0].id : null
   }
 
-  variable_groups = [for group in data.azuredevops_variable_group.variable_groups : group.id]
+  variable_groups = length(data.azuredevops_variable_group.variable_groups) > 0 ? [for group in data.azuredevops_variable_group.variable_groups : group.id] : null
+
+  dynamic "variable" {
+    for_each = var.azure_devops_config.variables
+    content {
+      name  = variable.value.name
+      value = variable.value.value
+    }
+  }
+
 }
 
 
@@ -59,5 +68,19 @@ resource "azuredevops_pipeline_authorization" "approve" {
   project_id  = data.azuredevops_project.project.id
   resource_id = data.azuredevops_agent_queue.agent_queue.id
   type        = "queue"
+  pipeline_id = azuredevops_build_definition.Pipeline.id
+}
+
+data "azuredevops_serviceendpoint_azurerm" "service_connection" {
+  count                 = length(var.azure_devops_config.service_connections)
+  project_id            = data.azuredevops_project.project.id
+  service_endpoint_name = var.azure_devops_config.service_connections[count.index]
+}
+
+resource "azuredevops_pipeline_authorization" "service_connection_authorization" {
+  count       = length(var.azure_devops_config.service_connections)
+  project_id  = data.azuredevops_project.project.id
+  resource_id = data.azuredevops_serviceendpoint_azurerm.service_connection[count.index].id
+  type        = "endpoint"
   pipeline_id = azuredevops_build_definition.Pipeline.id
 }

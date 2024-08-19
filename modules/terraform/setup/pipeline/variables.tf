@@ -2,7 +2,11 @@ variable "azure_devops_config" {
   description = "All the resources that are required for the infrastructure setup"
   type = object({
     project_name            = string
-    variable_groups_to_link = list(string)
+    variable_groups_to_link = optional(list(string), [])
+    variables = list(object({
+      name  = string
+      value = string
+    }))
     pipeline_config = object({
       name = string
       path = optional(string, "//")
@@ -15,6 +19,7 @@ variable "azure_devops_config" {
       })
       agent_pool_name = string
     })
+    service_connections = list(string)
   })
 
   validation {

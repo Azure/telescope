@@ -175,45 +175,28 @@ resource "aws_iam_access_key" "access_key" {
 
 resource "azuredevops_serviceendpoint_aws" "aws_service_connection" {
   project_id            = data.azuredevops_project.ado_project.id
-  service_endpoint_name = "AWS-for-Telescope"
+  service_endpoint_name = var.aws_config.service_endpoint_name
   secret_access_key     = aws_iam_access_key.access_key.id
   access_key_id         = aws_iam_access_key.access_key.secret
   description           = "AWS service connection for Telescope"
 }
 
-# locals {
-#   credentials_variables = [{
-#     name        = "AWS Credentials"
-#     description = "This variable group contains all the AWS secrets required for the infrastructure"
-#     variables = [
-#       {
-#         name  = "AWS_ACCESS_KEY_ID"
-#         value = aws_iam_access_key.access_key.id
-#       },
-#       {
-#         name  = "AWS_SECRET_ACCESS_KEY"
-#         value = aws_iam_access_key.access_key.secret
-#       }
-#     ]
-#   }]
-# }
+# Azure DevOps Non-Secret Variable Groups
+resource "azuredevops_variable_group" "variable_groups" {
+  for_each     = { for group in var.azuredevops_config.variable_groups : group.name => group }
+  project_id   = data.azuredevops_project.project.id
+  name         = each.value.name
+  description  = each.value.description
+  allow_access = each.value.allow_access
 
-# # Azure DevOps Non-Secret Variable Groups
-# resource "azuredevops_variable_group" "variable_groups" {
-#   for_each     = { for group in var.azuredevops_config.variable_groups : group.name => group }
-#   project_id   = data.azuredevops_project.project.id
-#   name         = each.value.name
-#   description  = each.value.description
-#   allow_access = each.value.allow_access
-
-#   dynamic "variable" {
-#     for_each = each.value.variables
-#     content {
-#       name  = variable.value.name
-#       value = variable.value.value
-#     }
-#   }
-# }
+  dynamic "variable" {
+    for_each = each.value.variables
+    content {
+      name  = variable.value.name
+      value = variable.value.value
+    }
+  }
+}
 
 # # Azure DevOps Secret Variable Groups
 # resource "azuredevops_variable_group" "secret_variable_groups" {

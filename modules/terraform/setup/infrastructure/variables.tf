@@ -50,14 +50,14 @@ variable "azuredevops_config" {
   type = object({
     organization_name = string
     project_name      = string
-    # variable_groups = list(object({
-    #   name         = string
-    #   description  = string
-    #   allow_access = optional(bool, false)
-    #   variables = list(object({
-    #     name  = string
-    #     value = string
-    #   }))
-    # }))
+    variable_groups = list(object({
+      name         = string
+      description  = string
+      allow_access = optional(bool, false)
+      variables = list(object({
+        name  = string
+        value = string
+      }))
+    }))
   })
 }
