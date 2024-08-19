@@ -25,7 +25,8 @@ variable "azure_config" {
       shared_access_key_enabled = bool
     })
     kusto_cluster = object({
-      name = string
+      name     = string
+      location = optional(string, null)
       sku = object({
         name     = string
         capacity = number

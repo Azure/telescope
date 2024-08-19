@@ -3,8 +3,8 @@ tags = {
   "owner"   = "AKS Team"
 }
 azure_config = {
-	service_connection_name = "Azure-for-Telescope"
-	service_connection_description = "Managed by Terraform"
+  service_connection_name        = "Azure-for-Telescope"
+  service_connection_description = "Managed by Terraform"
   subscription = {
     id     = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
     name   = "Cloud Compete Testing"
@@ -21,7 +21,8 @@ azure_config = {
     shared_access_key_enabled = true
   }
   kusto_cluster = {
-    name = "telescope20240819"
+    name     = "telescope20240819"
+    location = "eastus"
     sku = {
       name     = "Standard_L16s_v3"
       capacity = 2
@@ -36,13 +37,13 @@ azure_config = {
   }
 }
 aws_config = {
-	region = "us-east-1"
-	user_name = "azuretelescope"
-	service_connection_name = "AWS-Service-Connection"
-	service_connection_description = "Managed by Terraform"
+  region                         = "us-east-1"
+  user_name                      = "azuretelescope"
+  service_connection_name        = "AWS-Service-Connection"
+  service_connection_description = "Managed by Terraform"
 }
 azuredevops_config = {
   organization_name = "azuretelescope"
   project_name      = "telescope"
-  variable_groups = [ ]
+  variable_groups   = []
 }

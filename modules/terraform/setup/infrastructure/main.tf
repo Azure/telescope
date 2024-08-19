@@ -117,7 +117,7 @@ resource "azurerm_storage_container" "container" {
 resource "azurerm_kusto_cluster" "cluster" {
   name                = var.azure_config.kusto_cluster.name
   resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+  location            = var.azure_config.kusto_cluster.location != null ? var.azure_config.kusto_cluster.location : azurerm_resource_group.rg.location
   sku {
     name     = var.azure_config.kusto_cluster.sku.name
     capacity = var.azure_config.kusto_cluster.sku.capacity
