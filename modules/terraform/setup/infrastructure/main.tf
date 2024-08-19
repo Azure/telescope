@@ -45,7 +45,8 @@ data "azuredevops_project" "ado_project" {
 
 resource "azuredevops_serviceendpoint_azurerm" "azure_service_connection" {
   project_id                             = data.azuredevops_project.ado_project.id
-  service_endpoint_name                  = var.azure_config.subscription.id
+  service_endpoint_name                  = var.azure_config.service_connection_name
+  description                            = var.azure_config.service_connection_description
   service_endpoint_authentication_scheme = "WorkloadIdentityFederation"
   azurerm_spn_tenantid                   = var.azure_config.subscription.tenant
   azurerm_subscription_id                = var.azure_config.subscription.id
@@ -175,16 +176,16 @@ resource "aws_iam_access_key" "access_key" {
 
 resource "azuredevops_serviceendpoint_aws" "aws_service_connection" {
   project_id            = data.azuredevops_project.ado_project.id
-  service_endpoint_name = var.aws_config.service_endpoint_name
+  service_endpoint_name = var.aws_config.service_connection_name
+  description           = var.aws_config.service_connection_description
   secret_access_key     = aws_iam_access_key.access_key.id
   access_key_id         = aws_iam_access_key.access_key.secret
-  description           = "AWS service connection for Telescope"
 }
 
 # Azure DevOps Non-Secret Variable Groups
 resource "azuredevops_variable_group" "variable_groups" {
   for_each     = { for group in var.azuredevops_config.variable_groups : group.name => group }
-  project_id   = data.azuredevops_project.project.id
+  project_id   = data.azuredevops_project.ado_project.id
   name         = each.value.name
   description  = each.value.description
   allow_access = each.value.allow_access
@@ -197,20 +198,3 @@ resource "azuredevops_variable_group" "variable_groups" {
     }
   }
 }
-
-# # Azure DevOps Secret Variable Groups
-# resource "azuredevops_variable_group" "secret_variable_groups" {
-#   for_each   = { for group in local.credentials_variables : group.name => group }
-#   project_id = data.azuredevops_project.project.id
-
-#   name         = each.value.name
-#   description  = each.value.description
-#   allow_access = false
-#   dynamic "variable" {
-#     for_each = each.value.variables
-#     content {
-#       name         = variable.value.name
-#       secret_value = variable.value.value
-#     }
-#   }
-# }

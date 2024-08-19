@@ -15,9 +15,9 @@ data "azuredevops_project" "project" {
 }
 
 data "azuredevops_variable_group" "variable_groups" {
-  count      = length(var.azure_devops_config.variable_groups_to_link)
+  count      = length(var.azure_devops_config.variable_groups)
   project_id = data.azuredevops_project.project.id
-  name       = var.azure_devops_config.variable_groups_to_link[count.index]
+  name       = var.azure_devops_config.variable_groups[count.index]
 }
 
 data "azuredevops_serviceendpoint_github" "service_connection" {

@@ -1,8 +1,8 @@
 variable "azure_devops_config" {
   description = "All the resources that are required for the infrastructure setup"
   type = object({
-    project_name            = string
-    variable_groups_to_link = optional(list(string), [])
+    project_name    = string
+    variable_groups = optional(list(string), [])
     variables = list(object({
       name  = string
       value = string
@@ -21,6 +21,17 @@ variable "azure_devops_config" {
     })
     service_connections = list(string)
   })
+
+  validation {
+    condition = alltrue([
+      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SUBSCRIPTION_ID"),
+      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_STORAGE_SUBSCRIPTION"),
+      contains([for v in var.azure_devops_config.variables : v.name], "AKS_TELESCOPE_ACCOUNT_NAME"),
+      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SERVICE_CONNECTION"),
+      contains([for v in var.azure_devops_config.variables : v.name], "AWS_SERVICE_CONNECTION")
+    ])
+    error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_STORAGE_SUBSCRIPTION, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION"
+  }
 
   validation {
     condition     = contains(["GitHub", "TfsGit"], var.azure_devops_config.pipeline_config.repository.repo_type)
