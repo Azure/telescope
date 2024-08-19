@@ -8,7 +8,7 @@ steps:
 - ${{ if eq(parameters.credential_type, 'service_connection') }}:
   - task: AWSShellScript@1
     inputs:
-      awsCredentials: 'AWS-for-Telescope'
+      awsCredentials: $(AWS_SERVICE_CONNECTION)
       regionName: ${{ parameters.region }}
       scriptType: 'inline'
       inlineScript: |
