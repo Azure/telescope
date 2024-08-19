@@ -3,7 +3,7 @@ azure_devops_config = {
 	variable_groups = []
 	variables = [
 		{
-			name = "AKS_STORAGE_ACCOUNT_NAME"
+			name = "AZURE_STORAGE_ACCOUNT_NAME"
 			value = "telescope"
 		},
 		{

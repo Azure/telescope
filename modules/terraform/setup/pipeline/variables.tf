@@ -26,11 +26,11 @@ variable "azure_devops_config" {
     condition = alltrue([
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SUBSCRIPTION_ID"),
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_STORAGE_SUBSCRIPTION"),
-      contains([for v in var.azure_devops_config.variables : v.name], "AKS_STORAGE_ACCOUNT_NAME"),
+      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_STORAGE_ACCOUNT_NAME"),
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SERVICE_CONNECTION"),
       contains([for v in var.azure_devops_config.variables : v.name], "AWS_SERVICE_CONNECTION")
     ])
-    error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_STORAGE_SUBSCRIPTION, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION, AKS_STORAGE_ACCOUNT_NAME"
+    error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_STORAGE_SUBSCRIPTION, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION, AZURE_STORAGE_ACCOUNT_NAME"
   }
 
   validation {
