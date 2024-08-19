@@ -6,13 +6,13 @@ azure_config = {
   service_connection_name        = "Azure-for-Telescope"
   service_connection_description = "Managed by Terraform"
   subscription = {
-    id     = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
-    name   = "Cloud Compete Testing"
-    tenant = "72f988bf-86f1-41af-91ab-2d7cd011db47"
+    id     = "00000000-0000-0000-0000-000000000000"
+    name   = "Azure Test Subscription"
+    tenant = ""00000000-0000-0000-0000-000000000000""
   }
   resource_group = {
-    name     = "schinnapulla20240819"
-    location = "eastus2"
+    name     = "telescope20240819"
+    location = "eastus"
   }
   storage_account = {
     name                      = "telescope20240819"
@@ -24,7 +24,7 @@ azure_config = {
     name     = "telescope20240819"
     location = "eastus"
     sku = {
-      name     = "Standard_L16s_v3"
+      name     = "Standard_E16ads_v5"
       capacity = 2
     }
     kusto_databases = [
@@ -38,12 +38,12 @@ azure_config = {
 }
 aws_config = {
   region                         = "us-east-1"
-  user_name                      = "azuretelescope"
-  service_connection_name        = "AWS-Service-Connection"
+  user_name                      = "telescope"
+  service_connection_name        = "AWS-for-Telescope"
   service_connection_description = "Managed by Terraform"
 }
 azuredevops_config = {
-  organization_name = "azuretelescope"
+  organization_name = "akstelescope"
   project_name      = "telescope"
   variable_groups   = []
 }

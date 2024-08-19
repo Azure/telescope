@@ -146,7 +146,7 @@ resource "azurerm_kusto_database" "database" {
   name                = each.key
   resource_group_name = azurerm_resource_group.rg.name
   cluster_name        = azurerm_kusto_cluster.cluster.name
-  location            = azurerm_resource_group.rg.location
+  location            = var.azure_config.kusto_cluster.location != null ? var.azure_config.kusto_cluster.location : azurerm_resource_group.rg.location
   hot_cache_period    = each.value.hot_cache_period
   soft_delete_period  = each.value.soft_delete_period
 }

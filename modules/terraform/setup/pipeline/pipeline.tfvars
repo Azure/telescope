@@ -1,18 +1,18 @@
 azure_devops_config = {
 	project_name = "telescope"
-	#variable_groups = [ "Telescope Storage Account" ]
+	variable_groups = []
 	variables = [
 		{
-			name = "AKS_TELESCOPE_ACCOUNT_NAME"
-			value = "akstelescope"
+			name = "AKS_STORAGE_ACCOUNT_NAME"
+			value = "telescope"
 		},
 		{
 			name = "AZURE_STORAGE_SUBSCRIPTION"
-			value = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
+			value = "00000000-0000-0000-0000-000000000000"
 		},
 		{
 			name = "AZURE_SUBSCRIPTION_ID"
-			value = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
+			value = "00000000-0000-0000-0000-000000000000"
 		},
 		{
 			name = "AWS_SERVICE_CONNECTION"
@@ -20,19 +20,19 @@ azure_devops_config = {
 		},
 		{
 			name = "AZURE_SERVICE_CONNECTION"
-			value = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
+			value = "Azure-for-Telescope"
 		}]
 	pipeline_config = {
-		name = "API Server Benchmark Virtual Nodes 10 Pods 100"
+		name = "Test Pipeline"
 		path = "\\"
 		repository = {
 			repo_type = "GitHub"
 			repository_name = "Azure/telescope"
-			branch_name = " sumanth/pipeline-script"
-			yml_path = "pipelines/perf-eval/apiserver-benchmark-virtualnodes10-pods100.yml"
-			service_connection_name = "Telescope GH"
+			branch_name = "main"
+			yml_path = "test-pipeline.yml"
+			service_connection_name = null
 		}
 		agent_pool_name = "Azure Pipelines"
 	}
-	service_connections = ["AWS-for-Telescope", "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"]
+	service_connections = ["AWS-for-Telescope", "Azure-for-Telescope"]
 }
