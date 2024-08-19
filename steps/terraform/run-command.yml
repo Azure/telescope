@@ -13,6 +13,9 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
+- name: credential_type
+  type: string
+  default: 'managed_identity'
 
 steps:
 - script: |
@@ -84,8 +87,9 @@ steps:
   env:
     REGIONS: ${{ convertToJson(parameters.regions) }}
     CLOUD: ${{ parameters.cloud }}
-    ARM_USE_MSI: true
-    ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
-    ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
-    ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
     GH_PAT: $(PERSONAL_ACCESS_TOKEN)
+    ${{ if eq(parameters.credential_type, 'managed_identity') }}:
+      ARM_USE_MSI: true
+      ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
+      ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
