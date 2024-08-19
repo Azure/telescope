@@ -4,16 +4,18 @@
 #   This function is used to generate a VMSS name
 #
 # Parameters:
-#   - $1: The run id
+#   - $1: The index of the VMSS
+#   - $2: The run id
 #
 # Notes:
 #   - the VMSS name is truncated to 64 characters due to naming limitations
 #
-# Usage: get_vmss_name <run_id>
+# Usage: get_vmss_name <index> <run_id>
 get_vmss_name() {
-    local run_id=$1
+    local index=$1
+    local run_id=$2
 
-    local vmss_name="vmss-$run_id"
+    local vmss_name="vmss-$index-$run_id"
     vmss_name="${vmss_name:0:64}"
     vmss_name="${vmss_name%-}"
 

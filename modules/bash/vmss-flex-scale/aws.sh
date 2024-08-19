@@ -4,13 +4,15 @@
 #   This function is used to generate a launch template name
 #
 # Parameters:
-#   - $1: The run id
+#   - $1: The index of the lt
+#   - $2: The run id
 #
-# Usage: get_lt_name <run_id>
+# Usage: get_lt_name <index> <run_id>
 get_lt_name() {
-    local run_id=$1
+    local index=$1
+    local run_id=$2
 
-    local lt_name="lt-$run_id"
+    local lt_name="lt-$index-$run_id"
 
     echo "$lt_name"
 }
