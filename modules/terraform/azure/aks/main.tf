@@ -64,6 +64,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   os_sku                = each.value.os_sku
   os_disk_type          = each.value.os_disk_type
   max_pods              = each.value.max_pods
+  ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
 }
 

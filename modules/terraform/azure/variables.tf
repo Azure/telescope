@@ -69,14 +69,15 @@ variable "aks_config_list" {
       max_pods                     = optional(number)
     })
     extra_node_pool = list(object({
-      name         = string
-      subnet_name  = optional(string)
-      node_count   = number
-      vm_size      = string
-      os_sku       = optional(string)
-      os_disk_type = optional(string)
-      max_pods     = optional(number)
-      zones        = optional(list(string), [])
+      name              = string
+      subnet_name       = optional(string)
+      node_count        = number
+      vm_size           = string
+      os_sku            = optional(string)
+      os_disk_type      = optional(string)
+      max_pods          = optional(number)
+      ultra_ssd_enabled = optional(bool, false)
+      zones             = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
   }))
