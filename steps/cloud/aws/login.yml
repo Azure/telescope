@@ -5,6 +5,17 @@ parameters:
   type: string
 
 steps:
+- ${{ if eq(parameters.credential_type, 'service_connection') }}:
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: $(AWS_SERVICE_CONNECTION)
+      regionName: ${{ parameters.region }}
+      scriptType: 'inline'
+      inlineScript: |
+        echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$AWS_ACCESS_KEY_ID"
+        echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$AWS_SECRET_ACCESS_KEY"
+    displayName: 'Get login credentials'
+
 - bash: |
     set -eu
     echo "login to AWS in $REGION"

@@ -1,0 +1,19 @@
+# Custom configuration file for yamllint!
+# It extends the default configuration by adjusting some options.
+# Default configuration: https://yamllint.readthedocs.io/en/stable/configuration.html#default-configuration
+
+extends: default
+
+rules:
+  document-start: disable
+  document-end: disable
+  indentation:
+    spaces: consistent
+    indent-sequences: consistent
+  comments-indentation:
+    level: error
+  line-length:
+    max: 120
+    level: warning
+  empty-lines:
+    max: 1

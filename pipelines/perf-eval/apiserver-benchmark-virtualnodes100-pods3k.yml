@@ -11,9 +11,6 @@ schedules:
         - main
     always: true
 
-pool:
-  name: "1ES-Telescope-Ubuntu-EastUS"
-
 stages:
   - stage: aws_eastus2
     dependsOn: []
