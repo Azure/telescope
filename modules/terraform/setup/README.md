@@ -3,9 +3,10 @@
 This folder contains Terraform modules for creating new infrastructure setup, pipelines, Data Connections, and Tables for Kusto databases.
 
 ## Modules
-- [Infrastructure Setup](./infrastructure)
-- [Pipeline Setup](./pipeline)
+- [Infrastructure Setup](./infrastructure/main.tf)
+- [Pipeline Setup](./pipeline/main.tf)
 - [Table and Data Connection Setup](./table-data-connections)
+- [Data Ingestion](#Data-Ingestion)
 
 ## Prerequisites
 For all modules, you need to have the following prerequisites:
@@ -91,3 +92,62 @@ Run make command to create the table and data connection setup after setting up 
 ```bash
 make table_data_connection_setup
 ```
+
+## Data-Ingestion
+This module will ingest data into the Azure Data Explorer Table created in the previous step. The data is ingested from azure storage account blob container to the Azure Data Explorer Table.
+
+## Prerequisites
+- Kusto LightIngest tool - [Download](https://github.com/Azure/Kusto-Lightingest/releases/tag/12.1.2)
+- Azure Data Explorer Cluster and Database
+- Azure Storage Account and Container
+- Azure Login credentials
+
+### Input Variables
+```bash
+KUSTO_CLUSTER_NAME=<Kusto Cluster Name>
+KUSTO_CLUSTER_REGION=<Kusto Cluster Region>
+KUSTO_DATABASE_NAME=<Kusto Database Name>
+KUSTO_TABLE_NAME=<Kusto Table Name>
+STORAGE_ACCOUNT_NAME=<Storage Account Name>
+STORAGE_CONTAINER_NAME=<Storage Container Name>
+CONTAINER_PREFIX=<Container Prefix>
+```
+### Usage
+- Login to Azure using CLI
+- Download the Kusto LightIngest tool from the above link and extract the zip file and make the binary executable.
+- Run the below script to ingest data into the Kusto Table. The script will ingest data from the azure storage account blob container to the Kusto Table.
+```bash
+set -eu
+
+echo "Get Kusto Access Token"
+access_token=$(az account get-access-token --resource https://${KUSTO_CLUSTER_NAME}.${KUSTO_CLUSTER_REGION}.kusto.windows.net --query 'accessToken' -o tsv)
+
+echo "Get Storage Access Token"
+storage_access_token=$(az account get-access-token --resource https://storage.azure.com --query accessToken -o tsv)
+
+echo "Data Ingestion started from ${STORAGE_CONTAINER_NAME} container with ${CONTAINER_PREFIX} container prefix into ${KUSTO_TABLE_NAME} kusto table in ${KUSTO_DATABASE_NAME} database."
+
+ingestion_response=$(./LightIngest "https://ingest-${KUSTO_CLUSTER_NAME}.${KUSTO_CLUSTER_REGION}.kusto.windows.net;Fed=True;AppToken=${access_token}" \
+-db:${KUSTO_DATABASE_NAME} \
+-table:${KUSTO_TABLE_NAME} \
+-source:"https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${STORAGE_CONTAINER_NAME};token=${storage_access_token}" \
+-prefix:"${CONTAINER_PREFIX}" \
+-pattern:"*.json" \
+-format:multijson \
+-ignoreFirst:false \
+-ingestionMappingRef:${KUSTO_TABLE_NAME}_mapping \
+-ingestTimeout:180 \
+-dontWait:false)
+
+echo "$ingestion_response"
+```
+
+## References
+
+* [Terraform AWS Provider](https://www.terraform.io/docs/providers/aws/index.html)
+* [Terraform Azure Provider](https://www.terraform.io/docs/providers/azurerm/index.html)
+* [Terraform Azure DevOps Provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs)
+* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
+* [AWS CLI](https://docs.aws.amazon.com/cli/latest/)
+* [Kusto LightIngest](https://learn.microsoft.com/en-us/azure/data-explorer/lightingest)
+* [Make Utility](https://www.gnu.org/software/make/manual/make.html)
