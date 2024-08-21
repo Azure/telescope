@@ -4,19 +4,21 @@ This folder contains Terraform modules for creating new infrastructure setup, pi
 
 ## Modules
 - [Infrastructure Setup](./infrastructure)
-- [Pipeline Setup](./pipeline-)
+- [Pipeline Setup](./pipeline)
 - [Table and Data Connection Setup](./table-data-connections)
 
 ## Prerequisites
 For all modules, you need to have the following prerequisites:
-- Terraform CLI
-- Azure CLI
+- Install [Terraform - 1.7.3](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
+- Install [Azure CLI - 2.57.0](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
+- Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 - Azure DevOps CLI
-- AWS CLI
+- Install [AWS CLI - 2.15.19](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
+- [Azure DevOps Authentication Guide](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token)
 - Azure login credentials
 - Azure DevOps login credentials(PAT token)
 - AWS Access Key ID and Secret Access Key
-- Azure DevOps organization service URL
+- Azure DevOps organization service URL - `https://dev.azure.com/<Your Org Name>`
 
 ### Steps to setup the prerequisites
 - Generate a PAT token from Azure DevOps and store it in the environment variable `AZDO_PERSONAL_ACCESS_TOKEN`
@@ -87,5 +89,5 @@ All the resources are created based on the input tfvars file which is located he
 ### Usage
 Run make command to create the table and data connection setup after setting up the prerequisites
 ```bash
-make table_data_connections_setup
+make table_data_connection_setup
 ```

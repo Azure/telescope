@@ -14,6 +14,7 @@ help:
 	@echo "Usage:"
 	@echo " make infrastructure_setup  - Create infrastructure setup"
 	@echo " make create_pipeline - Create a new pipeline"
+	@echo " make table_dataconnection_setup - Create a new table data connections setup"
 
 infrastructure_setup:
 	@echo "Creating infrastructure setup"
@@ -29,7 +30,7 @@ create_pipeline:
 	terraform plan -var-file=$(TF_PIPELINE_INPUT_FILE) && \
 	terraform apply -var-file=$(TF_PIPELINE_INPUT_FILE)
 
-table_dataconnections_setup:
+table_dataconnection_setup:
 	@echo "Creating a new table data ingestion setup"
 	source ./$(TF_TABLE_DATA_CONNECTION_DIR)/bash/script.sh && \
 	cd $(TF_TABLE_DATA_CONNECTION_DIR) && \
