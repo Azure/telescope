@@ -16,7 +16,11 @@ help:
 	@echo " make create_pipeline - Create a new pipeline"
 
 infrastructure_setup:
-	cd $(TF_INFRASTRUCTURE_DIR) && terraform init && terraform plan -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE) && terraform apply -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE)
+	@echo "Creating infrastructure setup"
+	cd $(TF_INFRASTRUCTURE_DIR) && \
+	terraform init && \
+	terraform plan -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE) && \
+	terraform apply -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE)
 
 create_pipeline:
 	@echo "Creating a new pipeline"
