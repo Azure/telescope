@@ -1,14 +1,49 @@
-variable "json_input" {
-  description = "value of the table input for creating the table & data ingestion setup"
-  type = object({
-    owner                = string
-    run_id               = string
-    scenario_name        = string
-    scenario_type        = string
-    scenario_version     = string
-    resource_group_name  = string
-    storage_account_name = string
-    kusto_cluster_name   = string
-    # table_creation_script = string
-  })
+variable "owner" {
+  description = "Owner of the resource"
+  type        = string
+}
+
+variable "run_id" {
+  description = "Unique identifier for the run"
+  type        = string
+}
+
+variable "scenario_name" {
+  description = "Name of the scenario"
+  type        = string
+}
+
+variable "scenario_type" {
+  description = "Type of the scenario"
+  type        = string
+}
+
+variable "scenario_version" {
+  description = "Version of the scenario"
+  type        = string
+}
+
+variable "resource_group_name" {
+  description = "Name of the Azure resource group"
+  type        = string
+}
+
+variable "storage_account_name" {
+  description = "Name of the Azure storage account"
+  type        = string
+}
+
+variable "kusto_cluster_name" {
+  description = "Name of the Azure Kusto cluster"
+  type        = string
+}
+
+variable "create_eventhub_namespace" {
+  description = "Flag to create an Event Hub namespace"
+  type        = bool
+}
+
+variable "eventhub_namespace" {
+  description = "Name of the Event Hub namespace"
+  type        = string
 }

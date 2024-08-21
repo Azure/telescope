@@ -5,7 +5,7 @@ This folder contains Terraform modules for creating new infrastructure setup, pi
 ## Modules
 - [Infrastructure Setup](./infrastructure)
 - [Pipeline Setup](./pipeline-)
-- [Table and Data Connection Setup](./table-and-data-connection)
+- [Table and Data Connection Setup](./table-data-connections)
 
 ## Prerequisites
 For all modules, you need to have the following prerequisites:
@@ -32,6 +32,11 @@ For all modules, you need to have the following prerequisites:
 ```bash
 export AZDO_PERSONAL_ACCESS_TOKEN=<Personal Access Token>
 export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Your Org Name>
+```
+Note:
+- For Table and Data connection setup you need to set the following environment variables along with the above prerequisites
+```bash
+RESOURCE_GROUP_NAME=<Resource Group Name>
 ```
 
 ## Infrastructure Setup
@@ -69,4 +74,18 @@ Operations supported by this module:
 Run make command to create the pipeline setup after setting up the prerequisites
 ```bash
 make create_pipeline
+```
+
+## Table and Data Connection Setup
+This module creates the following resources:
+- Azure Data Explorer Table and Data Connection
+- Event Hub Namespace, Event Hub  and Event Hub Subscription
+- Consumer Group for Event Hub
+
+All the resources are created based on the input tfvars file which is located here [table-data-connections.tfvars](./table-data-connections/table-data-connections.tfvars)
+
+### Usage
+Run make command to create the table and data connection setup after setting up the prerequisites
+```bash
+make table_data_connections_setup
 ```
