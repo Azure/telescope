@@ -55,7 +55,7 @@ resource "local_file" "bash_script" {
 }
 
 data "external" "bash_script" {
-  program = ["bash", "${local_file.bash_script.filename}"]
+  program = ["bash", local_file.bash_script.filename]
   query = {
     KUSTO_TABLE_NAME = local.kusto_table_name
   }
