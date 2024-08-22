@@ -1,6 +1,7 @@
 parameters:
 - name: region
   type: string
+  default: us-east-1
 - name: credential_type
   type: string
 
