@@ -39,12 +39,12 @@ variable "azure_devops_config" {
   }
 
   validation {
-    condition     = var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" && var.azure_devops_config.pipeline_config.repository.service_connection_name != null
-    error_message = "service_connection_name is required when repo_type is GitHub"
+    condition     = (var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" && var.azure_devops_config.pipeline_config.repository.service_connection_name != null) || (var.azure_devops_config.pipeline_config.repository.repo_type == "TfsGit" && var.azure_devops_config.pipeline_config.repository.service_connection_name == null)
+    error_message = "service_connection_name is required when repo_type is GitHub and should be null when repo_type is TfsGit"
   }
 
   validation {
-    condition     = var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" && strcontains(var.azure_devops_config.pipeline_config.repository.repository_name, "/")
-    error_message = "Repository Name for a GitHub repository should be in the form: OwnerName/Repository."
+    condition     = (var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" && strcontains(var.azure_devops_config.pipeline_config.repository.repository_name, "/")) || (var.azure_devops_config.pipeline_config.repository.repo_type == "TfsGit" && !strcontains(var.azure_devops_config.pipeline_config.repository.repository_name, "/"))
+    error_message = "Repository Name for a GitHub repository should be in the form: OwnerName/Repository and for TfsGit should not contain a /"
   }
 }

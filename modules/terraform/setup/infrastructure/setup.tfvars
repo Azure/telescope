@@ -8,7 +8,7 @@ azure_config = {
   subscription = {
     id     = "00000000-0000-0000-0000-000000000000"
     name   = "Azure Test Subscription"
-    tenant = ""00000000-0000-0000-0000-000000000000""
+    tenant = "00000000-0000-0000-0000-000000000000"
   }
   resource_group = {
     name     = "telescope20240819"
