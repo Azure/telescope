@@ -25,7 +25,7 @@ infrastructure_setup:
 
 create_pipeline:
 	@echo "Creating a new pipeline"
-	cd $(TF_PIPELINE_DIR) && \ 
+	cd $(TF_PIPELINE_DIR) && \
 	terraform init && \
 	terraform plan -var-file=$(TF_PIPELINE_INPUT_FILE) && \
 	terraform apply -var-file=$(TF_PIPELINE_INPUT_FILE)
