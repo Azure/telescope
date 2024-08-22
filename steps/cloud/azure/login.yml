@@ -1,6 +1,7 @@
 parameters:
 - name: region
   type: string
+  default: eastus
 - name: subscription
   type: string
   default: $(AZURE_SUBSCRIPTION_ID)
