@@ -37,13 +37,3 @@ variable "kusto_cluster_name" {
   description = "Name of the Azure Kusto cluster"
   type        = string
 }
-
-variable "create_eventhub_namespace" {
-  description = "Flag to create an Event Hub namespace"
-  type        = bool
-}
-
-variable "eventhub_namespace" {
-  description = "Name of the Event Hub namespace"
-  type        = string
-}
