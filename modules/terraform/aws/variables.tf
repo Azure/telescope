@@ -9,7 +9,7 @@ variable "json_input" {
 variable "owner" {
   description = "Owner of the scenario"
   type        = string
-  default     = "github_actions"
+  default     = "azure_devops"
 }
 
 variable "scenario_name" {
