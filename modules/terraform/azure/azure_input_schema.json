@@ -1,22 +1,12 @@
 {
   "type": "object",
   "properties": {
-    "run_id": {
-      "type": "string"
-    },
-    "region": {
-      "type": "string"
-    },
-    "aks_cli_system_node_pool": {
-      "type": "object"
-    },
-    "aks_cli_user_node_pool": {
-      "type": "array"
-    }
+      "owner": {"type": "string"},
+      "run_id": {"type": "string"},
+      "region": {"type": "string"},
+      "aks_cli_system_node_pool": {"type": "object"},
+      "aks_cli_user_node_pool": {"type": "array"}
   },
-  "required": [
-    "run_id",
-    "region"
-  ],
+  "required": ["owner", "run_id", "region"],
   "additionalProperties": false
 }
