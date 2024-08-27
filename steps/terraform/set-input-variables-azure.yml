@@ -50,7 +50,6 @@ steps:
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
                 '{
-                  owner: $owner,
                   run_id: $run_id,
                   region: $region,
                   machine_type: $machine_type,
