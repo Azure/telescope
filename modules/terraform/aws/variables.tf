@@ -9,7 +9,7 @@ variable "json_input" {
 variable "owner" {
   description = "Owner of the scenario"
   type        = string
-  default     = ""
+  default     = "github_actions"
 }
 
 variable "scenario_name" {
