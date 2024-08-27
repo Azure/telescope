@@ -24,7 +24,6 @@ steps:
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
           INPUT_VARIABLES=$(jq -n \
-                --arg owner azure_devops \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
                 --arg public_key_path $SSH_PUBLIC_KEY_PATH \
