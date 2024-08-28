@@ -99,7 +99,6 @@ module "aks" {
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=apiserver-vn100pod10k
 RUN_ID=$(date +%s)
-OWNER=$(whoami)
 CLOUD=azure
 REGION=eastus
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
@@ -110,11 +109,10 @@ USER_NODE_POOL="[{\"name\":\"pool1\",\"vm_size\":\"Standard_D2s_v3\",\"node_coun
 4. Run following command to set `INPUT_JSON` variable
 ```bash
 INPUT_JSON=$(jq -n \
---arg owner $OWNER \
 --arg run_id $RUN_ID \
 --arg region $REGION \
 --argjson aks_cli_system_node_pool $SYSTEM_NODE_POOL \
 --argjson aks_cli_user_node_pool $USER_NODE_POOL \
-'{owner: $owner, run_id: $run_id, region: $region, aks_cli_system_node_pool: $aks_cli_system_node_pool, aks_cli_user_node_pool: $aks_cli_user_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
+'{run_id: $run_id, region: $region, aks_cli_system_node_pool: $aks_cli_system_node_pool, aks_cli_user_node_pool: $aks_cli_user_node_pool}'| jq 'with_entries(select(.value != null and .value != ""))')
 ```
 5. Run terraform provisioning commands from [here](./../README.md#provision-resources-using-terraform)
