@@ -19,14 +19,14 @@ modules
 scenarios
 └── issue-repo <Scenario-Type>
     └── lb-tls-error <Scenario-Name>
-        ├── bash-scripts
+        ├── scripts
         ├── https
         ├── terraform-inputs*
         ├── terraform-test-inputs*
         └── Makefile
     └── perf-eval <Scenario-Type>
         └── vm-iperf <Scenario-Name>
-            ├── bash-scripts
+            ├── scripts
             ├── terraform-inputs*
             └── terraform-test-inputs*
 .gitignore
@@ -63,7 +63,7 @@ This directory organizes different test scenarios inputs to evaluation the perfo
   Example:
   - **lb-tls-error**: Name of the issue we are trying to reproduce.
 
-    - **bash-scripts**: Bash scripts for diagnosing or replicating TLS errors.
+    - **scripts**: Scripts folder contain user data scripts for VM's and other scripts required for the test.
     - **https**: Files related to HTTPS configuration.
     - **terraform-inputs**: Input configurations for Terraform to create cloud resources.
     - **terraform-test-inputs**: Test input configurations for Terraform to run on github workflows.
@@ -71,7 +71,7 @@ This directory organizes different test scenarios inputs to evaluation the perfo
   - **perf-eval**: Resources related to performance evaluation scenarios.
 
     - **vm-iperf**: Resources for evaluating VM network performance using iPerf.
-      - **bash-scripts**: Bash scripts for diagnosing or replicating TLS errors.
+      - **scripts**: Scripts folder contain user data scripts for VM's and other scripts required for the test.
       - **terraform-inputs**: Input configurations for Terraform to create cloud resources.
       - **terraform-test-inputs**: Test input configurations for Terraform to run on github workflows.
 
