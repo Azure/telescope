@@ -1,8 +1,4 @@
-variables:
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: apiserver-vn100pod10k
-  SCENARIO_VERSION: v1.1.3
-
+trigger: none
 schedules:
   - cron: "0 */4 * * *"
     displayName: "Every 4 Hours"
@@ -10,6 +6,11 @@ schedules:
       include:
         - main
     always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-vn100pod10k
+  SCENARIO_VERSION: v1.1.3
 
 stages:
   - stage: aws_eastus2
