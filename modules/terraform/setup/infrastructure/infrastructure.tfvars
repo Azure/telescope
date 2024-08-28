@@ -38,7 +38,7 @@ azure_config = {
 }
 aws_config = {
   region                         = "us-east-1"
-  user_name                      = "telescope"
+  user_name                      = "telescope20240819"
   policy_names                   = ["AdministratorAccess"]
   service_connection_name        = "AWS-for-Telescope"
   service_connection_description = "Managed by Terraform"

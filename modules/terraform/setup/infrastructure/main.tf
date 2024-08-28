@@ -169,14 +169,6 @@ resource "azurerm_kusto_database" "database" {
   soft_delete_period  = each.value.soft_delete_period
 }
 
-# Lock Azure Resource Group
-resource "azurerm_management_lock" "resource-group-level" {
-  name       = "LockResourceGroup"
-  scope      = azurerm_resource_group.rg.id
-  lock_level = "CanNotDelete"
-  notes      = "This Resource Group is not allowed to be deleted"
-}
-
 ## Step 3: Set up AWS IAM User and Access Key
 
 # AWS IAM User
