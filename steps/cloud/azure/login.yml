@@ -9,7 +9,7 @@ parameters:
   type: string
 
 steps:
-- ${{ if eq(variables['System.CollectionId'], '41bf5486-7392-4b7a-a7e3-a735c767e3b3') }}:
+- ${{ if eq(variables['System.TeamProjectId'], '09706533-03bf-4b43-9a9b-b49c75429646') }}:
   - bash: |
       set -eu
 
@@ -22,9 +22,8 @@ steps:
       AZURE_MI_ID: $(AZURE_MI_CLIENT_ID)
       AZURE_MI_SUBSCRIPTION_ID: ${{ parameters.subscription }}
       REGION: ${{ parameters.region }}
-    condition: eq(variables['CREDENTIAL_TYPE'], 'managed_identity')
 
-- ${{ if ne(variables['System.CollectionId'], '41bf5486-7392-4b7a-a7e3-a735c767e3b3') }}:
+- ${{ if ne(variables['System.TeamProjectId'], '09706533-03bf-4b43-9a9b-b49c75429646') }}:
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -48,4 +47,3 @@ steps:
     env:
       AZURE_SP_SUBSCRIPTION_ID: ${{ parameters.subscription }}
       REGION: ${{ parameters.region }}
-    condition: eq(variables['CREDENTIAL_TYPE'], 'service_connection')

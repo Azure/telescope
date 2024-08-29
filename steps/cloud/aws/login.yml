@@ -6,7 +6,7 @@ parameters:
   type: string
 
 steps:
-- ${{ if ne(variables['System.CollectionId'], '41bf5486-7392-4b7a-a7e3-a735c767e3b3') }}:
+- ${{ if ne(variables['System.TeamProjectId'], '09706533-03bf-4b43-9a9b-b49c75429646') }}:
   - task: AWSShellScript@1
     inputs:
       awsCredentials: $(AWS_SERVICE_CONNECTION)
