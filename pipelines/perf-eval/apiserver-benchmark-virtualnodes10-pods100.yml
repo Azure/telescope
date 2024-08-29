@@ -39,6 +39,7 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
+          credential_type: $(CREDENTIAL_TYPE)
           ${{ if eq(variables.CREDENTIAL_TYPE, 'service_connection') }}:
             credential_type: service_connection
           ${{ if eq(variables.CREDENTIAL_TYPE, 'managed_identity') }}:
@@ -66,6 +67,7 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
+          credential_type: $(CREDENTIAL_TYPE)
           ${{ if eq(variables.CREDENTIAL_TYPE, 'service_connection') }}:
             credential_type: service_connection
           ${{ if eq(variables.CREDENTIAL_TYPE, 'managed_identity') }}:
