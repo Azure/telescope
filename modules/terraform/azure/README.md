@@ -18,7 +18,6 @@ Run the following commands from the root of the repository:
 SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=apiserver-vn10pod100
 RUN_ID=$(date +%s)
-OWNER=$(whoami)
 CLOUD=azure
 REGION="eastus2"
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
@@ -56,13 +55,11 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 
 ```bash
   INPUT_JSON=$(jq -n \
-  --arg owner $OWNER \
   --arg run_id $RUN_ID \
   --arg region $REGION \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
   --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
-    owner: $owner,
     run_id: $run_id,
     region: $region,
     aks_cli_system_node_pool: $aks_cli_system_node_pool,

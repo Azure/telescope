@@ -31,4 +31,4 @@ steps:
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
-    AZURE_STORAGE_ACCOUNT_NAME: $(AKS_TELESCOPE_ACCOUNT_NAME)
+    AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)

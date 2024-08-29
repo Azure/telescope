@@ -1,0 +1,28 @@
+name: Python Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - 'modules/python/**'
+
+env:
+  PYTHON_MODULES_DIR: modules/python
+jobs:
+  python-unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Python Version Check
+        run: python --version
+
+      - name: Run Python Unit Tests
+        working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        run: python -m unittest discover
