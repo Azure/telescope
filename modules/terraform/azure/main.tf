@@ -149,6 +149,16 @@ module "proximity_placement_group" {
   location            = local.region
 }
 
+module "vnet_gateway" {
+
+  depends_on          = [module.public_ips, module.virtual_network]
+  source              = "./express-route"
+  tags                = local.tags
+  resource_group_name = local.run_id
+  location            = local.region
+  vnet_gateway_config = var.vnet_gateway_config
+}
+
 module "aks" {
   for_each = local.aks_config_map
 

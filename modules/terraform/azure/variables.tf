@@ -387,3 +387,23 @@ variable "blob_config" {
   })
   default = null
 }
+
+variable "vnet_gateway_config" {
+  description = "vnet gateway configuration"
+  type = object({
+    name     = string
+    type     = string
+    vpn_type = string
+    ip_configuration = object({
+      name                          = string
+      public_ip_address_id          = string
+      private_ip_address_allocation = string
+      subnet_id                     = string
+    })
+    vnet_gateway_connection = object({
+      connection_name = string
+      type            = string
+    })
+  })
+}
+

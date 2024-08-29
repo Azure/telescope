@@ -7,6 +7,9 @@ public_ip_config_list = [
   },
   {
     name = "client-pip"
+  },
+  {
+    name = "eg-pip"
   }
 ]
 network_config_list = [
@@ -17,7 +20,11 @@ network_config_list = [
     subnet = [{
       name           = "server-subnet"
       address_prefix = "10.2.1.0/24"
-    }]
+    },{
+      name           = "Gateway-subnet"
+      address_prefix = "10.2.0.0/24"
+    },
+    ]
     network_security_group_name = "server-nsg"
     nic_public_ip_associations = [
       {
@@ -147,3 +154,19 @@ vm_config_list = [{
 ]
 vmss_config_list                  = []
 nic_backend_pool_association_list = []
+vnet_gateway_config = {
+  name = "VnetGateway"
+  type = "ExpressRoute"
+  vpn_type = "PolicyBased"
+  ip_configuration = {
+    name = "default"
+    public_ip_address_id = "eg-pip"
+    private_ip_address_allocation = "Dynamic"
+    subnet_id = "Gateway-subnet"
+  }
+  vnet_gateway_connection = {
+  connection_name = "VnetGatewayConnection"
+  type = "ExpressRoute"
+}
+}
+
