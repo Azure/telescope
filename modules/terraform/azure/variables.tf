@@ -394,6 +394,7 @@ variable "vnet_gateway_config" {
     name     = string
     type     = string
     vpn_type = string
+    sku      = string
     ip_configuration = object({
       name                          = string
       public_ip_address_id          = string
