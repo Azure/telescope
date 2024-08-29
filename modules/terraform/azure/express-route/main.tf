@@ -22,5 +22,5 @@ resource "azurerm_virtual_network_gateway_connection" "onpremise" {
   type                       = var.vnet_gateway_connection_config.type
   virtual_network_gateway_id = azurerm_virtual_network_gateway.vnet_gateway.id
 
-  tags var.tags
+  tags = var.tags
 }
