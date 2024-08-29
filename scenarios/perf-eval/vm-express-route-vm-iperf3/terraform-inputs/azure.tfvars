@@ -158,6 +158,7 @@ vnet_gateway_config = {
   name = "VnetGateway"
   type = "ExpressRoute"
   vpn_type = "PolicyBased"
+  sku = "Standard"
   ip_configuration = {
     name = "default"
     public_ip_address_id = "eg-pip"
