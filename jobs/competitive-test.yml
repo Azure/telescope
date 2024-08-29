@@ -40,7 +40,7 @@ parameters:
   default: 3
 - name: credential_type
   type: string
-  default: managed_identity
+  # default: managed_identity
   values:
   - managed_identity
   - service_connection
