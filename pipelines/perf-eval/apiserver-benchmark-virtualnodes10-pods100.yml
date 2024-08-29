@@ -11,7 +11,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
   SCENARIO_VERSION: main
-  CREDENTIAL_TYPE: managed_identity
+  # CREDENTIAL_TYPE: managed_identity
 
 stages:
   - stage: aws_eastus2
