@@ -11,7 +11,6 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
   SCENARIO_VERSION: main
-  # CREDENTIAL_TYPE: managed_identity
 
 stages:
   - stage: aws_eastus2
@@ -39,11 +38,6 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
-          # credential_type: $(CREDENTIAL_TYPE)
-          # ${{ if eq(variables.CREDENTIAL_TYPE, 'service_connection') }}:
-          #   credential_type: service_connection
-          # ${{ if eq(variables.CREDENTIAL_TYPE, 'managed_identity') }}:
-          #   credential_type: managed_identity
   - stage: azure_eastus2
     dependsOn: []
     jobs:
@@ -67,8 +61,3 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
-          # credential_type: $(CREDENTIAL_TYPE)
-          # ${{ if eq(variables.CREDENTIAL_TYPE, 'service_connection') }}:
-          #   credential_type: service_connection
-          # ${{ if eq(variables.CREDENTIAL_TYPE, 'managed_identity') }}:
-          #   credential_type: managed_identity

@@ -88,7 +88,7 @@ steps:
     REGIONS: ${{ convertToJson(parameters.regions) }}
     CLOUD: ${{ parameters.cloud }}
     GH_PAT: $(PERSONAL_ACCESS_TOKEN)
-    ${{ if eq(parameters.credential_type, 'managed_identity') }}:
+    ${{ if eq(variables['System.CollectionId'], '41bf5486-7392-4b7a-a7e3-a735c767e3b3') }}:
       ARM_USE_MSI: true
       ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
