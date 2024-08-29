@@ -42,6 +42,10 @@ stages:
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
+          ${{ if eq(variables['CREDENTIAL_TYPE'], 'service_connection') }}:
+            credential_type: service_connection
+          ${{ if eq(variables['CREDENTIAL_TYPE'], 'managed_identity') }}:
+            credential_type: managed_identity
   - stage: azure_eastus2
     dependsOn: []
     jobs:
@@ -71,3 +75,7 @@ stages:
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
+          ${{ if eq(variables['CREDENTIAL_TYPE'], 'service_connection') }}:
+            credential_type: service_connection
+          ${{ if eq(variables['CREDENTIAL_TYPE'], 'managed_identity') }}:
+            credential_type: managed_identity
