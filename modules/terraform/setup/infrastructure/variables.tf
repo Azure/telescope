@@ -45,6 +45,7 @@ variable "aws_config" {
   type = object({
     region                         = string
     user_name                      = string
+    policy_names                   = list(string)
     service_connection_name        = string
     service_connection_description = string
   })

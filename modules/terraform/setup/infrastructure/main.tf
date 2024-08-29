@@ -167,6 +167,12 @@ resource "aws_iam_user" "user" {
   path = "/"
 }
 
+resource "aws_iam_user_policy_attachment" "user_policy_attachment" {
+  count      = length(var.aws_config.policy_names)
+  user       = aws_iam_user.user.name
+  policy_arn = "arn:aws:iam::aws:policy/${var.aws_config.policy_names[count.index]}"
+}
+
 # AWS IAM Access Key
 resource "aws_iam_access_key" "access_key" {
   user = aws_iam_user.user.name
@@ -178,8 +184,8 @@ resource "azuredevops_serviceendpoint_aws" "aws_service_connection" {
   project_id            = data.azuredevops_project.ado_project.id
   service_endpoint_name = var.aws_config.service_connection_name
   description           = var.aws_config.service_connection_description
-  secret_access_key     = aws_iam_access_key.access_key.id
-  access_key_id         = aws_iam_access_key.access_key.secret
+  secret_access_key     = aws_iam_access_key.access_key.secret
+  access_key_id         = aws_iam_access_key.access_key.id
 }
 
 # Azure DevOps Non-Secret Variable Groups
