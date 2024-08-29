@@ -23,7 +23,7 @@ For all modules, you need to have the following prerequisites:
 
 ### Steps to setup the prerequisites
 - Generate a PAT token from Azure DevOps and store it in the environment variable `AZDO_PERSONAL_ACCESS_TOKEN`
-- Permissions for PAT token: 
+- Permissions for PAT token:
   - Agent Pools (Read & Manage)
   - Build (Read & Execute)
   - Pipeline Resources (Use & Manage)
@@ -31,7 +31,6 @@ For all modules, you need to have the following prerequisites:
   - Variable Groups (Read, Create & Manage)
 
 - Set the Azure DevOps organization service URL in the environment variable `AZDO_ORG_SERVICE_URL`
-- Set the AWS Access Key ID and Secret Access Key in the environment variable `AWS_ACCESS_KEY_ID` and `AWS_SECRET`
 ```bash
 export AZDO_PERSONAL_ACCESS_TOKEN=<Personal Access Token>
 export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Your Org Name>
@@ -48,7 +47,7 @@ This module creates the following resources:
 - Service Principal and grant owner access to the subscription
 - Azure Data Explorer Cluster
 - Azure Data Explorer Database
-- Azure Storage Account 
+- Azure Storage Account
 - Azure Storage Container
 - Azure Service Connection
 - AWS Service Connection
