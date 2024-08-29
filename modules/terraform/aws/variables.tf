@@ -1,10 +1,15 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    owner  = string
     run_id = string
     region = string
   })
+}
+
+variable "owner" {
+  description = "Owner of the scenario"
+  type        = string
+  default     = "azure_devops"
 }
 
 variable "scenario_name" {

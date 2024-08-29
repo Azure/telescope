@@ -3,7 +3,7 @@ locals {
   run_id = lookup(var.json_input, "run_id", "123456")
 
   tags = {
-    "owner"             = lookup(var.json_input, "owner", "github_actions")
+    "owner"             = var.owner
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)

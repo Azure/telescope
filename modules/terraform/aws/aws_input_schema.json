@@ -1,10 +1,16 @@
 {
   "type": "object",
   "properties": {
-    "owner": {"type": "string"},
-    "run_id": {"type": "string"},
-    "region": {"type": "string"}
+    "run_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    }
   },
-  "required": ["owner", "run_id", "region"],
+  "required": [
+    "run_id",
+    "region"
+  ],
   "additionalProperties": false
 }
