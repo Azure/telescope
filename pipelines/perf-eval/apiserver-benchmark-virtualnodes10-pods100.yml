@@ -12,6 +12,9 @@ variables:
   SCENARIO_NAME: apiserver-vn10pod100
   SCENARIO_VERSION: main
 
+pool:
+  name: AKS-Telescope-Ubuntu-EastUS2
+ 
 stages:
   - stage: aws_eastus2
     dependsOn: []
@@ -38,6 +41,7 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
+          credential_type: service_connection
   - stage: azure_eastus2
     dependsOn: []
     jobs:
@@ -61,3 +65,4 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
+          credential_type: service_connection
