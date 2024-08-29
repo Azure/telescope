@@ -4,7 +4,7 @@ azure_devops_config = {
   variables = [
     {
       name  = "AZURE_STORAGE_ACCOUNT_NAME"
-      value = "telescope"
+      value = "telescope20240819"
     },
     {
       name  = "AZURE_STORAGE_SUBSCRIPTION"
@@ -23,13 +23,13 @@ azure_devops_config = {
       value = "Azure-for-Telescope"
   }]
   pipeline_config = {
-    name = "Test Pipeline"
+    name = "API Server Benchmark with 10 Nodes 100 Pods"
     path = "\\"
     repository = {
       repo_type               = "GitHub"
       repository_name         = "Azure/telescope"
       branch_name             = "main"
-      yml_path                = "test-pipeline.yml"
+      yml_path                = "pipelines/perf-eval/apiserver-benchmark-virtualnodes10-pods100.yml"
       service_connection_name = null
     }
     agent_pool_name = "Azure Pipelines"

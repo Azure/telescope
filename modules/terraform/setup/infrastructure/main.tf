@@ -20,10 +20,12 @@ terraform {
   }
 }
 
+data "azurerm_subscription" "current" {
+}
+
 provider "azurerm" {
   features {}
   storage_use_azuread = true
-  subscription_id     = var.azure_config.subscription.id
 }
 
 provider "aws" {
@@ -34,7 +36,7 @@ provider "azuredevops" {
 }
 
 provider "azuread" {
-  tenant_id = var.azure_config.subscription.tenant
+  tenant_id = data.azurerm_subscription.current.tenant_id
 }
 
 ## Step 1: Set up service connection to Azure
@@ -48,9 +50,9 @@ resource "azuredevops_serviceendpoint_azurerm" "azure_service_connection" {
   service_endpoint_name                  = var.azure_config.service_connection_name
   description                            = var.azure_config.service_connection_description
   service_endpoint_authentication_scheme = "WorkloadIdentityFederation"
-  azurerm_spn_tenantid                   = var.azure_config.subscription.tenant
-  azurerm_subscription_id                = var.azure_config.subscription.id
-  azurerm_subscription_name              = var.azure_config.subscription.name
+  azurerm_spn_tenantid                   = var.azure_config.subscription.tenant == null ? data.azurerm_subscription.current.tenant_id : var.azure_config.subscription.tenant
+  azurerm_subscription_id                = var.azure_config.subscription.id == null ? data.azurerm_subscription.current.subscription_id : var.azure_config.subscription.id
+  azurerm_subscription_name              = var.azure_config.subscription.name == null ? data.azurerm_subscription.current.display_name : var.azure_config.subscription.name
 }
 
 ## Step 2: Set up resource group and grant service principal permission in Azure
@@ -165,14 +167,6 @@ resource "azurerm_kusto_database" "database" {
   location            = var.azure_config.kusto_cluster.location != null ? var.azure_config.kusto_cluster.location : azurerm_resource_group.rg.location
   hot_cache_period    = each.value.hot_cache_period
   soft_delete_period  = each.value.soft_delete_period
-}
-
-# Lock Azure Resource Group
-resource "azurerm_management_lock" "resource-group-level" {
-  name       = "LockResourceGroup"
-  scope      = azurerm_resource_group.rg.id
-  lock_level = "CanNotDelete"
-  notes      = "This Resource Group is not allowed to be deleted"
 }
 
 ## Step 3: Set up AWS IAM User and Access Key

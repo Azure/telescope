@@ -5,11 +5,6 @@ tags = {
 azure_config = {
   service_connection_name        = "Azure-for-Telescope"
   service_connection_description = "Managed by Terraform"
-  subscription = {
-    id     = "00000000-0000-0000-0000-000000000000"
-    name   = "Azure Test Subscription"
-    tenant = "00000000-0000-0000-0000-000000000000"
-  }
   resource_group = {
     name     = "telescope20240819"
     location = "eastus"
@@ -38,7 +33,7 @@ azure_config = {
 }
 aws_config = {
   region                         = "us-east-1"
-  user_name                      = "telescope"
+  user_name                      = "telescope20240819"
   policy_names                   = ["AdministratorAccess"]
   service_connection_name        = "AWS-for-Telescope"
   service_connection_description = "Managed by Terraform"
