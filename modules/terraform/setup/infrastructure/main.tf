@@ -122,15 +122,6 @@ resource "azurerm_eventhub_namespace" "eventhub_ns" {
   tags                = local.tags
 }
 
-# Event Hub
-resource "azurerm_eventhub" "eventhub" {
-  name                = "adx-eg-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
-  namespace_name      = azurerm_eventhub_namespace.eventhub_ns.name
-  resource_group_name = azurerm_resource_group.rg.name
-  partition_count     = 8
-  message_retention   = 7
-}
-
 # Kusto Cluster
 resource "azurerm_kusto_cluster" "cluster" {
   name                = var.azure_config.kusto_cluster.name
@@ -144,6 +135,13 @@ resource "azurerm_kusto_cluster" "cluster" {
     type = "SystemAssigned"
   }
   tags = local.tags
+}
+
+# Storage Role Assignment for Kusto Cluster
+resource "azurerm_role_assignment" "storage_blob_contributor_role_assignment_for_kusto_cluster" {
+  role_definition_name = "Storage Blob Data Contributor"
+  scope                = azurerm_storage_account.storage.id
+  principal_id         = azurerm_kusto_cluster.cluster.identity[0].principal_id
 }
 
 # Kusto Role Assignment

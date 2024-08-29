@@ -29,6 +29,7 @@ For all modules, you need to have the following prerequisites:
   - Pipeline Resources (Use & Manage)
   - Service Connections (Read, Query & Manage)
   - Variable Groups (Read, Create & Manage)
+  - Code (Read) - For pipeline setup, if the pipeline is in ADO repository
 
 - Set the Azure DevOps organization service URL in the environment variable `AZDO_ORG_SERVICE_URL`
 - Set the AWS Access Key ID and Secret Access Key in the environment variable `AWS_ACCESS_KEY_ID` and `AWS_SECRET`
@@ -48,6 +49,7 @@ This module creates the following resources:
 - Service Principal and grant owner access to the subscription
 - Azure Data Explorer Cluster
 - Azure Data Explorer Database
+- Azure Event Hub Namespace
 - Azure Storage Account 
 - Azure Storage Container
 - Azure Service Connection
