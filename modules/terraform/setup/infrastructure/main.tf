@@ -112,6 +112,24 @@ resource "azurerm_storage_container" "container" {
   storage_account_name = azurerm_storage_account.storage.name
 }
 
+# Event Hub Namespace
+resource "azurerm_eventhub_namespace" "eventhub_ns" {
+  name                = "ADX-EG-telescope-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"
+  capacity            = 1
+  tags                = local.tags
+}
+
+# Event Hub
+resource "azurerm_eventhub" "eventhub" {
+  name                = "adx-eg-${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
+  namespace_name      = azurerm_eventhub_namespace.eventhub_ns.name
+  resource_group_name = azurerm_resource_group.rg.name
+  partition_count     = 8
+  message_retention   = 7
+}
 
 # Kusto Cluster
 resource "azurerm_kusto_cluster" "cluster" {
