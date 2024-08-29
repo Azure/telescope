@@ -1,8 +1,4 @@
-variables:
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: apiserver-vn100pod3k
-  SCENARIO_VERSION: v1.1.5
-
+trigger: none
 schedules:
   - cron: "0 0 * * *"
     displayName: "Daily midnight build"
@@ -10,6 +6,11 @@ schedules:
       include:
         - main
     always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-vn100pod3k
+  SCENARIO_VERSION: v1.1.5
 
 stages:
   - stage: aws_eastus2

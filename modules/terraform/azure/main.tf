@@ -5,7 +5,7 @@ locals {
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
 
   tags = {
-    "owner"             = lookup(var.json_input, "owner", "github_actions")
+    "owner"             = var.owner
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)

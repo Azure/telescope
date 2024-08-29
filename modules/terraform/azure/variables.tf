@@ -1,7 +1,6 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    owner  = string
     run_id = string
     region = string
     aks_cli_system_node_pool = optional(object({
@@ -19,6 +18,12 @@ variable "json_input" {
       }))
     )
   })
+}
+
+variable "owner" {
+  description = "Owner of the scenario"
+  type        = string
+  default     = "azure_devops"
 }
 
 variable "scenario_name" {
@@ -69,14 +74,15 @@ variable "aks_config_list" {
       max_pods                     = optional(number)
     })
     extra_node_pool = list(object({
-      name         = string
-      subnet_name  = optional(string)
-      node_count   = number
-      vm_size      = string
-      os_sku       = optional(string)
-      os_disk_type = optional(string)
-      max_pods     = optional(number)
-      zones        = optional(list(string), [])
+      name              = string
+      subnet_name       = optional(string)
+      node_count        = number
+      vm_size           = string
+      os_sku            = optional(string)
+      os_disk_type      = optional(string)
+      max_pods          = optional(number)
+      ultra_ssd_enabled = optional(bool, false)
+      zones             = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
   }))
@@ -109,4 +115,3 @@ variable "aks_cli_config_list" {
   }))
   default = []
 }
-

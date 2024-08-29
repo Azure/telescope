@@ -1,6 +1,8 @@
 scenario_type  = "perf-eval"
 scenario_name  = "apiserver-vn100pod10k"
 deletion_delay = "20h"
+owner          = "aks"
+
 aks_cli_config_list = [
   {
     role     = "client"
