@@ -28,7 +28,9 @@ variable "azure_devops_config" {
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_STORAGE_SUBSCRIPTION"),
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_STORAGE_ACCOUNT_NAME"),
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SERVICE_CONNECTION"),
-      contains([for v in var.azure_devops_config.variables : v.name], "AWS_SERVICE_CONNECTION")
+      contains([for v in var.azure_devops_config.variables : v.name], "AWS_SERVICE_CONNECTION"),
+      contains([for v in var.azure_devops_config.variables : v.name], "CREDENTIAL_TYPE"),
+      (var.azure_devops_config.variables[index([for v in var.azure_devops_config.variables : v.name], "CREDENTIAL_TYPE")].value == "service_connection")
     ])
     error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_STORAGE_SUBSCRIPTION, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION, AZURE_STORAGE_ACCOUNT_NAME"
   }

@@ -21,7 +21,12 @@ azure_devops_config = {
     {
       name  = "AZURE_SERVICE_CONNECTION"
       value = "Azure-for-Telescope"
-  }]
+    },
+    {
+      name  = "CREDENTIAL_TYPE"
+      value = "service_connection"
+    }
+  ]
   pipeline_config = {
     name = "Test Pipeline"
     path = "\\"
