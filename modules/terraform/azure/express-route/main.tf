@@ -10,12 +10,7 @@ resource "azurerm_virtual_network_gateway" "vnet_gateway" {
     private_ip_address_allocation = var.vnet_gateway_config.ipconfiguration.private_ip_address_allocation
     subnet_id                     = var.vnet_gateway_config.ipconfiguration.subnet_id
   }
-  tags = merge(
-    var.tags,
-    {
-      "role" = local.role
-    },
-  )
+  tags = var.tags
 }
 
 resource "azurerm_virtual_network_gateway_connection" "onpremise" {
@@ -27,10 +22,5 @@ resource "azurerm_virtual_network_gateway_connection" "onpremise" {
   type                       = var.vnet_gateway_connection_config.type
   virtual_network_gateway_id = azurerm_virtual_network_gateway.vnet_gateway.id
 
-  tags = merge(
-    var.tags,
-    {
-      "role" = local.role
-    },
-  )
+  tags var.tags
 }
