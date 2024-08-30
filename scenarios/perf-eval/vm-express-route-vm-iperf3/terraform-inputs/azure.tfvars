@@ -21,7 +21,7 @@ network_config_list = [
       name           = "server-subnet"
       address_prefix = "10.2.1.0/24"
     },{
-      name           = "gateway-subnet"
+      name           = "GatewaySubnet"
       address_prefix = "10.2.2.0/24"
     },
     ]
@@ -163,7 +163,7 @@ vnet_gateway_config = {
     name = "default"
     public_ip_address_name = "eg-pip"
     private_ip_address_allocation = "Dynamic"
-    subnet_name = "gateway-subnet"
+    subnet_name = "GatewaySubnet"
     vnet_name = "server-vnetEG"
   }
   vnet_gateway_connection = {
