@@ -15,6 +15,9 @@ parameters:
   default: managed_identity
 
 steps:
+- template: /steps/cloud/${{ parameters.cloud }}/login.yml
+  parameters:
+    credential_type: ${{ parameters.credential_type }}
 - template: /steps/terraform/run-command.yml
   parameters:
     command: destroy
