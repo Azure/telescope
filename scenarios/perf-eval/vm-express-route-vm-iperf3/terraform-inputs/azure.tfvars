@@ -22,7 +22,7 @@ network_config_list = [
       address_prefix = "10.2.1.0/24"
     },{
       name           = "Gateway-subnet"
-      address_prefix = "10.2.0.0/24"
+      address_prefix = "10.2.2.0/24"
     },
     ]
     network_security_group_name = "server-nsg"
