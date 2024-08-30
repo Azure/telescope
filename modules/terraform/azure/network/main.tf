@@ -59,12 +59,14 @@ resource "azurerm_network_security_group" "nsg" {
 
 
 resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
-  for_each = local.network_security_group_name != "" ? 
-              { for k, v in local.subnets_map : k => v if k != "GatewaySubnet" } : {}
+  for_each = local.network_security_group_name != "" ? {
+    for k, v in local.subnets_map : k => v if k != "GatewaySubnet"
+  } : {}
 
   subnet_id                 = each.value.id
   network_security_group_id = azurerm_network_security_group.nsg[0].id
 }
+
 
 resource "azurerm_network_interface" "nic" {
   for_each = local.nic_association_map
