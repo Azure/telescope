@@ -16,19 +16,21 @@ help:
 	@echo " make pipeline_setup - Setup a new pipeline"
 	@echo " make table_dataconnection_setup - Create a new table and data connection"
 
+all: infrastructure_setup pipeline_setup table_dataconnection_setup
+
 infrastructure_setup:
 	@echo "Setting up a new infrastructure"
 	cd $(TF_INFRASTRUCTURE_DIR) && \
 	terraform init && \
 	terraform plan -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE) && \
-	terraform apply -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE)
+	terraform apply -var-file=$(TF_INFRASTRUCTURE_INPUT_FILE) --auto-approve
 
 pipeline_setup:
 	@echo "Setting up a new pipeline"
 	cd $(TF_PIPELINE_DIR) && \
 	terraform init && \
 	terraform plan -var-file=$(TF_PIPELINE_INPUT_FILE) && \
-	terraform apply -var-file=$(TF_PIPELINE_INPUT_FILE)
+	terraform apply -var-file=$(TF_PIPELINE_INPUT_FILE) --auto-approve
 
 table_dataconnection_setup:
 	@echo "Setting up a new table and data connection"
@@ -36,5 +38,5 @@ table_dataconnection_setup:
 	cd $(TF_TABLE_DATA_CONNECTION_DIR) && \
 	terraform init && \
 	terraform plan -var-file=$(TF_TABLE_DATA_CONNECTION_INPUT_FILE) && \
-	terraform apply -var-file=$(TF_TABLE_DATA_CONNECTION_INPUT_FILE)
+	terraform apply -var-file=$(TF_TABLE_DATA_CONNECTION_INPUT_FILE) --auto-approve
 

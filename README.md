@@ -18,8 +18,22 @@ and provides 3 major re-usable components:
 * Azure Blob Storage, Event Hub and Data Explorer for reporting
 
 ## Quick Start
+1. Setup test framework by running commands as follows:
+```bash
+az login
+aws configure
 
-## Usage
+export AZDO_PERSONAL_ACCESS_TOKEN=<Azure DevOps Personal Access Token>
+export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Azure DevOps Org Name>
+export RESOURCE_GROUP_NAME=<Resource Group Name>
+
+cd modules/terraform/setup
+make all
+```
+
+2. Run test pipeline on Azure DevOps
+
+3. Check test result on Azure Data Explorer
 
 ## Contributing
 
