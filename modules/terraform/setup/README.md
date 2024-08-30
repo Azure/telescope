@@ -75,7 +75,7 @@ Operations supported by this module:
 ### Usage
 Run make command to create the pipeline setup after setting up the prerequisites
 ```bash
-make create_pipeline
+make pipeline_setup
 ```
 
 ## Table and Data Connection Setup
@@ -89,7 +89,7 @@ All the resources are created based on the input tfvars file which is located he
 ### Usage
 Run make command to create the table and data connection setup after setting up the prerequisites
 ```bash
-make table_data_connection_setup
+make table_dataconnection_setup
 ```
 
 ## Data-Ingestion
