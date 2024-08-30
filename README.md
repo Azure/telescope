@@ -3,7 +3,7 @@
 Telescope is a performance evaluation framework designed for testing and comparing cloud products. The framework allows users to make data-driven decisions on their multi-cloud strategy and currently supports Azure and AWS, with GCP support coming soon.
 
 ## Achitecture
-![arch](https://github.com/Azure/telescope/blob/main/docs/imgs/arch.png)
+![arch](./docs/imgs/arch.png)
 As the achitecture diagram above shows, Telescope streamlines the performance evaluation process in 5 steps:
 1. Provision Resources
 2. Validate Resources
