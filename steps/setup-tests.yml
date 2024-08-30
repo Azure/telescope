@@ -12,8 +12,6 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
-- name: credential_type
-  type: string
 
 steps:
 - script: |
@@ -46,7 +44,6 @@ steps:
 - template: /steps/cloud/${{ parameters.cloud }}/login.yml
   parameters:
     region: ${{ parameters.region }}
-    credential_type: ${{ parameters.credential_type }}
 
 - script: |
     if [ -n "${TEST_MODULES_DIR}" ]; then

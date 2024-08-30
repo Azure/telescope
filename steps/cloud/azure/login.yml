@@ -5,8 +5,6 @@ parameters:
 - name: subscription
   type: string
   default: $(AZURE_SUBSCRIPTION_ID)
-- name: credential_type
-  type: string
 
 steps:
 - ${{ if eq(variables['System.TeamProjectId'], '09706533-03bf-4b43-9a9b-b49c75429646') }}:

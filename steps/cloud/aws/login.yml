@@ -2,8 +2,6 @@ parameters:
 - name: region
   type: string
   default: us-east-1
-- name: credential_type
-  type: string
 
 steps:
 - ${{ if ne(variables['System.TeamProjectId'], '09706533-03bf-4b43-9a9b-b49c75429646') }}:
