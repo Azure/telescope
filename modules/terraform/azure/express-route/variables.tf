@@ -27,6 +27,7 @@ variable "vnet_gateway_config" {
     vnet_gateway_connection = object({
       connection_name = string
       type = string 
+      express_route_circuit_id = string
     })
   })
 }

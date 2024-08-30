@@ -169,6 +169,7 @@ vnet_gateway_config = {
   vnet_gateway_connection = {
   connection_name = "VnetGatewayConnection"
   type = "ExpressRoute"
+  express_route_circuit_id = "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/ExpressRouteTest/providers/Microsoft.Network/expressRouteCircuits/EastUSCircuit"
 }
 }
 

@@ -34,5 +34,7 @@ resource "azurerm_virtual_network_gateway_connection" "onpremise" {
   type                       = var.vnet_gateway_config.vnet_gateway_connection.type
   virtual_network_gateway_id = azurerm_virtual_network_gateway.vnet_gateway.id
 
+  express_route_circuit_id = var.vnet_gateway_config.vnet_gateway_connection.express_route_circuit_id
+
   tags = var.tags
 }
