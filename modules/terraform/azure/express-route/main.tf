@@ -20,7 +20,7 @@ resource "azurerm_virtual_network_gateway" "vnet_gateway" {
     name                          = var.vnet_gateway_config.ip_configuration.name
     public_ip_address_id          = data.azurerm_public_ip.gateway_ip.id
     private_ip_address_allocation = var.vnet_gateway_config.ip_configuration.private_ip_address_allocation
-    subnet_id                     = data.azurerm_subnet.gateway_subnet
+    subnet_id                     = data.azurerm_subnet.gateway_subnet.id
   }
   tags = var.tags
 }
