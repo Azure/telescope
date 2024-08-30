@@ -38,6 +38,7 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
+          credential_type: service_connection
   - stage: azure_eastus2
     dependsOn: []
     jobs:
@@ -61,3 +62,4 @@ stages:
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
+          credential_type: service_connection

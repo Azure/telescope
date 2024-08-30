@@ -33,9 +33,10 @@ data "azuredevops_git_repository" "repository" {
 }
 
 resource "azuredevops_build_definition" "Pipeline" {
-  project_id = data.azuredevops_project.project.id
-  name       = var.azure_devops_config.pipeline_config.name
-  path       = var.azure_devops_config.pipeline_config.path
+  project_id      = data.azuredevops_project.project.id
+  name            = var.azure_devops_config.pipeline_config.name
+  path            = var.azure_devops_config.pipeline_config.path
+  agent_pool_name = var.azure_devops_config.pipeline_config.agent_pool_name
 
 
   repository {
