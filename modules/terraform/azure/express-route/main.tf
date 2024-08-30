@@ -1,3 +1,14 @@
+data "azurerm_public_ip" "gateway_ip" {
+  name = var.vnet_gateway_config.ip_configuration.public_ip_address_name
+  resource_group_name = var.resource_group_name
+}
+
+data "azurerm_subnet" "gateway_subnet" {
+  name = var.vnet_gateway_config.ip_configuration.subnet_name
+  virtual_network_name = var.vnet_gateway_config.ip_configuration.vnet_name
+  resource_group_name = var.resource_group_name
+}
+
 resource "azurerm_virtual_network_gateway" "vnet_gateway" {
   name                = var.vnet_gateway_config.name
   location            = var.location
@@ -7,9 +18,9 @@ resource "azurerm_virtual_network_gateway" "vnet_gateway" {
   vpn_type            = var.vnet_gateway_config.vpn_type
   ip_configuration {
     name                          = var.vnet_gateway_config.ip_configuration.name
-    public_ip_address_id          = var.vnet_gateway_config.ip_configuration.public_ip_address_id
+    public_ip_address_id          = data.azurerm_public_ip.gateway_ip.id
     private_ip_address_allocation = var.vnet_gateway_config.ip_configuration.private_ip_address_allocation
-    subnet_id                     = var.vnet_gateway_config.ip_configuration.subnet_id
+    subnet_id                     = data.azurerm_subnet.gateway_subnet
   }
   tags = var.tags
 }

@@ -161,9 +161,10 @@ vnet_gateway_config = {
   sku = "Standard"
   ip_configuration = {
     name = "default"
-    public_ip_address_id = "eg-pip"
+    public_ip_address_name = "eg-pip"
     private_ip_address_allocation = "Dynamic"
-    subnet_id = "Gateway-subnet"
+    subnet_name = "Gateway-subnet"
+    vnet_name = "server-vnetEG"
   }
   vnet_gateway_connection = {
   connection_name = "VnetGatewayConnection"

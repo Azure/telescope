@@ -19,9 +19,10 @@ variable "vnet_gateway_config" {
     sku      = string
     ip_configuration = object({
       name                          = string
-      public_ip_address_id          = string
+      public_ip_address_name        = string
       private_ip_address_allocation = string
-      subnet_id                     = string
+      subnet_name                   = string
+      vnet_name                     = string
     })
     vnet_gateway_connection = object({
       connection_name = string
