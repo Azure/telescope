@@ -57,7 +57,6 @@ resource "azuredevops_serviceendpoint_github" "github_service_connection" {
 
 ## Step 2: Set up service connection to Azure
 
-
 resource "azuredevops_serviceendpoint_azurerm" "azure_service_connection" {
   project_id                             = data.azuredevops_project.ado_project.id
   service_endpoint_name                  = var.azure_config.service_connection_name
