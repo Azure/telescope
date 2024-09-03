@@ -3,6 +3,12 @@ variable "owner" {
   type        = string
 }
 
+variable "run_id" {
+  description = "Unique identifier for the run"
+  type        = string
+  default     = null
+}
+
 variable "scenario_name" {
   description = "Name of the scenario"
   type        = string
