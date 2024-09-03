@@ -9,11 +9,7 @@ variable "azure_config" {
   type = object({
     service_connection_name        = string
     service_connection_description = string
-    subscription = optional(object({
-      id     = string
-      name   = string
-      tenant = string
-    }), null)
+    subscription_id                = optional(string, null)
     resource_group = object({
       name     = string
       location = string

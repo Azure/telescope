@@ -20,7 +20,8 @@ terraform {
   }
 }
 
-data "azurerm_subscription" "current" {
+data "azurerm_subscription" "current_subscription" {
+  subscription_id = var.azure_config.subscription_id
 }
 
 provider "azurerm" {
@@ -36,7 +37,7 @@ provider "azuredevops" {
 }
 
 provider "azuread" {
-  tenant_id = data.azurerm_subscription.current.tenant_id
+  tenant_id = data.azurerm_subscription.current_subscription.tenant_id
 }
 
 ## Step 1: Set up service connection to Azure
@@ -50,9 +51,9 @@ resource "azuredevops_serviceendpoint_azurerm" "azure_service_connection" {
   service_endpoint_name                  = var.azure_config.service_connection_name
   description                            = var.azure_config.service_connection_description
   service_endpoint_authentication_scheme = "WorkloadIdentityFederation"
-  azurerm_spn_tenantid                   = var.azure_config.subscription.tenant == null ? data.azurerm_subscription.current.tenant_id : var.azure_config.subscription.tenant
-  azurerm_subscription_id                = var.azure_config.subscription.id == null ? data.azurerm_subscription.current.subscription_id : var.azure_config.subscription.id
-  azurerm_subscription_name              = var.azure_config.subscription.name == null ? data.azurerm_subscription.current.display_name : var.azure_config.subscription.name
+  azurerm_spn_tenantid                   = data.azurerm_subscription.current_subscription.tenant_id
+  azurerm_subscription_id                = data.azurerm_subscription.current_subscription.subscription_id
+  azurerm_subscription_name              = data.azurerm_subscription.current_subscription.display_name
 }
 
 ## Step 2: Set up resource group and grant service principal permission in Azure
@@ -70,15 +71,10 @@ data "azuread_service_principal" "service_principal" {
   application_id = azuredevops_serviceendpoint_azurerm.azure_service_connection.service_principal_id
 }
 
-# Subscription
-data "azurerm_subscription" "subscription" {
-  subscription_id = var.azure_config.subscription.id
-}
-
 # Role Assignment
 resource "azurerm_role_assignment" "subscription_owner_role_assignment" {
   role_definition_name = "owner"
-  scope                = data.azurerm_subscription.subscription.id
+  scope                = data.azurerm_subscription.current_subscription.id
   principal_id         = data.azuread_service_principal.service_principal.object_id
 }
 
