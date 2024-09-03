@@ -34,11 +34,6 @@ export TF_VAR_resource_group_name=<Resource Group Name>
 export TF_VAR_storage_account_name=<Storage Account Name>
 export TF_VAR_kusto_cluster_name=<Kusto Cluster Name>
 ```
-<!-- Note:
-- For Table and Data connection setup you need to set the following environment variables along with the above prerequisites
-```bash
-RESOURCE_GROUP_NAME=<Resource Group Name>
-``` -->
 
 ## Infrastructure Setup
 This module creates the following resources:
