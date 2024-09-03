@@ -2,22 +2,24 @@ tags = {
   "project" = "Telescope"
   "owner"   = "AKS Team"
 }
+github_config = {
+  service_connection_description = "Managed by Terraform"
+  service_connection_name        = "Github-for-Telescope"
+}
 azure_config = {
   service_connection_name        = "Azure-for-Telescope"
   service_connection_description = "Managed by Terraform"
+  subscription_id = null
   resource_group = {
-    name     = "telescope20240819"
-    location = "eastus"
+    location    = "eastus"
   }
   storage_account = {
-    name                      = "telescope20240819"
     account_tier              = "Standard"
     account_replication_type  = "LRS"
     shared_access_key_enabled = true
   }
   kusto_cluster = {
-    name     = "telescope20240819"
-    location = "eastus"
+    location    = "eastus"
     sku = {
       name     = "Standard_E16ads_v5"
       capacity = 2

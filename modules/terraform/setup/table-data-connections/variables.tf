@@ -3,10 +3,10 @@ variable "owner" {
   type        = string
 }
 
-variable "run_id" {
-  description = "Unique identifier for the run"
-  type        = string
-}
+# variable "subscription_id" {
+#   description = "Azure Subscription ID"
+#   type        = string
+# }
 
 variable "scenario_name" {
   description = "Name of the scenario"

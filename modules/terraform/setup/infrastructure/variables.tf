@@ -1,7 +1,29 @@
 variable "tags" {
   description = "Tags to be applied to all resources"
   type        = map(string)
+}
 
+variable "resource_group_name" {
+  description = "Name of the resource group"
+  type        = string
+}
+
+variable "storage_account_name" {
+  description = "Name of the storage account"
+  type        = string
+}
+
+variable "kusto_cluster_name" {
+  description = "Name of the Kusto cluster"
+  type        = string  
+}
+
+variable "github_config" {
+  description = "Github configuration"
+  type = object({
+    service_connection_name        = string
+    service_connection_description = string
+  })
 }
 
 variable "azure_config" {
@@ -10,18 +32,15 @@ variable "azure_config" {
     service_connection_name        = string
     service_connection_description = string
     subscription_id                = optional(string, null)
-    resource_group = object({
-      name     = string
+    resource_group = object({     
       location = string
     })
     storage_account = object({
-      name                      = string
       account_tier              = string
       account_replication_type  = string
       shared_access_key_enabled = bool
     })
-    kusto_cluster = object({
-      name     = string
+    kusto_cluster = object({      
       location = optional(string, null)
       sku = object({
         name     = string

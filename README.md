@@ -25,7 +25,10 @@ aws configure
 
 export AZDO_PERSONAL_ACCESS_TOKEN=<Azure DevOps Personal Access Token>
 export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Azure DevOps Org Name>
-export RESOURCE_GROUP_NAME=<Resource Group Name>
+export AZDO_GITHUB_SERVICE_CONNECTION_PAT=<GitHub Personal Access Token>
+export TF_VAR_resource_group_name=<Resource Group Name>
+export TF_VAR_storage_account_name=<Storage Account Name>
+export TF_VAR_kusto_cluster_name=<Kusto Cluster Name>
 
 cd modules/terraform/setup
 make all

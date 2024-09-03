@@ -29,6 +29,9 @@ For all modules, you need to have the following prerequisites:
 ```bash
 export AZDO_PERSONAL_ACCESS_TOKEN=<Personal Access Token>
 export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Your Org Name>
+export TF_VAR_resource_group_name=telescope20240903
+export TF_VAR_storage_account_name=telescope20240903
+export TF_VAR_kusto_cluster_name=telescope20240903
 ```
 Note:
 - For Table and Data connection setup you need to set the following environment variables along with the above prerequisites

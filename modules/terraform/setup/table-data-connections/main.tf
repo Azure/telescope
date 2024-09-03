@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">=1.5.6"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "<= 3.93.0"
+    }
+  }
+}
+
 provider "azurerm" {
   features {}
   storage_use_azuread = true
@@ -6,7 +16,7 @@ provider "azurerm" {
 locals {
   tags = {
     owner  = var.owner
-    run_id = var.run_id
+    run_id = "${formatdate("MM-DD-YYYY-hh-mm-ss", timestamp())}"
   }
 
   _scenario_type       = replace(trimspace(var.scenario_type), "/[./-]/", "_")

@@ -3,7 +3,7 @@ terraform {
   required_providers {
     azuredevops = {
       source  = "microsoft/azuredevops"
-      version = ">=0.1.0"
+      version = ">=0.2.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -20,10 +20,6 @@ terraform {
   }
 }
 
-data "azurerm_subscription" "current_subscription" {
-  subscription_id = var.azure_config.subscription_id
-}
-
 provider "azurerm" {
   features {}
   storage_use_azuread = true
@@ -36,27 +32,43 @@ provider "aws" {
 provider "azuredevops" {
 }
 
-provider "azuread" {
-  tenant_id = data.azurerm_subscription.current_subscription.tenant_id
+data "azurerm_subscription" "subscription" {
+  subscription_id = var.azure_config.subscription_id
 }
 
-## Step 1: Set up service connection to Azure
+provider "azuread" {
+  tenant_id = data.azurerm_subscription.subscription.tenant_id
+}
 
 data "azuredevops_project" "ado_project" {
   name = var.azuredevops_config.project_name
 }
+
+## Step 1: Set up Github service connection
+
+resource "azuredevops_serviceendpoint_github" "github_service_connection" {
+  project_id            = data.azuredevops_project.ado_project.id
+  service_endpoint_name = var.github_config.service_connection_name
+  description           = var.github_config.service_connection_description
+  auth_personal {
+    personal_access_token = null
+  }
+}
+
+## Step 2: Set up service connection to Azure
+
 
 resource "azuredevops_serviceendpoint_azurerm" "azure_service_connection" {
   project_id                             = data.azuredevops_project.ado_project.id
   service_endpoint_name                  = var.azure_config.service_connection_name
   description                            = var.azure_config.service_connection_description
   service_endpoint_authentication_scheme = "WorkloadIdentityFederation"
-  azurerm_spn_tenantid                   = data.azurerm_subscription.current_subscription.tenant_id
-  azurerm_subscription_id                = data.azurerm_subscription.current_subscription.subscription_id
-  azurerm_subscription_name              = data.azurerm_subscription.current_subscription.display_name
+  azurerm_spn_tenantid                   = data.azurerm_subscription.subscription.tenant_id
+  azurerm_subscription_id                = data.azurerm_subscription.subscription.subscription_id
+  azurerm_subscription_name              = data.azurerm_subscription.subscription.display_name
 }
 
-## Step 2: Set up resource group and grant service principal permission in Azure
+## Step 3: Set up resource group and grant service principal permission in Azure
 
 # Locals for tags
 locals {
@@ -74,20 +86,20 @@ data "azuread_service_principal" "service_principal" {
 # Role Assignment
 resource "azurerm_role_assignment" "subscription_owner_role_assignment" {
   role_definition_name = "owner"
-  scope                = data.azurerm_subscription.current_subscription.id
+  scope                = data.azurerm_subscription.subscription.id
   principal_id         = data.azuread_service_principal.service_principal.object_id
 }
 
 # Azure Resource Group
 resource "azurerm_resource_group" "rg" {
-  name     = var.azure_config.resource_group.name
+  name     = var.resource_group_name
   location = var.azure_config.resource_group.location
   tags     = local.tags
 }
 
 # Storage Account
 resource "azurerm_storage_account" "storage" {
-  name                      = var.azure_config.storage_account.name
+  name                      = var.storage_account_name
   resource_group_name       = azurerm_resource_group.rg.name
   location                  = azurerm_resource_group.rg.location
   account_tier              = var.azure_config.storage_account.account_tier
@@ -122,7 +134,7 @@ resource "azurerm_eventhub_namespace" "eventhub_ns" {
 
 # Kusto Cluster
 resource "azurerm_kusto_cluster" "cluster" {
-  name                = var.azure_config.kusto_cluster.name
+  name                = var.kusto_cluster_name
   resource_group_name = azurerm_resource_group.rg.name
   location            = var.azure_config.kusto_cluster.location != null ? var.azure_config.kusto_cluster.location : azurerm_resource_group.rg.location
   sku {

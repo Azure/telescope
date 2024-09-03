@@ -4,10 +4,33 @@ terraform {
       source  = "microsoft/azuredevops"
       version = ">=0.1.0"
     }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "<= 3.93.0"
+    }
   }
 }
 
 provider "azuredevops" {
+}
+
+provider "azurerm" {
+  features {}
+}
+
+data "azurerm_subscription" "subscription" {
+}
+
+locals {  
+  azure_storage_account_variable = {
+    name  = "AZURE_STORAGE_ACCOUNT_NAME"
+    value = var.storage_account_name
+  }
+  pipeline_variables = concat([ for variable in var.azure_devops_config.variables : {
+    name  = variable.name
+    value = (variable.name == "AZURE_SUBSCRIPTION_ID" && variable.value == "00000000-0000-0000-0000-000000000000") ? data.azurerm_subscription.subscription.subscription_id : variable.value
+  }], [local.azure_storage_account_variable])
+
 }
 
 data "azuredevops_project" "project" {
@@ -50,7 +73,7 @@ resource "azuredevops_build_definition" "Pipeline" {
   variable_groups = length(data.azuredevops_variable_group.variable_groups) > 0 ? [for group in data.azuredevops_variable_group.variable_groups : group.id] : null
 
   dynamic "variable" {
-    for_each = var.azure_devops_config.variables
+    for_each = local.pipeline_variables
     content {
       name  = variable.value.name
       value = variable.value.value
