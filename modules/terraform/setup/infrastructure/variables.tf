@@ -15,7 +15,7 @@ variable "storage_account_name" {
 
 variable "kusto_cluster_name" {
   description = "Name of the Kusto cluster"
-  type        = string  
+  type        = string
 }
 
 variable "github_config" {
@@ -32,7 +32,7 @@ variable "azure_config" {
     service_connection_name        = string
     service_connection_description = string
     subscription_id                = optional(string, null)
-    resource_group = object({     
+    resource_group = object({
       location = string
     })
     storage_account = object({
@@ -40,7 +40,7 @@ variable "azure_config" {
       account_replication_type  = string
       shared_access_key_enabled = bool
     })
-    kusto_cluster = object({      
+    kusto_cluster = object({
       location = optional(string, null)
       sku = object({
         name     = string

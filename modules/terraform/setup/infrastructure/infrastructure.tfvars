@@ -9,9 +9,9 @@ github_config = {
 azure_config = {
   service_connection_name        = "Azure-for-Telescope"
   service_connection_description = "Managed by Terraform"
-  subscription_id = null
+  subscription_id                = null
   resource_group = {
-    location    = "eastus"
+    location = "eastus"
   }
   storage_account = {
     account_tier              = "Standard"
@@ -19,7 +19,7 @@ azure_config = {
     shared_access_key_enabled = true
   }
   kusto_cluster = {
-    location    = "eastus"
+    location = "eastus"
     sku = {
       name     = "Standard_E16ads_v5"
       capacity = 2

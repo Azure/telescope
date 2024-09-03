@@ -21,12 +21,12 @@ provider "azurerm" {
 data "azurerm_subscription" "subscription" {
 }
 
-locals {  
+locals {
   azure_storage_account_variable = {
     name  = "AZURE_STORAGE_ACCOUNT_NAME"
     value = var.storage_account_name
   }
-  pipeline_variables = concat([ for variable in var.azure_devops_config.variables : {
+  pipeline_variables = concat([for variable in var.azure_devops_config.variables : {
     name  = variable.name
     value = (variable.name == "AZURE_SUBSCRIPTION_ID" && variable.value == "00000000-0000-0000-0000-000000000000") ? data.azurerm_subscription.subscription.subscription_id : variable.value
   }], [local.azure_storage_account_variable])
