@@ -15,8 +15,7 @@ provider "azurerm" {
 
 locals {
   tags = {
-    owner  = var.owner
-    run_id = var.run_id == null ? formatdate("MM-DD-YYYY-hh-mm-ss", timestamp()) : var.run_id
+    owner = var.owner
   }
 
   _scenario_type       = replace(trimspace(var.scenario_type), "/[./-]/", "_")
