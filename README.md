@@ -1,6 +1,6 @@
 # Telescope
 
-Telescope is a framework designed to test and compare cloud products and features, specifically evaluating functionality and performance. It empowers users to make data-driven decisions in their multi-cloud strategy, currently supporting Azure and AWS, with GCP support coming soon.
+Telescope is a framework designed for testing and comparing cloud products and features, specifically evaluating functionality and performance. It empowers users to make data-driven decisions on their multi-cloud strategy, currently supporting Azure and AWS, with GCP support coming soon.
 
 ## Achitecture
 ![arch](./docs/imgs/arch.png)
