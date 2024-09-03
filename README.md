@@ -1,10 +1,10 @@
 # Telescope
 
-Telescope is a performance evaluation framework designed for testing and comparing cloud products. The framework allows users to make data-driven decisions on their multi-cloud strategy and currently supports Azure and AWS, with GCP support coming soon.
+Telescope is a framework designed for testing and comparing cloud products and features, specifically evaluating functionality and performance. It empowers users to make data-driven decisions on their multi-cloud strategy, currently supporting Azure and AWS, with GCP support coming soon.
 
 ## Achitecture
 ![arch](./docs/imgs/arch.png)
-As the achitecture diagram above shows, Telescope streamlines the performance evaluation process in 5 steps:
+As the achitecture diagram above shows, Telescope streamlines the evaluation process in 5 steps:
 1. Provision Resources
 2. Validate Resources
 3. Execute Tests
@@ -13,9 +13,9 @@ As the achitecture diagram above shows, Telescope streamlines the performance ev
 
 and provides 3 major re-usable components:
 
-* Terraform modules to manage target cloud resources
+* Terraform modules to manage target test resources
 * Azure Pipeline to ochestrate and automate test runs
-* Azure Blob Storage, Event Hub and Data Explorer for reporting
+* Azure Blob Storage, Event Hub and Data Explorer for test reporting
 
 ## Quick Start
 1. Setup test framework by running commands as follows:
@@ -34,9 +34,11 @@ cd modules/terraform/setup
 make all
 ```
 
-2. Run test pipeline on Azure DevOps
+2. Run pipeline or wait for scheduled run on Azure DevOps
+![pipeline](./docs/imgs/pipeline.jpeg)
 
-3. Check test result on Azure Data Explorer
+3. Import [dashboard](./dashboards/example.json) and check test results on Azure Data Explorer
+![results](./docs/imgs/results.jpeg)
 
 ## Contributing
 
