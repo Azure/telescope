@@ -7,10 +7,6 @@ azure_devops_config = {
       value = "telescope20240819"
     },
     {
-      name  = "AZURE_STORAGE_SUBSCRIPTION"
-      value = "00000000-0000-0000-0000-000000000000"
-    },
-    {
       name  = "AZURE_SUBSCRIPTION_ID"
       value = "00000000-0000-0000-0000-000000000000"
     },
