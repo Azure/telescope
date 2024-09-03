@@ -3,11 +3,6 @@ variable "owner" {
   type        = string
 }
 
-# variable "subscription_id" {
-#   description = "Azure Subscription ID"
-#   type        = string
-# }
-
 variable "scenario_name" {
   description = "Name of the scenario"
   type        = string
