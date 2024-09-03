@@ -9,7 +9,6 @@ steps:
 - template: /steps/cloud/azure/login.yml
   parameters:
     region: eastus
-    subscription: $(AZURE_STORAGE_SUBSCRIPTION)
     credential_type: ${{ parameters.credential_type }}
 
 - bash: |
