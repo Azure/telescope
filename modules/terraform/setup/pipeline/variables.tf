@@ -25,11 +25,10 @@ variable "azure_devops_config" {
   validation {
     condition = alltrue([
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SUBSCRIPTION_ID"),
-      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_STORAGE_ACCOUNT_NAME"),
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SERVICE_CONNECTION"),
       contains([for v in var.azure_devops_config.variables : v.name], "AWS_SERVICE_CONNECTION")
     ])
-    error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION, AZURE_STORAGE_ACCOUNT_NAME"
+    error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION"
   }
 
   validation {
@@ -46,4 +45,9 @@ variable "azure_devops_config" {
     condition     = (var.azure_devops_config.pipeline_config.repository.repo_type == "GitHub" && strcontains(var.azure_devops_config.pipeline_config.repository.repository_name, "/")) || (var.azure_devops_config.pipeline_config.repository.repo_type == "TfsGit" && !strcontains(var.azure_devops_config.pipeline_config.repository.repository_name, "/"))
     error_message = "Repository Name for a GitHub repository should be in the form: OwnerName/Repository and for TfsGit should not contain a /"
   }
+}
+
+variable "storage_account_name" {
+  description = "Name of the storage account"
+  type        = string
 }
