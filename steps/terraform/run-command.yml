@@ -77,7 +77,7 @@ steps:
           exit 1
         fi
       done
-    else      
+    else
       terraform ${{ parameters.command }} ${{ parameters.arguments }}
     fi
   displayName: "Run Terraform ${{ parameters.command }} Command"
