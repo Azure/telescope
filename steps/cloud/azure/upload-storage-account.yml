@@ -32,3 +32,8 @@ steps:
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
+
+- template: /steps/cloud/azure/login.yml
+  parameters:
+    credential_type: ${{ parameters.credential_type }}
+  displayName: "Login back after uploading results with storage account"
