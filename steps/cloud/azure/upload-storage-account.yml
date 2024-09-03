@@ -4,6 +4,7 @@ parameters:
   subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
   container_name: $(SCENARIO_TYPE)
   credential_type: string
+  region: string
 
 steps:
 - template: /steps/cloud/azure/login.yml
@@ -33,7 +34,8 @@ steps:
     CONTAINER_NAME: ${{ parameters.container_name}}
     AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
 
+# we need to login back to original subscription after uploading result to storage account
 - template: /steps/cloud/azure/login.yml
   parameters:
+    region: ${{ parameters.region }}
     credential_type: ${{ parameters.credential_type }}
-  displayName: "Login back after uploading results with storage account"
