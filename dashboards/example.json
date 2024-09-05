@@ -1,0 +1,327 @@
+{
+    "$schema": "https://dataexplorer.azure.com/static/d/schema/52/dashboard.json",
+    "id": "5a058a0b-b125-487c-a7c6-13a78f48a4f1",
+    "eTag": "cd1fc19c-f0bb-4475-82d8-13836a5f851b",
+    "schema_version": "52",
+    "title": "Telescope API Server Benchmark",
+    "tiles": [
+        {
+            "id": "b86c9b02-d1e6-4ebf-b14f-51a0d4136a16",
+            "title": "API Server List latency P50",
+            "visualType": "column",
+            "pageId": "839ee31d-a676-4c71-b315-abbfb24e25af",
+            "layout": {
+                "x": 12,
+                "y": 1,
+                "width": 12,
+                "height": 8
+            },
+            "queryRef": {
+                "kind": "query",
+                "queryId": "e9467c52-09f9-4130-8811-de9494f95a7e"
+            },
+            "visualOptions": {
+                "multipleYAxes": {
+                    "base": {
+                        "id": "-1",
+                        "label": "Latency (Seconds)",
+                        "columns": [],
+                        "yAxisMaximumValue": null,
+                        "yAxisMinimumValue": null,
+                        "yAxisScale": "linear",
+                        "horizontalLines": []
+                    },
+                    "additional": [],
+                    "showMultiplePanels": false
+                },
+                "hideLegend": false,
+                "legendLocation": "bottom",
+                "xColumnTitle": "",
+                "xColumn": "APF",
+                "yColumns": null,
+                "seriesColumns": [
+                    "cloud"
+                ],
+                "xAxisScale": "linear",
+                "verticalLine": "",
+                "crossFilterDisabled": false,
+                "drillthroughDisabled": false,
+                "crossFilter": [],
+                "drillthrough": []
+            }
+        },
+        {
+            "id": "59388b5f-0d80-4398-8c31-1f767ee46bee",
+            "title": "API Server Failure Rate (%)",
+            "visualType": "column",
+            "pageId": "839ee31d-a676-4c71-b315-abbfb24e25af",
+            "layout": {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 8
+            },
+            "queryRef": {
+                "kind": "query",
+                "queryId": "1a1ec63f-5ffd-44ca-8e14-80631adf0f85"
+            },
+            "visualOptions": {
+                "multipleYAxes": {
+                    "base": {
+                        "id": "-1",
+                        "label": "",
+                        "columns": [],
+                        "yAxisMaximumValue": null,
+                        "yAxisMinimumValue": null,
+                        "yAxisScale": "linear",
+                        "horizontalLines": []
+                    },
+                    "additional": [],
+                    "showMultiplePanels": false
+                },
+                "hideLegend": false,
+                "legendLocation": "bottom",
+                "xColumnTitle": "",
+                "xColumn": "FlowControl",
+                "yColumns": null,
+                "seriesColumns": [
+                    "Cloud"
+                ],
+                "xAxisScale": "linear",
+                "verticalLine": "",
+                "crossFilterDisabled": false,
+                "drillthroughDisabled": false,
+                "crossFilter": [],
+                "drillthrough": []
+            }
+        },
+        {
+            "id": "4eb5026b-fba1-4e3b-bcfb-525ad05550b2",
+            "title": "API Server List latency P90",
+            "visualType": "column",
+            "pageId": "839ee31d-a676-4c71-b315-abbfb24e25af",
+            "layout": {
+                "x": 0,
+                "y": 9,
+                "width": 12,
+                "height": 8
+            },
+            "queryRef": {
+                "kind": "query",
+                "queryId": "eed89fd3-f741-478e-af02-bde8fb6ab936"
+            },
+            "visualOptions": {
+                "multipleYAxes": {
+                    "base": {
+                        "id": "-1",
+                        "label": "Latency (Seconds)",
+                        "columns": [],
+                        "yAxisMaximumValue": null,
+                        "yAxisMinimumValue": null,
+                        "yAxisScale": "linear",
+                        "horizontalLines": []
+                    },
+                    "additional": [],
+                    "showMultiplePanels": false
+                },
+                "hideLegend": false,
+                "legendLocation": "bottom",
+                "xColumnTitle": "",
+                "xColumn": "APF",
+                "yColumns": null,
+                "seriesColumns": [
+                    "cloud"
+                ],
+                "xAxisScale": "linear",
+                "verticalLine": "",
+                "crossFilterDisabled": false,
+                "drillthroughDisabled": false,
+                "crossFilter": [],
+                "drillthrough": []
+            }
+        },
+        {
+            "id": "9bf6132f-ebad-40b6-a309-27d77100a977",
+            "title": "API Server List latency P99",
+            "visualType": "column",
+            "pageId": "839ee31d-a676-4c71-b315-abbfb24e25af",
+            "layout": {
+                "x": 12,
+                "y": 9,
+                "width": 12,
+                "height": 8
+            },
+            "queryRef": {
+                "kind": "query",
+                "queryId": "638577e1-bb92-4638-b327-c379c9aea1f7"
+            },
+            "visualOptions": {
+                "multipleYAxes": {
+                    "base": {
+                        "id": "-1",
+                        "label": "Latency (Seconds)",
+                        "columns": [],
+                        "yAxisMaximumValue": null,
+                        "yAxisMinimumValue": null,
+                        "yAxisScale": "linear",
+                        "horizontalLines": []
+                    },
+                    "additional": [],
+                    "showMultiplePanels": false
+                },
+                "hideLegend": false,
+                "legendLocation": "bottom",
+                "xColumnTitle": "",
+                "xColumn": "APF",
+                "yColumns": null,
+                "seriesColumns": [
+                    "cloud"
+                ],
+                "xAxisScale": "linear",
+                "verticalLine": "",
+                "crossFilterDisabled": false,
+                "drillthroughDisabled": false,
+                "crossFilter": [],
+                "drillthrough": []
+            }
+        },
+        {
+            "id": "3433ffae-789e-4913-99e1-654cc34ea4f4",
+            "title": "Raw Data",
+            "visualType": "table",
+            "pageId": "839ee31d-a676-4c71-b315-abbfb24e25af",
+            "layout": {
+                "x": 0,
+                "y": 17,
+                "width": 24,
+                "height": 5
+            },
+            "queryRef": {
+                "kind": "query",
+                "queryId": "7f702a24-b15d-4a53-a3c7-76a95e3116de"
+            },
+            "visualOptions": {
+                "table__enableRenderLinks": true,
+                "colorRulesDisabled": true,
+                "colorStyle": "light",
+                "crossFilterDisabled": false,
+                "drillthroughDisabled": false,
+                "crossFilter": [],
+                "drillthrough": [],
+                "table__renderLinks": [],
+                "colorRules": []
+            }
+        },
+        {
+            "id": "acda2b66-87d5-452b-a775-20dcc369dd70",
+            "title": "   AKS is comparable to EKS in terms of API server failure rate and latency for a configuration of 10 nodes and 100 pods.",
+            "visualType": "markdownCard",
+            "pageId": "839ee31d-a676-4c71-b315-abbfb24e25af",
+            "layout": {
+                "x": 0,
+                "y": 0,
+                "width": 24,
+                "height": 1
+            },
+            "markdownText": "",
+            "visualOptions": {}
+        }
+    ],
+    "baseQueries": [],
+    "parameters": [
+        {
+            "kind": "duration",
+            "id": "9140bc21-d1f9-4cb5-a882-53362c155534",
+            "displayName": "Time range",
+            "description": "",
+            "beginVariableName": "_startTime",
+            "endVariableName": "_endTime",
+            "defaultValue": {
+                "kind": "dynamic",
+                "count": 24,
+                "unit": "hours"
+            },
+            "showOnPages": {
+                "kind": "all"
+            }
+        }
+    ],
+    "dataSources": [
+        {
+            "id": "6505704c-f746-420c-89f2-f2b4dcb1b4b9",
+            "kind": "manual-kusto",
+            "scopeId": "kusto",
+            "name": "telescope",
+            "clusterUri": "https://akstelescope.eastus.kusto.windows.net/",
+            "database": "perf_eval"
+        }
+    ],
+    "pages": [
+        {
+            "name": "10 nodes 100 pods Test",
+            "id": "839ee31d-a676-4c71-b315-abbfb24e25af"
+        }
+    ],
+    "queries": [
+        {
+            "dataSource": {
+                "kind": "inline",
+                "dataSourceId": "6505704c-f746-420c-89f2-f2b4dcb1b4b9"
+            },
+            "text": "apiserver_vn10pod100_main\n| where timestamp between (_startTime .._endTime )\n| extend APF = tostring(info.flowcontrol)\n| extend P50 = todouble(result.percentileLatencies[1][1])\n| where cloud ==\"azure\" or cloud ==\"aws\"\n| summarize P50 = avg(P50) by cloud, APF\n| render columnchart  with (ycolumns=P50,xcolumn=APF,series=cloud)",
+            "id": "e9467c52-09f9-4130-8811-de9494f95a7e",
+            "usedVariables": [
+                "_endTime",
+                "_startTime"
+            ]
+        },
+        {
+            "dataSource": {
+                "kind": "inline",
+                "dataSourceId": "6505704c-f746-420c-89f2-f2b4dcb1b4b9"
+            },
+            "text": "apiserver_vn10pod100_main\n| where timestamp between (_startTime .. _endTime)\n| extend infoObj=parse_json(info)\n| extend loadSpecObj=parse_json(loadSpec)\n| extend TotalRequests=toint(loadSpecObj[\"count\"])*toint(loadSpecObj[\"loadProfile\"][\"spec\"][\"total\"])\n| extend TotalFailures=TotalRequests-toint(result[\"total\"])\n| extend FlowControl=tostring(infoObj.flowcontrol)\n| extend FailureRate=TotalFailures * 100.0 / TotalRequests\n| project Cloud=cloud, FlowControl, FailureRate\n| where Cloud == \"aws\" or Cloud == \"azure\"\n| summarize Rate=avg(FailureRate) by Cloud, FlowControl",
+            "id": "1a1ec63f-5ffd-44ca-8e14-80631adf0f85",
+            "usedVariables": [
+                "_endTime",
+                "_startTime"
+            ]
+        },
+        {
+            "dataSource": {
+                "kind": "inline",
+                "dataSourceId": "6505704c-f746-420c-89f2-f2b4dcb1b4b9"
+            },
+            "text": "apiserver_vn10pod100_main\n| where timestamp between (_startTime .._endTime )\n| extend APF = tostring(info.flowcontrol)\n| extend P90 = todouble(result.percentileLatencies[2][1])\n| where cloud ==\"azure\" or cloud ==\"aws\"\n| summarize P90 = avg(P90) by cloud, APF\n| render columnchart  with (ycolumns=P90,xcolumn=APF,series=cloud)",
+            "id": "eed89fd3-f741-478e-af02-bde8fb6ab936",
+            "usedVariables": [
+                "_endTime",
+                "_startTime"
+            ]
+        },
+        {
+            "dataSource": {
+                "kind": "inline",
+                "dataSourceId": "6505704c-f746-420c-89f2-f2b4dcb1b4b9"
+            },
+            "text": "apiserver_vn10pod100_main\n| where timestamp between (_startTime .._endTime )\n| extend APF = tostring(info.flowcontrol)\n| extend P99 = todouble(result.percentileLatencies[4][1])\n| where cloud ==\"azure\" or cloud ==\"aws\"\n| summarize P99 = avg(P99) by cloud, APF\n| render columnchart  with (ycolumns=P99,xcolumn=APF,series=cloud)",
+            "id": "638577e1-bb92-4638-b327-c379c9aea1f7",
+            "usedVariables": [
+                "_endTime",
+                "_startTime"
+            ]
+        },
+        {
+            "dataSource": {
+                "kind": "inline",
+                "dataSourceId": "6505704c-f746-420c-89f2-f2b4dcb1b4b9"
+            },
+            "text": "apiserver_vn10pod100_main\n| where timestamp between (_startTime .._endTime )\n| extend infoObj=parse_json(info)\n| extend resultObj=parse_json(result)\n| extend runURLObj=parse_url(runURL)\n| extend loadSpecObj=parse_json(loadSpec)\n| extend TotalRequests=toint(loadSpecObj[\"count\"])*toint(loadSpecObj[\"loadProfile\"][\"spec\"][\"total\"])\n| extend TotalFailures=TotalRequests-toint(result[\"total\"])\n| extend buildID=tostring(runURLObj[\"Query Parameters\"][\"buildId\"])\n| extend FlowControl=tostring(infoObj.flowcontrol)\n| extend FastestLatency=todouble(resultObj[\"percentileLatencies\"][0][1])\n| extend P50Latency=todouble(resultObj[\"percentileLatencies\"][1][1])\n| extend P90Latency=todouble(resultObj[\"percentileLatencies\"][2][1])\n| extend P95Latency=todouble(resultObj[\"percentileLatencies\"][3][1])\n| extend P99Latency=todouble(resultObj[\"percentileLatencies\"][4][1])\n| extend SlowestLatency=todouble(resultObj[\"percentileLatencies\"][5][1])\n| extend timestamp=todatetime(timestamp)\n| extend EachPodSizeInBytes=toint(infoObj.podSizeInBytes)\n| project buildID, Cloud=cloud, FlowControl, FastestLatency, P50Latency, P90Latency, P95Latency, P99Latency, SlowestLatency, TotalFailures, TotalRequests, resultUploadAt=timestamp, EachPodSizeInBytes\n| order by buildID, Cloud, FlowControl;",
+            "id": "7f702a24-b15d-4a53-a3c7-76a95e3116de",
+            "usedVariables": [
+                "_endTime",
+                "_startTime"
+            ]
+        }
+    ]
+}

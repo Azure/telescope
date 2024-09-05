@@ -13,33 +13,26 @@ For all modules, you need to have the following prerequisites:
 - Install [Terraform - 1.7.3](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
 - Install [Azure CLI - 2.57.0](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
 - Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
-- Azure DevOps CLI
 - Install [AWS CLI - 2.15.19](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
-- [Azure DevOps Authentication Guide](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token)
-- Azure login credentials
-- Azure DevOps login credentials(PAT token)
-- AWS Access Key ID and Secret Access Key
-- Azure DevOps organization service URL - `https://dev.azure.com/<Your Org Name>`
 
 ### Steps to setup the prerequisites
 - Generate a PAT token from Azure DevOps and store it in the environment variable `AZDO_PERSONAL_ACCESS_TOKEN`
-- Permissions for PAT token: 
+- Permissions for PAT token:
   - Agent Pools (Read & Manage)
   - Build (Read & Execute)
   - Pipeline Resources (Use & Manage)
   - Service Connections (Read, Query & Manage)
   - Variable Groups (Read, Create & Manage)
+  - Code (Read) - For pipeline setup, if the pipeline is in ADO repository
 
 - Set the Azure DevOps organization service URL in the environment variable `AZDO_ORG_SERVICE_URL`
-- Set the AWS Access Key ID and Secret Access Key in the environment variable `AWS_ACCESS_KEY_ID` and `AWS_SECRET`
 ```bash
-export AZDO_PERSONAL_ACCESS_TOKEN=<Personal Access Token>
-export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Your Org Name>
-```
-Note:
-- For Table and Data connection setup you need to set the following environment variables along with the above prerequisites
-```bash
-RESOURCE_GROUP_NAME=<Resource Group Name>
+export AZDO_PERSONAL_ACCESS_TOKEN=<Azure DevOps Personal Access Token>
+export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Azure DevOps Org Name>
+export AZDO_GITHUB_SERVICE_CONNECTION_PAT=<GitHub Personal Access Token>
+export TF_VAR_resource_group_name=<Resource Group Name>
+export TF_VAR_storage_account_name=<Storage Account Name>
+export TF_VAR_kusto_cluster_name=<Kusto Cluster Name>
 ```
 
 ## Infrastructure Setup
@@ -48,7 +41,8 @@ This module creates the following resources:
 - Service Principal and grant owner access to the subscription
 - Azure Data Explorer Cluster
 - Azure Data Explorer Database
-- Azure Storage Account 
+- Azure Event Hub Namespace
+- Azure Storage Account
 - Azure Storage Container
 - Azure Service Connection
 - AWS Service Connection
@@ -76,7 +70,7 @@ Operations supported by this module:
 ### Usage
 Run make command to create the pipeline setup after setting up the prerequisites
 ```bash
-make create_pipeline
+make pipeline_setup
 ```
 
 ## Table and Data Connection Setup
@@ -90,7 +84,7 @@ All the resources are created based on the input tfvars file which is located he
 ### Usage
 Run make command to create the table and data connection setup after setting up the prerequisites
 ```bash
-make table_data_connection_setup
+make table_dataconnection_setup
 ```
 
 ## Data-Ingestion
@@ -151,3 +145,4 @@ echo "$ingestion_response"
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/)
 * [Kusto LightIngest](https://learn.microsoft.com/en-us/azure/data-explorer/lightingest)
 * [Make Utility](https://www.gnu.org/software/make/manual/make.html)
+* [Azure DevOps Authentication Guide](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token)
