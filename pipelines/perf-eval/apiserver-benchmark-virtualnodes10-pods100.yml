@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
-  SCENARIO_VERSION: sumanth/update-input-variables
+  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus2
