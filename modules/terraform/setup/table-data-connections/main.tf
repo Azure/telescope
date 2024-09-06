@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">=1.5.6"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "<= 3.93.0"
+    }
+  }
+}
+
 provider "azurerm" {
   features {}
   storage_use_azuread = true
@@ -5,8 +15,7 @@ provider "azurerm" {
 
 locals {
   tags = {
-    owner  = var.owner
-    run_id = var.run_id
+    owner = var.owner
   }
 
   _scenario_type       = replace(trimspace(var.scenario_type), "/[./-]/", "_")
@@ -46,12 +55,12 @@ resource "local_file" "bash_script" {
   content  = <<-EOT
 							#!/bin/bash
 							set -e
-							eval "$(jq -r '@sh "KUSTO_TABLE_NAME=\(.KUSTO_TABLE_NAME)"')"							
+							eval "$(jq -r '@sh "KUSTO_TABLE_NAME=\(.KUSTO_TABLE_NAME)"')"
 							result_file="./result.json"
 							table_script_path="../../../python/kusto"
 							table_creation_script=$(python3 $table_script_path/generate_commands.py "$KUSTO_TABLE_NAME" "$result_file")
 							jq -n --arg table_script "$table_creation_script" '{"table_creation_script":$table_script}'
-						EOT	
+						EOT
 }
 
 data "external" "bash_script" {

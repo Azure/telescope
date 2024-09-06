@@ -37,6 +37,14 @@ steps:
     set -euo pipefail
     set -x
 
+    if [[ "${CLOUD}" != "aws" ]]; then
+      exit 0
+    fi
+
+    if [[ "${DISABLE_WARMUP}" == "true" ]]; then
+      exit 0
+    fi
+
     sudo -E $(command -v runkperf) -v 3 ekswarmup \
       --kubeconfig ~/.kube/config \
       --runner-image ${RUNNER_IMAGE} \
@@ -44,7 +52,7 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
-  condition: ${{ and(eq(parameters.cloud, 'aws'), eq(parameters.disable_warmup, 'false')) }}
+    DISABLE_WARMUP: ${{ parameters.disable_warmup }}
   displayName: "Warmup if cloud is aws"
 - script: |
     set -euo pipefail
