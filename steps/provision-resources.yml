@@ -45,7 +45,7 @@ steps:
   parameters:
     user_data_path: ${{ parameters.terraform_user_data_path }}
 
-- template: /steps/terraform/set-input-variables-${{ parameters.cloud }}.yml
+- template: /steps/terraform/set-input-variables-${{ parameters.cloud }}.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
