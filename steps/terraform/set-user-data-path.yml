@@ -8,7 +8,7 @@ steps:
     if [ -v "$USER_DATA_PATH" ]; then
       terraform_user_data_path=$(Pipeline.Workspace)/s/$USER_DATA_PATH
     else
-      terraform_user_data_path=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/bash-scripts
+      terraform_user_data_path=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
     fi
     echo $terraform_user_data_path
     echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$terraform_user_data_path"
