@@ -20,7 +20,6 @@ steps:
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
           INPUT_VARIABLES=$(jq -n \
-                --arg owner azure_devops \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
                 --arg public_key_path $SSH_PUBLIC_KEY_PATH \
@@ -39,7 +38,6 @@ steps:
                 --arg efs_throughput_mode "$EFS_THROUGHPUT_MODE" \
                 --arg efs_provisioned_throughput_in_mibps "$EFS_PROVISIONED_THROUGHPUT_IN_MIBPS" \
                 '{
-                owner: $owner,
                 run_id: $run_id,
                 region: $region,
                 public_key_path: $public_key_path,

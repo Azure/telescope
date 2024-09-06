@@ -24,7 +24,6 @@ steps:
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
           INPUT_VARIABLES=$(jq -n \
-                --arg owner azure_devops \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
                 --arg public_key_path $SSH_PUBLIC_KEY_PATH \
@@ -51,7 +50,6 @@ steps:
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
                 '{
-                  owner: $owner,
                   run_id: $run_id,
                   region: $region,
                   machine_type: $machine_type,
