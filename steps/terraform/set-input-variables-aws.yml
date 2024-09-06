@@ -22,39 +22,9 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
-                --arg public_key_path $SSH_PUBLIC_KEY_PATH \
-                --arg machine_type "$MACHINE_TYPE" \
-                --arg data_disk_volume_type "$DATA_DISK_TYPE" \
-                --arg data_disk_size_gb "$DATA_DISK_SIZE_GB" \
-                --arg data_disk_tier "$DATA_DISK_TIER" \
-                --arg data_disk_iops_read_write "$DATA_DISK_IOPS_READ_WRITE" \
-                --arg data_disk_iops_read_only "$DATA_DISK_IOPS_READ_ONLY" \
-                --arg data_disk_mbps_read_write "$DATA_DISK_MBPS_READ_WRITE" \
-                --arg data_disk_mbps_read_only "$DATA_DISK_MBPS_READ_ONLY" \
-                --arg data_disk_count "$DATA_DISK_COUNT" \
-                --arg ultra_ssd_enabled "$ULTRA_SSD_ENABLED" \
-                --arg user_data_path $TERRAFORM_USER_DATA_PATH \
-                --arg efs_performance_mode "$EFS_PERFORMANCE_MODE" \
-                --arg efs_throughput_mode "$EFS_THROUGHPUT_MODE" \
-                --arg efs_provisioned_throughput_in_mibps "$EFS_PROVISIONED_THROUGHPUT_IN_MIBPS" \
                 '{
                 run_id: $run_id,
-                region: $region,
-                public_key_path: $public_key_path,
-                machine_type: $machine_type,
-                data_disk_volume_type: $data_disk_volume_type,
-                data_disk_size_gb: $data_disk_size_gb,
-                data_disk_tier: $data_disk_tier,
-                data_disk_iops_read_write: $data_disk_iops_read_write,
-                data_disk_iops_read_only: $data_disk_iops_read_only,
-                data_disk_mbps_read_write: $data_disk_mbps_read_write,
-                data_disk_mbps_read_only: $data_disk_mbps_read_only,
-                data_disk_count: $data_disk_count,
-                ultra_ssd_enabled: $ultra_ssd_enabled,
-                user_data_path: $user_data_path,
-                efs_performance_mode: $efs_performance_mode,
-                efs_throughput_mode: $efs_throughput_mode,
-                efs_provisioned_throughput_in_mibps: $efs_provisioned_throughput_in_mibps
+                region: $region
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
