@@ -42,13 +42,6 @@ terraform {
 
 provider "azurerm" {
   features {}
-
-  skip_provider_registration = true
-}
-
-module "register-feature" {
-  source   = "./register-feature"
-  features = var.features
 }
 
 module "aks" {
@@ -69,8 +62,4 @@ module "aks-cli" {
   location            = local.region
   aks_cli_config      = each.value
   tags                = local.tags
-
-  depends_on = [
-    module.register-feature
-  ]
 }

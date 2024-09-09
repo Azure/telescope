@@ -44,14 +44,6 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
-variable "features" {
-  type = list(object({
-    namespace = string
-    name      = string
-  }))
-  default = []
-}
-
 variable "aks_config_list" {
   type = list(object({
     role        = string
