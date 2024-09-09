@@ -3,7 +3,7 @@ scenario_name  = "vm-express-route-vm-iperf3"
 deletion_delay = "2h"
 network_config_list = [
   {
-    role           = "network"
+    role           = "client"
     vpc_name       = "client-vpc"
     vpc_cidr_block = "10.2.0.0/16"
     subnet = [{
@@ -63,7 +63,7 @@ network_config_list = [
     }
   },
   {
-    role           = "network"
+    role           = "server"
     vpc_name       = "server-vpc"
     vpc_cidr_block = "10.1.0.0/16"
     subnet = [{
