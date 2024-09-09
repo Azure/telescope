@@ -3,10 +3,6 @@ scenario_name  = "cluster-auto-scaler"
 deletion_delay = "2h"
 owner          = "aks"
 
-features = [{
-	namespace = "Microsoft.ContainerService"
-	name			= "NodeAutoProvisioningPreview"
-}]
 aks_config_list = [
   {
     role        = "client"
