@@ -1,17 +1,17 @@
 scenario_type  = "perf-eval"
-scenario_name  = "vm-same-zone-iperf3"
+scenario_name  = "vm-express-route-vm-iperf3"
 deletion_delay = "2h"
 network_config_list = [
   {
     role           = "network"
-    vpc_name       = "same-vpc"
+    vpc_name       = "client-vpc"
     vpc_cidr_block = "10.2.0.0/16"
     subnet = [{
-      name        = "same-subnet"
+      name        = "client-subnet"
       cidr_block  = "10.2.1.0/24"
       zone_suffix = "a"
     }]
-    security_group_name = "same-sg"
+    security_group_name = "client-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -20,8 +20,8 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "same-subnet-rt-assoc"
-        subnet_name      = "same-subnet"
+        name             = "client-subnet-rt-assoc"
+        subnet_name      = "client-subnet"
         route_table_name = "internet-rt"
       }
     ]
@@ -62,13 +62,73 @@ network_config_list = [
       ]
     }
   },
+  {
+    role           = "network"
+    vpc_name       = "server-vpc"
+    vpc_cidr_block = "10.1.0.0/16"
+    subnet = [{
+      name        = "server-subnet"
+      cidr_block  = "10.1.1.0/24"
+      zone_suffix = "a"
+    }]
+    security_group_name = "server-sg"
+    route_tables = [
+      {
+        name       = "internet-rt"
+        cidr_block = "0.0.0.0/0"
+      }
+    ],
+    route_table_associations = [
+      {
+        name             = "server-subnet-rt-assoc"
+        subnet_name      = "server-subnet"
+        route_table_name = "internet-rt"
+      }
+    ]
+    sg_rules = {
+      ingress = [
+        {
+          from_port  = 2222
+          to_port    = 2222
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20003
+          to_port    = 20003
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20004
+          to_port    = 20004
+          protocol   = "udp"
+          cidr_block = "0.0.0.0/0"
+        },
+        {
+          from_port  = 20004
+          to_port    = 20004
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        }
+      ]
+      egress = [
+        {
+          from_port  = 0
+          to_port    = 0
+          protocol   = "-1"
+          cidr_block = "0.0.0.0/0"
+        }
+      ]
+    }
+  }
 ]
 loadbalancer_config_list = []
 vm_config_list = [{
   vm_name                     = "client-vm"
   role                        = "client"
-  subnet_name                 = "same-subnet"
-  security_group_name         = "same-sg"
+  subnet_name                 = "client-subnet"
+  security_group_name         = "client-sg"
   associate_public_ip_address = true
   zone_suffix                 = "a"
   ami_config = {
@@ -82,8 +142,8 @@ vm_config_list = [{
   {
     vm_name                     = "server-vm"
     role                        = "server"
-    subnet_name                 = "same-subnet"
-    security_group_name         = "same-sg"
+    subnet_name                 = "server-subnet"
+    security_group_name         = "server-sg"
     associate_public_ip_address = true
     zone_suffix                 = "a"
     ami_config = {
