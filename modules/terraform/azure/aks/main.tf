@@ -30,6 +30,31 @@ resource "azurerm_kubernetes_cluster" "aks" {
     max_pods                     = var.aks_config.default_node_pool.max_pods
   }
 
+  dynamic "auto_scaler_profile" {
+    for_each = try(var.aks_config.auto_scaler_profile != null ? [var.aks_config.auto_scaler_profile] : [])
+
+    content {
+      balance_similar_node_groups      = try(auto_scaler_profile.balance_similar_node_groups, null) # Default to null if not provided
+      expander                         = try(auto_scaler_profile.expander, null)
+      max_graceful_termination_sec     = try(auto_scaler_profile.max_graceful_termination_sec, null)
+      max_node_provisioning_time       = try(auto_scaler_profile.max_node_provisioning_time, null)
+      max_unready_nodes                = try(auto_scaler_profile.max_unready_nodes, null)
+      max_unready_percentage           = try(auto_scaler_profile.max_unready_percentage, null)
+      new_pod_scale_up_delay           = try(auto_scaler_profile.new_pod_scale_up_delay, null)
+      scale_down_delay_after_add       = try(auto_scaler_profile.scale_down_delay_after_add, null)
+      scale_down_delay_after_delete    = try(auto_scaler_profile.scale_down_delay_after_delete, null)
+      scale_down_delay_after_failure   = try(auto_scaler_profile.scale_down_delay_after_failure, null)
+      scan_interval                    = try(auto_scaler_profile.scan_interval, null)
+      scale_down_unneeded              = try(auto_scaler_profile.scale_down_unneeded, null)
+      scale_down_unready               = try(auto_scaler_profile.scale_down_unready, null)
+      scale_down_utilization_threshold = try(auto_scaler_profile.scale_down_utilization_threshold, null)
+      empty_bulk_delete_max            = try(auto_scaler_profile.empty_bulk_delete_max, null)
+      skip_nodes_with_local_storage    = try(auto_scaler_profile.skip_nodes_with_local_storage, null)
+      skip_nodes_with_system_pods      = try(auto_scaler_profile.skip_nodes_with_system_pods, null)
+    }
+  }
+
+
   network_profile {
     network_plugin      = var.aks_config.network_profile.network_plugin
     network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
