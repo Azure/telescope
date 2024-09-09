@@ -18,6 +18,15 @@ locals {
       join(",", var.aks_cli_config.aks_custom_headers),
     )
   )
+
+  optional_parameters = (
+    length(var.aks_cli_config.optional_parameters) == 0 ?
+    "" :
+    join(" ", [
+      for param in var.aks_cli_config.optional_parameters :
+      format("--%s %s", param.name, param.value)
+    ])
+  )
 }
 
 resource "terraform_data" "aks_cli_preview" {
@@ -72,6 +81,7 @@ resource "terraform_data" "aks_cli" {
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
+      local.optional_parameters,
     ])
   }
 

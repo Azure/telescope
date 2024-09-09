@@ -44,6 +44,14 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
+variable "features" {
+  type = list(object({
+    namespace = string
+    name      = string
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -57,6 +65,25 @@ variable "aks_config_list" {
       ebpf_data_plane     = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+    }))
+    auto_scaler_profile = optional(object({
+      balance_similar_node_groups      = optional(bool, false)
+      expander                         = optional(string, "random")
+      max_graceful_termination_sec     = optional(string, "600")
+      max_node_provisioning_time       = optional(string, "15m")
+      max_unready_nodes                = optional(number, 0)
+      max_unready_percentage           = optional(number, 45)
+      new_pod_scale_up_delay           = optional(string, "10s")
+      scale_down_delay_after_add       = optional(string, "10m")
+      scale_down_delay_after_delete    = optional(string, "scan_interval")
+      scale_down_delay_after_failure   = optional(string, "3m")
+      scan_interval                    = optional(string, "10s")
+      scale_down_unneeded              = optional(string, "10s")
+      scale_down_unready               = optional(string, "20m")
+      scale_down_utilization_threshold = optional(string, "0.5")
+      empty_bulk_delete_max            = optional(string, "10")
+      skip_nodes_with_local_storage    = optional(bool, true)
+      skip_nodes_with_system_pods      = optional(bool, true)
     }))
     service_mesh_profile = optional(object({
       mode = string
@@ -110,8 +137,11 @@ variable "aks_cli_config_list" {
         node_count  = number
         vm_size     = string
         vm_set_type = optional(string, "VirtualMachineScaleSets")
-      }))
-    )
+    })), [])
+    optional_parameters = optional(list(object({
+      name  = string
+      value = string
+    })), [])
   }))
   default = []
 }

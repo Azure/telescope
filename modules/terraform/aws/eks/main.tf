@@ -4,6 +4,7 @@ locals {
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   eks_addons_map     = { for addon in var.eks_config.eks_addons : addon.name => addon }
   policy_arns        = var.eks_config.policy_arns
+  ignore_changes     = var.eks_config.ignore_changes ? [scaling_config[0].desired_size] : []
 }
 
 data "aws_subnets" "subnets" {
@@ -109,6 +110,10 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_eks_cluster.eks,
     aws_iam_role_policy_attachment.policy_attachments
   ]
+
+  lifecycle {
+    ignore_changes = local.ignore_changes
+  }
 }
 
 module "eks_addon" {
