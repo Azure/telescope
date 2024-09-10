@@ -28,6 +28,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
+    enable_auto_scaling          = var.aks_config.default_node_pool.enable_auto_scaling
+    min_count                    = var.aks_config.default_node_pool.enable_auto_scaling ? var.aks_config.default_node_pool.min_count : null
+    max_count                    = var.aks_config.default_node_pool.enable_auto_scaling ? var.aks_config.default_node_pool.max_count : null
   }
 
   dynamic "auto_scaler_profile" {
@@ -76,6 +79,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
+
+  lifecycle {
+    ignore_changes = [ default_node_pool[0].node_count ]
+  }
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
@@ -91,6 +98,9 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   max_pods              = each.value.max_pods
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
+  enable_auto_scaling   = each.value.enable_auto_scaling
+  min_count             = each.value.enable_auto_scaling ? each.value.min_count : null
+  max_count             = each.value.enable_auto_scaling ? each.value.max_count : null
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {

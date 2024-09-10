@@ -59,23 +59,23 @@ variable "aks_config_list" {
       pod_cidr            = optional(string, null)
     }))
     auto_scaler_profile = optional(object({
-      balance_similar_node_groups      = optional(bool, false)
-      expander                         = optional(string, "random")
-      max_graceful_termination_sec     = optional(string, "600")
-      max_node_provisioning_time       = optional(string, "15m")
-      max_unready_nodes                = optional(number, 0)
-      max_unready_percentage           = optional(number, 45)
-      new_pod_scale_up_delay           = optional(string, "10s")
-      scale_down_delay_after_add       = optional(string, "10m")
-      scale_down_delay_after_delete    = optional(string, "scan_interval")
-      scale_down_delay_after_failure   = optional(string, "3m")
-      scan_interval                    = optional(string, "10s")
-      scale_down_unneeded              = optional(string, "10s")
-      scale_down_unready               = optional(string, "20m")
-      scale_down_utilization_threshold = optional(string, "0.5")
-      empty_bulk_delete_max            = optional(string, "10")
-      skip_nodes_with_local_storage    = optional(bool, true)
-      skip_nodes_with_system_pods      = optional(bool, true)
+      balance_similar_node_groups      = optional(bool, null)
+      expander                         = optional(string, null)
+      max_graceful_termination_sec     = optional(string, null)
+      max_node_provisioning_time       = optional(string, null)
+      max_unready_nodes                = optional(number, null)
+      max_unready_percentage           = optional(number, null)
+      new_pod_scale_up_delay           = optional(string, null)
+      scale_down_delay_after_add       = optional(string, null)
+      scale_down_delay_after_delete    = optional(string, null)
+      scale_down_delay_after_failure   = optional(string, null)
+      scan_interval                    = optional(string, null)
+      scale_down_unneeded              = optional(string, null)
+      scale_down_unready               = optional(string, null)
+      scale_down_utilization_threshold = optional(string, null)
+      empty_bulk_delete_max            = optional(string, null)
+      skip_nodes_with_local_storage    = optional(bool, null)
+      skip_nodes_with_system_pods      = optional(bool, null)
     }))
     service_mesh_profile = optional(object({
       mode = string
@@ -91,17 +91,23 @@ variable "aks_config_list" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
+      enable_auto_scaling          = optional(bool, false)
+      min_count                    = optional(number, null)
+      max_count                    = optional(number, null)
     })
     extra_node_pool = list(object({
-      name              = string
-      subnet_name       = optional(string)
-      node_count        = number
-      vm_size           = string
-      os_sku            = optional(string)
-      os_disk_type      = optional(string)
-      max_pods          = optional(number)
-      ultra_ssd_enabled = optional(bool, false)
-      zones             = optional(list(string), [])
+      name                = string
+      subnet_name         = optional(string)
+      node_count          = number
+      vm_size             = string
+      os_sku              = optional(string)
+      os_disk_type        = optional(string)
+      max_pods            = optional(number)
+      ultra_ssd_enabled   = optional(bool, false)
+      zones               = optional(list(string), [])
+      enable_auto_scaling = optional(bool, false)
+      min_count           = optional(number, null)
+      max_count           = optional(number, null)
     }))
     role_assignment_list = optional(list(string), [])
   }))
