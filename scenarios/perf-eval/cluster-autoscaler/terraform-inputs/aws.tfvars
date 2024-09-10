@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-vn100pod10k"
-deletion_delay = "20h"
+scenario_name  = "cluster-auto-scaler"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -57,7 +57,7 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "vn100-p10k"
+  eks_name    = "eks-cas-test"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
@@ -66,26 +66,16 @@ eks_config_list = [{
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
       min_size       = 1
-      max_size       = 1
+      max_size       = 10
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "virtualnodes"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+      labels         = { terraform = "true", k8s = "true", role = "cas" } # Optional input
     }
   ]
 
   eks_addons = [
     {
-      name = "coredns"
+      name = "eks-pod-identity-agent"
     }
   ]
 }]
