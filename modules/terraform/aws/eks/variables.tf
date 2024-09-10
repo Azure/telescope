@@ -34,7 +34,6 @@ variable "eks_config" {
         value  = string
         effect = string
       })), [])
-      ignore_changes = optional(bool, false)
     }))
     eks_addons = list(object({
       name            = string
