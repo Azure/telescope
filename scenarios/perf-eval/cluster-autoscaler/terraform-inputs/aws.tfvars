@@ -74,20 +74,10 @@ eks_config_list = [{
     {
       name           = "virtualnodes"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.2xlarge"]
+      instance_types = ["m4.xlarge"]
       min_size       = 5
       max_size       = 5
       desired_size   = 5
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "runner"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
       capacity_type  = "ON_DEMAND"
       labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
     }
