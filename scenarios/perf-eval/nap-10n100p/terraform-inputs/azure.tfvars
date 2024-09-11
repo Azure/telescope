@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cluster-nap"
+scenario_name  = "nap-10n100p"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -7,8 +7,8 @@ aks_config_list = []
 
 aks_cli_config_list = [
   {
-    role     = "client"
-    aks_name = "aks-cluster-NAP"
+    role     = "client-server"
+    aks_name = "aks-cluster-nap-10n100p"
     sku_tier = "standard"
 
     default_node_pool = {
