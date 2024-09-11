@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: nap-n10p100
+  SCENARIO_NAME: nap-10n100p
   SCENARIO_VERSION: main
 
 stages:
