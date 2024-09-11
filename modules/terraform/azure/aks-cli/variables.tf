@@ -35,8 +35,10 @@ variable "aks_cli_config" {
         node_count  = number
         vm_size     = string
         vm_set_type = optional(string, "VirtualMachineScaleSets")
-      })),
-      []
-    )
+    })), [])
+    optional_parameters = optional(list(object({
+      name  = string
+      value = string
+    })), [])
   })
 }
