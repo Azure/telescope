@@ -93,6 +93,15 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
 
+  dynamic "taint" {
+    for_each = each.value.taints
+    content {
+      key    = taint.value["key"]
+      value  = taint.value["value"]
+      effect = taint.value["effect"]
+    }
+  }
+
   tags = merge(var.tags, {
     "Name" = each.value.name
   })
@@ -100,10 +109,6 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_eks_cluster.eks,
     aws_iam_role_policy_attachment.policy_attachments
   ]
-
-  lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]
-  }
 }
 
 module "eks_addon" {
