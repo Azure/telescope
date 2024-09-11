@@ -29,8 +29,8 @@ spec:
         values:
         - on-demand
       - key: karpenter.azure.com/sku-cpu
-        operator: In
-        values: ["4"]
+        operator: Lt
+        values: ["5"]
       - key: karpenter.azure.com/sku-family
         operator: In
         values:
