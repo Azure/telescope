@@ -62,12 +62,12 @@ eks_config_list = [{
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
+      name           = "user-ng"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
       min_size       = 1
-      max_size       = 10
-      desired_size   = 1
+      max_size       = 5
+      desired_size   = 5
       capacity_type  = "ON_DEMAND"
       labels         = { terraform = "true", k8s = "true", role = "cas" } # Optional input
     }
