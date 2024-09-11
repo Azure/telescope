@@ -12,7 +12,7 @@ aks_cli_config_list = [
     sku_tier = "standard"
 
     default_node_pool = {
-      name       = "default"
+      name       = "system"
       node_count = 3
       vm_size    = "Standard_D4_v3"
     }
