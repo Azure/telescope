@@ -8,7 +8,7 @@ aks_config_list = []
 aks_cli_config_list = [
   {
     role     = "client-server"
-    aks_name = "aks-cluster-nap-10n100p"
+    aks_name = "nap-10n100p"
     sku_tier = "standard"
 
     default_node_pool = {
