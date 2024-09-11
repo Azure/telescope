@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cluster-auto-scaler"
+scenario_name  = "nap-10n100p"
 deletion_delay = "2h"
 owner          = "aks"
 
