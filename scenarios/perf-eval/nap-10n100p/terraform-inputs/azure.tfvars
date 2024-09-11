@@ -35,9 +35,9 @@ aks_cli_config_list = [
         value = "cilium"
       },
       {
-        name = "node-init-taints"
+        name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
-      }  
+      }
     ]
   }
 ]
