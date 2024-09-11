@@ -1,0 +1,41 @@
+trigger: none
+schedules:
+  - cron: "0 */1 * * *"
+    displayName: "Every 1 Hour"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: nap-n10p100
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          topology: karpenter
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          topology: karpenter
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection

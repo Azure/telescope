@@ -1,0 +1,20 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client-server
+    region: ${{ parameters.regions[0] }}
+
+- bash: |
+    set -euo pipefail
+    set -x
+
+    echo "Validate karpenter setup..."
+  displayName: "Validate Karpenter setup"
