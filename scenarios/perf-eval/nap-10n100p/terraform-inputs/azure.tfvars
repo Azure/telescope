@@ -33,7 +33,11 @@ aks_cli_config_list = [
       {
         name  = "network-dataplane"
         value = "cilium"
-      }
+      },
+      {
+        name = "node-init-taints"
+        value = "CriticalAddonsOnly=true:NoSchedule"
+      }  
     ]
   }
 ]
