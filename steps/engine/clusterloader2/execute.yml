@@ -15,4 +15,6 @@ steps:
 
     echo "Executing clusterloader2 benchmark..."
   env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
   displayName: "Run benchmark"
