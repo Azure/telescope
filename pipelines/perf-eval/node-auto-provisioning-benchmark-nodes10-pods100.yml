@@ -23,6 +23,7 @@ stages:
             - us-east-2
           engine: clusterloader2
           topology: karpenter
+          matrix: {}
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
