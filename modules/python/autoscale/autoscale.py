@@ -3,12 +3,25 @@ import time
 import re
 import json
 import sys
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 def run_command(command):
     """Utility function to run a shell command and capture the output."""
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     return result.stdout.strip()
+
+def check_count(desired_count, command, resource_type, timeout, start_time):
+    """Utility function to check the desired count of resources."""
+    count = 0
+    while time.time() - start_time < timeout:
+        count = int(run_command(command))
+        if count == desired_count:
+            return True, time.time() - start_time
+        print(f"Current {resource_type} count: {count}")
+        time.sleep(5)
+
+    return False, -1
 
 def calculate_request_resource(node_name, node_count, pod_count, input_file, output_file):
     allocatable_cpu = run_command(f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.cpu}}'")
@@ -45,49 +58,50 @@ def calculate_request_resource(node_name, node_count, pod_count, input_file, out
     with open(output_file, 'w') as file:
         file.write(content)
 
-def run_jobs(yaml_file, pod_count, result_file):
+def run_jobs(yaml_file, pod_count, node_count, result_file):
+    timeout = 1800
     start_time = time.time()
     print(f"Start time: {start_time}")
     run_command(f"kubectl apply -f {yaml_file}")
 
-    # Wait for all pods to be running
-    while True:
-        pods_num = int(run_command("kubectl get pods | grep scale-deployment | grep -c Running"))
-        if pods_num == pod_count:
-            break
-        print(f"Waiting for all pods to be running, current pods count: {pods_num}")
-        time.sleep(5)
+    pod_count_status = False
+    node_count_status = False
+    wait_for_nodes_seconds = -1
+    wait_for_pod_seconds = -1
 
-    end_time = time.time()
-    print(f"End time: {end_time}")
+    try:
+        with ThreadPoolExecutor() as executor:
+            node_future = executor.submit(check_count, node_count, "kubectl get nodes | grep -c default", "node", timeout, start_time)
+            pod_future = executor.submit(check_count, pod_count, "kubectl get pods --selector=app=scale-deployment --ignore-not-found | grep -c Running", "pod", timeout, start_time)
 
-    run_time = end_time - start_time
-    print(f"Total run time in seconds: {run_time}")
+            node_count_status, wait_for_nodes_seconds = node_future.result()
+            pod_count_status, wait_for_pod_seconds = pod_future.result()
 
-    print("Verify all pods are running")
-    print(run_command("kubectl get pods"))
-    print("Verify all nodes are running")
-    print(run_command("kubectl get nodes"))
+        scale_status = "success" if node_count_status and pod_count_status else "failure"
 
-    data = {
-        "start_time": start_time,
-        "end_time": end_time,
-        "run_time": run_time
-    }
+        data = {
+            "start_time": start_time,
+            "node_latency": wait_for_nodes_seconds,
+            "pod_latency": wait_for_pod_seconds,
+            "scale_status": scale_status
+        }
 
-    with open(result_file, 'w') as f:
-        json.dump(data, f)
+        with open(result_file, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Error occurred while running jobs: {e}")
+        run_command(f"kubectl delete -f {yaml_file}")
 
 def execute_scale_up(node_name, node_count, pod_count, deployment_template, deployment_file, result_file):
     calculate_request_resource(node_name, node_count, pod_count, deployment_template, deployment_file)
-    run_jobs(deployment_file, pod_count, result_file)
+    run_jobs(deployment_file, pod_count, node_count, result_file)
 
 def collect_scale_up(data_file, cloud_info, scale_feature, pod_count, node_count, run_id, run_url, result_file):
     with open(data_file, 'r') as f:
         data = f.read()
 
     result = {
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(timezone.utc).timestamp(),
         "scale_feature": scale_feature,
         "pod_count": pod_count,
         "node_count": node_count,
