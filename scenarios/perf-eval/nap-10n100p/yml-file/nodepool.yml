@@ -29,6 +29,9 @@ spec:
         values:
         - on-demand
       - key: karpenter.azure.com/sku-cpu
+        operator: Gt
+        values: ["3"]
+      - key: karpenter.azure.com/sku-cpu
         operator: Lt
         values: ["5"]
       - key: karpenter.azure.com/sku-family

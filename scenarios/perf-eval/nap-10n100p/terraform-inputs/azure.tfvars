@@ -7,7 +7,7 @@ aks_config_list = []
 
 aks_cli_config_list = [
   {
-    role     = "client-server"
+    role     = "nap"
     aks_name = "nap-10n100p"
     sku_tier = "standard"
 
