@@ -12,6 +12,7 @@ parameters:
   default: {}
 - name: matrix
   type: object
+  default: {}
 - name: max_parallel
   type: number
 - name: terraform_modules_dir

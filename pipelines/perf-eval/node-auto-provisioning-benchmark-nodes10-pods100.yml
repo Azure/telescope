@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: nap-10n100p
+  SCENARIO_NAME: nap-n10p100
   SCENARIO_VERSION: main
 
 stages:
@@ -23,7 +23,6 @@ stages:
             - us-east-2
           engine: clusterloader2
           topology: karpenter
-          matrix: {}
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
@@ -37,7 +36,6 @@ stages:
             - eastus2
           engine: clusterloader2
           topology: karpenter
-          matrix: {}
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
