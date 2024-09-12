@@ -1,6 +1,7 @@
 locals {
   region = lookup(var.json_input, "region", "us-east-1")
   run_id = lookup(var.json_input, "run_id", "123456")
+  scripts_dir = lookup(var.json_input, "scripts_dir", "")
 
   tags = {
     "owner"             = var.owner
@@ -10,9 +11,10 @@ locals {
     "run_id"            = local.run_id
   }
 
-  network_config_map = { for network in var.network_config_list : network.role => network }
-  eks_config_map     = { for eks in var.eks_config_list : eks.eks_name => eks }
-  all_vpcs           = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
+  network_config_map                = { for network in var.network_config_list : network.role => network }
+  eks_config_map                    = { for eks in var.eks_config_list : eks.eks_name => eks }
+  all_vpcs                          = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
+  eks_cluster_data_map = [for eks in var.eks_config_list : module.eks[eks.eks_name].eks_cluster_data]
 }
 
 terraform {
@@ -28,7 +30,6 @@ terraform {
 provider "aws" {
   region = local.region
 }
-
 
 module "virtual_network" {
   for_each = local.network_config_map
@@ -47,5 +48,16 @@ module "eks" {
   vpc_id     = local.all_vpcs[each.value.vpc_name].id
   eks_config = each.value
   tags       = local.tags
+  scripts_dir = local.scripts_dir
   depends_on = [module.virtual_network]
 }
+
+# module "helm" {
+#   for_each = local.eks_config_map
+  
+#   source = "./helm"
+
+#   helm_release_config_list = each.value.helm_releases
+
+#   depends_on = [ module.eks ]
+# }

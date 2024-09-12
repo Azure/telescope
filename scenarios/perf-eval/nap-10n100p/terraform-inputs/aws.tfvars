@@ -5,24 +5,24 @@ owner          = "aks"
 
 network_config_list = [
   {
-    role           = "client"
-    vpc_name       = "client-vpc"
+    role           = "nap"
+    vpc_name       = "nap-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "client-subnet"
+        name                    = "nap-subnet"
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
-        name                    = "client-subnet-2"
+        name                    = "nap-subnet-2"
         cidr_block              = "10.0.1.0/24"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       }
     ]
-    security_group_name = "client-sg"
+    security_group_name = "nap-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -31,15 +31,10 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "client-subnet-rt-assoc"
-        subnet_name      = "client-subnet"
+        name             = "nap-subnet-rt-assoc"
+        subnet_name      = "nap-subnet"
         route_table_name = "internet-rt"
-      },
-      {
-        name             = "client-subnet-rt-assoc-2"
-        subnet_name      = "client-subnet-2"
-        route_table_name = "internet-rt"
-      }
+      }      
     ]
     sg_rules = {
       ingress = []
@@ -56,23 +51,29 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role        = "client"
-  eks_name    = "eks-cas-test"
-  vpc_name    = "client-vpc"
+  role        = "nap"
+  eks_name    = "nap-10n100p"
+  vpc_name    = "nap-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "user-ng"
+      name           = "nap-10n100p-ng"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
       min_size       = 1
-      max_size       = 5
-      desired_size   = 5
+      max_size       = 2
+      desired_size   = 2
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "cas" } # Optional input
+      taints = [
+        {
+          key    = "CriticalAddonsOnly"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+      labels = { terraform = "true", k8s = "true" }
     }
-  ]
-
+  ]  
   eks_addons = [
     {
       name = "eks-pod-identity-agent"

@@ -43,6 +43,15 @@ resource "aws_iam_role_policy_attachment" "policy_attachments" {
   role       = aws_iam_role.eks_cluster_role.name
 }
 
+resource "aws_cloudformation_stack" "cluster_stack" {
+  name = "${local.eks_name}-stack"
+
+  parameters = {
+    ClusterName = local.eks_name
+  }
+  template_body = file("https://raw.githubusercontent.com/aws/karpenter-provider-aws/v1.0.1/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml")
+}
+
 # Create EKS Cluster
 resource "aws_eks_cluster" "eks" {
   name     = "${local.eks_name}-${var.run_id}"
@@ -62,6 +71,23 @@ resource "aws_eks_cluster" "eks" {
       "role" = local.role
     }
   )
+}
+
+data "external" "helm_install" {
+  program = ["bash", "${var.scripts_dir}/install-karpenter.sh"]
+  query = {
+    EKS_CLUSTER_NAME = aws_eks_cluster.eks.name
+  }
+
+  depends_on = [ aws_eks_cluster.eks ]
+}
+
+
+resource "aws_eks_pod_identity_association" "association" {
+  cluster_name = aws_eks_cluster.eks.name
+  namespace = var.namespace
+  service_account = var.service_account_name
+  role_arn = aws_iam_role.example.arn
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {
@@ -105,6 +131,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     ignore_changes = [scaling_config[0].desired_size]
   }
 }
+
 
 module "eks_addon" {
   source = "./addon"

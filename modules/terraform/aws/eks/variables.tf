@@ -3,6 +3,11 @@ variable "run_id" {
   type        = string
 }
 
+variable "scripts_dir" {
+  description = "The directory where the scripts are stored"
+  type        = string  
+}
+
 variable "tags" {
   type = map(string)
   default = {

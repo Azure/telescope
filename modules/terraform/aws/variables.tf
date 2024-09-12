@@ -3,6 +3,7 @@ variable "json_input" {
   type = object({
     run_id = string
     region = string
+    scripts_dir = string
   })
 }
 
