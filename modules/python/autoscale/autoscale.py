@@ -45,7 +45,7 @@ def calculate_request_resource(node_name, node_count, pod_count, input_file, out
     with open(output_file, 'w') as file:
         file.write(content)
 
-def run_deployment(yaml_file, pod_count, result_file):
+def run_jobs(yaml_file, pod_count, result_file):
     start_time = time.time()
     print(f"Start time: {start_time}")
     run_command(f"kubectl apply -f {yaml_file}")
@@ -80,7 +80,7 @@ def run_deployment(yaml_file, pod_count, result_file):
 
 def execute_scale_up(node_name, node_count, pod_count, deployment_template, deployment_file, result_file):
     calculate_request_resource(node_name, node_count, pod_count, deployment_template, deployment_file)
-    run_deployment(deployment_file, pod_count, result_file)
+    run_jobs(deployment_file, pod_count, result_file)
 
 def collect_scale_up(data_file, cloud_info, scale_feature, pod_count, node_count, run_id, run_url, result_file):
     with open(data_file, 'r') as f:
