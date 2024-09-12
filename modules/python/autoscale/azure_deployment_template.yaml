@@ -23,21 +23,21 @@ spec:
             limits:
               cpu: ##CPUperJob##
           command:
-          - "/bin/bash"
-          - "-c"
-          - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+            - "/bin/bash"
+            - "-c"
+            - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
       restartPolicy: Always
       tolerations:
-      - key: "kubernetes.azure.com/scalesetpriority"
-        operator: "Equal"
-        value: "spot"
-        effect: "NoSchedule"
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.azure.com/mode
-                operator: NotIn
-                values:
-                - system
+              - matchExpressions:
+                  - key: kubernetes.azure.com/mode
+                    operator: NotIn
+                    values:
+                      - system
