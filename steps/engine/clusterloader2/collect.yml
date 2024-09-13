@@ -15,7 +15,7 @@ steps:
 
     echo "$PYTHON_SCRIPT_FILE"
     echo "$RESULT_DATA_FILE"
-    python $PYTHON_SCRIPT_FILE collect $RESULT_DATA_FILE $CLOUD "nap" 10 100 $RUN_ID $RUN_URI $RESULT_DIR/results.json
+    python $PYTHON_SCRIPT_FILE collect $RESULT_DATA_FILE $CLOUD "nap" $CPU_PER_NODE $NODE_COUNT $POD_COUNT $RUN_ID $RUN_URL $RESULT_DIR/results.json
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}

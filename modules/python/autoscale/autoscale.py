@@ -77,15 +77,16 @@ def execute_scale_up(node_name, node_count, pod_count, deployment_template, depl
     calculate_request_resource(node_name, node_count, pod_count, deployment_template, deployment_file)
     run_jobs(deployment_file, pod_count, node_count, result_file)
 
-def collect_scale_up(data_file, cloud_info, autoscale_type, pod_count, node_count, run_id, run_url, result_file):
+def collect_scale_up(data_file, cloud_info, autoscale_type, cpu_per_node, node_count, pod_count, run_id, run_url, result_file):
     with open(data_file, 'r') as f:
         data = f.read()
 
     result = {
         "timestamp": datetime.now(timezone.utc).timestamp(),
         "autoscale_type": autoscale_type,
-        "pod_count": pod_count,
+        "cpu_per_node": cpu_per_node,
         "node_count": node_count,
+        "pod_count": pod_count,
         "data": data,
         "cloud_info": cloud_info,
         "run_id": run_id,
@@ -112,8 +113,9 @@ def main():
     parser_collect.add_argument("data_file", type=str, help="Path to the data file")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("autoscale_type", type=str, help="Autoscale type")
-    parser_collect.add_argument("pod_count", type=int, help="Number of pods")
+    parser_execute.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("pod_count", type=int, help="Number of pods")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
