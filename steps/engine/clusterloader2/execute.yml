@@ -12,18 +12,11 @@ steps:
 - script: |
     set -euo pipefail
     set -x
-
-    echo "$PYTHON_SCRIPT_FILE"
-    echo "$CPU_PER_NODE"
-    echo "$NODE_COUNT"
-    echo "$POD_COUNT"
-    echo "$DEPLOYMENT_TEMPLATE_FILE"
-    echo "$RESULT_DATA_FILE"
     python $PYTHON_SCRIPT_FILE execute $CPU_PER_NODE $NODE_COUNT $POD_COUNT $DEPLOYMENT_TEMPLATE_FILE $RESULT_DATA_FILE
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale/autoscale.py
     DEPLOYMENT_TEMPLATE_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/deployment_template.yml
-    RESULT_DATA_FILE: $(Pipeline.Workspace)/s/result_data.json
+    RESULT_DATA_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/result_data.json
   displayName: "Run benchmark"

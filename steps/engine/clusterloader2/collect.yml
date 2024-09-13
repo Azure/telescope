@@ -18,12 +18,12 @@ steps:
     echo "$NODE_COUNT"
     echo "$POD_COUNT"
     echo "$RESULT_DATA_FILE"
-    python $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE $NODE_COUNT $POD_COUNT "nap" $RESULT_DATA_FILE $CLOUD $RUN_ID $RUN_URL $RESULT_DIR/results.json
+    python $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE $NODE_COUNT $POD_COUNT "nap" $RESULT_DATA_FILE $CLOUD $RUN_ID $RUN_URL $RESULT_UPLOAD_FILE
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
-    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale/autoscale.py
-    RESULT_DATA_FILE: $(Pipeline.Workspace)/s/result_data.json
+    RESULT_DATA_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/result_data.json
+    RESULT_UPLOAD_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/results.json
   displayName: "Collect results"

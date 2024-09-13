@@ -15,7 +15,6 @@ steps:
 - bash: |
     set -euo pipefail
     set -x
-    echo "$KARPENTER_NODEPOOL_FILE"
     kubectl apply -f $KARPENTER_NODEPOOL_FILE
   env:
     CLOUD: ${{ parameters.cloud }}

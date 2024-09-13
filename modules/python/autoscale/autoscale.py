@@ -1,6 +1,7 @@
 import subprocess
 import time
 import json
+import os
 import argparse
 
 from concurrent.futures import ThreadPoolExecutor
@@ -67,6 +68,7 @@ def run_jobs(yaml_file, pod_count, node_count, result_file):
             "autoscale_result": autoscale_result
         }
 
+        os.makedirs(os.path.dirname(result_file), exist_ok=True)
         with open(result_file, 'w') as f:
             json.dump(data, f)
     except Exception as e:
@@ -93,6 +95,7 @@ def collect_scale_up(cpu_per_node, node_count, pod_count, autoscale_type, data_f
         "run_url": run_url
     }
 
+    os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w') as f:
         json.dump(result, f)
 
