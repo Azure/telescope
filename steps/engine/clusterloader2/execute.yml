@@ -20,7 +20,7 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale/autoscale.py
     DEPLOYMENT_TEMPLATE_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/$(cloud)_deployment_template.yml
     RESULT_DATA_FILE: $(Pipeline.Workspace)/s/result_data.json
   displayName: "Run benchmark"
