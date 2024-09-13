@@ -13,11 +13,6 @@ steps:
     set -euo pipefail
     set -x
 
-    echo "$PYTHON_SCRIPT_FILE"
-    echo "$CPU_PER_NODE"
-    echo "$NODE_COUNT"
-    echo "$POD_COUNT"
-    echo "$RESULT_DATA_FILE"
     python $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE $NODE_COUNT $POD_COUNT "nap" $RESULT_DATA_FILE $CLOUD $RUN_ID $RUN_URL $RESULT_UPLOAD_FILE
   env:
     CLOUD: ${{ parameters.cloud }}
