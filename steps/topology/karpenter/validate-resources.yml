@@ -19,5 +19,5 @@ steps:
     kubectl apply -f $KARPENTER_NODEPOOL_FILE
   env:
     CLOUD: ${{ parameters.cloud }}
-    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/kubernetes/$CLOUD_karpenter_nodepool.yml
+    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/$(CLOUD)_karpenter_nodepool.yml
   displayName: "Validate Karpenter setup"

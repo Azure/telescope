@@ -13,14 +13,14 @@ steps:
     set -euo pipefail
     set -x
 
-    PYTHON_SCRIPT=$(Pipeline.Workspace)/s/modules/python/autoscale.py
-    DEPLOYMENT_TEMPLATE=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/kubernetes/deployment_template.yml
-    RESULT_DATA=result_data.json
-
-    python $PYTHON_SCRIPT collect $RESULT_DATA $CLOUD "nap" 10 100 $RUN_ID $RUN_URI $RESULT_DIR/results.json
+    echo "$PYTHON_SCRIPT_FILE"
+    echo "$RESULT_DATA_FILE"
+    python $PYTHON_SCRIPT_FILE collect $RESULT_DATA_FILE $CLOUD "nap" 10 100 $RUN_ID $RUN_URI $RESULT_DIR/results.json
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale.py
+    RESULT_DATA_FILE: $(Pipeline.Workspace)/s/result_data.json
   displayName: "Collect results"

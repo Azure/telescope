@@ -13,12 +13,14 @@ steps:
     set -euo pipefail
     set -x
 
-    PYTHON_SCRIPT=$(Pipeline.Workspace)/s/modules/python/autoscale.py
-    DEPLOYMENT_TEMPLATE=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/kubernetes/deployment_template.yml
-    RESULT_DATA=result_data.json
-
-    python $PYTHON_SCRIPT execute 4 10 100 $DEPLOYMENT_TEMPLATE $RESULT_DATA
+    echo "$PYTHON_SCRIPT_FILE"
+    echo "$DEPLOYMENT_TEMPLATE_FILE"
+    echo "$RESULT_DATA_FILE"
+    python $PYTHON_SCRIPT_FILE execute 4 10 100 $DEPLOYMENT_TEMPLATE_FILE $RESULT_DATA_FILE
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale.py
+    DEPLOYMENT_TEMPLATE_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/$(cloud)_deployment_template.yml
+    RESULT_DATA_FILE: $(Pipeline.Workspace)/s/result_data.json
   displayName: "Run benchmark"
