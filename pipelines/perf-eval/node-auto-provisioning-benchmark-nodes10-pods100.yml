@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-n10p100
-  SCENARIO_VERSION: competitive-test
+  SCENARIO_VERSION: add-autoscaling-test-pipelines
 
 stages:
   - stage: aws_eastus2
