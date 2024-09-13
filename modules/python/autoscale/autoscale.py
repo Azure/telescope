@@ -54,7 +54,7 @@ def run_jobs(yaml_file, pod_count, node_count, result_file):
         with ThreadPoolExecutor() as executor:
             # expose node selector and pod selector as arguments
             node_future = executor.submit(check_count, node_count, "kubectl get nodes --selector=karpenter.sh/nodepool=default --ignore-not-found | grep -c Ready", "node", timeout, start_time)
-            pod_future = executor.submit(check_count, pod_count, "kubectl get pods --selector=app=scale-deployment --ignore-not-found | grep -c Running", "pod", timeout, start_time)
+            pod_future = executor.submit(check_count, pod_count, "kubectl get pods --selector=app=scale --ignore-not-found | grep -c Running", "pod", timeout, start_time)
 
             node_count_status, wait_for_nodes_seconds = node_future.result()
             pod_count_status, wait_for_pod_seconds = pod_future.result()
