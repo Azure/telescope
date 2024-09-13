@@ -1,8 +1,8 @@
 import subprocess
 import time
-import re
 import json
-import sys
+import argparse
+
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -23,36 +23,17 @@ def check_count(desired_count, command, resource_type, timeout, start_time):
 
     return False, -1
 
-def calculate_request_resource(node_name, node_count, pod_count, input_file, output_file):
-    allocatable_cpu = run_command(f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.cpu}}'")
-    allocatable_memory = run_command(f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.memory}}'")
-
-    print(f"Node {node_name} has allocatable cpu of {allocatable_cpu} and allocatable memory of {allocatable_memory}")
-
-    # Separate CPU value and unit
-    cpu_match = re.match(r"([0-9]+)([a-z]*)", allocatable_cpu)
-    if cpu_match:
-        cpu_value = int(cpu_match.group(1))
-        cpu_unit = cpu_match.group(2)
-
-    # Separate memory value and unit
-    memory_match = re.match(r"([0-9]+)([a-zA-Z]*)", allocatable_memory)
-    if memory_match:
-        memory_value = int(memory_match.group(1))
-        memory_unit = memory_match.group(2)
-
-    # Calculate request cpu and memory for each pod
-    cpu_request = (cpu_value - 400) * node_count // pod_count
-    memory_request = memory_value * node_count // pod_count
+def calculate_request_resource(cpu_per_node, node_count, pod_count, input_file, output_file):
+    # assuming 90% of the CPU cores can be used by test pods
+    cpu_request = (cpu_per_node * 1000 * 0.9) * node_count // pod_count
 
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
-    print(f"CPU request for each pod: {cpu_request}{cpu_unit}")
-    print(f"Memory request for each pod: {memory_request}{memory_unit}")
+    print(f"CPU request for each pod: {cpu_request}m")
 
     with open(input_file, 'r') as file:
         content = file.read()
 
-    content = content.replace("##CPUperJob##", f"{cpu_request}{cpu_unit}")
+    content = content.replace("##CPUperJob##", f"{cpu_request}m")
     content = content.replace("##Replicas##", str(pod_count))
 
     with open(output_file, 'w') as file:
@@ -71,7 +52,8 @@ def run_jobs(yaml_file, pod_count, node_count, result_file):
 
     try:
         with ThreadPoolExecutor() as executor:
-            node_future = executor.submit(check_count, node_count, "kubectl get nodes | grep -c default", "node", timeout, start_time)
+            # expose node selector and pod selector as arguments
+            node_future = executor.submit(check_count, node_count, "kubectl get nodes --selector=karpenter.sh/nodepool=default --ignore-not-found | grep -c Ready", "node", timeout, start_time)
             pod_future = executor.submit(check_count, pod_count, "kubectl get pods --selector=app=scale-deployment --ignore-not-found | grep -c Running", "pod", timeout, start_time)
 
             node_count_status, wait_for_nodes_seconds = node_future.result()
@@ -80,9 +62,8 @@ def run_jobs(yaml_file, pod_count, node_count, result_file):
         scale_status = "success" if node_count_status and pod_count_status else "failure"
 
         data = {
-            "start_time": start_time,
-            "node_latency": wait_for_nodes_seconds,
-            "pod_latency": wait_for_pod_seconds,
+            "wait_for_nodes_seconds": wait_for_nodes_seconds,
+            "wait_for_pod_seconds": wait_for_pod_seconds,
             "scale_status": scale_status
         }
 
@@ -96,13 +77,13 @@ def execute_scale_up(node_name, node_count, pod_count, deployment_template, depl
     calculate_request_resource(node_name, node_count, pod_count, deployment_template, deployment_file)
     run_jobs(deployment_file, pod_count, node_count, result_file)
 
-def collect_scale_up(data_file, cloud_info, scale_feature, pod_count, node_count, run_id, run_url, result_file):
+def collect_scale_up(data_file, cloud_info, autoscaler_type, pod_count, node_count, run_id, run_url, result_file):
     with open(data_file, 'r') as f:
         data = f.read()
 
     result = {
         "timestamp": datetime.now(timezone.utc).timestamp(),
-        "scale_feature": scale_feature,
+        "autoscaler_type": autoscaler_type,
         "pod_count": pod_count,
         "node_count": node_count,
         "data": data,
@@ -115,20 +96,34 @@ def collect_scale_up(data_file, cloud_info, scale_feature, pod_count, node_count
         json.dump(result, f)
 
 def main():
-    node_name = sys.argv[1]
-    node_count = int(sys.argv[2])
-    pod_count = int(sys.argv[3])
-    deployment_template = sys.argv[4]
-    data_file = sys.argv[5]
-    cloud_info = sys.argv[6]
-    scale_feature = sys.argv[7]
-    run_id = sys.argv[8]
-    run_url = sys.argv[9]
-    result_file = sys.argv[10]
-    deployment_file = "deployment.yaml"
+    parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
+    subparsers = parser.add_subparsers(dest="command")
 
-    # execute_scale_up(node_name, node_count, pod_count, deployment_template, deployment_file, data_file)
-    collect_scale_up(data_file, cloud_info, scale_feature, pod_count, node_count, run_id, run_url, result_file)
+    # Sub-command for execute_scale_up
+    parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
+    parser_execute.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_execute.add_argument("node_count", type=int, help="Number of nodes")
+    parser_execute.add_argument("pod_count", type=int, help="Number of pods")
+    parser_execute.add_argument("deployment_template", type=str, help="Path to the deployment template")
+    parser_execute.add_argument("result_file", type=str, help="Path to the result file")
+
+    # Sub-command for collect_scale_up
+    parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
+    parser_collect.add_argument("data_file", type=str, help="Path to the data file")
+    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
+    parser_collect.add_argument("autoscaler_type", type=str, help="Autoscaler type")
+    parser_collect.add_argument("pod_count", type=int, help="Number of pods")
+    parser_collect.add_argument("node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("run_id", type=str, help="Run ID")
+    parser_collect.add_argument("run_url", type=str, help="Run URL")
+    parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+
+    args = parser.parse_args()
+
+    if args.command == "execute":
+        execute_scale_up(args.cpu_per_node, args.node_count, args.pod_count, args.deployment_template, "deployment.yml", args.result_file)
+    elif args.command == "collect":
+        collect_scale_up(args.data_file, args.cloud_info, args.scale_feature, args.pod_count, args.node_count, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()

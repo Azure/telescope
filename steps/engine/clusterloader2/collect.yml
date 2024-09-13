@@ -13,7 +13,11 @@ steps:
     set -euo pipefail
     set -x
 
-    echo "Collecting clusterloader2 results..."
+    PYTHON_SCRIPT=$(Pipeline.Workspace)/s/modules/python/autoscale.py
+    DEPLOYMENT_TEMPLATE=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/kubernetes/deployment_template.yml
+    RESULT_DATA=result_data.json
+
+    python $PYTHON_SCRIPT collect $RESULT_DATA $CLOUD "nap" 10 100 $RUN_ID $RUN_URI $RESULT_DIR/results.json
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}

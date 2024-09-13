@@ -13,7 +13,11 @@ steps:
     set -euo pipefail
     set -x
 
-    echo "Executing clusterloader2 benchmark..."
+    PYTHON_SCRIPT=$(Pipeline.Workspace)/s/modules/python/autoscale.py
+    DEPLOYMENT_TEMPLATE=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/kubernetes/deployment_template.yml
+    RESULT_DATA=result_data.json
+
+    python $PYTHON_SCRIPT execute 4 10 100 $DEPLOYMENT_TEMPLATE $RESULT_DATA
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
