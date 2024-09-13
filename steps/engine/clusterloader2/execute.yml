@@ -13,7 +13,11 @@ steps:
     set -euo pipefail
     set -x
 
+
     echo "$PYTHON_SCRIPT_FILE"
+    echo "$CPU_PER_NODE"
+    echo "$NODE_COUNT"
+    echo "$POD_COUNT"
     echo "$DEPLOYMENT_TEMPLATE_FILE"
     echo "$RESULT_DATA_FILE"
     python $PYTHON_SCRIPT_FILE execute $CPU_PER_NODE $NODE_COUNT $POD_COUNT $DEPLOYMENT_TEMPLATE_FILE $RESULT_DATA_FILE

@@ -77,7 +77,7 @@ def execute_scale_up(node_name, node_count, pod_count, deployment_template, depl
     calculate_request_resource(node_name, node_count, pod_count, deployment_template, deployment_file)
     run_jobs(deployment_file, pod_count, node_count, result_file)
 
-def collect_scale_up(data_file, cloud_info, autoscale_type, cpu_per_node, node_count, pod_count, run_id, run_url, result_file):
+def collect_scale_up(cpu_per_node, node_count, pod_count, autoscale_type, data_file, cloud_info, run_id, run_url, result_file):
     with open(data_file, 'r') as f:
         data = f.read()
 
@@ -110,12 +110,12 @@ def main():
 
     # Sub-command for collect_scale_up
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("data_file", type=str, help="Path to the data file")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
-    parser_collect.add_argument("autoscale_type", type=str, help="Autoscale type")
-    parser_execute.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_collect.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("pod_count", type=int, help="Number of pods")
+    parser_collect.add_argument("autoscale_type", type=str, help="Autoscale type")
+    parser_collect.add_argument("data_file", type=str, help="Path to the data file")
+    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
@@ -125,7 +125,7 @@ def main():
     if args.command == "execute":
         execute_scale_up(args.cpu_per_node, args.node_count, args.pod_count, args.deployment_template, "deployment.yml", args.result_file)
     elif args.command == "collect":
-        collect_scale_up(args.data_file, args.cloud_info, args.scale_feature, args.pod_count, args.node_count, args.run_id, args.run_url, args.result_file)
+        collect_scale_up(args.cpu_per_node, args.node_count, args.pod_count, args.autoscale_type, args.data_file, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()
