@@ -1,9 +1,9 @@
 locals {
-  eks_name           = var.eks_config.eks_name
   role               = var.eks_config.role
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   eks_addons_map     = { for addon in var.eks_config.eks_addons : addon.name => addon }
   policy_arns        = var.eks_config.policy_arns
+  eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
 }
 
 data "aws_subnets" "subnets" {
@@ -43,18 +43,9 @@ resource "aws_iam_role_policy_attachment" "policy_attachments" {
   role       = aws_iam_role.eks_cluster_role.name
 }
 
-resource "aws_cloudformation_stack" "cluster_stack" {
-  name = "${local.eks_name}-stack"
-
-  parameters = {
-    ClusterName = local.eks_name
-  }
-  template_body = file("https://raw.githubusercontent.com/aws/karpenter-provider-aws/v1.0.1/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml")
-}
-
 # Create EKS Cluster
 resource "aws_eks_cluster" "eks" {
-  name     = "${local.eks_name}-${var.run_id}"
+  name     = local.eks_cluster_name
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
@@ -73,21 +64,47 @@ resource "aws_eks_cluster" "eks" {
   )
 }
 
-data "external" "helm_install" {
-  program = ["bash", "${var.scripts_dir}/install-karpenter.sh"]
-  query = {
-    EKS_CLUSTER_NAME = aws_eks_cluster.eks.name
+resource "aws_cloudformation_stack" "cluster_stack" {
+  name = "${local.eks_cluster_name}-stack"
+
+  parameters = {
+    ClusterName    = local.eks_cluster_name
+    ClusterRoleArn = aws_iam_role.eks_cluster_role.arn
+  }
+  template_body = file("${var.scripts_dir}/cloudformation.yaml")
+  capabilities  = ["CAPABILITY_NAMED_IAM"]
+}
+
+resource "terraform_data" "install_karpenter" {
+  provisioner "local-exec" {
+    command = "${var.scripts_dir}/install-karpenter.sh"
+    environment = {
+      EKS_CLUSTER_NAME = local.eks_cluster_name
+    }
   }
 
-  depends_on = [ aws_eks_cluster.eks ]
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+			#!/bin/bash
+			set -e
+			helm uninstall karpenter --namespace kube-system
+			EOT
+  }
+  depends_on = [aws_eks_cluster.eks]
 }
 
 
+
+data "aws_iam_role" "role" {
+  name = "${var.eks_config.pod_associations.role_arn_name}-${aws_eks_cluster.eks.name}"
+}
+
 resource "aws_eks_pod_identity_association" "association" {
-  cluster_name = aws_eks_cluster.eks.name
-  namespace = var.namespace
-  service_account = var.service_account_name
-  role_arn = aws_iam_role.example.arn
+  cluster_name    = aws_eks_cluster.eks.name
+  namespace       = var.eks_config.pod_associations.namespace
+  service_account = var.eks_config.pod_associations.service_account_name
+  role_arn        = data.aws_iam_role.role.arn
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {

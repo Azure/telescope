@@ -1,8 +1,8 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id = string
-    region = string
+    run_id      = string
+    region      = string
     scripts_dir = string
   })
 }
@@ -42,8 +42,10 @@ variable "network_config_list" {
       cidr_block              = string
       zone_suffix             = string
       map_public_ip_on_launch = optional(bool, false)
+      tags                    = optional(map(string))
     }))
     security_group_name = string
+    security_group_tags = optional(map(string))
     route_tables = list(object({
       name             = string
       cidr_block       = string
@@ -100,6 +102,11 @@ variable "eks_config_list" {
         value  = string
         effect = string
       })), [])
+    }))
+    pod_associations = optional(object({
+      namespace            = string
+      service_account_name = string
+      role_arn_name        = string
     }))
     eks_addons = list(object({
       name            = string

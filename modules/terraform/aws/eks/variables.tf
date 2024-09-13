@@ -5,7 +5,7 @@ variable "run_id" {
 
 variable "scripts_dir" {
   description = "The directory where the scripts are stored"
-  type        = string  
+  type        = string
 }
 
 variable "tags" {
@@ -39,6 +39,11 @@ variable "eks_config" {
         value  = string
         effect = string
       })), [])
+    }))
+    pod_associations = optional(object({
+      namespace            = string
+      service_account_name = string
+      role_arn_name        = string
     }))
     eks_addons = list(object({
       name            = string

@@ -30,8 +30,8 @@ resource "aws_subnet" "subnets" {
   availability_zone = "${var.region}${each.value.zone_suffix}"
 
   tags = merge(local.tags, {
-    "Name" = each.value.name
-  })
+    "Name" = each.value.name,
+  }, each.value.tags)
 }
 
 resource "aws_eip" "eips" {

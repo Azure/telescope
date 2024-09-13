@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap-10n100p"
-deletion_delay = "2h"
+deletion_delay = "20h"
 owner          = "aks"
 
 network_config_list = [
@@ -14,18 +14,14 @@ network_config_list = [
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
-      },
-      {
-        name                    = "nap-subnet-2"
-        cidr_block              = "10.0.1.0/24"
-        zone_suffix             = "b"
-        map_public_ip_on_launch = true
+        tags                    = { "karpenter.sh/discovery" = "nap-10n100p" }
       }
     ]
     security_group_name = "nap-sg"
+		security_group_tags = { "karpenter.sh/discovery" = "nap-10n100p" }
     route_tables = [
       {
-        name       = "internet-rt"
+        name       = "internet-rt-1"
         cidr_block = "0.0.0.0/0"
       }
     ],
@@ -60,9 +56,9 @@ eks_config_list = [{
       name           = "nap-10n100p-ng"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
-      min_size       = 1
-      max_size       = 2
-      desired_size   = 2
+      min_size       = 5
+      max_size       = 5
+      desired_size   = 5
       capacity_type  = "ON_DEMAND"
       taints = [
         {
@@ -73,7 +69,12 @@ eks_config_list = [{
       ]
       labels = { terraform = "true", k8s = "true" }
     }
-  ]  
+  ]
+	pod_associations = {
+		namespace            = "kube-system"
+		service_account_name = "karpernter"
+		role_arn_name        = "KarpenterControllerPolicy"
+	}
   eks_addons = [
     {
       name = "eks-pod-identity-agent"

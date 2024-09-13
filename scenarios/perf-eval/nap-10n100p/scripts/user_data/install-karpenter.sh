@@ -1,8 +1,7 @@
 #!/bin/bash
 set -e
-eval "$(jq -r '@sh "EKS_CLUSTER_NAME=\(.EKS_CLUSTER_NAME)"')"
 
-aws eks --region us-east-2 update-kubeconfig --name ${EKS_CLUSTER_NAME}
+aws eks --region us-east-2 update-kubeconfig --name "${EKS_CLUSTER_NAME}"
 # Install Karpenter
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --version "1.0.1" \
