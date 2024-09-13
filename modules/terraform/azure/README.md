@@ -74,7 +74,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 pushd $TERRAFORM_MODULES_DIR
 terraform init
 terraform plan  -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE 
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
