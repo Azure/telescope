@@ -13,7 +13,6 @@ steps:
     set -euo pipefail
     set -x
 
-
     echo "$PYTHON_SCRIPT_FILE"
     echo "$CPU_PER_NODE"
     echo "$NODE_COUNT"
