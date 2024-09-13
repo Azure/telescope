@@ -274,6 +274,7 @@ Resources:
         }
   KarpenterPodIdentityRole:
     Type: "AWS::IAM::Role"
+    DependsOn: KarpenterControllerPolicy
     Properties:
       RoleName: !Sub "${ClusterName}-PodIdentityRole"
       Path: /
@@ -286,9 +287,9 @@ Resources:
                 !Sub "ec2.${AWS::URLSuffix}"
             Action:
               - "sts:AssumeRole"
-        ManagedPolicyArns:
-          - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy"
-          - !Sub "${KarpenterControllerPolicy.Arn}"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy"      
+        - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/KarpenterControllerPolicy-${ClusterName}"
   KarpenterInterruptionQueue:
     Type: AWS::SQS::Queue
     Properties:

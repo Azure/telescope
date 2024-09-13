@@ -57,8 +57,3 @@ variable "tags" {
   default = {
   }
 }
-
-variable "run_id" {
-  description = "The run id for  eks cluster"
-  type        = string
-}

@@ -37,7 +37,6 @@ module "virtual_network" {
   network_config = each.value
   region         = local.region
   tags           = local.tags
-  run_id         = local.run_id
 }
 
 module "eks" {

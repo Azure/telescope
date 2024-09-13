@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap-10n100p"
-deletion_delay = "20h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -15,13 +15,20 @@ network_config_list = [
         zone_suffix             = "a"
         map_public_ip_on_launch = true
         tags                    = { "karpenter.sh/discovery" = "nap-10n100p" }
+      },
+			      {
+        name                    = "nap-subnet-2"
+        cidr_block              = "10.0.1.0/24"
+        zone_suffix             = "b"
+        map_public_ip_on_launch = true
+        tags                    = { "karpenter.sh/discovery" = "nap-10n100p" }
       }
     ]
     security_group_name = "nap-sg"
     security_group_tags = { "karpenter.sh/discovery" = "nap-10n100p" }
     route_tables = [
       {
-        name       = "internet-rt-1"
+        name       = "internet-rt"
         cidr_block = "0.0.0.0/0"
       }
     ],
@@ -49,7 +56,11 @@ network_config_list = [
 eks_config_list = [{
   role        = "nap"
   eks_name    = "nap-10n100p"
+	override_cluster_name = true
+	install_karpenter = true
+	cloudformation_template_file_name = "cloudformation"
   vpc_name    = "nap-vpc"
+	iam_role_name = "nap-10n100p-eks-role"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
@@ -72,8 +83,8 @@ eks_config_list = [{
   ]
   pod_associations = {
     namespace            = "kube-system"
-    service_account_name = "karpernter"
-    role_arn_name        = "KarpenterControllerPolicy"
+    service_account_name = "karpenter"
+    role_arn_name        = "nap-10n100p-PodIdentityRole"
   }
   eks_addons = [
     {
@@ -81,4 +92,3 @@ eks_config_list = [{
     }
   ]
 }]
-

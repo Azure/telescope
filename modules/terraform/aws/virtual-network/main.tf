@@ -82,7 +82,7 @@ resource "aws_security_group" "security_group" {
 
   tags = merge(local.tags, {
     "Name" = local.security_group_name
-  })
+  }, var.network_config.security_group_tags)
 }
 
 resource "aws_internet_gateway" "internet_gateway" {
