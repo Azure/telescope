@@ -144,9 +144,6 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_iam_role_policy_attachment.policy_attachments
   ]
 
-  lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]
-  }
 }
 
 

@@ -11,10 +11,9 @@ locals {
     "run_id"            = local.run_id
   }
 
-  network_config_map   = { for network in var.network_config_list : network.role => network }
-  eks_config_map       = { for eks in var.eks_config_list : eks.eks_name => eks }
-  all_vpcs             = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
-  eks_cluster_data_map = [for eks in var.eks_config_list : module.eks[eks.eks_name].eks_cluster_data]
+  network_config_map = { for network in var.network_config_list : network.role => network }
+  eks_config_map     = { for eks in var.eks_config_list : eks.eks_name => eks }
+  all_vpcs           = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
 }
 
 terraform {

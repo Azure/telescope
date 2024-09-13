@@ -18,7 +18,7 @@ network_config_list = [
       }
     ]
     security_group_name = "nap-sg"
-		security_group_tags = { "karpenter.sh/discovery" = "nap-10n100p" }
+    security_group_tags = { "karpenter.sh/discovery" = "nap-10n100p" }
     route_tables = [
       {
         name       = "internet-rt-1"
@@ -30,7 +30,7 @@ network_config_list = [
         name             = "nap-subnet-rt-assoc"
         subnet_name      = "nap-subnet"
         route_table_name = "internet-rt"
-      }      
+      }
     ]
     sg_rules = {
       ingress = []
@@ -70,11 +70,11 @@ eks_config_list = [{
       labels = { terraform = "true", k8s = "true" }
     }
   ]
-	pod_associations = {
-		namespace            = "kube-system"
-		service_account_name = "karpernter"
-		role_arn_name        = "KarpenterControllerPolicy"
-	}
+  pod_associations = {
+    namespace            = "kube-system"
+    service_account_name = "karpernter"
+    role_arn_name        = "KarpenterControllerPolicy"
+  }
   eks_addons = [
     {
       name = "eks-pod-identity-agent"
