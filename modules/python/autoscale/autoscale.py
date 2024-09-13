@@ -54,17 +54,17 @@ def run_jobs(yaml_file, pod_count, node_count, result_file):
         with ThreadPoolExecutor() as executor:
             # expose node selector and pod selector as arguments
             node_future = executor.submit(check_count, node_count, "kubectl get nodes --selector=karpenter.sh/nodepool=default --ignore-not-found | grep -c Ready", "node", timeout, start_time)
-            pod_future = executor.submit(check_count, pod_count, "kubectl get pods --selector=app=scale --ignore-not-found | grep -c Running", "pod", timeout, start_time)
+            pod_future = executor.submit(check_count, pod_count, "kubectl get pods --selector=app=inflate --ignore-not-found | grep -c Running", "pod", timeout, start_time)
 
             node_count_status, wait_for_nodes_seconds = node_future.result()
             pod_count_status, wait_for_pod_seconds = pod_future.result()
 
-        scale_status = "success" if node_count_status and pod_count_status else "failure"
+        autoscale_result = "success" if node_count_status and pod_count_status else "failure"
 
         data = {
             "wait_for_nodes_seconds": wait_for_nodes_seconds,
             "wait_for_pod_seconds": wait_for_pod_seconds,
-            "scale_status": scale_status
+            "autoscale_result": autoscale_result
         }
 
         with open(result_file, 'w') as f:
@@ -77,13 +77,13 @@ def execute_scale_up(node_name, node_count, pod_count, deployment_template, depl
     calculate_request_resource(node_name, node_count, pod_count, deployment_template, deployment_file)
     run_jobs(deployment_file, pod_count, node_count, result_file)
 
-def collect_scale_up(data_file, cloud_info, autoscaler_type, pod_count, node_count, run_id, run_url, result_file):
+def collect_scale_up(data_file, cloud_info, autoscale_type, pod_count, node_count, run_id, run_url, result_file):
     with open(data_file, 'r') as f:
         data = f.read()
 
     result = {
         "timestamp": datetime.now(timezone.utc).timestamp(),
-        "autoscaler_type": autoscaler_type,
+        "autoscale_type": autoscale_type,
         "pod_count": pod_count,
         "node_count": node_count,
         "data": data,
@@ -111,7 +111,7 @@ def main():
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("data_file", type=str, help="Path to the data file")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
-    parser_collect.add_argument("autoscaler_type", type=str, help="Autoscaler type")
+    parser_collect.add_argument("autoscale_type", type=str, help="Autoscale type")
     parser_collect.add_argument("pod_count", type=int, help="Number of pods")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("run_id", type=str, help="Run ID")

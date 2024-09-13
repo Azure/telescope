@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: scale
+  name: inflate
   labels:
-    app: scale
+    app: inflate
 spec:
   replicas: ##Replicas##
   selector:
     matchLabels:
-      app: scale
+      app: inflate
   template:
     metadata:
       labels:
-        app: scale
+        app: inflate
     spec:
       nodeSelector:
         karpenter.sh/nodepool: default
