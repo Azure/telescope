@@ -196,7 +196,6 @@ module "eks" {
   ]
 }
 
-
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "1.16.3"
@@ -208,11 +207,8 @@ module "eks_blueprints_addons" {
 
   create_delay_dependencies = [for prof in module.eks.eks_managed_node_groups : prof.node_group_arn]
 
-  # enable and configure ALB for load balancing
-  enable_aws_load_balancer_controller = true
-
-  enable_metrics_server = false
-
+  enable_aws_load_balancer_controller = false
+  enable_metrics_server               = false
   eks_addons = {
   }
 
