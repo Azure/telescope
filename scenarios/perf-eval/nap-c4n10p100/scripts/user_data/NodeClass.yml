@@ -7,10 +7,10 @@ spec:
   role: "${CLUSTER_ROLE_NAME}" # replace with your cluster name
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: nap-10n100p # replace with your cluster name
+        karpenter.sh/discovery: nap-c4n10p100 # replace with your cluster name
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: nap-10n100p # replace with your cluster name
+        karpenter.sh/discovery: nap-c4n10p100 # replace with your cluster name
   amiSelectorTerms:
     - id: "ami-06b7debe20143e10f"
     - id: "ami-0bfd5e3e4519f513c"

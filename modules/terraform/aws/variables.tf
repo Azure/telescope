@@ -1,9 +1,9 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id      = string
-    region      = string
-    scripts_dir = string
+    run_id         = string
+    region         = string
+    user_data_path = string
   })
 }
 

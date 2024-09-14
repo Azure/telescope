@@ -6,6 +6,9 @@
     },
     "region": {
       "type": "string"
+    },
+    "user_data_path": {
+      "type": "string"
     }
   },
   "required": [

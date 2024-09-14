@@ -3,9 +3,10 @@ variable "run_id" {
   type        = string
 }
 
-variable "scripts_dir" {
-  description = "The directory where the scripts are stored"
+variable "user_data_path" {
+  description = "value of the user data path"
   type        = string
+  default     = ""
 }
 
 variable "tags" {

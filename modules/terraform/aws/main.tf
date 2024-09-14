@@ -1,7 +1,7 @@
 locals {
-  region      = lookup(var.json_input, "region", "us-east-1")
-  run_id      = lookup(var.json_input, "run_id", "123456")
-  scripts_dir = lookup(var.json_input, "scripts_dir", "")
+  region         = lookup(var.json_input, "region", "us-east-1")
+  run_id         = lookup(var.json_input, "run_id", "123456")
+  user_data_path = lookup(var.json_input, "user_data_path", "")
 
   tags = {
     "owner"             = var.owner
@@ -42,11 +42,11 @@ module "virtual_network" {
 module "eks" {
   for_each = local.eks_config_map
 
-  source      = "./eks"
-  run_id      = local.run_id
-  vpc_id      = local.all_vpcs[each.value.vpc_name].id
-  eks_config  = each.value
-  tags        = local.tags
-  scripts_dir = local.scripts_dir
-  depends_on  = [module.virtual_network]
+  source         = "./eks"
+  run_id         = local.run_id
+  vpc_id         = local.all_vpcs[each.value.vpc_name].id
+  eks_config     = each.value
+  tags           = local.tags
+  user_data_path = local.user_data_path
+  depends_on     = [module.virtual_network]
 }

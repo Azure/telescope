@@ -72,7 +72,7 @@ resource "aws_cloudformation_stack" "cluster_stack" {
     ClusterName    = local.eks_cluster_name
     ClusterRoleArn = aws_iam_role.eks_cluster_role.arn
   }
-  template_body = file("${var.scripts_dir}/${var.eks_config.cloudformation_template_file_name}.yaml")
+  template_body = file("${var.user_data_path}/${var.eks_config.cloudformation_template_file_name}.yaml")
   capabilities  = ["CAPABILITY_NAMED_IAM"]
 
   depends_on = [aws_iam_role.eks_cluster_role]
@@ -84,9 +84,9 @@ resource "terraform_data" "install_karpenter" {
     command = <<EOT
 			#!/bin/bash
 			set -e
-			"${var.scripts_dir}/install-karpenter.sh"
+			"${var.user_data_path}/install-karpenter.sh"
 			sleep 30
-			envsubst  < "${var.scripts_dir}/NodeClass.yml" | kubectl apply -f -
+			envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
 			
 			EOT
     environment = {
@@ -105,21 +105,7 @@ resource "terraform_data" "install_karpenter" {
 		  EOT
   }
   depends_on = [aws_eks_cluster.eks]
-}
 
-
-
-data "aws_iam_role" "role" {
-  name       = var.eks_config.pod_associations.role_arn_name
-  depends_on = [aws_cloudformation_stack.cluster_stack]
-}
-
-resource "aws_eks_pod_identity_association" "association" {
-  cluster_name    = aws_eks_cluster.eks.name
-  namespace       = var.eks_config.pod_associations.namespace
-  service_account = var.eks_config.pod_associations.service_account_name
-  role_arn        = data.aws_iam_role.role.arn
-  depends_on      = [data.aws_iam_role.role]
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {
@@ -172,4 +158,18 @@ module "eks_addon" {
   cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
   tags                      = var.tags
   depends_on                = [aws_eks_cluster.eks, aws_eks_node_group.eks_managed_node_groups]
+}
+
+
+data "aws_iam_role" "role" {
+  name       = var.eks_config.pod_associations.role_arn_name
+  depends_on = [aws_cloudformation_stack.cluster_stack]
+}
+
+resource "aws_eks_pod_identity_association" "association" {
+  cluster_name    = aws_eks_cluster.eks.name
+  namespace       = var.eks_config.pod_associations.namespace
+  service_account = var.eks_config.pod_associations.service_account_name
+  role_arn        = data.aws_iam_role.role.arn
+  depends_on      = [module.eks_addon]
 }

@@ -284,11 +284,11 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                !Sub "ec2.${AWS::URLSuffix}"
+                !Sub "pods.eks.${AWS::URLSuffix}"
             Action:
               - "sts:AssumeRole"
+              - "sts:TagSession"
       ManagedPolicyArns:
-        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy"      
         - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/KarpenterControllerPolicy-${ClusterName}"
   KarpenterInterruptionQueue:
     Type: AWS::SQS::Queue

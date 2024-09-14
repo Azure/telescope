@@ -15,11 +15,11 @@ Set environment variables for a specific test scenario. In this guide, we'll use
 Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=nap-10n100p
+SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=aws
 REGION="us-east-2"
-SCRIPTS_DIR=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
+TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
 TERRAFORM_MODULES_DIR=$(pwd)/modules/terraform/$CLOUD
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
 ```
@@ -49,11 +49,11 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 INPUT_JSON=$(jq -n \
       --arg run_id $RUN_ID \
       --arg region $REGION \
-      --arg scripts_dir $SCRIPTS_DIR \
+      --arg user_data_path  $TERRAFORM_USER_DATA_PATH \
       '{
       run_id: $run_id,
       region: $region,
-      scripts_dir: $scripts_dir,
+      user_data_path : $user_data_path ,
       }' | jq 'with_entries(select(.value != null and .value != ""))')
 ```
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
@@ -62,7 +62,8 @@ INPUT_JSON=$(jq -n \
 ```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
+terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
