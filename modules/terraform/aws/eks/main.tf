@@ -104,7 +104,7 @@ resource "terraform_data" "install_karpenter" {
 
 		  EOT
   }
-  depends_on = [aws_eks_cluster.eks]
+  depends_on = [aws_cloudformation_stack.cluster_stack, aws_eks_node_group.eks_managed_node_groups]
 
 }
 
@@ -161,15 +161,16 @@ module "eks_addon" {
 }
 
 
-data "aws_iam_role" "role" {
-  name       = var.eks_config.pod_associations.role_arn_name
-  depends_on = [aws_cloudformation_stack.cluster_stack]
-}
+# data "aws_iam_role" "role" {
+#   name       = var.eks_config.pod_associations.role_arn_name
+#   depends_on = [aws_cloudformation_stack.cluster_stack]
+# }
 
-resource "aws_eks_pod_identity_association" "association" {
-  cluster_name    = aws_eks_cluster.eks.name
-  namespace       = var.eks_config.pod_associations.namespace
-  service_account = var.eks_config.pod_associations.service_account_name
-  role_arn        = data.aws_iam_role.role.arn
-  depends_on      = [module.eks_addon]
-}
+# resource "aws_eks_pod_identity_association" "association" {
+#   count           = 0
+#   cluster_name    = aws_eks_cluster.eks.name
+#   namespace       = var.eks_config.pod_associations.namespace
+#   service_account = var.eks_config.pod_associations.service_account_name
+#   role_arn        = data.aws_iam_role.role.arn
+#   depends_on      = [module.eks_addon]
+# }
