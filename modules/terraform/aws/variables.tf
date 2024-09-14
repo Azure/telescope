@@ -3,7 +3,7 @@ variable "json_input" {
   type = object({
     run_id         = string
     region         = string
-    user_data_path = string
+    user_data_path = optional(string)
   })
 }
 
@@ -42,10 +42,8 @@ variable "network_config_list" {
       cidr_block              = string
       zone_suffix             = string
       map_public_ip_on_launch = optional(bool, false)
-      tags                    = optional(map(string))
     }))
     security_group_name = string
-    security_group_tags = optional(map(string))
     route_tables = list(object({
       name             = string
       cidr_block       = string
@@ -84,13 +82,10 @@ variable "network_config_list" {
 
 variable "eks_config_list" {
   type = list(object({
-    role                              = string
-    eks_name                          = string
-    override_cluster_name             = optional(bool, false)
-    vpc_name                          = string
-    policy_arns                       = list(string)
-    cloudformation_template_file_name = optional(string, null)
-    install_karpenter                 = optional(bool, false)
+    role        = string
+    eks_name    = string
+    vpc_name    = string
+    policy_arns = list(string)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -105,11 +100,6 @@ variable "eks_config_list" {
         value  = string
         effect = string
       })), [])
-    }))
-    pod_associations = optional(object({
-      namespace            = string
-      service_account_name = string
-      role_arn_name        = string
     }))
     eks_addons = list(object({
       name            = string

@@ -3,12 +3,6 @@ variable "run_id" {
   type        = string
 }
 
-variable "user_data_path" {
-  description = "value of the user data path"
-  type        = string
-  default     = ""
-}
-
 variable "tags" {
   type = map(string)
   default = {
@@ -22,13 +16,10 @@ variable "vpc_id" {
 
 variable "eks_config" {
   type = object({
-    role                              = string
-    eks_name                          = string
-    override_cluster_name             = optional(bool, false)
-    vpc_name                          = string
-    policy_arns                       = list(string)
-    cloudformation_template_file_name = optional(string, null)
-    install_karpenter                 = optional(bool, false)
+    role        = string
+    eks_name    = string
+    vpc_name    = string
+    policy_arns = list(string)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -43,11 +34,6 @@ variable "eks_config" {
         value  = string
         effect = string
       })), [])
-    }))
-    pod_associations = optional(object({
-      namespace            = string
-      service_account_name = string
-      role_arn_name        = string
     }))
     eks_addons = list(object({
       name            = string
