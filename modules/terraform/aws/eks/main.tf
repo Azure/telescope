@@ -69,8 +69,7 @@ resource "aws_cloudformation_stack" "cluster_stack" {
   name  = "${local.eks_cluster_name}-stack"
 
   parameters = {
-    ClusterName    = local.eks_cluster_name
-    ClusterRoleArn = aws_iam_role.eks_cluster_role.arn
+    ClusterName = local.eks_cluster_name
   }
   template_body = file("${var.user_data_path}/${var.eks_config.cloudformation_template_file_name}.yaml")
   capabilities  = ["CAPABILITY_NAMED_IAM"]
@@ -90,8 +89,7 @@ resource "terraform_data" "install_karpenter" {
 			
 			EOT
     environment = {
-      EKS_CLUSTER_NAME  = local.eks_cluster_name
-      CLUSTER_ROLE_NAME = aws_iam_role.eks_cluster_role.name
+      EKS_CLUSTER_NAME = local.eks_cluster_name
     }
   }
 
