@@ -16,14 +16,14 @@ network_config_list = [
         map_public_ip_on_launch = true
         tags                    = { "karpenter.sh/discovery" = "nap-c4n10p100" }
       },
-			{
+      {
         name                    = "nap-subnet-2"
         cidr_block              = "10.0.1.0/24"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
         tags                    = { "karpenter.sh/discovery" = "nap-c4n10p100" }
       },
-			{
+      {
         name                    = "nap-subnet-3"
         cidr_block              = "10.0.2.0/24"
         zone_suffix             = "c"
@@ -46,15 +46,15 @@ network_config_list = [
         route_table_name = "internet-rt"
       },
       {
-				name             = "nap-subnet-rt-assoc-2"
-				subnet_name      = "nap-subnet-2"
-				route_table_name = "internet-rt"
-			},
-			      {
-				name             = "nap-subnet-rt-assoc-3"
-				subnet_name      = "nap-subnet-3"
-				route_table_name = "internet-rt"
-			}
+        name             = "nap-subnet-rt-assoc-2"
+        subnet_name      = "nap-subnet-2"
+        route_table_name = "internet-rt"
+      },
+      {
+        name             = "nap-subnet-rt-assoc-3"
+        subnet_name      = "nap-subnet-3"
+        route_table_name = "internet-rt"
+      }
     ]
     sg_rules = {
       ingress = []
@@ -71,13 +71,13 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role        = "nap"
-  eks_name    = "nap-c4n10p100"
-	override_cluster_name = true
-	install_karpenter = true
-	cloudformation_template_file_name = "cloudformation"
-  vpc_name    = "nap-vpc"
-  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly","AmazonSSMManagedInstanceCore"]
+  role                              = "nap"
+  eks_name                          = "nap-c4n10p100"
+  override_cluster_name             = true
+  install_karpenter                 = true
+  cloudformation_template_file_name = "cloudformation"
+  vpc_name                          = "nap-vpc"
+  policy_arns                       = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
       name           = "nap-c4n10p100-ng"
