@@ -1,0 +1,22 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+    set -x
+    python $PYTHON_SCRIPT_FILE execute $CPU_PER_NODE $NODE_COUNT $POD_COUNT $DEPLOYMENT_TEMPLATE_FILE $RESULT_DATA_FILE
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale/autoscale.py
+    DEPLOYMENT_TEMPLATE_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/deployment_template.yml
+    RESULT_DATA_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/result_data.json
+  displayName: "Run benchmark"

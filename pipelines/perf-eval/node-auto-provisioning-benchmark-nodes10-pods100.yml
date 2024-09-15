@@ -1,0 +1,51 @@
+trigger: none
+schedules:
+  - cron: "0 */1 * * *"
+    displayName: "Every 1 Hour"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: nap-c4n10p100
+  SCENARIO_VERSION: add-autoscaling-test-pipelines
+
+stages:
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          topology: karpenter
+          matrix:
+            c4-n10-p100:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          topology: karpenter
+          matrix:
+            c4-n10-p100:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
