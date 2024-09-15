@@ -1,0 +1,57 @@
+{{$deploymentTemplatePath := DefaultParam .CL2_DEPLOYMENT_TEMPLATE_PATH "deployment_template.yaml"}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
+{{$deploymentCpu := DefaultParam .CL2_DEPLOYMENT_CPU "346m"}}
+{{$nodeLabelSelector := DefaultParam .CL2_NODE_LABEL_SELECTOR "karpenter.sh/nodepool = default"}}
+{{$nodeCount := DefaultParam .CL2_NODE_COUNT 10}}
+{{$nodeMeasurementTimeout := DefaultParam .CL2_NODE_MEASUREMENT_TIMEOUT "30m"}}
+{{$nodeRefreshInterval := DefaultParam .CL2_NODE_REFRESH_INTERVAL "5s"}}
+{{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
+{{$podMeasurementTimeout := DefaultParam .CL2_POD_MEASUREMENT_TIMEOUT "30m"}}
+{{$podRefreshInterval := DefaultParam .CL2_POD_REFRESH_INTERVAL "5s"}}
+
+name: autoscale
+namespace:
+  number: 1
+  prefix: autoscale
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: true
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+
+steps:
+- name: Create deployment
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 1
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: inflate
+      objectTemplatePath: {{$deploymentTemplatePath}}
+      templateFillMap:
+        Replicas: {{$deploymentSize}}
+        CPUperJob: {{$deploymentCpu}}
+- name: Start node and pod measurements
+  measurements:
+  - Identifier: WaitForRunningPods
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: {{$deploymentSize}}
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$podMeasurementTimeout}}
+      refreshInterval: {{$podRefreshInterval}}
+  - Identifier: WaitForNodes
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$nodeCount}}
+      maxDesiredNodeCount: {{$nodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$nodeMeasurementTimeout}}
+      refreshInterval: {{$nodeRefreshInterval}}

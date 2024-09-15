@@ -1,0 +1,3 @@
+CL2_DEPLOYMENT_CPU: ##CPUperJob##
+CL2_NODE_COUNT: ##NodeCount##
+CL2_DEPLOYMENT_SIZE: ##PodCount##
