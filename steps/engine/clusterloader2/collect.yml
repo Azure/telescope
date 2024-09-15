@@ -16,7 +16,9 @@ steps:
     python $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE $NODE_COUNT $POD_COUNT "nap" $RESULT_DATA_FILE $CLOUD $RUN_ID $RUN_URL $RESULT_UPLOAD_FILE
     kubectl delete --all nodeclaim
     kubectl delete --all nodepool
-    kubectl delete --all ec2nodeclass
+    if [[ "$CLOUD" == "aws" ]]; then
+      kubectl delete --all ec2nodeclass
+    fi
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
