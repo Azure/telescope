@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "nap-10n100p"
+scenario_name  = "nap-c4n10p100"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -8,7 +8,7 @@ aks_config_list = []
 aks_cli_config_list = [
   {
     role     = "nap"
-    aks_name = "nap-10n100p"
+    aks_name = "nap-c4n10p100"
     sku_tier = "standard"
 
     default_node_pool = {

@@ -1,0 +1,20 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  role: ${node_iam_role_name}
+  amiSelectorTerms:
+  - alias: al2@latest
+  securityGroupSelectorTerms:
+  - tags:
+      karpenter.sh/discovery: ${cluster_name}
+  subnetSelectorTerms:
+  - tags:
+      karpenter.sh/discovery: ${cluster_name}
+  tags:
+    IntentLabel: apps
+    KarpenterNodePoolName: default
+    NodeType: default
+    intent: apps
+    karpenter.sh/discovery: ${cluster_name}

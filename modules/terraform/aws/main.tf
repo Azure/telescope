@@ -29,7 +29,6 @@ provider "aws" {
   region = local.region
 }
 
-
 module "virtual_network" {
   for_each = local.network_config_map
 
