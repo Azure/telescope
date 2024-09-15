@@ -10,9 +10,9 @@ karpenter_config = {
   eks_managed_node_group = {
     name           = "nap-c4n10p100-ng"
     instance_types = ["m4.large"]
-    min_size       = 1
-    max_size       = 2
-    desired_size   = 2
+    min_size       = 5
+    max_size       = 5
+    desired_size   = 5
     capacity_type  = "ON_DEMAND"
   }
   karpenter_chart_version = "1.0.1"
