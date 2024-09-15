@@ -30,8 +30,8 @@ resource "aws_subnet" "subnets" {
   availability_zone = "${var.region}${each.value.zone_suffix}"
 
   tags = merge(local.tags, {
-    "Name" = each.value.name,
-  }, each.value.tags)
+    "Name" = each.value.name
+  })
 }
 
 resource "aws_eip" "eips" {
@@ -82,7 +82,7 @@ resource "aws_security_group" "security_group" {
 
   tags = merge(local.tags, {
     "Name" = local.security_group_name
-  }, var.network_config.security_group_tags)
+  })
 }
 
 resource "aws_internet_gateway" "internet_gateway" {
