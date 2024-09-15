@@ -256,7 +256,7 @@ module "aws-auth" {
 resource "kubectl_manifest" "karpenter_default_ec2_node_class" {
   yaml_body = templatefile("${path.module}/karpenter_default_ec2_node_class.tftpl", {
     node_iam_role_name = module.eks_blueprints_addons.karpenter.node_iam_role_name
-    project_name       = local.cluster_name
+    cluster_name       = local.cluster_name
   })
 
   depends_on = [
