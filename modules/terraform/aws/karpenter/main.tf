@@ -58,7 +58,7 @@ provider "kubectl" {
 locals {
   region                  = lookup(var.json_input, "region", "us-east-1")
   run_id                  = lookup(var.json_input, "run_id", "123456")
-  cluster_name            = var.karpenter_config.cluster_name
+  cluster_name            = "${var.karpenter_config.cluster_name}-${local.run_id}"
   eks_cluster_version     = var.karpenter_config.eks_cluster_version
   vpc_cidr                = var.karpenter_config.vpc_cidr
   eks_managed_node_group  = var.karpenter_config.eks_managed_node_group
