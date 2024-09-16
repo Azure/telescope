@@ -203,10 +203,13 @@ azure_aks_deploy_mongo()
   fi
 
   sed -i "s/\(storage: \).*/\1${disk_size_in_gb}Gi/" "${file_source}/pvc.yml"
-  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/mongo.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/mongo-client.yml"
+  sed -i "s/\(replicas: \).*/\1$replica_count/" "${file_source}/mongo-server.yml"
   
   kubectl apply -f "${file_source}/pvc.yml"
-  kubectl apply -f "${file_source}/ycsb.yml"
+  kubectl apply -f "${file_source}/mongo-headless-service.yml"
+  kubectl apply -f "${file_source}/mongo-server.yml"
+  kubectl apply -f "${file_source}/mongo-client.yml"
 }
 
 azure_create_vnet_peering()
