@@ -3,26 +3,26 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: terraform_input_file_mapping
+- name: input_file_mapping
   type: object
 
 steps:
 - script: |
     set -eu
-    echo "${{ parameters.terraform_input_file_mapping[0].eastus2 }}"
-    echo "${{ parameters.terraform_input_file_mapping[1].westus2 }}"
-    for config in $(echo "$TERRAFORM_INPUT_FILE_MAPPING" | jq -r 'keys[]'); do
+    echo "${{ parameters.input_file_mapping[0].eastus2 }}"
+    echo "${{ parameters.input_file_mapping[1].westus2 }}"
+    for config in $(echo "$INPUT_FILE_MAPPING" | jq -r 'keys[]'); do
       echo "Key : $config"
-      echo "$TERRAFORM_INPUT_FILE_MAPPING | jq -r ".$config"
+      echo "$(echo "$INPUT_FILE_MAPPING" | jq -r --arg key "$config" '.[$key]')"
     done
   displayName: 'Print Terraform Input File Mapping'
   env:
-    TERRAFORM_INPUT_FILE_MAPPING: ${{ convertToJson(parameters.terraform_input_file_mapping) }}
+    INPUT_FILE_MAPPING: ${{ convertToJson(parameters.input_file_mapping) }}
 
 
 - script: |
     set -eu
-    regional_config=$(jq -n '{}')     
+    regional_config=$(jq -n '{}')    
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -44,3 +44,4 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
+    INPUT_FILE_MAPPING: ${{ convertToJson(parameters.input_file_mapping) }}
