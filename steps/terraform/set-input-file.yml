@@ -15,9 +15,10 @@ steps:
     echo "${{ convertToJson(parameters.input_file_mapping) }}"
     terraform_file_config=$(jq -n '{}')
     for item in $(echo "${{ convertToJson(parameters.input_file_mapping) }}" | jq -c '.[]'); do
+      echo $item
       region=$(echo "$item" | jq -r 'keys[]')
       file_path=$(echo "$item" | jq -r '.[]')
-      terraform_file_config=$(echo $terraform_file_config | jq --arg region $region --arg file_path $file_path '. + {($region): $file_path}')
+      terraform_file_config=$(echo $terraform_file_config | jq --arg region "$region" --arg file_path "$file_path" '. + {($region): $file_path}')
     done
   displayName: 'Print Terraform Input File Mapping'
   env:
@@ -28,9 +29,10 @@ steps:
     regional_config=$(jq -n '{}')
     terraform_file_config=$(jq -n '{}')
     for item in $(echo "${{ convertToJson(parameters.input_file_mapping) }}" | jq -c '.[]'); do
+      echo $item
       region=$(echo "$item" | jq -r 'keys[]')
       file_path=$(echo "$item" | jq -r '.[]')
-      terraform_file_config=$(echo $terraform_file_config | jq --arg region $region --arg file_path $file_path '. + {($region): $file_path}')
+      terraform_file_config=$(echo $terraform_file_config | jq --arg region "$region" --arg file_path "$file_path" '. + {($region): $file_path}')
     done
 
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
