@@ -5,10 +5,10 @@ parameters:
   type: object
 - name: terraform_input_file_mapping
   type: object
-  default: {}
 
 steps:
 - script: |
+    set -eu
     echo "${INPUT_FILE_MAPPING}" | jq -r '.[]'
   displayName: 'Print Terraform Input File Mapping'
   env:
