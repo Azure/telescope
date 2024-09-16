@@ -38,7 +38,6 @@ steps:
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
       if [ $terraform_file_config != "{}" ]; then        
         terraform_input_file=$(Pipeline.Workspace)/s/terraform_file_config[$region]
-        exit 0
       elif [ $multi_region = "false" ]; then
         terraform_input_file=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
       else
