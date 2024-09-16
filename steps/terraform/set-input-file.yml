@@ -14,7 +14,6 @@ steps:
     echo "${{ convertToJson(parameters.input_file_mapping) }}"
     for config in $(echo "$INPUT_FILE_MAPPING" | jq -r 'keys[]'); do
       echo "Key : $config"
-      echo "$(echo "$INPUT_FILE_MAPPING" | jq -r --arg key "$config" '.[$key]')"
     done
   displayName: 'Print Terraform Input File Mapping'
   env:
