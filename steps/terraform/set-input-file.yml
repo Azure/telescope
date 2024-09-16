@@ -3,7 +3,7 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: input_file
+- name: input_file_mapping
   type: string
   default: ''
 
@@ -14,8 +14,9 @@ steps:
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
-      if [ -v "$INPUT_FILE" ]; then
-        terraform_input_file=$(Pipeline.Workspace)/s/$INPUT_FILE
+      if [ -v "$INPUT_FILE_MAPPING" ]; then
+        echo  $INPUT_FILE_MAPPING
+        terraform_input_file=$(Pipeline.Workspace)/s/$INPUT_FILE_MAPPING
       elif [ $multi_region = "false" ]; then
         terraform_input_file=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
       else
@@ -30,5 +31,5 @@ steps:
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     CLOUD: ${{ parameters.cloud }}
-    INPUT_FILE: ${{ parameters.input_file }}
+    INPUT_FILE_MAPPING: ${{ parameters.input_file_mapping }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
