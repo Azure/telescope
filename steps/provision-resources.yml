@@ -89,7 +89,7 @@ steps:
 
 - template: /steps/terraform/run-command.yml
   parameters:
-    command: apply
+    command: plan
     arguments: ${{ parameters.terraform_arguments }}
     regions: ${{ parameters.regions }}
     cloud: ${{ parameters.cloud }}
