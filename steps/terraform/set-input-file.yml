@@ -11,7 +11,13 @@ steps:
     set -eu
     echo "${{ parameters.terraform_input_file_mapping[0].eastus2 }}"
     echo "${{ parameters.terraform_input_file_mapping[1].westus2 }}"
+    for config in $(echo "$TERRAFORM_INPUT_FILE_MAPPING" | jq -r 'keys[]'); do
+      echo "Key : $config"
+      echo "$TERRAFORM_INPUT_FILE_MAPPING | jq -r ".$config"
+    done
   displayName: 'Print Terraform Input File Mapping'
+  env:
+    TERRAFORM_INPUT_FILE_MAPPING: ${{ convertToJson(parameters.terraform_input_file_mapping) }}
 
 
 - script: |
