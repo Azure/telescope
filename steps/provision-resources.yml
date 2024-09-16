@@ -39,7 +39,7 @@ steps:
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
-    input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
+    terraform_input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
 
 - template: /steps/terraform/set-user-data-path.yml
   parameters:

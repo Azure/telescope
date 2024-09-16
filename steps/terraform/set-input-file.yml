@@ -3,7 +3,7 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: input_file_mapping
+- name: terraform_input_file_mapping
   type: object
   default: {}
 
