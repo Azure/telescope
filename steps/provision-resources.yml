@@ -8,7 +8,6 @@ parameters:
   default: ''
 - name: terraform_input_file_mapping
   type: object
-  default: {}
 - name: terraform_user_data_path
   type: string
   default: ''

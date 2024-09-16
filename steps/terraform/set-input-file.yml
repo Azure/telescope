@@ -9,9 +9,12 @@ parameters:
 steps:
 - script: |
     set -eu
-    echo "${{ parameters.terraform_input_file_mapping.eastus2 }}"
-    echo "${{ parameters.terraform_input_file_mapping.westus2 }}"
+    echo "${{ parameters.terraform_input_file_mapping[0] }}"
+    echo "${{ parameters.terraform_input_file_mapping[1] }}"
+    echo "$INPUT"
   displayName: 'Print Terraform Input File Mapping'
+  env:
+    INPUT: ${{ convertToJson(parameters.terraform_input_file_mapping) }}
 
 
 - script: |
