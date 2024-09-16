@@ -9,7 +9,7 @@ parameters:
 steps:
 - script: |
     set -eu
-    echo "${INPUT_FILE_MAPPING}" | jq -r '.[]'
+    echo "$INPUT_FILE_MAPPING" | jq -r '.[]'
   displayName: 'Print Terraform Input File Mapping'
   env:
     INPUT_FILE_MAPPING: ${{ convertToJson(parameters.terraform_input_file_mapping) }}
