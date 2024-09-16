@@ -9,7 +9,7 @@ parameters:
 
 steps:
 - script: |
-    set -ex
+    set -eux
     regional_config=$(jq -n '{}')
     echo "$INPUT_FILE_MAPPING"
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
@@ -32,5 +32,5 @@ steps:
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     CLOUD: ${{ parameters.cloud }}
-    INPUT_FILE_MAPPING: ${{ convertToJson(parameters.input_file_mapping) }}
+    INPUT_FILE_MAPPING: ${{ parameters.input_file_mapping }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
