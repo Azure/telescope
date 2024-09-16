@@ -13,7 +13,7 @@ steps:
     regional_config=$(jq -n '{}')
     # input_file_mapping_str=$(echo ${{ parameters.input_file_mapping }} | jq -c .)
     # echo "$input_file_mapping_str"
-    echo ${{ parameters.input_file_mapping.eastus2 }}
+    echo ${{ convertToJson(parameters.input_file_mapping) }}
     #terraform_file_config=$(echo ${{ parameters.input_file_mapping }}" | jq --arg k "$key" --arg v "$value" '. + {($k): $v}')
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
