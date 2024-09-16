@@ -9,7 +9,8 @@ parameters:
 steps:
 - script: |
     set -eu
-    echo "${{ parameters.terraform_input_file_mapping.regional_map }}"
+    echo "${{ parameters.terraform_input_file_mapping.eastus2 }}"
+    echo "${{ parameters.terraform_input_file_mapping.westus2 }}"
   displayName: 'Print Terraform Input File Mapping'
 
 
