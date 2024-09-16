@@ -1,37 +1,36 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: mongo-server
   labels:
     test: mongo-server
+    app: mongo-server
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       test: mongo-server
+      app: mongo-server
+  serviceName: "mongo-server"
   template:
     metadata:
       labels:
         test: mongo-server
+        app: mongo-server
     spec:
       nodeSelector:
-        agentpool: user
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            test: mongo-server
+        agentpool: server
       containers:
       - name: mongo-server
-        image: telescope.azurecr.io/perf-eval/mongo:0.0.1
-        command: ["/bin/sh"]
-        args: ["-c", "sleep infinity"]
+        image: telescope.azurecr.io/perf-eval/mongo:1.0.1
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--dbpath", "/mnt/azure", "--logpath", "/app/mongod.log", "--replSet", "rs0"]
+        ports:
+        - containerPort: 27017
         volumeMounts:
         - name: azure
           mountPath: /mnt/azure
       volumes:
       - name: azure
         persistentVolumeClaim:
-          claimName: files-pvc
+          claimName: prem-pvc

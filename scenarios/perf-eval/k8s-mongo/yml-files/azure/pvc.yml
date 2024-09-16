@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-    name: files-pvc
+    name: prem-pvc
 spec:
   accessModes:
-  - ReadWriteMany
-  storageClassName: azfile-sc
+  - ReadWriteOnce
+  storageClassName: azprem-sc
   resources:
     requests:
-      storage: 1024Gi
+      storage: 256Gi

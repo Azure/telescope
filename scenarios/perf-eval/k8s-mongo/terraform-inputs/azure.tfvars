@@ -22,9 +22,15 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "user"
-        node_count = 1
-        vm_size    = "Standard_D16s_v4"
+        name       = "server"
+        node_count = 2
+        vm_size    = "Standard_D32s_v3"
+        zones      = ["1"]
+      },
+      {
+        name       = "client"
+        node_count = 2
+        vm_size    = "Standard_L8s_v3"
         zones      = ["1"]
       }
     ]

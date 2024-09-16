@@ -1,18 +1,23 @@
+# TO BE DELETED
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mongo-client
+  name: mongo-server
   labels:
-    test: mongo-client
+    test: mongo-server
+    app: mongo-server
 spec:
   replicas: 3
   selector:
     matchLabels:
-      test: mongo-client
+      test: mongo-server
+      app: mongo-server
   template:
     metadata:
       labels:
-        test: mongo-client
+        test: mongo-server
+        app: mongo-server
     spec:
       nodeSelector:
         agentpool: user
@@ -22,16 +27,18 @@ spec:
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            test: mongo-client
+            test: mongo-server
       containers:
-      - name: mongo-client
-        image: telescope.azurecr.io/perf-eval/mongo:0.0.1
-        command: ["/bin/sh"]
-        args: ["-c", "sleep infinity"]
+      - name: mongo-server
+        image: telescope.azurecr.io/perf-eval/mongo:0.0.2
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--dbpath", "/mnt/azure", "--logpath", "/mnt/azure/mongod.log", "--replSet", "rs0"]
+        ports:
+        - containerPort: 27017
         volumeMounts:
         - name: azure
           mountPath: /mnt/azure
       volumes:
       - name: azure
         persistentVolumeClaim:
-          claimName: files-pvc
+          claimName: prem-pvc1
