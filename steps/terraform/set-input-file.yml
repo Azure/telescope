@@ -5,6 +5,7 @@ parameters:
   type: object
 - name: input_file_mapping
   type: object
+  default: []
 
 steps:
 - script: |
@@ -12,10 +13,11 @@ steps:
     echo "${{ parameters.input_file_mapping[0].eastus2 }}"
     echo "${{ parameters.input_file_mapping[1].westus2 }}"
     echo "${{ convertToJson(parameters.input_file_mapping) }}"
-    multi_file=$(echo "$INPUT_FILE_MAPPING" | jq -r 'if length > 1 then "true" else "false" end')
-    echo "Multi File: $multi_file"
-    for config in $(echo "$INPUT_FILE_MAPPING" | jq -r '.[]'); do
-      echo "Key : ${config}"
+    terraform_file_config=$(jq -n '{}')
+    for item in $(echo "${{ convertToJson(parameters.input_file_mapping) }}" | jq -c '.[]'); do
+      region=$(echo "$item" | jq -r 'keys[]')
+      file_path=$(echo "$item" | jq -r '.[]')
+      terraform_file_config=$(echo $terraform_file_config | jq --arg region $region --arg file_path $file_path '. + {($region): $file_path}')
     done
   displayName: 'Print Terraform Input File Mapping'
   env:
@@ -24,11 +26,18 @@ steps:
 - script: |
     set -eu
     regional_config=$(jq -n '{}')
+    terraform_file_config=$(jq -n '{}')
+    for item in $(echo "${{ convertToJson(parameters.input_file_mapping) }}" | jq -c '.[]'); do
+      region=$(echo "$item" | jq -r 'keys[]')
+      file_path=$(echo "$item" | jq -r '.[]')
+      terraform_file_config=$(echo $terraform_file_config | jq --arg region $region --arg file_path $file_path '. + {($region): $file_path}')
+    done
+
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
-      if [ -n "" ]; then        
-        terraform_input_file=$(Pipeline.Workspace)/s
+      if [ $terraform_file_config != "{}" ]; then        
+        terraform_input_file=$(Pipeline.Workspace)/s/terraform_file_config[$region]
         exit 0
       elif [ $multi_region = "false" ]; then
         terraform_input_file=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
@@ -45,4 +54,3 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
-    INPUT_FILE_MAPPING: ${{ convertToJson(parameters.input_file_mapping) }}
