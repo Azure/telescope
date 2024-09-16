@@ -12,8 +12,10 @@ steps:
     echo "${{ parameters.input_file_mapping[0].eastus2 }}"
     echo "${{ parameters.input_file_mapping[1].westus2 }}"
     echo "${{ convertToJson(parameters.input_file_mapping) }}"
-    for config in $(echo "$INPUT_FILE_MAPPING" | jq -r 'keys[]'); do
-      echo "Key : $config"
+    multi_file=$(echo "$INPUT_FILE_MAPPING" | jq -r 'if length > 1 then "true" else "false" end')
+    echo "Multi File: $multi_file"
+    for config in $(echo "$INPUT_FILE_MAPPING" | jq -r '.[]'); do
+      echo "Key : ${config}"
     done
   displayName: 'Print Terraform Input File Mapping'
   env:
