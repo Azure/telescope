@@ -9,14 +9,15 @@ parameters:
 
 steps:
 - script: |
-    set -eu
+    set -ex
     regional_config=$(jq -n '{}')
+    echo "$INPUT_FILE_MAPPING"
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
-      if [ -v "$INPUT_FILE_MAPPING" ]; then
-        echo  $INPUT_FILE_MAPPING
+      if [ -v "$INPUT_FILE_MAPPING" ]; then        
         terraform_input_file=$(Pipeline.Workspace)/s/$INPUT_FILE_MAPPING
+        exit 0
       elif [ $multi_region = "false" ]; then
         terraform_input_file=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
       else
