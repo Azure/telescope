@@ -11,10 +11,12 @@ steps:
 - script: |
     set -eux
     regional_config=$(jq -n '{}')
-    # Convert the terraform_input_file_mapping parameter to a JSON string
-    terraform_input_file_mapping=$(echo ${{ parameters.terraform_input_file_mapping }} | jq -c .)
+    terraform_input_file_mapping='${{ toJson(parameters.terraform_input_file_mapping) }}'
     
-    # Loop through the key-value pairs in the JSON object
+    # Print the JSON for debugging
+    echo "Terraform Input File Mapping: $terraform_input_file_mapping"
+
+    # Convert the JSON string to a jq-compatible format
     echo "$terraform_input_file_mapping" | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r region file_path; do
       echo "Region: $region"
       echo "File Path: $file_path"
