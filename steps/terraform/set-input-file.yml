@@ -31,5 +31,5 @@ steps:
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     CLOUD: ${{ parameters.cloud }}
-    INPUT_FILE_MAPPING: ${{ parameters.input_file_mapping }}
+    INPUT_FILE_MAPPING: ${{ convertToJson(parameters.input_file_mapping) }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
