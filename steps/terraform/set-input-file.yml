@@ -5,6 +5,7 @@ parameters:
   type: object
 - name: input_file_mapping
   type: object
+  default: {}
 
 steps:
 - script: |
@@ -15,7 +16,7 @@ steps:
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
-      if [ -v "${{ parameters.input_file_mapping}}" ]; then        
+      if [ -n "${{ parameters.input_file_mapping}}" ]; then        
         terraform_input_file=$(Pipeline.Workspace)/s
         exit 0
       elif [ $multi_region = "false" ]; then
