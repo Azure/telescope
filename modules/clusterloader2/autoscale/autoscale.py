@@ -16,6 +16,7 @@ def calculate_request_resource(cpu_per_node, node_count, pod_count, override_fil
     with open(override_file, 'r') as file:
         content = file.read()
 
+    # assuming then number of surge nodes is no more than 10
     content = content.replace("##CPUperJob##", f"{cpu_request}m")
     content = content.replace("##MinNodeCount##", str(node_count))
     content = content.replace("##MaxNodeCount##", str(node_count + 10))
@@ -26,7 +27,7 @@ def calculate_request_resource(cpu_per_node, node_count, pod_count, override_fil
 
 def execute_clusterloader2(cpu_per_node, node_count, pod_count, cl2_override_file, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     calculate_request_resource(cpu_per_node, node_count, pod_count, cl2_override_file)
-    command = base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, cl2_override_file)
+    command = base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, True)
     print(f"Running command: {command}")
     result = run_command(command)
     print(result)

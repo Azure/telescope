@@ -10,7 +10,7 @@ def run_command(command):
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     return result.stdout.strip()
 
-def base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=None):
+def base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=False):
     command=f"""docker run -it \\
 -v {kubeconfig}:/root/.kube/config \\
 -v {cl2_config_dir}:/root/perf-tests/clusterloader2/config \\
@@ -21,7 +21,7 @@ def base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overr
 --testconfig /root/perf-tests/clusterloader2/config/config.yaml \\
 --report-dir /root/perf-tests/clusterloader2/results"""
     if overrides:
-        command += f"--overrides {overrides}"
+        command += f" --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
     return command
 
