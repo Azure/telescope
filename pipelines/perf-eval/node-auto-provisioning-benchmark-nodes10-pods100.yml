@@ -23,6 +23,7 @@ stages:
             - us-east-2
           engine: clusterloader2
           topology: karpenter
+          create_custom_resource: true
           terraform_modules_dir: 'modules/terraform/aws/karpenter'  # TODO: Need to fix the Karpenter module
           matrix:
             c4-n10-p100:
@@ -42,6 +43,7 @@ stages:
             - eastus2
           engine: clusterloader2
           topology: karpenter
+          create_custom_resource: true
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
