@@ -32,4 +32,4 @@ steps:
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     CLOUD: ${{ parameters.cloud }}
-    INPUT_FILE: ${{ parameters.input_file }}
+    REGIONS: ${{ convertToJson(parameters.regions) }}
