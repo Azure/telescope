@@ -16,7 +16,7 @@ steps:
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
       if [ -n "$terraform_file_config" ]; then
-        regional_input_file_path=$(echo "$terraform_file_config" | jq -r --arg region "$region" '.[$region]')   
+        regional_input_file_path=$(echo "$terraform_file_config" | jq -r --arg region "$region" '.[$region]')
         terraform_input_file=$(Pipeline.Workspace)/s/${regional_input_file_path}
       elif [ $multi_region = "false" ]; then
         terraform_input_file=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
