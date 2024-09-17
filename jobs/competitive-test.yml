@@ -45,6 +45,9 @@ parameters:
   values:
   - managed_identity
   - service_connection
+- name: create_custom_resource
+  type: boolean
+  default: false
 
 jobs:
 - job: ${{ parameters.cloud }}
@@ -72,6 +75,12 @@ jobs:
       terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
+- ${{ if eq(parameters.create_custom_resource, true) }}:
+  - template: /steps/topology/${{ parameters.topology }}/create-custom-resources.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      regions: ${{ parameters.regions }}
+      topology: ${{ parameters.topology }}
   - template: /steps/validate-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
@@ -93,6 +102,14 @@ jobs:
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
+- ${{ if eq(parameters.create_custom_resource, true) }}:
+  - template: /steps/topology/${{ parameters.topology }}/cleanup-custom-resources.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      regions: ${{ parameters.regions }}
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+      engine_input: ${{ parameters.engine_input }}
   - template: /steps/cleanup-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}

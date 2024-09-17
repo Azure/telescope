@@ -15,6 +15,12 @@ parameters:
   default: managed_identity
 
 steps:
+- template: /steps/topology/${{ parameters.topology }}/cleanup-custom-resources.yml@self
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    regions: ${{ parameters.regions }}
+    engine: ${{ parameters.engine }}
+
 - template: /steps/terraform/run-command.yml
   parameters:
     command: destroy
