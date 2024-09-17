@@ -20,6 +20,7 @@ parameters:
   default: ''
 - name: terraform_input_file_mapping
   type: object
+  default: []
 - name: terraform_arguments
   type: string
   default: ''
