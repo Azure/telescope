@@ -4,7 +4,7 @@ import argparse
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from utils import run_command, base_cl2_command, parse_xml_to_json
+from utils import parse_xml_to_json, run_cl2_command
 
 def calculate_request_resource(cpu_per_node, node_count, pod_count, override_file):
     # assuming 90% of the CPU cores can be used by test pods
@@ -27,10 +27,7 @@ def calculate_request_resource(cpu_per_node, node_count, pod_count, override_fil
 
 def execute_clusterloader2(cpu_per_node, node_count, pod_count, cl2_override_file, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     calculate_request_resource(cpu_per_node, node_count, pod_count, cl2_override_file)
-    command = base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, True)
-    print(f"Running command: {command}")
-    result = run_command(command)
-    print(result)
+    run_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=True)
 
 def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, cl2_report_dir, cloud_info, run_id, run_url, result_file):
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"))

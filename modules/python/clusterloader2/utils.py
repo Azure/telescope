@@ -1,29 +1,36 @@
 import json
 import subprocess
+import docker
 
 from xml.dom import minidom
+from docker_client import DockerClient
 
 IMAGE="telescope.azurecr.io/perf-eval/clusterloader2:20240917"
 
 def run_command(command):
     """Utility function to run a shell command and capture the output."""
+    print(f"Running command: {command}")
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    print(result.stdout)
     return result.stdout.strip()
 
-def base_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=False):
-    command=f"""docker run -it \\
--v {kubeconfig}:/root/.kube/config \\
--v {cl2_config_dir}:/root/perf-tests/clusterloader2/config \\
--v {cl2_report_dir}:/root/perf-tests/clusterloader2/results \\
-{IMAGE} \\
---provider={provider} --v=2 --enable-exec-service=false \\
---kubeconfig /root/.kube/config \\
---testconfig /root/perf-tests/clusterloader2/config/config.yaml \\
+def run_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=False):
+    docker_client = DockerClient()
+    command=f"""--provider={provider} --v=2 --enable-exec-service=false
+--kubeconfig /root/.kube/config 
+--testconfig /root/perf-tests/clusterloader2/config/config.yaml 
 --report-dir /root/perf-tests/clusterloader2/results"""
     if overrides:
         command += f" --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
-    return command
+    volumes = { 
+        kubeconfig: {'bind': '/root/.kube/config', 'mode': 'rw'},
+        cl2_config_dir: {'bind': '/root/perf-tests/clusterloader2/config', 'mode': 'rw'},
+        cl2_report_dir: {'bind': '/root/perf-tests/clusterloader2/results', 'mode': 'rw'}
+    }
+    container = docker_client.run_container(IMAGE, command, volumes, detach=False)
+
+    return container.logs()
 
 def parse_xml_to_json(file_path, indent = 0):
     # Open and read the XML file
