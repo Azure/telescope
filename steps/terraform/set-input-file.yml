@@ -3,9 +3,9 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: input_file
-  type: string
-  default: ''
+- name: input_file_mapping
+  type: object
+  default: []
 
 steps:
 - script: |
