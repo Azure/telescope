@@ -13,8 +13,9 @@ steps:
     echo "${{ parameters.input_file_mapping[0].eastus2 }}"
     echo "${{ parameters.input_file_mapping[1].westus2 }}"
     echo "${{ convertToJson(parameters.input_file_mapping) }}"
+    echo "${{ convertToJson(parameters.input_file_mapping[0]) }}"
     terraform_file_config=$(jq -n '{}')
-    for item in $(echo "${{ convertToJson(parameters.input_file_mapping) }}" | jq -c '.[]'); do
+    for item in $(echo '${{ convertToJson(parameters.input_file_mapping[0]) }}' | jq -c '.[]'); do
       echo $item  
     done
   displayName: 'Print Terraform Input File Mapping'
