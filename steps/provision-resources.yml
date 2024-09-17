@@ -6,9 +6,8 @@ parameters:
 - name: terraform_modules_dir
   type: string
   default: ''
-- name: terraform_input_file
-  type: string
-  default: ''
+- name: terraform_input_file_mapping
+  type: object
 - name: terraform_user_data_path
   type: string
   default: ''
@@ -39,7 +38,7 @@ steps:
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
-    input_file: ${{ parameters.terraform_input_file }}
+    input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
 
 - template: /steps/terraform/set-user-data-path.yml
   parameters:
