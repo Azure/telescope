@@ -11,7 +11,7 @@ steps:
 - script: |
     set -eux
     regional_config=$(jq -n '{}')
-    terraform_file_config=$(echo "${{ convertToJson(parameters.input_file_mapping) }}" | sed -E 's/(\w+):/"\1":/g; s/: ([^",]+)/: "\1"/g' | jq -r '.[]')
+    terraform_file_config=$(echo "${{ convertToJson(parameters.input_file_mapping) }}" | sed -E 's/([a-zA-Z0-9_-]+):/"\1":/g; s/: ([^",]+)/: "\1"/g' | jq -r '.[]')
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
