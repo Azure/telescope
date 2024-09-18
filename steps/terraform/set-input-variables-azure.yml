@@ -18,8 +18,7 @@ steps:
 
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
-
-      # check if pipeline variable $(AKS_CUSTOM_HEADERS) is set or not and set if it is not set
+      
       if [ -z "$(AKS_CUSTOM_HEADERS)" ]; then
         CUSTOM_HEADERS='[]'
       else
