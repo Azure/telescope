@@ -57,6 +57,15 @@ stages:
             podsize-10k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-10k-exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-20k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            podsize-20k-exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.2
             benchmark_subcmd: node100_pod10k
