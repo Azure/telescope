@@ -58,7 +58,7 @@ provider "kubectl" {
 locals {
   region                  = lookup(var.json_input, "region", "us-east-1")
   run_id                  = lookup(var.json_input, "run_id", "123456")
-  cluster_name            = var.karpenter_config.cluster_name
+  cluster_name            = substr("${var.karpenter_config.cluster_name}-${local.run_id}", 0, 25)
   eks_cluster_version     = var.karpenter_config.eks_cluster_version
   vpc_cidr                = var.karpenter_config.vpc_cidr
   eks_managed_node_group  = var.karpenter_config.eks_managed_node_group
@@ -134,7 +134,7 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "20.24.0"
 
-  cluster_name                   = substr("${local.cluster_name}-${local.run_id}", 0, 25)
+  cluster_name                   = local.cluster_name
   cluster_version                = local.eks_cluster_version
   cluster_endpoint_public_access = true
 

@@ -4,12 +4,14 @@ parameters:
   subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
   container_name: $(SCENARIO_TYPE)
   credential_type: string
+  cloud: string
 
 steps:
-- template: /steps/cloud/azure/login.yml
-  parameters:
-    region: eastus
-    credential_type: ${{ parameters.credential_type }}
+- ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
+  - template: /steps/cloud/azure/login.yml
+    parameters:
+      region: eastus
+      credential_type: ${{ parameters.credential_type }}
 
 - bash: |
     set -eux
