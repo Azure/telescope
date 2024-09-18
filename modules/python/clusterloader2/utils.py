@@ -6,7 +6,7 @@ import docker
 from xml.dom import minidom
 from docker_client import DockerClient
 
-IMAGE="telescope.azurecr.io/perf-eval/clusterloader2:20240917.1"
+IMAGE="telescope.azurecr.io/perf-eval/clusterloader2:20240918"
 
 def run_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=False):
     docker_client = DockerClient()
