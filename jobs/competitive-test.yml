@@ -66,7 +66,6 @@ jobs:
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
       subscription: ${{ parameters.subscription }}
-
   - template: /steps/provision-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
