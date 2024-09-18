@@ -7,7 +7,7 @@ parameters:
   cloud: string
 
 steps:
-- ${{ if ne(parameters.cloud, 'azure') }}:
+- ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
   - template: /steps/cloud/azure/login.yml
     parameters:
       region: eastus
