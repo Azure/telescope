@@ -14,6 +14,8 @@ parameters:
   default: 3
 - name: credential_type
   type: string
+- name: subscription
+  type: string
 
 steps:
 - script: |
@@ -47,6 +49,7 @@ steps:
   parameters:
     region: ${{ parameters.region }}
     credential_type: ${{ parameters.credential_type }}
+    subscription: ${{ parameters.subscription }}
 
 - script: |
     if [ -n "${TEST_MODULES_DIR}" ]; then

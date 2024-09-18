@@ -4,7 +4,6 @@ parameters:
   default: eastus
 - name: subscription
   type: string
-  default: $(AZURE_SUBSCRIPTION_ID)
 - name: credential_type
   type: string
 

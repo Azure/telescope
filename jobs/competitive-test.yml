@@ -45,6 +45,9 @@ parameters:
   values:
   - managed_identity
   - service_connection
+- name: subscription
+  type: string
+  default: $(AZURE_SUBSCRIPTION_ID)
 
 jobs:
 - job: ${{ parameters.cloud }}
@@ -62,6 +65,8 @@ jobs:
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
+      subscription: ${{ parameters.subscription }}
+
   - template: /steps/provision-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
