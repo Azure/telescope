@@ -97,6 +97,7 @@ jobs:
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
+      subscription: ${{ parameters.subscription }}
   - template: /steps/cleanup-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
