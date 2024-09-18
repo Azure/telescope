@@ -134,7 +134,7 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "20.24.0"
 
-  cluster_name                   = local.cluster_name
+  cluster_name                   = substr("${local.cluster_name}-${local.run_id}", 0, 100)
   cluster_version                = local.eks_cluster_version
   cluster_endpoint_public_access = true
 
