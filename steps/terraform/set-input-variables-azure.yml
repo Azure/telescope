@@ -18,7 +18,7 @@ steps:
 
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
-      
+
       if [ -z "$(AKS_CUSTOM_HEADERS)" ]; then
         CUSTOM_HEADERS='[]'
       else
