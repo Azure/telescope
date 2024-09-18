@@ -67,7 +67,7 @@ steps:
       --kubeconfig ~/.kube/config \
       --runner-image="${RUNNER_IMAGE}" \
       --runner-flowcontrol="${FLOWCONTROL}" \
-      --result ${RESULT_DIR}/tmp_results.json \
+      --result $(TEST_RESULTS_DIR)/tmp_results.json \
       ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
 
   env:
@@ -77,6 +77,5 @@ steps:
     BENCHMARK_SUBCMD: ${{ parameters.engine_input.benchmark_subcmd }}
     BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
     EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
-    RESULT_DIR: $(TEST_RESULTS_DIR)
     FLOWCONTROL: ${{ parameters.flowcontrol }}
   displayName: "Run Benchmark"
