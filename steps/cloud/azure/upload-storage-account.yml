@@ -28,7 +28,7 @@ steps:
     fi
   displayName: "Upload Result"
   env:
-    SOURCE_FILE_NAME: $(TEST_RESULTS_FILE)
+    SOURCE_FILE_NAME: ${{ parameters.source_file_name }}
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
