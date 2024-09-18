@@ -8,15 +8,9 @@ from docker_client import DockerClient
 
 IMAGE="telescope.azurecr.io/perf-eval/clusterloader2:20240917.1"
 
-def run_command(command):
-    """Utility function to run a shell command and capture the output."""
-    print(f"Running command: {command}")
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    print(result.stdout)
-    return result.stdout.strip()
-
 def run_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=False):
     docker_client = DockerClient()
+
     command=f"""--provider={provider} --v=2 --enable-exec-service=false
 --kubeconfig /root/.kube/config 
 --testconfig /root/perf-tests/clusterloader2/config/config.yaml 
@@ -41,14 +35,11 @@ def run_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overri
         return f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}"
 
 def parse_xml_to_json(file_path, indent = 0):
-    # Open and read the XML file
     with open(file_path, 'r') as file:
         xml_content = file.read()
     
-    # Parse the XML content
     dom = minidom.parseString(xml_content)
     
-    # Initialize the result dictionary
     result = {
         "testsuites": []
     }

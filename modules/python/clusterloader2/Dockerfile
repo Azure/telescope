@@ -1,6 +1,6 @@
 FROM golang:1.22 AS builder
 WORKDIR /root
-RUN git clone https://github.com/kubernetes/perf-tests.git
+RUN git clone https://github.com/Azure/perf-tests.git
 RUN cd perf-tests/clusterloader2 && \
     go build -o clusterloader2 ./cmd/
 
