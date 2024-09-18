@@ -19,7 +19,7 @@ steps:
     cat ${TEST_RESULTS_DIR}/tmp_results.json \
       | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\"}" \
       | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
-      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > ${TEST_RESULTS_FILE}
+      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > "${TEST_RESULTS_FILE}"
 
     cat $TEST_RESULTS_FILE | jq .
   env:
