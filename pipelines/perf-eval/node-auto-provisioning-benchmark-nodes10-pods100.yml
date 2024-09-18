@@ -22,6 +22,8 @@ stages:
           regions:
             - us-east-2
           engine: clusterloader2
+          engine_input:
+            image: "telescope.azurecr.io/perf-eval/clusterloader2:20240918"
           topology: karpenter
           terraform_modules_dir: 'modules/terraform/aws/karpenter'  # TODO: Need to fix the Karpenter module
           matrix:
@@ -41,6 +43,8 @@ stages:
           regions:
             - eastus2
           engine: clusterloader2
+          engine_input:
+            image: "telescope.azurecr.io/perf-eval/clusterloader2:20240918"
           topology: karpenter
           matrix:
             c4-n10-p100:

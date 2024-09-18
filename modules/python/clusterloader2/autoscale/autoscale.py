@@ -25,9 +25,9 @@ def calculate_request_resource(cpu_per_node, node_count, pod_count, override_fil
     with open(override_file, 'w') as file:
         file.write(content)
 
-def execute_clusterloader2(cpu_per_node, node_count, pod_count, cl2_override_file, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
+def execute_clusterloader2(cpu_per_node, node_count, pod_count, cl2_image, cl2_override_file, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     calculate_request_resource(cpu_per_node, node_count, pod_count, cl2_override_file)
-    result = run_cl2_command(kubeconfig, cl2_config_dir, cl2_report_dir, provider, overrides=True)
+    result = run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
     print(result)
 
 def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, cl2_report_dir, cloud_info, run_id, run_url, result_file):
@@ -35,7 +35,7 @@ def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, 
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
     wait_for_nodes_seconds = -1
-    wait_for_pod_seconds = -1
+    wait_for_pods_seconds = -1
     if testsuites:
         if testsuites[0]["failures"] == 0:
             autoscale_result = "success"
@@ -46,7 +46,7 @@ def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, 
         
         data = {
             "wait_for_nodes_seconds": wait_for_nodes_seconds,
-            "wait_for_pod_seconds": wait_for_pod_seconds,
+            "wait_for_pods_seconds": wait_for_pods_seconds,
             "autoscale_result": autoscale_result
         }
     else:
@@ -78,6 +78,7 @@ def main():
     parser_execute.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_execute.add_argument("node_count", type=int, help="Number of nodes")
     parser_execute.add_argument("pod_count", type=int, help="Number of pods")
+    parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
     parser_execute.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
@@ -99,7 +100,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "execute":
-        execute_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.cl2_override_file, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.cl2_override_file, args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.autoscale_type, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
