@@ -27,5 +27,4 @@ steps:
     REGION: ${{ parameters.region }}
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     FLOWCONTROL: ${{ parameters.flowcontrol }}
-    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
   displayName: "Collect results"

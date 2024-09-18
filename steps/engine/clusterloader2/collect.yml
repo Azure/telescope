@@ -19,7 +19,6 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
-    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale/autoscale.py
     RESULT_DATA_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/result_data.json
     RESULT_UPLOAD_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/results.json
