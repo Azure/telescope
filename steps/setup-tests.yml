@@ -16,6 +16,7 @@ parameters:
   type: string
 - name: subscription
   type: string
+  default: ''
 
 steps:
 - script: |
