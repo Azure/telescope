@@ -19,6 +19,14 @@ steps:
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
 
+      # check if pipeline variable $(AKS_CUSTOM_HEADERS) is set or not and set if it is not set
+      if [ -z "$(AKS_CUSTOM_HEADERS)" ]; then
+        CUSTOM_HEADERS='[]'
+      else
+        IFS=', ' read -r -a aks_custom_headers_array <<< "$(AKS_CUSTOM_HEADERS)"
+        CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
+      fi
+
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
@@ -26,11 +34,13 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
+                --argjson  aks_custom_headers "$CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
                 '{
                   run_id: $run_id,
                   region: $region,
+                  aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool
                 }' | jq 'with_entries(select(.value != null and .value != ""))')

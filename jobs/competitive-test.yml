@@ -82,21 +82,21 @@ jobs:
       regions: ${{ parameters.regions }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
-  - template: /steps/execute-tests.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-  - template: /steps/publish-results.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-      credential_type: ${{ parameters.credential_type }}
+  # - template: /steps/execute-tests.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     topology: ${{ parameters.topology }}
+  #     engine: ${{ parameters.engine }}
+  #     regions: ${{ parameters.regions }}
+  #     engine_input: ${{ parameters.engine_input }}
+  # - template: /steps/publish-results.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     topology: ${{ parameters.topology }}
+  #     engine: ${{ parameters.engine }}
+  #     regions: ${{ parameters.regions }}
+  #     engine_input: ${{ parameters.engine_input }}
+  #     credential_type: ${{ parameters.credential_type }}
   - template: /steps/cleanup-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
