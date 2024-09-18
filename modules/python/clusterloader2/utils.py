@@ -27,10 +27,12 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
 
     try:
-        container = docker_client.run_container(cl2_image, command, volumes, detach=False)
-        return container.logs().decode('utf-8')
+        container = docker_client.run_container(cl2_image, command, volumes, detach=True)
+        for log in container.logs(stream=True):
+            print(log.decode('utf-8'), end='')
+        container.wait()
     except docker.errors.ContainerError as e:
-        return f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}"
+        print(f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
 
 def parse_xml_to_json(file_path, indent = 0):
     with open(file_path, 'r') as file:

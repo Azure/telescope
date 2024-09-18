@@ -13,22 +13,18 @@ def calculate_request_resource(cpu_per_node, node_count, pod_count, override_fil
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
-    with open(override_file, 'r') as file:
-        content = file.read()
-
     # assuming then number of surge nodes is no more than 10
-    content = content.replace("##CPUperJob##", f"{cpu_request}m")
-    content = content.replace("##MinNodeCount##", str(node_count))
-    content = content.replace("##MaxNodeCount##", str(node_count + 10))
-    content = content.replace("##PodCount##", str(pod_count))
-
     with open(override_file, 'w') as file:
-        file.write(content)
+        file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
+        file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
+        file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
+        file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
+
+    file.close()
 
 def execute_clusterloader2(cpu_per_node, node_count, pod_count, cl2_image, cl2_override_file, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     calculate_request_resource(cpu_per_node, node_count, pod_count, cl2_override_file)
-    result = run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
-    print(result)
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
 
 def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, cl2_report_dir, cloud_info, run_id, run_url, result_file):
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"))
@@ -39,7 +35,7 @@ def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, 
     if testsuites:
         if testsuites[0]["failures"] == 0:
             autoscale_result = "success"
-            wait_for_pod_seconds = testsuites[0]["testcases"][2]["time"]
+            wait_for_pods_seconds = testsuites[0]["testcases"][2]["time"]
             wait_for_nodes_seconds = testsuites[0]["testcases"][3]["time"]
         else:
             autoscale_result = "failure"
