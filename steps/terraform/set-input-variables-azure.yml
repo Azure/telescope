@@ -19,11 +19,11 @@ steps:
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
 
-      if [ -z "$(AKS_CUSTOM_HEADERS)" ]; then
-        CUSTOM_HEADERS='[]'
+      if [ -z "$(AKS_CLI_CUSTOM_HEADERS)" ]; then
+        AKS_CUSTOM_HEADERS='[]'
       else
-        IFS=', ' read -r -a aks_custom_headers_array <<< "$(AKS_CUSTOM_HEADERS)"
-        CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
+        IFS=', ' read -r -a aks_custom_headers_array <<< "$(AKS_CLI_CUSTOM_HEADERS)"
+        AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
       regional_config=$REGIONAL_CONFIG
@@ -33,7 +33,7 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
-                --argjson  aks_custom_headers "$CUSTOM_HEADERS" \
+                --argjson  aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
                 '{
