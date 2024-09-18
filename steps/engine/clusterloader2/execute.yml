@@ -18,5 +18,5 @@ steps:
     REGION: ${{ parameters.region }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/autoscale/autoscale.py
     DEPLOYMENT_TEMPLATE_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/deployment_template.yml
-    RESULT_DATA_FILE: $(System.DefaultWorkingDirectory)/$(RUN_ID)/result_data.json
-  displayName: "Run benchmark"
+    RESULT_DATA_FILE: $(TEST_RESULTS_DIR)/result_data.json
+  displayName: "Run Benchmark"

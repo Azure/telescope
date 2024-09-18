@@ -20,6 +20,11 @@ steps:
     regions: ${{ parameters.regions }}
     engine_input: ${{ parameters.engine_input }}
 
+- template: /steps/cloud/${{ parameters.cloud }}/collect-results.yml
+  parameters:
+    credential_type: ${{ parameters.credential_type }}
+    cloud: ${{ parameters.cloud }}
+
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
     credential_type: ${{ parameters.credential_type }}
