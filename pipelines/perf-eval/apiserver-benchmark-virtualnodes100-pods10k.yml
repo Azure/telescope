@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn100pod10k
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: sumanth/expose-aks-custom-headers
 
 stages:
   - stage: aws_eastus2
