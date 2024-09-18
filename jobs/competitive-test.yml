@@ -47,7 +47,7 @@ parameters:
   - service_connection
 - name: subscription
   type: string
-  default: $(AZURE_SUBSCRIPTION_ID)
+  default: ''
 
 jobs:
 - job: ${{ parameters.cloud }}

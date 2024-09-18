@@ -49,7 +49,8 @@ steps:
   parameters:
     region: ${{ parameters.region }}
     credential_type: ${{ parameters.credential_type }}
-    subscription: ${{ parameters.subscription }}
+    ${{ if ne(parameters.subscription, '') }}:
+      subscription: ${{ parameters.subscription }}
 
 - script: |
     if [ -n "${TEST_MODULES_DIR}" ]; then
