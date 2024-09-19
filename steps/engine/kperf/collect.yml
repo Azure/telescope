@@ -12,6 +12,9 @@ parameters:
   type: string
 
 steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
 - script: |
     set -euo pipefail
     set -x
@@ -19,11 +22,9 @@ steps:
     cat ${TEST_RESULTS_DIR}/tmp_results.json \
       | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\"}" \
       | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
-      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > "${TEST_RESULTS_FILE}"
+      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: $CLOUD_INFO}" > "${TEST_RESULTS_FILE}"
 
     cat $TEST_RESULTS_FILE | jq .
   env:
-    CLOUD: ${{ parameters.cloud }}
-    REGION: ${{ parameters.region }}
     FLOWCONTROL: ${{ parameters.flowcontrol }}
   displayName: "Collect Results"
