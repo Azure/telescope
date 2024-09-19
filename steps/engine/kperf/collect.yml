@@ -16,16 +16,14 @@ steps:
     set -euo pipefail
     set -x
 
-    cat ${RESULT_DIR}/tmp_results.json \
+    cat ${TEST_RESULTS_DIR}/tmp_results.json \
       | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\"}" \
       | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
-      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > ${RESULT_DIR}/results.json
+      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD\", region: \"$REGION\"}" > "${TEST_RESULTS_FILE}"
 
-    cat ${RESULT_DIR}/results.json | jq .
+    cat $TEST_RESULTS_FILE | jq .
   env:
     CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
-    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     FLOWCONTROL: ${{ parameters.flowcontrol }}
-    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
-  displayName: "Collect results"
+  displayName: "Collect Results"
