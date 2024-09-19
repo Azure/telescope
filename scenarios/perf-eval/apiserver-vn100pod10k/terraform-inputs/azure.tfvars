@@ -9,10 +9,6 @@ aks_cli_config_list = [
     aks_name = "vn100-p10k"
     sku_tier = "standard"
 
-    aks_custom_headers = [
-      "ControlPlaneUnderlay=hcp-underlay-eastus2-cx-382"
-    ]
-
     default_node_pool = {
       name       = "default"
       node_count = 2

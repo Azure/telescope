@@ -3,6 +3,7 @@ locals {
   run_id                   = lookup(var.json_input, "run_id", "123456")
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
+  aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
 
   tags = {
     "owner"             = var.owner
@@ -20,7 +21,7 @@ locals {
         role                          = aks.role
         aks_name                      = aks.aks_name
         sku_tier                      = aks.sku_tier
-        aks_custom_headers            = aks.aks_custom_headers
+        aks_custom_headers            = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         use_aks_preview_cli_extension = aks.use_aks_preview_cli_extension
         default_node_pool             = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool               = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
