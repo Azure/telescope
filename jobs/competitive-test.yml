@@ -12,14 +12,15 @@ parameters:
   default: {}
 - name: matrix
   type: object
+  default: {}
 - name: max_parallel
   type: number
 - name: terraform_modules_dir
   type: string
   default: ''
-- name: terraform_input_file
-  type: string
-  default: ''
+- name: terraform_input_file_mapping
+  type: object
+  default: []
 - name: terraform_arguments
   type: string
   default: ''
@@ -44,6 +45,9 @@ parameters:
   values:
   - managed_identity
   - service_connection
+- name: subscription
+  type: string
+  default: ''
 
 jobs:
 - job: ${{ parameters.cloud }}
@@ -61,12 +65,13 @@ jobs:
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
+      subscription: ${{ parameters.subscription }}
   - template: /steps/provision-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
       regions: ${{ parameters.regions }}
       terraform_modules_dir: ${{ parameters.terraform_modules_dir }}
-      terraform_input_file: ${{ parameters.terraform_input_file }}
+      terraform_input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
       terraform_arguments: ${{ parameters.terraform_arguments }}
       terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}

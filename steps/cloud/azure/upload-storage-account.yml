@@ -1,15 +1,17 @@
 parameters:
-  source_file_name: $(System.DefaultWorkingDirectory)/$(RUN_ID)/results.json
-  destination_file_name: $(System.JobId)-$(Build.BuildId).json
+  source_file_name: $(TEST_RESULTS_FILE)
+  destination_file_name: $(RUN_ID).json
   subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
   container_name: $(SCENARIO_TYPE)
   credential_type: string
+  cloud: string
 
 steps:
-- template: /steps/cloud/azure/login.yml
-  parameters:
-    region: eastus
-    credential_type: ${{ parameters.credential_type }}
+- ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
+  - template: /steps/cloud/azure/login.yml
+    parameters:
+      region: eastus
+      credential_type: ${{ parameters.credential_type }}
 
 - bash: |
     set -eux

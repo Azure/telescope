@@ -3,19 +3,21 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: input_file
-  type: string
-  default: ''
+- name: input_file_mapping
+  type: object
+  default: []
 
 steps:
 - script: |
     set -eu
     regional_config=$(jq -n '{}')
+    terraform_file_config=$(echo "${{ convertToJson(parameters.input_file_mapping) }}" | sed -E 's/([a-zA-Z0-9_-]+):/"\1":/g; s/: ([^",]+)/: "\1"/g' | jq -r '.[]')
     multi_region=$(echo "$REGIONS" | jq -r 'if length > 1 then "true" else "false" end')
     echo "##vso[task.setvariable variable=MULTI_REGION]$multi_region"
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
-      if [ -v "$INPUT_FILE" ]; then
-        terraform_input_file=$(Pipeline.Workspace)/s/$INPUT_FILE
+      if [ -n "$terraform_file_config" ]; then
+        regional_input_file_path=$(echo "$terraform_file_config" | jq -r --arg region "$region" '.[$region]')
+        terraform_input_file=$(Pipeline.Workspace)/s/${regional_input_file_path}
       elif [ $multi_region = "false" ]; then
         terraform_input_file=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
       else
@@ -30,5 +32,4 @@ steps:
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     CLOUD: ${{ parameters.cloud }}
-    INPUT_FILE: ${{ parameters.input_file }}
     REGIONS: ${{ convertToJson(parameters.regions) }}

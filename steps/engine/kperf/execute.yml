@@ -63,13 +63,11 @@ steps:
       is_eks="--eks"
     fi
 
-    mkdir -p $RESULT_DIR
-
     sudo -E $(command -v runkperf) -v 3 bench ${is_eks} \
       --kubeconfig ~/.kube/config \
       --runner-image="${RUNNER_IMAGE}" \
       --runner-flowcontrol="${FLOWCONTROL}" \
-      --result ${RESULT_DIR}/tmp_results.json \
+      --result $(TEST_RESULTS_DIR)/tmp_results.json \
       ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
 
   env:
@@ -79,7 +77,5 @@ steps:
     BENCHMARK_SUBCMD: ${{ parameters.engine_input.benchmark_subcmd }}
     BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
     EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
-    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     FLOWCONTROL: ${{ parameters.flowcontrol }}
-    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
-  displayName: "Run benchmark"
+  displayName: "Run Benchmark"
