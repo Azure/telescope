@@ -1,6 +1,6 @@
 parameters:
-  source_file_name: $(System.DefaultWorkingDirectory)/$(RUN_ID)/results.json
-  destination_file_name: $(System.JobId)-$(Build.BuildId).json
+  source_file_name: $(TEST_RESULTS_FILE)
+  destination_file_name: $(RUN_ID).json
   subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
   container_name: $(SCENARIO_TYPE)
   credential_type: string

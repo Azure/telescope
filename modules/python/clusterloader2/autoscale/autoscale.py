@@ -13,7 +13,7 @@ def calculate_request_resource(cpu_per_node, node_count, pod_count, override_fil
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
-    # assuming then number of surge nodes is no more than 10
+    # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w') as file:
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
