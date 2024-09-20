@@ -49,7 +49,7 @@ def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, 
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
 
     result = {
-        "timestamp": datetime.now(timezone.utc).timestamp(),
+        "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "autoscale_type": autoscale_type,
         "cpu_per_node": cpu_per_node,
         "node_count": node_count,
