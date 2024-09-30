@@ -80,14 +80,6 @@ steps:
         CPUperJob: {{$deploymentCpu}}
 - name: Measure nodes and pods scale down {{$i}}
   measurements:
-  - Identifier: WaitForRunningPodsDown {{$i}}
-    Method: WaitForRunningPods
-    Params:
-      action: start
-      desiredPodCount: 0
-      labelSelector: {{$podLabelSelector}}
-      timeout: {{$scaleDownTimeout}}
-      refreshInterval: {{$refreshInterval}}
   - Identifier: WaitForNodesDown {{$i}}
     Method: WaitForNodes
     Params:
@@ -95,6 +87,14 @@ steps:
       minDesiredNodeCount: 0
       maxDesiredNodeCount: 0
       labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleDownTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForRunningPodsDown {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: 0
+      labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
 - name: WaitBeforeCreate

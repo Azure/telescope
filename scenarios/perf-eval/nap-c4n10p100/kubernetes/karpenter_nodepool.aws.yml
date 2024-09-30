@@ -3,6 +3,13 @@ kind: NodePool
 metadata:
   name: default
 spec:
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "100%"
+        reasons:
+          - "Empty"
   template:
     spec:
       nodeClassRef:
