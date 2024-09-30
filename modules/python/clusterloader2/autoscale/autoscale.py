@@ -28,35 +28,24 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
 
-def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, cl2_report_dir, cloud_info, run_id, run_url, result_file):
+def collect_clusterloader2(
+    cpu_per_node,
+    node_count,
+    pod_count,
+    cl2_report_dir,
+    cloud_info,
+    run_id,
+    run_url,
+    result_file
+):
     index_pattern = re.compile(r'(\d+)$')
 
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
-    data = {}
+    summary = {}
 
     if testsuites:
-        data["autoscale_result"] = "success" if testsuites[0]["failures"] == 0 else "failure"
-        summary = {
-            "wait_for_pods_up_seconds" : {
-                "sum": 0,
-                "count": 0
-            },
-            "wait_for_nodes_up_seconds": {
-                "sum": 0,
-                "count": 0
-            },
-            "wait_for_pods_down_seconds": {
-                "sum": 0,
-                "count": 0
-            },
-            "wait_for_nodes_down_seconds": {
-                "sum": 0,
-                "count": 0
-            },
-        }
-
         # Process each loop
         for testcase in testsuites[0]["testcases"]:
             name = testcase["name"]
@@ -64,56 +53,56 @@ def collect_clusterloader2(cpu_per_node, node_count, pod_count, autoscale_type, 
             match = index_pattern.search(name)
             if match:
                 index = match.group()
-                if index not in data:
-                    data[index] = {}
+                if index not in summary:
+                    summary[index] = {
+                        "up": { "failures": 0 }, 
+                        "down": { "failures": 0 }
+                    }
             else:
                 continue 
 
             failure = testcase["failure"]
             if "WaitForRunningPodsUp" in name:
-                data[index]["wait_for_pods_up_seconds"] = -1 if failure else testcase["time"]
-                summary["wait_for_pods_up_seconds"]["sum"] += 0 if failure else float(testcase["time"])
-                summary["wait_for_pods_up_seconds"]["count"] += 0 if failure else 1
+                summary[index]["up"]["wait_for_pods_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["up"]["failures"] += 1 if failure else 0
             elif "WaitForNodesUp" in name:
-                data[index]["wait_for_nodes_up_seconds"] = -1 if failure else testcase["time"]
-                summary["wait_for_nodes_up_seconds"]["sum"] += 0 if failure else float(testcase["time"])
-                summary["wait_for_nodes_up_seconds"]["count"] += 0 if failure else 1
+                summary[index]["up"]["wait_for_nodes_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["up"]["failures"] += 1 if failure else 0
             elif "WaitForRunningPodsDown" in name:
-                data[index]["wait_for_pods_down_seconds"] = -1 if failure else testcase["time"]
-                summary["wait_for_pods_down_seconds"]["sum"] += 0 if failure else float(testcase["time"])
-                summary["wait_for_pods_down_seconds"]["count"] += 0 if failure else 1
+                summary[index]["down"]["wait_for_pods_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["down"]["failures"] += 1 if failure else 0
             elif "WaitForNodesDown" in name:
-                data[index]["wait_for_nodes_down_seconds"] = -1 if failure else testcase["time"]
-                summary["wait_for_nodes_down_seconds"]["sum"] += 0 if failure else float(testcase["time"])
-                summary["wait_for_nodes_down_seconds"]["count"] += 0 if failure else 1
-
-            data[index]["autoscale_result"] = "failure" if failure else "success"
-
-        # Summarize the data
-        data["wait_for_pods_up_seconds"] = summary["wait_for_pods_up_seconds"]["sum"] / summary["wait_for_pods_up_seconds"]["count"] if summary["wait_for_pods_up_seconds"]["count"] != 0 else -1
-        data["wait_for_nodes_up_seconds"] = summary["wait_for_nodes_up_seconds"]["sum"] / summary["wait_for_nodes_up_seconds"]["count"] if summary["wait_for_nodes_up_seconds"]["count"] != 0 else -1
-        data["wait_for_pods_down_seconds"] = summary["wait_for_pods_down_seconds"]["sum"] / summary["wait_for_pods_down_seconds"]["count"] if summary["wait_for_pods_down_seconds"]["count"] != 0 else -1
-        data["wait_for_nodes_down_seconds"] = summary["wait_for_nodes_down_seconds"]["sum"] / summary["wait_for_nodes_down_seconds"]["count"] if summary["wait_for_nodes_down_seconds"]["count"] != 0 else -1
+                summary[index]["down"]["wait_for_nodes_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["down"]["failures"] += 1 if failure else 0
+        
+        content = ""
+        for index in summary:
+            for key in summary[index]:
+                data = {
+                    "wait_for_nodes_seconds": summary[index][key]["wait_for_nodes_seconds"],
+                    "wait_for_pods_seconds": summary[index][key]["wait_for_pods_seconds"],
+                    "autoscale_result": "success" if summary[index][key]["failures"] == 0 else "failure"
+                }
+                result = {
+                    "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "autoscale_type": key,
+                    "cpu_per_node": cpu_per_node,
+                    "node_count": node_count,
+                    "pod_count": pod_count,
+                    "data": data,
+                    "raw_data": raw_data,
+                    "cloud_info": cloud_info,
+                    "run_id": run_id,
+                    "run_url": run_url
+                }
+                content += json.dumps(result) + "\n"
 
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
 
-    result = {
-        "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        "autoscale_type": autoscale_type,
-        "cpu_per_node": cpu_per_node,
-        "node_count": node_count,
-        "pod_count": pod_count,
-        "data": data,
-        "raw_data": raw_data,
-        "cloud_info": cloud_info,
-        "run_id": run_id,
-        "run_url": run_url
-    }
-
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w') as f:
-        json.dump(result, f)
+        f.write(content)
 
 def main():
     parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
@@ -142,7 +131,6 @@ def main():
     parser_collect.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("pod_count", type=int, help="Number of pods")
-    parser_collect.add_argument("autoscale_type", type=str, help="Autoscale type")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
@@ -156,7 +144,7 @@ def main():
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.autoscale_type, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()
