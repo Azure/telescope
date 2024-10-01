@@ -291,8 +291,8 @@ resource "aws_iam_role_policy_attachment" "karpenter_controller_policy_attachmen
 resource "terraform_data" "install_karpenter" {
   provisioner "local-exec" {
     command = <<EOT
-			#!/bin/bash
-			set -e
+      #!/bin/bash
+      set -e
       aws eks --region ${var.region} update-kubeconfig --name "${var.cluster_name}"
       # Install Karpenter
       helm registry logout public.ecr.aws || true
@@ -306,8 +306,8 @@ resource "terraform_data" "install_karpenter" {
         --set controller.resources.limits.memory=1Gi \
         --set replicas=2 \
         --wait
-			sleep 10
-			envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
+      sleep 10
+      envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
 
 			EOT
     environment = {
