@@ -14,7 +14,7 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 
     condition {
       test     = "StringLike"
-      variable = "${replace(var.cluster_oidc_provider_url, "https://", "")}:aud"
+      variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
       values   = ["sts.amazonaws.com"]
     }
 
@@ -22,7 +22,7 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
       for_each = local.service_account_map
       content {
         test     = "StringLike"
-        variable = "${replace(var.cluster_oidc_provider_url, "https://", "")}:sub"
+        variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
         values   = ["system:serviceaccount:kube-system:${condition.value}"]
       }
     }
