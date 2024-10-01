@@ -309,7 +309,7 @@ resource "terraform_data" "install_karpenter" {
       sleep 10
       envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
 
-			EOT
+      EOT
     environment = {
       ROLE_NAME = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
       RUN_ID    = var.run_id
@@ -319,25 +319,26 @@ resource "terraform_data" "install_karpenter" {
   provisioner "local-exec" {
     when    = destroy
     command = <<EOT
-			#!/bin/bash
-			set -e
-			helm uninstall karpenter --namespace kube-system
-		  EOT
+      #!/bin/bash
+      set -e
+      helm uninstall karpenter --namespace kube-system
+      
+      EOT
   }
 }
 
 resource "terraform_data" "update_aws_auth_config_map" {
   provisioner "local-exec" {
     command = <<EOT
-			#!/bin/bash
-			set -e
+      #!/bin/bash
+      set -e
       kubectl get configmaps -n kube-system aws-auth -o yaml
-		  ROLE="    - groups:\n      - system:bootstrappers\n      - system:nodes\n      rolearn: ${aws_iam_role.karpenter_node_role.arn}\n      username: system:node:{{EC2PrivateDNSName}}"
+      ROLE="    - groups:\n      - system:bootstrappers\n      - system:nodes\n      rolearn: ${aws_iam_role.karpenter_node_role.arn}\n      username: system:node:{{EC2PrivateDNSName}}"
 
       kubectl get -n kube-system configmap/aws-auth -o yaml | awk "/mapRoles: \|/{print;print \"$ROLE\";next}1" > aws-auth-patch.yml
       kubectl patch configmap/aws-auth -n kube-system --patch "$(cat aws-auth-patch.yml)"
 
-			EOT    
+      EOT    
   }
 }
 
