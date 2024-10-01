@@ -8,10 +8,8 @@ variable "network_config" {
       cidr_block              = string
       zone_suffix             = string
       map_public_ip_on_launch = optional(bool, false)
-      tags                    = optional(map(string))
     }))
     security_group_name = string
-    security_group_tags = optional(map(string))
     route_tables = list(object({
       name             = string
       cidr_block       = string

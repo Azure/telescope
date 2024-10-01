@@ -3,6 +3,10 @@ locals {
   service_account_map = { for addon in var.eks_addon_config_map : addon.name => addon.service_account if addon.service_account != null }
 }
 
+data "aws_iam_openid_connect_provider" "oidc_provider" {
+  url = var.cluster_oidc_provider_url
+}
+
 data "aws_iam_policy_document" "addon_assume_role_policy" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -24,7 +28,7 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
     }
 
     principals {
-      identifiers = [var.cluster_oidc_provider_arn]
+      identifiers = [data.aws_iam_openid_connect_provider.oidc_provider.arn]
       type        = "Federated"
     }
   }

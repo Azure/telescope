@@ -1,5 +1,5 @@
 locals {
-  karpenter_namespace = "kube-system"
+  karpenter_namespace       = "kube-system"
   karpenter_service_account = "karpenter"
 }
 
@@ -321,7 +321,7 @@ resource "terraform_data" "install_karpenter" {
     command = <<EOT
 			#!/bin/bash
 			set -e
-			helm uninstall karpenter --namespace kube-system
+			helm uninstall karpenter --namespace ${local.karpenter_namespace}
 		  EOT
   }
 }
@@ -332,13 +332,10 @@ resource "terraform_data" "update_aws_auth_config_map" {
 			#!/bin/bash
 			set -e
       kubectl get configmaps -n kube-system aws-auth -o yaml
-
 		  ROLE="    - groups:\n      - system:bootstrappers\n      - system:nodes\n      rolearn: ${aws_iam_role.karpenter_node_role.arn}\n      username: system:node:{{EC2PrivateDNSName}}"
 
       kubectl get -n kube-system configmap/aws-auth -o yaml | awk "/mapRoles: \|/{print;print \"$ROLE\";next}1" > aws-auth-patch.yml
       kubectl patch configmap/aws-auth -n kube-system --patch "$(cat aws-auth-patch.yml)"
-      # check configmap after patch
-      kubectl get configmaps -n kube-system aws-auth -o yaml
 
 			EOT    
   }

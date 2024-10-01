@@ -8,11 +8,6 @@ variable "cluster_oidc_provider_url" {
   type        = string
 }
 
-variable "cluster_oidc_provider_arn" {
-  description = "value of the EKS cluster OIDC provider ARN"
-  type        = string
-}
-
 variable "tags" {
   description = "A map of tags to add to all resources"
   type        = map(string)

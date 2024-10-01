@@ -120,7 +120,6 @@ resource "aws_iam_openid_connect_provider" "oidc_provider" {
   depends_on      = [data.tls_certificate.eks]
 }
 
-
 module "eks_addon" {
   source = "./addon"
 
@@ -129,7 +128,6 @@ module "eks_addon" {
   eks_addon_config_map      = local.eks_addons_map
   cluster_name              = aws_eks_cluster.eks.name
   cluster_oidc_provider_url = aws_iam_openid_connect_provider.oidc_provider.url
-  cluster_oidc_provider_arn = aws_iam_openid_connect_provider.oidc_provider.arn
   tags                      = var.tags
   depends_on                = [aws_eks_cluster.eks, aws_eks_node_group.eks_managed_node_groups]
 }

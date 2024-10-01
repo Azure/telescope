@@ -32,7 +32,6 @@ variable "eks_config" {
     enable_karpenter                  = optional(bool, false)
     vpc_name                          = string
     policy_arns                       = list(string)
-    cloudformation_template_file_name = optional(string, null)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -47,11 +46,6 @@ variable "eks_config" {
         value  = string
         effect = string
       })), [])
-    }))
-    pod_associations = optional(object({
-      namespace            = string
-      service_account_name = string
-      role_arn_name        = string
     }))
     eks_addons = list(object({
       name            = string

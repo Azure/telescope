@@ -49,7 +49,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 INPUT_JSON=$(jq -n \
       --arg run_id $RUN_ID \
       --arg region $REGION \
-      --arg user_data_path  $TERRAFORM_USER_DATA_PATH \
+      --arg user_data_path  "$TERRAFORM_USER_DATA_PATH" \
       '{
       run_id: $run_id,
       region: $region,
@@ -71,7 +71,6 @@ popd
 Cleanup test resources using terraform
 ```bash 
 pushd $TERRAFORM_MODULES_DIR
-terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
