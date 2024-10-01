@@ -3,7 +3,7 @@ variable "json_input" {
   type = object({
     run_id         = string
     region         = string
-    user_data_path = string
+    user_data_path = optional(string)
   })
 }
 
