@@ -10,7 +10,7 @@ data "aws_iam_role" "cluster_role" {
 }
 
 resource "aws_iam_role" "karpenter_node_role" {
-  name = "KarpenterNodeRole-${var.cluster_name}"
+  name = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -33,7 +33,7 @@ resource "aws_iam_role" "karpenter_node_role" {
 }
 
 resource "aws_iam_policy" "karpenter_controller_policy" {
-  name        = "KarpenterControllerPolicy-${var.cluster_name}"
+  name        = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
   policy      = jsonencode({
     Version = "2012-10-17"
     Statement = [
