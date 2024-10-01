@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap-c4n10p100"
-deletion_delay = "24h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -88,7 +88,6 @@ eks_config_list = [{
           effect = "NO_SCHEDULE"
         }
       ]
-      labels = { terraform = "true", k8s = "true" }
     }
   ]
   eks_addons = [
