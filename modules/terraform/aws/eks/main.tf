@@ -142,13 +142,10 @@ module "karpenter" {
 
   cluster_name          = aws_eks_cluster.eks.name
   region                = var.region
-  cluster_endpoint      = aws_eks_cluster.eks.endpoint
   user_data_path        = var.user_data_path
   tags                  = var.tags
-  oidc_provider_arn     = aws_iam_openid_connect_provider.oidc_provider.arn
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
   run_id                = var.run_id
-  karpenter_namespace   = "kube-system"
 
   depends_on = [module.eks_addon]
 }

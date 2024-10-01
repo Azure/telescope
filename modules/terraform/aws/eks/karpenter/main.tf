@@ -1,6 +1,6 @@
 locals {
-  account_id   = data.aws_caller_identity.current.account_id
-  cluster_name = var.cluster_name
+  karpenter_namespace = "kube-system"
+  karpenter_service_account = "karpenter"
 }
 
 data "aws_caller_identity" "current" {}
@@ -11,6 +11,7 @@ data "aws_iam_role" "cluster_role" {
 
 resource "aws_iam_role" "karpenter_node_role" {
   name = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
+  tags = var.tags
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -34,6 +35,7 @@ resource "aws_iam_role" "karpenter_node_role" {
 
 resource "aws_iam_policy" "karpenter_controller_policy" {
   name = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
+  tags = var.tags
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -87,7 +89,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name"                      = "${var.cluster_name}"
+            "aws:RequestTag/eks:eks-cluster-name"                      = var.cluster_name
           }
           "StringLike" = {
             "aws:RequestTag/karpenter.sh/nodepool" = "*"
@@ -109,7 +111,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name"                      = "${var.cluster_name}",
+            "aws:RequestTag/eks:eks-cluster-name"                      = var.cluster_name,
             "ec2:CreateAction" = [
               "RunInstances",
               "CreateFleet",
@@ -134,7 +136,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
             "aws:ResourceTag/karpenter.sh/nodepool" = "*"
           }
           "StringEqualsIfExists" = {
-            "aws:RequestTag/eks:eks-cluster-name" = "${var.cluster_name}"
+            "aws:RequestTag/eks:eks-cluster-name" = var.cluster_name
           }
           "ForAllValues:StringEquals" = {
             "aws:TagKeys" = [
@@ -182,7 +184,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         ]
         Condition = {
           "StringEquals" = {
-            "aws:RequestedRegion" = "${var.region}"
+            "aws:RequestedRegion" = var.region
           }
         }
       },
@@ -219,8 +221,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name"                      = "${var.cluster_name}",
-            "aws:RequestTag/topology.kubernetes.io/region"             = "${var.region}"
+            "aws:RequestTag/eks:eks-cluster-name"                      = var.cluster_name,
+            "aws:RequestTag/topology.kubernetes.io/region"             = var.region
           }
           "StringLike" = {
             "aws:RequestTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -237,10 +239,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:ResourceTag/topology.kubernetes.io/region"             = "${var.region}",
-            "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}"  = "owned",
-            "aws:RequestTag/eks:eks-cluster-name"                       = "${var.cluster_name}",
-            "aws:RequestTag/topology.kubernetes.io/region"              = "${var.region}"
+            "aws:ResourceTag/topology.kubernetes.io/region"             = var.region,
+            "aws:RequestTag/eks:eks-cluster-name"                       = var.cluster_name
           }
           "StringLike" = {
             "aws:ResourceTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -259,7 +259,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:ResourceTag/topology.kubernetes.io/region"             = "${var.region}"
+            "aws:ResourceTag/topology.kubernetes.io/region"             = var.region
           }
           "StringLike" = {
             "aws:ResourceTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -293,13 +293,13 @@ resource "terraform_data" "install_karpenter" {
     command = <<EOT
 			#!/bin/bash
 			set -e
-      aws eks --region ${var.region} update-kubeconfig --name "${local.cluster_name}"
+      aws eks --region ${var.region} update-kubeconfig --name "${var.cluster_name}"
       # Install Karpenter
       helm registry logout public.ecr.aws || true
       helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
         --version "1.0.3" \
         --namespace "kube-system" \
-        --set "settings.clusterName=${local.cluster_name}" \
+        --set "settings.clusterName=${var.cluster_name}" \
         --set controller.resources.requests.cpu=1 \
         --set controller.resources.requests.memory=1Gi \
         --set controller.resources.limits.cpu=1 \
@@ -311,7 +311,7 @@ resource "terraform_data" "install_karpenter" {
 
 			EOT
     environment = {
-      ROLE_NAME = substr("KarpenterNodeRole-${local.cluster_name}", 0, 60)
+      ROLE_NAME = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
       RUN_ID    = var.run_id
     }
   }
@@ -373,8 +373,8 @@ resource "aws_iam_role" "karpenter" {
 }
 
 resource "aws_eks_pod_identity_association" "association" {
-  cluster_name    = local.cluster_name
-  namespace       = var.karpenter_namespace
-  service_account = "karpenter"
+  cluster_name    = var.cluster_name
+  namespace       = local.karpenter_namespace
+  service_account = local.karpenter_service_account
   role_arn        = aws_iam_role.karpenter.arn
 }
