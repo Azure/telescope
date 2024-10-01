@@ -4,13 +4,12 @@ metadata:
   name: default
 spec:
   amiFamily: AL2 # Amazon Linux 2
-  role: "KarpenterNodeRole-${EKS_CLUSTER_NAME}" # replace with your cluster name
+  role: "KarpenterNodeRole-${EKS_CLUSTER_NAME}"
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "${EKS_CLUSTER_NAME}" # replace with your cluster name
+        run_id: "${RUN_ID}"
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: ${EKS_CLUSTER_NAME} # replace with your cluster name
+        run_id: "${RUN_ID}"
   amiSelectorTerms:
-    - id: "ami-06b7debe20143e10f"
-    - id: "ami-0bfd5e3e4519f513c"
+  - alias: al2@latest

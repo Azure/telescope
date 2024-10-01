@@ -1,9 +1,9 @@
 locals {
   role               = var.eks_config.role
+  eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   eks_addons_map     = { for addon in var.eks_config.eks_addons : addon.name => addon }
   policy_arns        = var.eks_config.policy_arns
-  eks_cluster_name   = var.eks_config.override_cluster_name ? var.eks_config.eks_name : "${var.eks_config.eks_name}-${var.run_id}"
 }
 
 data "aws_subnets" "subnets" {
@@ -53,11 +53,12 @@ resource "aws_eks_cluster" "eks" {
   }
 
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.policy_attachments, aws_cloudformation_stack.cluster_stack
+    aws_iam_role_policy_attachment.policy_attachments
   ]
 
   tags = merge(
@@ -66,48 +67,6 @@ resource "aws_eks_cluster" "eks" {
       "role" = local.role
     }
   )
-}
-
-resource "aws_cloudformation_stack" "cluster_stack" {
-  count = var.eks_config.cloudformation_template_file_name != null ? 1 : 0
-  name  = "${local.eks_cluster_name}-stack"
-
-  parameters = {
-    ClusterName = local.eks_cluster_name
-  }
-  template_body = file("${var.user_data_path}/${var.eks_config.cloudformation_template_file_name}.yaml")
-  capabilities  = ["CAPABILITY_NAMED_IAM"]
-
-  depends_on = [aws_iam_role.eks_cluster_role]
-}
-
-resource "terraform_data" "install_karpenter" {
-  count = var.eks_config.install_karpenter ? 1 : 0
-  provisioner "local-exec" {
-    command = <<EOT
-			#!/bin/bash
-			set -e
-			"${var.user_data_path}/install-karpenter.sh"
-			sleep 30
-			envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
-			
-			EOT
-    environment = {
-      EKS_CLUSTER_NAME = local.eks_cluster_name
-    }
-  }
-
-  provisioner "local-exec" {
-    when    = destroy
-    command = <<EOT
-			#!/bin/bash
-			set -e
-			helm uninstall karpenter --namespace kube-system
-
-		  EOT
-  }
-  depends_on = [aws_cloudformation_stack.cluster_stack, aws_eks_node_group.eks_managed_node_groups]
-
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {
@@ -146,7 +105,19 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_eks_cluster.eks,
     aws_iam_role_policy_attachment.policy_attachments
   ]
+}
 
+# Create OIDC Provider
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "oidc_provider" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+  tags            = var.tags
+  depends_on      = [data.tls_certificate.eks]
 }
 
 
@@ -157,22 +128,27 @@ module "eks_addon" {
 
   eks_addon_config_map      = local.eks_addons_map
   cluster_name              = aws_eks_cluster.eks.name
-  cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+  cluster_oidc_provider_url = aws_iam_openid_connect_provider.oidc_provider.url
+  cluster_oidc_provider_arn = aws_iam_openid_connect_provider.oidc_provider.arn
   tags                      = var.tags
   depends_on                = [aws_eks_cluster.eks, aws_eks_node_group.eks_managed_node_groups]
 }
 
 
-data "aws_iam_role" "role" {
-  name       = var.eks_config.pod_associations.role_arn_name
-  depends_on = [aws_cloudformation_stack.cluster_stack]
-}
+module "karpenter" {
+  count = var.eks_config.enable_karpenter ? 1 : 0
 
-resource "aws_eks_pod_identity_association" "association" {
-  count           = 0
-  cluster_name    = aws_eks_cluster.eks.name
-  namespace       = var.eks_config.pod_associations.namespace
-  service_account = var.eks_config.pod_associations.service_account_name
-  role_arn        = data.aws_iam_role.role.arn
-  depends_on      = [module.eks_addon]
+  source = "./karpenter"
+
+  cluster_name      = aws_eks_cluster.eks.name
+  region            = var.region
+  cluster_endpoint  = aws_eks_cluster.eks.endpoint
+  user_data_path    = var.user_data_path
+  tags              = var.tags
+  oidc_provider_arn = aws_iam_openid_connect_provider.oidc_provider.arn
+  cluster_iam_role_name      = aws_iam_role.eks_cluster_role.name
+  run_id            = var.run_id
+  karpenter_namespace = "kube-system"
+
+  depends_on = [module.eks_addon]
 }

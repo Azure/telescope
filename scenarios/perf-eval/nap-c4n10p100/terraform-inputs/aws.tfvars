@@ -1,9 +1,8 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap-c4n10p100"
-deletion_delay = "2h"
+deletion_delay = "24h"
 owner          = "aks"
 
-<<<<<<< HEAD
 network_config_list = [
   {
     role           = "nap"
@@ -15,25 +14,21 @@ network_config_list = [
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
-        tags                    = { "karpenter.sh/discovery" = "nap-c4n10p100" }
       },
       {
         name                    = "nap-subnet-2"
         cidr_block              = "10.0.1.0/24"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
-        tags                    = { "karpenter.sh/discovery" = "nap-c4n10p100" }
       },
       {
         name                    = "nap-subnet-3"
         cidr_block              = "10.0.2.0/24"
         zone_suffix             = "c"
         map_public_ip_on_launch = true
-        tags                    = { "karpenter.sh/discovery" = "nap-c4n10p100" }
       }
     ]
     security_group_name = "nap-sg"
-    security_group_tags = { "karpenter.sh/discovery" = "nap-c4n10p100" }
     route_tables = [
       {
         name       = "internet-rt"
@@ -72,13 +67,11 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role                              = "nap"
-  eks_name                          = "nap-c4n10p100"
-  override_cluster_name             = true
-  install_karpenter                 = true
-  cloudformation_template_file_name = "cloudformation"
-  vpc_name                          = "nap-vpc"
-  policy_arns                       = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
+  role             = "nap"
+  eks_name         = "nap-c4n10p100"
+  enable_karpenter = true
+  vpc_name         = "nap-vpc"
+  policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
       name           = "nap-c4n10p100-ng"
@@ -98,30 +91,14 @@ eks_config_list = [{
       labels = { terraform = "true", k8s = "true" }
     }
   ]
-  pod_associations = {
-    namespace            = "kube-system"
-    service_account_name = "karpenter"
-    role_arn_name        = "nap-c4n10p100-PodIdentityRole"
-  }
   eks_addons = [
     {
       name = "eks-pod-identity-agent"
-    }
+    },
+    {
+      name = "vpc-cni",
+      version = "v1.18.1-eksbuild.3"
+      policy_arns = ["AmazonEKS_CNI_Policy"]
+    }  
   ]
 }]
-=======
-karpenter_config = {
-  cluster_name        = "nap-c4n10p100"
-  eks_cluster_version = "1.30"
-  vpc_cidr            = "10.0.0.0/16"
-  eks_managed_node_group = {
-    name           = "nap-c4n10p100-ng"
-    instance_types = ["m4.large"]
-    min_size       = 5
-    max_size       = 5
-    desired_size   = 5
-    capacity_type  = "ON_DEMAND"
-  }
-  karpenter_chart_version = "1.0.1"
-}
->>>>>>> origin/main
