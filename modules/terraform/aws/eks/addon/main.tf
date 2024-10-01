@@ -4,7 +4,7 @@ locals {
 }
 
 data "aws_iam_openid_connect_provider" "oidc_provider" {
-  url = var.cluster_oidc_provider_url
+  url = "https://${var.cluster_oidc_provider_url}"
 }
 
 data "aws_iam_policy_document" "addon_assume_role_policy" {
