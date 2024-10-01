@@ -1,8 +1,9 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id = string
-    region = string
+    run_id             = string
+    region             = string
+    aks_custom_headers = optional(list(string), [])
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -95,7 +96,7 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
-    aks_custom_headers            = optional(list(string))
+    aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
 
     default_node_pool = object({

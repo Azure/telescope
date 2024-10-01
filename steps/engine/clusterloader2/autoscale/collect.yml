@@ -14,16 +14,17 @@ steps:
     kubectl delete --all nodepool --ignore-not-found
   displayName: "Delete NodeClaim and NodePool"
   condition: always()
-
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
 - script: |
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
-      "nap" $CL2_REPORT_DIR $CLOUD $RUN_ID $RUN_URL $TEST_RESULTS_FILE
+      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}
-    REGION: ${{ parameters.region }}
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/autoscale.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
