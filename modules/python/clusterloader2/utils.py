@@ -1,5 +1,4 @@
 import json
-import subprocess
 import os
 import docker
 
