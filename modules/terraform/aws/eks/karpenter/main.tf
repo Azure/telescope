@@ -459,7 +459,7 @@ resource "terraform_data" "update_aws_auth_config_map" {
 
 
 resource "aws_iam_role" "karpenter" {
-  name = "${var.cluster_name}-karpenter"
+  name = substr("karpenter-${var.cluster_name}", 0, 60)
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
