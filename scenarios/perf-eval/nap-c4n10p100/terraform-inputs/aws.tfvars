@@ -96,9 +96,9 @@ eks_config_list = [{
       name = "eks-pod-identity-agent"
     },
     {
-      name = "vpc-cni",
-      version = "v1.18.1-eksbuild.3"
+      name        = "vpc-cni",
+      version     = "v1.18.1-eksbuild.3"
       policy_arns = ["AmazonEKS_CNI_Policy"]
-    }  
+    }
   ]
 }]

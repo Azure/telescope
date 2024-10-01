@@ -1,6 +1,6 @@
 locals {
-  account_id                     = data.aws_caller_identity.current.account_id
-  cluster_name                   = var.cluster_name
+  account_id   = data.aws_caller_identity.current.account_id
+  cluster_name = var.cluster_name
 }
 
 data "aws_caller_identity" "current" {}
@@ -33,12 +33,12 @@ resource "aws_iam_role" "karpenter_node_role" {
 }
 
 resource "aws_iam_policy" "karpenter_controller_policy" {
-  name        = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
-  policy      = jsonencode({
+  name = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
+  policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid = "AllowScopedEC2InstanceAccessActions"
+        Sid    = "AllowScopedEC2InstanceAccessActions"
         Effect = "Allow"
         Resource = [
           "arn:aws:ec2:${var.region}::image/*",
@@ -52,8 +52,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         ]
       },
       {
-        Sid = "AllowScopedEC2LaunchTemplateAccessActions"
-        Effect = "Allow"
+        Sid      = "AllowScopedEC2LaunchTemplateAccessActions"
+        Effect   = "Allow"
         Resource = "arn:aws:ec2:${var.region}:*:launch-template/*"
         Action = [
           "ec2:RunInstances",
@@ -69,7 +69,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowScopedEC2InstanceActionsWithTags"
+        Sid    = "AllowScopedEC2InstanceActionsWithTags"
         Effect = "Allow"
         Resource = [
           "arn:aws:ec2:${var.region}:*:fleet/*",
@@ -87,7 +87,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name" = "${var.cluster_name}"
+            "aws:RequestTag/eks:eks-cluster-name"                      = "${var.cluster_name}"
           }
           "StringLike" = {
             "aws:RequestTag/karpenter.sh/nodepool" = "*"
@@ -95,7 +95,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowScopedResourceCreationTagging"
+        Sid    = "AllowScopedResourceCreationTagging"
         Effect = "Allow"
         Resource = [
           "arn:aws:ec2:${var.region}:*:fleet/*",
@@ -109,7 +109,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name" = "${var.cluster_name}",
+            "aws:RequestTag/eks:eks-cluster-name"                      = "${var.cluster_name}",
             "ec2:CreateAction" = [
               "RunInstances",
               "CreateFleet",
@@ -122,10 +122,10 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowScopedResourceTagging"
-        Effect = "Allow"
+        Sid      = "AllowScopedResourceTagging"
+        Effect   = "Allow"
         Resource = "arn:aws:ec2:${var.region}:*:instance/*"
-        Action = "ec2:CreateTags"
+        Action   = "ec2:CreateTags"
         Condition = {
           "StringEquals" = {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned"
@@ -146,7 +146,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowScopedDeletion"
+        Sid    = "AllowScopedDeletion"
         Effect = "Allow"
         Resource = [
           "arn:aws:ec2:${var.region}:*:instance/*",
@@ -166,8 +166,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowRegionalReadActions"
-        Effect = "Allow"
+        Sid      = "AllowRegionalReadActions"
+        Effect   = "Allow"
         Resource = "*"
         Action = [
           "ec2:DescribeAvailabilityZones",
@@ -187,32 +187,22 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowSSMReadActions"
-        Effect = "Allow"
+        Sid      = "AllowSSMReadActions"
+        Effect   = "Allow"
         Resource = "arn:aws:ssm:${var.region}::parameter/aws/service/*"
-        Action = "ssm:GetParameter"
+        Action   = "ssm:GetParameter"
       },
       {
-        Sid = "AllowPricingReadActions"
-        Effect = "Allow"
+        Sid      = "AllowPricingReadActions"
+        Effect   = "Allow"
         Resource = "*"
-        Action = "pricing:GetProducts"
+        Action   = "pricing:GetProducts"
       },
-      # {
-      #   Sid = "AllowInterruptionQueueActions"
-      #   Effect = "Allow"
-      #   Resource = "${aws_sqs_queue.karpenter_interruption_queue.arn}"
-      #   Action = [
-      #     "sqs:DeleteMessage",
-      #     "sqs:GetQueueUrl",
-      #     "sqs:ReceiveMessage"
-      #   ]
-      # },
       {
-        Sid = "AllowPassingInstanceRole"
-        Effect = "Allow"
+        Sid      = "AllowPassingInstanceRole"
+        Effect   = "Allow"
         Resource = [aws_iam_role.karpenter_node_role.arn, data.aws_iam_role.cluster_role.arn]
-        Action = "iam:PassRole"
+        Action   = "iam:PassRole"
         Condition = {
           "StringEquals" = {
             "iam:PassedToService" = "ec2.amazonaws.com"
@@ -220,8 +210,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowScopedInstanceProfileCreationActions"
-        Effect = "Allow"
+        Sid      = "AllowScopedInstanceProfileCreationActions"
+        Effect   = "Allow"
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/*"
         Action = [
           "iam:CreateInstanceProfile"
@@ -229,8 +219,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name" = "${var.cluster_name}",
-            "aws:RequestTag/topology.kubernetes.io/region" = "${var.region}"
+            "aws:RequestTag/eks:eks-cluster-name"                      = "${var.cluster_name}",
+            "aws:RequestTag/topology.kubernetes.io/region"             = "${var.region}"
           }
           "StringLike" = {
             "aws:RequestTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -238,8 +228,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowScopedInstanceProfileTagActions"
-        Effect = "Allow"
+        Sid      = "AllowScopedInstanceProfileTagActions"
+        Effect   = "Allow"
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/*"
         Action = [
           "iam:TagInstanceProfile"
@@ -247,19 +237,19 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:ResourceTag/topology.kubernetes.io/region" = "${var.region}",
-            "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:RequestTag/eks:eks-cluster-name" = "${var.cluster_name}",
-            "aws:RequestTag/topology.kubernetes.io/region" = "${var.region}"
+            "aws:ResourceTag/topology.kubernetes.io/region"             = "${var.region}",
+            "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}"  = "owned",
+            "aws:RequestTag/eks:eks-cluster-name"                       = "${var.cluster_name}",
+            "aws:RequestTag/topology.kubernetes.io/region"              = "${var.region}"
           }
           "StringLike" = {
             "aws:ResourceTag/karpenter.k8s.aws/ec2nodeclass" = "*"
           }
         }
       },
-        {
-        Sid = "AllowScopedInstanceProfileActions"
-        Effect = "Allow"
+      {
+        Sid      = "AllowScopedInstanceProfileActions"
+        Effect   = "Allow"
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/*"
         Action = [
           "iam:AddRoleToInstanceProfile",
@@ -269,7 +259,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Condition = {
           "StringEquals" = {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
-            "aws:ResourceTag/topology.kubernetes.io/region" = "${var.region}"            
+            "aws:ResourceTag/topology.kubernetes.io/region"             = "${var.region}"
           }
           "StringLike" = {
             "aws:ResourceTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -277,128 +267,26 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         }
       },
       {
-        Sid = "AllowInstanceProfileReadActions"
-        Effect = "Allow"
+        Sid      = "AllowInstanceProfileReadActions"
+        Effect   = "Allow"
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/*"
         Action = [
           "iam:GetInstanceProfile"
         ]
-      },{
-        Sid = "AllowAPIServerEndpointDiscovery"
-        Effect = "Allow"
+        }, {
+        Sid      = "AllowAPIServerEndpointDiscovery"
+        Effect   = "Allow"
         Resource = "arn:aws:eks:${var.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
-        Action = "eks:DescribeCluster"
+        Action   = "eks:DescribeCluster"
       }
     ]
   })
 }
 
-# resource "aws_sqs_queue" "karpenter_interruption_queue" {
-#   name                      = var.cluster_name
-#   message_retention_seconds = 300
-#   sqs_managed_sse_enabled   = true
-# }
-
-# resource "aws_sqs_queue_policy" "karpenter_interruption_queue_policy" {
-#   queue_url = aws_sqs_queue.karpenter_interruption_queue.id
-
-#   policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Effect    = "Allow"
-#         Principal = {
-#           Service = [
-#             "events.amazonaws.com",
-#             "sqs.amazonaws.com"
-#           ]
-#         }
-#         Action    = "sqs:SendMessage"
-#         Resource  = aws_sqs_queue.karpenter_interruption_queue.arn
-#       },
-#       {
-#         Sid       = "DenyHTTP"
-#         Effect    = "Deny"
-#         Action    = "sqs:*"
-#         Resource  = aws_sqs_queue.karpenter_interruption_queue.arn
-#         Condition = {
-#           "Bool" = {
-#             "aws:SecureTransport" = false
-#           }
-#         }
-#         Principal = "*"
-#       }
-#     ]
-#   })
-#   depends_on = [ aws_sqs_queue.karpenter_interruption_queue ]
-# }
-
-# resource "aws_cloudwatch_event_rule" "scheduled_change_rule" {
-#   name        = "ScheduledChangeRule"
-#   description = "Triggers on AWS Health Events"
-#   event_pattern = jsonencode({
-#     source     = ["aws.health"]
-#     "detail-type" = ["AWS Health Event"]
-#   })
-# }
-
-# resource "aws_cloudwatch_event_rule" "spot_interruption_rule" {
-#   name        = "SpotInterruptionRule"
-#   description = "Triggers on EC2 Spot Instance Interruption Warnings"
-#   event_pattern = jsonencode({
-#     source     = ["aws.ec2"]
-#     "detail-type" = ["EC2 Spot Instance Interruption Warning"]
-#   })
-# }
-
-# resource "aws_cloudwatch_event_rule" "rebalance_rule" {
-#   name        = "RebalanceRule"
-#   description = "Triggers on EC2 Instance Rebalance Recommendations"
-#   event_pattern = jsonencode({
-#     source     = ["aws.ec2"]
-#     "detail-type" = ["EC2 Instance Rebalance Recommendation"]
-#   })
-# }
-
-# resource "aws_cloudwatch_event_rule" "instance_state_change_rule" {
-#   name        = "InstanceStateChangeRule"
-#   description = "Triggers on EC2 Instance State-change Notifications"
-#   event_pattern = jsonencode({
-#     source     = ["aws.ec2"]
-#     "detail-type" = ["EC2 Instance State-change Notification"]
-#   })
-# }
-
-# resource "aws_cloudwatch_event_target" "karpenter_interruption_queue_target" {
-#   rule      = aws_cloudwatch_event_rule.scheduled_change_rule.name
-#   arn       = aws_sqs_queue.karpenter_interruption_queue.arn
-#   target_id = "KarpenterInterruptionQueueTarget"
-# }
-
-# resource "aws_cloudwatch_event_target" "spot_interruption_queue_target" {
-#   rule      = aws_cloudwatch_event_rule.spot_interruption_rule.name
-#   arn       = aws_sqs_queue.karpenter_interruption_queue.arn
-#   target_id = "KarpenterInterruptionQueueTarget"
-# }
-
-# resource "aws_cloudwatch_event_target" "rebalance_queue_target" {
-#   rule      = aws_cloudwatch_event_rule.rebalance_rule.name
-#   arn       = aws_sqs_queue.karpenter_interruption_queue.arn
-#   target_id = "KarpenterInterruptionQueueTarget"
-# }
-
-# resource "aws_cloudwatch_event_target" "instance_state_change_queue_target" {
-#   rule      = aws_cloudwatch_event_rule.instance_state_change_rule.name
-#   arn       = aws_sqs_queue.karpenter_interruption_queue.arn
-#   target_id = "KarpenterInterruptionQueueTarget"
-# }
-
-
 resource "aws_iam_role_policy_attachment" "karpenter_controller_policy_attachments" {
   policy_arn = aws_iam_policy.karpenter_controller_policy.arn
   role       = var.cluster_iam_role_name
 }
-
 
 resource "terraform_data" "install_karpenter" {
   provisioner "local-exec" {
@@ -423,9 +311,8 @@ resource "terraform_data" "install_karpenter" {
 
 			EOT
     environment = {
-      EKS_CLUSTER_NAME = local.cluster_name
-      RUN_ID = var.run_id
-      REGION = var.region
+      ROLE_NAME = substr("KarpenterNodeRole-${local.cluster_name}", 0, 60)
+      RUN_ID    = var.run_id
     }
   }
 
@@ -464,25 +351,25 @@ resource "aws_iam_role" "karpenter" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Service": [
-                  "pods.eks.amazonaws.com"
-                ]
-            },
-            "Action": [
-                "sts:AssumeRole",
-                "sts:TagSession"
-            ]
-        }
+      {
+        "Effect" : "Allow",
+        "Principal" : {
+          "Service" : [
+            "pods.eks.amazonaws.com"
+          ]
+        },
+        "Action" : [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
     ]
   })
-   managed_policy_arns = [
+  managed_policy_arns = [
     "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
     aws_iam_policy.karpenter_controller_policy.arn
   ]
-  depends_on = [ terraform_data.install_karpenter ]
+  depends_on = [terraform_data.install_karpenter]
 }
 
 resource "aws_eks_pod_identity_association" "association" {
@@ -491,4 +378,3 @@ resource "aws_eks_pod_identity_association" "association" {
   service_account = "karpenter"
   role_arn        = aws_iam_role.karpenter.arn
 }
-

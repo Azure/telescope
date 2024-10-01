@@ -42,6 +42,6 @@ variable "cluster_iam_role_name" {
 }
 
 variable "karpenter_namespace" {
-  type = string
+  type        = string
   description = "value of the karpenter namespace"
 }

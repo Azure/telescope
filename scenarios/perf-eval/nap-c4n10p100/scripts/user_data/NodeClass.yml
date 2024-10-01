@@ -4,7 +4,7 @@ metadata:
   name: default
 spec:
   amiFamily: AL2 # Amazon Linux 2
-  role: "KarpenterNodeRole-${EKS_CLUSTER_NAME}"
+  role: "${ROLE_NAME}"
   subnetSelectorTerms:
     - tags:
         run_id: "${RUN_ID}"
