@@ -321,7 +321,7 @@ resource "terraform_data" "install_karpenter" {
     command = <<EOT
 			#!/bin/bash
 			set -e
-			helm uninstall karpenter --namespace ${local.karpenter_namespace}
+			helm uninstall karpenter --namespace kube-system
 		  EOT
   }
 }
