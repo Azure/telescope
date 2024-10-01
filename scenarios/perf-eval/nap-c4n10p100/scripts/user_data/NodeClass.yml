@@ -12,4 +12,4 @@ spec:
     - tags:
         run_id: "${RUN_ID}"
   amiSelectorTerms:
-  - alias: al2@latest
+    - alias: al2@latest

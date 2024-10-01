@@ -24,7 +24,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "telescope.azurecr.io/perf-eval/clusterloader2:20240918"
-          topology: karpenter          
+          topology: karpenter
           matrix:
             c4-n10-p100:
               cpu_per_node: 4

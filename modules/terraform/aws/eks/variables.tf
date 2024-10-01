@@ -27,11 +27,11 @@ variable "region" {
 
 variable "eks_config" {
   type = object({
-    role                              = string
-    eks_name                          = string
-    enable_karpenter                  = optional(bool, false)
-    vpc_name                          = string
-    policy_arns                       = list(string)
+    role             = string
+    eks_name         = string
+    enable_karpenter = optional(bool, false)
+    vpc_name         = string
+    policy_arns      = list(string)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string

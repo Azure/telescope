@@ -304,7 +304,7 @@ resource "terraform_data" "install_karpenter" {
         --set controller.resources.requests.memory=1Gi \
         --set controller.resources.limits.cpu=1 \
         --set controller.resources.limits.memory=1Gi \
-        --set replicas=1 \
+        --set replicas=2 \
         --wait
 			sleep 10
 			envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
