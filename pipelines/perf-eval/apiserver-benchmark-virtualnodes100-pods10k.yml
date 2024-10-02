@@ -43,6 +43,7 @@ stages:
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
+          ssh_key_enabled: false
   - stage: azure_eastus2
     dependsOn: []
     jobs:
@@ -73,3 +74,4 @@ stages:
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
+          ssh_key_enabled: false
