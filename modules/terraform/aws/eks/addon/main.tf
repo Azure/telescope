@@ -5,7 +5,7 @@ locals {
 
 # Create OIDC Provider
 data "tls_certificate" "eks" {
-  url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+  url = var.cluster_oidc_provider_url
 }
 
 resource "aws_iam_openid_connect_provider" "oidc_provider" {
