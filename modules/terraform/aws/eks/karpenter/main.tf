@@ -300,10 +300,6 @@ resource "terraform_data" "install_karpenter" {
         --version "1.0.3" \
         --namespace "kube-system" \
         --set "settings.clusterName=${var.cluster_name}" \
-        --set controller.resources.requests.cpu=1 \
-        --set controller.resources.requests.memory=1Gi \
-        --set controller.resources.limits.cpu=1 \
-        --set controller.resources.limits.memory=1Gi \
         --set replicas=2 \
         --wait
       sleep 10
@@ -322,7 +318,7 @@ resource "terraform_data" "install_karpenter" {
       #!/bin/bash
       set -e
       helm uninstall karpenter --namespace kube-system
-      
+
       EOT
   }
 }
