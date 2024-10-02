@@ -87,4 +87,4 @@ steps:
 - ${{ if eq(parameters.ssh_key_enabled, true) }}:
   - template: /steps/ssh/setup-key.yml
     parameters:
-       cloud: ${{ parameters.cloud }}
+      cloud: ${{ parameters.cloud }}
