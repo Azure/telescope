@@ -22,7 +22,7 @@ resource "aws_ec2_tag" "tag_subnets" {
   value =  var.cluster_name
 }
 
-resource "aws_ec2_tag" "tag_subnets" {
+resource "aws_ec2_tag" "tag_security_groups" {
   for_each =  toset(data.aws_eks_cluster.eks_cluster.vpc_config[0].security_group_ids)
 
   resource_id = each.value
