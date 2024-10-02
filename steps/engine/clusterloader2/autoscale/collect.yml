@@ -12,7 +12,23 @@ steps:
 - script: |
     kubectl delete --all nodeclaim --ignore-not-found
     kubectl delete --all nodepool --ignore-not-found
-  displayName: "Delete NodeClaim and NodePool"
+
+    # Get all nodes with the Karpenter nodepool label
+    NODES=$(kubectl get nodes -l karpenter.sh/nodepool -o jsonpath='{.items[*].metadata.name}')
+
+    # Loop through each node to extract the instance ID and terminate
+    for NODE in $NODES; do
+      INSTANCE_ID=$(kubectl get node "$NODE" -o json | jq -r '.spec.providerID' | cut -d '/' -f5)
+
+      # Terminate the EC2 instance
+      if [ -n "$INSTANCE_ID" ]; then
+        echo "Terminating instance: $INSTANCE_ID"
+        #aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
+      else
+        echo "No instance ID found for node: $NODE"
+      fi
+    done
+  displayName: "Delete NodeClaim. NodePool and Terminate EC2 Instances"
   condition: always()
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
   parameters:
