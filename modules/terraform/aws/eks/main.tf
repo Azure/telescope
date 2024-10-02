@@ -107,19 +107,6 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   ]
 }
 
-# Create OIDC Provider
-data "tls_certificate" "eks" {
-  url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
-}
-
-resource "aws_iam_openid_connect_provider" "oidc_provider" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.eks.identity[0].oidc[0].issuer
-  tags            = var.tags
-  depends_on      = [data.tls_certificate.eks]
-}
-
 module "eks_addon" {
   source = "./addon"
 
@@ -127,7 +114,7 @@ module "eks_addon" {
 
   eks_addon_config_map      = local.eks_addons_map
   cluster_name              = aws_eks_cluster.eks.name
-  cluster_oidc_provider_url = aws_iam_openid_connect_provider.oidc_provider.url
+  cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
   tags                      = var.tags
   depends_on                = [aws_eks_cluster.eks, aws_eks_node_group.eks_managed_node_groups]
 }
