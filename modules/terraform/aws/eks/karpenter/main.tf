@@ -1,6 +1,7 @@
 locals {
   karpenter_namespace       = "kube-system"
   karpenter_service_account = "karpenter"
+  karpenter_version         = "1.0.3"
 }
 
 data "aws_caller_identity" "current" {}
@@ -297,10 +298,9 @@ resource "terraform_data" "install_karpenter" {
       # Install Karpenter
       helm registry logout public.ecr.aws || true
       helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
-        --version "1.0.3" \
-        --namespace "kube-system" \
+        --version "${local.karpenter_version}" \
+        --namespace "${local.karpenter_namespace}" \
         --set "settings.clusterName=${var.cluster_name}" \
-        --set replicas=2 \
         --wait
       sleep 10
       envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
