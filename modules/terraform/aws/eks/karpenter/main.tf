@@ -10,26 +10,6 @@ data "aws_iam_role" "cluster_role" {
   name = var.cluster_iam_role_name
 }
 
-data "aws_eks_cluster" "eks_cluster" {
-  name = var.cluster_name
-}
-
-resource "aws_ec2_tag" "tag_subnets" {
-  for_each =  toset(data.aws_eks_cluster.eks_cluster.vpc_config[0].subnet_ids)
-
-  resource_id = each.value
-  key        = "karpenter.sh/discovery"
-  value =  var.cluster_name
-}
-
-resource "aws_ec2_tag" "tag_security_groups" {
-  for_each =  toset(data.aws_eks_cluster.eks_cluster.vpc_config[0].security_group_ids)
-
-  resource_id = each.value
-  key        = "karpenter.sh/discovery"
-  value =  var.cluster_name
-}
-
 resource "aws_iam_role" "karpenter_node_role" {
   name = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
   tags = var.tags
@@ -327,8 +307,8 @@ resource "terraform_data" "install_karpenter" {
 
       EOT
     environment = {
-      ROLE_NAME = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
-      RUN_ID    = var.run_id
+      ROLE_NAME    = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
+      RUN_ID       = var.run_id
       CLUSTER_NAME = var.cluster_name
     }
   }

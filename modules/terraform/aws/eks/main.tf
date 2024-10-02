@@ -18,6 +18,18 @@ data "aws_subnets" "subnets" {
   }
 }
 
+data "aws_security_groups" "security_groups" {
+  filter {
+    name   = "tag:run_id"
+    values = [var.run_id]
+  }
+
+   filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+}
+
 data "aws_iam_policy_document" "assume_role" {
   statement {
     effect = "Allow"
@@ -50,6 +62,7 @@ resource "aws_eks_cluster" "eks" {
 
   vpc_config {
     subnet_ids = toset(data.aws_subnets.subnets.ids)
+    security_group_ids = toset(data.aws_security_groups.security_groups.ids)
   }
 
   access_config {
