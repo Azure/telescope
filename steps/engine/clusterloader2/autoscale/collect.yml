@@ -23,9 +23,7 @@ steps:
       # Terminate the EC2 instance
       if [ -n "$INSTANCE_ID" ]; then
         echo "Terminating instance: $INSTANCE_ID"
-        #aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
-      else
-        echo "No instance ID found for node: $NODE"
+        aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
       fi
     done
   displayName: "Delete NodeClaim. NodePool and Terminate EC2 Instances"
