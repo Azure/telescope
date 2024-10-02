@@ -7,9 +7,9 @@ spec:
   role: "${ROLE_NAME}"
   subnetSelectorTerms:
     - tags:
-        run_id: "${RUN_ID}"
+        karpenter.sh/discovery: "${CLUSTER_NAME}"
   securityGroupSelectorTerms:
     - tags:
-        run_id: "${RUN_ID}"
+        karpenter.sh/discovery: "${CLUSTER_NAME}"
   amiSelectorTerms:
     - alias: al2@latest
