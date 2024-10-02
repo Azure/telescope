@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-c4n10p100
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: sumanth-Aws-nap
 
 stages:
   - stage: aws_eastus2
