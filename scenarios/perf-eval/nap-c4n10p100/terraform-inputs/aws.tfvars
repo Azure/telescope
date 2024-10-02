@@ -98,6 +98,12 @@ eks_config_list = [{
       name        = "vpc-cni",
       version     = "v1.18.1-eksbuild.3"
       policy_arns = ["AmazonEKS_CNI_Policy"]
+    },
+    {
+      name = "kube-proxy"
+    },
+    {
+      name = "coredns"
     }
   ]
 }]
