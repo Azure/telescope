@@ -16,7 +16,9 @@ parameters:
   type: string
 - name: subscription
   type: string
-  default: ''
+- name: ssh_key_enabled
+  type: boolean
+  default: true
 
 steps:
 - script: |
@@ -82,3 +84,8 @@ steps:
   displayName: 'Set Script Module Directory'
   env:
     TEST_MODULES_DIR: ${{ parameters.test_modules_dir }}
+
+- template: /steps/ssh/setup-key.yml
+  ${{ if eq(parameters.ssh_key_enabled, true) }}:
+    parameters:
+      cloud: ${{ parameters.cloud }}

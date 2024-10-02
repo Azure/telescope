@@ -30,10 +30,6 @@ steps:
     cloud: ${{ parameters.cloud }}
     modules_dir: ${{ parameters.terraform_modules_dir }}
 
-- template: /steps/ssh/setup-key.yml
-  parameters:
-    cloud: ${{ parameters.cloud }}
-
 - template: /steps/terraform/set-input-file.yml
   parameters:
     cloud: ${{ parameters.cloud }}
