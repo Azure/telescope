@@ -15,7 +15,7 @@ parameters:
   default: managed_identity
 
 steps:
-- template: /steps/terraform/run-command.yml
+- template: /steps/terraform/run-command.yml@self
   parameters:
     command: destroy
     arguments: ${{ parameters.terraform_arguments }}
