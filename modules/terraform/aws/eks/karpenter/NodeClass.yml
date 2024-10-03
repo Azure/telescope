@@ -1,0 +1,15 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiFamily: AL2 # Amazon Linux 2
+  role: "${ROLE_NAME}"
+  subnetSelectorTerms:
+    - tags:
+        run_id: "${RUN_ID}"
+  securityGroupSelectorTerms:
+    - tags:
+        run_id: "${RUN_ID}"
+  amiSelectorTerms:
+    - alias: al2@latest

@@ -7,6 +7,8 @@ This guide covers how to manually run Terraform for AWS. All commands should be 
 * Install [Terraform - 1.7.3](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
 * Install [AWS CLI - 2.15.19](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
+* Install [ Kubectl - 1.31.0](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
+* Install [Helm - v3.16.1](https://helm.sh/docs/intro/install/)
 
 ## Define Variables
 
@@ -15,7 +17,7 @@ Set environment variables for a specific test scenario. In this guide, we'll use
 Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=apiserver-vn10pod100
+SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=aws
 REGION="us-east-2"

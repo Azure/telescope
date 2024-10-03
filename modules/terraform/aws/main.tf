@@ -43,6 +43,7 @@ module "eks" {
 
   source     = "./eks"
   run_id     = local.run_id
+  region     = local.region
   vpc_id     = local.all_vpcs[each.value.vpc_name].id
   eks_config = each.value
   tags       = local.tags
