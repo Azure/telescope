@@ -43,40 +43,40 @@ resource "aws_iam_role" "karpenter_node_role" {
   ]
 }
 
-data "aws_iam_policy_document" "karpenter_controller_assume_role_policy" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    effect  = "Allow"
+# data "aws_iam_policy_document" "karpenter_controller_assume_role_policy" {
+#   statement {
+#     actions = ["sts:AssumeRoleWithWebIdentity"]
+#     effect  = "Allow"
 
-    condition {
-      test     = "StringLike"
-      variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
-      values   = ["sts.amazonaws.com"]
-    }
+#     condition {
+#       test     = "StringLike"
+#       variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
+#       values   = ["sts.amazonaws.com"]
+#     }
 
-     condition {
-      test     = "StringLike"
-        variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
-        values   = ["system:serviceaccount:kube-system:karpernter"]
-    }
+#      condition {
+#       test     = "StringLike"
+#         variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
+#         values   = ["system:serviceaccount:kube-system:karpernter"]
+#     }
 
-    principals {
-      identifiers = [data.aws_iam_openid_connect_provider.oidc_provider.arn]
-      type        = "Federated"
-    }
-  }
+#     principals {
+#       identifiers = [data.aws_iam_openid_connect_provider.oidc_provider.arn]
+#       type        = "Federated"
+#     }
+#   }
 
-  depends_on = [data.aws_iam_openid_connect_provider.oidc_provider]
-}
+#   depends_on = [data.aws_iam_openid_connect_provider.oidc_provider]
+# }
 
-resource "aws_iam_role" "karpenter_controller_role" {
-  name = substr("KarpenterControllerRole-${var.cluster_name}", 0, 60)
-  assume_role_policy = data.aws_iam_policy_document.karpenter_controller_assume_role_policy.json
-  tags               = var.tags
-  managed_policy_arns = [aws_iam_policy.karpenter_controller_policy.arn]
+# resource "aws_iam_role" "karpenter_controller_role" {
+#   name = substr("KarpenterControllerRole-${var.cluster_name}", 0, 60)
+#   assume_role_policy = data.aws_iam_policy_document.karpenter_controller_assume_role_policy.json
+#   tags               = var.tags
+#   managed_policy_arns = [aws_iam_policy.karpenter_controller_policy.arn]
 
-  depends_on = [data.aws_iam_policy_document.karpenter_controller_assume_role_policy, aws_iam_policy.karpenter_controller_policy]
-}
+#   depends_on = [data.aws_iam_policy_document.karpenter_controller_assume_role_policy, aws_iam_policy.karpenter_controller_policy]
+# }
 
 resource "aws_iam_policy" "karpenter_controller_policy" {
   name = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
@@ -346,7 +346,6 @@ resource "terraform_data" "install_karpenter" {
         --namespace "${local.karpenter_namespace}" \
         --set "settings.clusterName=${var.cluster_name}" \
         --set "settings.clusterEndpoint=${data.aws_eks_cluster.cluster.endpoint}" \
-        --set "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn=${aws_iam_role.karpenter_controller_role.arn}" \
         --wait
       sleep 10
       envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
