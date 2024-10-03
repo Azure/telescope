@@ -1,6 +1,5 @@
 locals {
   karpenter_namespace       = "kube-system"
-  karpenter_service_account = "karpenter"
   karpenter_version         = "1.0.3"
 }
 
