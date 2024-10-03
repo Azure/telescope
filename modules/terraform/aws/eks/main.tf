@@ -116,7 +116,7 @@ module "eks_addon" {
   cluster_name              = aws_eks_cluster.eks.name
   cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
   tags                      = var.tags
-  depends_on                = [aws_eks_cluster.eks, aws_eks_node_group.eks_managed_node_groups]
+  depends_on                = [aws_eks_node_group.eks_managed_node_groups]
 }
 
 
@@ -132,7 +132,5 @@ module "karpenter" {
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
   run_id                = var.run_id
 
-  depends_on = [
-    aws_eks_cluster.eks
-  ]
+  depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
