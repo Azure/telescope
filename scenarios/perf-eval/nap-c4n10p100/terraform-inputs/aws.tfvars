@@ -90,10 +90,7 @@ eks_config_list = [{
       ]
     }
   ]
-  eks_addons = [
-    {
-      name = "eks-pod-identity-agent"
-    },
+  eks_addons = [    
     {
       name        = "vpc-cni",
       version     = "v1.18.1-eksbuild.3"

@@ -10,6 +10,15 @@ data "aws_iam_role" "cluster_role" {
   name = var.cluster_iam_role_name
 }
 
+data "aws_eks_cluster" "cluster" {
+  name = var.cluster_name
+}
+
+# OIDC Provider
+data "aws_iam_openid_connect_provider" "oidc_provider" {
+  url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+
 resource "aws_iam_role" "karpenter_node_role" {
   name = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
   tags = var.tags
@@ -32,6 +41,41 @@ resource "aws_iam_role" "karpenter_node_role" {
     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
     "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   ]
+}
+
+data "aws_iam_policy_document" "karpenter_controller_assume_role_policy" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringLike"
+      variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+     condition {
+      test     = "StringLike"
+        variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
+        values   = ["system:serviceaccount:kube-system:karpernter"]
+    }
+
+    principals {
+      identifiers = [data.aws_iam_openid_connect_provider.oidc_provider.arn]
+      type        = "Federated"
+    }
+  }
+
+  depends_on = [data.aws_iam_openid_connect_provider.oidc_provider]
+}
+
+resource "aws_iam_role" "karpenter_controller_role" {
+  name = substr("KarpenterControllerRole-${var.cluster_name}", 0, 60)
+  assume_role_policy = data.aws_iam_policy_document.karpenter_controller_assume_role_policy.json
+  tags               = var.tags
+  managed_policy_arns = [aws_iam_policy.karpenter_controller_policy.arn]
+
+  depends_on = [data.aws_iam_policy_document.karpenter_controller_assume_role_policy, aws_iam_policy.karpenter_controller_policy]
 }
 
 resource "aws_iam_policy" "karpenter_controller_policy" {
@@ -301,6 +345,8 @@ resource "terraform_data" "install_karpenter" {
         --version "${local.karpenter_version}" \
         --namespace "${local.karpenter_namespace}" \
         --set "settings.clusterName=${var.cluster_name}" \
+        --set "settings.clusterEndpoint=${data.aws_eks_cluster.cluster.endpoint}" \
+        --set serviceAccount.annotations.eks\.amazonaws\.com/role-arn=${aws_iam_role.karpenter_controller_role.arn} \
         --wait
       sleep 10
       envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
@@ -340,36 +386,36 @@ resource "terraform_data" "update_aws_auth_config_map" {
 }
 
 
-resource "aws_iam_role" "karpenter" {
-  name = substr("karpenter-${var.cluster_name}", 0, 60)
+# resource "aws_iam_role" "karpenter" {
+#   name = substr("karpenter-${var.cluster_name}", 0, 60)
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        "Effect" : "Allow",
-        "Principal" : {
-          "Service" : [
-            "pods.eks.amazonaws.com"
-          ]
-        },
-        "Action" : [
-          "sts:AssumeRole",
-          "sts:TagSession"
-        ]
-      }
-    ]
-  })
-  managed_policy_arns = [
-    "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
-    aws_iam_policy.karpenter_controller_policy.arn
-  ]
-  depends_on = [terraform_data.install_karpenter]
-}
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         "Effect" : "Allow",
+#         "Principal" : {
+#           "Service" : [
+#             "pods.eks.amazonaws.com"
+#           ]
+#         },
+#         "Action" : [
+#           "sts:AssumeRole",
+#           "sts:TagSession"
+#         ]
+#       }
+#     ]
+#   })
+#   managed_policy_arns = [
+#     "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+#     aws_iam_policy.karpenter_controller_policy.arn
+#   ]
+#   depends_on = [terraform_data.install_karpenter]
+# }
 
-resource "aws_eks_pod_identity_association" "association" {
-  cluster_name    = var.cluster_name
-  namespace       = local.karpenter_namespace
-  service_account = local.karpenter_service_account
-  role_arn        = aws_iam_role.karpenter.arn
-}
+# resource "aws_eks_pod_identity_association" "association" {
+#   cluster_name    = var.cluster_name
+#   namespace       = local.karpenter_namespace
+#   service_account = local.karpenter_service_account
+#   role_arn        = aws_iam_role.karpenter.arn
+# }
