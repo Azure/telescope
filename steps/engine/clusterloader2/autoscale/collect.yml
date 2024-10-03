@@ -16,19 +16,19 @@ steps:
     echo "Delete all the network interfaces"
     subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$RUN_ID']].SubnetId" --output text)
     for subnet_id in $subnet_ids; do
-      echo "Detaching Subnet: $subnet_id Network Interfaces ..."
-      network_interfaces_attachment_id=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$subnet_id --query "NetworkInterfaces[].Attachment.AttachmentId" --output text)
-      for network_interface_attachment_id in $network_interfaces_attachment_id; do
+      echo "Detaching Subnet: $subnet_id Network Interfaces"
+      network_interfaces_attachment_ids=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$subnet_id --query "NetworkInterfaces[?Attachment.AttachIndex!='0'].Attachment.AttachmentId" --output text)
+      for network_interface_attachment_id in $network_interfaces_attachment_ids; do
         echo "Detaching Network Interface attachment id: $network_interface_attachment_id"
         if ! aws ec2 detach-network-interface --attachment-id $network_interface_attachment_id; then
-          echo "##vso[task.logissue type=error;] Failed to detach Network Interface attachment id: $network_interface_attachment_id"
+          echo "##[warning] Failed to detach Network Interface attachment id: $network_interface_attachment_id"
         fi
-      done      
-      network_interfaces=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$subnet_id --query "NetworkInterfaces[].NetworkInterfaceId" --output text)
+      done
+      network_interfaces=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$subnet_id --query "NetworkInterfaces[?Attachment.AttachIndex!='0'].NetworkInterfaceId" --output text)
       for network_interface in $network_interfaces; do
         echo "Deleting Network Interface: $network_interface"
         if ! aws ec2 delete-network-interface --network-interface-id $network_interface; then
-          echo "##vso[task.logissue type=error;] Failed to delete Network Interface: $network_interface"
+          echo "##[warning] Failed to delete Network Interface: $network_interface"
         fi
       done
     done
