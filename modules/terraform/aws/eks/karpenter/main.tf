@@ -1,6 +1,6 @@
 locals {
-  karpenter_namespace       = "kube-system"
-  karpenter_version         = "1.0.3"
+  karpenter_namespace = "kube-system"
+  karpenter_version   = "1.0.3"
 }
 
 data "aws_caller_identity" "current" {}
@@ -239,8 +239,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
             "aws:ResourceTag/topology.kubernetes.io/region"             = var.region,
             "aws:RequestTag/eks:eks-cluster-name"                       = var.cluster_name,
-            "aws:RequestTag/eks:eks-cluster-name"                      = var.cluster_name,
-            "aws:RequestTag/topology.kubernetes.io/region"             = var.region
+            "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}"  = "owned",
+            "aws:RequestTag/topology.kubernetes.io/region"              = var.region
           }
           "StringLike" = {
             "aws:ResourceTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -306,8 +306,8 @@ resource "terraform_data" "install_karpenter" {
 
       EOT
     environment = {
-      ROLE_NAME    = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
-      RUN_ID       = var.run_id
+      ROLE_NAME = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
+      RUN_ID    = var.run_id
     }
   }
 
