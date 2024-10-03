@@ -90,7 +90,7 @@ eks_config_list = [{
       ]
     }
   ]
-  eks_addons = [    
+  eks_addons = [
     {
       name        = "vpc-cni",
       version     = "v1.18.1-eksbuild.3"
