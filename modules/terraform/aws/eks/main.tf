@@ -132,5 +132,7 @@ module "karpenter" {
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
   run_id                = var.run_id
 
-  depends_on = [module.eks_addon]
+  depends_on = [
+    aws_eks_cluster.eks
+  ]
 }

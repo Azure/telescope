@@ -239,7 +239,9 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
           "StringEquals" = {
             "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned",
             "aws:ResourceTag/topology.kubernetes.io/region"             = var.region,
-            "aws:RequestTag/eks:eks-cluster-name"                       = var.cluster_name
+            "aws:RequestTag/eks:eks-cluster-name"                       = var.cluster_name,
+            "aws:RequestTag/eks:eks-cluster-name"                      = var.cluster_name,
+            "aws:RequestTag/topology.kubernetes.io/region"             = var.region
           }
           "StringLike" = {
             "aws:ResourceTag/karpenter.k8s.aws/ec2nodeclass" = "*"
@@ -307,7 +309,6 @@ resource "terraform_data" "install_karpenter" {
     environment = {
       ROLE_NAME    = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
       RUN_ID       = var.run_id
-      CLUSTER_NAME = var.cluster_name
     }
   }
 
@@ -332,7 +333,7 @@ resource "terraform_data" "update_aws_auth_config_map" {
 
       kubectl get -n kube-system configmap/aws-auth -o yaml | awk "/mapRoles: \|/{print;print \"$ROLE\";next}1" > aws-auth-patch.yml
       kubectl patch configmap/aws-auth -n kube-system --patch "$(cat aws-auth-patch.yml)"
-
+      kubectl get configmaps -n kube-system aws-auth -o yaml
       EOT    
   }
 }
