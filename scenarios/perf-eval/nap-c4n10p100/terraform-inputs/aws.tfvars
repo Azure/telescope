@@ -11,19 +11,19 @@ network_config_list = [
     subnet = [
       {
         name                    = "nap-subnet"
-        cidr_block              = "10.0.0.0/24"
+        cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "nap-subnet-2"
-        cidr_block              = "10.0.1.0/24"
+        cidr_block              = "10.0.64.0/19"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       },
       {
         name                    = "nap-subnet-3"
-        cidr_block              = "10.0.2.0/24"
+        cidr_block              = "10.0.96.0/19"
         zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
