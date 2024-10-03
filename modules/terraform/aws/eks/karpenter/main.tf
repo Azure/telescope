@@ -346,7 +346,7 @@ resource "terraform_data" "install_karpenter" {
         --namespace "${local.karpenter_namespace}" \
         --set "settings.clusterName=${var.cluster_name}" \
         --set "settings.clusterEndpoint=${data.aws_eks_cluster.cluster.endpoint}" \
-        --set serviceAccount.annotations.eks\.amazonaws\.com/role-arn=${aws_iam_role.karpenter_controller_role.arn} \
+        --set serviceAccount.annotations."eks.amazonaws.com/role-arn"="${aws_iam_role.karpenter_controller_role.arn}"
         --wait
       sleep 10
       envsubst  < "${var.user_data_path}/NodeClass.yml" | kubectl apply -f -
