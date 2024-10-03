@@ -1,12 +1,20 @@
 locals {
-  role                          = var.eks_config.role
-  eks_cluster_name              = "${var.eks_config.eks_name}-${var.run_id}"
-  eks_node_group_map            = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
-  addons_required_for_karpenter = [{ name = "vpc-cni", version = "v1.18.1-eksbuild.3", policy_arns = ["AmazonEKS_CNI_Policy"] }, { name = "kube-proxy" }, { name = "coredns" }]
+  role               = var.eks_config.role
+  eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
+  eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
+  karpenter_addons_map = {
+    for addon in [{ name = "vpc-cni", version = "v1.18.1-eksbuild.3", policy_arns = ["AmazonEKS_CNI_Policy"] }, { name = "kube-proxy" }, { name = "coredns" }] : addon.name =>
+    {
+      name            = addon.name
+      version         = lookup(addon, "version", null)
+      service_account = lookup(addon, "service_account", null)
+      policy_arns     = lookup(addon, "policy_arns", [])
+    }
+  }
 
-  eks_addons_map   = var.eks_config.enable_karpenter ? { for addon in merge(var.eks_config.eks_addons, local.addons_required_for_karpenter) : addon.name => addon } : { for addon in var.eks_config.eks_addons : addon.name => addon }
-  policy_arns      = var.eks_config.policy_arns
-  enable_karpenter = var.eks_config.enable_karpenter
+  eks_addons_map         = { for addon in var.eks_config.eks_addons : addon.name => addon }
+  updated_eks_addons_map = var.eks_config.enable_karpenter ? merge(local.karpenter_addons_map, local.eks_addons_map) : local.eks_addons_map
+  policy_arns            = var.eks_config.policy_arns
 }
 
 data "aws_subnets" "subnets" {
@@ -113,9 +121,9 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
 module "eks_addon" {
   source = "./addon"
 
-  count = length(var.eks_config.eks_addons) != 0 ? 1 : 0
+  count = length(local.updated_eks_addons_map) != 0 ? 1 : 0
 
-  eks_addon_config_map      = local.eks_addons_map
+  eks_addon_config_map      = local.updated_eks_addons_map
   cluster_name              = aws_eks_cluster.eks.name
   cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
   tags                      = var.tags
