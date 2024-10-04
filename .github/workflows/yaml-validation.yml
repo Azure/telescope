@@ -1,10 +1,10 @@
-name: Lint Checker
+name: YAML Validation
 
 on:
   pull_request:
 
 jobs:
-  lint-checker:
+  yaml-validation:
     runs-on: ubuntu-latest
 
     steps:

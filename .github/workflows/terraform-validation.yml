@@ -1,4 +1,4 @@
-name: Terraform Validate
+name: Terraform Validation
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 jobs:
-  terraform-validate:
+  terraform-validation:
     runs-on: ubuntu-latest
 
     steps:

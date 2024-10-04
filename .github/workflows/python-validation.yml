@@ -1,4 +1,4 @@
-name: Python Unit Tests
+name: Python Validation
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
 env:
   PYTHON_MODULES_DIR: modules/python
 jobs:
-  python-unit-tests:
+  python-validation:
     runs-on: ubuntu-latest
 
     steps:
