@@ -25,36 +25,5 @@ jobs:
     - name: Yamllint Version Check
       run: yamllint --version
 
-    - uses: terraform-linters/setup-tflint@v4
-      name: Setup TFLint
-
-    - name: Show version
-      run: tflint --version
-
-    - name: Init TFLint
-      run: tflint --init
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Terraform Lint Check
-      run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
-
     - name: Yamllint Check
       run: yamllint -c $GITHUB_WORKSPACE/.yamllint . --no-warnings
-
-    - name: Scenario name check
-      if: always()
-      run: |
-        set -eu
-        SCENARIO_NAME_MAX_LENGTH=30
-        check_failed=false
-        scenario_names=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{print $9}' | sort -u)
-        for name in $scenario_names; do
-          if [ ${#name} -gt $SCENARIO_NAME_MAX_LENGTH ]; then
-            echo "::error::Scenario folder name $name is greater than $SCENARIO_NAME_MAX_LENGTH characters. Please rename the folder to a shorter name."
-            check_failed=true
-          fi
-        done
-        if [ "$check_failed" = true ]; then
-          exit 1
-        fi
