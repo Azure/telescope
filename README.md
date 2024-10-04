@@ -1,21 +1,30 @@
+[![Terraform Validation](https://github.com/Azure/telescope/actions/workflows/terraform-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/terraform-validation.yml) [![Python Validation](https://github.com/Azure/telescope/actions/workflows/python-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/python-validation.yml) [![YAML Validation](https://github.com/Azure/telescope/actions/workflows/yaml-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/yaml-validation.yml) [![Security Scan](https://github.com/Azure/telescope/actions/workflows/security-scan.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/security-scan.yml)
+
 # Telescope
 
-Telescope is a framework designed for testing and comparing cloud products and features, specifically evaluating functionality and performance. It empowers users to make data-driven decisions on their multi-cloud strategy, currently supporting Azure and AWS, with GCP support coming soon.
+Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies. Currently, Telescope supports Azure and AWS, with plans to include GCP in the near future.
 
-## Achitecture
-![arch](./docs/imgs/arch.png)
-As the achitecture diagram above shows, Telescope streamlines the evaluation process in 5 steps:
+The currently available test scenarios are:
+1. Kubernetes API server benchmark using [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
+2. Kubernetes Autoscaling benchmark using [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
+
+with more coming soon.
+
+## Design
+![design](./docs/imgs/design.png)
+As the achitecture diagram above shows, Telescope streamlines the evaluation process through five key steps:
+
 1. Provision Resources
 2. Validate Resources
 3. Execute Tests
 4. Cleanup Resources
 5. Publish Results
 
-and provides 3 major re-usable components:
+Telescope offers three primary reusable components:
 
-* Terraform modules to manage target test resources
-* Azure Pipeline to ochestrate and automate test runs
-* Azure Blob Storage, Event Hub and Data Explorer for test reporting
+1. **Terraform modules** to manage test resource setup and provide reproducibility.
+2. **Python modules** for seamless integration with testing and measurement tools.
+3. **Azure services** including Pipeline, Blob Storage, Event Hub, and Data Explorer for continuous monitoring.
 
 ## Quick Start
 1. Setup test framework by running commands as follows:

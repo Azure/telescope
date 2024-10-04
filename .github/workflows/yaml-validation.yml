@@ -1,0 +1,29 @@
+name: YAML Validation
+
+on:
+  pull_request:
+
+jobs:
+  yaml-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Python Version Check
+      run: python --version
+
+    - name: Install Yamllint
+      run: pip install yamllint
+
+    - name: Yamllint Version Check
+      run: yamllint --version
+
+    - name: Yamllint Check
+      run: yamllint -c $GITHUB_WORKSPACE/.yamllint . --no-warnings
