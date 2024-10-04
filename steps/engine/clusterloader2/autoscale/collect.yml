@@ -12,7 +12,9 @@ steps:
 - script: |
     kubectl delete --all nodeclaim --ignore-not-found
     kubectl delete --all nodepool --ignore-not-found
-
+  displayName: "Delete NodeClaim and NodePool"
+  condition: always()
+- script: |
     echo "Delete all the network interfaces"
     subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$RUN_ID']].SubnetId" --output text)
     for subnet_id in $subnet_ids; do
@@ -32,8 +34,8 @@ steps:
         fi
       done
     done
-  displayName: "Delete NodeClaim, NodePool and Network Interfaces"
-  condition: always()
+  displayName: "Delete Network Interfaces"
+  condition: ${{ eq(parameters.cloud, 'aws') }}
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
   parameters:
     region: ${{ parameters.region }}
