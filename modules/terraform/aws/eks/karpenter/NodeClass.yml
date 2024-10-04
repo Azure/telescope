@@ -10,7 +10,7 @@ spec:
         run_id: "${RUN_ID}"
   securityGroupSelectorTerms:
     - tags:
-        run_id: "${RUN_ID}"
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   amiSelectorTerms:
     - alias: al2@latest
   tags:
