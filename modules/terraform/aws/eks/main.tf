@@ -139,7 +139,6 @@ module "karpenter" {
   region                = var.region
   tags                  = var.tags
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
-  run_id                = var.run_id
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }

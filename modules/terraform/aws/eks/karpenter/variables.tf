@@ -13,11 +13,6 @@ variable "tags" {
   description = "value of the tags"
 }
 
-variable "run_id" {
-  type        = string
-  description = "The run id for  eks cluster"
-}
-
 variable "cluster_iam_role_name" {
   type        = string
   description = "value of the cluster iam role name"
