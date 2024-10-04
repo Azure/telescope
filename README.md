@@ -11,7 +11,7 @@ The currently available test scenarios are:
 with more coming soon.
 
 ## Design
-![design](./docs/imgs/design.png)
+![design](./docs/imgs/design.jpeg)
 As the achitecture diagram above shows, Telescope streamlines the evaluation process through five key steps:
 
 1. Provision Resources
