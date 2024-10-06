@@ -17,10 +17,10 @@ spec:
       nodeClassRef:
         name: default
       startupTaints:
-      # https://karpenter.sh/docs/concepts/nodepools/#cilium-startup-taint
-      - key: node.cilium.io/agent-not-ready
-        effect: NoExecute
-        value: "true"
+        # https://karpenter.sh/docs/concepts/nodepools/#cilium-startup-taint
+        - key: node.cilium.io/agent-not-ready
+          effect: NoExecute
+          value: "true"
       requirements:
         - key: kubernetes.io/arch
           operator: In
