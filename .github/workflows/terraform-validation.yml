@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - '**.tf'
+      - '**.json'
       - '**.tfvars'
+      - 'modules/terraform/**'
 
 env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
@@ -24,8 +26,12 @@ jobs:
 
       - name: Terraform Format Check
         if: always()
-        run: terraform fmt --check -recursive --diff
-
+        run: |
+          terraform fmt --check -recursive --diff
+          if [ $? -ne 0 ]; then
+              echo "Please run 'terraform fmt -recursive' from root directory to format the code."
+              exit 1
+          fi
       - name: Terraform Azure Validation Check
         if: always()
         working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
@@ -52,4 +58,115 @@ jobs:
 
       - name: Terraform Lint Check
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
+  setup-matrix:
+    runs-on: ubuntu-latest
+    name: Setup test matrix scenarios
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup test matrix scenarios
+        id: setup-matrix-scenarios
+        run: |
+          set -eux
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix_array="[${matrix%,}]"
+
+          file_changes=$(git diff --name-only -r origin/main HEAD)
+          echo "PR file changes: $file_changes"
+
+          if [ -z "$file_changes" ]; then
+            matrix_combinations=null
+            echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
+          else
+            cloud_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | uniq)
+            echo "File changes related to cloud: $cloud_changes"
+
+            run_all_tests=false
+            module_matrix='[]'
+            scenario_matrix='[]'
+            if [ $(echo "$cloud_changes" | wc -w) -eq 1 ]; then
+              cloud=$(echo "$cloud_changes" | cut -d' ' -f1)
+              module_matrix=$(echo "$matrix_array" | jq --arg cloud_value "$cloud" '. | map(select(.cloud == $cloud_value))')
+            elif [ $(echo "$cloud_changes" | wc -w) -eq 0 ]; then
+              run_all_tests=false
+            else
+              run_all_tests=true
+              module_matrix=$(echo "$matrix_array")
+            fi
+            echo "module_matrix: $module_matrix"
+            if [ "$run_all_tests" = false ]; then
+              changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | tr ' ' '\n' | sort -u)
+              echo "Test scenarios changed: $changed_scenario_names"
+              for scenario_name in $changed_scenario_names; do
+                filtered_objects=$(echo "$matrix_array" | jq --arg scenario_value "$scenario_name" '. | map(select(.scenario_name == $scenario_value))')
+                scenario_matrix=$(echo "$scenario_matrix $filtered_objects" | jq -s 'flatten | unique')
+              done
+            fi
+            updated_matrix=$(echo "$module_matrix $scenario_matrix" | jq -s 'flatten | unique')
+            echo "Test scenarios to run: $updated_matrix"
+            updated_matrix="${updated_matrix//$'\n'/''}"
+            matrix_combinations="{\"include\": ${updated_matrix%?}}"
+            echo "matrix_combinations={\"include\": ${updated_matrix} }" >> "$GITHUB_OUTPUT"
+          fi
+          echo "matrix_combinations: $matrix_combinations"
+    outputs:
+      matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
+  terraform-plan:
+    permissions:
+      id-token: write
+      contents: read
+    needs: setup-matrix
+    if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != 'null' && needs.setup-matrix.outputs.matrix-combinations['inlcude'] != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
+    runs-on: ubuntu-latest
+    name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }} ${{ matrix.region }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get job id and set env
+        run: |
+          echo "RUN_ID=123456789" >> "$GITHUB_ENV"
+          echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.file_name }}.tfvars" >> "$GITHUB_ENV"
+          echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.file_name }}.json" >> "$GITHUB_ENV"
+          echo "TERRAFORM_MODULES_DIR=modules/terraform/${{ matrix.cloud }}" >> "$GITHUB_ENV"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create JSON Input
+        run: |
+          INPUT_JSON_OBJECT=$(jq . ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
+          echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
+
+      - name: Azure login
+        if: ${{ matrix.cloud == 'azure' }}
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_MI }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: AWS login
+        if: ${{ matrix.cloud == 'aws' }}
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+        run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
 
