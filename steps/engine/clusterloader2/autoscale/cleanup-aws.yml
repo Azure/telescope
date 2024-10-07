@@ -17,6 +17,8 @@ steps:
       fi
     done
 
+    sleep 120
+
     subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$RUN_ID']].SubnetId" --output text)
     for subnet_id in $subnet_ids; do
       echo "Detaching Subnet: $subnet_id Network Interfaces"
