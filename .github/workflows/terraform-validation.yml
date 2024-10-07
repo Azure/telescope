@@ -11,6 +11,7 @@ on:
 env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
+  AWS_REGION: us-east-1
 jobs:
   terraform-validation:
     runs-on: ubuntu-latest
@@ -29,8 +30,8 @@ jobs:
         run: |
           terraform fmt --check -recursive --diff
           if [ $? -ne 0 ]; then
-              echo "Please run 'terraform fmt -recursive' from root directory to format the code."
-              exit 1
+            echo "Please run 'terraform fmt -recursive' from root directory to format the code."
+            exit 1
           fi
       - name: Terraform Azure Validation Check
         if: always()
@@ -60,7 +61,7 @@ jobs:
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
   setup-matrix:
     runs-on: ubuntu-latest
-    name: Setup test matrix scenarios
+    name: Setup terraform plan matrix for test scenarios
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -169,4 +170,3 @@ jobs:
       - name: Terraform Plan
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
         run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
-
