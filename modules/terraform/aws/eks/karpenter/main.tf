@@ -19,30 +19,6 @@ resource "aws_ec2_tag" "cluster_primary_security_group" {
   value       = var.cluster_name
 }
 
-resource "aws_iam_role" "karpenter_node_role" {
-  name = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
-  tags = var.tags
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  managed_policy_arns = [
-    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  ]
-}
-
 resource "aws_iam_policy" "karpenter_controller_policy" {
   name = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
   tags = var.tags
@@ -54,9 +30,11 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Effect = "Allow"
         Resource = [
           "arn:aws:ec2:${var.region}::image/*",
+          "arn:aws:ec2:*::snapshot/*",
           "arn:aws:ec2:${var.region}:*:security-group/*",
           "arn:aws:ec2:${var.region}:*:subnet/*",
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:*"
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:*",
+          "arn:aws:ec2:${var.region}:*:launch-template/*",
         ]
         Action = [
           "ec2:RunInstances",
@@ -96,7 +74,8 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
         Action = [
           "ec2:RunInstances",
           "ec2:CreateFleet",
-          "ec2:CreateLaunchTemplate"
+          "ec2:CreateLaunchTemplate",
+          "ec2:DeleteLaunchTemplate"
         ]
         Condition = {
           "StringEquals" = {
@@ -188,7 +167,7 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
       {
         Sid      = "AllowPassingInstanceRole"
         Effect   = "Allow"
-        Resource = [aws_iam_role.karpenter_node_role.arn, data.aws_iam_role.cluster_role.arn]
+        Resource = [data.aws_iam_role.cluster_role.arn]
         Action   = "iam:PassRole"
       },
       {
@@ -245,7 +224,7 @@ resource "terraform_data" "install_karpenter" {
 
       EOT
     environment = {
-      ROLE_NAME         = substr("KarpenterNodeRole-${var.cluster_name}", 0, 60)
+      ROLE_NAME         = var.cluster_iam_role_name
       RUN_ID            = var.tags["run_id"]
       OWNER             = var.tags["owner"]
       SCENARIO          = var.tags["scenario"]
@@ -262,20 +241,5 @@ resource "terraform_data" "install_karpenter" {
       helm uninstall karpenter --namespace kube-system
 
       EOT
-  }
-}
-
-resource "terraform_data" "update_aws_auth_config_map" {
-  provisioner "local-exec" {
-    command = <<EOT
-      #!/bin/bash
-      set -e
-      kubectl get configmaps -n kube-system aws-auth -o yaml
-      ROLE="    - groups:\n      - system:bootstrappers\n      - system:nodes\n      rolearn: ${aws_iam_role.karpenter_node_role.arn}\n      username: system:node:{{EC2PrivateDNSName}}"
-
-      kubectl get -n kube-system configmap/aws-auth -o yaml | awk "/mapRoles: \|/{print;print \"$ROLE\";next}1" > aws-auth-patch.yml
-      kubectl patch configmap/aws-auth -n kube-system --patch "$(cat aws-auth-patch.yml)"
-      kubectl get configmaps -n kube-system aws-auth -o yaml
-      EOT    
   }
 }
