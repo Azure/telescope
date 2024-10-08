@@ -1,0 +1,23 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiFamily: AL2 # Amazon Linux 2
+  role: "${ROLE_NAME}"
+  subnetSelectorTerms:
+    - tags:
+        run_id: "${RUN_ID}"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  amiSelectorTerms:
+    - alias: al2@latest
+  tags:
+    owner: "${OWNER}"
+    scenario: "${SCENARIO}"
+    deletion_due_time: "${DELETION_DUE_TIME}"
+    run_id: "${RUN_ID}"
+    KarpenterNodePoolName: default
+    NodeType: default
+    karpenter.sh/discovery: ${CLUSTER_NAME}
