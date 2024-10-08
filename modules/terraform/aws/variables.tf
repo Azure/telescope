@@ -16,6 +16,11 @@ variable "scenario_name" {
   description = "Name of the scenario"
   type        = string
   default     = ""
+
+  validation {
+    condition     = length(var.scenario_name) <= 30
+    error_message = "scenario_name should be within 30 characters"
+  }
 }
 
 variable "scenario_type" {
