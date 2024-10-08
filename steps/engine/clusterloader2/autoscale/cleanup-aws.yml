@@ -38,4 +38,5 @@ steps:
       done
     done
   displayName: "Cleanup Resources"
+  retryCountOnTaskFailure: 3
   condition: always()
