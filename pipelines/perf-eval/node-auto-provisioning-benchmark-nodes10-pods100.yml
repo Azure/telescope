@@ -32,7 +32,7 @@ stages:
               pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              loop_count: 5
+              loop_count: 3
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
