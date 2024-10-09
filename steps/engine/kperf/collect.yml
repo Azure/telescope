@@ -29,4 +29,4 @@ steps:
     FLOWCONTROL: ${{ parameters.flowcontrol }}
   displayName: "Collect Results"
 
-- template: steps/cloud/aws/cleanup-eni.yml
+- template: /steps/cloud/aws/cleanup-eni.yml

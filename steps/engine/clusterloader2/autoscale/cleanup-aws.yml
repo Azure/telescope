@@ -21,4 +21,4 @@ steps:
   displayName: "Cleanup Resources"
   condition: always()
 
-- template: steps/cloud/aws/cleanup-eni.yml
+- template: /steps/cloud/aws/cleanup-eni.yml
