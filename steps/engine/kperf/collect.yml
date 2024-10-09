@@ -30,5 +30,3 @@ steps:
   displayName: "Collect Results"
 
 - template: steps/cloud/aws/cleanup-eni.yml
-  parameters:
-    RUN_ID: ${{ parameters.RUN_ID }}
