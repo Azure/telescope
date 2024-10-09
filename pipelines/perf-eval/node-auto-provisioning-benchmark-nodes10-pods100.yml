@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */2 * * *"
-    displayName: "Every 2 Hour"
+  - cron: "*/30 * * * *"
+    displayName: "Every 30 minutes"
     branches:
       include:
         - main
@@ -35,29 +35,28 @@ stages:
               loop_count: 3
           max_parallel: 1
           timeout_in_minutes: 360
-          credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - eastus2
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241002"
-          topology: karpenter
-          matrix:
-            c4-n10-p100:
-              cpu_per_node: 4
-              node_count: 10
-              pod_count: 100
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
-              loop_count: 5
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
+  # - stage: azure_eastus2
+  #   dependsOn: []
+  #   jobs:
+  #     - template: /jobs/competitive-test.yml
+  #       parameters:
+  #         cloud: azure
+  #         regions:
+  #           - eastus2
+  #         engine: clusterloader2
+  #         engine_input:
+  #           image: "ghcr.io/azure/clusterloader2:v20241002"
+  #         topology: karpenter
+  #         matrix:
+  #           c4-n10-p100:
+  #             cpu_per_node: 4
+  #             node_count: 10
+  #             pod_count: 100
+  #             scale_up_timeout: "15m"
+  #             scale_down_timeout: "15m"
+  #             loop_count: 5
+  #         max_parallel: 1
+  #         timeout_in_minutes: 360
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
