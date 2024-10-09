@@ -72,6 +72,5 @@ resource "aws_eks_addon" "addon" {
     "Name" = each.value.name
   })
 
-
   depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
 }
