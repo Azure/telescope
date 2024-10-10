@@ -47,6 +47,16 @@ resource "aws_iam_role" "eks_cluster_role" {
   tags               = var.tags
 }
 
+resource "aws_iam_role_policy_attachment" "eks_service_role_AmazonEKSClusterPolicy" {
+  role = aws_iam_role.eks_cluster_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+resource "aws_iam_role_policy_attachment" eks_service_role_AmazonEKSServicePolicy {
+  role = aws_iam_role.eks_cluster_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+}
+
 resource "aws_iam_role_policy_attachment" "policy_attachments" {
   for_each = toset(local.policy_arns)
 
@@ -69,7 +79,9 @@ resource "aws_eks_cluster" "eks" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.policy_attachments
+    aws_iam_role_policy_attachment.policy_attachments,
+    aws_iam_role_policy_attachment.eks_service_role_AmazonEKSClusterPolicy,
+    aws_iam_role_policy_attachment.eks_service_role_AmazonEKSServicePolicy
   ]
 
   tags = merge(
