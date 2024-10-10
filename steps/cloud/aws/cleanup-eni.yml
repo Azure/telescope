@@ -1,22 +1,38 @@
 steps:
 - script: |
-    subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$RUN_ID']].SubnetId" --output text)
-    for subnet_id in $subnet_ids; do
-      echo "Detaching Subnet: $subnet_id Network Interfaces"
-      network_interfaces_attachment_ids=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$subnet_id --query "NetworkInterfaces[?Attachment.AttachIndex!='0'].Attachment.AttachmentId" --output text)
-      for network_interface_attachment_id in $network_interfaces_attachment_ids; do
-        echo "Detaching Network Interface attachment id: $network_interface_attachment_id"
-        if ! aws ec2 detach-network-interface --attachment-id $network_interface_attachment_id; then
-          echo "##[warning] Failed to detach Network Interface attachment id: $network_interface_attachment_id"
+    echo "Delete leaked ENIs for EKS cluster: $EKS_NAME"
+    query="NetworkInterfaces[?TagSet[?Key=='cluster.k8s.amazonaws.com/name' && Value=='$EKS_NAME']].{id: NetworkInterfaceId, attachment: Attachment}"
+    echo "Query: $query"
+
+    eni_list=$(aws ec2 describe-network-interfaces --query "$query" --output json)
+    echo "$eni_list" | jq -c '.[]' | while read -r eni; do
+      eni_id=$(echo "$eni" | jq -r '.id')
+      attachment=$(echo "$eni" | jq -r '.attachment')
+      if [[ $attachment == "null" ]]; then
+        echo "ENI: $eni_id is not attached to any instance"
+        echo "Deleting Network Interface: $eni_id"
+        if ! aws ec2 delete-network-interface --network-interface-id $eni_id; then
+          echo "##vso[task.logissue type=error;] Failed to delete Network Interface: $eni_id"
         fi
-      done
-      network_interfaces=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$subnet_id --query "NetworkInterfaces[?Attachment.AttachIndex!='0'].NetworkInterfaceId" --output text)
-      for network_interface in $network_interfaces; do
-        echo "Deleting Network Interface: $network_interface"
-        if ! aws ec2 delete-network-interface --network-interface-id $network_interface; then
-          echo "##[warning] Failed to delete Network Interface: $network_interface"
+      else
+        index=$(echo "$attachment" | jq -r '.DeviceIndex')
+        if [[ $index == 0 ]]; then
+          echo "Skip ENI $eni_id with Device Index $index"
+          continue
         fi
-      done
+        attachment_id=$(echo "$attachment" | jq -r '.AttachmentId')
+        echo "Detaching Network Interface attachment id: $attachment_id"
+        if ! aws ec2 detach-network-interface --attachment-id $attachment_id; then
+          echo "##vso[task.logissue type=error;] Failed to detach Network Interface attachment id: $attachment_id"
+        fi
+        if aws ec2 wait network-interface-available --network-interface-ids $eni_id; then
+          echo "Network Interface: $eni_id is available"
+        fi
+        echo "Deleting Network Interface: $eni_id"
+        if ! aws ec2 delete-network-interface --network-interface-id $eni_id; then
+          echo "##vso[task.logissue type=error;] Failed to delete Network Interface: $network_interface"
+        fi
+      fi
     done
   displayName: "Cleanup ENIs"
   condition: always()
