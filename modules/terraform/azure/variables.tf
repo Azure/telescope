@@ -91,6 +91,7 @@ variable "aks_config_list" {
       zones             = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
+    kubernetes_version   = optional(string)
   }))
   default = []
 }

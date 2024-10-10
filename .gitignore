@@ -53,3 +53,5 @@ linux-amd64/
 __pycache__/
 /.vs
 *.pyc
+
+env/

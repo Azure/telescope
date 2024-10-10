@@ -5,13 +5,16 @@ import docker
 from xml.dom import minidom
 from docker_client import DockerClient
 
-def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=False):
+def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=False, enable_prometheus=False, enable_exec_service=False):
     docker_client = DockerClient()
 
-    command=f"""--provider={provider} --v=2 --enable-exec-service=false
+    command=f"""--provider={provider} --v=2
+--enable-exec-service={enable_exec_service}
+--enable-prometheus-server={enable_prometheus}
 --kubeconfig /root/.kube/config 
 --testconfig /root/perf-tests/clusterloader2/config/config.yaml 
---report-dir /root/perf-tests/clusterloader2/results"""
+--report-dir /root/perf-tests/clusterloader2/results
+--tear-down-prometheus-server={enable_prometheus}"""
     if overrides:
         command += f" --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
@@ -25,6 +28,11 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         aws_path = os.path.expanduser("~/.aws/credentials")
         volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
 
+    # if enable_prometheus:
+    #     prometheus_config = os.path.join(cl2_config_dir, "master-serviceMonitor.yaml")
+    #     volumes[prometheus_config] = {'bind': '/root/perf-tests/clusterloader2/pkg/prometheus/manifests/master-ip/master-serviceMonitor.yaml', 'mode': 'rw'}
+
+    print(f"Running clusterloader2 with command: {command} and volumes: {volumes}")
     try:
         container = docker_client.run_container(cl2_image, command, volumes, detach=True)
         for log in container.logs(stream=True):
