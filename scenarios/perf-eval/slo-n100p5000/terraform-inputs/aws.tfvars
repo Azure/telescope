@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "kube-reserved"
+scenario_name  = "slo"
 deletion_delay = "120h"
 owner          = "aks"
 
@@ -57,9 +57,9 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "kube-reserved"
+  eks_name    = "slo"
   vpc_name    = "client-vpc"
-  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSServicePolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
       name           = "default"

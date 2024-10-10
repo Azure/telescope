@@ -55,3 +55,4 @@ __pycache__/
 *.pyc
 
 env/
+modules/python/clusterloader2/*/results
