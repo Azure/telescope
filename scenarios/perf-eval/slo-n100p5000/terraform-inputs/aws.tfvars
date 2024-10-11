@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "slo"
-deletion_delay = "120h"
+scenario_name  = "slo-n100p5000"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -10,15 +10,21 @@ network_config_list = [
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "slo-subnet"
-        cidr_block              = "10.0.0.0/24"
+        name                    = "slo-subnet-1"
+        cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "slo-subnet-2"
-        cidr_block              = "10.0.1.0/24"
+        cidr_block              = "10.0.64.0/19"
         zone_suffix             = "b"
+        map_public_ip_on_launch = true
+      },
+            {
+        name                    = "slo-subnet-3"
+        cidr_block              = "10.0.96.0/19"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
@@ -31,13 +37,18 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "slo-subnet-rt-assoc"
-        subnet_name      = "slo-subnet"
+        name             = "slo-subnet-rt-assoc-1"
+        subnet_name      = "slo-subnet-1"
         route_table_name = "internet-rt"
       },
       {
         name             = "slo-subnet-rt-assoc-2"
         subnet_name      = "slo-subnet-2"
+        route_table_name = "internet-rt"
+      },
+            {
+        name             = "slo-subnet-rt-assoc-3"
+        subnet_name      = "slo-subnet-3"
         route_table_name = "internet-rt"
       }
     ]
@@ -64,7 +75,7 @@ eks_config_list = [{
     {
       name           = "default"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m5.4xlarge"]
+      instance_types = ["m4.4xlarge"]
       min_size       = 3
       max_size       = 3
       desired_size   = 3
@@ -73,7 +84,7 @@ eks_config_list = [{
     {
       name           = "userpool1"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m5.4xlarge"]
+      instance_types = ["m4.xlarge"]
       min_size       = 100
       max_size       = 100
       desired_size   = 100
@@ -82,15 +93,17 @@ eks_config_list = [{
         {
           key    = "slo"
           value  = "true"
-          effect = "NoSchedule"
+          effect = "NO_SCHEDULE"
         }
       ]
     }
   ]
 
   eks_addons = [
-    { name = "coredns"},
-    { name = "vpc-cni" },
-    { name = "kube-proxy" }
+    { name = "vpc-cni", version = "v1.18.3-eksbuild.2", policy_arns = ["AmazonEKS_CNI_Policy"] },
+    { name = "kube-proxy" },
+    { name = "coredns"}
   ]
+
+  kubernetes_version = "1.30"
 }]

@@ -112,6 +112,7 @@ variable "eks_config_list" {
       service_account = optional(string)
       policy_arns     = optional(list(string), [])
     }))
+    kubernetes_version = optional(string, null)
   }))
   default = []
 }
