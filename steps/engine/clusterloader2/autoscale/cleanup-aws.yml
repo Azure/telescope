@@ -19,6 +19,18 @@ steps:
 
     sleep 120
 
+    # Delete any available (not in use) elastic network interface (ENI) attached to the VPC
+    # Get VPC Id
+    vpc_id=$(aws ec2 describe-vpcs --query "Vpcs[?Tags[?Key=='run_id' && Value=='$RUN_ID']].VpcId" --output text)
+    # Get all available ENIs attached to the VPC
+    network_interface_ids=$(aws ec2 describe-network-interfaces --filters 'Name=vpc-id,Values=$vpc_id' 'Name=status,Values=available' --query "NetworkInterfaces[].NetworkInterfaceId" --output text)
+    for network_interface in $network_interface_ids; do
+      echo "Deleting available Network Interface: $network_interface attached to VPC: $vpc_id"
+      if ! aws ec2 delete-network-interface --network-interface-id $network_interface; then
+        echo "##[warning] Failed to delete Network Interface: $network_interface"
+      fi
+    done
+
     subnet_ids=$(aws ec2 describe-subnets --query "Subnets[?Tags[?Key=='run_id' && Value=='$RUN_ID']].SubnetId" --output text)
     for subnet_id in $subnet_ids; do
       echo "Detaching Subnet: $subnet_id Network Interfaces"
