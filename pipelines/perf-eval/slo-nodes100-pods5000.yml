@@ -28,7 +28,7 @@ stages:
   #         matrix:
   #           n100-p5000:
   #             node_count: 100
-  #             max-pods: 110
+  #             max_pods: 110
   #             repeats: 1
   #         max_parallel: 1
   #         timeout_in_minutes: 360
@@ -49,7 +49,7 @@ stages:
           matrix:
             n100-p5000:
               node_count: 100
-              max-pods: 110
+              max_pods: 110
               repeats: 1
           max_parallel: 1
           timeout_in_minutes: 360

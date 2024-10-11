@@ -5,7 +5,7 @@ owner          = "aks"
 
 aks_config_list = [
   {
-    role        = "client"
+    role        = "slo"
     aks_name    = "slo"
     dns_prefix  = "cl2"
     subnet_name = "aks-network"
