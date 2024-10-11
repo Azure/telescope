@@ -1,0 +1,174 @@
+name: deployment-churn
+
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
+{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 30}}
+{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
+{{$deleteTestThroughput := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $loadTestThroughput}}
+{{$repeats := DefaultParam .CL2_REPEATS 1}}
+
+{{$latencyPodImage := DefaultParam .CL2_LATENCY_POD_IMAGE "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
+{{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
+{{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
+{{$namespaces := DivideInt .Nodes $nodesPerNamespace}}
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
+{{$saturationTime := DivideInt $totalPods $loadTestThroughput}}
+{{$deletionTime := DivideInt $totalPods $deleteTestThroughput}}
+{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$defaultQps := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le .Nodes 500) 10 100)}}
+
+{{$ENABLE_NETWORKPOLICIES := DefaultParam .CL2_ENABLE_NETWORKPOLICIES false}}
+{{$ADDITIONAL_MEASUREMENT_MODULES := DefaultParam .CL2_ADDITIONAL_MEASUREMENT_MODULES nil}}
+
+namespace:
+  number: {{$namespaces}}
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  # TODO(https://github.com/kubernetes/perf-tests/issues/1024): This TuningSet is used only for pod-startup-latency, get rid of it
+  # Uniform5qps: for each running phase, use 5 qps.
+  - name: Uniform5qps
+    qpsLoad:
+      qps: 5
+  # default is a tuningset that is meant to be used when we don't have any specific requirements on pace of operations.
+  - name: default
+    globalQPSLoad:
+      qps: {{$defaultQps}}
+      burst: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+  - name: DeploymentDeleteQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+
+steps:
+  - name: Log - nodes={{.Nodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
+  - name: start measurements
+    measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group = deployment-churn
+          threshold: {{$podStartupLatencyThreshold}}
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: true
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = deployment-churn
+          operationTimeout: 15m
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: start
+      - Identifier: APIResponsivenessPrometheusSimple
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: start
+
+  {{if $ADDITIONAL_MEASUREMENT_MODULES}}
+  {{range $ADDITIONAL_MEASUREMENT_MODULES}}
+  - module:
+      path: {{.}}
+      params:
+        action: start
+  {{end}}
+  {{end}}
+
+  {{range $i := Loop $repeats}}
+  - name: Creating Deployments
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        objectBundle:
+          - basename: deployment-churn
+            objectTemplatePath: simple-deployment.yaml
+            templateFillMap:
+              Replicas: {{$deploymentSize}}
+              Group: deployment-churn
+              CpuRequest: {{$latencyPodCpu}}m
+              MemoryRequest: {{$latencyPodMemory}}M
+              Image: {{$latencyPodImage}}
+          {{if $ENABLE_NETWORKPOLICIES}}
+          - basename: deployment-churn
+            objectTemplatePath: networkpolicy.yaml
+          {{end}}
+
+  - name: Waiting for latency pods to be running
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Deleting Deployments
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: 0
+        tuningSet: DeploymentDeleteQps
+        objectBundle:
+          - basename: deployment-churn
+            objectTemplatePath: simple-deployment.yaml
+          {{if $ENABLE_NETWORKPOLICIES}}
+          - basename: deployment-churn
+            objectTemplatePath: networkpolicy.yaml
+          {{end}}
+
+  - name: Waiting for latency pods to be deleted
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+  {{end}}
+
+  {{if $ADDITIONAL_MEASUREMENT_MODULES}}
+  {{range $ADDITIONAL_MEASUREMENT_MODULES}}
+  - module:
+      path: {{.}}
+      params:
+        action: gather
+  {{end}}
+  {{end}}
+
+  - name: Collecting measurements
+    measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: gather
+      - Identifier: APIResponsivenessPrometheusSimple
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: gather
+          enableViolations: true
+          useSimpleLatencyQuery: true
+          summaryName: APIResponsivenessPrometheus_simple
