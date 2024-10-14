@@ -4,7 +4,6 @@ name: deployment-churn
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 10}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
-{{$deleteTestThroughput := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $loadTestThroughput}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
@@ -14,11 +13,7 @@ name: deployment-churn
 {{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
-{{$saturationTime := DivideInt $totalPods $loadTestThroughput}}
-{{$deletionTime := DivideInt $totalPods $deleteTestThroughput}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
-
-{{$defaultQps := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le .Nodes 500) 10 100)}}
 
 namespace:
   number: {{$namespaces}}
@@ -28,19 +23,6 @@ namespace:
   enableExistingNamespaces: false
 
 tuningSets:
-  - name: Sequence
-    parallelismLimitedLoad:
-      parallelismLimit: 1
-  # TODO(https://github.com/kubernetes/perf-tests/issues/1024): This TuningSet is used only for pod-startup-latency, get rid of it
-  # Uniform5qps: for each running phase, use 5 qps.
-  - name: Uniform5qps
-    qpsLoad:
-      qps: 5
-  # default is a tuningset that is meant to be used when we don't have any specific requirements on pace of operations.
-  - name: default
-    globalQPSLoad:
-      qps: {{$defaultQps}}
-      burst: 1
   - name: DeploymentCreateQps
     qpsLoad:
       qps: {{$deploymentQPS}}
