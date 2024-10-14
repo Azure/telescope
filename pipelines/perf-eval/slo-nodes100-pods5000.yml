@@ -1,11 +1,11 @@
 trigger: none
-# schedules:
-#   - cron: "0 */2 * * *"
-#     displayName: "Every 2 Hour"
-#     branches:
-#       include:
-#         - main
-#     always: true
+schedules:
+  - cron: "0 */2 * * *"
+    displayName: "Every 2 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
