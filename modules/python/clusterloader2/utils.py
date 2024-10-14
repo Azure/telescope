@@ -8,8 +8,6 @@ from docker_client import DockerClient
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=False):
     docker_client = DockerClient()
 
-    # TODO: cp ./deployment-churn/additional-measurements.yaml ./testing/load
-
     command=f"""--provider={provider} --v=2 --enable-exec-service=false
 --kubeconfig /root/.kube/config
 --testconfig /root/perf-tests/clusterloader2/config/config.yaml
