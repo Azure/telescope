@@ -19,9 +19,7 @@ name: deployment-churn
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 
 {{$defaultQps := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le .Nodes 500) 10 100)}}
-# {{$POD_START_TIMEOUT_MINS := DefaultParam .CL2_POD_START_TIMEOUT_MINS 5}}  # how long to wait, at end of a phase, for its pods to start up
 
-# clean up
 namespace:
   number: {{$namespaces}}
   prefix: slo

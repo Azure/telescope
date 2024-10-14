@@ -1,10 +1,11 @@
 import json
 import os
 import argparse
-import re
+import time
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
+from kubernetes_client import KubernetesClient
 
 DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
@@ -27,6 +28,15 @@ def override_config_clusterloader2(node_count, max_pods, repeats, override_file)
         file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
 
     file.close()
+
+def validate_clusterloader2(node_count):
+    kube_client = KubernetesClient()
+    while True:
+        ready_nodes = kube_client.get_ready_nodes()
+        if len(ready_nodes) == node_count:
+            break
+        print(f"Waiting for {node_count} nodes to be ready. Currently {len(ready_nodes)} nodes are ready.")
+        time.sleep(10)
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True, enable_exec_service=True)
@@ -101,6 +111,10 @@ def main():
     parser_override.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
+    # Sub-command for validate_clusterloader2
+    parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
+    parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
+
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -122,6 +136,8 @@ def main():
 
     if args.command == "override":
         override_config_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_override_file)
+    elif args.command == "validate":
+        validate_clusterloader2(args.node_count)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":

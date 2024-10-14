@@ -21,7 +21,7 @@ network_config_list = [
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       },
-            {
+      {
         name                    = "slo-subnet-3"
         cidr_block              = "10.0.96.0/19"
         zone_suffix             = "c"
@@ -46,7 +46,7 @@ network_config_list = [
         subnet_name      = "slo-subnet-2"
         route_table_name = "internet-rt"
       },
-            {
+      {
         name             = "slo-subnet-rt-assoc-3"
         subnet_name      = "slo-subnet-3"
         route_table_name = "internet-rt"
@@ -70,19 +70,19 @@ eks_config_list = [{
   role        = "slo"
   eks_name    = "slo"
   vpc_name    = "slo-vpc"
-  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSServicePolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
       name           = "default"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
+      instance_types = ["m4.16xlarge"]
+      min_size       = 4
+      max_size       = 4
+      desired_size   = 4
       capacity_type  = "ON_DEMAND"
     },
     {
-      name           = "userpool1"
+      name           = "userpool0"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.xlarge"]
       min_size       = 100
@@ -102,7 +102,7 @@ eks_config_list = [{
   eks_addons = [
     { name = "vpc-cni", version = "v1.18.3-eksbuild.2", policy_arns = ["AmazonEKS_CNI_Policy"] },
     { name = "kube-proxy" },
-    { name = "coredns"}
+    { name = "coredns" }
   ]
 
   kubernetes_version = "1.30"

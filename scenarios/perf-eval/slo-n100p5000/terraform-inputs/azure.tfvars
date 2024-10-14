@@ -16,17 +16,17 @@ aks_config_list = [
     }
     default_node_pool = {
       name                         = "default"
-      node_count                   = 3
-      vm_size                      = "Standard_D16_v3"
+      node_count                   = 4
+      vm_size                      = "Standard_D64_v3"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = false
       temporary_name_for_rotation  = "defaulttmp"
     }
     extra_node_pool = [
       {
-        name       = "userpool1"
-        node_count = 100
-        vm_size    = "Standard_D2_v3"
+        name        = "userpool0"
+        node_count  = 100
+        vm_size     = "Standard_D4_v3"
         node_taints = ["slo=true:NoSchedule"]
       }
     ]

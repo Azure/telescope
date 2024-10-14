@@ -1,0 +1,15 @@
+parameters:
+  - name: desired_nodes
+    type: number
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate $DESIRED_NODES
+    workingDirectory: modules/python/clusterloader2
+    timeoutInMinutes: 15
+    displayName: "Validate node count"
+    env:
+      DESIRED_NODES: ${{ parameters.desired_nodes }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py

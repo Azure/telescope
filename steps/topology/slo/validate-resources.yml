@@ -1,26 +1,16 @@
 parameters:
-- name: cloud
-  type: string
-- name: engine
-  type: string
-- name: regions
-  type: object
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
 
 steps:
-- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-  parameters:
-    role: slo
-    region: ${{ parameters.regions[0] }}
-
-- script: |
-    desired_count=103
-    while true; do
-      ready_count=$(kubectl get nodes | grep Ready | wc -l)
-      echo "Ready nodes: $ready_count"
-      if [ $ready_count -eq $desired_count ]; then
-        break
-      fi
-      sleep 10
-    done
-  displayName: "Wait for all nodes to be ready"
-  timeoutInMinutes: 15
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
+  - template: /steps/engine/clusterloader2/slo/validate.yml
+    parameters:
+      desired_nodes: 104
