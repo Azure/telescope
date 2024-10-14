@@ -18,5 +18,5 @@ rules:
   empty-lines:
     max: 1
 ignore: |
-  modules/python/clusterloader2/**/config.yaml
-  modules/python/clusterloader2/**/config.yml
+  modules/python/clusterloader2/**/*.yaml
+  modules/python/clusterloader2/**/*.yml
