@@ -50,6 +50,7 @@ steps:
       exit 1
     fi
   displayName: "Validate Upload Result"
+  retryCountOnTaskFailure: 3
   env:
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
     SUBFOLDER: ${{ parameters.subfolder }}
