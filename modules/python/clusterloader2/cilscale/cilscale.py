@@ -16,7 +16,8 @@ def collect_clusterloader2(
     cloud_info,
     run_id,
     run_url,
-    result_file
+    result_file,
+    tag
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -35,7 +36,8 @@ def collect_clusterloader2(
         "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
-        "run_url": run_url
+        "run_url": run_url,
+        "tag": tag
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -70,8 +72,8 @@ def collect_clusterloader2(
 def parse_file(fpath):
     f = os.path.basename(fpath)
     print(f)
-    if f.startswith("GenericPrometheusQuery"):
-        return f.split("_")[0][23:]
+    # if f.startswith("GenericPrometheusQuery"):
+    #     return f.split("_")[0][23:]
     return f.split("_")[0]
 
 def main():
@@ -97,6 +99,7 @@ def main():
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("tag", type=str, help="Test tag")
 
     args = parser.parse_args()
 
@@ -105,7 +108,7 @@ def main():
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.tag)
 
 if __name__ == "__main__":
     main()
