@@ -41,13 +41,13 @@ steps:
     --name ${SUBFOLDER}/${DESTINATION_FILE_NAME} \
     --account-name $AZURE_STORAGE_ACCOUNT_NAME \
     --container-name $CONTAINER_NAME \
-    --auth-mode login)
+    --auth-mode login --output tsv)
 
-    if [ "$storage_container_blob_exists" == "false" ]; then
+    if [ "$storage_container_blob_exists" == "True" ]; then
+      echo "Blob ${SUBFOLDER}/${DESTINATION_FILE_NAME} uploaded successfully."
+    else
       echo "Blob ${SUBFOLDER}/${DESTINATION_FILE_NAME} does not exist."
       exit 1
-    else
-      echo "Blob ${SUBFOLDER}/${DESTINATION_FILE_NAME} uploaded successfully."
     fi
   displayName: "Validate Upload Result"
   env:
