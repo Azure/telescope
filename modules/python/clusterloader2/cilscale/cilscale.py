@@ -39,6 +39,10 @@ def collect_clusterloader2(
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
+        # validate filename
+        if not f.startswith("APIResponsiveness") and not f.startswith("GenericPrometheusQuery") \
+            and not f.startswith("PodStartupLatency") and not f.startswith("SchedulingThroughput"):
+            continue
         file_path = os.path.join(cl2_report_dir, f)
         print(file_path)
         with open(file_path, 'r') as f:
