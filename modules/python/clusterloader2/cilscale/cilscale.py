@@ -41,7 +41,6 @@ def collect_clusterloader2(
     print("tag: " + tag)
     content = ""
     for f in os.listdir(cl2_report_dir):
-        print(result["status"])
         # validate filename
         if not f.startswith("APIResponsiveness") and not f.startswith("GenericPrometheusQuery") \
             and not f.startswith("PodStartupLatency") and not f.startswith("SchedulingThroughput"):
@@ -60,6 +59,7 @@ def collect_clusterloader2(
                         result["measurement"] = measurement
                         result["result"] = item
                         content += json.dumps(result) + "\n"
+                        print(result["status"])
             else:
                 result = template.copy()
                 result["measurement"] = measurement
