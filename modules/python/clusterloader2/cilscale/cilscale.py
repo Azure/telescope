@@ -30,14 +30,13 @@ def collect_clusterloader2(
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        "status": status,
+        "status": tag, # for now
         "measurement": None,
         "result": None,
         "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
-        "tag": tag
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
