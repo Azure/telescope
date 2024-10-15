@@ -1,6 +1,6 @@
 name: deployment-churn
 
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 5}}
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 30}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
