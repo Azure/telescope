@@ -69,6 +69,7 @@ def collect_clusterloader2(
 
 def parse_file(fpath):
     f = os.path.basename(fpath)
+    print(f)
     if f.startswith("GenericPrometheusQuery"):
         return f.split("_")[0][23:]
     return f.split("_")[0]
