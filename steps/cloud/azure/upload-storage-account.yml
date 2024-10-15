@@ -33,3 +33,25 @@ steps:
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
+
+- bash: |
+    set -eux
+    sleep 60
+    storage_container_blob_exists=$(az storage blob exists \
+    --name ${SUBFOLDER}/${DESTINATION_FILE_NAME} \
+    --account-name $AZURE_STORAGE_ACCOUNT_NAME \
+    --container-name $CONTAINER_NAME \
+    --auth-mode login)
+
+    if [ "$storage_container_blob_exists" == "false" ]; then
+      echo "Blob ${SUBFOLDER}/${DESTINATION_FILE_NAME} does not exist."
+      exit 1
+    else
+      echo "Blob ${SUBFOLDER}/${DESTINATION_FILE_NAME} uploaded successfully."
+    fi
+  displayName: "Validate Upload Result"
+  env:
+    DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
+    SUBFOLDER: ${{ parameters.subfolder }}
+    CONTAINER_NAME: ${{ parameters.container_name}}
+    AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
