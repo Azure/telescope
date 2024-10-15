@@ -16,11 +16,12 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE
+      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE $TAG
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cilscale/cilscale.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cilscale/results
+    TAG: variables['TAG']
   displayName: "Collect Results"
