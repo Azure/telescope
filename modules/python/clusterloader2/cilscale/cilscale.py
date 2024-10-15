@@ -38,8 +38,10 @@ def collect_clusterloader2(
         "run_id": run_id,
         "run_url": run_url,
     }
+    print("tag: " + tag)
     content = ""
     for f in os.listdir(cl2_report_dir):
+        print(result["status"])
         # validate filename
         if not f.startswith("APIResponsiveness") and not f.startswith("GenericPrometheusQuery") \
             and not f.startswith("PodStartupLatency") and not f.startswith("SchedulingThroughput"):
