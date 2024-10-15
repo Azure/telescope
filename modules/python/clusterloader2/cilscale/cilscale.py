@@ -40,17 +40,19 @@ def collect_clusterloader2(
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
+        print(file_path)
         with open(file_path, 'r') as f:
             measurement = parse_file(file_path)
             data = json.loads(f.read())
 
             if "dataItems" in data:
                 items = data["dataItems"]
-                for item in items:
-                    result = template.copy()
-                    result["measurement"] = measurement
-                    result["result"] = item
-                    content += json.dumps(result) + "\n"
+                if items is not None:
+                    for item in items:
+                        result = template.copy()
+                        result["measurement"] = measurement
+                        result["result"] = item
+                        content += json.dumps(result) + "\n"
             else:
                 result = template.copy()
                 result["measurement"] = measurement
