@@ -37,7 +37,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.2
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -68,7 +68,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.2
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2

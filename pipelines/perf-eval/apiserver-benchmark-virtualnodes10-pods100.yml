@@ -33,7 +33,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.3
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
@@ -58,7 +58,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.3
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
