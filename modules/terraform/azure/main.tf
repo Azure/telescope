@@ -26,6 +26,7 @@ locals {
         use_aks_preview_cli_extension = aks.use_aks_preview_cli_extension
         default_node_pool             = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool               = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        optional_parameters           = aks.optional_parameters
       }
     ]
   ]) : []
