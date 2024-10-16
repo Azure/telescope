@@ -10,14 +10,18 @@ from kubernetes_client import KubernetesClient
 DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
 
-def override_config_clusterloader2(node_count, max_pods, repeats, override_file):
+def calculate_config(node_count, max_pods):
     calculated_throughput = node_count / 10 + 10
     throughput = min(calculated_throughput, 100)
 
     nodes_per_namespace = max(node_count, 100)
     max_user_pods = max_pods - DAEMONSETS_PER_NODE
     pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
-    
+
+    return throughput, nodes_per_namespace, pods_per_node
+
+def configure_clusterloader2(node_count, max_pods, repeats, override_file):
+    throughput, nodes_per_namespace, pods_per_node = calculate_config(node_count, max_pods)
     print(f"Throughput: {throughput}, nodes per namespace: {nodes_per_namespace}, pods per node: {pods_per_node}")
 
     with open(override_file, 'w') as file:
@@ -29,9 +33,10 @@ def override_config_clusterloader2(node_count, max_pods, repeats, override_file)
 
     file.close()
 
-def validate_clusterloader2(node_count):
+def validate_clusterloader2(node_count, operation_timeout=600):
     kube_client = KubernetesClient()
-    while True:
+    timeout = time.time() + operation_timeout
+    while time.time() < timeout:
         ready_nodes = kube_client.get_ready_nodes()
         if len(ready_nodes) == node_count:
             break
@@ -39,10 +44,12 @@ def validate_clusterloader2(node_count):
         time.sleep(10)
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True, enable_exec_service=True)
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True)
 
 def collect_clusterloader2(
     node_count,
+    max_pods,
+    repeats,
     cl2_report_dir,
     cloud_info,
     run_id,
@@ -58,9 +65,14 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
+    _, nodes_per_namespace, pods_per_node = calculate_config(node_count, max_pods)
+    pod_count = nodes_per_namespace * pods_per_node
+
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "node_count": node_count,
+        "pod_count": pod_count,
+        "churn_rate": repeats,
         "status": status,
         "group": None,
         "measurement": None,
@@ -83,7 +95,6 @@ def collect_clusterloader2(
             if "dataItems" in data:
                 items = data["dataItems"]
                 for item in items:
-                    # print(f"Item: {item}")
                     result = template.copy()
                     result["group"] = group_name
                     result["measurement"] = measurement
@@ -104,16 +115,17 @@ def main():
     parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
 
-    # Sub-command for override_config_clusterloader2
-    parser_override = subparsers.add_parser("override", help="Override CL2 config file")
-    parser_override.add_argument("node_count", type=int, help="Number of nodes")
-    parser_override.add_argument("max_pods", type=int, help="Maximum number of pods per node")
-    parser_override.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
-    parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    # Sub-command for configure_clusterloader2
+    parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
+    parser_configure.add_argument("node_count", type=int, help="Number of nodes")
+    parser_configure.add_argument("max_pods", type=int, help="Maximum number of pods per node")
+    parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
+    parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -126,6 +138,8 @@ def main():
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("max_pods", type=int, help="Maximum number of pods per node")
+    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
@@ -134,14 +148,14 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_override_file)
+    if args.command == "configure":
+        configure_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_override_file)
     elif args.command == "validate":
-        validate_clusterloader2(args.node_count)
+        validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()
