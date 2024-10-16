@@ -3,6 +3,7 @@ variable "json_input" {
   type = object({
     run_id             = string
     region             = string
+    aks_cli_sku_tier   = optional(string, "standard")
     aks_custom_headers = optional(list(string), [])
     aks_cli_system_node_pool = optional(object({
       name        = string
