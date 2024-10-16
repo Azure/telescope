@@ -44,7 +44,6 @@ data "aws_iam_policy_document" "assume_role" {
 
 resource "aws_iam_role" "eks_cluster_role" {
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
-  tags               = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "policy_attachments" {
@@ -72,12 +71,9 @@ resource "aws_eks_cluster" "eks" {
     aws_iam_role_policy_attachment.policy_attachments
   ]
 
-  tags = merge(
-    var.tags,
-    {
+  tags = {
       "role" = local.role
     }
-  )
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {
@@ -109,9 +105,9 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
 
-  tags = merge(var.tags, {
+  tags = {
     "Name" = each.value.name
-  })
+  }
   depends_on = [
     aws_eks_cluster.eks,
     aws_iam_role_policy_attachment.policy_attachments
@@ -126,7 +122,6 @@ module "eks_addon" {
   eks_addon_config_map      = local.updated_eks_addons_map
   cluster_name              = aws_eks_cluster.eks.name
   cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
-  tags                      = var.tags
   depends_on                = [aws_eks_node_group.eks_managed_node_groups]
 }
 
@@ -138,7 +133,7 @@ module "karpenter" {
   cluster_name          = aws_eks_cluster.eks.name
   region                = var.region
   tags                  = var.tags
-  cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+ cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
