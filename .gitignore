@@ -53,3 +53,6 @@ linux-amd64/
 __pycache__/
 /.vs
 *.pyc
+
+env/
+modules/python/clusterloader2/*/results

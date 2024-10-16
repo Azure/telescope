@@ -48,5 +48,6 @@ variable "eks_config" {
       service_account = optional(string)
       policy_arns     = optional(list(string), [])
     }))
+    kubernetes_version = optional(string, null)
   })
 }

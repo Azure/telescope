@@ -89,8 +89,10 @@ variable "aks_config_list" {
       max_pods          = optional(number)
       ultra_ssd_enabled = optional(bool, false)
       zones             = optional(list(string), [])
+      node_taints       = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
+    kubernetes_version   = optional(string, null)
   }))
   default = []
 }
