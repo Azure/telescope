@@ -92,7 +92,7 @@ variable "aks_config_list" {
       node_taints       = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
-    kubernetes_version   = optional(string)
+    kubernetes_version   = optional(string, null)
   }))
   default = []
 }

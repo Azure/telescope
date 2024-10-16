@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-n100p5000
-  SCENARIO_VERSION: alyssa/slo
+  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus

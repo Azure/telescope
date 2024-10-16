@@ -37,10 +37,6 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         aws_path = os.path.expanduser("~/.aws/credentials")
         volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
 
-    # if enable_prometheus:
-    #     prometheus_config = os.path.join(cl2_config_dir, "master-serviceMonitor.yaml")
-    #     volumes[prometheus_config] = {'bind': '/root/perf-tests/clusterloader2/pkg/prometheus/manifests/master-ip/master-serviceMonitor.yaml', 'mode': 'rw'}
-
     print(f"Running clusterloader2 with command: {command} and volumes: {volumes}")
     try:
         container = docker_client.run_container(cl2_image, command, volumes, detach=True)
