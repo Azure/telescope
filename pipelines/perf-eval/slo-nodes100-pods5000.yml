@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-n100p5000
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: alyssa/slo
 
 stages:
   - stage: aws_eastus
@@ -23,7 +23,7 @@ stages:
             - us-east-1
           engine: clusterloader2
           engine_input:
-            image: "telescope.azurecr.io/perf-eval/clusterloader2:20241010"
+            image: "ghcr.io/azure/clusterloader2:v20241016"
           topology: slo
           matrix:
             n100-p5000:
@@ -44,7 +44,7 @@ stages:
             - eastus
           engine: clusterloader2
           engine_input:
-            image: "telescope.azurecr.io/perf-eval/clusterloader2:20241010"
+            image: "ghcr.io/azure/clusterloader2:v20241016"
           topology: slo
           matrix:
             n100-p5000:

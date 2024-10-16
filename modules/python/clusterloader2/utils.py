@@ -1,7 +1,6 @@
 import json
 import os
 import docker
-import sys
 
 from xml.dom import minidom
 from docker_client import DockerClient
@@ -12,7 +11,6 @@ POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "StatelessPodStartupLatency_PodStartupLatency_": "StatelessPodStartupLatency_PodStartupLatency",
 }
 API_RESPONSIVENESS_FILE_PREFIX = "APIResponsivenessPrometheus"
-SCHEDULING_THROUGHPUT_FILE_PREFIX = "SchedulingThroughput"
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=False, enable_prometheus=False, enable_exec_service=False):
     docker_client = DockerClient()
@@ -55,9 +53,6 @@ def get_measurement(file_path):
     if file_name.startswith(API_RESPONSIVENESS_FILE_PREFIX):
         group_name = file_name.split("_")[1]
         return API_RESPONSIVENESS_FILE_PREFIX, group_name
-    if file_name.startswith(SCHEDULING_THROUGHPUT_FILE_PREFIX):
-        group_name = file_name.split("_")[1]
-        return SCHEDULING_THROUGHPUT_FILE_PREFIX, group_name
     return None, None
 
 def parse_xml_to_json(file_path, indent = 0):
