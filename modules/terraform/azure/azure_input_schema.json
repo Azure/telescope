@@ -7,6 +7,9 @@
     "region": {
       "type": "string"
     },
+    "aks_cli_sku_tier": {
+      "type": "string"
+    },
     "aks_cli_system_node_pool": {
       "type": "object"
     },

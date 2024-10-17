@@ -19,7 +19,8 @@ SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=azure
-REGION="eastus2"
+REGION=eastus2
+SKU_TIER=free
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
 SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
@@ -57,11 +58,13 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
+  --arg aks_cli_sku_tier "$SKU_TIER" \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
   --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
     run_id: $run_id,
     region: $region,
+    aks_cli_sku_tier: $aks_cli_sku_tier,
     aks_cli_system_node_pool: $aks_cli_system_node_pool,
     aks_cli_user_node_pool: $aks_cli_user_node_pool
   }' | jq 'with_entries(select(.value != null and .value != ""))')
@@ -73,14 +76,14 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 ```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform plan  -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE 
+terraform plan  -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
 ### Cleanup Resources
 Cleanup test resources using terraform
-```bash 
+```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
 popd
