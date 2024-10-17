@@ -3,7 +3,23 @@ variable "json_input" {
   type = object({
     run_id = string
     region = string
+    current_time = string
   })
+
+  validation {
+    condition     = can(formatdate("", var.json_input.current_time))
+    error_message = "The current_time value must be a valid rfc3339 format string"
+  }
+
+  validation {
+    condition     = timecmp(var.json_input.current_time, timeadd(plantimestamp(), "-1h")) > 0
+    error_message = "The current_time must not be younger than 1h from now"
+  }
+
+  validation {
+    condition     = timecmp(var.json_input.current_time, timeadd(plantimestamp(), "+1h")) < 0
+    error_message = "The current_time must not be older than 1h from now"
+  }
 }
 
 variable "owner" {

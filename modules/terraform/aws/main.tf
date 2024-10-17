@@ -1,13 +1,14 @@
 locals {
   region = lookup(var.json_input, "region", "us-east-1")
   run_id = lookup(var.json_input, "run_id", "123456")
+  current_time = lookup(var.json_input, "current_time")
 
   non_computed_tags = {
     # Note: Define only non computed values (i.e. values that do not change for each resource). This is required due to a limitation at "aws" provider default_tags.
-    "owner"             = var.owner                                   # note: MUST NOT REMOVE (it's used for resources accountability and cost tracking)
+    "owner"             = var.owner                                          # note: MUST NOT REMOVE (it's used for resources accountability and cost tracking)
     "scenario"          = "${var.scenario_type}-${var.scenario_name}"
-    "creation_time"     = time_static.current_time.rfc3339            # note: should not use timestamp() since it is a computed value 
-    "deletion_due_time" = time_offset.current_time_offset.rfc3339     # note: MUST NOT REMOVE (it's used by the garbage collector)
+    "creation_time"     = local.current_time                                 # note: should not use timestamp() since it is a computed value
+    "deletion_due_time" = timeadd(local.current_time, var.deletion_delay)    # note: MUST NOT BE REMOVED (it's used by the garbage collector)
     "run_id"            = local.run_id
   }
 
@@ -29,13 +30,6 @@ terraform {
     }
   }
 }
-
-resource "time_static" "current_time" {}
-
-resource "time_offset" "current_time_offset" {
-  offset_hours = replace(var.deletion_delay, "h", "")
-}
-
 
 provider "aws" {
   region = local.region
