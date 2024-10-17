@@ -23,27 +23,3 @@ variable "json_input" {
     region = string
   })
 }
-
-variable "owner" {
-  description = "Owner of the scenario"
-  type        = string
-  default     = "azure_devops"
-}
-
-variable "scenario_name" {
-  description = "Name of the scenario"
-  type        = string
-  default     = ""
-}
-
-variable "scenario_type" {
-  description = "value of the scenario type"
-  type        = string
-  default     = ""
-}
-
-variable "deletion_delay" {
-  description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
-  type        = string
-  default     = "2h"
-}

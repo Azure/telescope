@@ -1,7 +1,7 @@
 locals {
   region       = lookup(var.json_input, "region", "us-east-1")
   run_id       = lookup(var.json_input, "run_id", "123456")
-  current_time = lookup(var.json_input, "current_time")
+  current_time = var.json_input["current_time"]
 
   non_computed_tags = {
     # Note: Define only non computed values (i.e. values that do not change for each resource). This is required due to a limitation at "aws" provider default_tags.
@@ -45,7 +45,6 @@ module "virtual_network" {
   source         = "./virtual-network"
   network_config = each.value
   region         = local.region
-  tags           = local.tags
 }
 
 module "eks" {
