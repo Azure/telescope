@@ -14,6 +14,7 @@ name: deployment-churn
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$ADDITIONAL_MEASUREMENT_MODULES := DefaultParam .CL2_ADDITIONAL_MEASUREMENT_MODULES nil}}
 
 namespace:
   number: {{$namespaces}}
@@ -61,6 +62,15 @@ steps:
         Params:
           action: start
 
+  {{if $ADDITIONAL_MEASUREMENT_MODULES}}
+  {{range $ADDITIONAL_MEASUREMENT_MODULES}}
+  - module:
+      path: {{.}}
+      params:
+        action: start
+  {{end}}
+  {{end}}
+
   {{range $i := Loop $repeats}}
   - name: Creating Deployments
     phases:
@@ -102,6 +112,15 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
+  {{end}}
+
+  {{if $ADDITIONAL_MEASUREMENT_MODULES}}
+  {{range $ADDITIONAL_MEASUREMENT_MODULES}}
+  - module:
+      path: {{.}}
+      params:
+        action: gather
+  {{end}}
   {{end}}
 
   - name: Collecting measurements

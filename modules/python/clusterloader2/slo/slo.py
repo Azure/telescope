@@ -30,6 +30,7 @@ def configure_clusterloader2(node_count, max_pods, repeats, override_file):
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write(f"CL2_ADDITIONAL_MEASUREMENT_MODULES: [\"./additional-measurements.yaml\"]\n")
 
     file.close()
 
@@ -64,7 +65,7 @@ def collect_clusterloader2(
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
-    
+
     _, nodes_per_namespace, pods_per_node = calculate_config(node_count, max_pods)
     pod_count = nodes_per_namespace * pods_per_node
 
