@@ -4,7 +4,7 @@ schedules:
     displayName: "Every 2 Hour"
     branches:
       include:
-        - main
+        - alyssa/kube-reserved
     always: true
 
 variables:
@@ -29,9 +29,9 @@ stages:
             n100-p5000:
               node_count: 3
               max_pods: 250
-              repeats: 1
+              repeats: 5
               operation_timeout: 5m
           max_parallel: 1
-          timeout_in_minutes: 90
+          timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
