@@ -1,16 +1,16 @@
 trigger: none
-schedules:
-  - cron: "0 */4 * * *"
-    displayName: "Every 4 Hour"
-    branches:
-      include:
-        - main
-    always: true
+# schedules:
+#   - cron: "0 */4 * * *"
+#     displayName: "Every 4 Hour"
+#     branches:
+#       include:
+#         - main
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-n100p5000
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: jshr/updateslometrics
 
 stages:
   - stage: aws_eastus
