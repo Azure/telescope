@@ -3,6 +3,7 @@ variable "json_input" {
   type = object({
     run_id             = string
     region             = string
+    aks_cli_sku_tier   = optional(string, "standard")
     aks_custom_headers = optional(list(string), [])
     aks_cli_system_node_pool = optional(object({
       name        = string
@@ -89,8 +90,10 @@ variable "aks_config_list" {
       max_pods          = optional(number)
       ultra_ssd_enabled = optional(bool, false)
       zones             = optional(list(string), [])
+      node_taints       = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
+    kubernetes_version   = optional(string, null)
   }))
   default = []
 }

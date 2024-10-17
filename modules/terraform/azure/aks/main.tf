@@ -51,6 +51,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
+  kubernetes_version        = var.aks_config.kubernetes_version
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
@@ -66,6 +67,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   max_pods              = each.value.max_pods
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
+  node_taints           = each.value.node_taints
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
