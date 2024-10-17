@@ -13,14 +13,14 @@ variables:
   SCENARIO_VERSION: alyssa/kube-reserved
 
 stages:
-  - stage: azure_eastus
+  - stage: azure_westeurope
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - westeurope
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
