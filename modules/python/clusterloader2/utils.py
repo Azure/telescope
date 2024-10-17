@@ -11,6 +11,7 @@ POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "StatelessPodStartupLatency_PodStartupLatency_": "StatelessPodStartupLatency_PodStartupLatency",
 }
 API_RESPONSIVENESS_FILE_PREFIX = "APIResponsivenessPrometheus"
+RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=False, enable_prometheus=False, enable_exec_service=False):
     docker_client = DockerClient()
@@ -53,6 +54,9 @@ def get_measurement(file_path):
     if file_name.startswith(API_RESPONSIVENESS_FILE_PREFIX):
         group_name = file_name.split("_")[1]
         return API_RESPONSIVENESS_FILE_PREFIX, group_name
+    if file_name.startswith(RESOURCE_USAGE_SUMMARY_PREFIX):
+        group_name = file_name.split("_")[1]
+        return RESOURCE_USAGE_SUMMARY_PREFIX, group_name
     return None, None
 
 def parse_xml_to_json(file_path, indent = 0):

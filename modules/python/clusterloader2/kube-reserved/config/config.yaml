@@ -5,8 +5,8 @@ name: resource-consumer
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$nodePools := DefaultParam .CL2_NODEPOOL 1}}
-{{$agentPool := DefaultParam .CL2_AGENTPOOL "userpool1"}}
-{{$runTime := DefaultParam .CL2_RUNTIME "30s"}}
+{{$agentPoolPrefix := DefaultParam .CL2_AGENTPOOL_PREFIX "userpool"}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
 
 namespace: 
   number: 1
@@ -28,6 +28,15 @@ steps:
         Params:
           action: start 
           labelSelector: group = resource-consumer
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: true
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = resource-consumer
+          operationTimeout: {{$operationTimeout}}
 
 {{range $i := Loop $nodePools}}
   {{range $j := Loop $repeats}}
@@ -46,14 +55,14 @@ steps:
           Group: resource-consumer
           Memory: {{$memory}}K
           CPU: --millicores={{$cpu}}
-          AgentPool: {{$agentPool}}
+          AgentPool: {{$agentPoolPrefix}}{{$i}}
 
-  - name: Sleep
+  - name: Waiting for latency pods to be running
     measurements:
-    - Identifier: sleep
-      Method: Sleep
-      Params:
-        duration: {{$runTime}}
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
   
   - name: Deleting deployments
     phases:
@@ -66,18 +75,18 @@ steps:
           - basename: resource-consumer
             objectTemplatePath: deployment_template.yaml
 
-  - name: Sleep
+  - name: Waiting for latency pods to be deleted
     measurements:
-    - Identifier: sleep
-      Method: Sleep
-      Params:
-        duration: {{$runTime}}
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
   {{end}}
 {{end}}
         
-  - name: collect measurements 
+  - name: Collect measurements 
     measurements:
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
-          action: gather 
+          action: gather

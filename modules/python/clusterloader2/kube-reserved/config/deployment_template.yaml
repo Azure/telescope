@@ -1,6 +1,6 @@
 {{$Memory := DefaultParam .Memory "1000M"}}
 {{$CPU := DefaultParam .CPU "--millicores=100"}}
-{{$AgentPool := DefaultParam .AgentPool "p0"}}
+{{$AgentPool := DefaultParam .AgentPool "userpool1"}}
 
 apiVersion: apps/v1
 kind: Deployment
