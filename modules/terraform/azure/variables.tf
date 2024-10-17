@@ -90,6 +90,7 @@ variable "aks_config_list" {
       ultra_ssd_enabled = optional(bool, false)
       zones             = optional(list(string), [])
       node_taints       = optional(list(string), [])
+      node_labels       = optional(map(string), {})
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)

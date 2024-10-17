@@ -1,28 +1,34 @@
 scenario_type  = "perf-eval"
 scenario_name  = "kube-reserved"
-deletion_delay = "120h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
   {
-    role           = "client"
-    vpc_name       = "client-vpc"
+    role           = "kube-reserved"
+    vpc_name       = "kr-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "client-subnet"
-        cidr_block              = "10.0.0.0/24"
+        name                    = "kr-subnet-1"
+        cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
-        name                    = "client-subnet-2"
-        cidr_block              = "10.0.1.0/24"
+        name                    = "kr-subnet-2"
+        cidr_block              = "10.0.64.0/19"
         zone_suffix             = "b"
+        map_public_ip_on_launch = true
+      },
+      {
+        name                    = "kr-subnet-3"
+        cidr_block              = "10.0.96.0/19"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
-    security_group_name = "client-sg"
+    security_group_name = "kr-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -31,13 +37,18 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "client-subnet-rt-assoc"
-        subnet_name      = "client-subnet"
+        name             = "kr-subnet-rt-assoc-1"
+        subnet_name      = "kr-subnet-1"
         route_table_name = "internet-rt"
       },
       {
-        name             = "client-subnet-rt-assoc-2"
-        subnet_name      = "client-subnet-2"
+        name             = "kr-subnet-rt-assoc-2"
+        subnet_name      = "kr-subnet-2"
+        route_table_name = "internet-rt"
+      },
+      {
+        name             = "kr-subnet-rt-assoc-3"
+        subnet_name      = "kr-subnet-3"
         route_table_name = "internet-rt"
       }
     ]
@@ -56,24 +67,24 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role        = "client"
+  role        = "kube-reserved"
   eks_name    = "kube-reserved"
-  vpc_name    = "client-vpc"
+  vpc_name    = "kr-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
       name           = "default"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m5.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
+      instance_types = ["m4.4xlarge"]
+      min_size       = 4
+      max_size       = 4
+      desired_size   = 4
       capacity_type  = "ON_DEMAND"
     },
     {
-      name           = "userpool1"
+      name           = "userpool0"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m5.4xlarge"]
+      instance_types = ["m4.4xlarge"]
       min_size       = 3
       max_size       = 3
       desired_size   = 3
@@ -82,15 +93,17 @@ eks_config_list = [{
         {
           key    = "kube-reserved"
           value  = "true"
-          effect = "NoSchedule"
+          effect = "NO_SCHEDULE"
         }
       ]
     }
   ]
 
   eks_addons = [
-    {
-      name = "coredns"
-    }
+    { name = "vpc-cni", version = "v1.18.3-eksbuild.2", policy_arns = ["AmazonEKS_CNI_Policy"] },
+    { name = "kube-proxy" },
+    { name = "coredns" }
   ]
+
+  kubernetes_version = "1.30"
 }]

@@ -7,9 +7,12 @@ from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
-DAEMONSETS_PER_NODE = 6
+DAEMONSETS_PER_NODE_MAP = {
+    "aws": 3,
+    "aks": 6
+}
 
-def override_config_clusterloader2(node_count, max_pods, operation_timeout, override_file):
+def override_config_clusterloader2(node_count, max_pods, operation_timeout, provider, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector=f"kube-reserved=true")
     if len(nodes) == 0:
@@ -25,7 +28,7 @@ def override_config_clusterloader2(node_count, max_pods, operation_timeout, over
     print(f"Node {node.metadata.name} has cpu value of {cpu_value} and memory value of {memory_value}")
 
     # Calculate request cpu and memory for each pod
-    pod_count = max_pods - DAEMONSETS_PER_NODE
+    pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     replica = pod_count * node_count
     cpu_request = cpu_value // pod_count
     memory_request = int(memory_value * 1.024 // pod_count)
@@ -109,6 +112,7 @@ def main():
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_override.add_argument("operation_timeout", type=str, default="2m", help="Operation timeout")
+    parser_override.add_argument("provider", type=str, help="Cloud provider name")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2
@@ -133,7 +137,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.max_pods, args.operation_timeout, args.cl2_override_file)
+        override_config_clusterloader2(args.node_count, args.max_pods, args.operation_timeout, args.provider, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":

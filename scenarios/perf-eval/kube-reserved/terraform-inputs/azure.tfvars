@@ -29,6 +29,7 @@ aks_config_list = [
         vm_size    = "Standard_D16_v3"
         max_pods   = 250
         node_taints = ["kube-reserved=true:NoSchedule"]
+        node_labels = { "kube-reserved" = "true" }
       }
     ]
     kubernetes_version = "1.30"
