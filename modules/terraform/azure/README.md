@@ -58,7 +58,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg aks_cli_sku_tier $SKU_TIER \
+  --arg aks_cli_sku_tier "$SKU_TIER" \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
   --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
