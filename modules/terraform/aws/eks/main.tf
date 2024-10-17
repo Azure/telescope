@@ -74,8 +74,8 @@ resource "aws_eks_cluster" "eks" {
   ]
 
   tags = {
-      "role" = local.role
-    }
+    "role" = local.role
+  }
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {
@@ -135,7 +135,7 @@ module "karpenter" {
   cluster_name          = aws_eks_cluster.eks.name
   region                = var.region
   tags                  = var.tags
- cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+  cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
