@@ -9,7 +9,7 @@ locals {
   nat_gateways_map             = var.network_config.nat_gateways == null ? {} : { for ng in var.network_config.nat_gateways : ng.name => ng }
 
   security_group_name = var.network_config.security_group_name
-  tags                = merge(var.tags, { "role" = var.network_config.role })
+  tags                = { "role" = var.network_config.role }
 }
 
 resource "aws_vpc" "vpc" {

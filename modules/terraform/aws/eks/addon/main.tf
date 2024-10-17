@@ -12,7 +12,6 @@ resource "aws_iam_openid_connect_provider" "oidc_provider" {
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
   url             = var.cluster_oidc_provider_url
-  tags            = var.tags
   depends_on      = [data.tls_certificate.eks]
 }
 
@@ -47,7 +46,6 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 
 resource "aws_iam_role" "addon_role" {
   assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy.json
-  tags               = var.tags
 
   depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
 }
@@ -69,9 +67,9 @@ resource "aws_eks_addon" "addon" {
   service_account_role_arn = aws_iam_role.addon_role.arn
 
 
-  tags = merge(var.tags, {
+  tags = {
     "Name" = each.value.name
-  })
+  }
 
   depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
 }
