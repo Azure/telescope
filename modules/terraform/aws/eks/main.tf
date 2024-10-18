@@ -9,7 +9,7 @@ locals {
         policy_arns = ["AmazonEKS_CNI_Policy"],
         configuration_values = jsonencode({
           env = {
-            ADDITIONAL_ENI_TAGS      = jsonencode(var.tags)
+            ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
           }
         })
       },
@@ -22,11 +22,11 @@ locals {
       service_account      = lookup(addon, "service_account", null)
       policy_arns          = lookup(addon, "policy_arns", []),
       configuration_values = lookup(addon, "configuration_values", null)
-    }
+    } if var.eks_config.enable_karpenter
   }
 
   eks_addons_map         = { for addon in var.eks_config.eks_addons : addon.name => addon }
-  updated_eks_addons_map = var.eks_config.enable_karpenter ? merge(local.karpenter_addons_map, local.eks_addons_map) : local.eks_addons_map
+  updated_eks_addons_map = merge(local.karpenter_addons_map, local.eks_addons_map)
   policy_arns            = var.eks_config.policy_arns
 }
 
