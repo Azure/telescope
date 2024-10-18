@@ -5,6 +5,7 @@ name: deployment-churn
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$steps := DefaultParam .CL2_STEPS 5}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -14,6 +15,7 @@ name: deployment-churn
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 
 namespace:
   number: {{$namespaces}}
@@ -55,14 +57,15 @@ steps:
           apiVersion: apps/v1
           kind: Deployment
           labelSelector: group = deployment-churn
-          operationTimeout: 15m
+          operationTimeout: {{$operationTimeout}}
       - Identifier: APIResponsivenessPrometheusSimple
         Method: APIResponsivenessPrometheus
         Params:
           action: start
 
-  {{range $i := Loop $repeats}}
-  - name: Creating Deployments
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
+  - name: Creating Deployments {{$j}}
     phases:
       - namespaceRange:
           min: 1
@@ -70,7 +73,7 @@ steps:
         replicasPerNamespace: {{$deploymentsPerNamespace}}
         tuningSet: DeploymentCreateQps
         objectBundle:
-          - basename: deployment-churn
+          - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
             templateFillMap:
               Replicas: {{$deploymentSize}}
@@ -84,8 +87,10 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
+  {{end}}
 
-  - name: Deleting Deployments
+  {{range $j := Loop $steps}}
+  - name: Deleting Deployments {{$j}}
     phases:
       - namespaceRange:
           min: 1
@@ -93,7 +98,7 @@ steps:
         replicasPerNamespace: 0
         tuningSet: DeploymentDeleteQps
         objectBundle:
-          - basename: deployment-churn
+          - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
 
   - name: Waiting for latency pods to be deleted
@@ -103,6 +108,7 @@ steps:
         Params:
           action: gather
   {{end}}
+{{end}}
 
   - name: Collecting measurements
     measurements:
