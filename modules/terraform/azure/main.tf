@@ -30,16 +30,16 @@ locals {
         default_node_pool = merge(
           aks.default_node_pool,
           {
-            min_count = aks.default_node_pool.enable_auto_scaling ? 2 : null
-            max_count = aks.default_node_pool.enable_auto_scaling ? 5 : null
+            min_count = aks.default_node_pool.enable_auto_scaling ? aks.default_node_pool.min_count : null
+            max_count = aks.default_node_pool.enable_auto_scaling ? aks.default_node_pool.max_count : null
           }
         )
         extra_node_pool = [
           for pool in aks.extra_node_pool : merge(
             pool,
             {
-              min_count = pool.enable_auto_scaling ? 2 : null
-              max_count = pool.enable_auto_scaling ? 5 : null
+              min_count = pool.enable_auto_scaling ? pool.min_count : null
+              max_count = pool.enable_auto_scaling ? pool.max_count : null
             }
           )
         ]
