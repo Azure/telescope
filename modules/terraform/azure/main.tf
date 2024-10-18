@@ -1,7 +1,7 @@
 locals {
   region                   = lookup(var.json_input, "region", "East US")
   run_id                   = lookup(var.json_input, "run_id", "123456")
-  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", "standard")
+  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", "Standard")
   aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
