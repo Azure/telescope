@@ -2,7 +2,6 @@ locals {
   role               = var.eks_config.role
   eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
-  tags_json          = jsonencode(var.tags)
   karpenter_addons_map = {
     for addon in [
       { name        = "vpc-cni",
