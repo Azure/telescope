@@ -80,20 +80,27 @@ variable "aks_config_list" {
       os_sku                       = optional(string)
       os_disk_type                 = optional(string)
       only_critical_addons_enabled = bool
-      temporary_name_for_rotation  = string
-      max_pods                     = optional(number)
+      temporary_name_for_rotation  = optional(string, "defaulttmp")
+      max_pods                     = optional(number, 110)
+      min_count                    = optional(number, null)
+      max_count                    = optional(number, null)
+      enable_auto_scaling          = optional(bool, true)
     })
     extra_node_pool = list(object({
       name              = string
       subnet_name       = optional(string)
       node_count        = number
       vm_size           = string
-      os_sku            = optional(string)
-      os_disk_type      = optional(string)
-      max_pods          = optional(number)
+      os_sku            = optional(string, "Ubuntu")
+      os_disk_type      = optional(string, "Managed")
+      max_pods          = optional(number, 110)
+      min_count         = optional(number, null)
+      max_count         = optional(number, null)
       ultra_ssd_enabled = optional(bool, false)
       zones             = optional(list(string), [])
       node_taints       = optional(list(string), [])
+      node_labels       = optional(map(string), {})
+      enable_auto_scaling = optional(bool, true)
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)

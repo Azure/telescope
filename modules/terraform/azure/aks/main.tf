@@ -69,6 +69,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
   node_taints           = each.value.node_taints
+  enable_auto_scaling   = try(each.value.enable_auto_scaling, true)
+  node_labels           = each.value.node_labels
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
