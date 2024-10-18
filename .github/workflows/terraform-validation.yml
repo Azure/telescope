@@ -144,7 +144,7 @@ jobs:
       - name: Create JSON Input
         run: |
           INPUT_JSON_OBJECT=$(jq . ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c '. + {current_time: (now |  todateiso8601)}')
+          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
           echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
       - name: Azure login

@@ -25,8 +25,7 @@ steps:
                 '{
                 run_id: $run_id,
                 region: $region
-                }' | jq '. + {current_time: (now |  todateiso8601)}' \
-                   | jq 'with_entries(select(.value != null and .value != ""))')
+                }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
         echo "Input variables: $input_variables_str"

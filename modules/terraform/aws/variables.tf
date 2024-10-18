@@ -1,24 +1,28 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id       = string
-    region       = string
-    current_time = string
+    run_id = string
+    region = string
   })
+}
+
+variable "current_time" {
+  description = "Current time as rfc3339 format (e.g.: '2024-10-17T18:30:42Z')"
+  type        = string
 
   validation {
-    condition     = can(formatdate("", var.json_input.current_time))
-    error_message = "The current_time value must be a valid rfc3339 format string"
+    condition     = can(formatdate("", var.current_time))
+    error_message = "The current_time value must be a valid rfc3339 format string (e.g.: '2024-10-17T18:30:42Z')"
   }
 
   validation {
-    condition     = timecmp(var.json_input.current_time, timeadd(plantimestamp(), "-1h")) > 0
-    error_message = "The current_time must not be younger than 1h from now"
-  }
-
-  validation {
-    condition     = timecmp(var.json_input.current_time, timeadd(plantimestamp(), "+1h")) < 0
+    condition     = timecmp(var.current_time, timeadd(plantimestamp(), "-1h")) > 0
     error_message = "The current_time must not be older than 1h from now"
+  }
+
+  validation {
+    condition     = timecmp(var.current_time, timeadd(plantimestamp(), "+1h")) < 0
+    error_message = "The current_time must not be younger than 1h from now"
   }
 }
 
