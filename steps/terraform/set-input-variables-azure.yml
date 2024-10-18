@@ -35,7 +35,7 @@ steps:
                 --arg region $REGION \
                 --arg aks_sku_tier "$SKU_TIER" \
                 --arg aks_network_policy "$NETWORK_POLICY" \
-                --argjson  aks_custom_headers "$AKS_CUSTOM_HEADERS" \
+                --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
                 '{
