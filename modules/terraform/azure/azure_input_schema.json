@@ -10,6 +10,12 @@
     "aks_cli_sku_tier": {
       "type": "string"
     },
+    "aks_network_policy": {
+      "type": "string"
+    },
+    "aks_ebpf_data_plane": {
+      "type": "string"
+    },
     "aks_cli_system_node_pool": {
       "type": "object"
     },

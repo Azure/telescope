@@ -41,8 +41,8 @@ variable "aks_config" {
     dns_prefix  = string
     subnet_name = optional(string, null)
     network_profile = optional(object({
-      network_plugin      = optional(string, null)
-      network_plugin_mode = optional(string, null)
+      network_plugin      = optional(string, "azure")
+      network_plugin_mode = optional(string, "overlay")
       network_policy      = optional(string, null)
       ebpf_data_plane     = optional(string, null)
       outbound_type       = optional(string, null)
