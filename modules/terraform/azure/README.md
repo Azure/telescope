@@ -16,7 +16,7 @@ Set environment variables for a specific test scenario. In this guide, we'll use
 Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=apiserver-vn10pod100
+SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=azure
 REGION=eastus2
