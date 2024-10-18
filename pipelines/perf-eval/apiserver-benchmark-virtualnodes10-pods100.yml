@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: override-aks-network-policy
 
 stages:
   - stage: aws_eastus2
@@ -54,9 +54,11 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
+              sku_tier: free
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
+              network_policy: cilium
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node10_job1_pod100

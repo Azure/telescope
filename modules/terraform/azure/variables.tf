@@ -1,12 +1,11 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id              = string
-    region              = string
-    aks_sku_tier        = optional(string, "standard")
-    aks_network_policy  = optional(string, null)
-    aks_ebpf_data_plane = optional(string, null)
-    aks_custom_headers  = optional(list(string), [])
+    run_id             = string
+    region             = string
+    aks_sku_tier       = optional(string, "standard")
+    aks_network_policy = optional(string, null)
+    aks_custom_headers = optional(list(string), [])
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number

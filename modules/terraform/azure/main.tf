@@ -3,7 +3,6 @@ locals {
   run_id                   = lookup(var.json_input, "run_id", "123456")
   aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", "standard")
   aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
-  aks_ebpf_data_plane      = lookup(var.json_input, "aks_ebpf_data_plane", null)
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
@@ -25,7 +24,7 @@ locals {
           aks.network_profile,
           {
             network_policy  = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
-            ebpf_data_plane = local.aks_ebpf_data_plane != null ? local.aks_ebpf_data_plane : aks.network_profile.ebpf_data_plane
+            ebpf_data_plane = local.aks_network_policy != null && local.aks_network_policy == "cilium" ? local.aks_network_policy : aks.network_profile.ebpf_data_plane
           }
         )
       }
