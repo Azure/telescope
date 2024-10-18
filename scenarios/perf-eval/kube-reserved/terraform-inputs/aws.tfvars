@@ -6,29 +6,29 @@ owner          = "aks"
 network_config_list = [
   {
     role           = "kube-reserved"
-    vpc_name       = "kr-vpc"
+    vpc_name       = "kube-reserved-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "kr-subnet-1"
+        name                    = "kube-reserved-subnet-1"
         cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
-        name                    = "kr-subnet-2"
+        name                    = "kube-reserved-subnet-2"
         cidr_block              = "10.0.64.0/19"
-        zone_suffix             = "b"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       },
       {
-        name                    = "kr-subnet-3"
+        name                    = "kube-reserved-subnet-3"
         cidr_block              = "10.0.96.0/19"
         zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
-    security_group_name = "kr-sg"
+    security_group_name = "kube-reserved-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -37,18 +37,18 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "kr-subnet-rt-assoc-1"
-        subnet_name      = "kr-subnet-1"
+        name             = "kube-reserved-subnet-rt-assoc-1"
+        subnet_name      = "kube-reserved-subnet-1"
         route_table_name = "internet-rt"
       },
       {
-        name             = "kr-subnet-rt-assoc-2"
-        subnet_name      = "kr-subnet-2"
+        name             = "kube-reserved-subnet-rt-assoc-2"
+        subnet_name      = "kube-reserved-subnet-2"
         route_table_name = "internet-rt"
       },
       {
-        name             = "kr-subnet-rt-assoc-3"
-        subnet_name      = "kr-subnet-3"
+        name             = "kube-reserved-subnet-rt-assoc-3"
+        subnet_name      = "kube-reserved-subnet-3"
         route_table_name = "internet-rt"
       }
     ]
@@ -69,7 +69,7 @@ network_config_list = [
 eks_config_list = [{
   role        = "kube-reserved"
   eks_name    = "kube-reserved"
-  vpc_name    = "kr-vpc"
+  vpc_name    = "kube-reserved-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
@@ -96,11 +96,19 @@ eks_config_list = [{
           effect = "NO_SCHEDULE"
         }
       ]
+      labels = {
+        "kube-reserved" = "true",
+        "agentpool"     = "userpool0"
+      }
     }
   ]
 
   eks_addons = [
-    { name = "vpc-cni", version = "v1.18.3-eksbuild.2", policy_arns = ["AmazonEKS_CNI_Policy"] },
+    {
+      name        = "vpc-cni",
+      version     = "v1.18.3-eksbuild.2",
+      policy_arns = ["AmazonEKS_CNI_Policy"]
+    },
     { name = "kube-proxy" },
     { name = "coredns" }
   ]

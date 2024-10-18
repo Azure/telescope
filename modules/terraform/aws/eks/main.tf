@@ -3,12 +3,22 @@ locals {
   eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   karpenter_addons_map = {
-    for addon in [{ name = "vpc-cni", policy_arns = ["AmazonEKS_CNI_Policy"] }, { name = "kube-proxy" }, { name = "coredns" }] : addon.name =>
+    for addon in [{ name = "vpc-cni", 
+    policy_arns = ["AmazonEKS_CNI_Policy"],
+    before_compute = true
+    configuration_values = {
+      env = {
+        ENABLE_PREFIX_DELEGATION = "true"
+        WARM_PREFIX_TARGET       = "1"
+      }
+    }}, { name = "kube-proxy" }, { name = "coredns" }] : addon.name =>
     {
       name            = addon.name
       version         = lookup(addon, "version", null)
       service_account = lookup(addon, "service_account", null)
       policy_arns     = lookup(addon, "policy_arns", [])
+      configuration_values = lookup(addon, "configuration_values", {})
+      before_compute = lookup(addon, "before_compute", false)
     }
   }
 
@@ -97,6 +107,11 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     desired_size = each.value.desired_size
   }
 
+  launch_template {
+    id      = aws_launch_template.launch_template.id
+    version = "$Latest"
+  }
+
   dynamic "taint" {
     for_each = each.value.taints
     content {
@@ -106,7 +121,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     }
   }
 
-  ami_type       = each.value.ami_type
+  # ami_type       = each.value.ami_type
   instance_types = each.value.instance_types
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
@@ -143,4 +158,46 @@ module "karpenter" {
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
+}
+
+data "aws_ami" "eks_ami" {
+  most_recent = true
+  owners      = ["602401143452"]
+
+  filter {
+    name   = "name"
+    values = ["amazon-eks-node-${var.eks_config.kubernetes_version}-v*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+resource "aws_launch_template" "launch_template" {
+  name_prefix   = local.eks_cluster_name
+  image_id = data.aws_ami.eks_ami.id
+
+  user_data = base64encode(<<EOF
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="==MYBOUNDARY"
+
+--==MYBOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+set -o xtrace
+/etc/eks/bootstrap.sh ${local.eks_cluster_name} --kubelet-extra-args '--max-pods=250'
+
+--==MYBOUNDARY--
+EOF
+  )
+
+  tags = var.tags
+
+  depends_on = [
+    aws_eks_cluster.eks,
+    aws_iam_role_policy_attachment.policy_attachments
+  ]
 }
