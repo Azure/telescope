@@ -21,6 +21,8 @@ spec:
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
     spec:
+      nodeSelector:
+        slo: "true"
       containers:
       - env:
         - name: ENV_VAR

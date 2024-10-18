@@ -10,48 +10,57 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-n100p5000
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: alyssa/scale-cilium
 
 stages:
-  - stage: aws_eastus
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: aws
-          regions:
-            - us-east-1
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
-          topology: slo
-          matrix:
-            n100-p5000:
-              node_count: 100
-              max_pods: 110
-              repeats: 1
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-  - stage: azure_eastus
+  # - stage: aws_eastus
+  #   dependsOn: []
+  #   jobs:
+  #     - template: /jobs/competitive-test.yml
+  #       parameters:
+  #         cloud: aws
+  #         regions:
+  #           - us-east-1
+  #         engine: clusterloader2
+  #         engine_input:
+  #           image: "ghcr.io/azure/clusterloader2:v20241016"
+  #         topology: slo
+  #         matrix:
+  #           n100-p5000:
+  #             node_count: 100
+  #             max_pods: 110
+  #             repeats: 1
+  #         max_parallel: 1
+  #         timeout_in_minutes: 360
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
           topology: slo
           matrix:
-            n100-p5000:
-              node_count: 100
+            azure_cni:
+              node_count: 200
+              node_per_step: 100
               max_pods: 110
               repeats: 1
-          max_parallel: 1
+              scale_timeout: "30m"
+            azure_cilium:
+              node_count: 200
+              node_per_step: 100
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "30m"
+              network_policy: cilium
+          max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
