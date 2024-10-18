@@ -59,6 +59,7 @@ variable "aks_config" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number, null)
+      max_count                    = optional(number, 5)
     })
     extra_node_pool = list(object({
       name              = string
