@@ -20,7 +20,7 @@ SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=azure
 REGION=eastus2
-SKU_TIER=free
+SKU_TIER=Free
 NETWORK_POLICY=cilium
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
@@ -80,7 +80,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 pushd $TERRAFORM_MODULES_DIR
 terraform init
 terraform plan  -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE --auto-approve
 popd
 ```
 
