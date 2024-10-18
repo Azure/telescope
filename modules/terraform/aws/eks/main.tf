@@ -9,8 +9,6 @@ locals {
         policy_arns = ["AmazonEKS_CNI_Policy"],
         configuration_values = jsonencode({
           env = {
-            ENABLE_PREFIX_DELEGATION = "true"
-            WARM_PREFIX_TARGET       = "1"
             ADDITIONAL_ENI_TAGS      = jsonencode(var.tags)
           }
         })
