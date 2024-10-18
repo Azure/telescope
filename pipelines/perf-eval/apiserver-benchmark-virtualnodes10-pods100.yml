@@ -54,11 +54,11 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
-              sku_tier: free
+              sku_tier: Free
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
-              sku_tier: free
+              sku_tier: Free
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node10_job1_pod100
@@ -81,11 +81,11 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
-              sku_tier: standard
+              sku_tier: Standard
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
-              sku_tier: standard
+              sku_tier: Standard
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node10_job1_pod100
