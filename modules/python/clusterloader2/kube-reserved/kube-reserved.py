@@ -12,7 +12,7 @@ DAEMONSETS_PER_NODE_MAP = {
     "aks": 6
 }
 
-def override_config_clusterloader2(node_count, max_pods, operation_timeout, provider, override_file):
+def override_config_clusterloader2(node_count, max_pods, repeats, operation_timeout, provider, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector=f"kube-reserved=true")
     if len(nodes) == 0:
@@ -30,14 +30,15 @@ def override_config_clusterloader2(node_count, max_pods, operation_timeout, prov
     # Calculate request cpu and memory for each pod
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     replica = pod_count * node_count
-    cpu_request = cpu_value // pod_count
-    memory_request = int(memory_value * 1.024 // pod_count)
+    cpu_request = cpu_value // pod_count - 20
+    memory_request = int(memory_value * 1.024 // pod_count - 20)
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}K, total replica: {replica}")
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {replica}\n")
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request}\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
+        file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
 
@@ -111,6 +112,7 @@ def main():
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
+    parser_override.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
     parser_override.add_argument("operation_timeout", type=str, default="2m", help="Operation timeout")
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
@@ -137,7 +139,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.max_pods, args.operation_timeout, args.provider, args.cl2_override_file)
+        override_config_clusterloader2(args.node_count, args.max_pods, args.repeats, args.operation_timeout, args.provider, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
