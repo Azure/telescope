@@ -3,7 +3,7 @@ variable "json_input" {
   type = object({
     run_id              = string
     region              = string
-    aks_cli_sku_tier    = optional(string, "standard")
+    aks_sku_tier        = optional(string, "standard")
     aks_network_policy  = optional(string, null)
     aks_ebpf_data_plane = optional(string, null)
     aks_custom_headers  = optional(list(string), [])

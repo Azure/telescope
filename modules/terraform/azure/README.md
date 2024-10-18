@@ -60,7 +60,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg aks_cli_sku_tier "$SKU_TIER" \
+  --arg aks_sku_tier "$SKU_TIER" \
   --arg aks_network_policy "$NETWORK_POLICY" \
   --arg aks_ebpf_data_plane "$EBPF_DATA_PLANE" \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
@@ -68,7 +68,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   '{
     run_id: $run_id,
     region: $region,
-    aks_cli_sku_tier: $aks_cli_sku_tier,
+    aks_sku_tier: $aks_sku_tier,
     aks_network_policy: $aks_network_policy,
     aks_ebpf_data_plane: $aks_ebpf_data_plane,
     aks_cli_system_node_pool: $aks_cli_system_node_pool,
