@@ -169,4 +169,4 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
-        run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
+        run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON" -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
