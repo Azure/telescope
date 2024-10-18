@@ -79,7 +79,7 @@ variable "aks_config_list" {
       os_sku                       = optional(string, "Ubuntu")
       os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
-      temporary_name_for_rotation  = string
+      temporary_name_for_rotation  = optional(string, "defaulttmp")
       max_pods                     = optional(number, 110)
       min_count                    = optional(number, 2)
       max_count                    = optional(number, 5)
