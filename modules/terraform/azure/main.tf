@@ -27,6 +27,22 @@ locals {
             ebpf_data_plane = local.aks_network_policy != null && local.aks_network_policy == "cilium" ? local.aks_network_policy : aks.network_profile.ebpf_data_plane
           }
         )
+        default_node_pool = merge(
+          aks.default_node_pool,
+          {
+            min_count = aks.default_node_pool.enable_auto_scaling ? 2 : null
+            max_count = aks.default_node_pool.enable_auto_scaling ? 5 : null
+          }
+        )
+        extra_node_pool = [
+          for pool in aks.extra_node_pool : merge(
+            pool,
+            {
+              min_count = pool.enable_auto_scaling ? 2 : null
+              max_count = pool.enable_auto_scaling ? 5 : null
+            }
+          )
+        ]
       }
     )
   ] : []
