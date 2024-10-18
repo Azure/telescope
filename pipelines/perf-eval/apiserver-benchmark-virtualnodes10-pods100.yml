@@ -40,7 +40,7 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2
+  - stage: azure_eastus2_free
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -54,9 +54,38 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
+              sku_tier: Free
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
+              sku_tier: Free
+          engine_input:
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
+            benchmark_subcmd: node10_job1_pod100
+            benchmark_subcmd_args: "--total 1000"
+          max_parallel: 2
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2_standard
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              sku_tier: Standard
+            exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: ""
+              sku_tier: Standard
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node10_job1_pod100
