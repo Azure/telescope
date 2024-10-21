@@ -6,7 +6,7 @@ owner          = "aks"
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "vn10-p100-cilium"
+    aks_name    = "vn10-p100"
     dns_prefix  = "kperf"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
