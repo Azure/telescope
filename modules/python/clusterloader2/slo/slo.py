@@ -11,29 +11,27 @@ DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
 KUBE_CLIENT = KubernetesClient()
 
-def calculate_config(node_count, max_pods):
+def calculate_config(cpu_per_node, node_count, max_pods):
     calculated_throughput = node_count / 10 + 10
     throughput = min(calculated_throughput, 100)
 
-    nodes_per_namespace = max(node_count, 100)
+    nodes_per_namespace = min(node_count, 100)
     max_user_pods = max_pods - DAEMONSETS_PER_NODE
     pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
 
     # assuming 90% of the allocatable CPU cores can be used by test pods
-    nodes = KUBE_CLIENT.get_nodes(label_selector="slo=true")
-    node = nodes[0]
-    allocatable_cpu = int(node.status.allocatable["cpu"][:-1])
-    cpu_request = (allocatable_cpu * 0.9) // pods_per_node
+    cpu_request = (cpu_per_node * 1000 * 0.9) // pods_per_node
 
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
-def configure_clusterloader2(node_count, node_per_step, max_pods, repeats, operation_timeout, override_file):
+def configure_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods, repeats, operation_timeout, override_file):
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(node_per_step, max_pods)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
+        file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
@@ -60,6 +58,7 @@ def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True)
 
 def collect_clusterloader2(
+    cpu_per_node,
     node_count,
     max_pods,
     repeats,
@@ -78,11 +77,12 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
-    _, nodes_per_namespace, pods_per_node, _ = calculate_config(node_count, max_pods)
+    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods)
     pod_count = nodes_per_namespace * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "cpu_per_node": cpu_per_node,
         "node_count": node_count,
         "pod_count": pod_count,
         "churn_rate": repeats,
@@ -130,6 +130,7 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
+    parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
     parser_configure.add_argument("max_pods", type=int, help="Maximum number of pods per node")
@@ -152,6 +153,7 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
+    parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Maximum number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
@@ -164,7 +166,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.node_count, args.node_per_step, args.max_pods,
+        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
@@ -172,7 +174,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir,
                                args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.max_pods, args.repeats,
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info,
                                args.run_id, args.run_url, args.result_file)
 

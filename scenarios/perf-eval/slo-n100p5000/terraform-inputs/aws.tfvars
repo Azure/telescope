@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "slo-n100p5000"
-deletion_delay = "120h"
+deletion_delay = "12h"
 owner          = "aks"
 
 network_config_list = [
@@ -69,6 +69,7 @@ network_config_list = [
 eks_config_list = [{
   role        = "slo"
   eks_name    = "slo"
+  enable_karpenter = true
   vpc_name    = "slo-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
@@ -90,31 +91,9 @@ eks_config_list = [{
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels = {"prometheus" = "true"}
-    },
-    {
-      name           = "userpool0"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.xlarge"]
-      min_size       = 100
-      max_size       = 200
-      desired_size   = 100
-      capacity_type  = "ON_DEMAND"
-      taints = [
-        {
-          key    = "slo"
-          value  = "true"
-          effect = "NO_SCHEDULE"
-        }
-      ]
-      labels = {"slo" = "true"}
     }
   ]
 
-  eks_addons = [
-    { name = "vpc-cni", version = "v1.18.3-eksbuild.2", policy_arns = ["AmazonEKS_CNI_Policy"] },
-    { name = "kube-proxy" },
-    { name = "coredns" }
-  ]
-
+  eks_addons = []
   kubernetes_version = "1.30"
 }]

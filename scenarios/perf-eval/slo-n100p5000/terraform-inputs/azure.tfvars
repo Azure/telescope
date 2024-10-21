@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "slo-n100p5000"
-deletion_delay = "2h"
+deletion_delay = "12h"
 owner          = "aks"
 
 aks_config_list = [
@@ -34,9 +34,9 @@ aks_config_list = [
       },
       {
         name                = "userpool0"
-        node_count          = 100
-        min_count           = 100
-        max_count           = 200
+        node_count          = 0
+        min_count           = 0
+        max_count           = 100
         enable_auto_scaling = true
         vm_size             = "Standard_D4_v3"
         max_pods            = 110
@@ -45,9 +45,9 @@ aks_config_list = [
       }
       # {
       #   name                = "userpool1"
-      #   node_count          = 100
-      #   min_count           = 100
-      #   max_count           = 500
+      #   node_count          = 0
+      #   min_count           = 0
+      #   max_count           = 100
       #   enable_auto_scaling = true
       #   vm_size             = "Standard_D4_v3"
       #   max_pods            = 110
@@ -55,6 +55,6 @@ aks_config_list = [
       #   node_labels         = { "slo" = "true" }
       # }
     ]
-    kubernetes_version = "1.30.4"
+    kubernetes_version = "1.30"
   }
 ]

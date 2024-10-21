@@ -81,23 +81,23 @@ steps:
               Group: deployment-churn
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
-
-  - name: Waiting for latency pods to be running
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
-  - name: Confirm nodes count
+  - name: Wait for nodes to be ready
     measurements:
       - Identifier: ConfirmNodeCount
         Method: WaitForNodes
         Params:
           action: start
           minDesiredNodeCount: {{MultiplyInt $nodesPerNamespace (AddInt $j 1)}}
-          labelSelector: group = deployment-churn
+          maxDesiredNodeCount: {{AddInt (MultiplyInt $nodesPerNamespace (AddInt $j 1)) 10}}
+          labelSelector: slo = true
           timeout: {{$operationTimeout}}
           refreshInterval: 30s
+  - name: Waiting for latency pods to be running
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
   {{end}}
 
   {{range $j := Loop $steps}}
@@ -111,7 +111,6 @@ steps:
         objectBundle:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
-
   - name: Waiting for latency pods to be deleted
     measurements:
       - Identifier: WaitForRunningLatencyDeployments
