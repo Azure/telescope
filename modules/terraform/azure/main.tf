@@ -1,7 +1,7 @@
 locals {
   region                   = lookup(var.json_input, "region", "East US")
   run_id                   = lookup(var.json_input, "run_id", "123456")
-  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", "Standard")
+  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
   aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
@@ -19,7 +19,7 @@ locals {
     for aks in var.aks_config_list : merge(
       aks,
       {
-        sku_tier = length(local.aks_sku_tier) > 0 ? local.aks_sku_tier : aks.sku_tier
+        sku_tier = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
         network_profile = merge(
           aks.network_profile,
           {
@@ -37,7 +37,7 @@ locals {
     for aks in var.aks_cli_config_list : merge(
       aks,
       {
-        sku_tier           = length(local.aks_sku_tier) > 0 ? local.aks_sku_tier : aks.sku_tier
+        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
         aks_custom_headers = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         default_node_pool  = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool    = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
