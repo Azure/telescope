@@ -1,0 +1,15 @@
+version: 2
+updates:
+
+  # Manage dependencies for Terraform
+  - package-ecosystem: "terraform"
+    directory: "/modules/terraform/"
+    schedule:
+      interval: "daily"
+    assignees:
+      - sumanthreddy29
+    reviewers:
+      - sumanthreddy29
+      - alyssa1303
+      - anson627
+    open-pull-requests-limit: 10
