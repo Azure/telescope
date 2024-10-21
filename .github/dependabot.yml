@@ -13,4 +13,4 @@ updates:
       - alyssa1303
       - anson627
     open-pull-requests-limit: 10
-    target-branch: "update-terraform-providers"
+    target-branch: "main"
