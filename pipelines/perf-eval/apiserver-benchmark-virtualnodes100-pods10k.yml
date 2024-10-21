@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn100pod10k
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: override-network-policy
 
 stages:
   - stage: aws_eastus2
@@ -58,16 +58,18 @@ stages:
             podsize-10k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=6114"
+              sku_tier: Free
             podsize-10k-exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-20k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
-            podsize-20k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
-          engine_input:
+              network_policy: cilium
+          #   podsize-20k:
+          #     flowcontrol: "workload-low:1000"
+          #     extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          #   podsize-20k-exempt:
+          #     flowcontrol: "exempt:5"
+          #     extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          # engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
