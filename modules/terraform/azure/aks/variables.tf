@@ -1,16 +1,19 @@
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
+  default     = "rg"
 }
 
 variable "location" {
   description = "Value of the location"
   type        = string
+  default     = "East US"
 }
 
 variable "tags" {
-  description = "value of the tags"
-  type        = map(string)
+  type = map(string)
+  default = {
+  }
 }
 
 variable "subnet_id" {
@@ -38,8 +41,8 @@ variable "aks_config" {
     dns_prefix  = string
     subnet_name = optional(string, null)
     network_profile = optional(object({
-      network_plugin      = optional(string, "azure")
-      network_plugin_mode = optional(string, "overlay")
+      network_plugin      = optional(string, null)
+      network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
       ebpf_data_plane     = optional(string, null)
       outbound_type       = optional(string, null)
@@ -54,26 +57,20 @@ variable "aks_config" {
       os_sku                       = optional(string, "Ubuntu")
       os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
-      temporary_name_for_rotation  = optional(string, "defaulttmp")
-      max_pods                     = optional(number, 110)
-      min_count                    = optional(number, 2)
-      max_count                    = optional(number, 5)
-      enable_auto_scaling          = optional(bool, true)
+      temporary_name_for_rotation  = string
+      max_pods                     = optional(number, null)
     })
     extra_node_pool = list(object({
-      name                = string
-      subnet_name         = optional(string, null)
-      node_count          = number
-      vm_size             = string
-      os_sku              = optional(string, "Ubuntu")
-      os_disk_type        = optional(string, "Managed")
-      max_pods            = optional(number, 110)
-      min_count           = optional(number, 2)
-      max_count           = optional(number, 100)
-      ultra_ssd_enabled   = optional(bool, false)
-      zones               = optional(list(string), [])
-      node_taints         = optional(list(string), [])
-      enable_auto_scaling = optional(bool, true)
+      name              = string
+      subnet_name       = optional(string, null)
+      node_count        = number
+      vm_size           = string
+      os_sku            = optional(string, "Ubuntu")
+      os_disk_type      = optional(string, "Managed")
+      max_pods          = optional(number, null)
+      ultra_ssd_enabled = optional(bool, false)
+      zones             = optional(list(string), [])
+      node_taints       = optional(list(string), [])
     }))
     role_assignment_list = optional(list(string), [])
     service_mesh_profile = optional(object({
