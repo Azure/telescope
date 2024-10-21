@@ -34,16 +34,6 @@ locals {
   aks_cli_config_map = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 }
 
-terraform {
-  required_version = ">=1.5.6"
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "<= 3.93.0"
-    }
-  }
-}
-
 provider "azurerm" {
   features {}
 }
