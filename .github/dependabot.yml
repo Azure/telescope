@@ -3,7 +3,8 @@ updates:
 
   # Manage dependencies for Terraform
   - package-ecosystem: "terraform"
-    directory: "/modules/terraform/*"
+    directories:
+      - "/modules/terraform/*"
     schedule:
       interval: "daily"
     assignees:
