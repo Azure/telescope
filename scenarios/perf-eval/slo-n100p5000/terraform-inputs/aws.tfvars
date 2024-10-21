@@ -67,11 +67,11 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role        = "slo"
-  eks_name    = "slo"
+  role             = "slo"
+  eks_name         = "slo"
   enable_karpenter = true
-  vpc_name    = "slo-vpc"
-  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  vpc_name         = "slo-vpc"
+  policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
       name           = "default"
@@ -90,10 +90,10 @@ eks_config_list = [{
       max_size       = 1
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels = {"prometheus" = "true"}
+      labels         = { "prometheus" = "true" }
     }
   ]
 
-  eks_addons = []
+  eks_addons         = []
   kubernetes_version = "1.30"
 }]

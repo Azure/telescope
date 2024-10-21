@@ -36,24 +36,24 @@ aks_config_list = [
         name                = "userpool0"
         node_count          = 0
         min_count           = 0
-        max_count           = 100
+        max_count           = 50
+        enable_auto_scaling = true
+        vm_size             = "Standard_D4_v3"
+        max_pods            = 110
+        node_taints         = ["slo=true:NoSchedule"]
+        node_labels         = { "slo" = "true" }
+      },
+      {
+        name                = "userpool1"
+        node_count          = 0
+        min_count           = 0
+        max_count           = 50
         enable_auto_scaling = true
         vm_size             = "Standard_D4_v3"
         max_pods            = 110
         node_taints         = ["slo=true:NoSchedule"]
         node_labels         = { "slo" = "true" }
       }
-      # {
-      #   name                = "userpool1"
-      #   node_count          = 0
-      #   min_count           = 0
-      #   max_count           = 100
-      #   enable_auto_scaling = true
-      #   vm_size             = "Standard_D4_v3"
-      #   max_pods            = 110
-      #   node_taints         = ["slo=true:NoSchedule"]
-      #   node_labels         = { "slo" = "true" }
-      # }
     ]
     kubernetes_version = "1.30"
   }

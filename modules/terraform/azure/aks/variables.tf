@@ -57,8 +57,9 @@ variable "aks_config" {
       os_sku                       = optional(string, "Ubuntu")
       os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
-      temporary_name_for_rotation  = optional(string, "defaulttmp")
-      max_pods                     = optional(number, 110)
+      temporary_name_for_rotation  = string
+      max_pods                     = optional(number, null)
+      node_labels                  = optional(map(string), {})
       min_count                    = optional(number, null)
       max_count                    = optional(number, null)
       enable_auto_scaling          = optional(bool, true)
@@ -70,14 +71,14 @@ variable "aks_config" {
       vm_size             = string
       os_sku              = optional(string, "Ubuntu")
       os_disk_type        = optional(string, "Managed")
-      max_pods            = optional(number, 110)
-      min_count           = optional(number, null)
-      max_count           = optional(number, null)
+      max_pods            = optional(number, null)
       ultra_ssd_enabled   = optional(bool, false)
       zones               = optional(list(string), [])
       node_taints         = optional(list(string), [])
+      node_labels         = optional(map(string), {})
+      min_count           = optional(number, null)
+      max_count           = optional(number, null)
       enable_auto_scaling = optional(bool, true)
-      node_labels       = optional(map(string), {})
     }))
     role_assignment_list = optional(list(string), [])
     service_mesh_profile = optional(object({

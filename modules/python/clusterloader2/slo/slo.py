@@ -9,9 +9,12 @@ from kubernetes_client import KubernetesClient
 
 DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
-KUBE_CLIENT = KubernetesClient()
+CPU_CAPACITY = {
+    "aws": 0.94,
+    "aks": 0.87
+}
 
-def calculate_config(cpu_per_node, node_count, max_pods):
+def calculate_config(cpu_per_node, node_count, max_pods, provider):
     calculated_throughput = node_count / 10 + 10
     throughput = min(calculated_throughput, 100)
 
@@ -20,13 +23,14 @@ def calculate_config(cpu_per_node, node_count, max_pods):
     pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
 
     # assuming 90% of the allocatable CPU cores can be used by test pods
-    cpu_request = (cpu_per_node * 1000 * 0.9) // pods_per_node
+    capacity = CPU_CAPACITY[provider]
+    cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
 
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
-def configure_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods, repeats, operation_timeout, override_file):
+def configure_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods, repeats, operation_timeout, provider, override_file):
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
@@ -46,9 +50,10 @@ def configure_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods, 
     file.close()
 
 def validate_clusterloader2(node_count, operation_timeout=600):
+    kube_client = KubernetesClient()
     timeout = time.time() + operation_timeout
     while time.time() < timeout:
-        ready_nodes = KUBE_CLIENT.get_ready_nodes()
+        ready_nodes = kube_client.get_ready_nodes()
         if len(ready_nodes) == node_count:
             break
         print(f"Waiting for {node_count} nodes to be ready. Currently {len(ready_nodes)} nodes are ready.")
@@ -71,13 +76,14 @@ def collect_clusterloader2(
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
+    provider = cloud_info["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
-    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods)
+    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
     pod_count = nodes_per_namespace * pods_per_node
 
     template = {
@@ -136,6 +142,7 @@ def main():
     parser_configure.add_argument("max_pods", type=int, help="Maximum number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
+    parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -167,7 +174,8 @@ def main():
 
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                                 args.repeats, args.operation_timeout, args.cl2_override_file)
+                                 args.repeats, args.operation_timeout, args.provider,
+                                 args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":

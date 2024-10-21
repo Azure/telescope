@@ -28,6 +28,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
+    node_labels                  = var.aks_config.default_node_pool.node_labels
   }
 
   network_profile {
@@ -69,8 +70,10 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
   node_taints           = each.value.node_taints
-  enable_auto_scaling   = try(each.value.enable_auto_scaling, true)
   node_labels           = each.value.node_labels
+  min_count             = try(each.value.min_count, null)
+  max_count             = try(each.value.max_count, null)
+  enable_auto_scaling   = try(each.value.enable_auto_scaling, true)
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
