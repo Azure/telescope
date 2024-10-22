@@ -70,6 +70,7 @@ eks_config_list = [{
   role        = "slo"
   eks_name    = "slo"
   vpc_name    = "slo-vpc"
+	enable_cluster_autoscaler = true
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
@@ -100,9 +101,6 @@ eks_config_list = [{
   ]
 
   eks_addons = [
-    { name = "vpc-cni", version = "v1.18.3-eksbuild.2", policy_arns = ["AmazonEKS_CNI_Policy"] },
-    { name = "kube-proxy" },
-    { name = "coredns" }
   ]
 
   kubernetes_version = "1.30"
