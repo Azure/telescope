@@ -63,7 +63,7 @@ variable "aks_config_list" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
-      network_data_plane  = optional(string, null)
+      network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))

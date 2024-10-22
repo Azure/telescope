@@ -24,8 +24,8 @@ locals {
         network_profile = merge(
           aks.network_profile,
           {
-            network_policy     = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
-            network_data_plane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.network_data_plane
+            network_policy    = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
+            network_dataplane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.network_dataplane
           }
         )
       }
