@@ -33,7 +33,6 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
-                --arg subscription_id $(AZURE_SUBSCRIPTION_ID) \
                 --arg aks_sku_tier "$SKU_TIER" \
                 --arg aks_network_policy "$NETWORK_POLICY" \
                 --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
@@ -43,7 +42,6 @@ steps:
                 '{
                   run_id: $run_id,
                   region: $region,
-                  subscription_id: $subscription_id,
                   aks_sku_tier: $aks_sku_tier,
                   aks_network_policy: $aks_network_policy,
                   aks_network_dataplane: $aks_network_dataplane,

@@ -1,7 +1,6 @@
 locals {
   region                   = lookup(var.json_input, "region", "East US")
   run_id                   = lookup(var.json_input, "run_id", "123456")
-  subscription_id          = lookup(var.json_input, "subscription_id", null)
   aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
   aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
   aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
@@ -52,7 +51,6 @@ locals {
 
 provider "azurerm" {
   features {}
-  subscription_id = local.subscription_id
 }
 
 module "aks" {
