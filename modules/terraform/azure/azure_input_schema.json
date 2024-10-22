@@ -13,6 +13,9 @@
     "aks_network_policy": {
       "type": "string"
     },
+    "aks_network_dataplane": {
+      "type": "string"
+    },
     "aks_cli_system_node_pool": {
       "type": "object"
     },
