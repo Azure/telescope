@@ -34,7 +34,7 @@ locals {
 
   aks_config_map = length(local.updated_aks_config_list) == 0 ? { for aks in var.aks_config_list : aks.role => aks } : { for aks in local.updated_aks_config_list : aks.role => aks }
 
-  updated_aks_cli_config_list = length(var.aks_cli_config_list) == 1 ? [
+  updated_aks_cli_config_list = length(var.aks_cli_config_list) > 0 ? [
     for aks in var.aks_cli_config_list : merge(
       aks,
       {
