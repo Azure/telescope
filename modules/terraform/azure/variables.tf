@@ -3,6 +3,7 @@ variable "json_input" {
   type = object({
     run_id                = string
     region                = string
+    subscription_id       = string
     aks_sku_tier          = optional(string, null)
     aks_network_policy    = optional(string, null)
     aks_network_dataplane = optional(string, null)
@@ -51,11 +52,6 @@ variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
   default     = "2h"
-}
-
-variable "subscription_id" {
-  description = "Azure subscription id"
-  type        = string
 }
 
 variable "aks_config_list" {
