@@ -1,9 +1,10 @@
 name: Security Scan
 on:
-  pull_request:
+  workflow_dispatch:
+
 jobs:
   security-scan:
-    name: Secuity Scan
+    name: Security Scan
     runs-on: ubuntu-latest
 
     permissions:
