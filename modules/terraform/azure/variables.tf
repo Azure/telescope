@@ -53,6 +53,11 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
+variable "subscription_id" {
+  description = "Azure subscription id"
+  type        = string
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string

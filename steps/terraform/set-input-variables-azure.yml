@@ -15,6 +15,7 @@ steps:
       if [[ "${DEBUG,,}" =~ "true" ]]; then
         set -x
       fi
+      export TF_VAR_subscription_id=$(AZURE_SUBSCRIPTION_ID)
 
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
