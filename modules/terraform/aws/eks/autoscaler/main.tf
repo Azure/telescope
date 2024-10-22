@@ -17,7 +17,7 @@ data "aws_eks_cluster" "cluster" {
 
 resource "aws_ec2_tag" "cluster_primary_security_group" {
   resource_id = data.aws_eks_cluster.cluster.vpc_config[0].cluster_security_group_id
-  key         = "karpenter.sh/discovery"
+  key         = "autoDiscovery.clusterName"
   value       = var.cluster_name
 }
 
@@ -103,7 +103,7 @@ resource "terraform_data" "install_autoscaler" {
     command = <<EOT
       #!/bin/bash
       set -e
-      helm uninstall autoscaler --namespace kube-system
+      helm uninstall cluster-autoscaler --namespace kube-system
 
       EOT
   }

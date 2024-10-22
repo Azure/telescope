@@ -27,7 +27,7 @@ locals {
       service_account      = lookup(addon, "service_account", null)
       policy_arns          = lookup(addon, "policy_arns", []),
       configuration_values = lookup(addon, "configuration_values", null)
-    } if var.eks_config.enable_karpenter
+    } if var.eks_config.enable_karpenter || var.eks_config.enable_cluster_autoscaler
   }
 
   eks_addons_map         = { for addon in var.eks_config.eks_addons : addon.name => addon }

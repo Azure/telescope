@@ -89,6 +89,16 @@ eks_config_list = [{
           effect = "NO_SCHEDULE"
         }
       ]
+    },
+    {
+      name           = "ng"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.large"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
+      capacity_type  = "ON_DEMAND"
+      taints = []
     }
   ]
   eks_addons = []
