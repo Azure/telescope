@@ -25,7 +25,7 @@ locals {
           aks.network_profile,
           {
             network_policy  = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
-            ebpf_data_plane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.ebpf_data_plane
+            ebpf_data_plane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.network_data_plane
           }
         )
       }
