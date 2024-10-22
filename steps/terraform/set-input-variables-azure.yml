@@ -67,6 +67,5 @@ steps:
       CLOUD: ${{ parameters.cloud }}
       REGIONS: ${{ convertToJson(parameters.regions) }}
       RUN_ID: $(RUN_ID)
-      SKU_TIER: $(sku_tier) # should be defined by matrix
       INPUT_VARIABLES: ${{ convertToJson(parameters.input_variables) }}
       DEBUG: $(System.Debug)
