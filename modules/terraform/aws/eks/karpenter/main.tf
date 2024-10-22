@@ -21,7 +21,6 @@ resource "aws_ec2_tag" "cluster_primary_security_group" {
 
 resource "aws_iam_policy" "karpenter_controller_policy" {
   name = substr("KarpenterControllerPolicy-${var.cluster_name}", 0, 60)
-  tags = var.tags
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
