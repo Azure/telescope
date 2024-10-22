@@ -73,7 +73,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   node_labels           = each.value.node_labels
   min_count             = try(each.value.min_count, null)
   max_count             = try(each.value.max_count, null)
-  enable_auto_scaling   = try(each.value.enable_auto_scaling, false)
+  auto_scaling_enabled   = try(each.value.auto_scaling_enabled, false)
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
