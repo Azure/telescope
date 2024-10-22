@@ -62,22 +62,22 @@ variable "aks_config" {
       node_labels                  = optional(map(string), {})
       min_count                    = optional(number, null)
       max_count                    = optional(number, null)
-      auto_scaling_enabled          = optional(bool, false)
+      auto_scaling_enabled         = optional(bool, false)
     })
     extra_node_pool = list(object({
-      name                = string
-      subnet_name         = optional(string, null)
-      node_count          = number
-      vm_size             = string
-      os_sku              = optional(string, "Ubuntu")
-      os_disk_type        = optional(string, "Managed")
-      max_pods            = optional(number, null)
-      ultra_ssd_enabled   = optional(bool, false)
-      zones               = optional(list(string), [])
-      node_taints         = optional(list(string), [])
-      node_labels         = optional(map(string), {})
-      min_count           = optional(number, null)
-      max_count           = optional(number, null)
+      name                 = string
+      subnet_name          = optional(string, null)
+      node_count           = number
+      vm_size              = string
+      os_sku               = optional(string, "Ubuntu")
+      os_disk_type         = optional(string, "Managed")
+      max_pods             = optional(number, null)
+      ultra_ssd_enabled    = optional(bool, false)
+      zones                = optional(list(string), [])
+      node_taints          = optional(list(string), [])
+      node_labels          = optional(map(string), {})
+      min_count            = optional(number, null)
+      max_count            = optional(number, null)
       auto_scaling_enabled = optional(bool, false)
     }))
     role_assignment_list = optional(list(string), [])
