@@ -45,12 +45,12 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2_l4
-    subscription: b8ceb4e5-f05b-4562-a9f5-14acb1f24219
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
+          subscription: b8ceb4e5-f05b-4562-a9f5-14acb1f24219
           regions:
             - eastus2
           engine: kperf
@@ -77,12 +77,12 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2_l7
-    subscription: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
+          subscription: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
           regions:
             - eastus2
           engine: kperf
