@@ -28,6 +28,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
+    auto_scaling_enabled         = var.aks_config.default_node_pool.auto_scaling_enabled
   }
 
   network_profile {
@@ -50,9 +51,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
     }
   }
 
-  oidc_issuer_enabled       = true
-  workload_identity_enabled = true
-  kubernetes_version        = var.aks_config.kubernetes_version
+  auto_scaler_profile {
+  }
+
+  automatic_upgrade_channel = "patch"
+
+  kubernetes_version = var.aks_config.kubernetes_version
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
@@ -69,6 +73,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
   node_taints           = each.value.node_taints
+  auto_scaling_enabled  = each.value.auto_scaling_enabled
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {

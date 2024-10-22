@@ -1,19 +1,16 @@
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
-  default     = "rg"
 }
 
 variable "location" {
   description = "Value of the location"
   type        = string
-  default     = "East US"
 }
 
 variable "tags" {
-  type = map(string)
-  default = {
-  }
+  description = "Value of the tags for the resources created"
+  type        = map(string)
 }
 
 variable "subnet_id" {
@@ -59,18 +56,20 @@ variable "aks_config" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number, null)
+      auto_scaling_enabled         = optional(bool, true)
     })
     extra_node_pool = list(object({
-      name              = string
-      subnet_name       = optional(string, null)
-      node_count        = number
-      vm_size           = string
-      os_sku            = optional(string, "Ubuntu")
-      os_disk_type      = optional(string, "Managed")
-      max_pods          = optional(number, null)
-      ultra_ssd_enabled = optional(bool, false)
-      zones             = optional(list(string), [])
-      node_taints       = optional(list(string), [])
+      name                 = string
+      subnet_name          = optional(string, null)
+      node_count           = number
+      vm_size              = string
+      os_sku               = optional(string, "Ubuntu")
+      os_disk_type         = optional(string, "Managed")
+      max_pods             = optional(number, null)
+      ultra_ssd_enabled    = optional(bool, false)
+      zones                = optional(list(string), [])
+      node_taints          = optional(list(string), [])
+      auto_scaling_enabled = optional(bool, true)
     }))
     role_assignment_list = optional(list(string), [])
     service_mesh_profile = optional(object({

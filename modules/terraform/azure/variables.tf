@@ -27,13 +27,11 @@ variable "json_input" {
 variable "owner" {
   description = "Owner of the scenario"
   type        = string
-  default     = "azure_devops"
 }
 
 variable "scenario_name" {
   description = "Name of the scenario"
   type        = string
-  default     = ""
 
   validation {
     condition     = length(var.scenario_name) <= 30
@@ -44,7 +42,6 @@ variable "scenario_name" {
 variable "scenario_type" {
   description = "value of the scenario type"
   type        = string
-  default     = ""
 }
 
 variable "deletion_delay" {
@@ -82,18 +79,20 @@ variable "aks_config_list" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
+      auto_scaling_enabled         = optional(bool, true)
     })
     extra_node_pool = list(object({
-      name              = string
-      subnet_name       = optional(string)
-      node_count        = number
-      vm_size           = string
-      os_sku            = optional(string)
-      os_disk_type      = optional(string)
-      max_pods          = optional(number)
-      ultra_ssd_enabled = optional(bool, false)
-      zones             = optional(list(string), [])
-      node_taints       = optional(list(string), [])
+      name                 = string
+      subnet_name          = optional(string)
+      node_count           = number
+      vm_size              = string
+      os_sku               = optional(string)
+      os_disk_type         = optional(string)
+      max_pods             = optional(number)
+      ultra_ssd_enabled    = optional(bool, false)
+      zones                = optional(list(string), [])
+      node_taints          = optional(list(string), [])
+      auto_scaling_enabled = optional(bool, true)
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)

@@ -86,11 +86,12 @@ variable "network_config_list" {
 
 variable "eks_config_list" {
   type = list(object({
-    role             = string
-    eks_name         = string
-    vpc_name         = string
-    policy_arns      = list(string)
-    enable_karpenter = optional(bool, false)
+    role                      = string
+    eks_name                  = string
+    vpc_name                  = string
+    policy_arns               = list(string)
+    enable_karpenter          = optional(bool, false)
+    enable_cluster_autoscaler = optional(bool, false)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string

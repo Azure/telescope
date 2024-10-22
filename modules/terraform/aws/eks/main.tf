@@ -162,3 +162,18 @@ module "karpenter" {
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
+
+
+module "autoscaler" {
+  count = var.eks_config.enable_cluster_autoscaler ? 1 : 0
+
+  source = "./autoscaler"
+
+  cluster_name          = aws_eks_cluster.eks.name
+  region                = var.region
+  tags                  = var.tags
+  cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+  cluster_version       = var.eks_config.kubernetes_version
+
+  depends_on = [aws_eks_node_group.eks_managed_node_groups]
+}

@@ -69,8 +69,9 @@ network_config_list = [
 eks_config_list = [{
   role             = "nap"
   eks_name         = "nap-c4n10p100"
-  enable_karpenter = true
+  enable_cluster_autoscaler = false
   vpc_name         = "nap-vpc"
+	kubernetes_version = "1.30"
   policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
