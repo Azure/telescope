@@ -11,8 +11,10 @@ DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
 CPU_CAPACITY = {
     "aws": 0.94,
-    "aks": 0.87
+    "aks": 0.87,
+    "azure": 0.87,
 }
+# TODO: Remove aks once CL2 update provider name to be azure
 
 def calculate_config(cpu_per_node, node_count, max_pods, provider):
     calculated_throughput = node_count / 10 + 10
@@ -28,7 +30,16 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider):
 
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
-def configure_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods, repeats, operation_timeout, provider, override_file):
+def configure_clusterloader2(
+    cpu_per_node,
+    node_count,
+    node_per_step,
+    max_pods,
+    repeats,
+    operation_timeout,
+    provider,
+    cilium_enabled,
+    override_file):
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider)
 
@@ -41,8 +52,16 @@ def configure_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods, 
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_STEPS: {steps}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
-        file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write(f"CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"")
+        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+
+        print(cilium_enabled)
+        if cilium_enabled:
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 60s\n")
     
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -76,7 +95,7 @@ def collect_clusterloader2(
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
-    provider = cloud_info["cloud"]
+    provider = json.loads(cloud_info)["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
@@ -143,6 +162,8 @@ def main():
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
+    parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
+                                  help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -174,7 +195,7 @@ def main():
 
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                                 args.repeats, args.operation_timeout, args.provider,
+                                 args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)

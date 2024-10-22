@@ -12,11 +12,13 @@ name: deployment-churn
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 {{$namespaces := DivideInt $nodesPerStep $nodesPerNamespace}}
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
-{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+
+{{$totalNodes := MultiplyInt $nodesPerStep $steps}}
+{{$totalPods := MultiplyInt $nodesPerStep $steps $podsPerNode}}
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $deploymentSize $steps)}}
 
 namespace:
   number: {{$namespaces}}
@@ -34,7 +36,7 @@ tuningSets:
       qps: {{$deploymentQPS}}
 
 steps:
-  - name: Log - nodes={{.Nodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - totalNodes={{$totalNodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
     measurements:
     - Identifier: Dummy
       Method: Sleep

@@ -85,7 +85,7 @@ variable "aks_config_list" {
       node_labels                  = optional(map(string), {})
       min_count                    = optional(number, null)
       max_count                    = optional(number, null)
-      enable_auto_scaling          = optional(bool, true)
+      enable_auto_scaling          = optional(bool, false)
     })
     extra_node_pool = list(object({
       name                = string
@@ -101,7 +101,7 @@ variable "aks_config_list" {
       node_labels         = optional(map(string), {})
       min_count           = optional(number, null)
       max_count           = optional(number, null)
-      enable_auto_scaling = optional(bool, true)
+      enable_auto_scaling = optional(bool, false)
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)

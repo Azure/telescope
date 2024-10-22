@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "slo-n100p5000"
-deletion_delay = "12h"
+deletion_delay = "4h"
 owner          = "aks"
 
 aks_config_list = [
