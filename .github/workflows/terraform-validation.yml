@@ -141,9 +141,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create JSON Input
+      - name: Create JSON Input for Azure
+        if: ${{ matrix.cloud == 'azure' }}
         run: |
-          INPUT_JSON_OBJECT=$(jq '. + { "subscription_id" : "${{ secrets.AZURE_SUBSCRIPTION_ID }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+          INPUT_JSON_OBJECT=$(jq '. + { "subscription_id" : "$AZURE_SUBSCRIPTION_ID" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
+          echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create JSON Input for AWS
+        if: ${{ matrix.cloud == 'aws' }}
+        run: |
+          INPUT_JSON_OBJECT=$(jq . ${{ env.TERRAFORM_TEST_INPUT_FILE }})
           INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
           echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
