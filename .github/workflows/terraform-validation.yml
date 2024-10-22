@@ -143,7 +143,7 @@ jobs:
 
       - name: Create JSON Input
         run: |
-          INPUT_JSON_OBJECT=$(jq '. + { "subscription_id" : ${{ secrets.AZURE_SUBSCRIPTION_ID }} }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
+          INPUT_JSON_OBJECT=$(jq '. + { "subscription_id" : "${{ secrets.AZURE_SUBSCRIPTION_ID }}" }' ${{ env.TERRAFORM_TEST_INPUT_FILE }})
           INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
           echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
