@@ -7,10 +7,7 @@
     "region": {
       "type": "string"
     },
-    "aks_sku_tier": {
-      "type": "string"
-    },
-    "aks_network_policy": {
+    "aks_cli_sku_tier": {
       "type": "string"
     },
     "aks_cli_system_node_pool": {

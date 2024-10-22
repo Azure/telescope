@@ -67,6 +67,7 @@ resource "aws_eks_addon" "addon" {
   addon_name               = each.value.name
   addon_version            = each.value.version
   service_account_role_arn = aws_iam_role.addon_role.arn
+  configuration_values     = each.value.configuration_values
 
 
   tags = merge(var.tags, {

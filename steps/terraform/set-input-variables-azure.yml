@@ -42,8 +42,6 @@ steps:
                   run_id: $run_id,
                   region: $region,
                   aks_custom_headers: $aks_custom_headers,
-                  aks_sku_tier: $aks_sku_tier,
-                  aks_network_policy: $aks_network_policy,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
