@@ -1,6 +1,9 @@
 name: Security Scan
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - terraform-security-scan
 
 jobs:
   security-scan:
