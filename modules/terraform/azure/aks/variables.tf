@@ -44,7 +44,7 @@ variable "aks_config" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
-      ebpf_data_plane     = optional(string, null)
+      network_data_plane  = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))
@@ -74,7 +74,8 @@ variable "aks_config" {
     }))
     role_assignment_list = optional(list(string), [])
     service_mesh_profile = optional(object({
-      mode = string
+      mode      = string
+      revisions = list(string)
     }))
     kubernetes_version = optional(string, null)
   })
