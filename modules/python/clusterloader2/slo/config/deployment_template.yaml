@@ -1,17 +1,27 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
 
+{{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{.Name}}
   labels:
     group: {{.Group}}
+{{if .SvcName}}
+    svc: {{.SvcName}}-{{.Index}}
+{{end}}
 spec:
   replicas: {{.Replicas}}
   selector:
     matchLabels:
       name: {{.Name}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 20%
   template:
     metadata:
       labels:
@@ -20,6 +30,7 @@ spec:
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
+        restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
         slo: "true"
@@ -27,7 +38,7 @@ spec:
       - env:
         - name: ENV_VAR
           value: a
-        image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+        image: {{$Image}}
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
         ports:

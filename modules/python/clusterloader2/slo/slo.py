@@ -23,12 +23,14 @@ CPU_CAPACITY = {
 # TODO: Remove aks once CL2 update provider name to be azure
 
 def calculate_config(cpu_per_node, node_count, max_pods, provider):
-    calculated_throughput = node_count / 10 + 10
-    throughput = min(calculated_throughput, 100)
+    # calculated_throughput = node_count / 10 + 10
+    # throughput = min(calculated_throughput, 100)
+    throughput = 100 # TODO Q: Can we standardize with a constant value?
 
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
     max_user_pods = max_pods - DAEMONSETS_PER_NODE[provider]
-    pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
+    # pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
+    pods_per_node = 20 # TODO Q: Better way to calculate this.
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -49,6 +51,7 @@ def configure_clusterloader2(
     operation_timeout,
     provider,
     cilium_enabled,
+    service_test,
     override_file):
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider)
@@ -68,10 +71,14 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
 
         if cilium_enabled:
+            file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 60s\n")
-    
+
+        if service_test:
+            file.write("CL2_SERVICE_TEST: true\n")
+
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
 
@@ -110,7 +117,7 @@ def collect_clusterloader2(
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
-    
+
     _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
     pod_count = nodes_per_namespace * pods_per_node
 
@@ -173,6 +180,8 @@ def main():
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
+    parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether service test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -205,7 +214,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.cl2_override_file)
+                                 args.service_test, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
