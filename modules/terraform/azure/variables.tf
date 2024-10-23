@@ -123,6 +123,8 @@ variable "aks_config_list" {
       network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+      service_cidr        = optional(string, null)
+      dns_service_ip      = optional(string, null)
     }))
     service_mesh_profile = optional(object({
       mode      = string

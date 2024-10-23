@@ -90,7 +90,7 @@ steps:
         Params:
           action: start
           minDesiredNodeCount: {{MultiplyInt $nodesPerNamespace (AddInt $j 1)}}
-          maxDesiredNodeCount: {{AddInt (MultiplyInt $nodesPerNamespace (AddInt $j 1)) 10}}
+          maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: slo = true
           timeout: {{$operationTimeout}}
           refreshInterval: 30s
@@ -100,6 +100,7 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
+          refreshInterval: 15s
   {{end}}
 
   {{range $j := Loop $steps}}
@@ -119,6 +120,7 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
+          refreshInterval: 15s
   {{end}}
 {{end}}
 
