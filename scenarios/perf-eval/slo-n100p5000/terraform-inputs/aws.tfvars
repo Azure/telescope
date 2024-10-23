@@ -100,6 +100,7 @@ eks_config_list = [{
   ]
 
   eks_addons = [
+    { name = "vpc-cni" },
     { name = "kube-proxy" },
     { name = "coredns" }
   ]
