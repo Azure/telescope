@@ -9,7 +9,7 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
 DEFAULT_NODES_PER_NAMESPACE = 100
-CPU_REQUEST_LIMIT = 1
+CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
     "aws": 2,
     "azure": 6,
@@ -36,7 +36,7 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider):
     # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
     capacity = CPU_CAPACITY[provider]
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
-    cpu_request = max(cpu_request, CPU_REQUEST_LIMIT)
+    cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
