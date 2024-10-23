@@ -100,6 +100,13 @@ resource "aws_eks_cluster" "eks" {
   )
 }
 
+resource "aws_ec2_tag" "cluster_security_group" {
+  for_each    = var.tags
+  resource_id = aws_eks_cluster.eks.vpc_config[0].cluster_security_group_id
+  key         = each.key
+  value       = each.value
+}
+
 resource "aws_eks_node_group" "eks_managed_node_groups" {
 
   for_each = local.eks_node_group_map
