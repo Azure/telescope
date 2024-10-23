@@ -7,12 +7,18 @@ from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
-DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
+DEFAULT_NODES_PER_NAMESPACE = 100
+CPU_REQUEST_LIMIT = 1
+DAEMONSETS_PER_NODE = {
+    "aws": 2,
+    "azure": 6,
+    "aks": 6
+}
 CPU_CAPACITY = {
     "aws": 0.94,
-    "aks": 0.87,
     "azure": 0.87,
+    "aks": 0.87
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
@@ -20,13 +26,17 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider):
     calculated_throughput = node_count / 10 + 10
     throughput = min(calculated_throughput, 100)
 
-    nodes_per_namespace = min(node_count, 100)
-    max_user_pods = max_pods - DAEMONSETS_PER_NODE
+    nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
+    max_user_pods = max_pods - DAEMONSETS_PER_NODE[provider]
     pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
 
-    # assuming 90% of the allocatable CPU cores can be used by test pods
+    # Different cloud has different reserved values and number of daemonsets
+    # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
+    # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
+    # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
     capacity = CPU_CAPACITY[provider]
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
+    cpu_request = max(cpu_request, CPU_REQUEST_LIMIT)
 
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
@@ -57,7 +67,6 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
 
-        print(cilium_enabled)
         if cilium_enabled:
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
