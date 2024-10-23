@@ -77,10 +77,11 @@ eks_config_list = [{
       name           = "default"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.4xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
+      min_size       = 0
+      max_size       = 100
+      desired_size   = 0
       capacity_type  = "ON_DEMAND"
+			labels         = { "slo" = "true" }
     },
     {
       name           = "prompool"

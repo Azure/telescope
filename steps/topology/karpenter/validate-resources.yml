@@ -12,11 +12,11 @@ steps:
     role: nap
     region: ${{ parameters.regions[0] }}
 
-# - bash: |
-#     set -euo pipefail
-#     set -x
-#     kubectl apply -f $KARPENTER_NODEPOOL_FILE
-#   env:
-#     CLOUD: ${{ parameters.cloud }}
-#     KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-#   displayName: "Validate Karpenter setup"
+- bash: |
+    set -euo pipefail
+    set -x
+    kubectl apply -f $KARPENTER_NODEPOOL_FILE
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+  displayName: "Validate Karpenter setup"
