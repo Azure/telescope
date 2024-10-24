@@ -184,10 +184,10 @@ module "karpenter" {
 }
 
 
-module "autoscaler" {
+module "cluster_autoscaler" {
   count = var.eks_config.enable_cluster_autoscaler ? 1 : 0
 
-  source = "./autoscaler"
+  source = "./cluster-autoscaler"
 
   cluster_name          = aws_eks_cluster.eks.name
   region                = var.region
