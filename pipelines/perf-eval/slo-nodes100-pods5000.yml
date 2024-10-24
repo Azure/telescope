@@ -23,16 +23,16 @@ stages:
             - us-east-1
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20241022"
           topology: slo
           matrix:
             n100-p5000:
               cpu_per_node: 4
-              node_count: 600
+              node_count: 1000
               node_per_step: 100
               max_pods: 110
               repeats: 1
-              scale_timeout: "45m"
+              scale_timeout: "60m"
               cilium_enabled: False
           max_parallel: 1
           timeout_in_minutes: 600

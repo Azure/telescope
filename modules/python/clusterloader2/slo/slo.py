@@ -141,6 +141,9 @@ def collect_clusterloader2(
 
             if "dataItems" in data:
                 items = data["dataItems"]
+                if not items:
+                    print(f"No data items found in {file_path}")
+                    print(f"Data:\n{data}")
                 for item in items:
                     result = template.copy()
                     result["group"] = group_name
@@ -159,7 +162,7 @@ def collect_clusterloader2(
         f.write(content)
 
 def main():
-    parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
+    parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2
