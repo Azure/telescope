@@ -4,6 +4,20 @@ locals {
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
   karpenter_addons_map = {
     for addon in [
+      { name        = "vpc-cni",
+        policy_arns = ["AmazonEKS_CNI_Policy"],
+        configuration_values = jsonencode({
+          env = {
+            # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
+            # This significantly increases number of pods that can be run per node. (see: https://aws.amazon.com/blogs/containers/amazon-vpc-cni-increases-pods-per-node-limits/)
+            # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
+            ENABLE_PREFIX_DELEGATION = "true"
+            WARM_PREFIX_TARGET       = "1"
+
+            ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
+          }
+        })
+      },
       { name = "kube-proxy" },
       { name = "coredns" }
     ] : addon.name =>

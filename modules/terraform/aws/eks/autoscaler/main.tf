@@ -6,8 +6,8 @@ data "aws_iam_role" "cluster_role" {
   name = var.cluster_iam_role_name
 }
 
-resource "aws_iam_policy" "autoscaler_controller_policy" {
-  name = substr("AutoscalerControllerPolicy-${var.cluster_name}", 0, 60)
+resource "aws_iam_policy" "autoscaler_policy" {
+  name = substr("AutoscalerPolicy-${var.cluster_name}", 0, 60)
   tags = var.tags
   policy = jsonencode({
     Version = "2012-10-17"
@@ -35,8 +35,8 @@ resource "aws_iam_policy" "autoscaler_controller_policy" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "autoscaler_controller_policy_attachments" {
-  policy_arn = aws_iam_policy.autoscaler_controller_policy.arn
+resource "aws_iam_role_policy_attachment" "autoscaler_policy_attachments" {
+  policy_arn = aws_iam_policy.autoscaler_policy.arn
   role       = var.cluster_iam_role_name
 }
 
@@ -65,5 +65,3 @@ resource "terraform_data" "install_autoscaler" {
       EOT
   }
 }
-
-
