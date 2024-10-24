@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "slo-n1000p50000"
-deletion_delay = "6h"
+deletion_delay = "12h"
 owner          = "aks"
 
 network_config_list = [

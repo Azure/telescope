@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */6 * * *"
-    displayName: "Every 6 Hour"
+  - cron: "0 */12 * * *"
+    displayName: "Every 12 Hour"
     branches:
       include:
         - main
@@ -35,41 +35,41 @@ stages:
               scale_timeout: "60m"
               cilium_enabled: False
           max_parallel: 1
-          timeout_in_minutes: 600
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-  # - stage: azure_eastus2
-  #   dependsOn: []
-  #   jobs:
-  #     - template: /jobs/competitive-test.yml
-  #       parameters:
-  #         cloud: azure
-  #         regions:
-  #           - eastus2
-  #         engine: clusterloader2
-  #         engine_input:
-  #           image: "ghcr.io/azure/clusterloader2:v20241016"
-  #         topology: slo
-  #         matrix:
-  #           azure_cni:
-  #             cpu_per_node: 4
-  #             node_count: 100
-  #             node_per_step: 10
-  #             max_pods: 110
-  #             repeats: 1
-  #             scale_timeout: "30m"
-  #             cilium_enabled: False
-  #           azure_cilium:
-  #             cpu_per_node: 4
-  #             node_count: 100
-  #             node_per_step: 10
-  #             max_pods: 110
-  #             repeats: 1
-  #             scale_timeout: "30m"
-  #             cilium_enabled: True
-  #             network_policy: cilium
-  #             network_dataplane: cilium
-  #         max_parallel: 2
-  #         timeout_in_minutes: 360
-  #         credential_type: service_connection
-  #         ssh_key_enabled: false
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: slo
+          matrix:
+            azure_cni:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 100
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "60m"
+              cilium_enabled: False
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 100
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "60m"
+              cilium_enabled: True
+              network_policy: cilium
+              network_dataplane: cilium
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

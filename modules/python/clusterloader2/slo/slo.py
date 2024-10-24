@@ -111,8 +111,8 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
-    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
-    pod_count = nodes_per_namespace * pods_per_node
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
+    pod_count = node_count * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
