@@ -66,12 +66,12 @@ module "public_ips" {
 module "virtual_network" {
   for_each = local.network_config_map
 
-  source                 = "./network"
-  network_config         = each.value
-  resource_group_name    = local.run_id
-  location               = local.region
-  public_ips             = module.public_ips.pip_ids
-  tags                   = local.tags
+  source              = "./network"
+  network_config      = each.value
+  resource_group_name = local.run_id
+  location            = local.region
+  public_ips          = module.public_ips.pip_ids
+  tags                = local.tags
 }
 
 module "aks" {
