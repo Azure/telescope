@@ -5,8 +5,6 @@ variable "run_id" {
 
 variable "tags" {
   type = map(string)
-  default = {
-  }
 }
 variable "vpc_id" {
   description = "The vpc ID"
@@ -17,7 +15,6 @@ variable "vpc_id" {
 variable "region" {
   description = "value of the region"
   type        = string
-  default     = "us-east-2"
 }
 
 variable "eks_config" {
