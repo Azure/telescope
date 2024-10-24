@@ -90,5 +90,5 @@ eks_config_list = [{
       ]
     }
   ]
-  eks_addons = [{ name = "vpc-cni" }]
+  eks_addons = []
 }]
