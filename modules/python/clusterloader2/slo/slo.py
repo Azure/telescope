@@ -7,29 +7,73 @@ from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
-DAEMONSETS_PER_NODE = 6
 DEFAULT_PODS_PER_NODE = 50
+DEFAULT_NODES_PER_NAMESPACE = 100
+CPU_REQUEST_LIMIT_MILLI = 1
+DAEMONSETS_PER_NODE = {
+    "aws": 2,
+    "azure": 6,
+    "aks": 6
+}
+CPU_CAPACITY = {
+    "aws": 0.94,
+    "azure": 0.87,
+    "aks": 0.87
+}
+# TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(node_count, max_pods):
+def calculate_config(cpu_per_node, node_count, max_pods, provider):
     calculated_throughput = node_count / 10 + 10
     throughput = min(calculated_throughput, 100)
 
-    nodes_per_namespace = max(node_count, 100)
-    max_user_pods = max_pods - DAEMONSETS_PER_NODE
+    nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
+    max_user_pods = max_pods - DAEMONSETS_PER_NODE[provider]
     pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
 
-    return throughput, nodes_per_namespace, pods_per_node
+    # Different cloud has different reserved values and number of daemonsets
+    # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
+    # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
+    # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
+    capacity = CPU_CAPACITY[provider]
+    cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
+    cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
-def configure_clusterloader2(node_count, max_pods, repeats, override_file):
-    throughput, nodes_per_namespace, pods_per_node = calculate_config(node_count, max_pods)
-    print(f"Throughput: {throughput}, nodes per namespace: {nodes_per_namespace}, pods per node: {pods_per_node}")
+    return throughput, nodes_per_namespace, pods_per_node, cpu_request
+
+def configure_clusterloader2(
+    cpu_per_node,
+    node_count,
+    node_per_step,
+    max_pods,
+    repeats,
+    operation_timeout,
+    provider,
+    cilium_enabled,
+    override_file):
+    steps = node_count // node_per_step
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
+        file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
+        file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
-        file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write(f"CL2_STEPS: {steps}\n")
+        file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
+        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+
+        if cilium_enabled:
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 60s\n")
+    
+    with open(override_file, 'r') as file:
+        print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
 
@@ -47,6 +91,7 @@ def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True)
 
 def collect_clusterloader2(
+    cpu_per_node,
     node_count,
     max_pods,
     repeats,
@@ -59,17 +104,19 @@ def collect_clusterloader2(
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
+    provider = json.loads(cloud_info)["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
-    _, nodes_per_namespace, pods_per_node = calculate_config(node_count, max_pods)
+    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
     pod_count = nodes_per_namespace * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "cpu_per_node": cpu_per_node,
         "node_count": node_count,
         "pod_count": pod_count,
         "churn_rate": repeats,
@@ -117,9 +164,15 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
+    parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
+    parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
     parser_configure.add_argument("max_pods", type=int, help="Maximum number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
+    parser_configure.add_argument("provider", type=str, help="Cloud provider name")
+    parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
+                                  help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -137,6 +190,7 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
+    parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Maximum number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
@@ -149,13 +203,18 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_override_file)
+        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
+                                 args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
+                                 args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir,
+                               args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
+                               args.cl2_report_dir, args.cloud_info,
+                               args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()

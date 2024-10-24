@@ -22,9 +22,6 @@ parameters:
 
 steps:
 - script: |
-    git checkout $(SCENARIO_VERSION)
-  displayName: "Checkout Scenario Version"
-- script: |
     if [ -n "$RUN_ID" ]; then
       run_id=$RUN_ID
     else

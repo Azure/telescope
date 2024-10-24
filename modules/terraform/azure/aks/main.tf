@@ -28,13 +28,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
+    node_labels                  = var.aks_config.default_node_pool.node_labels
   }
 
   network_profile {
     network_plugin      = var.aks_config.network_profile.network_plugin
     network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
     network_policy      = var.aks_config.network_profile.network_policy
-    ebpf_data_plane     = var.aks_config.network_profile.ebpf_data_plane
+    network_data_plane  = var.aks_config.network_profile.network_dataplane
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
   }
@@ -45,7 +46,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   dynamic "service_mesh_profile" {
     for_each = try(var.aks_config.service_mesh_profile != null ? [var.aks_config.service_mesh_profile] : [])
     content {
-      mode = service_mesh_profile.value.mode
+      mode      = service_mesh_profile.value.mode
+      revisions = service_mesh_profile.value.revisions
     }
   }
 
@@ -68,6 +70,10 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
   node_taints           = each.value.node_taints
+  node_labels           = each.value.node_labels
+  min_count             = try(each.value.min_count, null)
+  max_count             = try(each.value.max_count, null)
+  auto_scaling_enabled  = try(each.value.auto_scaling_enabled, false)
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {

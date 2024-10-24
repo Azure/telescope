@@ -44,7 +44,7 @@ variable "aks_config" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
-      ebpf_data_plane     = optional(string, null)
+      network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))
@@ -59,22 +59,31 @@ variable "aks_config" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number, null)
+      node_labels                  = optional(map(string), {})
+      min_count                    = optional(number, null)
+      max_count                    = optional(number, null)
+      auto_scaling_enabled         = optional(bool, false)
     })
     extra_node_pool = list(object({
-      name              = string
-      subnet_name       = optional(string, null)
-      node_count        = number
-      vm_size           = string
-      os_sku            = optional(string, "Ubuntu")
-      os_disk_type      = optional(string, "Managed")
-      max_pods          = optional(number, null)
-      ultra_ssd_enabled = optional(bool, false)
-      zones             = optional(list(string), [])
-      node_taints       = optional(list(string), [])
+      name                 = string
+      subnet_name          = optional(string, null)
+      node_count           = number
+      vm_size              = string
+      os_sku               = optional(string, "Ubuntu")
+      os_disk_type         = optional(string, "Managed")
+      max_pods             = optional(number, null)
+      ultra_ssd_enabled    = optional(bool, false)
+      zones                = optional(list(string), [])
+      node_taints          = optional(list(string), [])
+      node_labels          = optional(map(string), {})
+      min_count            = optional(number, null)
+      max_count            = optional(number, null)
+      auto_scaling_enabled = optional(bool, false)
     }))
     role_assignment_list = optional(list(string), [])
     service_mesh_profile = optional(object({
-      mode = string
+      mode      = string
+      revisions = list(string)
     }))
     kubernetes_version = optional(string, null)
   })

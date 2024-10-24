@@ -1,10 +1,12 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id             = string
-    region             = string
-    aks_cli_sku_tier   = optional(string, "standard")
-    aks_custom_headers = optional(list(string), [])
+    run_id                = string
+    region                = string
+    aks_sku_tier          = optional(string, null)
+    aks_network_policy    = optional(string, null)
+    aks_network_dataplane = optional(string, null)
+    aks_custom_headers    = optional(list(string), [])
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -61,12 +63,13 @@ variable "aks_config_list" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
-      ebpf_data_plane     = optional(string, null)
+      network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))
     service_mesh_profile = optional(object({
-      mode = string
+      mode      = string
+      revisions = list(string)
     }))
     sku_tier = string
     default_node_pool = object({
@@ -79,18 +82,26 @@ variable "aks_config_list" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
+      node_labels                  = optional(map(string), {})
+      min_count                    = optional(number, null)
+      max_count                    = optional(number, null)
+      auto_scaling_enabled         = optional(bool, false)
     })
     extra_node_pool = list(object({
-      name              = string
-      subnet_name       = optional(string)
-      node_count        = number
-      vm_size           = string
-      os_sku            = optional(string)
-      os_disk_type      = optional(string)
-      max_pods          = optional(number)
-      ultra_ssd_enabled = optional(bool, false)
-      zones             = optional(list(string), [])
-      node_taints       = optional(list(string), [])
+      name                 = string
+      subnet_name          = optional(string)
+      node_count           = number
+      vm_size              = string
+      os_sku               = optional(string)
+      os_disk_type         = optional(string)
+      max_pods             = optional(number)
+      ultra_ssd_enabled    = optional(bool, false)
+      zones                = optional(list(string), [])
+      node_taints          = optional(list(string), [])
+      node_labels          = optional(map(string), {})
+      min_count            = optional(number, null)
+      max_count            = optional(number, null)
+      auto_scaling_enabled = optional(bool, false)
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)

@@ -1,7 +1,9 @@
 locals {
   region                   = lookup(var.json_input, "region", "East US")
   run_id                   = lookup(var.json_input, "run_id", "123456")
-  aks_cli_sku_tier         = lookup(var.json_input, "aks_cli_sku_tier", "standard")
+  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
+  aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
+  aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
@@ -14,22 +16,35 @@ locals {
     "run_id"            = local.run_id
   }
 
-  aks_config_map = { for aks in var.aks_config_list : aks.role => aks }
-
-  updated_aks_cli_config_list = (length(var.aks_cli_config_list) == 1) ? flatten([
-    for aks in var.aks_cli_config_list : [
+  updated_aks_config_list = length(var.aks_config_list) > 0 ? [
+    for aks in var.aks_config_list : merge(
+      aks,
       {
-        role                          = aks.role
-        aks_name                      = aks.aks_name
-        sku_tier                      = length(local.aks_cli_sku_tier) > 0 ? local.aks_cli_sku_tier : aks.sku_tier
-        aks_custom_headers            = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
-        use_aks_preview_cli_extension = aks.use_aks_preview_cli_extension
-        default_node_pool             = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
-        extra_node_pool               = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
-        optional_parameters           = aks.optional_parameters
+        sku_tier = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        network_profile = merge(
+          aks.network_profile,
+          {
+            network_policy    = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
+            network_dataplane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.network_dataplane
+          }
+        )
       }
-    ]
-  ]) : []
+    )
+  ] : []
+
+  aks_config_map = length(local.updated_aks_config_list) == 0 ? { for aks in var.aks_config_list : aks.role => aks } : { for aks in local.updated_aks_config_list : aks.role => aks }
+
+  updated_aks_cli_config_list = length(var.aks_cli_config_list) > 0 ? [
+    for aks in var.aks_cli_config_list : merge(
+      aks,
+      {
+        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        aks_custom_headers = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
+        default_node_pool  = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
+        extra_node_pool    = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+      }
+    )
+  ] : []
 
   aks_cli_config_map = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 }

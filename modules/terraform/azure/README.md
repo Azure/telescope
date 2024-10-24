@@ -20,7 +20,9 @@ SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=azure
 REGION=eastus2
-SKU_TIER=free
+SKU_TIER=Free
+NETWORK_POLICY=cilium
+NETWORK_DATAPLANE=cilium
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
 SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
@@ -58,13 +60,17 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   INPUT_JSON=$(jq -n \
   --arg run_id $RUN_ID \
   --arg region $REGION \
-  --arg aks_cli_sku_tier "$SKU_TIER" \
+  --arg aks_sku_tier "$SKU_TIER" \
+  --arg aks_network_policy "$NETWORK_POLICY" \
+  --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
   --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
     run_id: $run_id,
     region: $region,
-    aks_cli_sku_tier: $aks_cli_sku_tier,
+    aks_sku_tier: $aks_sku_tier,
+    aks_network_policy: $aks_network_policy,
+    aks_network_dataplane: $aks_network_dataplane,
     aks_cli_system_node_pool: $aks_cli_system_node_pool,
     aks_cli_user_node_pool: $aks_cli_user_node_pool
   }' | jq 'with_entries(select(.value != null and .value != ""))')
