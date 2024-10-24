@@ -2,23 +2,6 @@ locals {
   role               = var.eks_config.role
   eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
-  vpc_cni_addon_map = {
-    "vpc-cni" = {
-      name        = "vpc-cni",
-      policy_arns = ["AmazonEKS_CNI_Policy"],
-      configuration_values = jsonencode({
-        env = {
-          # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
-          # This significantly increases number of pods that can be run per node. (see: https://aws.amazon.com/blogs/containers/amazon-vpc-cni-increases-pods-per-node-limits/)
-          # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
-          ENABLE_PREFIX_DELEGATION = "true"
-          WARM_PREFIX_TARGET       = "1"
-
-          ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
-        }
-      })
-    }
-  }
   karpenter_addons_map = {
     for addon in [
       { name = "kube-proxy" },
@@ -34,7 +17,7 @@ locals {
   }
 
   eks_addons_map         = { for addon in var.eks_config.eks_addons : addon.name => addon }
-  updated_eks_addons_map = merge(local.karpenter_addons_map, local.eks_addons_map, local.vpc_cni_addon_map)
+  updated_eks_addons_map = merge(local.karpenter_addons_map, local.eks_addons_map)
   policy_arns            = var.eks_config.policy_arns
 }
 
@@ -101,6 +84,19 @@ resource "aws_eks_cluster" "eks" {
       "role" = local.role
     }
   )
+}
+
+# Create OIDC Provider
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "oidc_provider" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+  tags            = var.tags
+  depends_on      = [data.tls_certificate.eks]
 }
 
 resource "aws_ec2_tag" "cluster_security_group" {

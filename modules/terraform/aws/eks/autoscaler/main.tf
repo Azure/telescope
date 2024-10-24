@@ -2,8 +2,6 @@ locals {
   autoscaler_image_tag = "v${var.cluster_version}.0"
 }
 
-data "aws_caller_identity" "current" {}
-
 data "aws_iam_role" "cluster_role" {
   name = var.cluster_iam_role_name
 }
@@ -15,7 +13,7 @@ resource "aws_iam_policy" "autoscaler_controller_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "AutoscalingResources"
+        Sid      = "PermitAutoScaling"
         Effect   = "Allow"
         Resource = "*"
         Action = [
