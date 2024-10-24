@@ -67,11 +67,11 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role             = "slo"
-  eks_name         = "slo"
+  role                      = "slo"
+  eks_name                  = "slo"
   enable_cluster_autoscaler = true
-  vpc_name         = "slo-vpc"
-  policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  vpc_name                  = "slo-vpc"
+  policy_arns               = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
       name           = "userpool0"
@@ -81,8 +81,8 @@ eks_config_list = [{
       max_size       = 50
       desired_size   = 0
       capacity_type  = "ON_DEMAND"
-			labels				 = { "slo" = "true" }
-			taints = [
+      labels         = { "slo" = "true" }
+      taints = [
         {
           key    = "slo"
           value  = "true"
@@ -90,7 +90,7 @@ eks_config_list = [{
         }
       ]
     },
-		{
+    {
       name           = "userpool1"
       ami_type       = "AL2_x86_64"
       instance_types = ["m5.xlarge"]
@@ -98,8 +98,8 @@ eks_config_list = [{
       max_size       = 50
       desired_size   = 0
       capacity_type  = "ON_DEMAND"
-			labels				 = { "slo" = "true" }
-			taints = [
+      labels         = { "slo" = "true" }
+      taints = [
         {
           key    = "slo"
           value  = "true"
@@ -117,7 +117,7 @@ eks_config_list = [{
       capacity_type  = "ON_DEMAND"
       labels         = { "prometheus" = "true" }
     },
-		{
+    {
       name           = "default"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.4xlarge"]
@@ -125,7 +125,7 @@ eks_config_list = [{
       max_size       = 5
       desired_size   = 5
       capacity_type  = "ON_DEMAND"
-			labels         = { "autoscaler" = "owned" }
+      labels         = { "autoscaler" = "owned" }
     }
   ]
 

@@ -27,11 +27,13 @@ variable "json_input" {
 variable "owner" {
   description = "Owner of the scenario"
   type        = string
+  default     = "azure_devops"
 }
 
 variable "scenario_name" {
   description = "Name of the scenario"
   type        = string
+  default     = ""
 
   validation {
     condition     = length(var.scenario_name) <= 30
@@ -42,6 +44,7 @@ variable "scenario_name" {
 variable "scenario_type" {
   description = "value of the scenario type"
   type        = string
+  default     = ""
 }
 
 variable "deletion_delay" {

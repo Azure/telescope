@@ -29,7 +29,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
     node_labels                  = var.aks_config.default_node_pool.node_labels
-    auto_scaling_enabled         = var.aks_config.default_node_pool.auto_scaling_enabled
   }
 
   network_profile {
@@ -52,10 +51,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     }
   }
 
-  auto_scaler_profile {
-  }
-
-  automatic_upgrade_channel = "patch"
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
 
   kubernetes_version = var.aks_config.kubernetes_version
 }

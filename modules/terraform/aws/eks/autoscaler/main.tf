@@ -1,8 +1,5 @@
 locals {
-  autoscaler_namespace       = "kube-system"
-  autoscaler_version         = "9.37.0"
-  autoscaler_service_account = "cluster-autoscaler-sa"
-  autoscaler_image_tag       = "v${var.cluster_version}.0"
+  autoscaler_image_tag = "v${var.cluster_version}.0"
 }
 
 data "aws_caller_identity" "current" {}

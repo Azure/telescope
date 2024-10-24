@@ -1,16 +1,20 @@
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
+  default     = "rg"
 }
 
 variable "location" {
   description = "Value of the location"
   type        = string
+  default     = "East US"
 }
 
 variable "tags" {
   description = "Value of the tags for the resources created"
   type        = map(string)
+  default = {
+  }
 }
 
 variable "subnet_id" {
