@@ -51,17 +51,13 @@ resource "terraform_data" "install_autoscaler" {
       #!/bin/bash
       set -e
       aws eks --region ${var.region} update-kubeconfig --name "${var.cluster_name}"
-      # Install autoscaler
-			helm repo add autoscaler https://kubernetes.github.io/autoscaler
-			helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
-				--version "${local.autoscaler_version}" \
-				--namespace "${local.autoscaler_namespace}" \
-				--set "autoDiscovery.clusterName=${var.cluster_name}" \
-				--set "awsRegion=${var.region}" \
-				--set "image.tag=${local.autoscaler_image_tag}" \
-				--wait
+			envsubst  < "${path.module}/autoscaler.yml" | kubectl apply -f -
 
       EOT
+    environment = {
+      IMAGE_TAG    = local.autoscaler_image_tag
+      CLUSTER_NAME = var.cluster_name
+    }
   }
 
   provisioner "local-exec" {
@@ -69,8 +65,10 @@ resource "terraform_data" "install_autoscaler" {
     command = <<EOT
       #!/bin/bash
       set -e
-      helm uninstall cluster-autoscaler --namespace kube-system
+      kubectl delete deployment -n kube-system cluster-autoscaler
 
       EOT
   }
 }
+
+

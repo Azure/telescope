@@ -74,14 +74,38 @@ eks_config_list = [{
   policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "default"
+      name           = "userpool0"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.4xlarge"]
       min_size       = 0
-      max_size       = 100
+      max_size       = 50
       desired_size   = 0
       capacity_type  = "ON_DEMAND"
-			labels         = { "slo" = "true" }
+			labels				 = { "slo" = "true" }
+			taints = [
+        {
+          key    = "slo"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+    },
+		{
+      name           = "userpool1"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.4xlarge"]
+      min_size       = 0
+      max_size       = 50
+      desired_size   = 0
+      capacity_type  = "ON_DEMAND"
+			labels				 = { "slo" = "true" }
+			taints = [
+        {
+          key    = "slo"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
     },
     {
       name           = "prompool"
@@ -92,6 +116,16 @@ eks_config_list = [{
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels         = { "prometheus" = "true" }
+    },
+		{
+      name           = "default"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.4xlarge"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
+      capacity_type  = "ON_DEMAND"
+			labels         = { "autoscaler" = "owned" }
     }
   ]
 
