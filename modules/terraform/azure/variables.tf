@@ -53,6 +53,63 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
+variable "public_ip_config_list" {
+  description = "A list of public IP names"
+  type = list(object({
+    name              = string
+    count             = optional(number, 1)
+    allocation_method = optional(string, "Static")
+    sku               = optional(string, "Standard")
+    zones             = optional(list(string), [])
+  }))
+  default = []
+}
+
+variable "network_config_list" {
+  description = "Configuration for creating the server network."
+  type = list(object({
+    role               = string
+    vnet_name          = string
+    vnet_address_space = string
+    subnet = list(object({
+      name                         = string
+      address_prefix               = string
+      service_endpoints            = optional(list(string))
+      pls_network_policies_enabled = optional(bool)
+      delegations = optional(list(object({
+        name                       = string
+        service_delegation_name    = string
+        service_delegation_actions = list(string)
+      })))
+    }))
+    network_security_group_name = string
+    nic_public_ip_associations = list(object({
+      nic_name              = string
+      subnet_name           = string
+      ip_configuration_name = string
+      public_ip_name        = string
+      count                 = optional(number, 1)
+    }))
+    nsr_rules = list(object({
+      name                       = string
+      priority                   = number
+      direction                  = string
+      access                     = string
+      protocol                   = string
+      source_port_range          = string
+      destination_port_range     = string
+      source_address_prefix      = string
+      destination_address_prefix = string
+    }))
+    nat_gateway_associations = optional(list(object({
+      nat_gateway_name = string
+      public_ip_name   = string
+      subnet_name      = string
+    })))
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
