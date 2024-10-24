@@ -55,6 +55,14 @@ provider "azurerm" {
   features {}
 }
 
+module "public_ips" {
+  source                = "./public-ip"
+  resource_group_name   = local.run_id
+  location              = local.region
+  public_ip_config_list = var.public_ip_config_list
+  tags                  = local.tags
+}
+
 module "virtual_network" {
   for_each = local.network_config_map
 
