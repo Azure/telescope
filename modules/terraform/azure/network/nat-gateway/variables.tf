@@ -1,13 +1,11 @@
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
-  default     = "rg"
 }
 
 variable "location" {
   description = "Value of the location"
   type        = string
-  default     = "East US"
 }
 
 variable "nat_gateway_name" {
@@ -27,6 +25,4 @@ variable "public_ip_address_id" {
 
 variable "tags" {
   type = map(string)
-  default = {
-  }
 }

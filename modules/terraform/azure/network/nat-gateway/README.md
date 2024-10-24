@@ -8,13 +8,11 @@ This module provisions a NAT gateway in Azure. It allows you to create and confi
 
 - **Description:** Name of the resource group where the NAT gateway will be created.
 - **Type:** String
-- **Default:** "rg"
 
 ### `location`
 
 - **Description:** Azure region where the NAT gateway will be deployed.
 - **Type:** String
-- **Default:** "eastus"
 
 ### `nat_gateway_name`
 
@@ -34,7 +32,6 @@ This module provisions a NAT gateway in Azure. It allows you to create and confi
 ### `tags`
 
 - **Type:** Map of strings
-- **Default:** None
 
 ## Usage Example
 

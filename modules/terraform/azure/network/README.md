@@ -9,13 +9,11 @@ This module provisions virtual networks in Azure. It allows you to create and co
 
 - **Description:** Name of the resource group where the virtual network will be created.
 - **Type:** String
-- **Default:** "rg"
 
 ### `location`
 
 - **Description:** Azure region where the virtual network will be deployed.
 - **Type:** String
-- **Default:** "eastus"
 
 ### `public_ips`
 
@@ -51,7 +49,6 @@ This module provisions virtual networks in Azure. It allows you to create and co
 ### `tags`
 
 - **Type:** Map of strings
-- **Default:** None
 
 ## Usage Example
 

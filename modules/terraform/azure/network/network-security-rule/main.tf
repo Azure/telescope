@@ -1,4 +1,3 @@
-
 resource "azurerm_network_security_rule" "nsr" {
   name                        = var.name
   priority                    = var.priority

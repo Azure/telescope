@@ -7,12 +7,12 @@ resource "azurerm_nat_gateway" "nat_gateway" {
   tags = var.tags
 }
 
-resource "azurerm_nat_gateway_public_ip_association" "ipng" {
+resource "azurerm_nat_gateway_public_ip_association" "nat_gateway_ip_association" {
   nat_gateway_id       = azurerm_nat_gateway.nat_gateway.id
   public_ip_address_id = var.public_ip_address_id
 }
 
-resource "azurerm_subnet_nat_gateway_association" "subnetng" {
+resource "azurerm_subnet_nat_gateway_association" "nat_gateway_subnet_association" {
   subnet_id      = var.subnet_id
   nat_gateway_id = azurerm_nat_gateway.nat_gateway.id
 }

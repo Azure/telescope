@@ -1,13 +1,11 @@
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
-  default     = "rg"
 }
 
 variable "location" {
   description = "Value of the location"
   type        = string
-  default     = "East US"
 }
 
 variable "public_ips" {
@@ -64,11 +62,8 @@ variable "network_config" {
   })
 }
 
-
 variable "tags" {
   type = map(string)
-  default = {
-  }
 }
 
 variable "nic_count_override" {

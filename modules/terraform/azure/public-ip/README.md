@@ -8,13 +8,11 @@ This module provisions public IP addresses in Azure. It allows you to create one
 
 - **Description:** Name of the resource group where the public IP address(es) will be created.
 - **Type:** String
-- **Default:** "cle-rg"
 
 ### `location`
 
 - **Description:** Azure region where the public IP address(es) will be deployed.
 - **Type:** String
-- **Default:** "eastus"
 
 ### `public_ip_config_list`
 

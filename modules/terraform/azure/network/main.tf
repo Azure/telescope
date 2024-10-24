@@ -48,7 +48,6 @@ resource "azurerm_subnet" "subnets" {
   }
 }
 
-
 resource "azurerm_network_security_group" "nsg" {
   count               = local.network_security_group_name != "" ? 1 : 0
   name                = local.network_security_group_name
@@ -56,7 +55,6 @@ resource "azurerm_network_security_group" "nsg" {
   resource_group_name = var.resource_group_name
   tags                = local.tags
 }
-
 
 resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
   for_each = local.network_security_group_name != "" ? local.subnets_map : {}
