@@ -16,6 +16,8 @@ locals {
     "run_id"            = local.run_id
   }
 
+  network_config_map = { for network in var.network_config_list : network.role => network }
+
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -51,6 +53,17 @@ locals {
 
 provider "azurerm" {
   features {}
+}
+
+module "virtual_network" {
+  for_each = local.network_config_map
+
+  source                 = "./network"
+  network_config         = each.value
+  resource_group_name    = local.run_id
+  location               = local.region
+  public_ips             = module.public_ips.pip_ids
+  tags                   = local.tags
 }
 
 module "aks" {
