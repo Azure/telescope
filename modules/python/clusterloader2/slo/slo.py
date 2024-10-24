@@ -111,8 +111,8 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
-    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
-    pod_count = nodes_per_namespace * pods_per_node
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
+    pod_count = node_count * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -141,6 +141,9 @@ def collect_clusterloader2(
 
             if "dataItems" in data:
                 items = data["dataItems"]
+                if not items:
+                    print(f"No data items found in {file_path}")
+                    print(f"Data:\n{data}")
                 for item in items:
                     result = template.copy()
                     result["group"] = group_name
@@ -159,7 +162,7 @@ def collect_clusterloader2(
         f.write(content)
 
 def main():
-    parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
+    parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2
