@@ -3,12 +3,29 @@ scenario_name  = "slo-n1000p50000"
 deletion_delay = "6h"
 owner          = "aks"
 
+network_config_list = [
+  {
+    role               = "slo"
+    vnet_name          = "slo-vnet"
+    vnet_address_space = "10.0.0.0/9"
+    subnet = [
+      {
+        name           = "slo-subnet-1"
+        address_prefix = "10.0.0.0/16"
+      }
+    ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
+  }
+]
+
 aks_config_list = [
   {
     role        = "slo"
     aks_name    = "slo"
     dns_prefix  = "slo"
-    subnet_name = "aks-network"
+    subnet_name = "slo-subnet-1"
     sku_tier    = "Standard"
     network_profile = {
       network_plugin      = "azure"
