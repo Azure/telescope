@@ -93,7 +93,7 @@ steps:
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: slo = true
           timeout: {{$operationTimeout}}
-          refreshInterval: 30s
+          refreshInterval: 1m
   - name: Waiting for latency pods to be running
     measurements:
       - Identifier: WaitForRunningLatencyDeployments
