@@ -16,6 +16,9 @@ parameters:
 - name: credential_type
   type: string
   default: 'managed_identity'
+- name: subscription
+  type: string
+  default: $(AZURE_SUBSCRIPTION_ID)
 
 steps:
 - script: |
@@ -86,7 +89,7 @@ steps:
   env:
     REGIONS: ${{ convertToJson(parameters.regions) }}
     CLOUD: ${{ parameters.cloud }}
-    ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+    ARM_SUBSCRIPTION_ID: ${{ parameters.subscription }}
     ${{ if eq(parameters.credential_type, 'managed_identity') }}:
       ARM_USE_MSI: true
       ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
