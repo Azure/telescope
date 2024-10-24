@@ -53,8 +53,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
-
-  kubernetes_version = var.aks_config.kubernetes_version
+  kubernetes_version        = var.aks_config.kubernetes_version
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
