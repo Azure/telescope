@@ -34,11 +34,6 @@ aks_config_list = [
         vm_size    = "Standard_D16s_v3"
       }
     ]
-    optional_parameters = [
-      {
-        name = "edge-zone"
-        value = "losangeles"
-      }
-    ]
+    edge_zone = "losangeles"
   }
 ]

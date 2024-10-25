@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */1 * * *"
-    displayName: "Every 1 Hour"
+  - cron: "0 0 * * *"
+    displayName: "Daily midnight build"
     branches:
       include:
         - users/viananth/ez
