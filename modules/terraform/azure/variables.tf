@@ -103,7 +103,7 @@ variable "network_config_list" {
     }))
     nat_gateway_associations = optional(list(object({
       nat_gateway_name = string
-      public_ip_name   = string
+      public_ip_names  = list(string)
       subnet_name      = string
     })))
   }))

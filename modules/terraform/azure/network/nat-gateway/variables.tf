@@ -18,9 +18,9 @@ variable "subnet_id" {
   type        = string
 }
 
-variable "public_ip_address_id" {
-  description = "Value of the public ip address id"
-  type        = string
+variable "public_ips" {
+  description = "List of public ip address ids"
+  type        = list(string)
 }
 
 variable "tags" {

@@ -101,10 +101,10 @@ module "nat_gateway" {
   source   = "./nat-gateway"
   for_each = local.nat_gateway_associations_map
 
-  nat_gateway_name     = each.value.nat_gateway_name
-  location             = var.location
-  public_ip_address_id = var.public_ips[each.value.public_ip_name]
-  resource_group_name  = var.resource_group_name
-  subnet_id            = local.subnets_map[each.value.subnet_name].id
-  tags                 = local.tags
+  nat_gateway_name    = each.value.nat_gateway_name
+  location            = var.location
+  public_ips          = [for ip in each.value.public_ip_names : var.public_ips[ip]]
+  resource_group_name = var.resource_group_name
+  subnet_id           = local.subnets_map[each.value.subnet_name].id
+  tags                = local.tags
 }

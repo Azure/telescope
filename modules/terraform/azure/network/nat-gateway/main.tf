@@ -8,8 +8,9 @@ resource "azurerm_nat_gateway" "nat_gateway" {
 }
 
 resource "azurerm_nat_gateway_public_ip_association" "nat_gateway_ip_association" {
+  for_each             = var.public_ips
   nat_gateway_id       = azurerm_nat_gateway.nat_gateway.id
-  public_ip_address_id = var.public_ip_address_id
+  public_ip_address_id = each.value
 }
 
 resource "azurerm_subnet_nat_gateway_association" "nat_gateway_subnet_association" {
