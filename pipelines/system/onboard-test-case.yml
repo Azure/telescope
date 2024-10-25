@@ -1,0 +1,48 @@
+name: Onboard Test Case
+trigger: none
+
+pool:
+  name: '1ES-Telescope-Ubuntu-EastUS'
+
+variables:
+  BRANCH_NAME: $(TEST_BRANCH_NAME)
+  SCENARIO_TYPE: $(TEST_SCENARIO_TYPE)
+  SCENARIO_NAME: $(TEST_SCENARIO_NAME)
+  TOPOLOGY_NAME: $(TEST_TOPOLOGY_NAME)
+  ENGINE_NAME: $(TEST_ENGINE_NAME)
+  CREDENTIAL_TYPE: $(TEST_CREDENTIAL_TYPE)
+  PYTHON_PATH: '$(System.DefaultWorkingDirectory)/modules/python/templates'
+
+jobs:
+  - job: createTestScenarioFiles
+    steps:
+      - checkout: self
+        persistCredentials: true
+        fetchDepth: 0
+      - script: |
+          git checkout -b $BRANCH_NAME
+        displayName: 'Create new branch'
+      - script: |
+          set -eux
+          cd $(PYTHON_PATH)
+          export PIPELINE_NAME=$PIPELINE_NAME
+          export SCENARIO_TYPE=$SCENARIO_TYPE
+          export SCENARIO_NAME=$SCENARIO_NAME
+          export ENGINE_NAME=$ENGINE_NAME
+          export TOPOLOGY_NAME=$TOPOLOGY_NAME
+          export CREDENTIAL_TYPE=$CREDENTIAL_TYPE
+          export TOPOLOGY_DIRECTORY=$TOPOLOGY_DIRECTORY
+          export ENGINE_DIRECTORY=$ENGINE_DIRECTORY
+
+          python template_generator.py
+        displayName: 'Generate test scenario files'
+        env:
+          PIPELINE_NAME: '$(System.DefaultWorkingDirectory)/pipelines/$(SCENARIO_TYPE)/$(SCENARIO_NAME).yml'
+          TOPOLOGY_DIRECTORY: '$(System.DefaultWorkingDirectory)/steps/topology'
+          ENGINE_DIRECTORY: '$(System.DefaultWorkingDirectory)/steps/engine'
+      - script: |
+          set -eux
+          git add .
+          git commit -m "Add pipeline configuration for scenario: $SCENARIO_NAME"
+          git push origin $BRANCH_NAME
+        displayName: 'Commit and push changes'
