@@ -28,7 +28,7 @@ stages:
           matrix:
             n100-p5000:
               cpu_per_node: 4
-              node_count: 1000
+              node_count: 600
               node_per_step: 100
               max_pods: 110
               repeats: 1

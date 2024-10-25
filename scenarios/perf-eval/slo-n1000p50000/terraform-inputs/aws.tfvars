@@ -11,26 +11,20 @@ network_config_list = [
     subnet = [
       {
         name                    = "slo-subnet-1"
-        cidr_block              = "10.0.0.0/18"
+        cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "slo-subnet-2"
-        cidr_block              = "10.0.64.0/18"
+        cidr_block              = "10.0.64.0/19"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       },
       {
         name                    = "slo-subnet-3"
-        cidr_block              = "10.0.128.0/18"
+        cidr_block              = "10.0.96.0/19"
         zone_suffix             = "c"
-        map_public_ip_on_launch = true
-      },
-      {
-        name                    = "slo-subnet-4"
-        cidr_block              = "10.0.192.0/18"
-        zone_suffix             = "a"
         map_public_ip_on_launch = true
       }
     ]
@@ -55,11 +49,6 @@ network_config_list = [
       {
         name             = "slo-subnet-rt-assoc-3"
         subnet_name      = "slo-subnet-3"
-        route_table_name = "internet-rt"
-      },
-      {
-        name             = "slo-subnet-rt-assoc-4"
-        subnet_name      = "slo-subnet-4"
         route_table_name = "internet-rt"
       }
     ]
