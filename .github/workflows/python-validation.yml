@@ -1,28 +1,97 @@
-name: Python Validation
+# name: Python Validation
+
+# on:
+#   pull_request:
+#     paths:
+#       - 'modules/python/**'
+
+# env:
+#   PYTHON_MODULES_DIR: modules/python
+# jobs:
+#   python-validation:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
+
+#       - name: Setup Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.10'
+
+#       - name: Python Version Check
+#         run: python --version
+
+#       - name: Run Python Unit Tests
+#         working-directory: ${{ env.PYTHON_MODULES_DIR }}
+#         run: python -m unittest discover
+
+name: Create Scenario Pipeline
 
 on:
-  pull_request:
-    paths:
-      - 'modules/python/**'
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch name to onboard the scenario'
+        required: true
+      scenario_name:
+        description: 'Name of the scenario'
+        required: true
+      scenario_type:
+        type: choice
+        description: 'Type of scenario'
+        required: true
+        options:
+          - perf-eval
+      topology_name:
+        description: 'Name of the topology'
+        required: true
+      engine_name:
+        description: 'Name of the engine'
+        required: true
+      credential_type:
+        description: 'Type of credential'
+        required: false
+        default: 'service_connection'
+        type: choice
+        options:
+          - managed_identity
+          - service_connection
 
-env:
-  PYTHON_MODULES_DIR: modules/python
 jobs:
-  python-validation:
+  create_pipeline_file:
     runs-on: ubuntu-latest
+    env:
+      PYTHON_PATH: ${{ github.workspace }}/modules/python/templates
+      SCENARIO_TYPE: ${{ github.event.inputs.scenario_type }}
+      SCENARIO_NAME: ${{ github.event.inputs.scenario_name }}
+      ENGINE_NAME: ${{ github.event.inputs.engine_name }}
+      TOPOLOGY_NAME: ${{ github.event.inputs.topology_name }}
+      PIPELINE_NAME: pipelines/${{ github.event.inputs.scenario_type }}/$(echo ${{ github.event.inputs.scenario_name }} | tr '[:upper:]' '[:lower:]').yml
+      TOPOLOGY_DIRECTORY: steps/topology/${{ github.event.inputs.topology_name }}
+      ENGINE_DIRECTORY: steps/engine/${{ github.event.inputs.engine_name }}
+      CREDENTIAL_TYPE: ${{ github.event.inputs.credential_type }}
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Checkout the repository
+        uses: actions/checkout@v2
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          python-version: '3.10'
+          python-version: '3.x'
 
-      - name: Python Version Check
-        run: python --version
+      - name: Create new branch
+        run: |
+          git checkout -b ${{ github.event.inputs.branch_name }}
+      - name: Generate pipeline file
+        working-directory: ${{ env.PYTHON_PATH }}
+        run: |
+          python template_generator.py
 
-      - name: Run Python Unit Tests
-        working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: python -m unittest discover
+      - name: Commit and push changes
+        run: |
+          git add .
+          git commit -m "Add pipeline configuration for scenario: ${{ github.event.inputs.scenario_name }}"
+          git push origin ${{ github.event.inputs.branch_name }}
