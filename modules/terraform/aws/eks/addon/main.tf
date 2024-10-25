@@ -3,17 +3,8 @@ locals {
   service_account_map = { for addon in var.eks_addon_config_map : addon.name => addon.service_account if addon.service_account != null }
 }
 
-# Create OIDC Provider
-data "tls_certificate" "eks" {
+data "aws_iam_openid_connect_provider" "oidc_provider" {
   url = var.cluster_oidc_provider_url
-}
-
-resource "aws_iam_openid_connect_provider" "oidc_provider" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-  url             = var.cluster_oidc_provider_url
-  tags            = var.tags
-  depends_on      = [data.tls_certificate.eks]
 }
 
 data "aws_iam_policy_document" "addon_assume_role_policy" {
@@ -23,7 +14,7 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 
     condition {
       test     = "StringLike"
-      variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
+      variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
       values   = ["sts.amazonaws.com"]
     }
 
@@ -31,18 +22,18 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
       for_each = local.service_account_map
       content {
         test     = "StringLike"
-        variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
+        variable = "${replace(data.aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
         values   = ["system:serviceaccount:kube-system:${condition.value}"]
       }
     }
 
     principals {
-      identifiers = [aws_iam_openid_connect_provider.oidc_provider.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.oidc_provider.arn]
       type        = "Federated"
     }
   }
 
-  depends_on = [aws_iam_openid_connect_provider.oidc_provider]
+  depends_on = [data.aws_iam_openid_connect_provider.oidc_provider]
 }
 
 resource "aws_iam_role" "addon_role" {
