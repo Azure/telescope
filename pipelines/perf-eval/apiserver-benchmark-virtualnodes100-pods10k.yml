@@ -47,7 +47,7 @@ stages:
   - stage: azure_eastus2_l4
     dependsOn: []
     variables:
-      AZURE_SUBSCRIPTION_ID: b8ceb4e5-f05b-4562-a9f5-14acb1f24219
+      AZURE_SUBSCRIPTION_ID: $(AKS_LOAD_TEST_SUBSCRIPTION_ID)
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -79,8 +79,6 @@ stages:
           ssh_key_enabled: false
   - stage: azure_eastus2_l7
     dependsOn: []
-    variables:
-      AZURE_SUBSCRIPTION_ID: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
