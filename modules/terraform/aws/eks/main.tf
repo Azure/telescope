@@ -2,19 +2,40 @@ locals {
   role               = var.eks_config.role
   eks_cluster_name   = "${var.eks_config.eks_name}-${var.run_id}"
   eks_node_group_map = { for node_group in var.eks_config.eks_managed_node_groups : node_group.name => node_group }
+
+  eks_config_addons_map = { for addon in var.eks_config.eks_addons : addon.name => addon }
+
   karpenter_addons_map = {
-    for addon in [{ name = "vpc-cni", policy_arns = ["AmazonEKS_CNI_Policy"] }, { name = "kube-proxy" }, { name = "coredns" }] : addon.name =>
-    {
-      name            = addon.name
-      version         = lookup(addon, "version", null)
-      service_account = lookup(addon, "service_account", null)
-      policy_arns     = lookup(addon, "policy_arns", [])
-    }
+    for addon in [
+      { name = "vpc-cni" },
+      { name = "kube-proxy" },
+      { name = "coredns" }
+    ] : addon.name => addon
+    if var.eks_config.enable_karpenter
   }
 
-  eks_addons_map         = { for addon in var.eks_config.eks_addons : addon.name => addon }
-  updated_eks_addons_map = var.eks_config.enable_karpenter ? merge(local.karpenter_addons_map, local.eks_addons_map) : local.eks_addons_map
-  policy_arns            = var.eks_config.policy_arns
+  # Set default VPC-CNI settings if addon is present in the config
+  vpc_cni_addon_map = contains(keys(local.karpenter_addons_map), "vpc-cni") || contains(keys(local.eks_config_addons_map), "vpc-cni") ? {
+    "vpc-cni" = {
+      name        = "vpc-cni",
+      policy_arns = ["AmazonEKS_CNI_Policy"],
+      configuration_values = jsonencode({
+        env = {
+          # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
+          # This significantly increases number of pods that can be run per node. (see: https://aws.amazon.com/blogs/containers/amazon-vpc-cni-increases-pods-per-node-limits/)
+          # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
+          ENABLE_PREFIX_DELEGATION = "true"
+          WARM_PREFIX_TARGET       = "1"
+
+          ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
+        }
+      })
+    }
+  } : {}
+
+  eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
+
+  policy_arns = var.eks_config.policy_arns
 }
 
 data "aws_subnets" "subnets" {
@@ -78,6 +99,13 @@ resource "aws_eks_cluster" "eks" {
   }
 }
 
+resource "aws_ec2_tag" "cluster_security_group" {
+  for_each    = var.tags
+  resource_id = aws_eks_cluster.eks.vpc_config[0].cluster_security_group_id
+  key         = each.key
+  value       = each.value
+}
+
 resource "aws_eks_node_group" "eks_managed_node_groups" {
 
   for_each = local.eks_node_group_map
@@ -119,9 +147,9 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
 module "eks_addon" {
   source = "./addon"
 
-  count = length(local.updated_eks_addons_map) != 0 ? 1 : 0
+  count = length(local.eks_addons_map) != 0 ? 1 : 0
 
-  eks_addon_config_map      = local.updated_eks_addons_map
+  eks_addon_config_map      = local.eks_addons_map
   cluster_name              = aws_eks_cluster.eks.name
   cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
   depends_on                = [aws_eks_node_group.eks_managed_node_groups]

@@ -1,19 +1,24 @@
 name: deployment-churn
 
+{{$nodesPerStep := DefaultParam .CL2_NODES_PER_STEP 100}}
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
-{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 10}}
+{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$steps := DefaultParam .CL2_STEPS 5}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
-{{$namespaces := DivideInt .Nodes $nodesPerNamespace}}
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
-{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
+{{$namespaces := DivideInt $nodesPerStep $nodesPerNamespace}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+
+{{$totalNodes := MultiplyInt $nodesPerStep $steps}}
+{{$totalPods := MultiplyInt $nodesPerStep $steps $podsPerNode}}
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $deploymentSize $steps)}}
 
 namespace:
   number: {{$namespaces}}
@@ -31,7 +36,7 @@ tuningSets:
       qps: {{$deploymentQPS}}
 
 steps:
-  - name: Log - nodes={{.Nodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - totalNodes={{$totalNodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -47,6 +52,10 @@ steps:
           action: start
           labelSelector: group = deployment-churn
           threshold: {{$podStartupLatencyThreshold}}
+      - Identifier: APIResponsivenessPrometheusSimple
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: start
       - Identifier: WaitForRunningLatencyDeployments
         Method: WaitForControlledPodsRunning
         Params:
@@ -55,14 +64,11 @@ steps:
           apiVersion: apps/v1
           kind: Deployment
           labelSelector: group = deployment-churn
-          operationTimeout: 15m
-      - Identifier: APIResponsivenessPrometheusSimple
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: start
+          operationTimeout: {{$operationTimeout}}
 
-  {{range $i := Loop $repeats}}
-  - name: Creating Deployments
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
+  - name: Creating Deployments {{$j}}
     phases:
       - namespaceRange:
           min: 1
@@ -70,22 +76,34 @@ steps:
         replicasPerNamespace: {{$deploymentsPerNamespace}}
         tuningSet: DeploymentCreateQps
         objectBundle:
-          - basename: deployment-churn
+          - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
             templateFillMap:
               Replicas: {{$deploymentSize}}
               Group: deployment-churn
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
-
+  - name: Wait for nodes to be ready
+    measurements:
+      - Identifier: ConfirmNodeCount
+        Method: WaitForNodes
+        Params:
+          action: start
+          minDesiredNodeCount: {{MultiplyInt $nodesPerNamespace (AddInt $j 1)}}
+          maxDesiredNodeCount: {{AddInt (MultiplyInt $nodesPerNamespace (AddInt $j 1)) 10}}
+          labelSelector: slo = true
+          timeout: {{$operationTimeout}}
+          refreshInterval: 30s
   - name: Waiting for latency pods to be running
     measurements:
       - Identifier: WaitForRunningLatencyDeployments
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
+  {{end}}
 
-  - name: Deleting Deployments
+  {{range $j := Loop $steps}}
+  - name: Deleting Deployments {{$j}}
     phases:
       - namespaceRange:
           min: 1
@@ -93,9 +111,8 @@ steps:
         replicasPerNamespace: 0
         tuningSet: DeploymentDeleteQps
         objectBundle:
-          - basename: deployment-churn
+          - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
-
   - name: Waiting for latency pods to be deleted
     measurements:
       - Identifier: WaitForRunningLatencyDeployments
@@ -103,6 +120,7 @@ steps:
         Params:
           action: gather
   {{end}}
+{{end}}
 
   - name: Collecting measurements
     measurements:

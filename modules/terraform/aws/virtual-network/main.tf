@@ -32,32 +32,6 @@ resource "aws_subnet" "subnets" {
   tags = merge(local.tags, {
     "Name" = each.value.name
   })
-
-  provisioner "local-exec" {
-    /*
-      This command cleans up any not in use ENIs attached to this subnet, which were created outside the scope of the Terraform modules.
-      This is a workaround for the known VPC CNI addon's "leaked ENIs" issue: See https://github.com/aws/amazon-vpc-cni-k8s/issues/608
-    */
-    when    = destroy
-    command = <<-EOT
-      echo "Detaching Subnet: ${self.id} Network Interfaces"
-      # Get available (not in use) ENIs attached to this subnet
-      network_interfaces_attachment_ids=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=${self.id} --query "NetworkInterfaces[?Status=='available' && Attachment.AttachIndex != '0'].Attachment.AttachmentId" --output text)
-      for network_interface_attachment_id in $network_interfaces_attachment_ids; do
-        echo "Detaching available Network Interface attachment id: $network_interface_attachment_id"
-        if ! aws ec2 detach-network-interface --attachment-id $network_interface_attachment_id; then
-          echo "##[warning] Failed to detach Network Interface attachment id: $network_interface_attachment_id"
-        fi
-      done
-      network_interfaces=$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=${self.id} --query "NetworkInterfaces[?Status=='available' && Attachment.AttachIndex != '0'].NetworkInterfaceId" --output text)
-      for network_interface in $network_interfaces; do
-        echo "Deleting available Network Interface: $network_interface"
-        if ! aws ec2 delete-network-interface --network-interface-id $network_interface; then
-          echo "##[warning] Failed to delete Network Interface: $network_interface"
-        fi
-      done
-    EOT
-  }
 }
 
 resource "aws_eip" "eips" {

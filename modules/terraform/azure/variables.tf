@@ -1,10 +1,12 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id             = string
-    region             = string
-    aks_cli_sku_tier   = optional(string, "standard")
-    aks_custom_headers = optional(list(string), [])
+    run_id                = string
+    region                = string
+    aks_sku_tier          = optional(string, null)
+    aks_network_policy    = optional(string, null)
+    aks_network_dataplane = optional(string, null)
+    aks_custom_headers    = optional(list(string), [])
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -51,6 +53,63 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
+variable "public_ip_config_list" {
+  description = "A list of public IP names"
+  type = list(object({
+    name              = string
+    count             = optional(number, 1)
+    allocation_method = optional(string, "Static")
+    sku               = optional(string, "Standard")
+    zones             = optional(list(string), [])
+  }))
+  default = []
+}
+
+variable "network_config_list" {
+  description = "Configuration for creating the server network."
+  type = list(object({
+    role               = string
+    vnet_name          = string
+    vnet_address_space = string
+    subnet = list(object({
+      name                         = string
+      address_prefix               = string
+      service_endpoints            = optional(list(string))
+      pls_network_policies_enabled = optional(bool)
+      delegations = optional(list(object({
+        name                       = string
+        service_delegation_name    = string
+        service_delegation_actions = list(string)
+      })))
+    }))
+    network_security_group_name = string
+    nic_public_ip_associations = list(object({
+      nic_name              = string
+      subnet_name           = string
+      ip_configuration_name = string
+      public_ip_name        = string
+      count                 = optional(number, 1)
+    }))
+    nsr_rules = list(object({
+      name                       = string
+      priority                   = number
+      direction                  = string
+      access                     = string
+      protocol                   = string
+      source_port_range          = string
+      destination_port_range     = string
+      source_address_prefix      = string
+      destination_address_prefix = string
+    }))
+    nat_gateway_associations = optional(list(object({
+      nat_gateway_name = string
+      public_ip_name   = string
+      subnet_name      = string
+    })))
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -61,12 +120,13 @@ variable "aks_config_list" {
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
-      ebpf_data_plane     = optional(string, null)
+      network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
     }))
     service_mesh_profile = optional(object({
-      mode = string
+      mode      = string
+      revisions = list(string)
     }))
     sku_tier = string
     default_node_pool = object({
@@ -79,18 +139,26 @@ variable "aks_config_list" {
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
+      node_labels                  = optional(map(string), {})
+      min_count                    = optional(number, null)
+      max_count                    = optional(number, null)
+      auto_scaling_enabled         = optional(bool, false)
     })
     extra_node_pool = list(object({
-      name              = string
-      subnet_name       = optional(string)
-      node_count        = number
-      vm_size           = string
-      os_sku            = optional(string)
-      os_disk_type      = optional(string)
-      max_pods          = optional(number)
-      ultra_ssd_enabled = optional(bool, false)
-      zones             = optional(list(string), [])
-      node_taints       = optional(list(string), [])
+      name                 = string
+      subnet_name          = optional(string)
+      node_count           = number
+      vm_size              = string
+      os_sku               = optional(string)
+      os_disk_type         = optional(string)
+      max_pods             = optional(number)
+      ultra_ssd_enabled    = optional(bool, false)
+      zones                = optional(list(string), [])
+      node_taints          = optional(list(string), [])
+      node_labels          = optional(map(string), {})
+      min_count            = optional(number, null)
+      max_count            = optional(number, null)
+      auto_scaling_enabled = optional(bool, false)
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)

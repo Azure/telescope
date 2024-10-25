@@ -20,16 +20,6 @@ locals {
   all_vpcs           = { for network in var.network_config_list : network.vpc_name => module.virtual_network[network.role].vpc }
 }
 
-terraform {
-  required_version = ">=1.5.6"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "<= 5.38"
-    }
-  }
-}
-
 provider "aws" {
   region = local.region
   default_tags {
