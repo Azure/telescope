@@ -39,6 +39,8 @@ jobs:
           ENGINE_DIRECTORY: '$(System.DefaultWorkingDirectory)/steps/engine'
       - script: |
           set -eux
+          git config user.email "Pipeline@test.com"
+          git config user.name "Pipeline Automation"
           git add .
           git commit -m "Add pipeline configuration for scenario: $SCENARIO_NAME"
           git push origin $BRANCH_NAME
