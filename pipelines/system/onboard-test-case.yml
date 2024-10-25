@@ -1,9 +1,6 @@
 name: Onboard Test Case
 trigger: none
 
-pool:
-  name: '1ES-Telescope-Ubuntu-EastUS'
-
 variables:
   BRANCH_NAME: $(TEST_BRANCH_NAME)
   SCENARIO_TYPE: $(TEST_SCENARIO_TYPE)
