@@ -3,4 +3,5 @@ steps:
     kubectl delete --all nodeclaim --ignore-not-found
     kubectl delete --all nodepool --ignore-not-found
   displayName: "Delete NodeClaim and NodePool"
+  timeoutInMinutes: 30
   condition: always()
