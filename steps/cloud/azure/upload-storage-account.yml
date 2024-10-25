@@ -5,6 +5,7 @@ parameters:
   container_name: $(SCENARIO_TYPE)
   credential_type: string
   cloud: string
+  subscription: ''
 
 steps:
 - ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
@@ -12,6 +13,8 @@ steps:
     parameters:
       region: eastus
       credential_type: ${{ parameters.credential_type }}
+      ${{ if ne(parameters.subscription, '') }}:
+        subscription: ${{ parameters.subscription }}
 
 - bash: |
     set -eux
