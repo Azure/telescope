@@ -45,9 +45,6 @@ parameters:
   values:
   - managed_identity
   - service_connection
-- name: subscription
-  type: string
-  default: ''
 - name: ssh_key_enabled
   type: boolean
   default: true
@@ -68,7 +65,6 @@ jobs:
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
-      subscription: ${{ parameters.subscription }}
       ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
   - template: /steps/provision-resources.yml
     parameters:
