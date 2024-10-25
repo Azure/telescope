@@ -86,5 +86,6 @@ variable "aks_config" {
       revisions = list(string)
     }))
     kubernetes_version = optional(string, null)
+    edge_zone          = optional(string, null)
   })
 }

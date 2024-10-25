@@ -162,6 +162,7 @@ variable "aks_config_list" {
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)
+    edge_zone            = optional(string, null)
   }))
   default = []
 }
