@@ -2,10 +2,6 @@ locals {
   autoscaler_image_tag = "v${var.cluster_version}.0"
 }
 
-data "aws_iam_role" "cluster_role" {
-  name = var.cluster_iam_role_name
-}
-
 resource "aws_iam_policy" "autoscaler_policy" {
   name = substr("AutoscalerPolicy-${var.cluster_name}", 0, 60)
   tags = var.tags
