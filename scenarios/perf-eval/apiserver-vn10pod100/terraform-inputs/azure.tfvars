@@ -34,5 +34,6 @@ aks_config_list = [
         vm_size    = "Standard_D16s_v3"
       }
     ]
+		edge_zone = "losangeles"
   }
 ]
