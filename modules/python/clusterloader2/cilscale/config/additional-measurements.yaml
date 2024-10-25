@@ -241,3 +241,36 @@ steps:
           query: quantile(0.90, max_over_time(node_memory_working_set_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, max_over_time(node_memory_working_set_bytes[%v:]) / 1024 / 1024)
+    # Identities
+    - Identifier: CiliumEndpoints
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoints
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: max_over_time(apiserver_storage_objects{resource="ciliumendpoints.cilium.io"}[%v])
+    - Identifier: CiliumIdentities
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Identities
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: max_over_time(apiserver_storage_objects{resource="ciliumidentities.cilium.io"}[%v])
+    - Identifier: CiliumIdentitiesAfterGC
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Identities Alive
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: alive
+          query: cilium_operator_identity_gc_entries{status="alive"}
+        - name: deleted
+          query: cilium_operator_identity_gc_entries{status="deleted"}
