@@ -75,7 +75,6 @@ stages:
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
-          credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2_l7
     dependsOn: []
@@ -108,5 +107,4 @@ stages:
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
-          credential_type: service_connection
           ssh_key_enabled: false
