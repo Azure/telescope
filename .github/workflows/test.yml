@@ -1,0 +1,18 @@
+name: Manual Trigger Workflow with username
+#get username information
+on: 
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'select user'
+        default: ''
+        required: true
+        type: string
+
+jobs:
+  print-username:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print the username
+        run: echo The username is ${{ inputs.username }}
