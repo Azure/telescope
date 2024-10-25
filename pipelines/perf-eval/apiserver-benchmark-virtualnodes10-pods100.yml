@@ -67,14 +67,14 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_standard
+  - stage: azure_westus_standard
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus
           engine: kperf
           topology: kperf
           matrix:
