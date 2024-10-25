@@ -1,0 +1,48 @@
+trigger: none
+# schedules:
+#   - cron: "0 */4 * * *"
+#     displayName: "Every 4 Hours"
+#     branches:
+#       include:
+#         - main
+#     always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: onboarding-automation
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: integration
+          topology: onboarding
+          matrix: # Add matrix here
+          engine_input: # Add engine input here
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: integration
+          topology: onboarding
+          matrix: # Add matrix here
+          engine_input: # Add engine input here
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
