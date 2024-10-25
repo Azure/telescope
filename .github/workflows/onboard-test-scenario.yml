@@ -1,6 +1,9 @@
 name: Create Scenario Pipeline
 
 on:
+  push:
+    branches:
+      - onboard-test-scenario-template
   workflow_dispatch:
     inputs:
       branch_name:
