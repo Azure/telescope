@@ -1,0 +1,10 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: region
+  type: string
+
+steps:
+# Add your own steps here to validate the resources created for the test scenario
