@@ -23,6 +23,8 @@ name: deployment-churn
 {{$ENABLE_NETWORKPOLICIES := DefaultParam .CL2_ENABLE_NETWORKPOLICIES false}}
 {{$ADDITIONAL_MEASUREMENT_MODULES := DefaultParam .CL2_ADDITIONAL_MEASUREMENT_MODULES nil}}
 
+{{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
+
 namespace:
   number: {{$namespaces}}
   deleteStaleNamespaces: true
@@ -95,55 +97,45 @@ steps:
   {{end}}
 
   {{range $i := Loop $repeats}}
-  - name: Creating Deployments
-    phases:
-      - namespaceRange:
-          min: 1
-          max: {{$namespaces}}
-        replicasPerNamespace: {{$deploymentsPerNamespace}}
+    - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "create"
+        namespaces: {{$namespaces}}
         tuningSet: DeploymentCreateQps
-        objectBundle:
-          - basename: deployment-churn
-            objectTemplatePath: simple-deployment.yaml
-            templateFillMap:
-              Replicas: {{$deploymentSize}}
-              Group: deployment-churn
-              CpuRequest: {{$latencyPodCpu}}m
-              MemoryRequest: {{$latencyPodMemory}}M
-              Image: {{$latencyPodImage}}
-          {{if $ENABLE_NETWORKPOLICIES}}
-          - basename: deployment-churn
-            objectTemplatePath: networkpolicy.yaml
-          {{end}}
+        operationTimeout: {{$operationTimeout}}
+        deploymentSize: {{$deploymentSize}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: start
 
-  - name: Waiting for latency pods to be running
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "restart"
+        namespaces: {{$namespaces}}
+        tuningSet: Sequence
+        operationTimeout: {{$operationTimeout}}
+        deploymentSize: {{$deploymentSize}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: restart
 
-  - name: Deleting Deployments
-    phases:
-      - namespaceRange:
-          min: 1
-          max: {{$namespaces}}
-        replicasPerNamespace: 0
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "delete"
+        namespaces: {{$namespaces}}
         tuningSet: DeploymentDeleteQps
-        objectBundle:
-          - basename: deployment-churn
-            objectTemplatePath: simple-deployment.yaml
-          {{if $ENABLE_NETWORKPOLICIES}}
-          - basename: deployment-churn
-            objectTemplatePath: networkpolicy.yaml
-          {{end}}
-
-  - name: Waiting for latency pods to be deleted
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
+        operationTimeout: {{$operationTimeout}}
+        deploymentSize: {{$deploymentSize}}
+        deploymentsPerNamespace: 0
+        deploymentLabel: restart
+        Group: {{$groupName}}
   {{end}}
 
   {{if $ADDITIONAL_MEASUREMENT_MODULES}}
