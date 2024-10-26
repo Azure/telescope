@@ -24,6 +24,7 @@ name: deployment-churn
 {{$ADDITIONAL_MEASUREMENT_MODULES := DefaultParam .CL2_ADDITIONAL_MEASUREMENT_MODULES nil}}
 
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 
 namespace:
   number: {{$namespaces}}
