@@ -24,8 +24,10 @@ locals {
           # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
           # This significantly increases number of pods that can be run per node. (see: https://aws.amazon.com/blogs/containers/amazon-vpc-cni-increases-pods-per-node-limits/)
           # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
-          ENABLE_PREFIX_DELEGATION = "true"
-          WARM_PREFIX_TARGET       = "1"
+          # ENABLE_PREFIX_DELEGATION = "true"
+          # WARM_PREFIX_TARGET       = "1"
+          MINIMUM_IP_TARGET = "50"
+          WARM_IP_TARGET    = "2"
 
           ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
         }
