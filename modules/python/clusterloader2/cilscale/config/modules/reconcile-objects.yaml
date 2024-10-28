@@ -40,7 +40,6 @@ steps:
       objectTemplatePath: simple-deployment.yaml
       templateFillMap:
         Replicas: {{$deploymentSize}}
-        #SvcName: big-service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 
