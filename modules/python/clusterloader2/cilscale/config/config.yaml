@@ -100,51 +100,11 @@ steps:
   {{range $i := Loop $repeats}}
     - name: Log - operationTimeout={{$operationTimeout}}, deploymentSize={{$deploymentSize}}, operationTimeout={{$operationTimeout}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}
       measurements:
-      - Identifier: Dummy
+      - Identifier: Dummy2
         Method: Sleep
         Params:
           action: start
           duration: 1ms
-
-    # - module:
-    #   path: /modules/reconcile-objects.yaml
-    #   params:
-    #     actionName: "create"
-    #     namespaces: {{$namespaces}}
-    #     tuningSet: DeploymentCreateQps
-    #     operationTimeout: {{$operationTimeout}}
-    #     deploymentSize: {{$deploymentSize}}
-    #     deploymentsPerNamespace: {{$deploymentsPerNamespace}}
-    #     CpuRequest: {{$latencyPodCpu}}m
-    #     MemoryRequest: {{$latencyPodMemory}}M
-    #     Group: {{$groupName}}
-    #     deploymentLabel: start
-
-    # - module:
-    #   path: /modules/reconcile-objects.yaml
-    #   params:
-    #     actionName: "restart"
-    #     namespaces: {{$namespaces}}
-    #     tuningSet: Sequence
-    #     operationTimeout: {{$operationTimeout}}
-    #     deploymentSize: {{$deploymentSize}}
-    #     deploymentsPerNamespace: {{$deploymentsPerNamespace}}
-    #     CpuRequest: {{$latencyPodCpu}}m
-    #     MemoryRequest: {{$latencyPodMemory}}M
-    #     Group: {{$groupName}}
-    #     deploymentLabel: restart
-
-    # - module:
-    #   path: /modules/reconcile-objects.yaml
-    #   params:
-    #     actionName: "delete"
-    #     namespaces: {{$namespaces}}
-    #     tuningSet: DeploymentDeleteQps
-    #     operationTimeout: {{$operationTimeout}}
-    #     deploymentSize: {{$deploymentSize}}
-    #     deploymentsPerNamespace: 0
-    #     deploymentLabel: restart
-    #     Group: {{$groupName}}
   {{end}}
 
   {{if $ADDITIONAL_MEASUREMENT_MODULES}}
