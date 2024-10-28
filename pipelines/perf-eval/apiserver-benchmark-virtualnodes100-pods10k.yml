@@ -47,7 +47,7 @@ stages:
   - stage: azure_eastus2_l4
     dependsOn: []
     variables:
-      - group: "AKS API Server Load Test"
+      - group: API-Server-L4-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
