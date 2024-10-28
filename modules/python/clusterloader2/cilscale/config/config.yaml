@@ -106,19 +106,19 @@ steps:
           action: start
           duration: 1ms
 
-    - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "create"
-        namespaces: {{$namespaces}}
-        tuningSet: DeploymentCreateQps
-        operationTimeout: {{$operationTimeout}}
-        deploymentSize: {{$deploymentSize}}
-        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: start
+    # - module:
+    #   path: /modules/reconcile-objects.yaml
+    #   params:
+    #     actionName: "create"
+    #     namespaces: {{$namespaces}}
+    #     tuningSet: DeploymentCreateQps
+    #     operationTimeout: {{$operationTimeout}}
+    #     deploymentSize: {{$deploymentSize}}
+    #     deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+    #     CpuRequest: {{$latencyPodCpu}}m
+    #     MemoryRequest: {{$latencyPodMemory}}M
+    #     Group: {{$groupName}}
+    #     deploymentLabel: start
 
     # - module:
     #   path: /modules/reconcile-objects.yaml
