@@ -28,20 +28,20 @@ steps:
       operationTimeout: {{$operationTimeout}}
       apiVersion: apps/v1
 
-# - name: {{$actionName}}
-#   phases:
-#   - namespaceRange:
-#       min: 1
-#       max: {{$namespaces}}
-#     replicasPerNamespace: {{$deploymentsPerNamespace}}
-#     tuningSet: {{$tuningSet}}
-#     objectBundle:
-#     - basename: deployment
-#       objectTemplatePath: simple-deployment.yaml
-#       templateFillMap:
-#         Replicas: {{$deploymentSize}}
-#         Group: {{.Group}}
-#         deploymentLabel: {{.deploymentLabel}}
+- name: {{$actionName}}
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$deploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: deployment
+      objectTemplatePath: simple-deployment.yaml
+      templateFillMap:
+        Replicas: {{$deploymentSize}}
+        Group: {{.Group}}
+        deploymentLabel: {{.deploymentLabel}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
