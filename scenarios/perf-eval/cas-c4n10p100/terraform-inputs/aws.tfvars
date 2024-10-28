@@ -91,14 +91,8 @@ eks_config_list = [{
       max_size       = 10
       desired_size   = 0
       capacity_type  = "ON_DEMAND"
-      labels         = { "cas" = "true" }
-      taints = [
-        {
-          key    = "cas"
-          value  = "true"
-          effect = "NO_SCHEDULE"
-        }
-      ]
+      labels         = { "cas" = "dedicated" }
+      taints = [ ]
     }
   ]
   eks_addons = []

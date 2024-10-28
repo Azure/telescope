@@ -15,7 +15,7 @@ spec:
         app: inflate
     spec:
       nodeSelector:
-        cas: dedicated
+        {{.NodeSelector}}
       containers:
         - name: nginx
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
