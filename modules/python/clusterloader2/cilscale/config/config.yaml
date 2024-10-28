@@ -68,17 +68,8 @@ steps:
         Method: PodStartupLatency
         Params:
           action: start
-          labelSelector: group = deployment-churn
+          labelSelector: group = {{$groupName}}
           threshold: {{$podStartupLatencyThreshold}}
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: start
-          checkIfPodsAreUpdated: true
-          apiVersion: apps/v1
-          kind: Deployment
-          labelSelector: group = deployment-churn
-          operationTimeout: 15m
       - Identifier: SchedulingThroughput
         Method: SchedulingThroughput
         Params:
