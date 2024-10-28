@@ -98,7 +98,7 @@ steps:
   {{end}}
 
   {{range $i := Loop $repeats}}
-    - name: Log - operationTimeout={{$operationTimeout}}, deploymentSize={{$deploymentSize}}, operationTimeout={{$operationTimeout}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}
+    - name: Log
       measurements:
       - Identifier: Dummy2
         Method: Sleep
