@@ -14,12 +14,48 @@ network_config_list = [
         cidr_block              = "10.0.0.0/17"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
+        # cidr_reservation_list = [
+        #   {
+        #     cidr_block       = "10.0.0.0/18"
+        #     reservation_type = "prefix"
+        #   },
+        #   {
+        #     cidr_block       = "10.0.64.0/19"
+        #     reservation_type = "prefix"
+        #   },
+        #   {
+        #     cidr_block       = "10.0.96.0/20"
+        #     reservation_type = "prefix"
+        #   },
+        #   {
+        #     cidr_block       = "10.0.112.0/21"
+        #     reservation_type = "prefix"
+        #   }
+        # ]
       },
       {
         name                    = "slo-subnet-2"
         cidr_block              = "10.0.128.0/17"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
+        # cidr_reservation_list = [
+        #   {
+        #     cidr_block       = "10.0.128.0/18"
+        #     reservation_type = "prefix"
+        #   },
+        #   {
+        #     cidr_block       = "10.0.192.0/19"
+        #     reservation_type = "prefix"
+        #   },
+        #   {
+        #     cidr_block       = "10.0.224.0/20"
+        #     reservation_type = "prefix"
+        #   },
+        #   {
+        #     cidr_block       = "10.0.240.0/21"
+        #     reservation_type = "prefix"
+        #   }
+        # ]
       }
     ]
     security_group_name = "slo-sg"
@@ -83,6 +119,17 @@ eks_config_list = [{
     }
   ]
 
-  eks_addons         = []
+  eks_addons = [
+    {
+      name        = "vpc-cni"
+      policy_arns = ["AmazonEKS_CNI_Policy"]
+      configuration_values = {
+        env = {
+          MINIMUM_IP_TARGET = "50"
+          WARM_IP_TARGET    = "2"
+        }
+      }
+    }
+  ]
   kubernetes_version = "1.30"
 }]

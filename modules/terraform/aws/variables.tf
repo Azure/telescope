@@ -46,6 +46,10 @@ variable "network_config_list" {
       cidr_block              = string
       zone_suffix             = string
       map_public_ip_on_launch = optional(bool, false)
+      cidr_reservation_list = optional(list(object({
+        cidr_block       = string
+        reservation_type = string
+      })), [])
     }))
     security_group_name = string
     route_tables = list(object({
@@ -111,6 +115,9 @@ variable "eks_config_list" {
       version         = optional(string)
       service_account = optional(string)
       policy_arns     = optional(list(string), [])
+      configuration_values = optional(object({
+        env = optional(map(string))
+      }))
     }))
     kubernetes_version = optional(string, null)
   }))

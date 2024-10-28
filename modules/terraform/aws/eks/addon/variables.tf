@@ -21,6 +21,8 @@ variable "eks_addon_config_map" {
     version              = optional(string)
     service_account      = optional(string)
     policy_arns          = optional(list(string), [])
-    configuration_values = optional(string)
+    configuration_values = optional(object({
+      env = optional(map(string))
+    }))
   }))
 }
