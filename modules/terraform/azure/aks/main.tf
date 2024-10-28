@@ -51,9 +51,27 @@ resource "azurerm_kubernetes_cluster" "aks" {
     }
   }
 
-  oidc_issuer_enabled       = true
-  workload_identity_enabled = true
-  kubernetes_version        = var.aks_config.kubernetes_version
+  auto_scaler_profile {
+    balance_similar_node_groups      = var.aks_config.auto_scaler_profile.balance_similar_node_groups
+    expander                         = var.aks_config.auto_scaler_profile.expander
+    max_graceful_termination_sec     = var.aks_config.auto_scaler_profile.max_graceful_termination_sec
+    max_node_provisioning_time       = var.aks_config.auto_scaler_profile.max_node_provisioning_time
+    max_unready_nodes                = var.aks_config.auto_scaler_profile.max_unready_nodes
+    max_unready_percentage           = var.aks_config.auto_scaler_profile.max_unready_percentage
+    new_pod_scale_up_delay           = var.aks_config.auto_scaler_profile.new_pod_scale_up_delay
+    scale_down_delay_after_add       = var.aks_config.auto_scaler_profile.scale_down_delay_after_add
+    scale_down_delay_after_delete    = var.aks_config.auto_scaler_profile.scale_down_delay_after_delete
+    scale_down_delay_after_failure   = var.aks_config.auto_scaler_profile.scale_down_delay_after_failure
+    scan_interval                    = var.aks_config.auto_scaler_profile.scan_interval
+    scale_down_unneeded              = var.aks_config.auto_scaler_profile.scale_down_unneeded
+    scale_down_unready               = var.aks_config.auto_scaler_profile.scale_down_unready
+    scale_down_utilization_threshold = var.aks_config.auto_scaler_profile.scale_down_utilization_threshold
+    empty_bulk_delete_max            = var.aks_config.auto_scaler_profile.empty_bulk_delete_max
+    skip_nodes_with_local_storage    = var.aks_config.auto_scaler_profile.skip_nodes_with_local_storage
+    skip_nodes_with_system_pods      = var.aks_config.auto_scaler_profile.skip_nodes_with_system_pods
+  }
+
+  kubernetes_version = var.aks_config.kubernetes_version
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {

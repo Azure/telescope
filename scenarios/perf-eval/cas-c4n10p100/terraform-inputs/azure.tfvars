@@ -37,5 +37,9 @@ aks_config_list = [
       }
     ]
     kubernetes_version = "1.30"
+		auto_scaler_profile = {
+			scale_down_delay_after_add = "10s"
+			scale_down_unneeded = "0s"
+		}
   }
 ]
