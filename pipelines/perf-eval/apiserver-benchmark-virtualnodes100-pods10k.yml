@@ -79,6 +79,8 @@ stages:
           ssh_key_enabled: false
   - stage: azure_eastus2_l7
     dependsOn: []
+    variables:
+      - group: API-Server-L7-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
