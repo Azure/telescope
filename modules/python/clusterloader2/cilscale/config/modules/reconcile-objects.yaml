@@ -23,7 +23,6 @@ steps:
         kind: Deployment
     Params:
       action: start
-      checkIfPodsAreUpdated: true
       labelSelector: group = {{.Group}}
       operationTimeout: {{$operationTimeout}}
       apiVersion: apps/v1
