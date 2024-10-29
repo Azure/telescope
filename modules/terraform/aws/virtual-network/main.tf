@@ -1,17 +1,8 @@
 locals {
-  ingress_sg_rules_map = var.network_config.sg_rules == null ? {} : { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
-  egress_sg_rules_map  = var.network_config.sg_rules == null ? {} : { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
-  vpc_name             = var.network_config.vpc_name
-  subnet_map           = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  subnet_cidr_reservation_list = flatten([
-    for subnet in var.network_config.subnet : [
-      for cr in subnet.cidr_reservation_list : {
-        subnet_name      = subnet.name
-        cidr_block       = cr.cidr_block
-        reservation_type = cr.reservation_type
-      }
-    ]
-  ])
+  ingress_sg_rules_map         = var.network_config.sg_rules == null ? {} : { for idx, rule in var.network_config.sg_rules.ingress : idx => rule }
+  egress_sg_rules_map          = var.network_config.sg_rules == null ? {} : { for idx, rule in var.network_config.sg_rules.egress : idx => rule }
+  vpc_name                     = var.network_config.vpc_name
+  subnet_map                   = { for subnet in var.network_config.subnet : subnet.name => subnet }
   route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
   route_table_associations_map = var.network_config.route_table_associations == null ? {} : { for rta in var.network_config.route_table_associations : rta.name => rta }
   nat_gateway_public_ips_map   = var.network_config.nat_gateway_public_ips == null ? {} : { for pip in var.network_config.nat_gateway_public_ips : pip.name => pip }
@@ -41,16 +32,6 @@ resource "aws_subnet" "subnets" {
   tags = merge(local.tags, {
     "Name" = each.value.name
   })
-}
-
-resource "aws_ec2_subnet_cidr_reservation" "subnet_cidr_reservation" {
-  for_each = tomap({
-    for subnet in local.subnet_cidr_reservation_list : "${subnet.subnet_name}-${subnet.cidr_block}" => subnet
-  })
-
-  cidr_block       = each.value.cidr_block
-  reservation_type = each.value.reservation_type
-  subnet_id        = aws_subnet.subnets[each.value.subnet_name].id
 }
 
 resource "aws_eip" "eips" {

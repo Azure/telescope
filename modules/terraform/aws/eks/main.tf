@@ -26,8 +26,6 @@ locals {
           # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
           ENABLE_PREFIX_DELEGATION = "true"
           WARM_PREFIX_TARGET       = "1"
-          # MINIMUM_IP_TARGET = "50"
-          # WARM_IP_TARGET    = "2"
 
           ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
         }
