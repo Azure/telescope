@@ -26,7 +26,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241022"
           topology: slo
           matrix:
-            n100-p5000:
+            aws_vpc_cni:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 100
