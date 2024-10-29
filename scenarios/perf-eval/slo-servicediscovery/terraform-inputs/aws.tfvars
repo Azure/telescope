@@ -69,7 +69,7 @@ network_config_list = [
 eks_config_list = [{
   role             = "slo"
   eks_name         = "slo"
-  enable_karpenter = true
+  enable_karpenter = false
   vpc_name         = "slo-vpc"
   policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
@@ -91,6 +91,28 @@ eks_config_list = [{
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels         = { "prometheus" = "true" }
+    },
+    {
+      name           = "userpool0"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.xlarge"]
+      min_size       = 50
+      max_size       = 50
+      desired_size   = 50
+      capacity_type  = "ON_DEMAND"
+      node_taints    = ["slo=true:NoSchedule"]
+      node_labels    = { "slo" = "true" }
+    },
+    {
+      name           = "userpool1"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.xlarge"]
+      min_size       = 50
+      max_size       = 50
+      desired_size   = 50
+      capacity_type  = "ON_DEMAND"
+      node_taints    = ["slo=true:NoSchedule"]
+      node_labels    = { "slo" = "true" }
     }
   ]
 

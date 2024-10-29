@@ -30,7 +30,7 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test)
 
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
     if service_test:
-        nodes_per_namespace = 2 #DEFAULT_NODES_PER_NAMESPACE
+        nodes_per_namespace = 10 #TODO: DEFAULT_NODES_PER_NAMESPACE
 
     max_user_pods = max_pods - DAEMONSETS_PER_NODE[provider]
     pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
@@ -124,11 +124,8 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    # TODO
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test)
     pod_count = node_count * pods_per_node
-    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
-    pod_count = nodes_per_namespace * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),

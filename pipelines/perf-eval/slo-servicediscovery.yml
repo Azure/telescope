@@ -23,10 +23,10 @@ stages:
             - us-east-2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20241022"
           topology: slo
           matrix:
-            aws:
+            aws_vpc_cni:
               cpu_per_node: 4
               node_count: 100
               node_per_step: 100
@@ -37,7 +37,7 @@ stages:
               service_test: True
               cl2_config_file: load-config.yaml
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2
@@ -50,7 +50,7 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20241022"
           topology: slo
           matrix:
             azure_cni:
