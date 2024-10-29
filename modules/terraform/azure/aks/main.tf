@@ -38,6 +38,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_data_plane  = var.aks_config.network_profile.network_dataplane
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
+    service_cidr        = var.aks_config.network_profile.service_cidr
+    dns_service_ip      = var.aks_config.network_profile.dns_service_ip
   }
   identity {
     type = "SystemAssigned"

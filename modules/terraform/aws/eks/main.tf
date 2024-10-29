@@ -19,7 +19,7 @@ locals {
     "vpc-cni" = {
       name        = "vpc-cni",
       policy_arns = ["AmazonEKS_CNI_Policy"],
-      configuration_values = jsonencode({
+      configuration_values = {
         env = {
           # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
           # This significantly increases number of pods that can be run per node. (see: https://aws.amazon.com/blogs/containers/amazon-vpc-cni-increases-pods-per-node-limits/)
@@ -29,11 +29,11 @@ locals {
 
           ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
         }
-      })
+      }
     }
   } : {}
 
-  eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
+  eks_addons_map = merge(local.karpenter_addons_map, local.vpc_cni_addon_map, local.eks_config_addons_map) # note: the order matters (the later takes precedence)
 
   policy_arns = var.eks_config.policy_arns
 }

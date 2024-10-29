@@ -17,10 +17,12 @@ variable "tags" {
 variable "eks_addon_config_map" {
   description = "A map of EKS addons to deploy"
   type = map(object({
-    name                 = string
-    version              = optional(string)
-    service_account      = optional(string)
-    policy_arns          = optional(list(string), [])
-    configuration_values = optional(string)
+    name            = string
+    version         = optional(string)
+    service_account = optional(string)
+    policy_arns     = optional(list(string), [])
+    configuration_values = optional(object({
+      env = optional(map(string))
+    }))
   }))
 }

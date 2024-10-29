@@ -47,6 +47,8 @@ variable "aks_config" {
       network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+      service_cidr        = optional(string, null)
+      dns_service_ip      = optional(string, null)
     }))
     sku_tier = string
     default_node_pool = object({

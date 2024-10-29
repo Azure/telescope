@@ -46,6 +46,7 @@ Set subscription for testing
 
 ```bash
 az account set --subscription <subscriptionId>
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 ```
 
 Create Resource Group for testing
