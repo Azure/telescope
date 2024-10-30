@@ -32,8 +32,7 @@ aks_config_list = [
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
-        node_taints          = ["cas=true:NoSchedule"]
-        node_labels          = { "cas" = "true" }
+        node_labels          = { "cas" = "dedicated" }
       }
     ]
     kubernetes_version = "1.30"
