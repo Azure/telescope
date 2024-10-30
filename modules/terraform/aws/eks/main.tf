@@ -159,7 +159,6 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_eks_cluster.eks,
     aws_iam_role_policy_attachment.policy_attachments
   ]
-
 }
 
 module "eks_addon" {
@@ -186,7 +185,6 @@ module "karpenter" {
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
-
 
 module "cluster_autoscaler" {
   count = var.eks_config.enable_cluster_autoscaler ? 1 : 0
