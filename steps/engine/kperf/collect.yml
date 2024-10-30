@@ -8,6 +8,9 @@ parameters:
 - name: flowcontrol
   type: string
   default: "workload-low:1000"
+- name: extra_benchmark_subcmd_args
+  type: string
+  default: ""
 - name: region
   type: string
 
