@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "slo-n1000p50000"
+scenario_name  = "cilium-cluster-churn-n1000p50k"
 deletion_delay = "12h"
 owner          = "aks"
 
