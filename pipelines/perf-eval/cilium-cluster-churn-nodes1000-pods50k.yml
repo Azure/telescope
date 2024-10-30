@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: slo-n1000p50000
+  SCENARIO_NAME: cilium-cluster-churn-n1000p50k
   SCENARIO_VERSION: main
 
 stages:
