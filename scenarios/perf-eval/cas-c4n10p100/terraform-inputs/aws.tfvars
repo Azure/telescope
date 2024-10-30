@@ -81,7 +81,6 @@ eks_config_list = [{
       max_size       = 5
       desired_size   = 5
       capacity_type  = "ON_DEMAND"
-      labels         = { "autoscaler" = "owned" }
     },
     {
       name           = "userpool"

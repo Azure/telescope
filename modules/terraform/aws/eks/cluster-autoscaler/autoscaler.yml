@@ -133,7 +133,6 @@ spec:
     metadata:
       labels:
         app: cluster-autoscaler
-        autoscaler: owned
       annotations:
         prometheus.io/scrape: 'true'
         prometheus.io/port: '8085'
