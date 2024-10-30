@@ -96,7 +96,7 @@ eks_config_list = [{
     }
   ]
   eks_addons         = []
-  kubernetes_version = "1.30"
+  kubernetes_version = "1.31"
   auto_scaler_profile = {
     scale_down_delay_after_add = "0m"
     scale_down_unneeded        = "0m"
