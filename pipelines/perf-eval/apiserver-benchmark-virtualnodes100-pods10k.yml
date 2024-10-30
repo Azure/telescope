@@ -1,7 +1,7 @@
 trigger: none
 schedules:
   - cron: "0 12 * * *"
-    displayName: "Daily noon build"
+    displayName: "Every Day at Noon"
     branches:
       include:
         - main
@@ -37,7 +37,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.56
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -70,14 +70,14 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_l7
+  - stage: azure_eastus2_l7_json
     dependsOn: []
     variables:
       - group: API-Server-L7-Config
@@ -90,34 +90,55 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k-json:
+            podsize-10k:
               flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type json"
-            podsize-10k-exempt-json:
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-10k-exempt:
               flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type json"
-            podsize-20k-json:
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-20k:
               flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type json"
-            podsize-20k-exempt-json:
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            podsize-20k-exempt:
               flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type json"
-            podsize-10k-protobuf:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type protobuf"
-            podsize-10k-exempt-protobuf:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type protobuf"
-            podsize-20k-protobuf:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type protobuf"
-            podsize-20k-exempt-protobuf:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type protobuf"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
             benchmark_subcmd: node100_pod10k
-            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type json"
+          max_parallel: 2
+          timeout_in_minutes: 760
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2_l7_protobuf
+    dependsOn: []
+    variables:
+      - group: API-Server-L7-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            podsize-10k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-10k-exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-20k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            podsize-20k-exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          engine_input:
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
+            benchmark_subcmd: node100_pod10k
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type protobuf"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
