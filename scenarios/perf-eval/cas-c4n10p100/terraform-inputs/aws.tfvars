@@ -74,7 +74,7 @@ eks_config_list = [{
   policy_arns               = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
-      name           = "cas-c4n10p100-ng"
+      name           = "default"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
       min_size       = 5
