@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */4 * * *"
-    displayName: "Every 4 Hours"
+  - cron: "0 12 * * *"
+    displayName: "Daily noon build"
     branches:
       include:
         - main
@@ -90,18 +90,30 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
+            podsize-10k-json:
               flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
+              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type json"
+            podsize-10k-exempt-json:
               flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-20k:
+              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type json"
+            podsize-20k-json:
               flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
-            podsize-20k-exempt:
+              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type json"
+            podsize-20k-exempt-json:
               flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type json"
+            podsize-10k-protobuf:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type protobuf"
+            podsize-10k-exempt-protobuf:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114 --content-type protobuf"
+            podsize-20k-protobuf:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type protobuf"
+            podsize-20k-exempt-protobuf:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384 --content-type protobuf"
           engine_input:
             runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
             benchmark_subcmd: node100_pod10k
