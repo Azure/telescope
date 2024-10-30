@@ -19,6 +19,7 @@ The module consists of several key components:
 - `tags` (map(string)): Tags to apply to AWS resources.
 - `cluster_iam_role_name` (string): The IAM role associated with the EKS cluster.
 - `cluster_version` (string): The version of the cluster, used to tag the autoscaler image.
+- `auto_scaler_profile` (map(string)): Configuration options for the Cluster Autoscaler.
 
 ## Usage
 
@@ -33,10 +34,19 @@ module "cluster_autoscaler" {
     Environment = "production"
   }
   cluster_iam_role_name   = "my-cluster-iam-role"
-  cluster_version         = "1.30"
+  cluster_version         = "1.31"
+  auto_scaler_profile     = {
+    balance_similar_nodes = false
+    skip_nodes_with_local_storage = true
+    scale_down_utilization_threshold = 0.5
+    scale_down_unneeded_time = 10m
+    scale_down_delay_after_add = 10m
+    scale_down_unready_time = 20m
+    scale_down_unready = false
+  }
 }
 ```
 
 Notes:
 - Cluster Autoscaler is deployed on the node groups with the label autoscaler=owned.
-- Add taints and labels for node groups to be managed by the Cluster Autoscaler.
+- Add taints or labels for node groups to be managed by the Cluster Autoscaler.
