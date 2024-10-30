@@ -159,6 +159,20 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_eks_cluster.eks,
     aws_iam_role_policy_attachment.policy_attachments
   ]
+
+  lifecycle {
+    ignore_changes = [
+      scaling_config[0].desired_size,
+      scaling_config[0].min_size,
+      scaling_config[0].max_size,
+      tags,
+      labels,
+      ami_type,
+      instance_types,
+      capacity_type,
+      subnet_ids,
+    ]
+  }
 }
 
 module "eks_addon" {
@@ -197,6 +211,7 @@ module "cluster_autoscaler" {
   tags                  = var.tags
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
   cluster_version       = var.eks_config.kubernetes_version
+  auto_scaler_profile   = var.eks_config.auto_scaler_profile
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }

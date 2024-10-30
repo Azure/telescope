@@ -161,10 +161,23 @@ spec:
             - --v=4
             - --stderrthreshold=info
             - --cloud-provider=aws
-            - --skip-nodes-with-local-storage=false
-            - --scale-down-unneeded-time=0s
-            - --scale-down-delay-after-add=10s
-            - --expander=least-waste
+            - --balance-similar-node-groups=${BALANCE_SIMILAR_NODE_GROUPS}
+            - --expander=${EXPANDER}
+            - --max-graceful-termination-sec=${MAX_GRACEFUL_TERMINATION_SEC}
+            - --max-node-provision-time=${MAX_NODE_PROVISION_TIME}
+            - --ok-total-unready-count=${MAX_UNREADY_NODES}
+            - --max-total-unready-percentage=${MAX_UNREADY_PERCENTAGE}
+            - --new-pod-scale-up-delay=${NEW_POD_SCALE_UP_DELAY}
+            - --scale-down-delay-after-add=${SCALE_DOWN_DELAY_AFTER_ADD}
+            - --scale-down-delay-after-delete=${SCALE_DOWN_DELAY_AFTER_DELETE}
+            - --scale-down-delay-after-failure=${SCALE_DOWN_DELAY_AFTER_FAILURE}
+            - --scale-down-unneeded-time=${SCALE_DOWN_UNNEEDED}
+            - --scale-down-unready-time=${SCALE_DOWN_UNREADY}
+            - --scale-down-utilization-threshold=${SCALE_DOWN_UTILIZATION_THRESHOLD}
+            - --scan-interval=${SCAN_INTERVAL}
+            - --max-empty-bulk-delete=${EMPTY_BULK_DELETE_MAX}
+            - --skip-nodes-with-local-storage=${SKIP_NODES_WITH_LOCAL_STORAGE}
+            - --skip-nodes-with-system-pods=${SKIP_NODES_WITH_SYSTEM_PODS}
             - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${CLUSTER_NAME}
           volumeMounts:
             - name: ssl-certs

@@ -67,11 +67,11 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role             = "cas"
-  eks_name         = "cas-c4n10p100"
+  role                      = "cas"
+  eks_name                  = "cas-c4n10p100"
   enable_cluster_autoscaler = true
-  vpc_name         = "cas-vpc"
-  policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
+  vpc_name                  = "cas-vpc"
+  policy_arns               = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
       name           = "cas-c4n10p100-ng"
@@ -83,7 +83,7 @@ eks_config_list = [{
       capacity_type  = "ON_DEMAND"
       labels         = { "autoscaler" = "owned" }
     },
-		{
+    {
       name           = "userpool"
       ami_type       = "AL2_x86_64"
       instance_types = ["m5.xlarge"]
@@ -92,9 +92,13 @@ eks_config_list = [{
       desired_size   = 0
       capacity_type  = "ON_DEMAND"
       labels         = { "cas" = "dedicated" }
-      taints = [ ]
+      taints         = []
     }
   ]
-  eks_addons = []
-	kubernetes_version = "1.30"
+  eks_addons         = []
+  kubernetes_version = "1.30"
+  auto_scaler_profile = {
+    scale_down_delay_after_add = "0m"
+    scale_down_unneeded        = "0m"
+  }
 }]
