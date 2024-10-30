@@ -8,6 +8,8 @@ from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
+LOAD_PODS_PER_NODE = 20
+
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
@@ -23,17 +25,12 @@ CPU_CAPACITY = {
 # TODO: Remove aks once CL2 update provider name to be azure
 
 def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test):
-    calculated_throughput = node_count / 10 + 10
-    throughput = min(calculated_throughput, 100)
-    if service_test:
-        throughput = 100
-
+    throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
-    if service_test:
-        nodes_per_namespace = 10 #TODO: DEFAULT_NODES_PER_NAMESPACE
 
-    max_user_pods = max_pods - DAEMONSETS_PER_NODE[provider]
-    pods_per_node = min(max_user_pods, DEFAULT_PODS_PER_NODE)
+    pods_per_node = DEFAULT_PODS_PER_NODE
+    if service_test:
+        pods_per_node = LOAD_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -65,6 +62,7 @@ def configure_clusterloader2(
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
+        file.write(f"CL2_DEPLOYMENT_SIZE: {pods_per_node}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_STEPS: {steps}\n")
@@ -79,7 +77,7 @@ def configure_clusterloader2(
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 60s\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
@@ -157,6 +155,7 @@ def collect_clusterloader2(
                 if not items:
                     print(f"No data items found in {file_path}")
                     print(f"Data:\n{data}")
+                    continue
                 for item in items:
                     result = template.copy()
                     result["group"] = group_name

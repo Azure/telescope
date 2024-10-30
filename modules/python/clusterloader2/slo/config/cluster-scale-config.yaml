@@ -7,7 +7,6 @@ name: deployment-churn
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$steps := DefaultParam .CL2_STEPS 5}}
-{{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -20,8 +19,6 @@ name: deployment-churn
 {{$totalPods := MultiplyInt $nodesPerStep $steps $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $deploymentSize $steps)}}
-
-{{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 namespace:
   number: {{$namespaces}}
@@ -47,37 +44,45 @@ steps:
         action: start
         duration: 1ms
 
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: start
-{{end}}
+  - name: Start measurements
+    measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group = deployment-churn
+          threshold: {{$podStartupLatencyThreshold}}
+      - Identifier: APIResponsivenessPrometheusSimple
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: start
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: true
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = deployment-churn
+          operationTimeout: {{$operationTimeout}}
 
 {{range $i := Loop $repeats}}
   {{range $j := Loop $steps}}
-  - module:
-    path: /modules/reconcile-objects.yaml
-    params:
-      actionName: "create"
-      namespaces: {{$namespaces}}
-      tuningSet: DeploymentCreateQps
-      operationTimeout: {{$operationTimeout}}
-      bigDeploymentSize: 0
-      bigDeploymentsPerNamespace: 0
-      smallDeploymentSize: {{$deploymentSize}}
-      smallDeploymentsPerNamespace: {{$deploymentsPerNamespace}}
-      CpuRequest: {{$latencyPodCpu}}m
-      MemoryRequest: {{$latencyPodMemory}}M
-      Group: {{$groupName}}
-      deploymentLabel: start
-
+  - name: Creating Deployments {{$j}}
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        objectBundle:
+          - basename: deployment-churn-{{$j}}
+            objectTemplatePath: deployment_template.yaml
+            templateFillMap:
+              Replicas: {{$deploymentSize}}
+              Group: deployment-churn
+              CpuRequest: {{$latencyPodCpu}}m
+              MemoryRequest: {{$latencyPodMemory}}M
   - name: Wait for nodes to be ready
     measurements:
       - Identifier: ConfirmNodeCount
@@ -89,32 +94,46 @@ steps:
           labelSelector: slo = true
           timeout: {{$operationTimeout}}
           refreshInterval: 1m
+  - name: Waiting for latency pods to be running
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
+  {{end}}
 
   {{range $j := Loop $steps}}
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete"
-        namespaces: {{$namespaces}}
+  - name: Deleting Deployments {{$j}}
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: 0
         tuningSet: DeploymentDeleteQps
-        operationTimeout: $operationTimeout
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: {{$deploymentSize}}
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: start
+        objectBundle:
+          - basename: deployment-churn-{{$j}}
+            objectTemplatePath: deployment_template.yaml
+  - name: Waiting for latency pods to be deleted
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
   {{end}}
 {{end}}
 
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: gather
-{{end}}
-
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
+  - name: Collecting measurements
+    measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather
+      - Identifier: APIResponsivenessPrometheus
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: gather
+          enableViolations: true
+          useSimpleLatencyQuery: true
+          summaryName: APIResponsivenessPrometheus
