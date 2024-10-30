@@ -5,20 +5,27 @@ owner          = "aks"
 
 network_config_list = [
   {
-    role           = "slo"
-    vpc_name       = "slo-vpc"
-    vpc_cidr_block = "10.0.0.0/16"
+    role                       = "slo"
+    vpc_name                   = "slo-vpc"
+    vpc_cidr_block             = "10.0.0.0/16"
+    secondary_ipv4_cidr_blocks = ["10.1.0.0/16"]
     subnet = [
       {
         name                    = "slo-subnet-1"
-        cidr_block              = "10.0.0.0/17"
+        cidr_block              = "10.0.0.0/16"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "slo-subnet-2"
-        cidr_block              = "10.0.128.0/17"
+        cidr_block              = "10.1.0.0/17"
         zone_suffix             = "b"
+        map_public_ip_on_launch = true
+      },
+      {
+        name                    = "slo-subnet-3"
+        cidr_block              = "10.1.128.0/17"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
@@ -38,6 +45,11 @@ network_config_list = [
       {
         name             = "slo-subnet-rt-assoc-2"
         subnet_name      = "slo-subnet-2"
+        route_table_name = "internet-rt"
+      },
+      {
+        name             = "slo-subnet-rt-assoc-3"
+        subnet_name      = "slo-subnet-3"
         route_table_name = "internet-rt"
       }
     ]
@@ -83,17 +95,6 @@ eks_config_list = [{
     }
   ]
 
-  eks_addons = [
-    {
-      name        = "vpc-cni"
-      policy_arns = ["AmazonEKS_CNI_Policy"]
-      configuration_values = {
-        env = {
-          MINIMUM_IP_TARGET = "50"
-          WARM_IP_TARGET    = "2"
-        }
-      }
-    }
-  ]
+  eks_addons         = []
   kubernetes_version = "1.30"
 }]
