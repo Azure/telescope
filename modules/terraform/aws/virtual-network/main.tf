@@ -41,6 +41,7 @@ resource "aws_subnet" "subnets" {
     "Name" = each.value.name
   })
 
+  # Ensure all secondary CIDR blocks are created before subnets in secondary CIDR blocks are created
   depends_on = [aws_vpc_ipv4_cidr_block_association.secondary_ipv4_cidr_block]
 }
 
