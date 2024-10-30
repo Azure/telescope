@@ -160,19 +160,6 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
     aws_iam_role_policy_attachment.policy_attachments
   ]
 
-  lifecycle {
-    ignore_changes = [
-      scaling_config[0].desired_size,
-      scaling_config[0].min_size,
-      scaling_config[0].max_size,
-      tags,
-      labels,
-      ami_type,
-      instance_types,
-      capacity_type,
-      subnet_ids,
-    ]
-  }
 }
 
 module "eks_addon" {
