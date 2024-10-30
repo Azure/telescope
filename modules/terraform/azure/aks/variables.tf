@@ -1,19 +1,15 @@
 variable "resource_group_name" {
   description = "Value of the resource group name"
   type        = string
-  default     = "rg"
 }
 
 variable "location" {
   description = "Value of the location"
   type        = string
-  default     = "East US"
 }
 
 variable "tags" {
   type = map(string)
-  default = {
-  }
 }
 
 variable "subnet_id" {
@@ -89,7 +85,7 @@ variable "aks_config" {
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")
-      max_graceful_termination_sec     = optional(string, "600s")
+      max_graceful_termination_sec     = optional(string, "600")
       max_node_provisioning_time       = optional(string, "15m")
       max_unready_nodes                = optional(number, 3)
       max_unready_percentage           = optional(number, 45)
