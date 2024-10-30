@@ -34,7 +34,7 @@ stages:
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 5
+              loop_count: 2
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
@@ -60,7 +60,7 @@ stages:
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 5
+              loop_count: 2
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
