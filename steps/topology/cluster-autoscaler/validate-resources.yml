@@ -9,5 +9,5 @@ parameters:
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
   parameters:
-    role: nap
+    role: cas
     region: ${{ parameters.regions[0] }}
