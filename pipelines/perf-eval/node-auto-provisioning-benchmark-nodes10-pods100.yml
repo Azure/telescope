@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-c4n10p100
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: cluster-autoscaler
 
 stages:
   - stage: aws_eastus2
@@ -32,7 +32,9 @@ stages:
               pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              loop_count: 5
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
@@ -56,7 +58,9 @@ stages:
               pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              loop_count: 5
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
