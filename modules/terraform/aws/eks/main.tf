@@ -33,7 +33,7 @@ locals {
     }
   } : {}
 
-  eks_addons_map = merge(local.karpenter_addons_map, local.vpc_cni_addon_map, local.eks_config_addons_map) # note: the order matters (the later takes precedence)
+  eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
 
   policy_arns = var.eks_config.policy_arns
 }
