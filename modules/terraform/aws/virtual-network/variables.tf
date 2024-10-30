@@ -1,8 +1,9 @@
 variable "network_config" {
   type = object({
-    role           = string
-    vpc_name       = string
-    vpc_cidr_block = string
+    role                       = string
+    vpc_name                   = string
+    vpc_cidr_block             = string
+    secondary_ipv4_cidr_blocks = optional(list(string))
     subnet = list(object({
       name                    = string
       cidr_block              = string
