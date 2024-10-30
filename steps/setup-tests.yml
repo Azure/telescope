@@ -14,9 +14,6 @@ parameters:
   default: 3
 - name: credential_type
   type: string
-- name: subscription
-  type: string
-  default: ''
 - name: ssh_key_enabled
   type: boolean
 
@@ -67,8 +64,6 @@ steps:
   parameters:
     region: ${{ parameters.region }}
     credential_type: ${{ parameters.credential_type }}
-    ${{ if ne(parameters.subscription, '') }}:
-      subscription: ${{ parameters.subscription }}
 
 - script: |
     if [ -n "${TEST_MODULES_DIR}" ]; then

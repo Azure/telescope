@@ -123,6 +123,8 @@ variable "aks_config_list" {
       network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+      service_cidr        = optional(string, null)
+      dns_service_ip      = optional(string, null)
     }))
     service_mesh_profile = optional(object({
       mode      = string
@@ -162,6 +164,7 @@ variable "aks_config_list" {
     }))
     role_assignment_list = optional(list(string), [])
     kubernetes_version   = optional(string, null)
+    edge_zone            = optional(string, null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")

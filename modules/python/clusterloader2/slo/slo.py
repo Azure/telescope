@@ -66,6 +66,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+        file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
         if cilium_enabled:
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
@@ -111,8 +112,8 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
-    _, nodes_per_namespace, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
-    pod_count = nodes_per_namespace * pods_per_node
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider)
+    pod_count = node_count * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -141,6 +142,9 @@ def collect_clusterloader2(
 
             if "dataItems" in data:
                 items = data["dataItems"]
+                if not items:
+                    print(f"No data items found in {file_path}")
+                    print(f"Data:\n{data}")
                 for item in items:
                     result = template.copy()
                     result["group"] = group_name
@@ -159,7 +163,7 @@ def collect_clusterloader2(
         f.write(content)
 
 def main():
-    parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
+    parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2

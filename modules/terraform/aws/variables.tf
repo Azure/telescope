@@ -109,6 +109,9 @@ variable "eks_config_list" {
       version         = optional(string)
       service_account = optional(string)
       policy_arns     = optional(list(string), [])
+      configuration_values = optional(object({
+        env = optional(map(string))
+      }))
     }))
     kubernetes_version = optional(string, null)
   }))

@@ -43,6 +43,8 @@ variable "aks_config" {
       network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+      service_cidr        = optional(string, null)
+      dns_service_ip      = optional(string, null)
     }))
     sku_tier = string
     default_node_pool = object({
@@ -82,6 +84,7 @@ variable "aks_config" {
       revisions = list(string)
     }))
     kubernetes_version = optional(string, null)
+    edge_zone          = optional(string, null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")
