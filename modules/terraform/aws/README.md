@@ -61,8 +61,8 @@ INPUT_JSON=$(jq -n \
 ```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
+terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
 popd
 ```
 
@@ -70,7 +70,7 @@ popd
 Cleanup test resources using terraform
 ```bash 
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
+terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
 popd
 ```
 
