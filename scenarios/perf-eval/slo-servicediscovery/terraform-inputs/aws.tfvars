@@ -97,9 +97,9 @@ eks_config_list = [{
       name           = "userpool0"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.xlarge"]
-      min_size       = 50
-      max_size       = 50
-      desired_size   = 50
+      min_size       = 500
+      max_size       = 500
+      desired_size   = 500
       capacity_type  = "ON_DEMAND"
       labels         = { "slo" = "true" }
       taints = [
@@ -114,9 +114,9 @@ eks_config_list = [{
       name           = "userpool1"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.xlarge"]
-      min_size       = 50
-      max_size       = 50
-      desired_size   = 50
+      min_size       = 500
+      max_size       = 500
+      desired_size   = 500
       capacity_type  = "ON_DEMAND"
       labels         = { "slo" = "true" }
       taints = [

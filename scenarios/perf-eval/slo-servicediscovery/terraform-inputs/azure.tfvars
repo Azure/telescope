@@ -51,9 +51,9 @@ aks_config_list = [
       },
       {
         name                 = "userpool0"
-        node_count           = 50
-        min_count            = 50
-        max_count            = 50
+        node_count           = 500
+        min_count            = 500
+        max_count            = 500
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
@@ -62,9 +62,9 @@ aks_config_list = [
       },
       {
         name                 = "userpool1"
-        node_count           = 50
-        min_count            = 50
-        max_count            = 50
+        node_count           = 500
+        min_count            = 500
+        max_count            = 500
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
