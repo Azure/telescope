@@ -101,8 +101,14 @@ eks_config_list = [{
       max_size       = 50
       desired_size   = 50
       capacity_type  = "ON_DEMAND"
-      node_taints    = ["slo=true:NoSchedule"]
-      node_labels    = { "slo" = "true" }
+      labels         = { "slo" = "true" }
+      taints = [
+        {
+          key    = "slo"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
     },
     {
       name           = "userpool1"
@@ -112,8 +118,14 @@ eks_config_list = [{
       max_size       = 50
       desired_size   = 50
       capacity_type  = "ON_DEMAND"
-      node_taints    = ["slo=true:NoSchedule"]
-      node_labels    = { "slo" = "true" }
+      labels         = { "slo" = "true" }
+      taints = [
+        {
+          key    = "slo"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
     }
   ]
 

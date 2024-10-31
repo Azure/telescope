@@ -1,6 +1,7 @@
 {{$action := .action}} # start, gather
 
 # Feature gates
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE := DefaultParam .CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE true}}
 {{$PROMETHEUS_SCRAPE_KUBE_PROXY := DefaultParam .PROMETHEUS_SCRAPE_KUBE_PROXY true}}
 {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD := DefaultParam .CL2_NETWORK_PROGRAMMING_LATENCY_THRESHOLD "30s"}}
@@ -26,6 +27,7 @@ steps:
         Params:
           action: {{$action}}
           labelSelector: group = {{.group}}
+          threshold: {{$podStartupLatencyThreshold}}
     {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
       - Identifier: NetworkProgrammingLatency
         Method: NetworkProgrammingLatency
