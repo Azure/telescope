@@ -166,6 +166,12 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
-        run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON" -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
+        run: |
+          if [ $CLOUD == 'aws' ]; then
+            terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON" -var current_time=$(date -uIseconds | sed 's/+00:00/Z/')
+          else
+            terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
+          fi
         env:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLOUD: ${{ matrix.cloud }}
