@@ -63,6 +63,22 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
+data "aws_iam_policy_document" "cw_put_metrics" {
+  statement {
+    sid = "VisualEditor0"
+
+    actions = ["cloudwatch:PutMetricData"]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "cw_policy" {
+  name        = "cw-policy"
+  description = "Grants permission to write metrics to CloudWatch"
+  policy      = data.aws_iam_policy_document.cw_put_metrics.json
+}
+
 resource "aws_iam_role" "eks_cluster_role" {
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
   tags               = var.tags
@@ -72,6 +88,11 @@ resource "aws_iam_role_policy_attachment" "policy_attachments" {
   for_each = toset(local.policy_arns)
 
   policy_arn = "arn:aws:iam::aws:policy/${each.value}"
+  role       = aws_iam_role.eks_cluster_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "cw_policy_attachment" {
+  policy_arn = aws_iam_policy.cw_policy.arn
   role       = aws_iam_role.eks_cluster_role.name
 }
 
@@ -171,4 +192,29 @@ module "karpenter" {
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
+}
+
+resource "terraform_data" "install_cni_metrics_helper" {
+  provisioner "local-exec" {
+    command = <<EOT
+      #!/bin/bash
+      set -e
+      helm repo add eks https://aws.github.io/eks-charts
+      helm repo update eks
+      aws eks update-kubeconfig --region ${var.region} --name ${local.eks_cluster_name}
+      helm upgrade --install cni-metrics-helper --namespace kube-system eks/cni-metrics-helper --version v1.18.3 --set "env.AWS_CLUSTER_ID=${local.eks_cluster_name}"
+
+      EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      #!/bin/bash
+      set -e
+      helm uninstall cni-metrics-helper --namespace kube-system
+
+      EOT
+  }
+  depends_on = [module.eks_addon]
 }

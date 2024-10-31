@@ -82,11 +82,6 @@ eks_config_list = [{
       desired_size   = 5
       capacity_type  = "ON_DEMAND"
       taints = [
-        {
-          key    = "CriticalAddonsOnly"
-          value  = "true"
-          effect = "NO_SCHEDULE"
-        }
       ]
     }
   ]
