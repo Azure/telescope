@@ -15,7 +15,9 @@ spec:
         app: inflate
     spec:
       nodeSelector:
-        karpenter.sh/nodepool: default
+      {{- range $key, $value := .NodeSelector }}
+        {{ (StructuralData $key ) }}: {{ $value }}
+      {{- end }}
       containers:
         - name: nginx
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
