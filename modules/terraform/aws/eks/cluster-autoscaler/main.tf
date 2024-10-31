@@ -48,23 +48,23 @@ resource "terraform_data" "install_autoscaler" {
     environment = {
       IMAGE_TAG                        = local.autoscaler_image_tag
       CLUSTER_NAME                     = var.cluster_name
-      BALANCE_SIMILAR_NODE_GROUPS      = var.auto_scaler_profile.balance_similar_node_groups
-      EXPANDER                         = var.auto_scaler_profile.expander
-      MAX_GRACEFUL_TERMINATION_SEC     = var.auto_scaler_profile.max_graceful_termination_sec
-      MAX_NODE_PROVISION_TIME          = var.auto_scaler_profile.max_node_provision_time
-      MAX_UNREADY_NODES                = var.auto_scaler_profile.max_unready_nodes
-      MAX_UNREADY_PERCENTAGE           = var.auto_scaler_profile.max_unready_percentage
-      NEW_POD_SCALE_UP_DELAY           = var.auto_scaler_profile.new_pod_scale_up_delay
-      SCALE_DOWN_DELAY_AFTER_ADD       = var.auto_scaler_profile.scale_down_delay_after_add
-      SCALE_DOWN_DELAY_AFTER_DELETE    = var.auto_scaler_profile.scale_down_delay_after_delete
-      SCALE_DOWN_DELAY_AFTER_FAILURE   = var.auto_scaler_profile.scale_down_delay_after_failure
-      SCALE_DOWN_UNNEEDED              = var.auto_scaler_profile.scale_down_unneeded
-      SCALE_DOWN_UNREADY               = var.auto_scaler_profile.scale_down_unready
-      SCALE_DOWN_UTILIZATION_THRESHOLD = var.auto_scaler_profile.scale_down_utilization_threshold
-      SCAN_INTERVAL                    = var.auto_scaler_profile.scan_interval
-      EMPTY_BULK_DELETE_MAX            = var.auto_scaler_profile.empty_bulk_delete_max
-      SKIP_NODES_WITH_LOCAL_STORAGE    = var.auto_scaler_profile.skip_nodes_with_local_storage
-      SKIP_NODES_WITH_SYSTEM_PODS      = var.auto_scaler_profile.skip_nodes_with_system_pods
+      BALANCE_SIMILAR_NODE_GROUPS      = try(var.auto_scaler_profile.balance_similar_node_groups, false)
+      EXPANDER                         = try(var.auto_scaler_profile.expander, "random")
+      MAX_GRACEFUL_TERMINATION_SEC     = try(var.auto_scaler_profile.max_graceful_termination_sec, "600")
+      MAX_NODE_PROVISION_TIME          = try(var.auto_scaler_profile.max_node_provision_time, "15m")
+      MAX_UNREADY_NODES                = try(var.auto_scaler_profile.max_unready_nodes, 3)
+      MAX_UNREADY_PERCENTAGE           = try(var.auto_scaler_profile.max_unready_percentage, 45)
+      NEW_POD_SCALE_UP_DELAY           = try(var.auto_scaler_profile.new_pod_scale_up_delay, "10s")
+      SCALE_DOWN_DELAY_AFTER_ADD       = try(var.auto_scaler_profile.scale_down_delay_after_add, "10m")
+      SCALE_DOWN_DELAY_AFTER_DELETE    = try(var.auto_scaler_profile.scale_down_delay_after_delete, "10m")
+      SCALE_DOWN_DELAY_AFTER_FAILURE   = try(var.auto_scaler_profile.scale_down_delay_after_failure, "3m")
+      SCALE_DOWN_UNNEEDED              = try(var.auto_scaler_profile.scale_down_unneeded, "10m")
+      SCALE_DOWN_UNREADY               = try(var.auto_scaler_profile.scale_down_unready, "20m")
+      SCALE_DOWN_UTILIZATION_THRESHOLD = try(var.auto_scaler_profile.scale_down_utilization_threshold, "0.5")
+      SCAN_INTERVAL                    = try(var.auto_scaler_profile.scan_interval, "10s")
+      EMPTY_BULK_DELETE_MAX            = try(var.auto_scaler_profile.empty_bulk_delete_max, "10")
+      SKIP_NODES_WITH_LOCAL_STORAGE    = try(var.auto_scaler_profile.skip_nodes_with_local_storage, true)
+      SKIP_NODES_WITH_SYSTEM_PODS      = try(var.auto_scaler_profile.skip_nodes_with_system_pods, true)
     }
   }
 
