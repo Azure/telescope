@@ -125,7 +125,7 @@ metadata:
   labels:
     app: cluster-autoscaler
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: cluster-autoscaler
@@ -150,11 +150,11 @@ spec:
           name: cluster-autoscaler
           resources:
             limits:
+              cpu: 700m
+              memory: 1Gi
+            requests:
               cpu: 100m
               memory: 300Mi
-            requests:
-              cpu: 50m
-              memory: 200Mi
           command:
             - ./cluster-autoscaler
             - --v=4
