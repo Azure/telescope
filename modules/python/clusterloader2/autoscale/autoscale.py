@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, override_file):
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):
     # assuming 85% of the CPU cores can be used by test pods
     cpu_request = (cpu_per_node * 1000 * 0.85) * node_count // pod_count
 
@@ -22,6 +22,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
+        file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
+        file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
 
     file.close()
 
@@ -116,6 +118,8 @@ def main():
     parser_override.add_argument("scale_up_timeout", type=str, help="Timeout before failing the scale up test")
     parser_override.add_argument("scale_down_timeout", type=str, help="Timeout before failing the scale down test")
     parser_override.add_argument("loop_count", type=int, help="Number of times to repeat the test")
+    parser_override.add_argument("node_label_selector", type=str, help="Node label selector")
+    parser_override.add_argument("node_selector", type=str, help="Node selector for the test pods")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2
@@ -140,7 +144,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.cl2_override_file)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":

@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: nap-c4n10p100
+  SCENARIO_NAME: cas-c4n10p100
   SCENARIO_VERSION: main
 
 stages:
@@ -24,7 +24,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241002"
-          topology: karpenter
+          topology: cluster-autoscaler
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
@@ -32,8 +32,8 @@ stages:
               pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
               loop_count: 5
           max_parallel: 1
           timeout_in_minutes: 360
@@ -50,7 +50,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241002"
-          topology: karpenter
+          topology: cluster-autoscaler
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
@@ -58,8 +58,8 @@ stages:
               pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
               loop_count: 5
           max_parallel: 1
           timeout_in_minutes: 360

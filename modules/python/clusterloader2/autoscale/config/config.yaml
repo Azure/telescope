@@ -2,6 +2,7 @@
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$deploymentCpu := DefaultParam .CL2_DEPLOYMENT_CPU "346m"}}
 {{$nodeLabelSelector := DefaultParam .CL2_NODE_LABEL_SELECTOR "karpenter.sh/nodepool = default"}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR  "{karpenter.sh/nodepool: default}"}}
 {{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
 {{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 20}}
 {{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
@@ -39,6 +40,7 @@ steps:
       templateFillMap:
         Replicas: {{$deploymentSize}}
         CPUperJob: {{$deploymentCpu}}
+        NodeSelector: {{ (StructuralData $nodeSelector) }}
 - name: Measure nodes and pods scale up {{$i}}
   measurements:
   - Identifier: WaitForRunningPodsUp {{$i}}

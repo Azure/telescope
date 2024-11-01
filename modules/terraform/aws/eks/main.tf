@@ -130,6 +130,19 @@ resource "aws_eks_cluster" "eks" {
   )
 }
 
+# Create OIDC Provider
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "oidc_provider" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.eks.identity[0].oidc[0].issuer
+  tags            = var.tags
+  depends_on      = [data.tls_certificate.eks]
+}
+
 resource "aws_ec2_tag" "cluster_security_group" {
   for_each    = var.tags
   resource_id = aws_eks_cluster.eks.vpc_config[0].cluster_security_group_id
@@ -196,6 +209,21 @@ module "karpenter" {
   region                = var.region
   tags                  = var.tags
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+
+  depends_on = [aws_eks_node_group.eks_managed_node_groups]
+}
+
+module "cluster_autoscaler" {
+  count = var.eks_config.enable_cluster_autoscaler ? 1 : 0
+
+  source = "./cluster-autoscaler"
+
+  cluster_name          = aws_eks_cluster.eks.name
+  region                = var.region
+  tags                  = var.tags
+  cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+  cluster_version       = var.eks_config.kubernetes_version
+  auto_scaler_profile   = var.eks_config.auto_scaler_profile
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
