@@ -25,11 +25,14 @@ aks_config_list = [
     role        = "slo"
     aks_name    = "slo"
     dns_prefix  = "slo"
-    subnet_name = "aks-network"
+    subnet_name = "slo-subnet-1"
     sku_tier    = "Standard"
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
+      pod_cidr            = "10.128.0.0/9"
+      service_cidr        = "192.168.0.0/16"
+      dns_service_ip      = "192.168.0.10"
     }
     default_node_pool = {
       name                         = "default"
@@ -51,9 +54,9 @@ aks_config_list = [
       },
       {
         name                 = "userpool0"
-        node_count           = 500
-        min_count            = 500
-        max_count            = 500
+        node_count           = 300
+        min_count            = 300
+        max_count            = 300
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
@@ -62,9 +65,20 @@ aks_config_list = [
       },
       {
         name                 = "userpool1"
-        node_count           = 500
-        min_count            = 500
-        max_count            = 500
+        node_count           = 300
+        min_count            = 300
+        max_count            = 300
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D4_v3"
+        max_pods             = 110
+        node_taints          = ["slo=true:NoSchedule"]
+        node_labels          = { "slo" = "true" }
+      },
+      {
+        name                 = "userpool2"
+        node_count           = 400
+        min_count            = 400
+        max_count            = 400
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
