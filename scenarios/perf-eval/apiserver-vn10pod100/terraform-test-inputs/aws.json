@@ -1,4 +1,5 @@
 {
     "run_id"                           : "123456789",
-    "region"                           : "us-east-1"
+    "region"                           : "us-east-1",
+    "current_time"                     : "2024-10-17T18:30:42Z"
 }
