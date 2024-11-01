@@ -15,6 +15,7 @@ steps:
         set -x
       fi
 
+      CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
@@ -22,11 +23,12 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
+                --arg creation_time $CREATION_TIME \
                 '{
                 run_id: $run_id,
-                region: $region
-                }' | jq '. + {current_time: (now |  todateiso8601)}' \
-                   | jq 'with_entries(select(.value != null and .value != ""))')
+                region: $region,
+                creation_time: $creation_time
+                }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
         echo "Input variables: $input_variables_str"
