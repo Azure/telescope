@@ -14,7 +14,7 @@ steps:
       credential_type: ${{ parameters.credential_type }}
 
 - script: |
-    test_results_data=$(<"$TEST_RESULTS_FILE")
+    test_results_data=$(echo "$(cat "$TEST_RESULTS_FILE")")
     telescope_metadata=$(jq -n \
       --arg run_id $RUN_ID \
       --arg run_url  $RUN_URL \
