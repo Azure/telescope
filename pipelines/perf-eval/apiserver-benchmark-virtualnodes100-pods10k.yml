@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */4 * * *"
-    displayName: "Every 4 Hours"
+  - cron: "0 12 * * *"
+    displayName: "Every Day at Noon"
     branches:
       include:
         - main
@@ -37,7 +37,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -46,11 +46,12 @@ stages:
           ssh_key_enabled: false
   - stage: azure_eastus2_l4
     dependsOn: []
+    variables:
+      - group: API-Server-L4-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
-          subscription: b8ceb4e5-f05b-4562-a9f5-14acb1f24219
           regions:
             - eastus2
           engine: kperf
@@ -69,20 +70,21 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_l7
+  - stage: azure_eastus2_l7_json
     dependsOn: []
+    variables:
+      - group: API-Server-L7-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
-          subscription: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
           regions:
             - eastus2
           engine: kperf
@@ -101,9 +103,42 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: telescope.azurecr.io/oss/kperf:v0.1.5
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
             benchmark_subcmd: node100_pod10k
-            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type json"
+          max_parallel: 2
+          timeout_in_minutes: 760
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2_l7_protobuf
+    dependsOn: []
+    variables:
+      - group: API-Server-L7-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            podsize-10k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-10k-exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=6114"
+            podsize-20k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            podsize-20k-exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          engine_input:
+            runner_image: telescope.azurecr.io/oss/kperf:v0.1.6
+            benchmark_subcmd: node100_pod10k
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type protobuf"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection

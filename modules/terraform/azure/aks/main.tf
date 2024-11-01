@@ -38,6 +38,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_data_plane  = var.aks_config.network_profile.network_dataplane
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
+    service_cidr        = var.aks_config.network_profile.service_cidr
+    dns_service_ip      = var.aks_config.network_profile.dns_service_ip
   }
   identity {
     type = "SystemAssigned"
@@ -51,9 +53,31 @@ resource "azurerm_kubernetes_cluster" "aks" {
     }
   }
 
-  oidc_issuer_enabled       = true
-  workload_identity_enabled = true
-  kubernetes_version        = var.aks_config.kubernetes_version
+  dynamic "auto_scaler_profile" {
+    for_each = try(var.aks_config.auto_scaler_profile != null ? [var.aks_config.auto_scaler_profile] : [])
+    content {
+      balance_similar_node_groups      = auto_scaler_profile.value.balance_similar_node_groups
+      expander                         = auto_scaler_profile.value.expander
+      max_graceful_termination_sec     = auto_scaler_profile.value.max_graceful_termination_sec
+      max_node_provisioning_time       = auto_scaler_profile.value.max_node_provisioning_time
+      max_unready_nodes                = auto_scaler_profile.value.max_unready_nodes
+      max_unready_percentage           = auto_scaler_profile.value.max_unready_percentage
+      new_pod_scale_up_delay           = auto_scaler_profile.value.new_pod_scale_up_delay
+      scale_down_delay_after_add       = auto_scaler_profile.value.scale_down_delay_after_add
+      scale_down_delay_after_delete    = auto_scaler_profile.value.scale_down_delay_after_delete
+      scale_down_delay_after_failure   = auto_scaler_profile.value.scale_down_delay_after_failure
+      scan_interval                    = auto_scaler_profile.value.scan_interval
+      scale_down_unneeded              = auto_scaler_profile.value.scale_down_unneeded
+      scale_down_unready               = auto_scaler_profile.value.scale_down_unready
+      scale_down_utilization_threshold = auto_scaler_profile.value.scale_down_utilization_threshold
+      empty_bulk_delete_max            = auto_scaler_profile.value.empty_bulk_delete_max
+      skip_nodes_with_local_storage    = auto_scaler_profile.value.skip_nodes_with_local_storage
+      skip_nodes_with_system_pods      = auto_scaler_profile.value.skip_nodes_with_system_pods
+    }
+  }
+
+  kubernetes_version = var.aks_config.kubernetes_version
+  edge_zone          = var.aks_config.edge_zone
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {

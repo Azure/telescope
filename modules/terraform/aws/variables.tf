@@ -29,13 +29,11 @@ variable "current_time" {
 variable "owner" {
   description = "Owner of the scenario"
   type        = string
-  default     = "azure_devops"
 }
 
 variable "scenario_name" {
   description = "Name of the scenario"
   type        = string
-  default     = ""
 
   validation {
     condition     = length(var.scenario_name) <= 30
@@ -46,7 +44,6 @@ variable "scenario_name" {
 variable "scenario_type" {
   description = "value of the scenario type"
   type        = string
-  default     = ""
 }
 
 variable "deletion_delay" {
@@ -58,9 +55,10 @@ variable "deletion_delay" {
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({
-    role           = string
-    vpc_name       = string
-    vpc_cidr_block = string
+    role                       = string
+    vpc_name                   = string
+    vpc_cidr_block             = string
+    secondary_ipv4_cidr_blocks = optional(list(string))
     subnet = list(object({
       name                    = string
       cidr_block              = string
@@ -106,11 +104,12 @@ variable "network_config_list" {
 
 variable "eks_config_list" {
   type = list(object({
-    role             = string
-    eks_name         = string
-    vpc_name         = string
-    policy_arns      = list(string)
-    enable_karpenter = optional(bool, false)
+    role                      = string
+    eks_name                  = string
+    vpc_name                  = string
+    policy_arns               = list(string)
+    enable_karpenter          = optional(bool, false)
+    enable_cluster_autoscaler = optional(bool, false)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
@@ -131,8 +130,31 @@ variable "eks_config_list" {
       version         = optional(string)
       service_account = optional(string)
       policy_arns     = optional(list(string), [])
+      configuration_values = optional(object({
+        env = optional(map(string))
+      }))
     }))
     kubernetes_version = optional(string, null)
+    auto_scaler_profile = optional(object({
+      balance_similar_node_groups      = optional(bool, false)
+      expander                         = optional(string, "random")
+      max_graceful_termination_sec     = optional(string, "600")
+      max_node_provision_time          = optional(string, "15m")
+      max_unready_nodes                = optional(number, 3)
+      max_unready_percentage           = optional(number, 45)
+      new_pod_scale_up_delay           = optional(string, "10s")
+      scale_down_delay_after_add       = optional(string, "10m")
+      scale_down_delay_after_delete    = optional(string, "10s")
+      scale_down_delay_after_failure   = optional(string, "3m")
+      scale_down_unneeded              = optional(string, "10m")
+      scale_down_unready               = optional(string, "20m")
+      scale_down_utilization_threshold = optional(string, "0.5")
+      scan_interval                    = optional(string, "10s")
+      empty_bulk_delete_max            = optional(string, "10")
+      skip_nodes_with_local_storage    = optional(bool, true)
+      skip_nodes_with_system_pods      = optional(bool, true)
+    }))
+    enable_cni_metrics_helper = optional(bool, false)
   }))
   default = []
 }

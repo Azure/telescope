@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */6 * * *"
-    displayName: "Every 6 Hour"
+  - cron: "0 */12 * * *"
+    displayName: "Every 12 Hour"
     branches:
       include:
         - main
@@ -9,33 +9,33 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: slo-n100p5000
+  SCENARIO_NAME: cilium-cluster-churn-n1000p50k
   SCENARIO_VERSION: main
 
 stages:
-  - stage: aws_eastus2
+  - stage: aws_eastus1
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            - us-east-1
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20241022"
           topology: slo
           matrix:
-            n100-p5000:
+            aws_vpc_cni:
               cpu_per_node: 4
-              node_count: 100
-              node_per_step: 10
+              node_count: 1000
+              node_per_step: 100
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2
@@ -48,21 +48,21 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20241022"
           topology: slo
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 100
-              node_per_step: 10
+              node_count: 1000
+              node_per_step: 100
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
             azure_cilium:
               cpu_per_node: 4
-              node_count: 100
-              node_per_step: 10
+              node_count: 1000
+              node_per_step: 100
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
@@ -70,6 +70,6 @@ stages:
               network_policy: cilium
               network_dataplane: cilium
           max_parallel: 2
-          timeout_in_minutes: 360
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
