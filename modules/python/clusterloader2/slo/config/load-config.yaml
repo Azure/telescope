@@ -11,10 +11,12 @@ name: load-config
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-{{$namespaces := DivideInt .Nodes $nodesPerNamespace}}
+{{$namespaces := 1}} # TODO: jshr-w
+{{$nodes := DefaultParam .CL2_NODES 1000}}
+
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
+{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 
