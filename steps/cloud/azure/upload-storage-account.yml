@@ -13,6 +13,26 @@ steps:
       region: eastus
       credential_type: ${{ parameters.credential_type }}
 
+- script: |
+    test_results_data=$(<"$TEST_RESULTS_FILE")
+    telescope_metadata=$(jq -n \
+      --arg run_id $RUN_ID \
+      --arg run_url  $RUN_URL \
+      --arg code_url  $CODE_URL \
+      --argjson test_results_data $test_results_data \
+      '{
+      run_id: $run_id,
+      run_url: $run_url,
+      code_url: $code_url,
+      results: $test_results_data
+      }' | jq 'with_entries(select(.value != null and .value != ""))')
+    echo "$telescope_metadata" > $TEST_RESULTS_DIR/$(RUN_ID)-metadata.json
+
+    echo "##vso[task.setvariable variable=TELESCOPE_RESULTS_FILE]$TEST_RESULTS_DIR/$(RUN_ID)-metadata.json"
+  displayName: 'Set Telescope Metadata'
+  env:
+    TEST_RESULTS_FILE: ${{ parameters.source_file_name }}
+
 - bash: |
     set -eux
 
@@ -28,7 +48,7 @@ steps:
     fi
   displayName: "Upload Result"
   env:
-    SOURCE_FILE_NAME: ${{ parameters.source_file_name }}
+    SOURCE_FILE_NAME: $(TELESCOPE_RESULTS_FILE)
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
