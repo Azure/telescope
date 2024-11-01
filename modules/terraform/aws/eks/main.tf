@@ -63,6 +63,26 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
+data "aws_iam_policy_document" "cw_put_metrics" {
+  count = var.eks_config.enable_cni_metrics_helper ? 1 : 0
+
+  statement {
+    sid = "VisualEditor0"
+
+    actions = ["cloudwatch:PutMetricData"]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "cw_policy" {
+  count = var.eks_config.enable_cni_metrics_helper ? 1 : 0
+
+  name        = "cw-policy-${local.eks_cluster_name}"
+  description = "Grants permission to write metrics to CloudWatch"
+  policy      = data.aws_iam_policy_document.cw_put_metrics[0].json
+}
+
 resource "aws_iam_role" "eks_cluster_role" {
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
   tags               = var.tags
@@ -72,6 +92,13 @@ resource "aws_iam_role_policy_attachment" "policy_attachments" {
   for_each = toset(local.policy_arns)
 
   policy_arn = "arn:aws:iam::aws:policy/${each.value}"
+  role       = aws_iam_role.eks_cluster_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "cw_policy_attachment" {
+  count = var.eks_config.enable_cni_metrics_helper ? 1 : 0
+
+  policy_arn = aws_iam_policy.cw_policy[0].arn
   role       = aws_iam_role.eks_cluster_role.name
 }
 
@@ -199,4 +226,32 @@ module "cluster_autoscaler" {
   auto_scaler_profile   = var.eks_config.auto_scaler_profile
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
+}
+
+resource "terraform_data" "install_cni_metrics_helper" {
+  count = var.eks_config.enable_cni_metrics_helper ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<EOT
+      #!/bin/bash
+      set -e
+      helm repo add eks https://aws.github.io/eks-charts
+      helm repo update eks
+      aws eks update-kubeconfig --region ${var.region} --name ${local.eks_cluster_name}
+      helm upgrade --install cni-metrics-helper --namespace kube-system eks/cni-metrics-helper  \
+        --set "env.AWS_CLUSTER_ID=${local.eks_cluster_name}"
+
+      EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      #!/bin/bash
+      set -e
+      helm uninstall cni-metrics-helper --namespace kube-system
+
+      EOT
+  }
+  depends_on = [module.eks_addon]
 }

@@ -154,6 +154,7 @@ variable "eks_config_list" {
       skip_nodes_with_local_storage    = optional(bool, true)
       skip_nodes_with_system_pods      = optional(bool, true)
     }))
+    enable_cni_metrics_helper = optional(bool, false)
   }))
   default = []
 }
