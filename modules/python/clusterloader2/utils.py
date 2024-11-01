@@ -13,7 +13,7 @@ POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
 API_RESPONSIVENESS_FILE_PREFIX = "APIResponsivenessPrometheus"
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 
-def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, provider, overrides=False, enable_prometheus=False, enable_exec_service=False):
+def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, enable_exec_service=False):
     docker_client = DockerClient()
 
     command=f"""--provider={provider} --v=2
