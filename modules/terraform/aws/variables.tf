@@ -136,7 +136,8 @@ variable "eks_config_list" {
         env = optional(map(string))
       }))
     }))
-    kubernetes_version = optional(string, null)
+    kubernetes_version        = optional(string, null)
+    enable_cni_metrics_helper = optional(bool, false)
   }))
   default = []
 }

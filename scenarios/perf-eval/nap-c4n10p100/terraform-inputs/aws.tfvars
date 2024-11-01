@@ -86,4 +86,5 @@ eks_config_list = [{
     }
   ]
   eks_addons = []
+  enable_cni_metrics_helper = true
 }]
