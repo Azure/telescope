@@ -14,22 +14,18 @@ steps:
       credential_type: ${{ parameters.credential_type }}
 
 - script: |
-    test_results_data=$(echo "$(cat "$TEST_RESULTS_FILE")")
-    telescope_metadata=$(jq -n \
-      --arg run_id $RUN_ID \
-      --arg run_url  $RUN_URL \
-      --arg code_url  $CODE_URL \
-      --argjson test_results_data $test_results_data \
+    telescope_metadata=$(cat "$TELESCOPE_METADATA_FILE" | jq -c '.')
+    results=$(cat "$TEST_RESULTS_FILE" | jq -c '.')
+    results_with_metadata=$( jq -n \
+      --arg metadata "$telescope_metadata" \
+      --arg results "$results" \
       '{
-      run_id: $run_id,
-      run_url: $run_url,
-      code_url: $code_url,
-      results: $test_results_data
-      }' | jq 'with_entries(select(.value != null and .value != ""))')
-    echo "$telescope_metadata" > $TEST_RESULTS_DIR/$(RUN_ID)-metadata.json
-
-    echo "##vso[task.setvariable variable=TELESCOPE_RESULTS_FILE]$TEST_RESULTS_DIR/$(RUN_ID)-metadata.json"
-  displayName: 'Set Telescope Metadata'
+        metadata: $metadata,
+        results: $results
+      }')
+    echo "$results_with_metadata" > $TEST_RESULTS_DIR/$(RUN_ID).json
+    echo "##vso[task.setvariable variable=TELESCOPE_RESULTS_FILE]$TEST_RESULTS_DIR/$(RUN_ID).json"
+  displayName: 'Update results with metadata'
   env:
     TEST_RESULTS_FILE: ${{ parameters.source_file_name }}
 
