@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "slo-servicediscovery"
-deletion_delay = "4h"
+deletion_delay = "8h"
 owner          = "aks"
 
 network_config_list = [
