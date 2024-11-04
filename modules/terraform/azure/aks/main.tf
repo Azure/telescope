@@ -76,9 +76,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
     }
   }
 
-  oidc_issuer_enabled = true
-  kubernetes_version  = var.aks_config.kubernetes_version
-  edge_zone           = var.aks_config.edge_zone
+  oidc_issuer_enabled       = var.aks_config.oidc_issuer_enabled
+  workload_identity_enabled = var.aks_config.workload_identity_enabled
+  kubernetes_version        = var.aks_config.kubernetes_version
+  edge_zone                 = var.aks_config.edge_zone
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "pools" {
