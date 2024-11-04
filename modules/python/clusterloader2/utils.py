@@ -47,7 +47,6 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 
 def get_measurement(file_path):
     file_name = os.path.basename(file_path)
-    print(file_name)
     for file_prefix, measurement in POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP.items():
         if file_name.startswith(file_prefix):
             group_name = file_name.split("_")[2]

@@ -1,11 +1,6 @@
 steps:
 - script: |
-    nodeclaim_exists=$(kubectl api-resources | grep -w nodeclaim)
-    nodepool_exists=$(kubectl api-resources | grep -w nodepool)
-
-    if [[ -n "$nodeclaim_exists" && -n "$nodepool_exists" ]]; then
-      kubectl delete --all nodeclaim --ignore-not-found
-      kubectl delete --all nodepool --ignore-not-found
-    fi
+    kubectl delete --all nodeclaim --ignore-not-found
+    kubectl delete --all nodepool --ignore-not-found
   displayName: "Delete NodeClaim and NodePool"
   condition: always()
