@@ -6,11 +6,15 @@
     },
     "region": {
       "type": "string"
+    },
+    "creation_time": {
+      "type": "string"
     }
   },
   "required": [
     "run_id",
-    "region"
+    "region",
+    "creation_time"
   ],
   "additionalProperties": false
 }

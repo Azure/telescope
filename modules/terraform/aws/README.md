@@ -29,7 +29,7 @@ TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-in
 **Note**:
 
 * `RUN_ID` should be a unique identifier since it is used to identify the resources based on tags as AWS has no concept of a resource group.
-* `CRETION_TIME` is used to define the tags `creation_time` and `deletion_due_time`, which can be used to track provisioned resources in the AWS account.  It should not be more or less than one hour from the time the commands terraform plan/apply are run.
+* `CREATION_TIME` is used to define the tags `creation_time` and `deletion_due_time`, which can be used to track provisioned resources in the AWS account. It must be within one hour of the time the terraform plan/apply commands are executed.
 * These variables are not exhaustive and may vary depending on the scenario.
 
 ## Provision Resources
@@ -65,6 +65,7 @@ INPUT_JSON=$(jq -n \
 ```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
+INPUT_JSON=$(echo $INPUT_JSON | jq -c '. + {creation_time: (now |  todateiso8601)}')
 terraform plan -var json_input=$INPUT_JSON -var-file $TERRAFORM_INPUT_FILE
 terraform apply -var json_input=$INPUT_JSON -var-file $TERRAFORM_INPUT_FILE
 popd
