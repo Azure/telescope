@@ -13,8 +13,7 @@
   },
   "required": [
     "run_id",
-    "region",
-    "creation_time"
+    "region"
   ],
   "additionalProperties": false
 }
