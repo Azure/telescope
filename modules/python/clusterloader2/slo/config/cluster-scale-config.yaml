@@ -83,6 +83,7 @@ steps:
               Group: deployment-churn
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
+              deploymentLabel: start
   - name: Wait for nodes to be ready
     measurements:
       - Identifier: ConfirmNodeCount
