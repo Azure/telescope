@@ -10,16 +10,6 @@ variable "json_input" {
     condition     = can(formatdate("", var.json_input.creation_time))
     error_message = "The creation_time value must be a valid rfc3339 format string (e.g.: '2024-10-17T18:30:42Z')"
   }
-
-  validation {
-    condition     = timecmp(var.json_input.creation_time, timeadd(plantimestamp(), "-1h")) > 0
-    error_message = "The creation_time must not be older than 1h from now"
-  }
-
-  validation {
-    condition     = timecmp(var.json_input.creation_time, timeadd(plantimestamp(), "+1h")) < 0
-    error_message = "The creation_time must not be younger than 1h from now"
-  }
 }
 
 variable "owner" {
