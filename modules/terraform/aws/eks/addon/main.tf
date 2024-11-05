@@ -38,7 +38,6 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 
 resource "aws_iam_role" "addon_role" {
   assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy.json
-  tags               = var.tags
 
   depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
 }
@@ -61,9 +60,9 @@ resource "aws_eks_addon" "addon" {
   configuration_values     = each.value.configuration_values != null ? jsonencode(each.value.configuration_values) : null
 
 
-  tags = merge(var.tags, {
+  tags = {
     "Name" = each.value.name
-  })
+  }
 
   depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
 }

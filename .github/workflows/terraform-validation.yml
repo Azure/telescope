@@ -141,7 +141,7 @@ jobs:
       - name: Create JSON Input
         run: |
           INPUT_JSON_OBJECT=$(jq . ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
+          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c '. + {creation_time: (now |  todateiso8601)}')
           echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
       - name: Azure login
@@ -167,11 +167,7 @@ jobs:
       - name: Terraform Plan
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
         run: |
-          if [ $CLOUD == 'aws' ]; then
-            terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON" -var current_time=$(date -uIseconds | sed 's/+00:00/Z/')
-          else
-            terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
-          fi
+          terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
         env:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           CLOUD: ${{ matrix.cloud }}
