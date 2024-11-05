@@ -83,8 +83,10 @@ variable "aks_config" {
       mode      = string
       revisions = list(string)
     }))
-    kubernetes_version = optional(string, null)
-    edge_zone          = optional(string, null)
+    oidc_issuer_enabled       = optional(bool, false)
+    workload_identity_enabled = optional(bool, false)
+    kubernetes_version        = optional(string, null)
+    edge_zone                 = optional(string, null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")
