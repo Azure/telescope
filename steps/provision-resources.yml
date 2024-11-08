@@ -66,7 +66,7 @@ steps:
     echo "Create resource group $RUN_ID in region $region"
     az group create --name $RUN_ID --location $region --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}"
   displayName: "Create Resource Group"
-  condition: ${{ eq(parameters.cloud, 'azure') }}
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
   env:
     region: ${{ parameters.regions[0] }}
 
