@@ -32,7 +32,7 @@ stages:
               node_count: 100 #0
               node_per_step: 100 #0
               max_pods: 110
-              repeats: 10
+              repeats: 1 #0
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
