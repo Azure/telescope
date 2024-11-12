@@ -1,4 +1,5 @@
 trigger: none
+# TODO: Schedule
 # schedules:
 #   - cron: "0 */12 * * *"
 #     displayName: "Every 12 Hour"
@@ -24,12 +25,12 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: slo
+          topology: cilium-usercluster
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 100
+              node_count: 100 #0
+              node_per_step: 10 #0
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"

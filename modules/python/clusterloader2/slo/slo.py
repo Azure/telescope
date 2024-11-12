@@ -103,14 +103,14 @@ def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config
 def collect_clusterloader2(
     cpu_per_node,
     node_count,
-    max_pods,
     repeats,
     cl2_report_dir,
     cloud_info,
     run_id,
     run_url,
     service_test,
-    result_file
+    result_file,
+    test_type="default_config",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -138,8 +138,10 @@ def collect_clusterloader2(
         "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
-        "run_url": run_url
+        "run_url": run_url,
+        "test_type": test_type,
     }
+    print(test_type) # TODO: Remove
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
@@ -219,6 +221,8 @@ def main():
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("test_type", type=str, default="default-config",
+                                help="Description of test type")
 
     args = parser.parse_args()
 
@@ -234,7 +238,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.result_file)
+                               args.service_test, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()

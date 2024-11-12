@@ -13,6 +13,9 @@ parameters:
 - name: credential_type
   type: string
   default: managed_identity
+- name: topology
+  type: string
+  default: ''
 
 steps:
 - template: /steps/terraform/run-command.yml
@@ -31,3 +34,8 @@ steps:
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+
+- ${{ if eq(parameters.topology, 'cilium-usercluster') }}:
+  - template: /steps/topology/${{ parameters.topology }}/cleanup-resources.yml@self
+    parameters:
+      regions: ${{ parameters.regions }}

@@ -7,6 +7,8 @@ parameters:
   type: string
 - name: engine
   type: string
+- name: nodes_per_nodepool
+  type: number
 
 steps:
 - template: /steps/topology/${{ parameters.topology }}/validate-resources.yml@self
@@ -14,3 +16,4 @@ steps:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
     engine: ${{ parameters.engine }}
+    nodes_per_nodepool: ${{ parameters.nodes_per_nodepool }}
