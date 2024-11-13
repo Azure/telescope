@@ -17,3 +17,4 @@ steps:
     regions: ${{ parameters.regions }}
     engine: ${{ parameters.engine }}
     nodes_per_nodepool: ${{ parameters.nodes_per_nodepool }}
+    topology: ${{ parameters.topology }}

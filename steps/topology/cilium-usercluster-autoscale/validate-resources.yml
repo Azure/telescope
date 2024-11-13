@@ -7,8 +7,6 @@ parameters:
     type: object
   - name: nodes_per_nodepool
     type: number
-  - name: topology
-    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -20,4 +18,3 @@ steps:
       role: ces
       region: ${{ parameters.regions[0] }}
       nodes_per_nodepool: ${{ parameters.nodes_per_nodepool }}
-      topology: ${{ parameters.topology }}
