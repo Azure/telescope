@@ -5,8 +5,6 @@ parameters:
     type: string
   - name: regions
     type: object
-  - name: nodes_per_nodepool
-    type: number
   - name: topology
     type: string
 
@@ -19,5 +17,4 @@ steps:
     parameters:
       role: ces
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: ${{ parameters.nodes_per_nodepool }}
-      topology: ${{ parameters.topology }}
+      nodes_per_nodepool: 50 #0

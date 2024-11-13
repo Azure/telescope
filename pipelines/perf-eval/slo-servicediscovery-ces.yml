@@ -43,4 +43,3 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-          initial_nodes_per_nodepool: 50

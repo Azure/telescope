@@ -5,8 +5,9 @@ parameters:
   type: string
 - name: nodes_per_nodepool
   type: number
-- name: topology
-  type: string
+- name: enable_autoscale
+  type: boolean
+  default: false
 
 steps:
 - script: |
@@ -33,13 +34,14 @@ steps:
     for np in $usernodepools; do
       currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
 
+      # disable autoscaler before scaling nodepool to desire node count
+      az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --disable-cluster-autoscaler
       if [ "$currentnodes" != "${{ parameters.nodes_per_nodepool }}" ]; then
-        # disable autoscaler before scaling
-        az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --disable-cluster-autoscaler
         az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}
       fi
-      
-      if [ "cilium-usercluster-autoscale" = "${{ parameters.topology }}" ]; then
+
+      # turn on autoscaler if test necessitates it
+      if ${{ parameters.enable_autoscale }}; then
          az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 500
       fi
       az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
