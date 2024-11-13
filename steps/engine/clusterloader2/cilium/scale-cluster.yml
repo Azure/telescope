@@ -6,8 +6,7 @@ parameters:
 - name: nodes_per_nodepool
   type: number
 - name: enable_autoscale
-  type: boolean
-  default: false
+  type: string
 
 steps:
 - script: |
@@ -41,13 +40,12 @@ steps:
       fi
 
       # turn on autoscaler if test necessitates it
-      if ${{ parameters.enable_autoscale }}; then
+      if [ "true" =  "${{ parameters.enable_autoscale }}" ]; then
          az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 500
       fi
       az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
       sleep 300
     done
-
   env:
     ROLE: ${{ parameters.role }}
   displayName: "Scale Cluster"

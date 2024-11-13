@@ -31,4 +31,3 @@ steps:
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
-  

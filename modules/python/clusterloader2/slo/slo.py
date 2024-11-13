@@ -142,7 +142,6 @@ def collect_clusterloader2(
         "run_url": run_url,
         "test_type": test_type,
     }
-    print(test_type) # TODO: Remove
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
