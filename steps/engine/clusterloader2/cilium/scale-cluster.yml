@@ -30,13 +30,13 @@ steps:
     for np in $usernodepools; do
       currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
       if [ "$currentnodes" = "${{ parameters.nodes_per_nodepool }}" ]; then
+        az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule"
         continue
       fi
       az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}
       az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks-rg --node-taints "slo=true:NoSchedule"
       sleep 300
     done
-
 
   env:
     ROLE: ${{ parameters.role }}
