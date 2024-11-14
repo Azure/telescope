@@ -5,8 +5,6 @@ parameters:
     type: string
   - name: regions
     type: object
-  - name: topology
-    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -17,5 +15,5 @@ steps:
     parameters:
       role: ces
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: 50 #0
+      nodes_per_nodepool: 500
       enable_autoscale: "false"

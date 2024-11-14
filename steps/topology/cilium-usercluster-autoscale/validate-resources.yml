@@ -5,8 +5,6 @@ parameters:
     type: string
   - name: regions
     type: object
-  - name: topology
-    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
