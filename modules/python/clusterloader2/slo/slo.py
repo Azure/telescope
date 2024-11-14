@@ -221,7 +221,7 @@ def main():
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("test_type", type=str, default="default-config",
+    parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
 
     args = parser.parse_args()
