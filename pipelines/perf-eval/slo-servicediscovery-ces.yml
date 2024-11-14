@@ -29,10 +29,10 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 100 #0
-              node_per_step: 100 #0
+              node_count: 1000
+              node_per_step: 1000
               max_pods: 110
-              repeats: 1 #0
+              repeats: 10
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
