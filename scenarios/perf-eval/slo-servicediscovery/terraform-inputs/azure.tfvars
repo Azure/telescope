@@ -58,7 +58,7 @@ aks_config_list = [
         min_count            = 300
         max_count            = 300
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4_v5"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
@@ -69,7 +69,7 @@ aks_config_list = [
         min_count            = 300
         max_count            = 300
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4_v5"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
@@ -80,7 +80,7 @@ aks_config_list = [
         min_count            = 400
         max_count            = 400
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4_v5"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }

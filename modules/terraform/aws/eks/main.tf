@@ -23,6 +23,7 @@ locals {
         env = {
           # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
           # This significantly increases number of pods that can be run per node. (see: https://aws.amazon.com/blogs/containers/amazon-vpc-cni-increases-pods-per-node-limits/)
+          # Nodes must be AWS Nitro-based (see: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-nitro-instances.html#nitro-instance-types)
           # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
           ENABLE_PREFIX_DELEGATION = "true"
           WARM_PREFIX_TARGET       = "1"
