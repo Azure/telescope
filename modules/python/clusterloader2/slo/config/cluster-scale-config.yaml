@@ -14,11 +14,14 @@ name: deployment-churn
 {{$namespaces := DivideInt $nodesPerStep $nodesPerNamespace}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 
 {{$totalNodes := MultiplyInt $nodesPerStep $steps}}
 {{$totalPods := MultiplyInt $nodesPerStep $steps $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $deploymentSize $steps)}}
+
+{{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 namespace:
   number: {{$namespaces}}
@@ -44,27 +47,18 @@ steps:
         action: start
         duration: 1ms
 
-  - name: Start measurements
-    measurements:
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: start
-          labelSelector: group = deployment-churn
-          threshold: {{$podStartupLatencyThreshold}}
-      - Identifier: APIResponsivenessPrometheusSimple
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: start
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: start
-          checkIfPodsAreUpdated: true
-          apiVersion: apps/v1
-          kind: Deployment
-          labelSelector: group = deployment-churn
-          operationTimeout: {{$operationTimeout}}
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
 
 {{range $i := Loop $repeats}}
   {{range $j := Loop $steps}}
@@ -80,7 +74,7 @@ steps:
             objectTemplatePath: deployment_template.yaml
             templateFillMap:
               Replicas: {{$deploymentSize}}
-              Group: deployment-churn
+              Group: {{$groupName}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
@@ -125,16 +119,15 @@ steps:
   {{end}}
 {{end}}
 
-  - name: Collecting measurements
-    measurements:
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: gather
-      - Identifier: APIResponsivenessPrometheus
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: gather
-          enableViolations: true
-          useSimpleLatencyQuery: true
-          summaryName: APIResponsivenessPrometheus
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
