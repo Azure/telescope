@@ -78,6 +78,7 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
+
   - name: Wait for nodes to be ready
     measurements:
       - Identifier: ConfirmNodeCount
@@ -89,13 +90,6 @@ steps:
           labelSelector: slo = true
           timeout: {{$operationTimeout}}
           refreshInterval: 1m
-  - name: Waiting for latency pods to be running
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
-          refreshInterval: 15s
   {{end}}
 
   {{range $j := Loop $steps}}
@@ -109,13 +103,6 @@ steps:
         objectBundle:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
-  - name: Waiting for latency pods to be deleted
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
-          refreshInterval: 15s
   {{end}}
 {{end}}
 
