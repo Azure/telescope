@@ -14,4 +14,3 @@ steps:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
     engine: ${{ parameters.engine }}
-    topology: ${{ parameters.topology }}

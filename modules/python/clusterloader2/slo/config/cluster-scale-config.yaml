@@ -60,6 +60,18 @@ steps:
         action: start
 {{end}}
 
+  - name: Start measurements
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: true
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = deployment-churn
+          operationTimeout: {{$operationTimeout}}
+
 {{range $i := Loop $repeats}}
   {{range $j := Loop $steps}}
   - name: Creating Deployments {{$j}}
@@ -90,6 +102,14 @@ steps:
           labelSelector: slo = true
           timeout: {{$operationTimeout}}
           refreshInterval: 1m
+
+  - name: Waiting for latency pods to be running
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
   {{end}}
 
   {{range $j := Loop $steps}}
@@ -103,6 +123,14 @@ steps:
         objectBundle:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
+
+  - name: Waiting for latency pods to be deleted
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
   {{end}}
 {{end}}
 
