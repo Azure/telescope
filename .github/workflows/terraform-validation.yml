@@ -63,6 +63,9 @@ jobs:
       - name: Terraform Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
         run: terraform test
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
   setup-matrix:
     runs-on: ubuntu-latest
