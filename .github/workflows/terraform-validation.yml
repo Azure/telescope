@@ -62,7 +62,7 @@ jobs:
 
       - name: Terraform Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
-        run: terraform test -test-directory=tests
+        run: terraform test
 
   setup-matrix:
     runs-on: ubuntu-latest
