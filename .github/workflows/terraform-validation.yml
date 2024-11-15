@@ -23,7 +23,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.6
+          terraform_version: 1.6.0
 
       - name: Terraform Format Check
         if: always()
@@ -63,8 +63,6 @@ jobs:
       - name: Terraform Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
         run: terraform test
-        with:
-          terraform_version: 1.6.0
 
   setup-matrix:
     runs-on: ubuntu-latest
