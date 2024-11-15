@@ -11,7 +11,8 @@ name: load-config
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-{{$namespaces := 1}} # TODO: jshr-w
+# TODO(jshr-w): This should eventually use >1 namespace.
+{{$namespaces := 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}

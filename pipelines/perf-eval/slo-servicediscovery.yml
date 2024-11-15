@@ -76,6 +76,6 @@ stages:
               service_test: True
               cl2_config_file: load-config.yaml
           max_parallel: 2
-          timeout_in_minutes: 360
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
