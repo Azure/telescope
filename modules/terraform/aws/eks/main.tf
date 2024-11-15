@@ -26,7 +26,11 @@ locals {
           # Nodes must be AWS Nitro-based (see: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-nitro-instances.html#nitro-instance-types)
           # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
           ENABLE_PREFIX_DELEGATION = "true"
-          WARM_PREFIX_TARGET       = "1"
+
+          # Should set either WARM_PREFIX_TARGET or both MINIMUM_IP_TARGET and WARM_IP_TARGET (see: https://github.com/aws/amazon-vpc-cni-k8s/blob/master/docs/prefix-and-ip-target.md)
+          WARM_PREFIX_TARGET = var.eks_config.vpc_cni_minimum_ip_target == "0" ? "1" : "0"
+          MINIMUM_IP_TARGET  = var.eks_config.vpc_cni_minimum_ip_target
+          WARM_IP_TARGET     = var.eks_config.vpc_cni_minimum_ip_target != "0" ? "1" : "0"
 
           ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
         }
@@ -250,4 +254,13 @@ resource "terraform_data" "install_cni_metrics_helper" {
       EOT
   }
   depends_on = [module.eks_addon]
+}
+
+variable "eks_addon" {
+  type    = object({})
+  default = {}
+}
+
+output "eks_addon" {
+  value = module.eks_addon
 }

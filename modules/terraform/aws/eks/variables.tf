@@ -52,7 +52,8 @@ variable "eks_config" {
         env = optional(map(string))
       }))
     }))
-    kubernetes_version = optional(string, null)
+    vpc_cni_minimum_ip_target = optional(string, "0")
+    kubernetes_version        = optional(string, null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")

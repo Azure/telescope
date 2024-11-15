@@ -70,6 +70,7 @@ To use the EKS module, follow these steps:
    - This configuration creates two addons related to storage.
    - service_account and policy_attachment_names are optional in general but some addons are required to have IAM permisson values. [Refer here](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
    - We can also provide the version of an addon we are created which is an optional input here.
+   - For VPC-CNI, a default configuration is used (see [main.tf](./main.tf)). Use vpc_cni_minimum_ip_target to set MINIMUM_IP_TARGET (default: "0")
    
 ## Terraform Provider References
 

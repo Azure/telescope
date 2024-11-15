@@ -48,3 +48,13 @@ module "eks" {
   tags       = local.tags
   depends_on = [module.virtual_network]
 }
+
+
+variable "eks" {
+  type    = object({})
+  default = {}
+}
+
+output "eks" {
+  value = module.eks
+} 
