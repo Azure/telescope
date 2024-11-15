@@ -28,9 +28,7 @@ locals {
           ENABLE_PREFIX_DELEGATION = "true"
 
           # Should set either WARM_PREFIX_TARGET or both MINIMUM_IP_TARGET and WARM_IP_TARGET (see: https://github.com/aws/amazon-vpc-cni-k8s/blob/master/docs/prefix-and-ip-target.md)
-          WARM_PREFIX_TARGET = var.eks_config.vpc_cni_minimum_ip_target == "0" ? "1" : "0"
-          MINIMUM_IP_TARGET  = var.eks_config.vpc_cni_minimum_ip_target
-          WARM_IP_TARGET     = var.eks_config.vpc_cni_minimum_ip_target != "0" ? "1" : "0"
+          WARM_PREFIX_TARGET = tostring(local.eks_config_addons_map["vpc-cni"].vpc_cni_warm_prefix_target)
 
           ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
         }
