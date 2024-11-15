@@ -146,11 +146,13 @@ eks_config_list = [{
     }
   ]
 
+  # Set IP target to max number of Pods per Node (58 for m5a.xlarge) + 2 for extras
+  vpc_cni_minimum_ip_target = "60"
+
   eks_addons = [
     { name = "vpc-cni" },
     { name = "kube-proxy" },
     { name = "coredns" }
   ]
   kubernetes_version = "1.30"
-  vpc_cni_minimum_ip_target = "58"  # Set IP target to max number of Pods per Node (58 for m5a.xlarge)
 }]

@@ -59,6 +59,11 @@ jobs:
 
       - name: Terraform Lint Check
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
+
+      - name: Terraform Test
+        working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
+        run: test -test-directory=tests
+
   setup-matrix:
     runs-on: ubuntu-latest
     name: Setup terraform plan matrix for test scenarios
