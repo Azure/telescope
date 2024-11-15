@@ -88,7 +88,7 @@ run "valid_vpc_config_default" {
 
 }
 
-run "valid_vpc_config_minimum_ip_target" {
+run "valid_vpc_config_set" {
 
   command = plan
 
@@ -122,6 +122,42 @@ run "valid_vpc_config_minimum_ip_target" {
 
   assert {
     condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "4"
+    error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
+  }
+}
+
+run "valid_karpenter_set" {
+
+  command = plan
+
+  variables {
+    eks_config_list = [{
+      role        = "nap"
+      eks_name    = "eks_name"
+      vpc_name    = "nap-vpc"
+      policy_arns = ["AmazonEKS_CNI_Policy"]
+      eks_managed_node_groups = [
+        {
+          name           = "my_scenario-ng"
+          ami_type       = "AL2_x86_64"
+          instance_types = ["m5a.xlarge"]
+          min_size       = 5
+          max_size       = 5
+          desired_size   = 5
+        }
+      ]
+      enable_karpenter = true
+      eks_addons       = []
+    }]
+  }
+
+  assert {
+    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
+  }
+
+  assert {
+    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 }
