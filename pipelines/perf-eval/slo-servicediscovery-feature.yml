@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-servicediscovery-ces
-  SCENARIO_VERSION: jshr/cespipeline #main
+  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2

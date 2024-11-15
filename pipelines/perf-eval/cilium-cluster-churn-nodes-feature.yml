@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-cluster-churn-feature
-  SCENARIO_VERSION: jshr/cespipeline
+  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2

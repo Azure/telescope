@@ -1,17 +1,17 @@
 trigger: none
-# TODO: Schedule
-# schedules:
-#   - cron: "0 */12 * * *"
-#     displayName: "Every 12 Hour"
-#     branches:
-#       include:
-#         - main
-#     always: true
+
+schedules:
+  - cron: "0 */12 * * *"
+    displayName: "Every 12 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-cluster-churn-ces
-  SCENARIO_VERSION: jshr/cespipeline #main
+  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2
@@ -29,8 +29,8 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 100 #0
-              node_per_step: 10 #0
+              node_count: 1000
+              node_per_step: 100
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
