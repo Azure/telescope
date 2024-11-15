@@ -256,6 +256,7 @@ resource "terraform_data" "install_cni_metrics_helper" {
   depends_on = [module.eks_addon]
 }
 
+# tflint-ignore: terraform_unused_declarations # (variable used for unit tests)
 variable "eks_addon" {
   type    = object({})
   default = {}

@@ -50,6 +50,7 @@ module "eks" {
 }
 
 
+# tflint-ignore: terraform_unused_declarations # (variable used for unit tests)
 variable "eks" {
   type    = object({})
   default = {}
