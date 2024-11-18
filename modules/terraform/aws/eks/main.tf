@@ -336,16 +336,3 @@ resource "terraform_data" "install_cni_metrics_helper" {
   }
   depends_on = [aws_eks_cluster.eks]
 }
-
-# tflint-ignore: terraform_unused_declarations # (variable used for unit tests)
-variable "eks_addon" {
-  type    = object({})
-  default = {}
-}
-
-output "eks_addon" {
-  value = {
-    after_compute : aws_eks_addon.addon,
-    before_compute : aws_eks_addon.before_compute
-  }
-}
