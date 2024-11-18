@@ -6,6 +6,7 @@ parameters:
 - name: image
   type: string
 
+steps:
 - script: |
     telescope_metadata=$(jq -n \
       --arg run_id $RUN_ID \
@@ -19,6 +20,7 @@ parameters:
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY \
       --arg image "$IMAGE" \
+      --arg cloud "$CLOUD" \
       '{
       run_id: $run_id,
       run_url: $run_url,
@@ -30,7 +32,8 @@ parameters:
       scenario_type: $scenario_type,
       engine: $engine,
       topology: $topology,
-      image: $image
+      image: $image,
+      cloud: $cloud
       }')
     echo "Telescope Metadata: $telescope_metadata"
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
@@ -41,6 +44,7 @@ parameters:
     ENGINE: ${{ parameters.engine }}
     TOPOLOGY: ${{ parameters.topology }}
     IMAGE: ${{ parameters.image }}
+    CLOUD: ${{ parameters.cloud }}
 
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
