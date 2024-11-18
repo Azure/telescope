@@ -5,6 +5,8 @@ parameters:
   type: string
 - name: image
   type: string
+- name: cloud
+  type: string
 
 steps:
 - script: |
