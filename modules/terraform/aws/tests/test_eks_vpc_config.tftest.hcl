@@ -77,12 +77,12 @@ run "valid_vpc_config_default" {
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
     error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 
@@ -116,12 +116,12 @@ run "valid_vpc_config_set" {
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
     error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "4"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "4"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 }
@@ -152,12 +152,55 @@ run "valid_karpenter_set" {
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
     error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
+  }
+}
+
+run "valid_add_after_before_compute" {
+
+  command = plan
+
+  variables {
+    eks_config_list = [{
+      role        = "nap"
+      eks_name    = "eks_name"
+      vpc_name    = "nap-vpc"
+      policy_arns = ["AmazonEKS_CNI_Policy"]
+      eks_managed_node_groups = [
+        {
+          name           = "my_scenario-ng"
+          ami_type       = "AL2_x86_64"
+          instance_types = ["m5a.xlarge"]
+          min_size       = 5
+          max_size       = 5
+          desired_size   = 5
+        }
+      ]
+      eks_addons = [
+        {
+          name = "addon_after_compute_default"
+        },
+        {
+          name           = "addon_before_compute"
+          before_compute = true
+        }
+      ]
+    }]
+  }
+
+  assert {
+    condition     = contains(keys(module.eks["eks_name"].eks_addon.after_compute), "addon_after_compute_default")
+    error_message = "Error addon should be created after compute"
+  }
+
+  assert {
+    condition     = contains(keys(module.eks["eks_name"].eks_addon.before_compute), "addon_before_compute")
+    error_message = "Error addon should be created before compute"
   }
 }

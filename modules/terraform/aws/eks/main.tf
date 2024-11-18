@@ -21,7 +21,7 @@ locals {
     "vpc-cni" = {
       name           = "vpc-cni",
       policy_arns    = ["AmazonEKS_CNI_Policy"],
-      before_compute = true,
+      before_compute = true, # ensure the vpc-cni is created and updated before any EC2 instances are created.
       configuration_values = {
         env = {
           # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
@@ -344,5 +344,8 @@ variable "eks_addon" {
 }
 
 output "eks_addon" {
-  value = aws_eks_addon.before_compute
+  value = {
+    after_compute : aws_eks_addon.addon,
+    before_compute : aws_eks_addon.before_compute
+  }
 }

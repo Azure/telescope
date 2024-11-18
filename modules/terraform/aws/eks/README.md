@@ -72,6 +72,7 @@ To use the EKS module, follow these steps:
     - `version`: Version of the addon (optional)
     - `service_account`: Service account associated with the addon (optional)
     - `policy_arns`: Policy ARNs required for the addon (optional)
+    - `before_compute`: Create addon before creating the managed node groups (default = false)
 
    - For EKS addon's we have to create OIDC provider for the cluster and attach policy arns.[Refer here](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html)
    - This configuration creates two addons related to storage.
