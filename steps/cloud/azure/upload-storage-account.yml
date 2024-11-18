@@ -32,7 +32,7 @@ steps:
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
-    ${{ if ne(SOURCE_BRANCH, 'main') }}:
-      SUBFOLDER: $(SCENARIO_NAME)/$(SOURCE_BRANCH)
+    ${{ if ne(variables['Build.SourceBranchName'], 'main') }}:
+      SUBFOLDER: $(SCENARIO_NAME)/$(Build.SourceBranchName)
     ${{ else }}:
       SUBFOLDER: ${{ parameters.subfolder }}
