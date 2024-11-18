@@ -9,7 +9,8 @@ parameters:
   type: string
 - name: credential_type
   type: string
-
+- name: regions
+  type: object
 steps:
 - script: |
     telescope_metadata=$(jq -n \
@@ -25,6 +26,7 @@ steps:
       --arg topology "$TOPOLOGY" \
       --arg engine_image "$ENGINE_IMAGE" \
       --arg cloud "$CLOUD" \
+      --arg region "$(echo "$REGIONS" | jq -r '.[]')" \
       '{
       run_id: $run_id,
       run_url: $run_url,
@@ -37,8 +39,9 @@ steps:
       engine: $engine,
       topology: $topology,
       engine_image: $engine_image,
-      cloud: $cloud
-      }')
+      cloud: $cloud,
+      region: $region
+      }' | jq 'with_entries(select(.value != null and .value != ""))')
     echo "Telescope Metadata: $telescope_metadata"
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
     echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
@@ -49,6 +52,7 @@ steps:
     TOPOLOGY: ${{ parameters.topology }}
     ENGINE_IMAGE: ${{ parameters.image }}
     CLOUD: ${{ parameters.cloud }}
+    REGIONS: ${{ convertToJson(parameters.regions) }}
 
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:

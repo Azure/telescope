@@ -27,6 +27,7 @@ steps:
     image: ${{ parameters.engine_input.image }}
     cloud: ${{ parameters.cloud }}
     credential_type: ${{ parameters.credential_type }}
+    regions: ${{ parameters.regions }}
 
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
