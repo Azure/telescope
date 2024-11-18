@@ -77,12 +77,12 @@ run "valid_vpc_config_default" {
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
     error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 
@@ -116,12 +116,12 @@ run "valid_vpc_config_set" {
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
     error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "4"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "4"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 }
@@ -152,12 +152,12 @@ run "valid_karpenter_set" {
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.ENABLE_PREFIX_DELEGATION == "true"
     error_message = "Error ENABLE_PREFIX_DELEGATION expected value: 'true'"
   }
 
   assert {
-    condition     = jsondecode(module.eks["eks_name"].eks_addon[0].addons.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
+    condition     = jsondecode(module.eks["eks_name"].eks_addon.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 }
