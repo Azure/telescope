@@ -26,6 +26,7 @@ steps:
     topology: ${{ parameters.topology }}
     image: ${{ parameters.engine_input.image }}
     cloud: ${{ parameters.cloud }}
+    credential_type: ${{ parameters.credential_type }}
 
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
