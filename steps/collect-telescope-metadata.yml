@@ -23,7 +23,7 @@ steps:
       --arg scenario_type "$SCENARIO_TYPE" \
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
-      --arg image "$IMAGE" \
+      --arg engine_image "$ENGINE_IMAGE" \
       --arg cloud "$CLOUD" \
       '{
       run_id: $run_id,
@@ -36,7 +36,7 @@ steps:
       scenario_type: $scenario_type,
       engine: $engine,
       topology: $topology,
-      image: $image,
+      engine_image: $engine_image,
       cloud: $cloud
       }')
     echo "Telescope Metadata: $telescope_metadata"
@@ -47,7 +47,7 @@ steps:
   env:
     ENGINE: ${{ parameters.engine }}
     TOPOLOGY: ${{ parameters.topology }}
-    IMAGE: ${{ parameters.image }}
+    ENGINE_IMAGE: ${{ parameters.image }}
     CLOUD: ${{ parameters.cloud }}
 
 - template: /steps/cloud/azure/upload-storage-account.yml
