@@ -1,28 +1,19 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id = string
-    region = string
+    run_id        = string
+    region        = string
+    creation_time = string
   })
-}
-
-variable "current_time" {
-  description = "Current time as rfc3339 format (e.g.: '2024-10-17T18:30:42Z')"
-  type        = string
 
   validation {
-    condition     = can(formatdate("", var.current_time))
-    error_message = "The current_time value must be a valid rfc3339 format string (e.g.: '2024-10-17T18:30:42Z')"
+    condition     = can(formatdate("", var.json_input.creation_time))
+    error_message = "The creation_time value must be a valid rfc3339 format string (e.g.: '2024-10-17T18:30:42Z')"
   }
 
   validation {
-    condition     = timecmp(var.current_time, timeadd(plantimestamp(), "-1h")) > 0
-    error_message = "The current_time must not be older than 1h from now"
-  }
-
-  validation {
-    condition     = timecmp(var.current_time, timeadd(plantimestamp(), "+1h")) < 0
-    error_message = "The current_time must not be younger than 1h from now"
+    condition     = timecmp(var.json_input.creation_time, timeadd(plantimestamp(), "+1h")) < 0
+    error_message = "The creation_time must not be more than 1 hour from now (${plantimestamp()})"
   }
 }
 
@@ -133,6 +124,7 @@ variable "eks_config_list" {
       configuration_values = optional(object({
         env = optional(map(string))
       }))
+      vpc_cni_warm_prefix_target = optional(number, 1)
     }))
     kubernetes_version = optional(string, null)
     auto_scaler_profile = optional(object({

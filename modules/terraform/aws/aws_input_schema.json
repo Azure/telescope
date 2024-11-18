@@ -6,6 +6,9 @@
     },
     "region": {
       "type": "string"
+    },
+    "creation_time": {
+      "type": "string"
     }
   },
   "required": [

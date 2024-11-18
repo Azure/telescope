@@ -21,6 +21,7 @@ SCENARIO_NAME=nap-c4n10p100
 RUN_ID=$(date +%s)
 CLOUD=aws
 REGION="us-east-2"
+CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
 TERRAFORM_MODULES_DIR=$(pwd)/modules/terraform/$CLOUD
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
 ```
@@ -28,6 +29,7 @@ TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-in
 **Note**:
 
 * `RUN_ID` should be a unique identifier since it is used to identify the resources based on tags as AWS has no concept of a resource group.
+* `CREATION_TIME` is used to define the tags `creation_time` and `deletion_due_time`, which can be used to track provisioned resources in the AWS account. It must be within one hour of the time the terraform plan/apply commands are executed.
 * These variables are not exhaustive and may vary depending on the scenario.
 
 ## Provision Resources
@@ -50,9 +52,11 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 INPUT_JSON=$(jq -n \
       --arg run_id $RUN_ID \
       --arg region $REGION \
+      --arg creation_time $CREATION_TIME \
       '{
       run_id: $run_id,
-      region: $region
+      region: $region,
+      creation_time: $creation_time
       }' | jq 'with_entries(select(.value != null and .value != ""))')
 ```
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
@@ -61,8 +65,9 @@ INPUT_JSON=$(jq -n \
 ```bash
 pushd $TERRAFORM_MODULES_DIR
 terraform init
-terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
-terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
+INPUT_JSON=$(echo $INPUT_JSON | jq -c '. + {creation_time: (now |  todateiso8601)}')
+terraform plan -var json_input=$INPUT_JSON -var-file $TERRAFORM_INPUT_FILE
+terraform apply -var json_input=$INPUT_JSON -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
@@ -70,7 +75,7 @@ popd
 Cleanup test resources using terraform
 ```bash 
 pushd $TERRAFORM_MODULES_DIR
-terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE -var current_time=$(date -uIseconds |  sed 's/+00:00/Z/')
+terraform destroy -var json_input=$INPUT_JSON -var-file $TERRAFORM_INPUT_FILE
 popd
 ```
 
