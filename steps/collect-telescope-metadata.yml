@@ -30,6 +30,7 @@ steps:
       --arg pipeline_id "$(System.DefinitionId)" \
       --arg pipeline_name "$(Build.DefinitionName)" \
       --arg cron_schedule_display_name "$(Build.CronSchedule.DisplayName)" \
+      --arg project_name "$(System.TeamProject)" \
       '{
       run_id: $run_id,
       run_url: $run_url,
@@ -46,7 +47,8 @@ steps:
       region: $region,
       pipeline_id: $pipeline_id,
       pipeline_name: $pipeline_name,
-      cron_schedule_display_name: $cron_schedule_display_name
+      cron_schedule_display_name: $cron_schedule_display_name,
+      project_name: $project_name
       }' | jq 'with_entries(select(.value != null and .value != ""))')
     echo "Telescope Metadata: $telescope_metadata"
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
