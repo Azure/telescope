@@ -22,7 +22,7 @@ steps:
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
       --arg engine "$ENGINE" \
-      --arg topology "$TOPOLOGY \
+      --arg topology "$TOPOLOGY" \
       --arg image "$IMAGE" \
       --arg cloud "$CLOUD" \
       '{
@@ -42,7 +42,7 @@ steps:
     echo "Telescope Metadata: $telescope_metadata"
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
     echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
-  displayName: "Set Telescope Metadata"
+  displayName: "Collect Telescope Metadata"
   condition: always()
   env:
     ENGINE: ${{ parameters.engine }}
