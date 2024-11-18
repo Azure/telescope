@@ -66,3 +66,13 @@ resource "aws_eks_addon" "addon" {
 
   depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
 }
+
+# tflint-ignore: terraform_unused_declarations # (variable used for unit tests)
+variable "addons" {
+  type    = object({})
+  default = {}
+}
+
+output "addons" {
+  value = aws_eks_addon.addon
+}

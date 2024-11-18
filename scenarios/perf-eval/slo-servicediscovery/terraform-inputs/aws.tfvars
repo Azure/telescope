@@ -96,7 +96,7 @@ eks_config_list = [{
     {
       name           = "userpool0"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.xlarge"]
+      instance_types = ["m5a.xlarge"]
       min_size       = 300
       max_size       = 300
       desired_size   = 300
@@ -113,7 +113,7 @@ eks_config_list = [{
     {
       name           = "userpool1"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.xlarge"]
+      instance_types = ["m5a.xlarge"]
       min_size       = 300
       max_size       = 300
       desired_size   = 300
@@ -130,7 +130,7 @@ eks_config_list = [{
     {
       name           = "userpool2"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.xlarge"]
+      instance_types = ["m5a.xlarge"]
       min_size       = 400
       max_size       = 400
       desired_size   = 400
@@ -147,7 +147,10 @@ eks_config_list = [{
   ]
 
   eks_addons = [
-    { name = "vpc-cni" },
+    {
+      name                       = "vpc-cni",
+      vpc_cni_warm_prefix_target = 4 # 64 IPs to accomodate 58 Pods (max for m5a.xlarge) + 2 for extras
+    },
     { name = "kube-proxy" },
     { name = "coredns" }
   ]
