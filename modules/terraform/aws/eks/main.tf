@@ -7,15 +7,17 @@ locals {
 
   karpenter_addons_map = {
     for addon in [
-      { name = "vpc-cni" },
+      { name = "vpc-cni", vpc_cni_warm_prefix_target = 1 },
       { name = "kube-proxy" },
       { name = "coredns" }
     ] : addon.name => addon
     if var.eks_config.enable_karpenter
   }
 
+  _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map)
+
   # Set default VPC-CNI settings if addon is present in the config
-  vpc_cni_addon_map = contains(keys(local.karpenter_addons_map), "vpc-cni") || contains(keys(local.eks_config_addons_map), "vpc-cni") ? {
+  vpc_cni_addon_map = contains(keys(local._eks_addons_map), "vpc-cni") ? {
     "vpc-cni" = {
       name        = "vpc-cni",
       policy_arns = ["AmazonEKS_CNI_Policy"],
@@ -26,7 +28,9 @@ locals {
           # Nodes must be AWS Nitro-based (see: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-nitro-instances.html#nitro-instance-types)
           # Note: we've seen that it also prevents ENIs leak caused the issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/608
           ENABLE_PREFIX_DELEGATION = "true"
-          WARM_PREFIX_TARGET       = "1"
+
+          # Should set either WARM_PREFIX_TARGET or both MINIMUM_IP_TARGET and WARM_IP_TARGET (see: https://github.com/aws/amazon-vpc-cni-k8s/blob/master/docs/prefix-and-ip-target.md)
+          WARM_PREFIX_TARGET = tostring(local._eks_addons_map["vpc-cni"].vpc_cni_warm_prefix_target)
 
           ADDITIONAL_ENI_TAGS = jsonencode(var.tags)
         }
@@ -34,7 +38,7 @@ locals {
     }
   } : {}
 
-  eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
+  eks_addons_map = merge(local._eks_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
 
   policy_arns = var.eks_config.policy_arns
 }
@@ -250,4 +254,14 @@ resource "terraform_data" "install_cni_metrics_helper" {
       EOT
   }
   depends_on = [module.eks_addon]
+}
+
+# tflint-ignore: terraform_unused_declarations # (variable used for unit tests)
+variable "eks_addon" {
+  type    = object({})
+  default = {}
+}
+
+output "eks_addon" {
+  value = module.eks_addon
 }

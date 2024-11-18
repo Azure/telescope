@@ -147,7 +147,10 @@ eks_config_list = [{
   ]
 
   eks_addons = [
-    { name = "vpc-cni" },
+    {
+      name                       = "vpc-cni",
+      vpc_cni_warm_prefix_target = 4 # 64 IPs to accomodate 58 Pods (max for m5a.xlarge) + 2 for extras
+    },
     { name = "kube-proxy" },
     { name = "coredns" }
   ]
