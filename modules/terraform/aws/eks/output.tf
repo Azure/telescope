@@ -9,3 +9,12 @@ output "dependencies" {
     policy_attachments = aws_iam_role_policy_attachment.policy_attachments[*]
   }
 }
+
+
+output "eks_addon" {
+  description = "EKS addon configuration. Used for unit tests"
+  value = {
+    after_compute : aws_eks_addon.addon,
+    before_compute : aws_eks_addon.before_compute
+  }
+}

@@ -52,6 +52,7 @@ variable "eks_config" {
         env = optional(map(string))
       }))
       vpc_cni_warm_prefix_target = optional(number, 1)
+      before_compute             = optional(bool, false)
     }))
     kubernetes_version = optional(string, null)
     auto_scaler_profile = optional(object({
