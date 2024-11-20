@@ -7,7 +7,7 @@ variables {
   json_input = {
     "run_id" : "123456789",
     "region" : "us-east-1",
-    "creation_time" : "2024-11-12T16:39:54Z"
+    "creation_time" : timestamp()
   }
 
   network_config_list = [
