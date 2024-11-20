@@ -29,6 +29,13 @@ provider "aws" {
   }
 }
 
+check "deletion_due_time" {
+  assert {
+    condition     = timecmp(local.non_computed_tags.deletion_due_time, plantimestamp()) > 0
+    error_message = "Deletion due time is in the past: ${local.non_computed_tags.deletion_due_time}. This might result in the deletion of resources currenty in use. To resolve it, update the creation_tim (${local.creation_time}) to current time"
+  }
+}
+
 module "virtual_network" {
   for_each = local.network_config_map
 
