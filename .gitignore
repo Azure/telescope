@@ -56,3 +56,5 @@ __pycache__/
 
 env/
 modules/python/clusterloader2/*/results
+
+modules/terraform/gcp/*.json
