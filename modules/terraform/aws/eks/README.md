@@ -65,7 +65,15 @@ To use the EKS module, follow these steps:
      }
    ]
    ```
-	 
+
+  - **Description:** A list of maps of EKS addons to deploy.
+   - **Type:** Map of objects
+    - `name`: Name of the addon
+    - `version`: Version of the addon (optional)
+    - `service_account`: Service account associated with the addon (optional)
+    - `policy_arns`: Policy ARNs required for the addon (optional)
+    - `before_compute`: Create addon before creating the managed node groups (default = false)
+
    - For EKS addon's we have to create OIDC provider for the cluster and attach policy arns.[Refer here](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html)
    - This configuration creates two addons related to storage.
    - service_account and policy_attachment_names are optional in general but some addons are required to have IAM permisson values. [Refer here](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
@@ -78,11 +86,14 @@ To use the EKS module, follow these steps:
 
 - [aws_iam_role Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
 - [aws_iam_role_policy_attachment Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment)
+- [aws_iam_openid_connect_provider Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_openid_connect_provider)
 - [aws_eks_cluster Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster)
 - [aws_eks_node_group Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_node_group)
+- [aws_eks_addon Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_addon)
 - [module Documentation](https://www.terraform.io/docs/language/modules/index.html)
 
 ### Data Sources
 
 - [aws_iam_policy_document Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document)
 - [aws_subnets Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets)
+- [tls_certificate Documentation](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/data-sources/certificate)

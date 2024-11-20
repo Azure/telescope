@@ -19,8 +19,9 @@ locals {
   # Set default VPC-CNI settings if addon is present in the config
   vpc_cni_addon_map = contains(keys(local._eks_addons_map), "vpc-cni") ? {
     "vpc-cni" = {
-      name        = "vpc-cni",
-      policy_arns = ["AmazonEKS_CNI_Policy"],
+      name           = "vpc-cni",
+      policy_arns    = ["AmazonEKS_CNI_Policy"],
+      before_compute = true, # ensure the vpc-cni is created and updated before any EC2 instances are created.
       configuration_values = {
         env = {
           # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
@@ -41,6 +42,9 @@ locals {
   eks_addons_map = merge(local._eks_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
 
   policy_arns = var.eks_config.policy_arns
+
+  addons_policy_arns  = flatten([for addon in local.eks_addons_map : addon.policy_arns if can(addon.policy_arns)])
+  service_account_map = { for addon in local.eks_addons_map : addon.name => addon.service_account if try(addon.service_account, null) != null }
 }
 
 data "aws_subnets" "subnets" {
@@ -185,19 +189,9 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   }
   depends_on = [
     aws_eks_cluster.eks,
-    aws_iam_role_policy_attachment.policy_attachments
+    aws_iam_role_policy_attachment.policy_attachments,
+    aws_eks_addon.before_compute
   ]
-}
-
-module "eks_addon" {
-  source = "./addon"
-
-  count = length(local.eks_addons_map) != 0 ? 1 : 0
-
-  eks_addon_config_map      = local.eks_addons_map
-  cluster_name              = aws_eks_cluster.eks.name
-  cluster_oidc_provider_url = aws_eks_cluster.eks.identity[0].oidc[0].issuer
-  depends_on                = [aws_eks_node_group.eks_managed_node_groups]
 }
 
 module "karpenter" {
@@ -228,6 +222,93 @@ module "cluster_autoscaler" {
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
 
+################################################################################
+# EKS Addons
+################################################################################
+
+data "aws_iam_policy_document" "addon_assume_role_policy" {
+  count = length(local.eks_addons_map) != 0 ? 1 : 0
+
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringLike"
+      variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    dynamic "condition" {
+      for_each = local.service_account_map
+      content {
+        test     = "StringLike"
+        variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
+        values   = ["system:serviceaccount:kube-system:${condition.value}"]
+      }
+    }
+
+    principals {
+      identifiers = [aws_iam_openid_connect_provider.oidc_provider.arn]
+      type        = "Federated"
+    }
+  }
+
+  depends_on = [aws_iam_openid_connect_provider.oidc_provider]
+}
+
+resource "aws_iam_role" "addon_role" {
+  count = length(local.eks_addons_map) != 0 ? 1 : 0
+
+  assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy[0].json
+
+  depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
+}
+
+resource "aws_iam_role_policy_attachment" "addon_policy_attachments" {
+  for_each = toset(local.addons_policy_arns)
+
+  policy_arn = "arn:aws:iam::aws:policy/${each.value}"
+  role       = aws_iam_role.addon_role[0].name
+  depends_on = [aws_iam_role.addon_role]
+}
+
+resource "aws_eks_addon" "addon" {
+  for_each = { for k, v in local.eks_addons_map : k => v if !try(v.before_compute, false) }
+
+  cluster_name             = aws_eks_cluster.eks.name
+  addon_name               = each.value.name
+  addon_version            = try(each.value.version, null)
+  service_account_role_arn = aws_iam_role.addon_role[0].arn
+  configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
+
+  tags = {
+    "Name" = each.value.name
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.addon_policy_attachments,
+    aws_eks_node_group.eks_managed_node_groups
+  ]
+}
+
+resource "aws_eks_addon" "before_compute" {
+  for_each = { for k, v in local.eks_addons_map : k => v if try(v.before_compute, false) }
+
+  cluster_name             = aws_eks_cluster.eks.name
+  addon_name               = each.value.name
+  addon_version            = try(each.value.version, null)
+  service_account_role_arn = aws_iam_role.addon_role[0].arn
+  configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
+
+  tags = {
+    "Name" = each.value.name
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
+}
+
+
 resource "terraform_data" "install_cni_metrics_helper" {
   count = var.eks_config.enable_cni_metrics_helper ? 1 : 0
 
@@ -253,15 +334,5 @@ resource "terraform_data" "install_cni_metrics_helper" {
 
       EOT
   }
-  depends_on = [module.eks_addon]
-}
-
-# tflint-ignore: terraform_unused_declarations # (variable used for unit tests)
-variable "eks_addon" {
-  type    = object({})
-  default = {}
-}
-
-output "eks_addon" {
-  value = module.eks_addon
+  depends_on = [aws_eks_cluster.eks]
 }
