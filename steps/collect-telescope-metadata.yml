@@ -49,7 +49,7 @@ steps:
       pipeline_name: $pipeline_name,
       cron_schedule_display_name: $cron_schedule_display_name,
       project_name: $project_name
-      }' | jq 'with_entries(select(.value != null and .value != ""))')
+      }' | jq 'with_entries(select(.value != null and .value != ""))' | jq -c .)
     echo "Telescope Metadata: $telescope_metadata"
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
     echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
