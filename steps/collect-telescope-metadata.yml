@@ -64,6 +64,7 @@ steps:
 
 - script: |
     # Read the test results file and add the telescope metadata to it for each json record in the file
+    set -eux
     jq --argfile telescope_metadata $TELESCOPE_METADATA_FILE \
       -c '. + {telescope_metadata: $telescope_metadata}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
        && mv temp-$RUN_ID.json $TEST_RESULTS_FILE
