@@ -64,9 +64,11 @@ steps:
 
 - script: |
     # Read the test results file and add the telescope metadata to it for each json record in the file
-    jq --argfile telescope_metadata $(TELESCOPE_METADATA_FILE) \
+    jq --argfile telescope_metadata $TELESCOPE_METADATA_FILE \
       -c '. + {telescope_metadata: $telescope_metadata}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
-       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
+       && mv temp-$RUN_ID.json $TEST_RESULTS_FILE
+    echo "##vso[task.setvariable variable=TELESCOPE_RESULTS_FILE]$TEST_RESULTS_FILE"
+    echo "Telescope results : $(cat $TEST_RESULTS_FILE)"
   displayName: "Add Telescope Metadata to Test Results"
   condition: always()
 
