@@ -13,22 +13,6 @@ steps:
       region: eastus
       credential_type: ${{ parameters.credential_type }}
 
-- script: |
-    telescope_metadata=$(cat "$TELESCOPE_METADATA_FILE" | jq -c '.')
-    results=$(cat "$TEST_RESULTS_FILE" | jq -c '.')
-    results_with_metadata=$( jq -n \
-      --arg metadata "$telescope_metadata" \
-      --arg results "$results" \
-      '{
-        metadata: $metadata,
-        results: $results
-      }')
-    echo "$results_with_metadata" > $TEST_RESULTS_DIR/$(RUN_ID).json
-    echo "##vso[task.setvariable variable=TELESCOPE_RESULTS_FILE]$TEST_RESULTS_DIR/$(RUN_ID).json"
-  displayName: 'Update results with metadata'
-  env:
-    TEST_RESULTS_FILE: ${{ parameters.source_file_name }}
-
 - bash: |
     set -eux
 
@@ -46,6 +30,9 @@ steps:
   env:
     SOURCE_FILE_NAME: $(TELESCOPE_RESULTS_FILE)
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
-    SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
+    ${{ if ne(variables['Build.SourceBranchName'], 'main') }}:
+      SUBFOLDER: $(SCENARIO_NAME)/$(Build.SourceBranchName)
+    ${{ else }}:
+      SUBFOLDER: ${{ parameters.subfolder }}

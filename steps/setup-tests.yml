@@ -38,7 +38,7 @@ steps:
     code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
     echo "Code URL: $code_url"
     echo "##vso[task.setvariable variable=CODE_URL]$code_url"
-  displayName: "Set Run & Code URL"
+  displayName: "Set Run URL & Code URL"
 
 - script: |
     test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
