@@ -75,7 +75,7 @@ steps:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(TELESCOPE_METADATA_FILE)
-      destination_file_name: $(RUN_ID).json
+      destination_file_name: telescope_metadata-$(RUN_ID).json
       subfolder: telescope-metadata
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
