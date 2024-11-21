@@ -56,7 +56,7 @@ variables {
     vpc_name    = "nap-vpc"
     policy_arns = ["AmazonEKS_CNI_Policy"]
     eks_managed_node_groups = [
-    {
+      {
         name           = "my_scenario-ng"
         ami_type       = "AL2_x86_64"
         instance_types = ["m4.large"]
@@ -64,7 +64,7 @@ variables {
         max_size       = 5
         desired_size   = 5
     }]
-    eks_addons = []     
+    eks_addons = []
   }]
 }
 
