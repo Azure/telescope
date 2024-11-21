@@ -53,26 +53,6 @@ steps:
   displayName: 'Set Test Results Directory'
 
 - script: |
-    telescope_metadata=$(jq -n \
-      --arg run_id $RUN_ID \
-      --arg run_url  $RUN_URL \
-      --arg code_url  $CODE_URL \
-      --arg reason $(Build.Reason) \
-      --arg source_branch $(Build.SourceBranchName) \
-      --arg requester "$(Build.RequestedFor)" \
-      '{
-      run_id: $run_id,
-      run_url: $run_url,
-      code_url: $code_url,
-      reason: $reason,
-      source_branch: $source_branch,
-      requester: $requester,
-      }')
-    echo "Telescope Metadata: $telescope_metadata"
-    echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
-    echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
-  displayName: "Set Telescope Metadata"
-- script: |
     python3 --version && pip3 --version
     jq --version
   displayName: "Check Dependencies"
