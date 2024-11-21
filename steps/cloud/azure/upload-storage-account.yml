@@ -5,6 +5,7 @@ parameters:
   container_name: $(SCENARIO_TYPE)
   credential_type: string
   cloud: string
+  upload_type: "Test Results"
 
 steps:
 - ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
@@ -26,7 +27,7 @@ steps:
     else
       echo "File $SOURCE_FILE_NAME does not exist."
     fi
-  displayName: "Upload Result"
+  displayName: "Upload ${{ parameters.upload_type }}"
   env:
     SOURCE_FILE_NAME: ${{ parameters.source_file_name }}
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}

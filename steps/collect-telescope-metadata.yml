@@ -79,3 +79,4 @@ steps:
       subfolder: telescope-metadata
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
+      upload_type: "Telescope Metadata"
