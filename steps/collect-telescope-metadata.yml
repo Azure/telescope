@@ -76,7 +76,7 @@ steps:
     parameters:
       source_file_name: $(TELESCOPE_METADATA_FILE)
       destination_file_name: $(RUN_ID).json
-      subfolder: telescope-metadata
+      subfolder: telescope-metadata/main
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
       upload_type: "Telescope Metadata"
