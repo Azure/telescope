@@ -6,13 +6,10 @@ parameters:
 
 steps:
 - script: |
-    set -eu
-    source ./attach-detach.sh
+    set -eo pipefail
 
-    echo "Starting running attach detach test with $DISK_NUMBER disks and $STORAGE_CLASS storage class"
-    azure_run_attach_detach_test $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
-    echo "sleep 5 minutes to detach all the resource ..."
-    sleep 5m
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+      $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
   displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
   workingDirectory: modules/python
   env:
@@ -20,4 +17,4 @@ steps:
     DISK_NUMBER: ${{ parameters.disk_number }}
     STORAGE_CLASS: ${{ parameters.storage_class }}
     RESULT_DIR: ${{ parameters.result_dir }}
-    DEBUG: "true"
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py

@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "storage-attach-detach-1000"
-deletion_delay = "6h"
+deletion_delay = "120h"
 owner          = "aks"
 aks_config_list = [
   {
@@ -32,11 +32,3 @@ aks_config_list = [
     ]
   }
 ]
-
-loadbalancer_config_list = []
-
-vm_config_list = []
-
-vmss_config_list = []
-
-nic_backend_pool_association_list = []

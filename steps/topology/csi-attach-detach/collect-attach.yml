@@ -17,3 +17,4 @@ steps:
     region: ${{ parameters.regions[0] }}
     result_dir: $(TEST_RESULTS_DIR)
     disk_number: ${{ parameters.engine_input.disk_number }}
+    storage_class: ${{ parameters.engine_input.storage_class }}

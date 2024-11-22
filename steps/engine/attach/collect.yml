@@ -7,13 +7,21 @@ parameters:
   type: string
 - name: disk_number
   type: number
+- name: storage_class
+  type: string
 
 steps:
-- bash: |
-    set -e
-    source ./attach-detach.sh
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+- script: |
+    set -eo pipefail
 
-    collect_result_attach_detach ${RESULT_DIR} ${RUN_URL} ${DISK_NUMBER}
+    echo "$CASE_NAME $NODE_NUMBER $DISK_NUMBER $STORAGE_CLASS $CLOUD_INFO $RUN_ID $RUN_URL $RESULT_DIR"
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+      $CASE_NAME $NODE_NUMBER $DISK_NUMBER $STORAGE_CLASS \
+      "$CLOUD_INFO" $RUN_ID $RUN_URL $RESULT_DIR
   displayName: 'Collect Result Attach Detach ${{ parameters.disk_number }}'
   workingDirectory: modules/python
   env:
@@ -21,4 +29,5 @@ steps:
     REGION: ${{ parameters.region }}
     RESULT_DIR: ${{ parameters.result_dir }}
     DISK_NUMBER: ${{ parameters.disk_number }}
-    DEBUG: "true"
+    STORAGE_CLASS: ${{ parameters.storage_class }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py

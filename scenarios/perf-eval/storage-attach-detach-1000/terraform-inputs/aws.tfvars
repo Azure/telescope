@@ -61,11 +61,6 @@ network_config_list = [
   }
 ]
 
-
-vm_config_list = []
-
-loadbalancer_config_list = []
-
 eks_config_list = [{
   role        = "client"
   eks_name    = "perfevala1000"

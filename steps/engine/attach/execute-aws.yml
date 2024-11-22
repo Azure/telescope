@@ -3,6 +3,13 @@ parameters:
   result_dir: ''
 
 steps:
+- script: envsubst  < "$STORAGE_CLASS_FILE" | kubectl apply -f -
+  displayName: "Create StorageClass"
+  workingDirectory: scenario
+  env:
+   STORAGE_CLASS_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/storageclass.${{ parameters.cloud }}.yml
+   DELETION_DUE_TIME: $(DELETION_DUE_TIME)
+
 - script: |
     set -eu
     source ${TEST_MODULES_DIR}/storage/attach-detach.sh
@@ -22,6 +29,5 @@ steps:
     CLOUD: ${{ parameters.cloud }}
     DISK_NUMBER: ${{ parameters.disk_number }}
     STORAGE_CLASS: ${{ parameters.storage_class }}
-    DEBUG: "true"
     RESULT_DIR: ${{ parameters.result_dir }}
     REGION: ${{ parameters.region }}
