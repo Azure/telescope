@@ -30,6 +30,41 @@ variable "subnets" {
   default     = {}
 }
 
+variable "addons_config" {
+  type = object({
+    ama_workspace = object({
+      name = optional(string, "loganalyticsworkspace")
+      data_collection_endpoint = object({
+        name = optional(string, "ama-dce")
+        kind = optional(string, "Linux")
+      })
+      data_collection_rule = object({
+        name = optional(string, "ama-dcr")
+        kind = optional(string, "Linux")
+        destinations = object({
+          monitor_account = object({
+            monitor_account_id = string
+            name               = optional(string, "MonitoringAccount1")
+          })
+        })  
+        data_flow = object({
+          streams     = list(string)
+        })
+        data_sources = object({
+          prometheus_forwarder = object({
+            name    = optional(string, "PrometheusDataSource")
+          })
+        })
+      })
+      data_collection_rule_association = object({
+        name                   = optional(string, "ama-dcra")
+        target_resource_id     = string
+        data_collection_rule_id = string
+        description            = optional(string, "Association of data collection rule with AKS cluster.")
+    })
+  })
+}
+
 variable "aks_config" {
   type = object({
     role        = string
