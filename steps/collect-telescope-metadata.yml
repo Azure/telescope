@@ -17,8 +17,8 @@ steps:
       --arg run_id $RUN_ID \
       --arg run_url  $RUN_URL \
       --arg code_url  $CODE_URL \
-      --arg reason $(Build.Reason) \
-      --arg pipeline_branch $(Build.SourceBranchName) \
+      --arg reason "$(Build.Reason)" \
+      --arg pipeline_branch "$(Build.SourceBranchName)" \
       --arg requester "$(Build.RequestedFor)" \
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
@@ -29,7 +29,7 @@ steps:
       --arg region "$(echo "$REGIONS" | jq -r '.[]')" \
       --arg pipeline_id "$(System.DefinitionId)" \
       --arg pipeline_name "$(Build.DefinitionName)" \
-      --arg cron_schedule_display_name "$(Build.CronSchedule.DisplayName)" \
+      --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
       --arg project_name "$(System.TeamProject)" \
       '{
           pipeline_info: {
