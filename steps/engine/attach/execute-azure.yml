@@ -1,6 +1,8 @@
 parameters:
   cloud: ''
   result_dir: ''
+  disk_number: 1
+  storage_class: ''
 
 steps:
 - script: |

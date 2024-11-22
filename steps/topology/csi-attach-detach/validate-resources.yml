@@ -7,12 +7,12 @@ parameters:
   type: object
 
 steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
 - template: /steps/engine/${{ parameters.engine }}/validate.yml
   parameters:
-    role: client
-
-- template: /steps/cloud/${{ parameters.cloud }}/validate-cluster.yml
-  parameters:
-    role: client
-    run_id: $(RUN_ID)
-    regions: ${{ parameters.regions }}
+    node_label: "csi=true"
+    desired_nodes: $(NODE_NUMBER)
+    operation_timeout: 15

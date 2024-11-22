@@ -25,11 +25,11 @@ stages:
           engine: attach
           engine_input:
             disk_number: 1000
-            node_number: 40
             storage_class: default
           matrix:
             Standard_D16s_v3_1000pods_40nodes:
               case_name: Standard_D16s_v3_1000pods_40nodes
+              node_number: 40
           max_parallel: 1
           timeout_in_minutes: 180
   - stage: aws_eastus2
@@ -44,10 +44,10 @@ stages:
           engine: attach
           engine_input:
             disk_number: 1000
-            node_number: 40
             storage_class: ebs-sc
           matrix:
             m7i_2xlarge_1000pods_40nodes:
               case_name: m7i_2xlarge_1000pods_40nodes
+              node_number: 40
           max_parallel: 1
           timeout_in_minutes: 180

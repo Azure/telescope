@@ -6,7 +6,6 @@ parameters:
   type: object
   default:
     disk_number: 1
-    node_number: 1
     storage_class: ''
 - name: regions
   type: object
@@ -16,8 +15,6 @@ steps:
 - template: /steps/engine/attach/execute-${{ parameters.cloud }}.yml
   parameters:
     cloud: ${{ parameters.cloud }}
-    client_pip: $(CLIENT_PUBLIC_IP)
-    result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
-    region: ${{ parameters.regions[0] }}
+    result_dir: $(TEST_RESULTS_DIR)
     disk_number: ${{ parameters.engine_input.disk_number }}
     storage_class: ${{ parameters.engine_input.storage_class }}

@@ -27,6 +27,7 @@ aks_config_list = [
         node_count  = 40
         subnet_name = "aks-network"
         vm_size     = "Standard_D16s_v3"
+        node_labels = { "csi" = "true" }
       }
     ]
   }

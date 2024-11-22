@@ -7,8 +7,7 @@ parameters:
   type: object
 
 steps:
-- template: /steps/cloud/${{ parameters.cloud }}/validate-cluster.yml
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
   parameters:
     role: client
-    run_id: $(RUN_ID)
-    regions: ${{ parameters.regions }}
+    region: ${{ parameters.regions[0] }}

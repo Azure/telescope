@@ -73,12 +73,13 @@ eks_config_list = [{
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "node-group-1"
+      name           = "user"
       ami_type       = "AL2_x86_64"
       instance_types = ["m7i.2xlarge"]
       min_size       = 40
       max_size       = 40
       desired_size   = 40
+      labels         = { "csi" = "true" }
     }
   ]
   eks_addons = [
