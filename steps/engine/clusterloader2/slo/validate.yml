@@ -1,7 +1,7 @@
 parameters:
   - name: desired_nodes
     type: number
-  - name: operation_timeout
+  - name: operation_timeout_in_minutes
     type: number
     default: 10
 
@@ -11,9 +11,9 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate $DESIRED_NODES $OPERATION_TIMEOUT
     workingDirectory: modules/python/clusterloader2
-    timeoutInMinutes: ${{ parameters.operation_timeout }}
+    timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
     displayName: "Validate node count"
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
-      OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
+      OPERATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
