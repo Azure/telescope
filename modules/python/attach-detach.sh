@@ -1,5 +1,4 @@
 #!/bin/bash
-source ./modules/bash/utils.sh
 
 azure_run_attach_detach_test() {
   local resource_group=$1
