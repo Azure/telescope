@@ -10,18 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-300
-  SCENARIO_VERSION: v1.3.1
-
-resources:
-  repositories:
-    - repository: templates
-      type: github
-      name: azure/telescope
-      ref: refs/heads/main
-      endpoint: azureTelescopeExternal
-
-pool:
-  name: '1ES-Telescope-Storage-Ubuntu-EastUS2'
+  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2
