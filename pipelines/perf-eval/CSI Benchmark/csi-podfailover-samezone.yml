@@ -16,7 +16,7 @@ stages:
   - stage: azure_eastus2
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml@templates
+      - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
@@ -33,7 +33,7 @@ stages:
   - stage: aws_eastus2
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml@templates
+      - template: /jobs/competitive-test.yml
         parameters:
           cloud: aws
           regions:
