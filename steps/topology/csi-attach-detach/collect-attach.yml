@@ -8,12 +8,12 @@ parameters:
   type: object
   default:
     disk_number: 1
-    node_number: 1
     storage_class: ''
 
 steps:
 - template: /steps/engine/attach/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
-    result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    region: ${{ parameters.regions[0] }}
+    result_dir: $(TEST_RESULTS_DIR)
     disk_number: ${{ parameters.engine_input.disk_number }}

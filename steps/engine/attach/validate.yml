@@ -2,7 +2,7 @@ parameters:
   - name: node_label
     type: string
   - name: desired_nodes
-    type: number
+    type: string
   - name: operation_timeout_in_minutes
     type: number
 

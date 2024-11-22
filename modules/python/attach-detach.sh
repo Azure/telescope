@@ -1,15 +1,12 @@
 #!/bin/bash
 
 azure_run_attach_detach_test() {
-  local resource_group=$1
-  local aks_name=$2
-  local disk_number=$3
-  local storage_class_name=$4
-  local result_dir=$5
+  local disk_number=$1
+  local storage_class_name=$2
+  local result_dir=$3
 
   mkdir -p $result_dir
 
-  az aks get-credentials -n $aks_name -g $resource_group
   curl -skSL https://raw.githubusercontent.com/Azure/kubernetes-volume-drivers/master/test/attach_detach_test.sh | bash -s $disk_number $storage_class_name $result_dir/attachdetach-${disk_number}.txt --
 }
 

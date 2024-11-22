@@ -15,4 +15,4 @@ steps:
   parameters:
     node_label: "csi=true"
     desired_nodes: $(NODE_NUMBER)
-    operation_timeout: 15
+    operation_timeout_in_minutes: 10

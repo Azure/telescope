@@ -32,22 +32,22 @@ stages:
               node_number: 40
           max_parallel: 1
           timeout_in_minutes: 180
-  - stage: aws_eastus2
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: aws
-          regions:
-            - us-east-2
-          topology: csi-attach-detach
-          engine: attach
-          engine_input:
-            disk_number: 1000
-            storage_class: ebs-sc
-          matrix:
-            m7i_2xlarge_1000pods_40nodes:
-              case_name: m7i_2xlarge_1000pods_40nodes
-              node_number: 40
-          max_parallel: 1
-          timeout_in_minutes: 180
+  # - stage: aws_eastus2
+  #   dependsOn: []
+  #   jobs:
+  #     - template: /jobs/competitive-test.yml
+  #       parameters:
+  #         cloud: aws
+  #         regions:
+  #           - us-east-2
+  #         topology: csi-attach-detach
+  #         engine: attach
+  #         engine_input:
+  #           disk_number: 1000
+  #           storage_class: ebs-sc
+  #         matrix:
+  #           m7i_2xlarge_1000pods_40nodes:
+  #             case_name: m7i_2xlarge_1000pods_40nodes
+  #             node_number: 40
+  #         max_parallel: 1
+  #         timeout_in_minutes: 180

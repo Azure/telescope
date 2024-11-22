@@ -7,14 +7,14 @@ parameters:
 steps:
 - script: |
     set -eu
-    source ${TEST_MODULES_DIR}/storage/attach-detach.sh
+    source ./attach-detach.sh
 
-    echo "sleep 10 minutes to make sure all csi node is running ..."
-    sleep 10m
-    azure_run_attach_detach_test $RUN_ID $AKS_NAME $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
+    echo "Starting running attach detach test with $DISK_NUMBER disks and $STORAGE_CLASS storage class"
+    azure_run_attach_detach_test $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
     echo "sleep 5 minutes to detach all the resource ..."
     sleep 5m
   displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     DISK_NUMBER: ${{ parameters.disk_number }}
