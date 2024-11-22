@@ -1,0 +1,64 @@
+trigger: none
+schedules:
+  - cron: "0 16 1-31/2 * *"
+    displayName: "Every Odd Day"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: storage-attach-detach-300
+  SCENARIO_VERSION: v1.3.1
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: azure/telescope
+      ref: refs/heads/main
+      endpoint: azureTelescopeExternal
+
+pool:
+  name: '1ES-Telescope-Storage-Ubuntu-EastUS2'
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml@templates
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 300
+            node_number: 300
+            storage_class: default
+          matrix:
+            Standard_D2s_v3_300pods_300nodes:
+              case_name: Standard_D2s_v3_300pods_300nodes
+          max_parallel: 1
+          timeout_in_minutes: 180
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml@templates
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 300
+            node_number: 300
+            storage_class: ebs-sc
+          matrix:
+            m7i_large_300pods_300nodes:
+              case_name: m7i_large_300pods_300nodes
+          max_parallel: 1
+          timeout_in_minutes: 180

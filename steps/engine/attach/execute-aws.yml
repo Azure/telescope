@@ -1,0 +1,27 @@
+parameters:
+  cloud: ''
+  result_dir: ''
+
+steps:
+- script: |
+    set -eu
+    source ${TEST_MODULES_DIR}/storage/attach-detach.sh
+    source ${TEST_MODULES_DIR}/aws.sh
+
+    echo "sleep 10 minutes to make sure all csi node is running ..."
+    sleep 10m
+    aws_run_attach_detach_test $REGION $EKS_NAME $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
+    echo "make sure delete all PVs and sleep 10 minutes ..."
+    kubectl delete pv --all
+    sleep 10m
+    aws_eks_delete_network_interfaces $RUN_ID
+    echo "sleep 10 minutes to detach all the resource ..."
+    sleep 10m
+  displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    DISK_NUMBER: ${{ parameters.disk_number }}
+    STORAGE_CLASS: ${{ parameters.storage_class }}
+    DEBUG: "true"
+    RESULT_DIR: ${{ parameters.result_dir }}
+    REGION: ${{ parameters.region }}

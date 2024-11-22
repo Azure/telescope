@@ -1,0 +1,60 @@
+trigger: none
+schedules:
+  - cron: "0 0 * * *"
+    displayName: "12:00 AM Daily"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: storage-pod-failover-same-zone
+  SCENARIO_VERSION: v1.3.2
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: azure/telescope
+      ref: refs/heads/main
+      endpoint: azureTelescopeExternal
+
+pool:
+  name: '1ES-Telescope-Storage-Ubuntu-EastUS2'
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml@templates
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          topology: csi-pod-failover/same-zone
+          engine: podfailover
+          engine_input:
+            test_times: 100
+          matrix:
+            LRS_failover_same_zone_100:
+              case_name: LRS_failover_same_zone_100
+          max_parallel: 1
+          timeout_in_minutes: 180
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml@templates
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: csi-pod-failover/same-zone
+          engine: podfailover
+          engine_input:
+            test_times: 100
+          matrix:
+            EBS_failover_same_zone_100:
+              case_name: EBS_failover_same_zone_100
+          max_parallel: 1
+          timeout_in_minutes: 180

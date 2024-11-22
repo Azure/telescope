@@ -1,0 +1,8 @@
+parameters:
+- name: role
+  type: string
+  default: ''
+
+steps:
+- script: echo "validate kubectl on ${{ parameters.role }}"
+  displayName: "Validate kubectl on ${{ parameters.role }}"

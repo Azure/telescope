@@ -1,0 +1,20 @@
+parameters:
+  cloud: ''
+  result_dir: ''
+
+steps:
+- script: |
+    set -eu
+    source ${TEST_MODULES_DIR}/storage/pod-failover-samezone.sh
+
+    echo "sleep 3 minutes to make sure all csi node is running ..."
+    sleep 3m
+    azure_run_pod_failover_samezone_test $RUN_ID $AKS_NAME $TEST_TIMES $RESULT_DIR
+    echo "sleep 3 minutes to detach all the resource ..."
+    sleep 3m
+  displayName: "Execute Test pod failover on same zone ${{ parameters.test_times }} times"
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    TEST_TIMES: ${{ parameters.test_times }}
+    RESULT_DIR: ${{ parameters.result_dir }}
+    DEBUG: "true"

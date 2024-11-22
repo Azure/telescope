@@ -1,0 +1,24 @@
+parameters:
+- name: cloud
+  type: string
+- name: result_dir
+  type: string
+  default: ''
+- name: disk_number
+  type: number
+
+steps:
+- bash: |
+    set -e
+    source ${TEST_MODULES_DIR}/storage/attach-detach.sh
+
+    export REGION=$(echo $TERRAFORM_INPUT_VARIABLES | jq -r '.region')
+
+    collect_result_attach_detach ${RESULT_DIR} ${RUN_URL} ${DISK_NUMBER}
+  displayName: 'Collect Result Attach Detach ${{ parameters.disk_number }}'
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RESULT_DIR: ${{ parameters.result_dir }}
+    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
+    DISK_NUMBER: ${{ parameters.disk_number }}
+    DEBUG: "true"

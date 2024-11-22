@@ -1,0 +1,19 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- template: /steps/engine/podfailover/samezone/execute-${{ parameters.cloud }}.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    client_pip: $(CLIENT_PUBLIC_IP)
+    result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    region: ${{ parameters.regions[0] }}
+    test_times: ${{ parameters.engine_input.test_times }}

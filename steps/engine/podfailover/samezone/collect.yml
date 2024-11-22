@@ -1,0 +1,24 @@
+parameters:
+- name: cloud
+  type: string
+- name: result_dir
+  type: string
+  default: ''
+- name: test_times
+  type: number
+
+steps:
+- bash: |
+    set -e
+    source ${TEST_MODULES_DIR}/storage/pod-failover-samezone.sh
+
+    export REGION=$(echo $TERRAFORM_INPUT_VARIABLES | jq -r '.region')
+
+    collect_result_pod_failover_samezone ${RESULT_DIR} ${RUN_URL} ${TEST_TIMES}
+  displayName: 'Collect Result Pod Failover On Same Zone ${{ parameters.test_times }} Times'
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RESULT_DIR: ${{ parameters.result_dir }}
+    RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
+    TEST_TIMES: ${{ parameters.test_times }}
+    DEBUG: "true"
