@@ -71,7 +71,7 @@ steps:
   displayName: "Add Telescope Metadata to Test Results"
   condition: always()
 
-- ${{ if eq(variables['Build.SourceBranchName'], 'add-telescope-metadata') }}:
+- ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(TELESCOPE_METADATA_FILE)
