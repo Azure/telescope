@@ -32,23 +32,29 @@ steps:
       --arg cron_schedule_display_name "$(Build.CronSchedule.DisplayName)" \
       --arg project_name "$(System.TeamProject)" \
       '{
-      run_id: $run_id,
-      run_url: $run_url,
-      code_url: $code_url,
-      reason: $reason,
-      source_branch: $source_branch,
-      requester: $requester,
-      scenario_name: $scenario_name,
-      scenario_type: $scenario_type,
-      engine: $engine,
-      topology: $topology,
-      engine_image: $engine_image,
-      cloud: $cloud,
-      region: $region,
-      pipeline_id: $pipeline_id,
-      pipeline_name: $pipeline_name,
-      cron_schedule_display_name: $cron_schedule_display_name,
-      project_name: $project_name
+          pipeline_info: {
+            run_id: $run_id,
+            run_url: $run_url,
+            reason: $reason,
+            pipeline_branch: $pipeline_branch,
+            requester: $requester,
+            pipeline_id: $pipeline_id,
+            pipeline_name: $pipeline_name,
+            cron_schedule_display_name: $cron_schedule_display_name,
+            project_name: $project_name,
+            code_url: $code_url
+          },
+          scenario_info: {
+            scenario_name: $scenario_name,
+            scenario_type: $scenario_type,
+            engine: $engine,
+            topology: $topology,
+            engine_image: $engine_image
+          },
+          cloud_info: {
+            cloud: $cloud,
+            region: $region
+          }
       }' | jq 'with_entries(select(.value != null and .value != ""))' | jq -c .)
     echo "Telescope Metadata: $telescope_metadata"
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
