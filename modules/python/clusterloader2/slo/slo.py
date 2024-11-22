@@ -146,6 +146,7 @@ def collect_clusterloader2(
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, 'r') as f:
+            print(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
