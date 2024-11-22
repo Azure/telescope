@@ -20,6 +20,15 @@ steps:
     regions: ${{ parameters.regions }}
     engine_input: ${{ parameters.engine_input }}
 
+- template: /steps/collect-telescope-metadata.yml
+  parameters:
+    engine: ${{ parameters.engine }}
+    topology: ${{ parameters.topology }}
+    engine_input: ${{ parameters.engine_input }}
+    cloud: ${{ parameters.cloud }}
+    credential_type: ${{ parameters.credential_type }}
+    regions: ${{ parameters.regions }}
+
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
     credential_type: ${{ parameters.credential_type }}
