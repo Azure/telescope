@@ -155,6 +155,19 @@ resource "aws_ec2_tag" "cluster_security_group" {
   value       = each.value
 }
 
+resource "aws_launch_template" "launch_template" {
+  for_each = local.eks_node_group_map
+
+  name = "${local.eks_cluster_name}-${each.value.name}"
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = var.tags
+  }
+
+  tags = var.tags
+}
+
 resource "aws_eks_node_group" "eks_managed_node_groups" {
 
   for_each = local.eks_node_group_map
@@ -183,6 +196,11 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   instance_types = each.value.instance_types
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
+
+  launch_template {
+    id      = aws_launch_template.launch_template[each.key].id
+    version = aws_launch_template.launch_template[each.key].latest_version
+  }
 
   tags = {
     "Name" = each.value.name
