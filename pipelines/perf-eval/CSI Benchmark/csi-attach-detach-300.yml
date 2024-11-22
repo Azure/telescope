@@ -32,6 +32,8 @@ stages:
               case_name: Standard_D2s_v3_300pods_300nodes
           max_parallel: 1
           timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
   - stage: aws_eastus2
     dependsOn: []
     jobs:
@@ -51,3 +53,5 @@ stages:
               case_name: m7i_large_300pods_300nodes
           max_parallel: 1
           timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false

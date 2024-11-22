@@ -32,6 +32,8 @@ stages:
               node_number: 40
           max_parallel: 1
           timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
   # - stage: aws_eastus2
   #   dependsOn: []
   #   jobs:
@@ -51,3 +53,5 @@ stages:
   #             node_number: 40
   #         max_parallel: 1
   #         timeout_in_minutes: 180
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
