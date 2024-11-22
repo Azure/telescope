@@ -84,3 +84,15 @@ run "valid_launch_template_required_tags" {
 
   expect_failures = [check.deletion_due_time]
 }
+
+run "valid_launch_template_name" {
+
+  command = plan
+
+  assert {
+    condition     = strcontains(module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].name, var.json_input.run_id)
+    error_message = "Error. Launch tempalte name must be unique (expected to contain run id: ${var.json_input.run_id})"
+  }
+
+  expect_failures = [check.deletion_due_time]
+}

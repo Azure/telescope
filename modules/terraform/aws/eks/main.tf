@@ -158,7 +158,7 @@ resource "aws_ec2_tag" "cluster_security_group" {
 resource "aws_launch_template" "launch_template" {
   for_each = local.eks_node_group_map
 
-  name = "eks-${each.value.name}"
+  name = "${local.eks_cluster_name}-${each.value.name}"
 
   tag_specifications {
     resource_type = "instance"
