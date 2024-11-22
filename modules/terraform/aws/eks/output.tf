@@ -18,3 +18,7 @@ output "eks_addon" {
     before_compute : aws_eks_addon.before_compute
   }
 }
+
+output "eks_node_groups_launch_template" {
+  value = aws_launch_template.launch_template
+}
