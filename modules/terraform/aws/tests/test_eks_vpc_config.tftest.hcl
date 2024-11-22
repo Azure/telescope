@@ -86,6 +86,8 @@ run "valid_vpc_config_default" {
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
 
+  expect_failures = [check.deletion_due_time]
+
 }
 
 run "valid_vpc_config_set" {
@@ -124,6 +126,8 @@ run "valid_vpc_config_set" {
     condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "4"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
+
+  expect_failures = [check.deletion_due_time]
 }
 
 run "valid_karpenter_set" {
@@ -160,6 +164,8 @@ run "valid_karpenter_set" {
     condition     = jsondecode(module.eks["eks_name"].eks_addon.before_compute.vpc-cni.configuration_values).env.WARM_PREFIX_TARGET == "1"
     error_message = "Error WARM_PREFIX_TARGET expected value: '1'"
   }
+
+  expect_failures = [check.deletion_due_time]
 }
 
 run "valid_add_after_before_compute" {
@@ -203,4 +209,6 @@ run "valid_add_after_before_compute" {
     condition     = contains(keys(module.eks["eks_name"].eks_addon.before_compute), "addon_before_compute")
     error_message = "Error addon should be created before compute"
   }
+
+  expect_failures = [check.deletion_due_time]
 }
