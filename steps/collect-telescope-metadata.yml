@@ -3,8 +3,8 @@ parameters:
   type: string
 - name: topology
   type: string
-- name: image
-  type: string
+- name: engine_input
+  type: object
 - name: cloud
   type: string
 - name: credential_type
@@ -18,13 +18,13 @@ steps:
       --arg run_url  $RUN_URL \
       --arg code_url  $CODE_URL \
       --arg reason $(Build.Reason) \
-      --arg source_branch $(Build.SourceBranchName) \
+      --arg pipeline_branch $(Build.SourceBranchName) \
       --arg requester "$(Build.RequestedFor)" \
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
-      --arg engine_image "$ENGINE_IMAGE" \
+      --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
       --arg cloud "$CLOUD" \
       --arg region "$(echo "$REGIONS" | jq -r '.[]')" \
       --arg pipeline_id "$(System.DefinitionId)" \
@@ -49,7 +49,7 @@ steps:
             scenario_type: $scenario_type,
             engine: $engine,
             topology: $topology,
-            engine_image: $engine_image
+            engine_input: $engine_input
           },
           cloud_info: {
             cloud: $cloud,
@@ -64,7 +64,7 @@ steps:
   env:
     ENGINE: ${{ parameters.engine }}
     TOPOLOGY: ${{ parameters.topology }}
-    ENGINE_IMAGE: ${{ parameters.image }}
+    ENGINE_INPUT: ${{ convertToJson(parameters.engine_input) }}
     CLOUD: ${{ parameters.cloud }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
 
