@@ -80,9 +80,9 @@ eks_config_list = [{
     }
   ]
   eks_addons = [
-    {
-      name            = "vpc-cni"
-    },
+    # {
+    #   name            = "vpc-cni"
+    # },
     {
       name            = "aws-ebs-csi-driver"
       service_account = "ebs-csi-controller-sa"

@@ -4,7 +4,7 @@ parameters:
 
 steps:
 - script: |
-    echo "$OWNER $RUN_ID $DELETION_DUE_TIME $SCENARIO"
+    echo "$STORAGE_CLASS $OWNER $RUN_ID $DELETION_DUE_TIME $SCENARIO"
     envsubst < "$STORAGE_CLASS_FILE" | kubectl apply -f -
   displayName: "Create StorageClass"
   env:
@@ -32,8 +32,8 @@ steps:
 - script: |
     set -eu
 
-    kubectl delete pvc --all --ignore-not-found
-    kubectl delete pv --all --ignore-not-found
-    kubectl delete sc --all --ignore-not-found
+    kubectl delete pvc --all
+    kubectl delete pv --all
+    kubectl delete sc --all
   displayName: "Clean up PVC, PV, StorageClass"
   timeoutInMinutes: 20

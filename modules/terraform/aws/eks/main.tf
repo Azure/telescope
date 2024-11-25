@@ -20,8 +20,8 @@ locals {
   vpc_cni_addon_map = contains(keys(local._eks_addons_map), "vpc-cni") ? {
     "vpc-cni" = {
       name           = "vpc-cni",
-      policy_arns    = ["service-role/AmazonEKS_CNI_Policy"],
-      # before_compute = true, # ensure the vpc-cni is created and updated before any EC2 instances are created.
+      policy_arns    = ["AmazonEKS_CNI_Policy"],
+      before_compute = true, # ensure the vpc-cni is created and updated before any EC2 instances are created.
       configuration_values = {
         env = {
           # Enable IPv4 prefix delegation to increase the number of available IP addresses on the provisioned EC2 nodes.
