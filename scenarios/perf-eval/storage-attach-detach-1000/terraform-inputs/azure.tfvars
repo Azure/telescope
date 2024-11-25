@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "storage-attach-detach-1000"
-deletion_delay = "120h"
+deletion_delay = "3h"
 owner          = "aks"
 aks_config_list = [
   {
@@ -30,5 +30,6 @@ aks_config_list = [
         node_labels = { "csi" = "true" }
       }
     ]
+    kubernetes_version = "1.30"
   }
 ]

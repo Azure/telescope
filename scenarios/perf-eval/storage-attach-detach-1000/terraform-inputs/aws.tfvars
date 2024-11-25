@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "storage-attach-detach-1000"
-deletion_delay = "6h"
+deletion_delay = "3h"
 owner          = "aks"
 network_config_list = [
   {
@@ -41,14 +41,7 @@ network_config_list = [
       }
     ]
     sg_rules = {
-      ingress = [
-        {
-          from_port  = 2222
-          to_port    = 2222
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        }
-      ]
+      ingress = []
       egress = [
         {
           from_port  = 0
@@ -67,6 +60,15 @@ eks_config_list = [{
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
+    # {
+    #   name           = "default"
+    #   ami_type       = "AL2_x86_64"
+    #   instance_types = ["m4.large"]
+    #   min_size       = 3
+    #   max_size       = 3
+    #   desired_size   = 3
+    #   capacity_type  = "ON_DEMAND"
+    # },
     {
       name           = "user"
       ami_type       = "AL2_x86_64"
@@ -79,13 +81,14 @@ eks_config_list = [{
   ]
   eks_addons = [
     {
+      name            = "vpc-cni"
+    },
+    {
       name            = "aws-ebs-csi-driver"
       service_account = "ebs-csi-controller-sa"
       policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
-    },
-    {
-      name            = "vpc-cni"
     }
   ]
+  kubernetes_version = "1.30"
 }]
 

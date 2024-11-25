@@ -41,7 +41,8 @@ stages:
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            # - us-east-2
+            - us-west-2
           topology: csi-attach-detach
           engine: attach
           engine_input:
