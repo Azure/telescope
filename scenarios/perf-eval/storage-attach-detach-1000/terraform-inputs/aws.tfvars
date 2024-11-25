@@ -82,6 +82,9 @@ eks_config_list = [{
       name            = "aws-ebs-csi-driver"
       service_account = "ebs-csi-controller-sa"
       policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
+    },
+    {
+      name            = "vpc-cni"
     }
   ]
 }]

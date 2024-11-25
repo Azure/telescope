@@ -1,13 +1,16 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: default
+  name: $STORAGE_CLASS_NAME
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
+allowVolumeExpansion: true
 provisioner: ebs.csi.aws.com
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 parameters:
-  fstype: ext4
-  type: gp2
-  tagSpecification_1: "deletion_due_time=${DELETION_DUE_TIME}"
+  type: gp3
+  tagSpecification_1: "owner=${OWNER}"
+  tagSpecification_2: "scenario=${SCENARIO}"
+  tagSpecification_3: "run_id=${RUN_ID}"
+  tagSpecification_4: "deletion_due_time=${DELETION_DUE_TIME}"

@@ -3,31 +3,37 @@ parameters:
   result_dir: ''
 
 steps:
-- script: envsubst  < "$STORAGE_CLASS_FILE" | kubectl apply -f -
+- script: |
+    echo "$OWNER $RUN_ID $DELETION_DUE_TIME $SCENARIO"
+    envsubst < "$STORAGE_CLASS_FILE" | kubectl apply -f -
   displayName: "Create StorageClass"
-  workingDirectory: scenario
   env:
-   STORAGE_CLASS_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/storageclass.${{ parameters.cloud }}.yml
-   DELETION_DUE_TIME: $(DELETION_DUE_TIME)
+    STORAGE_CLASS: ${{ parameters.storage_class }}
+    STORAGE_CLASS_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/storageclass.${{ parameters.cloud }}.yml
+    OWNER: $(OWNER)
+    RUN_ID: $(RUN_ID)
+    SCENARIO: $(SCENARIO_TYPE)-$(SCENARIO_NAME)
+    DELETION_DUE_TIME: $(DELETION_DUE_TIME)
 
 - script: |
-    set -eu
-    source ${TEST_MODULES_DIR}/storage/attach-detach.sh
-    source ${TEST_MODULES_DIR}/aws.sh
+    set -eo pipefail
 
-    echo "sleep 10 minutes to make sure all csi node is running ..."
-    sleep 10m
-    aws_run_attach_detach_test $REGION $EKS_NAME $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
-    echo "make sure delete all PVs and sleep 10 minutes ..."
-    kubectl delete pv --all
-    sleep 10m
-    aws_eks_delete_network_interfaces $RUN_ID
-    echo "sleep 10 minutes to detach all the resource ..."
-    sleep 10m
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+      $DISK_NUMBER $STORAGE_CLASS $RESULT_DIR
   displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     DISK_NUMBER: ${{ parameters.disk_number }}
     STORAGE_CLASS: ${{ parameters.storage_class }}
     RESULT_DIR: ${{ parameters.result_dir }}
-    REGION: ${{ parameters.region }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py
+
+- script: |
+    set -eu
+
+    kubectl delete pvc --all --ignore-not-found
+    kubectl delete pv --all --ignore-not-found
+    kubectl delete sc --all --ignore-not-found
+  displayName: "Clean up PVC, PV, StorageClass"
+  timeoutInMinutes: 20
