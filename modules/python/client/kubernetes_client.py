@@ -23,9 +23,8 @@ class KubernetesClient:
     def get_pods_by_namespace(self, namespace, label_selector=None, field_selector=None):
         return self.api.list_namespaced_pod(namespace=namespace, label_selector=label_selector, field_selector=field_selector).items
     
-    def get_running_pods_by_namespace(self, namespace=None, label_selector=None, field_selector=None):
-        pods = self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector, field_selector=field_selector)
-        return [pod for pod in pods if pod.status.phase == "Running"]
+    def get_running_pods_by_namespace(self, namespace=None, label_selector=None):
+        return self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector, field_selector="status.phase=Running")
 
     def get_persistent_volume_claims_by_namespace(self, namespace):
         return self.api.list_namespaced_persistent_volume_claim(namespace=namespace).items
