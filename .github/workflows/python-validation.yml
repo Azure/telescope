@@ -23,6 +23,10 @@ jobs:
       - name: Python Version Check
         run: python --version
 
+      - name: Install Python Dependencies
+        working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        run: pip install -r requirements.txt
+
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: python -m unittest discover
