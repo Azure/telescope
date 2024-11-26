@@ -1,10 +1,7 @@
 import time
 import argparse
 import os
-import requests
-import subprocess
 import json
-import yaml
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from client.kubernetes_client import KubernetesClient, client
@@ -101,10 +98,11 @@ def wait_for_condition(check_function, target, comparison="gte", interval=1):
             return current
         time.sleep(interval)
 
-def monitor_threshold(description, monitor_function, target, threshold_desc, comparison, start_time, log_file):
-    """Monitor a single threshold and log its completion."""
-    wait_for_condition(monitor_function, target, comparison)
-    log_duration(f"{description} {threshold_desc}", start_time, log_file)
+def monitor_thresholds(description, monitor_function, thresholds, comparison, start_time, log_file):
+    """Monitor thresholds and log their completion."""
+    for target, threshold_desc in thresholds:
+        wait_for_condition(monitor_function, target, comparison)
+        log_duration(f"{description} {threshold_desc}", start_time, log_file)
 
 def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     """Execute the attach detach test."""
@@ -115,7 +113,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
         os.mkdir(result_dir)
     log_file = os.path.join(result_dir, f"attachdetach-{disk_number}.txt")
 
-    namespace = "test"
+    namespace = f"test-{time.time_ns()}"
 
     p50, p90, p99, p100 = calculate_percentiles(disk_number)
     print(f"Percentiles: p50={p50}, p90={p90}, p99={p99}, p100={p100}")
@@ -134,39 +132,36 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     print(f"Created StatefulSet {ss.metadata.name}")
 
     # Measure PVC creation and attachment
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = []
-        for target, threshold_desc in attach_thresholds:
-            futures.append(
-                executor.submit(
-                    monitor_threshold,
-                    "PV creation",
-                    lambda: KUBERNETERS_CLIENT.get_bound_persistent_volume_claims_by_namespace(namespace),
-                    target,
-                    threshold_desc,
-                    "gte",
-                    creation_start_time,
-                    log_file,
-                )
+        futures.append(
+            executor.submit(
+                monitor_thresholds,
+                "PV creation",
+                lambda: KUBERNETERS_CLIENT.get_bound_persistent_volume_claims_by_namespace(namespace),
+                attach_thresholds,
+                "gte",
+                creation_start_time,
+                log_file
             )
-            futures.append(
-                executor.submit(
-                    monitor_threshold,
-                    "PV attachment",
-                    lambda: KUBERNETERS_CLIENT.get_running_pods_by_namespace(namespace),
-                    target,
-                    threshold_desc,
-                    "gte",
-                    creation_start_time,
-                    log_file,
-                )
+        )
+        futures.append(
+            executor.submit(
+                monitor_thresholds,
+                "PV attachment",
+                lambda: KUBERNETERS_CLIENT.get_running_pods_by_namespace(namespace),
+                attach_thresholds,
+                "gte",
+                creation_start_time,
+                log_file
             )
+        )
 
         # Wait for all threads to complete
         for future in as_completed(futures):
             future.result() # Blocks until the thread finishes execution
     
-    print("Measuring creation and attachment of PVCs completed! Waiting for {wait_time} seconds before starting deletion.")
+    print(f"Measuring creation and attachment of PVCs completed! Waiting for {wait_time} seconds before starting deletion.")
     time.sleep(wait_time)
 
     # Start the timer
@@ -176,29 +171,21 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(ss.metadata.name, namespace)
     KUBERNETERS_CLIENT.delete_persistent_volume_claim_by_namespace(namespace)
 
-    # Measure PVC deletion and detachment
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        for target, threshold_desc in detach_thresholds:
-            futures.append(
-                executor.submit(
-                    monitor_threshold,
-                    "PV detachment",
-                    lambda: KUBERNETERS_CLIENT.get_attached_volume_attachments(),
-                    target,
-                    threshold_desc,
-                    "lte",
-                    deletion_start_time,
-                    log_file,
-                )
-            )
-
-        # Wait for all threads to complete
-        for future in as_completed(futures):
-            future.result()
+    # Measure PVC detachment
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future = executor.submit(
+            monitor_thresholds,
+            "PV detachment",
+            lambda: KUBERNETERS_CLIENT.get_attached_volume_attachments(),
+            detach_thresholds,
+            "lte",
+            deletion_start_time,
+            log_file
+        )
+        future.result()
     
     KUBERNETERS_CLIENT.delete_namespace(namespace)
-    print("Measuring deletion and detachment of PVCs completed.")
+    print("Measuring detachment of PVCs completed.")
 
 def collect_attach_detach(case_name, node_number, disk_number, storage_class, cloud_info, run_id, run_url, result_dir):
     raw_result_file = os.path.join(result_dir, f"attachdetach-{disk_number}.txt")
