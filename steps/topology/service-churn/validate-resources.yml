@@ -15,4 +15,3 @@ steps:
     parameters:
       desired_nodes: 1006
       operation_timeout_in_minutes: 30
-
