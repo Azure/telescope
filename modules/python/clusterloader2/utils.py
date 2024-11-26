@@ -10,7 +10,7 @@ POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "StatefulPodStartupLatency_PodStartupLatency_": "StatefulPodStartupLatency_PodStartupLatency",
     "StatelessPodStartupLatency_PodStartupLatency_": "StatelessPodStartupLatency_PodStartupLatency",
 }
-API_RESPONSIVENESS_FILE_PREFIX = "APIResponsivenessPrometheus"
+NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus", "InClusterNetworkLatency", "NetworkProgrammingLatency"]
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, enable_exec_service=False):
@@ -51,9 +51,10 @@ def get_measurement(file_path):
         if file_name.startswith(file_prefix):
             group_name = file_name.split("_")[2]
             return measurement, group_name
-    if file_name.startswith(API_RESPONSIVENESS_FILE_PREFIX):
-        group_name = file_name.split("_")[1]
-        return API_RESPONSIVENESS_FILE_PREFIX, group_name
+    for file_prefix in NETWORK_METRIC_PREFIXES:
+        if file_name.startswith(file_prefix):
+            group_name = file_name.split("_")[1]
+            return file_prefix, group_name
     if file_name.startswith(PROM_QUERY_PREFIX):
         group_name = file_name.split("_")[1]
         measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
