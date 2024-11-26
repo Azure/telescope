@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint
 )
@@ -7,7 +7,8 @@ from clusterloader2.kubernetes_client import KubernetesClient
 
 class TestKubernetesClient(unittest.TestCase):
 
-    def setUp(self):
+    @patch('kubernetes.config.load_kube_config')
+    def setUp(self, mock_load_kube_config):
         self.client = KubernetesClient()
         return super().setUp()
     
