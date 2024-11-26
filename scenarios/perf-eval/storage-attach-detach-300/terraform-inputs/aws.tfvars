@@ -41,14 +41,7 @@ network_config_list = [
       }
     ]
     sg_rules = {
-      ingress = [
-        {
-          from_port  = 2222
-          to_port    = 2222
-          protocol   = "tcp"
-          cidr_block = "0.0.0.0/0"
-        }
-      ]
+      ingress = []
       egress = [
         {
           from_port  = 0
@@ -61,11 +54,6 @@ network_config_list = [
   }
 ]
 
-
-vm_config_list = []
-
-loadbalancer_config_list = []
-
 eks_config_list = [{
   role        = "client"
   eks_name    = "perfevala300"
@@ -73,12 +61,13 @@ eks_config_list = [{
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "node-group-1"
+      name           = "user"
       ami_type       = "AL2_x86_64"
       instance_types = ["t2.large"]
       min_size       = 300
       max_size       = 300
       desired_size   = 300
+      labels         = { "csi" = "true" }
     }
   ]
   eks_addons = [
@@ -88,4 +77,5 @@ eks_config_list = [{
       policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
     }
   ]
+  kubernetes_version = "1.30"
 }]

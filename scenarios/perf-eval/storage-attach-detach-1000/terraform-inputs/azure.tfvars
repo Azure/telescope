@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "storage-attach-detach-1000"
-deletion_delay = "3h"
+deletion_delay = "6h"
 owner          = "aks"
 aks_config_list = [
   {

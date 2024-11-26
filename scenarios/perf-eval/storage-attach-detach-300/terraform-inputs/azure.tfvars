@@ -41,15 +41,9 @@ aks_config_list = [
         subnet_name = "aks-network-300"
         node_count  = 300
         vm_size     = "Standard_D2s_v3"
+        node_labels = { "csi" = "true" }
       }
     ]
+    kubernetes_version = "1.30"
   }
 ]
-
-loadbalancer_config_list = []
-
-vm_config_list = []
-
-vmss_config_list = []
-
-nic_backend_pool_association_list = []
