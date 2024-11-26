@@ -16,13 +16,13 @@
 steps:
   - name: {{$action}} Additional Measurements
     measurements:
-      - Identifier: APIResponsivenessPrometheusSimple
+      - Identifier: APIResponsivenessPrometheus
         Method: APIResponsivenessPrometheus
         Params:
           action: {{$action}}
           enableViolations: {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE}}
           useSimpleLatencyQuery: true
-      - Identifier: CreatePhasePodStartupLatency
+      - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
           action: {{$action}}
