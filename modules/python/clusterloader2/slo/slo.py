@@ -87,15 +87,20 @@ def configure_clusterloader2(
 
     file.close()
 
-def validate_clusterloader2(node_count, operation_timeout=600):
+def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
     kube_client = KubernetesClient()
-    timeout = time.time() + operation_timeout
+    ready_node_count = 0
+    timeout = time.time() + (operation_timeout_in_minutes * 60)
     while time.time() < timeout:
         ready_nodes = kube_client.get_ready_nodes()
-        if len(ready_nodes) == node_count:
+        ready_node_count = len(ready_nodes)
+        print(f"Currently {ready_node_count} nodes are ready.")
+        if ready_node_count == node_count:
             break
-        print(f"Waiting for {node_count} nodes to be ready. Currently {len(ready_nodes)} nodes are ready.")
+        print(f"Waiting for {node_count} nodes to be ready.")
         time.sleep(10)
+    if ready_node_count != node_count:
+        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True)
@@ -146,6 +151,7 @@ def collect_clusterloader2(
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, 'r') as f:
+            print(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue

@@ -34,7 +34,11 @@ steps:
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
     echo "Run URL: $run_url"
     echo "##vso[task.setvariable variable=RUN_URL]$run_url"
-  displayName: "Set Run URL"
+
+    code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
+    echo "Code URL: $code_url"
+    echo "##vso[task.setvariable variable=CODE_URL]$code_url"
+  displayName: "Set Run URL & Code URL"
 
 - script: |
     test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
