@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-1000
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: test
 
 stages:
   - stage: azure_eastus2
@@ -26,6 +26,7 @@ stages:
           engine_input:
             disk_number: 100
             storage_class: default
+            wait_time: 120
           matrix:
             Standard_D16s_v3_1000pods_40nodes:
               case_name: Standard_D16s_v3_1000pods_40nodes
@@ -48,6 +49,7 @@ stages:
           engine_input:
             disk_number: 100
             storage_class: ebs-sc
+            wait_time: 120
           matrix:
             m7i_2xlarge_1000pods_40nodes:
               case_name: m7i_2xlarge_1000pods_40nodes

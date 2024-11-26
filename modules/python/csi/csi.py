@@ -4,10 +4,12 @@ import os
 import requests
 import subprocess
 import json
+import yaml
 from datetime import datetime, timezone
-from client.kubernetes_client import KubernetesClient
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from client.kubernetes_client import KubernetesClient, client
 
-STORAGE_TEST_SCRIPT_URL="https://raw.githubusercontent.com/Azure/kubernetes-volume-drivers/master/test/attach_detach_test.sh"
+KUBERNETERS_CLIENT=KubernetesClient()
 
 def validate_node_count(node_label, node_count, operation_timeout_in_minutes):
     kube_client = KubernetesClient()
@@ -25,29 +27,178 @@ def validate_node_count(node_label, node_count, operation_timeout_in_minutes):
     if ready_node_count != node_count:
         raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
-def execute_attach_detach(disk_number, storage_class, result_dir):
+def calculate_percentiles(disk_number):
+    """Calculate percentile values for pods."""
+    p50 = disk_number // 2
+    p90 = disk_number * 9 // 10
+    p99 = disk_number * 99 // 100
+    return p50, p90, p99, disk_number
+
+def create_statefulset(namespace, replicas, storage_class):
+    """Create a StatefulSet dynamically."""
+    statefulset = client.V1StatefulSet(
+        api_version="apps/v1",
+        kind="StatefulSet",
+        metadata=client.V1ObjectMeta(name="statefulset-local"),
+        spec=client.V1StatefulSetSpec(
+            pod_management_policy="Parallel", # Default is OrderedReady
+            replicas=replicas,
+            selector=client.V1LabelSelector(match_labels={"app": "nginx"}),
+            service_name="statefulset-local",
+            template=client.V1PodTemplateSpec(
+                metadata=client.V1ObjectMeta(labels={"app": "nginx"}),
+                spec=client.V1PodSpec(
+                    node_selector={"kubernetes.io/os": "linux"},
+                    containers=[
+                        client.V1Container(
+                            name="statefulset-local",
+                            image="mcr.microsoft.com/oss/nginx/nginx:1.19.5",
+                            command=[
+                                "/bin/bash",
+                                "-c",
+                                "set -euo pipefail; while true; do echo $(date) >> /mnt/local/outfile; sleep 1; done",
+                            ],
+                            volume_mounts=[
+                                client.V1VolumeMount(name="persistent-storage", mount_path="/mnt/local")
+                            ],
+                        )
+                    ],
+                ),
+            ),
+            volume_claim_templates=[
+                client.V1PersistentVolumeClaimTemplate(
+                    metadata=client.V1ObjectMeta(
+                        name="persistent-storage",
+                        annotations={"volume.beta.kubernetes.io/storage-class": storage_class},
+                    ),
+                    spec=client.V1PersistentVolumeClaimSpec(
+                        access_modes=["ReadWriteOnce"],
+                        resources=client.V1ResourceRequirements(requests={"storage": "1Gi"}),
+                    ),
+                )
+            ],
+        ),
+    )
+    app_client = KUBERNETERS_CLIENT.get_app_client()
+    ss = app_client.create_namespaced_stateful_set(namespace, statefulset)
+    return ss
+
+def log_duration(description, start_time, log_file):
+    """Log the time duration of an operation."""
+    end_time = datetime.now()
+    duration = int((end_time - start_time).total_seconds())
+    with open(log_file, "a") as f:
+        f.write(f"{description}: {duration}\n")
+    print(f"{description}: {duration}s")
+
+def wait_for_condition(check_function, target, comparison="gte", interval=1):
+    """Wait for a condition using a given check function."""
+    while True:
+        current_list = check_function()
+        current = len(current_list)
+        print(f"Current: {current}, Target: {target}")
+        if (comparison == "gte" and current >= target) or (comparison == "lte" and current <= target):
+            return current
+        time.sleep(interval)
+
+def monitor_threshold(description, monitor_function, target, threshold_desc, comparison, start_time, log_file):
+    """Monitor a single threshold and log its completion."""
+    wait_for_condition(monitor_function, target, comparison)
+    log_duration(f"{description} {threshold_desc}", start_time, log_file)
+
+def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
+    """Execute the attach detach test."""
     print(f"Starting running test with {disk_number} disks and {storage_class} storage class")
+
+    # Create the result directory and log file
     if not os.path.exists(result_dir):
         os.mkdir(result_dir)
+    log_file = os.path.join(result_dir, f"attachdetach-{disk_number}.txt")
 
-    script_path = os.path.join(result_dir, "attach_detach_test.sh")
-    print(f"Downloading storage test script from {STORAGE_TEST_SCRIPT_URL} to {script_path}")
+    namespace = "test"
 
-    response = requests.get(STORAGE_TEST_SCRIPT_URL)
-    response.raise_for_status()
+    p50, p90, p99, p100 = calculate_percentiles(disk_number)
+    print(f"Percentiles: p50={p50}, p90={p90}, p99={p99}, p100={p100}")
+    attach_thresholds = [(p50, "p50"), (p90, "p90"), (p99, "p99"), (p100, "p100")]
+    detach_thresholds = [(p100 - p50, "p50"), (p100 - p90, "p90"), (p100 - p99, "p99"), (0, "p100")]
 
-    with open(script_path, 'wb') as file:
-        file.write(response.content)
+    # Create a namespace
+    ns = KUBERNETERS_CLIENT.create_namespace(namespace)
+    print(f"Created namespace {ns.metadata.name}")
+
+    # Start the timer
+    creation_start_time = datetime.now()
+
+    # Create StatefulSet
+    ss = create_statefulset(namespace, disk_number, storage_class)
+    print(f"Created StatefulSet {ss.metadata.name}")
+
+    # Measure PVC creation and attachment
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for target, threshold_desc in attach_thresholds:
+            futures.append(
+                executor.submit(
+                    monitor_threshold,
+                    "PV creation",
+                    lambda: KUBERNETERS_CLIENT.get_bound_persistent_volume_claims_by_namespace(namespace),
+                    target,
+                    threshold_desc,
+                    "gte",
+                    creation_start_time,
+                    log_file,
+                )
+            )
+            futures.append(
+                executor.submit(
+                    monitor_threshold,
+                    "PV attachment",
+                    lambda: KUBERNETERS_CLIENT.get_running_pods_by_namespace(namespace),
+                    target,
+                    threshold_desc,
+                    "gte",
+                    creation_start_time,
+                    log_file,
+                )
+            )
+
+        # Wait for all threads to complete
+        for future in as_completed(futures):
+            future.result() # Blocks until the thread finishes execution
     
-    # Make the script executable
-    os.chmod(script_path, 0o755)
+    print("Measuring creation and attachment of PVCs completed! Waiting for {wait_time} seconds before starting deletion.")
+    time.sleep(wait_time)
 
-    # Run the script with bash
-    result_file = os.path.join(result_dir, f"attachdetach-{disk_number}.txt")
-    subprocess.run(
-        ["bash", script_path, str(disk_number), storage_class, result_file, "--"],
-        check=True
-    )
+    # Start the timer
+    deletion_start_time = datetime.now()
+
+    # Delete StatefulSet
+    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(ss.metadata.name, namespace)
+    KUBERNETERS_CLIENT.delete_persistent_volume_claim_by_namespace(namespace)
+
+    # Measure PVC deletion and detachment
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for target, threshold_desc in detach_thresholds:
+            futures.append(
+                executor.submit(
+                    monitor_threshold,
+                    "PV detachment",
+                    lambda: KUBERNETERS_CLIENT.get_attached_volume_attachments(),
+                    target,
+                    threshold_desc,
+                    "lte",
+                    deletion_start_time,
+                    log_file,
+                )
+            )
+
+        # Wait for all threads to complete
+        for future in as_completed(futures):
+            future.result()
+    
+    KUBERNETERS_CLIENT.delete_namespace(namespace)
+    print("Measuring deletion and detachment of PVCs completed.")
 
 def collect_attach_detach(case_name, node_number, disk_number, storage_class, cloud_info, run_id, run_url, result_dir):
     raw_result_file = os.path.join(result_dir, f"attachdetach-{disk_number}.txt")
@@ -97,6 +248,7 @@ def main():
     parser_execute = subparsers.add_parser("execute", help="Execute attach detach test")
     parser_execute.add_argument("disk_number", type=int, help="Disk number")
     parser_execute.add_argument("storage_class", type=str, help="Storage class")
+    parser_execute.add_argument("wait_time", type=int, help="Wait time before deletion")
     parser_execute.add_argument("result_dir", type=str, help="Result directory")
 
     # Sub-command for collect_attach_detach
@@ -114,7 +266,7 @@ def main():
     if args.command == "validate":
         validate_node_count(args.node_label, args.node_count, args.operation_timeout)
     elif args.command == "execute":
-        execute_attach_detach(args.disk_number, args.storage_class, args.result_dir)
+        execute_attach_detach(args.disk_number, args.storage_class, args.wait_time, args.result_dir)
     elif args.command == "collect":
         collect_attach_detach(args.case_name, args.node_number, args.disk_number, args.storage_class, 
                               args.cloud_info, args.run_id, args.run_url, args.result_dir)
