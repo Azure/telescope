@@ -8,6 +8,7 @@ from clusterloader2.kubernetes_client import KubernetesClient, client
 
 KUBERNETERS_CLIENT=KubernetesClient()
 
+# TODO: Move to utils folder later to be shared with other modules
 def validate_node_count(node_label, node_count, operation_timeout_in_minutes):
     kube_client = KubernetesClient()
     ready_node_count = 0

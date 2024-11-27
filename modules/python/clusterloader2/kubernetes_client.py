@@ -86,7 +86,10 @@ class KubernetesClient:
     def delete_persistent_volume_claim_by_namespace(self, namespace):
         pvcs = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
         for pvc in pvcs:
-            self.api.delete_namespaced_persistent_volume_claim(pvc.metadata.name, namespace, body=client.V1DeleteOptions())
+            try:
+                self.api.delete_namespaced_persistent_volume_claim(pvc.metadata.name, namespace, body=client.V1DeleteOptions())
+            except client.rest.ApiException as e:
+                print(f"Error deleting PVC '{pvc.metadata.name}': {e}")
 
     def get_volume_attachments(self):
         return self.storage.list_volume_attachment().items
