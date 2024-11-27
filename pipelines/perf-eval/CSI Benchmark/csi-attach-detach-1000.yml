@@ -1,16 +1,16 @@
 trigger: none
 schedules:
-  - cron: "0 4,10,16,22 * * *"
-    displayName: "Every 6 hours"
+  - cron: "0 20 1-31/2 * *"
+    displayName: "Every Odd Day"
     branches:
       include:
-        - alyssa/move-csi-test
+        - main
     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-1000
-  SCENARIO_VERSION: test
+  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2

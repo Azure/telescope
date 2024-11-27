@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "0 20 1-31/2 * *"
+  - cron: "0 16 1-31/2 * *"
     displayName: "Every Odd Day"
     branches:
       include:
@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-300
-  SCENARIO_VERSION: test
+  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2
