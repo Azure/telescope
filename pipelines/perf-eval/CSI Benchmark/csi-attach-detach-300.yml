@@ -20,7 +20,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - westus2
+            - eastus2
           topology: csi-attach-detach
           engine: attach
           engine_input:
