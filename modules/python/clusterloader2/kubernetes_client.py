@@ -88,12 +88,17 @@ class KubernetesClient:
         for pvc in pvcs:
             self.api.delete_namespaced_persistent_volume_claim(pvc.metadata.name, namespace, body=client.V1DeleteOptions())
 
+    def get_volume_attachments(self):
+        return self.storage.list_volume_attachment().items
+
     def get_attached_volume_attachments(self):
-        volume_attachments = self.storage.list_volume_attachment().items
+        volume_attachments = self.get_volume_attachments()
         return [attachment for attachment in volume_attachments if attachment.status.attached]
 
     def create_namespace(self, namespace):
-        # Check if namespace exists
+        """
+        Returns the namespace object if it exists, otherwise creates it.
+        """
         try:
             namespace = self.api.read_namespace(namespace)
             return namespace

@@ -4,7 +4,7 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace
+    V1PodList, V1PodStatus, V1Pod, V1PodSpec, V1Namespace
 )
 from clusterloader2.kubernetes_client import KubernetesClient
 
@@ -84,6 +84,16 @@ class TestKubernetesClient(unittest.TestCase):
             status=V1VolumeAttachmentStatus(attached=phase)
         )
 
+    @patch("kubernetes.client.CoreV1Api.read_namespace")
+    def test_create_existing_namespace(self, mock_read_namespace):
+        name = "test-namespace"
+        mock_namespace = self._create_namespace(name)
+        mock_read_namespace.return_value = mock_namespace
+
+        ns = self.client.create_namespace(name)
+        self.assertEqual(ns.metadata.name, mock_read_namespace.return_value.metadata.name)
+        mock_read_namespace.assert_called_once_with(name)
+
     @patch('clusterloader2.kubernetes_client.KubernetesClient.create_namespace')
     @patch('clusterloader2.kubernetes_client.KubernetesClient.delete_namespace')
     def test_create_delete_namespace(self, mock_delete_namespace, mock_create_namespace):
@@ -101,63 +111,72 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(mock_delete_namespace.return_value, ns)
         mock_delete_namespace.assert_called_once_with(name)
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_running_pods_by_namespace')
-    def test_get_running_pods_by_namespace(self, mock_get_running_pods_by_namespace):
+    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_pods_by_namespace')
+    def test_get_running_pods_by_namespace(self, mock_get_pods_by_namespace):
         namespace = "test-namespace"
-
         running_pods = 10
         pending_pods = 5
-        labels = {"csi": "true"}
-        all_pods = [
+        labels = {"app": "nginx"}
+
+        mock_get_pods_by_namespace.return_value = [
             self._create_pod(namespace=namespace, name=f"pod-{i}", phase="Running", labels=labels) for i in range(running_pods)
         ]
-        all_pods.extend(
-            self._create_pod(namespace=namespace, name=f"pod-{i}", phase="Pending", labels=labels) for i in range(running_pods, pending_pods + running_pods))
+        mock_get_pods_by_namespace.return_value.extend(
+            [self._create_pod(namespace=namespace, name=f"pod-{i}", phase="Pending", labels=labels) for i in range(running_pods, pending_pods + running_pods)]
+        )
 
-        mock_get_running_pods_by_namespace.return_value = [pod for pod in all_pods if pod.status.phase == "Running"]
-        pods = self.client.get_running_pods_by_namespace(namespace=namespace, label_selector="csi=true")
-        for pod in pods:
+        self.assertEqual(len(mock_get_pods_by_namespace.return_value), running_pods + pending_pods)
+
+        expected_pods = [pod for pod in mock_get_pods_by_namespace.return_value if pod.status.phase == "Running"]
+        returned_pods = self.client.get_running_pods_by_namespace(namespace=namespace, label_selector="app=nginx")
+        
+        for pod in returned_pods:
             self.assertEqual(pod.metadata.labels, labels)
             self.assertEqual(pod.status.phase, "Running")
-        mock_get_running_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="csi=true")
-        self.assertEqual(len(all_pods), running_pods + pending_pods)
-        self.assertEqual(len(pods), running_pods)
+        
+        mock_get_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="app=nginx", field_selector=None)
+        self.assertEqual(len(returned_pods), len(expected_pods))
+        self.assertEqual(returned_pods, expected_pods)
     
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_bound_persistent_volume_claims_by_namespace')
+    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
     def test_get_bound_persistent_volume_claims_by_namespace(self, mock_get_persistent_volume_claims_by_namespace):
         namespace = "test-namespace"
         bound_claims = 10
         pending_claims = 5
-        all_claims = [
+        mock_get_persistent_volume_claims_by_namespace.return_value = [
             self._create_pvc(name=f"pvc-{i}", namespace=namespace, phase="Bound") for i in range(bound_claims)
         ]
-        all_claims.extend(
+        mock_get_persistent_volume_claims_by_namespace.return_value.extend(
             self._create_pvc(name=f"pvc-{i}", namespace=namespace, phase="Pending") for i in range(bound_claims, pending_claims + bound_claims))
 
-        mock_get_persistent_volume_claims_by_namespace.return_value = [claim for claim in all_claims if claim.status.phase == "Bound"]
-        claims = self.client.get_bound_persistent_volume_claims_by_namespace(namespace=namespace)
-        self.assertEqual(len(all_claims), bound_claims + pending_claims)
-        self.assertEqual(len(claims), bound_claims)
+        self.assertEqual(len(mock_get_persistent_volume_claims_by_namespace.return_value), bound_claims + pending_claims)
+
+        expected_claims = [claim for claim in mock_get_persistent_volume_claims_by_namespace.return_value if claim.status.phase == "Bound"]
+        returned_claims = self.client.get_bound_persistent_volume_claims_by_namespace(namespace=namespace)
+        self.assertEqual(len(returned_claims), len(expected_claims))
+        self.assertEqual(returned_claims, expected_claims)
         mock_get_persistent_volume_claims_by_namespace.assert_called_once_with(namespace=namespace)
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_attached_volume_attachments')
+    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_volume_attachments')
     def test_get_attached_volume_attachments(self, mock_get_volume_attachments):
         attached_attachments = 10
         detached_attachments = 5
-        all_attachments = [
+        mock_get_volume_attachments.return_value = [
             self._create_volume_attachment(
                 name=f"attachment-{i}", namespace="test-namespace", phase=True, attacher="csi-driver", node_name="node-{i}"
             ) for i in range(attached_attachments)
         ]
-        all_attachments.extend(
+        mock_get_volume_attachments.return_value.extend(
             self._create_volume_attachment(
                 name=f"attachment-{i}", namespace="test-namespace", phase=False, attacher="csi-driver", node_name="node-{i}"
             ) for i in range(attached_attachments, detached_attachments + attached_attachments))
 
-        mock_get_volume_attachments.return_value = [attachment for attachment in all_attachments if attachment.status.attached]
-        attachments = self.client.get_attached_volume_attachments()
-        self.assertEqual(len(all_attachments), attached_attachments + detached_attachments)
-        self.assertEqual(len(attachments), attached_attachments)
+        self.assertEqual(len(mock_get_volume_attachments.return_value), attached_attachments + detached_attachments)
+
+        expected_volume_attachments = [attachment for attachment in mock_get_volume_attachments.return_value if attachment.status.attached]
+        returned_volume_attachments = self.client.get_attached_volume_attachments()
+        self.assertEqual(len(returned_volume_attachments), len(expected_volume_attachments))
+        self.assertEqual(returned_volume_attachments, expected_volume_attachments)
         mock_get_volume_attachments.assert_called_once()
 
 if __name__ == '__main__':
