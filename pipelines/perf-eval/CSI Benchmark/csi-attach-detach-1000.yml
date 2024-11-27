@@ -1,10 +1,10 @@
 trigger: none
 schedules:
-  - cron: "0 20 1-31/2 * *"
-    displayName: "Every Odd Day"
+  - cron: "0 4,10,16,22 * * *"
+    displayName: "Every 6 hours"
     branches:
       include:
-        - main
+        - alyssa/move-csi-test
     always: true
 
 variables:
