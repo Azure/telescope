@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "0 16 1-31/2 * *"
+  - cron: "0 20 1-31/2 * *"
     displayName: "Every Odd Day"
     branches:
       include:
