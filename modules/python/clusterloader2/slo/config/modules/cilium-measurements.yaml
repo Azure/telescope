@@ -42,7 +42,7 @@ steps:
         queries:
         - name: Perc99
           query: quantile(0.99, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
-        - name: Perc90
+        - name: Perc90``
           query: quantile(0.90, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
@@ -151,3 +151,56 @@ steps:
           query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    
+    # Cilium API Rate Limiter
+    - Identifier: CiliumAPIRateLimiterProcessedRequestsCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Processed Requests Count
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: Total
+          query: rate(cilium_api_limiter_processed_requests_total[%v:])
+    - Identifier: CiliumAPIRateLimiterProcessingDuration
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Processing Duration in Seconds
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_api_rate_limiter_processing_duration_seconds_bucket[%v:])) by (le))    
+    - Identifier: CiliumAPIRateLimiterRequestsInFlight
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Requests In Flight
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: Total
+          query: sum(cilium_api_rate_limiter_requests_in_flight[%v:])
+    - Identifier: CiliumAPIRateLimiterWaitDuration
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Wait Duration in Seconds
+        metricVersion: v1
+        unit: s
+        queries: 
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_api_rate_limiter_wait_duration_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_api_rate_limiter_wait_duration_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_api_rate_limiter_wait_duration_seconds_bucket[%v:])) by (le))
+    - Identifier: CiliumAPIRateLimiterWaitCount
+
+
