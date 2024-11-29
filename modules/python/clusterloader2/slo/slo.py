@@ -9,6 +9,7 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
 LOAD_PODS_PER_NODE = 20
+API_RATE_LIMITING_PODS_PER_NODE = 250
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -24,8 +25,9 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider, service_test):
+def calculate_config(cpu_per_node, node_count, provider, service_test, api_rate_limiting_test):
     throughput = 100
+
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
     pods_per_node = DEFAULT_PODS_PER_NODE
@@ -52,10 +54,12 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
-    override_file):
+    override_file,
+    api_rate_limiting_test = None,
+    pods = 200):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, api_rate_limiting_test)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
@@ -79,8 +83,16 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
-        if service_test:
-            file.write("CL2_SERVICE_TEST: true\n")
+        if service_test is not None: # Mugesh - Configured service_test to pass the value (True or False) to config
+            file.write(f"CL2_SERVICE_TEST: {service_test}\n") 
+
+        # Mugesh - API Rate Limiting Test Config Variable
+        if api_rate_limiting_test is not None:
+            file.write(f"CL2_API_RATE_LIMITING_TEST: {api_rate_limiting_test}\n")
+            file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
+            file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
+            file.write(f"CL2_PODS: {pods}\n") # Passed Pods to Config
+
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")

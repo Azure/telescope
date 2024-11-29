@@ -2,6 +2,9 @@ name: load-config
 
 # Config options for test type
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+# Mugesh - API Rate Limiting Test config
+{{$API_RATE_LIMITING_TEST := DefaultParam .CL2_API_RATE_LIMITING_TEST false}}
+
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
@@ -10,6 +13,7 @@ name: load-config
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
+
 
 # TODO(jshr-w): This should eventually use >1 namespace.
 {{$namespaces := 1}}
@@ -34,6 +38,15 @@ name: load-config
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
+
+# Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
+{{if $API_RATE_LIMITING_TEST}}
+{{$BIG_GROUP_SIZE := default .CL2_PODS 200}}
+{{end}}
+
+
+
+
 namespace:
   number: {{$namespaces}}
   prefix: slo
@@ -51,6 +64,11 @@ tuningSets:
   - name: DeploymentDeleteQps
     qpsLoad:
       qps: {{$deploymentQPS}}
+  # Mugesh - API Rate Limiting Test - Added BurstLoad tuning set
+  - name: BurstLoad
+    burstLoad:
+      qps: 1000
+      burst: 2000
 
 steps:
   - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
@@ -85,6 +103,8 @@ steps:
         bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
 {{end}}
 
+# Mugesh - Added a conditional statement to check if API Rate Limiting Test is enabled to proceed with the default load test configuration.
+{{if not $API_RATE_LIMITING_TEST}}
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -131,6 +151,69 @@ steps:
         deploymentLabel: restart
         Group: {{$groupName}}
 
+{{end}}
+
+# Mugesh - API Rate Limiting Test - create 200 pods, delete, restart with 250 pods
+
+{{if $API_RATE_LIMITING_TEST}}
+
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "Create 200 pods"
+        namespaces: {{$namespaces}}
+        tuningSet: BurstLoad
+        operationTimeout: {{$operationTimeout}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: start
+  
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "delete 200 pods"
+        namespaces: {{$namespaces}}
+        tuningSet: BurstLoad
+        operationTimeout: {{$operationTimeout}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: 0
+        deploymentLabel: delete
+        Group: {{$groupName}}
+        waitForPods: false
+
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "create 250 pods"
+        namespaces: {{$namespaces}}
+        tuningSet: BurstLoad
+        operationTimeout: {{$operationTimeout}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: restart
+
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "delete 250 pods"
+        namespaces: {{$namespaces}}
+        tuningSet: BurstLoad
+        operationTimeout: {{$operationTimeout}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: 0
+        deploymentLabel: delete
+        Group: {{$groupName}}
+    
+{{end}}
+
+# Mugesh - Added conditional statement to delete services (Previously not there)
+{{if $SERVICE_TEST}}
   - module:
       path: /modules/services.yaml
       params:
