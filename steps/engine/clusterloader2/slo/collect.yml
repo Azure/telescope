@@ -7,6 +7,9 @@ parameters:
   default: {}
 - name: region
   type: string
+- name: pods_per_node
+  type: number  
+  default: 50  # Default value for PODS_PER_NODE
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -16,8 +19,8 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CPU_PER_NODE $NODE_COUNT $MAX_PODS $REPEATS \
-      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $TEST_RESULTS_FILE \
+      $CPU_PER_NODE $NODE_COUNT $MAX_PODS $PODS_PER_NODE $REPEATS \
+      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $NETWORK_TEST $TEST_RESULTS_FILE \
       $TEST_TYPE
   workingDirectory: modules/python/clusterloader2
   env:
@@ -25,4 +28,5 @@ steps:
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
+    PODS_PER_NODE: ${{ parameters.pods_per_node }}
   displayName: "Collect Results"
