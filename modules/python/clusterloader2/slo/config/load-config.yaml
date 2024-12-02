@@ -223,6 +223,8 @@ steps:
         bigServicesPerNamespace: 0
 {{end}}
 
+{{end}}}
+
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
