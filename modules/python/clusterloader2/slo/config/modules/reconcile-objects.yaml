@@ -74,4 +74,4 @@ steps:
     Params:
       action: gather
       refreshInterval: 15s
-{{end}}}
+{{end}}
