@@ -41,7 +41,7 @@ name: load-config
 
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
 {{if $API_RATE_LIMITING_TEST}}
-{{$BIG_GROUP_SIZE := default .CL2_PODS 200}}
+{{$BIG_GROUP_SIZE := DefaultParam .CL2_PODS 200}}
 {{end}}
 
 
