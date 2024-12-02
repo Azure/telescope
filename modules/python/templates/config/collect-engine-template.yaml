@@ -1,0 +1,15 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+# add your own steps here
