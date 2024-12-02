@@ -223,7 +223,7 @@ steps:
         bigServicesPerNamespace: 0
 {{end}}
 
-{{end}}}
+{{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
