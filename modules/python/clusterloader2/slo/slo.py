@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
-DEFAULT_PODS_PER_NODE = 50
+DEFAULT_PODS_PER_NODE = 100
 LOAD_PODS_PER_NODE = 20
 
 DEFAULT_NODES_PER_NAMESPACE = 100

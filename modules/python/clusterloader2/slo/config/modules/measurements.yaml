@@ -106,3 +106,43 @@ steps:
             query: quantile(0.90, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
           - name: Perc50
             query: quantile(0.5, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+      - Identifier: CiliumEndpoints
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Cilium Endpoints
+          metricVersion: v1
+          unit: count
+          queries:
+          - name: total
+            query: max_over_time(apiserver_storage_objects{resource="ciliumendpoints.cilium.io"}[%v])
+      - Identifier: CiliumIdentities
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Cilium Identities
+          metricVersion: v1
+          unit: count
+          queries:
+          - name: total
+            query: max_over_time(apiserver_storage_objects{resource="ciliumidentities.cilium.io"}[%v])
+      - Identifier: CiliumEndpointsWatches
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Cilium Endpoints Watches
+          metricVersion: v1
+          unit: count
+          queries:
+          - name: total
+            query: sum(increase(apiserver_request_total{resource="ciliumendpoints", verb="WATCH"}[%v]))
+      - Identifier: CiliumIdentitiesWatches
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Cilium Identities Watches
+          metricVersion: v1
+          unit: count
+          queries:
+          - name: total
+            query: sum(increase(apiserver_request_total{resource="ciliumidentities", verb="WATCH"}[%v]))

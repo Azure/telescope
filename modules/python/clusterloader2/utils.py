@@ -22,6 +22,7 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 --kubeconfig /root/.kube/config
 --testconfig /root/perf-tests/clusterloader2/config/{cl2_config_file}
 --report-dir /root/perf-tests/clusterloader2/results
+--experimental-prometheus-snapshot-to-report-dir=true
 --tear-down-prometheus-server={enable_prometheus}"""
     if overrides:
         command += f" --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"

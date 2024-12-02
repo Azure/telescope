@@ -27,6 +27,10 @@ steps:
     else
       echo "File $SOURCE_FILE_NAME does not exist."
     fi
+
+    cd $(System.DefaultWorkingDirectory)
+    ls -la
+
   displayName: "Upload ${{ parameters.upload_type }}"
   env:
     SOURCE_FILE_NAME: ${{ parameters.source_file_name }}
@@ -34,3 +38,6 @@ steps:
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
+
+- publish: $(System.DefaultWorkingDirectory)/root/perf-tests/clusterloader2/results/prometheus_snapshot.tar.gz
+  artifact:  prometheus_snapshot.tar.gz
