@@ -33,8 +33,6 @@ def calculate_config(cpu_per_node, node_count, provider, service_test, api_rate_
     pods_per_node = DEFAULT_PODS_PER_NODE
     if service_test:
         pods_per_node = LOAD_PODS_PER_NODE
-    elif api_rate_limiting_test:
-        pods_per_node = API_RATE_LIMITING_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
