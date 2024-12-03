@@ -9,7 +9,7 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
 LOAD_PODS_PER_NODE = 20
-API_RATE_LIMITING_PODS_PER_NODE = 10
+API_RATE_LIMITING_PODS_PER_NODE = 250
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -58,7 +58,7 @@ def configure_clusterloader2(
     service_test,
     override_file,
     api_rate_limiting_test = None,
-    pods = 200):
+    pods = 10):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, api_rate_limiting_test)
