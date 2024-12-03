@@ -41,7 +41,7 @@ name: load-config
 
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
 {{if $API_RATE_LIMITING_TEST}}
-{{$BIG_GROUP_SIZE := DefaultParam .CL2_PODS 200}}
+{{$pods := DefaultParam .CL2_PODS 200}}
 {{end}}
 
 
@@ -163,7 +163,7 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentSize: {{$pods}}
         bigDeploymentsPerNamespace: 1
         smallDeploymentSize: 0
         smallDeploymentsPerNamespace: 0
@@ -179,7 +179,7 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentSize: {{$pods}}
         bigDeploymentsPerNamespace: 0
         smallDeploymentSize: 0
         smallDeploymentsPerNamespace: 0
@@ -194,7 +194,7 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentSize: {{$pods}}
         bigDeploymentsPerNamespace: 1
         smallDeploymentSize: 0
         smallDeploymentsPerNamespace: 0
@@ -210,7 +210,7 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentSize: {{$pods}}
         bigDeploymentsPerNamespace: 0
         smallDeploymentSize: 0
         smallDeploymentsPerNamespace: 0
