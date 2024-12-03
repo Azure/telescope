@@ -86,11 +86,11 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
         if service_test: # Mugesh - Configured service_test to pass the value (True or False) to config
-            file.write(f"CL2_SERVICE_TEST: {service_test}\n") 
+            file.write(f"CL2_SERVICE_TEST: true\n") 
 
         # Mugesh - API Rate Limiting Test Config Variable
         if api_rate_limiting_test:
-            file.write(f"CL2_API_RATE_LIMITING_TEST: {api_rate_limiting_test}\n")
+            file.write("CL2_API_RATE_LIMITING_TEST: true\n")
             file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
             file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
             file.write(f"CL2_PODS: {pods}\n") # Passed Pods to Config
