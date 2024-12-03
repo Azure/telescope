@@ -58,7 +58,7 @@ def configure_clusterloader2(
     service_test,
     override_file,
     api_rate_limiting_test = None,
-    pods):
+    pods = 100):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, api_rate_limiting_test)
