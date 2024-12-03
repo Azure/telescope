@@ -274,3 +274,44 @@ steps:
           query: cilium_operator_identity_gc_entries{status="alive"}
         - name: deleted
           query: cilium_operator_identity_gc_entries{status="deleted"}
+    - Identifier: CiliumEndpointsWatches
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoints Watches
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: sum(increase(apiserver_request_total{resource="ciliumendpoints", verb="WATCH"}[%v]))
+    - Identifier: CiliumIdentitiesWatches
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Identities Watches
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: sum(increase(apiserver_request_total{resource="ciliumidentities", verb="WATCH"}[%v]))
+    - Identifier: CiliumEndpointsLongRunningWatches
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoints Long Watches
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: sum(increase(apiserver_longrunning_requests{resource="ciliumendpoints", verb="WATCH"}[%v]))
+    - Identifier: CiliumIdentitiesLongRunningWatches
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Identities Long Watches
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: sum(increase(apiserver_longrunning_requests{resource="ciliumidentities", verb="WATCH"}[%v]))
+          
