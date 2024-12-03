@@ -2,11 +2,6 @@ import unittest
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch, mock_open
-from csi.csi import (
-    wait_for_condition, calculate_percentiles, log_duration, collect_attach_detach,
-    create_statefulset
-)
-from clusterloader2.kubernetes_client import KubernetesClient
 from kubernetes.client.models import (
     V1StatefulSet,
     V1ObjectMeta,
@@ -20,6 +15,16 @@ from kubernetes.client.models import (
     V1PersistentVolumeClaimSpec,
     V1ResourceRequirements
 )
+
+with patch("clusterloader2.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
+    # Mock the load_kube_config function to do nothing
+    mock_load_kube_config.return_value = None
+
+    # Now import the module where the global KUBERNETERS_CLIENT is defined
+    from csi.csi import (
+        wait_for_condition, calculate_percentiles, log_duration,
+        create_statefulset, collect_attach_detach
+    )
 
 class TestCSI(unittest.TestCase):
 
@@ -106,9 +111,8 @@ class TestCSI(unittest.TestCase):
         self.assertEqual(result, 5)
         self.assertEqual(check_function.call_count, 3)
 
-    @patch("csi.csi.KUBERNETERS_CLIENT")
-    @patch("kubernetes.client.V1StatefulSet")
-    def test_create_statefulset(self, mock_statefulset_class, mock_kubernetes_client):
+    @patch("clusterloader2.kubernetes_client.KubernetesClient.get_app_client")
+    def test_create_statefulset_success(self, mock_get_app_client):
         namespace = "test"
         replicas = 10
         storage_class = "default"
@@ -159,60 +163,14 @@ class TestCSI(unittest.TestCase):
         )
 
         mock_app_client = MagicMock()
-        mock_kubernetes_client.get_app_client.return_value = mock_app_client
-
+        mock_get_app_client.return_value = mock_app_client
         mock_app_client.create_namespaced_stateful_set.return_value = stateful_set
+
         ss = create_statefulset(namespace, replicas, storage_class)
 
-        mock_statefulset_class.assert_called_once_with(
-            api_version="apps/v1",
-            kind="StatefulSet",
-            metadata=V1ObjectMeta(name="statefulset-local"),
-            spec=V1StatefulSetSpec(
-                pod_management_policy="Parallel",
-                replicas=replicas,
-                selector=V1LabelSelector(match_labels={"app": "nginx"}),
-                service_name="statefulset-local",
-                template=V1PodTemplateSpec(
-                    metadata=V1ObjectMeta(labels={"app": "nginx"}),
-                    spec=V1PodSpec(
-                        node_selector={"kubernetes.io/os": "linux"},
-                        containers=[
-                            V1Container(
-                                name="statefulset-local",
-                                image="mcr.microsoft.com/oss/nginx/nginx:1.19.5",
-                                command=[
-                                    "/bin/bash",
-                                    "-c",
-                                    "set -euo pipefail; while true; do echo $(date) >> /mnt/local/outfile; sleep 1; done",
-                                ],
-                                volume_mounts=[
-                                    V1VolumeMount(
-                                        name="persistent-storage", mount_path="/mnt/local"
-                                    )
-                                ],
-                            )
-                        ],
-                    ),
-                ),
-                volume_claim_templates=[
-                    V1PersistentVolumeClaimTemplate(
-                        metadata=V1ObjectMeta(
-                            name="persistent-storage",
-                            annotations={"volume.beta.kubernetes.io/storage-class": storage_class},
-                        ),
-                        spec=V1PersistentVolumeClaimSpec(
-                            access_modes=["ReadWriteOnce"],
-                            resources=V1ResourceRequirements(requests={"storage": "1Gi"}),
-                        ),
-                    )
-                ],
-            ),
-        )
-
-        mock_kubernetes_client.get_app_client.assert_called_once()
+        mock_get_app_client.assert_called_once()
         mock_app_client.create_namespaced_stateful_set.assert_called_once_with(
-            namespace, mock_statefulset_class.return_value
+            namespace, stateful_set
         )
         self.assertEqual(ss, stateful_set)
 
