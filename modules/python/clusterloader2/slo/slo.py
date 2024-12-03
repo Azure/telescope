@@ -91,6 +91,7 @@ def configure_clusterloader2(
         # Mugesh - API Rate Limiting Test Config Variable
         if api_rate_limiting_test:
             file.write("CL2_API_RATE_LIMITING_TEST: true\n")
+            file.write(f"CL2_SERVICE_TEST: false\n") 
             file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
             file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
             file.write(f"CL2_PODS: {pods}\n") # Passed Pods to Config
