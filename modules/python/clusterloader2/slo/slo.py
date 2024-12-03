@@ -254,7 +254,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cl2_override_file)
+                                 args.service_test, args.cl2_override_file, args.api_rate_limiting_test)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -263,7 +263,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.result_file, args.test_type)
+                               args.service_test, args.api_rate_limiting_test, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()
