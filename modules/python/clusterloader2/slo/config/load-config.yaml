@@ -164,7 +164,7 @@ steps:
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        bigDeploymentsPerNamespace: 1
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -191,7 +191,7 @@ steps:
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        bigDeploymentsPerNamespace: 1
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}

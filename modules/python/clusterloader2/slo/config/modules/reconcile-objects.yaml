@@ -18,7 +18,6 @@
 # Mugesh - Set Default values to 0 if not provided
 {{$smallDeploymentSize := DefaultParam .smallDeploymentSize 0}}
 {{$smallDeploymentsPerNamespace := DefaultParam .smallDeploymentsPerNamespace 0}}
-{{$api_rate_limiting_test := DefaultParam .API_RATE_LIMITING_TEST false}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -51,7 +50,6 @@ steps:
         SvcName: big-service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
-{{if not $api_rate_limiting_test}}
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
@@ -65,7 +63,6 @@ steps:
         SvcName: small-service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
-{{end}}
 
 # Mugesh - Wait for pods to be deleted
 {{if $waitToDelete}}
