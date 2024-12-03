@@ -58,7 +58,7 @@ def configure_clusterloader2(
     service_test,
     override_file,
     api_rate_limiting_test = None,
-    pods = 10):
+    pods):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, api_rate_limiting_test)
@@ -217,7 +217,7 @@ def main():
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
                                   help="Whether API Rate limiting test is running. Must be either True or False")
-    parser_configure.add_argument("pods", type=int, nargs='?', default=200, help="Number of pods for API Rate Limiting Test")
+    parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
