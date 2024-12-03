@@ -217,6 +217,7 @@ def main():
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
                                   help="Whether API Rate limiting test is running. Must be either True or False")
+    parser_configure.add_argument("pods", type=int, nargs='?', default=200, help="Number of pods for API Rate Limiting Test")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -255,7 +256,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cl2_override_file, args.api_rate_limiting_test)
+                                 args.service_test, args.cl2_override_file, args.api_rate_limiting_test, args.pods)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -264,7 +265,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.api_rate_limiting_test, args.result_file, args.test_type)
+                               args.service_test, args.api_rate_limiting_test, args.pods, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()
