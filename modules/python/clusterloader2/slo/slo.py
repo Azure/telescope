@@ -85,11 +85,11 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
-        if service_test is not None: # Mugesh - Configured service_test to pass the value (True or False) to config
+        if service_test: # Mugesh - Configured service_test to pass the value (True or False) to config
             file.write(f"CL2_SERVICE_TEST: {service_test}\n") 
 
         # Mugesh - API Rate Limiting Test Config Variable
-        if api_rate_limiting_test is not None:
+        if api_rate_limiting_test:
             file.write(f"CL2_API_RATE_LIMITING_TEST: {api_rate_limiting_test}\n")
             file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
             file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
@@ -129,6 +129,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
+    api_rate_limiting_test,
     result_file,
     test_type="default_config",
 ):
@@ -142,7 +143,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, api_rate_limiting_test)
     pod_count = node_count * pods_per_node
 
     template = {
@@ -213,6 +214,8 @@ def main():
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether API Rate limiting test is running. Must be either True or False")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -240,6 +243,8 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_collect.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether API Rate limiting test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
