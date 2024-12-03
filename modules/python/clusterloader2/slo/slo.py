@@ -131,6 +131,7 @@ def collect_clusterloader2(
     _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test)
     pod_count = node_count * pods_per_node
 
+    # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "cpu_per_node": cpu_per_node,
@@ -141,7 +142,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
-        "test_details": details,
+        # "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
