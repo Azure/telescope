@@ -4,7 +4,7 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodList, V1PodStatus, V1Pod, V1PodSpec, V1Namespace
+    V1PodStatus, V1Pod, V1PodSpec, V1Namespace
 )
 from clusterloader2.kubernetes_client import KubernetesClient
 
