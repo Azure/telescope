@@ -104,6 +104,7 @@ class KubernetesClient:
         """
         try:
             namespace = self.api.read_namespace(namespace)
+            print(f"Namespace '{namespace.metadata.name}' already exists.")
             return namespace
         except client.rest.ApiException as e:
             if e.status == 404:

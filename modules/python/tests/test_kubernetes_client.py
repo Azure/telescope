@@ -84,15 +84,16 @@ class TestKubernetesClient(unittest.TestCase):
             status=V1VolumeAttachmentStatus(attached=phase)
         )
 
+    @patch("kubernetes.client.CoreV1Api.create_namespace")
     @patch("kubernetes.client.CoreV1Api.read_namespace")
-    def test_create_existing_namespace(self, mock_read_namespace):
+    def test_create_existing_namespace(self, mock_read_namespace, mock_create_namespace):
         name = "test-namespace"
         mock_namespace = self._create_namespace(name)
         mock_read_namespace.return_value = mock_namespace
 
         ns = self.client.create_namespace(name)
         self.assertEqual(ns.metadata.name, mock_read_namespace.return_value.metadata.name)
-        mock_read_namespace.assert_called_once_with(name)
+        mock_create_namespace.assert_not_called()
 
     @patch('clusterloader2.kubernetes_client.KubernetesClient.create_namespace')
     @patch('clusterloader2.kubernetes_client.KubernetesClient.delete_namespace')
@@ -135,8 +136,7 @@ class TestKubernetesClient(unittest.TestCase):
             self.assertEqual(pod.status.phase, "Running")
         
         mock_get_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="app=nginx", field_selector=None)
-        self.assertEqual(len(returned_pods), len(expected_pods))
-        self.assertEqual(returned_pods, expected_pods)
+        self.assertCountEqual(returned_pods, expected_pods)
     
     @patch('clusterloader2.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
     def test_get_bound_persistent_volume_claims_by_namespace(self, mock_get_persistent_volume_claims_by_namespace):
@@ -153,8 +153,7 @@ class TestKubernetesClient(unittest.TestCase):
 
         expected_claims = [claim for claim in mock_get_persistent_volume_claims_by_namespace.return_value if claim.status.phase == "Bound"]
         returned_claims = self.client.get_bound_persistent_volume_claims_by_namespace(namespace=namespace)
-        self.assertEqual(len(returned_claims), len(expected_claims))
-        self.assertEqual(returned_claims, expected_claims)
+        self.assertCountEqual(returned_claims, expected_claims)
         mock_get_persistent_volume_claims_by_namespace.assert_called_once_with(namespace=namespace)
 
     @patch('clusterloader2.kubernetes_client.KubernetesClient.get_volume_attachments')
@@ -175,8 +174,7 @@ class TestKubernetesClient(unittest.TestCase):
 
         expected_volume_attachments = [attachment for attachment in mock_get_volume_attachments.return_value if attachment.status.attached]
         returned_volume_attachments = self.client.get_attached_volume_attachments()
-        self.assertEqual(len(returned_volume_attachments), len(expected_volume_attachments))
-        self.assertEqual(returned_volume_attachments, expected_volume_attachments)
+        self.assertCountEqual(returned_volume_attachments, expected_volume_attachments)
         mock_get_volume_attachments.assert_called_once()
 
 if __name__ == '__main__':

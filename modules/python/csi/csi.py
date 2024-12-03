@@ -85,12 +85,18 @@ def log_duration(description, start_time, log_file):
     """Log the time duration of an operation."""
     end_time = datetime.now()
     duration = int((end_time - start_time).total_seconds())
+    if ":" in description:
+        raise Exception(f"Description cannot contain a colon ':' character!")
     with open(log_file, "a") as f:
         f.write(f"{description}: {duration}\n")
     print(f"{description}: {duration}s")
 
 def wait_for_condition(check_function, target, comparison="gte", interval=1):
-    """Wait for a condition using a given check function."""
+    """
+    Wait for a condition using a given check function.
+    The check function should return a list of items.
+    The condition is satisfied when the length of the list meets the target.
+    """
     while True:
         current_list = check_function()
         current = len(current_list)
