@@ -40,9 +40,7 @@ name: load-config
 
 
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
-{{if $API_RATE_LIMITING_TEST}}
-{{$pods := DefaultParam .CL2_PODS 200}}
-{{end}}
+{{$pods := DefaultParam .CL2_PODS 0}}
 
 
 
