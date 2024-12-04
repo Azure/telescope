@@ -73,11 +73,15 @@ steps:
     REGIONS: ${{ convertToJson(parameters.regions) }}
 
 - script: |
-    # Read the test results file and add the telescope metadata to it for each json record in the file
+    # Add telescope metadata to each JSON record in the test results file if it exists
     set -eux
-    jq --argfile telescope_metadata $(TELESCOPE_METADATA_FILE) \
+    if [ -f "$(TEST_RESULTS_FILE)" ]; then
+      jq --argfile telescope_metadata $(TELESCOPE_METADATA_FILE) \
       -c '. + {telescope_metadata: $telescope_metadata}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
-       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
+      && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
+    else
+      echo "File $(TEST_RESULTS_FILE) does not exist."
+    fi
   displayName: "Add Telescope Metadata to Test Results"
   condition: always()
 
