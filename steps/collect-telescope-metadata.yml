@@ -22,6 +22,7 @@ steps:
       --arg requester "$(Build.RequestedFor)" \
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
+      --arg owner $OWNER \
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
       --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
@@ -47,6 +48,7 @@ steps:
           scenario_info: {
             scenario_name: $scenario_name,
             scenario_type: $scenario_type,
+            owner: $owner,
             engine: $engine,
             topology: $topology,
             engine_input: $engine_input
@@ -83,6 +85,7 @@ steps:
       source_file_name: $(TELESCOPE_METADATA_FILE)
       destination_file_name: $(RUN_ID).json
       subfolder: telescope-metadata/main
+      container_name: perf-eval
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
       upload_type: "Telescope Metadata"
