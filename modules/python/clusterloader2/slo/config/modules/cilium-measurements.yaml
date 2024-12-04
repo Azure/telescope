@@ -156,17 +156,17 @@ steps:
     - Identifier: CiliumAPIRateLimiterProcessedRequestsCount
       Method: GenericPrometheusQuery
       Params:
+        action: {{$action}}
         metricName: Cilium API Rate Limiter Processed Requests Count
         metricVersion: v1
         unit: requests/second
         enableViolations: true
         queries:
-        - name: MinOverTime
-          query: min_over_time(cilium_api_limiter_processed_requests_total[15m])
-        - name: MaxOverTime
-          query: max_over_time(cilium_api_limiter_processed_requests_total[15m])
-        - name: AvgOverTime
-          query: avg_over_time(cilium_api_limiter_processed_requests_total[15m])
+        - name: Total
+          query: rate(cilium_api_limiter_processed_requests_total[15s])
+        - name: ByAction
+          query: rate(cilium_api_limiter_processed_requests_total[%v:]) by (action)
+
 
     - Identifier: CiliumAPIRateLimiterProcessingDuration
       Method: GenericPrometheusQuery
@@ -199,10 +199,6 @@ steps:
           query: cilium_api_limiter_requests_in_flight
         - name: ByAction
           query: cilium_api_limiter_requests_in_flight by (action)
-        - name: RatePerSecond
-          query: rate(cilium_api_limiter_requests_in_flight[15s])
-        - name: RatePerAction
-          query: rate(cilium_api_limiter_requests_in_flight[15s]) by (action)
   
     - Identifier: CiliumAPIRateLimiterWaitDuration
       Method: GenericPrometheusQuery
