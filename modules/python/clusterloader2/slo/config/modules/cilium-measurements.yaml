@@ -164,7 +164,6 @@ steps:
         queries:
         - name: Total
           query: rate(cilium_api_limiter_processed_requests_total[15s])
-        - name: ByAction
 
     - Identifier: CiliumAPIRateLimiterProcessingDuration
       Method: GenericPrometheusQuery
