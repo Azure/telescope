@@ -23,7 +23,7 @@ steps:
       --arg requester "$(Build.RequestedFor)" \
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
-      --arg owner ${OWNER//\"/} \
+      --arg owner $OWNER \
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
       --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
