@@ -4,7 +4,6 @@ parameters:
 
 steps:
   - script: |
-      echo "$STORAGE_CLASS $OWNER $RUN_ID $DELETION_DUE_TIME $SCENARIO"
       envsubst < "$STORAGE_CLASS_FILE" | kubectl apply -f -
     displayName: "Create StorageClass"
     env:
