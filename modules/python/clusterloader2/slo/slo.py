@@ -248,7 +248,6 @@ def main():
     parser_collect.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
                                   help="Whether API Rate limiting test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
 
