@@ -1,0 +1,71 @@
+trigger: none
+schedules:
+  - cron: "19 1/12 * * *"
+    displayName: "1:19 AM and PM every day"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cluster-churn-n1000p50k-sched
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: azure_eastus2_sched_upstream_default
+    dependsOn: []
+    variables:
+      - group: Scheduler-Upstream-Default-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: slo
+          matrix:
+            azure_sched:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 100
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "30m"
+              cl2_config_file: cluster-scale-config.yaml
+              service_test: False
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2_sched_override_default
+    dependsOn: []
+    variables:
+      - group: Scheduler-Override-Default-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: slo
+          matrix:
+            azure_sched:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 100
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "30m"
+              cl2_config_file: cluster-scale-config.yaml
+              service_test: False
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
