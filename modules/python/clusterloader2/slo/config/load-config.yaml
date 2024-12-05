@@ -188,7 +188,7 @@ steps:
   - module:
       path: /modules/reconcile-objects.yaml
       params:
-        actionName: "create 250 pods"
+        actionName: "recreate 200 pods"
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
