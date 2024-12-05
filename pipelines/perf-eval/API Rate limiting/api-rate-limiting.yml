@@ -20,7 +20,7 @@ stages:
           topology: api-rate-limiting
           matrix:
             azure_cilium:
-              cpu_per_node: 1
+              cpu_per_node: 4
               node_count: 1
               node_per_step: 1
               max_pods: 200
