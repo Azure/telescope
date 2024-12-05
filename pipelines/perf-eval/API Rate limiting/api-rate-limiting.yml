@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: api-rate-limiting
-  SCENARIO_VERSION: test-50-pods-with-low-rate-limit
+  SCENARIO_VERSION: test-200-pods-with-low-rate-limit
 
 stages:
   - stage: azure_eastus2
@@ -20,7 +20,7 @@ stages:
           topology: api-rate-limiting
           matrix:
             azure_cilium:
-              cpu_per_node: 4
+              cpu_per_node: 1
               node_count: 1
               node_per_step: 1
               max_pods: 200
