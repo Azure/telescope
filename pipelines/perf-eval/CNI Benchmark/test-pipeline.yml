@@ -2,9 +2,8 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-network-churn
+  SCENARIO_NAME: test-pipeline
   SCENARIO_VERSION: main
-
 
 stages:
   - stage: azure_eastus2
@@ -14,7 +13,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - $(LOCATION)
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
@@ -22,8 +21,8 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 5
+              node_per_step: 5
               max_pods: 110
               repeats: 10
               scale_timeout: "15m"
