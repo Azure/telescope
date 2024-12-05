@@ -164,8 +164,6 @@ steps:
         queries:
         - name: Total
           query: rate(cilium_api_limiter_processed_requests_total[15s])
-        - name: ByAction
-          query: rate(cilium_api_limiter_processed_requests_total[%v:]) by (action)
 
 
     - Identifier: CiliumAPIRateLimiterProcessingDuration
