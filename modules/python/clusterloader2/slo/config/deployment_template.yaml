@@ -1,5 +1,10 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
+{{$cnpsPerNamespace := .cnpsPerNamespace}}
+{{$ccnps := .ccnps}}
+{{$cnp_test:= .cnp_test}}
+{{$ccnp_test:= .ccnp_test}}
+{{$dualstack := .dualstack}}
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
@@ -35,6 +40,23 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
+{{if or $cnp_test $ccnp_test}}
+  {{if $dualstack}}
+      - name: nginx
+        image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
+        command: ["sh", "-c", "while true; do curl ipv6.bing.com; sleep 6; done"]
+        ports:
+        - name: http
+          containerPort: 80
+  {{else}}
+      - name: nginx
+        image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
+        command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
+        ports:
+        - name: http
+          containerPort: 80
+  {{end}}
+{{else}}
       - env:
         - name: ENV_VAR
           value: a
@@ -42,6 +64,7 @@ spec:
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
         ports:
+{{end}}
         resources:
           requests:
             cpu: {{$CpuRequest}}

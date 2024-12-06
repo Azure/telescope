@@ -1,0 +1,12 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{.basename}}
+  namespace: slo-1
+spec:
+  endpointSelector:
+    matchLabels:
+      app: nginx
+  egress:
+  - toEndpoints:
+    - {}
