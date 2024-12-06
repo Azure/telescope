@@ -1,0 +1,15 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: {{.basename}}-{{.namespace}}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: nginx
+      TEMP_LABEL_NAME: val
+  egress:
+  - toEndpoints:
+    - {}
+  ingress:
+  - fromEndpoints:
+    - {}

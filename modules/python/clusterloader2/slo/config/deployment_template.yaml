@@ -35,6 +35,14 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
+      {{if $CNP_TEST || $CCNP_TEST}}
+        - name: nginx
+          image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
+          command: ["sh", "-c", "while true; do curl -s ipv4.google.com; sleep 2; done"]
+          ports:
+          - name: http
+            containerPort: 80
+      {{else}}
       - env:
         - name: ENV_VAR
           value: a
@@ -42,6 +50,7 @@ spec:
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
         ports:
+      {{end}}
         resources:
           requests:
             cpu: {{$CpuRequest}}
