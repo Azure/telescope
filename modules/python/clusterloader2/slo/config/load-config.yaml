@@ -13,7 +13,7 @@ name: load-config
 
 # TODO(jshr-w): This should eventually use >1 namespace.
 {{$namespaces := 1}}
-{{$nodes := DefaultParam .CL2_NODES 1000}}
+{{$nodes := DefaultParam .CL2_NODES 3000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
