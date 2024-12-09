@@ -1,0 +1,61 @@
+json_input = {
+  project_id = "phrasal-bond-380604"
+  run_id     = "123456"
+  region     = "us-central1"
+}
+
+scenario_type  = "perf-eval"
+scenario_name  = "apiserver-vn10pod100"
+deletion_delay = "20h"
+owner          = "aks"
+network_config_list = [
+  {
+    role     = "client"
+    vpc_name = "client-vpc"
+    vpc_cidr = "10.0.0.0/16"
+    subnets = [
+      {
+        name                = "client-subnet"
+        cidr                = "10.0.0.0/24"
+        secondary_ip_ranges = []
+    }]
+    firewall_rules = [
+      {
+        name               = "allow-all-egress"
+        direction          = "EGRESS"
+        priority           = 1000
+        source_ranges      = []
+        destination_ranges = ["0.0.0.0/0"]
+        source_tags        = []
+        target_tags        = []
+        allow = [
+          {
+            protocol = "all"
+            ports    = []
+          }
+        ]
+      }
+    ]
+  }
+]
+
+gke_config_list = [
+  {
+    role           = "client"
+    name           = "vn10-p100"
+    vpc_name       = "client-vpc"
+    subnet_name    = "client-subnet"
+    node_locations = ["us-central1-a"]
+    default_node_pool = {
+      name         = "default",
+      machine_type = "e2-medium",
+      node_count   = 1
+    }
+    extra_node_pools = [
+      {
+        name         = "runner",
+        machine_type = "e2-medium",
+        node_count   = 1
+      }
+    ]
+}]

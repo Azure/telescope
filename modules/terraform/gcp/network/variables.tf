@@ -1,5 +1,6 @@
 variable "network_config" {
   type = object({
+    role     = string
     vpc_name = string
     vpc_cidr = string
     subnets = list(object({
@@ -18,7 +19,7 @@ variable "network_config" {
       destination_ranges = list(string)
       source_tags        = list(string)
       target_tags        = list(string)
-      allowed = list(object({
+      allow = list(object({
         protocol = string
         ports    = list(string)
       }))

@@ -8,7 +8,7 @@ resource "google_compute_network" "vpc" {
   auto_create_subnetworks = false
 }
 
-resource "google_compute_subnetwork" "subnet" {
+resource "google_compute_subnetwork" "subnets" {
   for_each = local.input_subnet_map
 
   name          = each.value.name
@@ -36,11 +36,24 @@ resource "google_compute_firewall" "firewall" {
   source_tags        = each.value.source_tags
   target_tags        = each.value.target_tags
 
-  dynamic "allowed" {
-    for_each = each.value.allowed
+  dynamic "allow" {
+    for_each = each.value.allow
     content {
-      protocol = allowed.value.protocol
-      ports    = allowed.value.ports
+      protocol = allow.value.protocol
+      ports    = allow.value.ports
     }
   }
 }
+
+
+# resource "google_compute_firewall" "firewall" {
+#   name               = "allow-all-egress"
+#   network            = google_compute_network.vpc.name
+#   direction          = "EGRESS"  # For outbound traffic
+#   priority           = 1000
+#   source_ranges      = []  # No source for outbound traffic (similar to egress in AWS)
+#   destination_ranges = ["0.0.0.0/0"]  # Allow all destinations
+#   allow {
+#     protocol = "all"  # Equivalent to allowing all protocols (like "-1" in AWS)
+#   }
+# }
