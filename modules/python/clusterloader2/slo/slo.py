@@ -8,7 +8,7 @@ from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
-LOAD_PODS_PER_NODE = 50
+LOAD_PODS_PER_NODE = 5
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
