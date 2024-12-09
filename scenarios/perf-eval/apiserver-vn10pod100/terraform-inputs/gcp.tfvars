@@ -1,9 +1,3 @@
-json_input = {
-  project_id = "phrasal-bond-380604"
-  run_id     = "123456"
-  region     = "us-central1"
-}
-
 scenario_type  = "perf-eval"
 scenario_name  = "apiserver-vn10pod100"
 deletion_delay = "20h"
