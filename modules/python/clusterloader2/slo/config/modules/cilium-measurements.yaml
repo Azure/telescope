@@ -232,10 +232,10 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.99, rate(cilium_agent_api_process_time_seconds_bucket[%v:]) by (le))
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.95, rate(cilium_agent_api_process_time_seconds_bucket[%v:]) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.50, rate(cilium_agent_api_process_time_seconds_bucket[%v:]) by (le))
         - name: Avg
           query: avg(rate(cilium_agent_api_process_time_seconds_sum[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count[%v:]))
