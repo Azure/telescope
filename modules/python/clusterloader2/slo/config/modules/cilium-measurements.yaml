@@ -163,7 +163,7 @@ steps:
         enableViolations: true
         queries:
         - name: Total
-          query: rate(cilium_api_limiter_processed_requests_total[15s])
+          query: rate(cilium_api_limiter_processed_requests_total[%v:])
 
 
     - Identifier: CiliumAPIRateLimiterProcessingDuration
@@ -176,11 +176,11 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.99, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[%v:])) by (le))
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[30s])) by (le))
+          query: histogram_quantile(0.95, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[%v:])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[45s])) by (le))
+          query: histogram_quantile(0.50, sum(rate(cilium_api_limiter_processing_duration_seconds_bucket[%v:])) by (le))
         - name: Avg
           query: avg(rate(cilium_api_limiter_processing_duration_seconds_sum[%v:])) / avg(rate(cilium_api_limiter_processing_duration_seconds_count[%v:])) 
 
@@ -214,13 +214,13 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_api_limiter_wait_duration_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.99, rate(cilium_api_limiter_wait_duration_seconds_bucket[%v:]) by (le))
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_api_limiter_wait_duration_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.95, rate(cilium_api_limiter_wait_duration_seconds_bucket[%v:]) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_api_limiter_wait_duration_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.50, rate(cilium_api_limiter_wait_duration_seconds_bucket[%v:]) by (le))
         - name: Avg
-          query: avg(rate(cilium_api_limiter_wait_duration_seconds_sum[15s])) / avg(rate(cilium_api_limiter_wait_duration_seconds_count[15s]))
+          query: avg(rate(cilium_api_limiter_wait_duration_seconds_sum[%v:])) / avg(rate(cilium_api_limiter_wait_duration_seconds_count[%v:]))
 
     - Identifier: CiliumAgentAPIProcessTime
       Method: GenericPrometheusQuery
@@ -232,10 +232,10 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket[15s])) by (le))
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
         - name: Avg
-          query: avg(rate(cilium_agent_api_process_time_seconds_sum[15s])) / avg(rate(cilium_agent_api_process_time_seconds_count[15s]))
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count[%v:]))
