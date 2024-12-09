@@ -1,6 +1,9 @@
 import os
 import re
 from pathlib import Path
+import hcl2
+import glob
+import json
 
 class TemplateGenerator:
     def __init__(self, templates, values):
@@ -9,10 +12,19 @@ class TemplateGenerator:
         self.script_dir = Path(__file__).parent  # Get the directory where the script is located
 
     def replace_placeholders(self, content, values):
-        """Replace placeholders in the template content with provided values."""
-        for placeholder, value in values.items():
-            content = re.sub(r'{{' + re.escape(placeholder) + r'}}', value, content)
-        return content
+      """Replace placeholders in the template content with provided values."""
+      for placeholder, value in values.items():
+          # Check if the value is an object (list or dict)
+          if isinstance(value, (dict, list)):
+              # Convert the object to a JSON string, formatted for readability
+              value_str = json.dumps(value, indent=2)
+          else:
+              # Otherwise, treat it as a simple string
+              value_str = str(value)
+
+          # Replace the placeholder with the formatted value
+          content = re.sub(r'{{' + re.escape(placeholder) + r'}}', value_str, content)
+      return content
 
     def process_template(self, template_path, output_path):
         """Load a template, replace placeholders, and save it to the output path."""
@@ -56,6 +68,7 @@ class TemplateGenerator:
 def get_user_input():
     """Prompt the user for input values."""
     values = {}
+    tfvars_data_azure, tfvars_data_aws = load_terraform_tfvars_data()
     print("Please enter the following values:")
     print("Note: The values will be used to generate the templates.")
     print("Select Scenario Type:")
@@ -87,7 +100,28 @@ def get_user_input():
         values['CREDENTIAL_TYPE'] = 'service_connection'
 
     values['PIPELINE_NAME'] = input("Enter Pipeline Name: ")
-    print("\nSelect the resources you want to create in this test scenario:")
+  
+    # Default directories (no prompt needed)
+    values['TOPOLOGY_DIRECTORY'] = 'steps/topology'
+    values['ENGINE_DIRECTORY'] = 'steps/engine'
+
+    # Add network configuration
+    values['AZURE_NETWORK_CONFIG_LIST'] = tfvars_data_azure['network_config_list']
+    values['AWS_NETWORK_CONFIG_LIST'] = tfvars_data_aws['network_config_list']
+
+    # network_input = input("Do you want to add network configuration in this test scenario?(e.g Yes/No) ")
+    # if network_input == '1':
+    #     values['AZURE_NETWORK_CONFIG_LIST'] = tfvars_data_azure['basic_cluster_list']
+    #     values['AWS_NETWORK_CONFIG_LIST'] = tfvars_data_aws['basic_cluster_list']
+    # elif network_input == '2':
+    #     values['AZURE_NETWORK_CONFIG_LIST'] = tfvars_data_azure['nap_cluster_list']
+    #     values['AWS_NETWORK_CONFIG_LIST'] = tfvars_data_aws['nap_cluster_list']
+    # else:
+    #     print("Invalid choice, Cluster configuration will not be added.")
+    #     values['AZURE_NETWORK_CONFIG_LIST'] = []
+    #     values['AWS_NETWORK_CONFIG_LIST'] = []
+
+    print("\nSelect the cluster configuration you want to create in this test scenario:")
 
     # List available resources with numbers
     available_resources = [
@@ -99,20 +133,44 @@ def get_user_input():
     for index, resource in enumerate(available_resources, 1):
         print(f"{index}. {resource}")
 
-    # Let the user select resources by entering numbers
-    selected_resources_input = input("Please select the resources you want to create in this test scenario (comma-separated): ")
-    selected_resource_indexes = [int(i.strip()) for i in selected_resources_input.split(",")]
-
-    # Map selected numbers to resource names
-    selected_resources = [available_resources[i - 1] for i in selected_resource_indexes if 1 <= i <= len(available_resources)]
-    values['SELECTED_RESOURCES'] = selected_resources
-
-    # Default directories (no prompt needed)
-    values['TOPOLOGY_DIRECTORY'] = 'steps/topology'
-    values['ENGINE_DIRECTORY'] = 'steps/engine'
-
-
+    cluster_input = input("Please select the cluster you want to create in this test scenario (e.g., 1 or 2 or 3): ")
+    if cluster_input == '1':
+        values['AZURE_CLUSTER_CONFIG_LIST'] = tfvars_data_azure['basic_cluster_list']
+        values['AWS_CLUSTER_CONFIG_LIST'] = tfvars_data_aws['basic_cluster_list']
+    elif cluster_input == '2':
+        values['AZURE_CLUSTER_CONFIG_LIST'] = tfvars_data_azure['nap_cluster_list']
+        values['AWS_CLUSTER_CONFIG_LIST'] = tfvars_data_aws['nap_cluster_list']
+    elif cluster_input == '3':
+        values['AZURE_CLUSTER_CONFIG_LIST'] = tfvars_data_azure['cas_cluster_list']
+        values['AWS_CLUSTER_CONFIG_LIST'] = tfvars_data_aws['cas_cluster_list']
+    else:
+        print("Invalid choice, Cluster configuration will not be added.")
+        values['AZURE_CLUSTER_CONFIG_LIST'] = []
+        values['AWS_CLUSTER_CONFIG_LIST'] = []
+    
     return values
+
+def load_terraform_tfvars_data():
+    # Load all tfvars files
+    terraform_template_files = get_tfvars_files('modules/python/scaffolding/components/terraform')
+    tfvars_data_aws = {}
+    tfvars_data_azure = {}
+
+    for file_path in terraform_template_files:
+      if 'aws' in file_path:
+        tfvars_data_aws.update(load_tfvars(file_path))
+      elif 'azure' in file_path:
+        tfvars_data_azure.update(load_tfvars(file_path))
+    
+    return tfvars_data_azure, tfvars_data_aws
+
+def get_tfvars_files(directory):
+  return [file for file in glob.glob(f"{directory}/**/*.tfvars", recursive=True) if not file.endswith('-main-template.tfvars')]
+
+def load_tfvars(file_path):
+    """Load and parse the tfvars file."""
+    with open(file_path, 'r') as file:
+        return hcl2.load(file)
 
 def generate_templates_from_config():
     """Generate templates based on user input."""
@@ -125,10 +183,10 @@ def generate_templates_from_config():
         'config/execute-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'execute.yaml'),
         'config/validate-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'validate.yaml'),
         'config/collect-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'collect.yaml'),
-        'config/azure-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
-        'config/aws-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
+        'components/terraform/azure-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
+        'components/terraform/aws-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
     }
-
+  
     # Get user input
     values = get_user_input()
 
