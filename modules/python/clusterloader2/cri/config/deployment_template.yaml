@@ -1,0 +1,55 @@
+{{$Memory := DefaultParam .Memory "1000M"}}
+{{$CPU := DefaultParam .CPU "--millicores=100"}}
+{{$AgentPool := DefaultParam .AgentPool "userpool1"}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+    spec:
+      nodeSelector:
+        agentpool: {{$AgentPool}}
+      containers:
+      - name: resource-consumer-memory
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+        command:
+          - stress
+        args:
+          - --vm
+          - "1"
+          - --vm-bytes
+          - {{$Memory}}
+          - --vm-hang
+          - "0"
+          - --timeout
+          - "3600"
+        resources:
+          requests:
+            memory: "10Mi"
+      - name: resource-consumer-cpu
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+        command:
+          - ./consume-cpu/consume-cpu
+        args:
+          - --duration-sec=3600
+          - {{$CPU}}
+        resources:
+          requests:
+            cpu: "10m"
+      tolerations:
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
