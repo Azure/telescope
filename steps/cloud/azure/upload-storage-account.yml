@@ -1,4 +1,5 @@
 parameters:
+  storage_account_name: $(AZURE_STORAGE_ACCOUNT_NAME)
   source_file_name: $(TEST_RESULTS_FILE)
   destination_file_name: $(RUN_ID).json
   subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
@@ -33,4 +34,4 @@ steps:
     DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
-    AZURE_STORAGE_ACCOUNT_NAME: $(AZURE_STORAGE_ACCOUNT_NAME)
+    AZURE_STORAGE_ACCOUNT_NAME: ${{ parameters.storage_account_name }}
