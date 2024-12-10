@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cnp-ccnp-feature
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: karanadive/ccnp-cnp-test
 
 stages:
   - stage: azure_eastus2
