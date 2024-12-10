@@ -187,8 +187,7 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
-        
-  - module:
+- module:
       path: modules/network-policy/net-policy-enforcement-latency.yaml
       params:
         complete: true
