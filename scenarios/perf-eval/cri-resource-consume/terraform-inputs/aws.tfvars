@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-vn10pod100"
-deletion_delay = "20h"
+scenario_name  = "cri-resource-consume"
+deletion_delay = "120h"
 owner          = "aks"
 
 network_config_list = [
@@ -10,7 +10,7 @@ network_config_list = [
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "client-subnet-1"
+        name                    = "client-subnet"
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
@@ -31,8 +31,8 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "client-subnet-rt-assoc-1"
-        subnet_name      = "client-subnet-1"
+        name             = "client-subnet-rt-assoc"
+        subnet_name      = "client-subnet"
         route_table_name = "internet-rt"
       },
       {
@@ -57,39 +57,48 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "vn10-p100"
+  eks_name    = "cri-resource-consume"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
+      name           = "default"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.large"]
-      min_size       = 1
-      max_size       = 1
-      desired_size   = 1
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "virtualnodes"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.2xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "runner"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
+      instance_types = ["m5.4xlarge"]
       min_size       = 3
       max_size       = 3
       desired_size   = 3
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+    },
+    {
+      name           = "prompool"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m5.4xlarge"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
+      capacity_type  = "ON_DEMAND"
+      labels         = { "prometheus" = "true" }
+    },
+    {
+      name           = "userpool0"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m5.4xlarge"]
+      min_size       = 3
+      max_size       = 3
+      desired_size   = 3
+      capacity_type  = "ON_DEMAND"
+      taints = [
+        {
+          key    = "cri-resource-consume"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+      labels = {
+        "cri-resource-consume" = "true",
+        "agentpool"            = "userpool1"
+      }
     }
   ]
 
@@ -99,4 +108,3 @@ eks_config_list = [{
     }
   ]
 }]
-
