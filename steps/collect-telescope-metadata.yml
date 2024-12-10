@@ -73,16 +73,16 @@ steps:
     REGIONS: ${{ convertToJson(parameters.regions) }}
 
 - script: |
-    # Add telescope metadata to each JSON record in the test results file if it exists
+    # Append run_id to the test results file if the file exists
     set -eux
     if [ -f "$(TEST_RESULTS_FILE)" ]; then
-      jq --argfile telescope_metadata $(TELESCOPE_METADATA_FILE) \
-      -c '. + {telescope_metadata: $telescope_metadata}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
+      jq --arg telescope_run_id $RUN_ID \
+      -c '. + {telescope_run_id: $telescope_run_id}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
     else
       echo "File $(TEST_RESULTS_FILE) does not exist."
     fi
-  displayName: "Add Telescope Metadata to Test Results"
+  displayName: "Add RUN_ID to Test Results"
   condition: always()
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
@@ -91,7 +91,7 @@ steps:
       source_file_name: $(TELESCOPE_METADATA_FILE)
       destination_file_name: $(RUN_ID).json
       subfolder: telescope-metadata/main
-      container_name: perf-eval
+      container_name: system
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
       upload_type: "Telescope Metadata"
