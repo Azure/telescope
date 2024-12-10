@@ -2,6 +2,11 @@
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
+{{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}
+{{$TargetLabelKey := DefaultParam .TargetLabelKey "net-pol-test"}}
+{{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
+{{$NetPolServerOnEveryNthPod := DefaultParam .NetPolServerOnEveryNthPod 3}}
+{{$RunNetPolicyTest := and $EnableNetworkPolicyEnforcementLatencyTest (eq (Mod .Index $NetPolServerOnEveryNthPod) 0)}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -30,8 +35,11 @@ spec:
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
-        restart: {{.deploymentLabel}}
+{{if $RunNetPolicyTest}}
+        {{$TargetLabelKey}}: {{$TargetLabelValue}}
+{{end}}
     spec:
+      hostNetwork: false
       nodeSelector:
         slo: "true"
       containers:
@@ -41,13 +49,18 @@ spec:
         image: {{$Image}}
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
+{{if $RunNetPolicyTest}}
+      - image: nginx
+        name: nginx-server
         ports:
+        - containerPort: 80
+{{else}}
+      ports:
+{{end}}
         resources:
           requests:
             cpu: {{$CpuRequest}}
             memory: {{$MemoryRequest}}
-      # Add not-ready/unreachable tolerations for 15 minutes so that node
-      # failure doesn't trigger pod deletion.
       tolerations:
       - key: "node.kubernetes.io/not-ready"
         operator: "Exists"

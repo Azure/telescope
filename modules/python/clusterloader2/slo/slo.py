@@ -52,6 +52,7 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
+    network_test,
     override_file):
 
     steps = node_count // node_per_step
@@ -81,6 +82,9 @@ def configure_clusterloader2(
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
+
+        if network_test:
+            file.write("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -198,6 +202,8 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_configure.add_argument("network_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether network test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -226,6 +232,8 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_collect.add_argument("network_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether network test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
@@ -235,7 +243,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cl2_override_file)
+                                 args.service_test, args.cl2_override_file, args.network_test)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":

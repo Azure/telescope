@@ -1,7 +1,4 @@
-name: load-config
-
-# Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+name: np-load-config
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
@@ -9,10 +6,9 @@ name: load-config
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
-{{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
+{{$groupName := DefaultParam .CL2_GROUP_NAME "network-test"}} # TODO: Iti: Check this
 
-# TODO(jshr-w): This should eventually use >1 namespace.
-{{$namespaces := 1}}
+{{$namespaces := 100}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
@@ -26,6 +22,7 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+{{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
@@ -67,6 +64,19 @@ steps:
         action: start
         group: {{$groupName}}
 
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+- module:
+      path: /modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: start
+{{end}}
+
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
@@ -74,15 +84,13 @@ steps:
         action: start
 {{end}}
 
-{{range $i := Loop $repeats}}
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
-        bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+- module:
+    path: modules/network-policy/net-policy-enforcement-latency.yaml
+    params:
+      setup: true
+      run: true
+      testType: "pod-creation"
 {{end}}
 
   - module:
@@ -100,6 +108,26 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
+
+  {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+        usePolicyCreationMetrics: false
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "pod-creation"
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        run: true
+        testType: "policy-creation"
+{{end}}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -152,4 +180,18 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
+  
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+- module:
+      path: /modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
+        
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "policy-creation"
+{{end}}
   
