@@ -52,7 +52,7 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-        EnableNetworkPolicyEnforcementLatencyTest: {{$NETWORK_TEST}}
+        EnableNetworkPolicyEnforcementLatencyTest: {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
         TargetLabelKey: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
         TargetLabelValue: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
         NetPolServerOnEveryNthPod: {{$NET_POLICY_SERVER_EVERY_NTH_POD}}
