@@ -220,7 +220,7 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
-    parser_collect.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?' default=False,
+    parser_collect.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether service test is running. Must be either True or False")
     parser_collect.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether service test is running. Must be either True or False")
