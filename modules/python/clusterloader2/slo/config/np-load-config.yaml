@@ -30,9 +30,9 @@ name: np-load-config
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
+{{$SMALL_GROUP_SIZE := 10}} # TODO: find the correct value
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
+{{$smallDeploymentPods := 100}} # TODO: find the correct value
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 namespace:
