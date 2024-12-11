@@ -14,6 +14,8 @@
 {{$smallDeploymentSize := .smallDeploymentSize}}
 {{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
 
+{{$NETOWRK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
+
 {{$ENABLE_NETWORKPOLICIES := DefaultParam .CL2_ENABLE_NETWORKPOLICIES false}}
 {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
 {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY "net-pol-test"}}
