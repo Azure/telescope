@@ -35,7 +35,7 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
-      {{if $CNP_TEST || $CCNP_TEST}}
+      {{if or $CNP_TEST $CCNP_TEST}}
         - name: nginx
           image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
           command: ["sh", "-c", "while true; do curl -s ipv4.google.com; sleep 2; done"]
