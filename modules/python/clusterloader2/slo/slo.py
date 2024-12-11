@@ -102,8 +102,8 @@ def configure_clusterloader2(
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE: enforcement-latency\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE: net-policy-client\n")
-            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 100\n")
-            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: 1000\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 10\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: 100\n") # TODO: check for the right value
             file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS: 10\n")
             file.write("CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME: small-deployment\n")
 

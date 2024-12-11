@@ -47,7 +47,7 @@ steps:
     objectBundle:
 {{if $ENABLE_NETWORKPOLICIES}}
     - basename: small-deployment
-      objectTemplatePath: networkpolicy.yaml
+      objectTemplatePath: network-policy.yaml
 {{end}}
     - basename: small-deployment
       objectTemplatePath: deployment_template.yaml
