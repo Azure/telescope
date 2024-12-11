@@ -57,12 +57,12 @@ steps:
           unit: cpu
           enableViolations: true
           queries:
-          - name: Perc99
-            query: quantile(0.99, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
-          - name: Perc90
-            query: quantile(0.90, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
-          - name: Perc50
-            query: quantile(0.50, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+            - name: Perc99
+              query: quantile(0.99, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+            - name: Perc90
+              query: quantile(0.90, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+            - name: Perc50
+              query: quantile(0.50, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
       - Identifier: ApiserverMaxCPUUsage
         Method: GenericPrometheusQuery
         Params:
@@ -72,12 +72,12 @@ steps:
           unit: cpu
           enableViolations: true
           queries:
-          - name: Perc99
-            query: quantile(0.99, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
-          - name: Perc90
-            query: quantile(0.90, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
-          - name: Perc50
-            query: quantile(0.50, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+            - name: Perc99
+              query: quantile(0.99, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+            - name: Perc90
+              query: quantile(0.90, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+            - name: Perc50
+              query: quantile(0.50, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
       - Identifier: ApiserverAvgMemUsage
         Method: GenericPrometheusQuery
         Params:
@@ -87,12 +87,12 @@ steps:
           unit: MB
           enableViolations: true
           queries:
-          - name: Perc99
-            query: quantile(0.99, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-          - name: Perc90
-            query: quantile(0.90, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-          - name: Perc50
-            query: quantile(0.5, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+            - name: Perc99
+              query: quantile(0.99, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+            - name: Perc90
+              query: quantile(0.90, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+            - name: Perc50
+              query: quantile(0.5, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
       - Identifier: ApiserverMaxMemUsage
         Method: GenericPrometheusQuery
         Params:
@@ -102,11 +102,9 @@ steps:
           unit: MB
           enableViolations: true
           queries:
-          - name: Perc99
-            query: quantile(0.99, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-          - name: Perc90
-            query: quantile(0.90, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-          - name: Perc50
-            query: quantile(0.5, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-
-  
+            - name: Perc99
+              query: quantile(0.99, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+            - name: Perc90
+              query: quantile(0.90, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+            - name: Perc50
+              query: quantile(0.5, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)

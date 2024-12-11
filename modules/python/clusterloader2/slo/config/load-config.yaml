@@ -4,7 +4,6 @@ name: load-config
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 
-
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
@@ -13,7 +12,7 @@ name: load-config
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-# TODO(jshr-w): This should eventually use >1 namespace.
+# TODO: This should eventually use >1 namespace.
 {{$namespaces := 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
@@ -57,11 +56,11 @@ tuningSets:
 steps:
   - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
     measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 1ms
+      - Identifier: Dummy
+        Method: Sleep
+        Params:
+          action: start
+          duration: 1ms
 
   - module:
       path: /modules/measurements.yaml
@@ -105,12 +104,12 @@ steps:
 {{end}}
 
 {{if $NETWORK_TEST}}
-- module:
-    path: modules/network-policy/net-policy-enforcement-latency.yaml
-    params:
-      setup: true
-      run: true
-      testType: "pod-creation"
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        setup: true
+        run: true
+        testType: "pod-creation"
 {{end}}
   - module:
       path: /modules/reconcile-objects.yaml
@@ -199,4 +198,8 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
-  
+
+
+
+
+
