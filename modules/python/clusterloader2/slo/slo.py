@@ -246,7 +246,7 @@ def main():
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Maximum number of pods per node")
-     parser_configure.add_argument("pods_in_node", type=int, nargs='?', default=0, help="Number of pods per node")
+    parser_configure.add_argument("pods_in_node", type=int, nargs='?', default=0, help="Number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
