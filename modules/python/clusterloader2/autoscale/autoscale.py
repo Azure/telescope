@@ -57,11 +57,11 @@ def collect_clusterloader2(
                 index = match.group()
                 if index not in summary:
                     summary[index] = {
-                        "up": { "failures": 0 }, 
+                        "up": { "failures": 0 },
                         "down": { "failures": 0 }
                     }
             else:
-                continue 
+                continue
 
             failure = testcase["failure"]
             if "WaitForRunningPodsUp" in name:
@@ -76,7 +76,7 @@ def collect_clusterloader2(
             elif "WaitForNodesDown" in name:
                 summary[index]["down"]["wait_for_nodes_seconds"] = -1 if failure else testcase["time"]
                 summary[index]["down"]["failures"] += 1 if failure else 0
-        
+
         content = ""
         for index in summary:
             for key in summary[index]:
@@ -85,6 +85,7 @@ def collect_clusterloader2(
                     "wait_for_pods_seconds": summary[index][key]["wait_for_pods_seconds"],
                     "autoscale_result": "success" if summary[index][key]["failures"] == 0 else "failure"
                 }
+                # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                     "autoscale_type": key,
@@ -92,7 +93,7 @@ def collect_clusterloader2(
                     "node_count": node_count,
                     "pod_count": pod_count,
                     "data": data,
-                    "raw_data": raw_data,
+                    # "raw_data": raw_data,
                     "cloud_info": cloud_info,
                     "run_id": run_id,
                     "run_url": run_url

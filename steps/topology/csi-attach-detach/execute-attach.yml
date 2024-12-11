@@ -1,0 +1,22 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default:
+      disk_number: 1
+      storage_class: ""
+      wait_time: 1
+  - name: regions
+    type: object
+    default: {}
+
+steps:
+  - template: /steps/engine/attach/execute-${{ parameters.cloud }}.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      result_dir: $(TEST_RESULTS_DIR)
+      disk_number: ${{ parameters.engine_input.disk_number }}
+      storage_class: ${{ parameters.engine_input.storage_class }}
+      wait_time: ${{ parameters.engine_input.wait_time }}

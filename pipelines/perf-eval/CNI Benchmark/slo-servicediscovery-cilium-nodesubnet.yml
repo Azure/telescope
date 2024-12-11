@@ -1,8 +1,15 @@
 trigger: none
+schedules:
+  - cron: "0 4,16 * * *"
+    displayName: "4:00 AM & PM Daily"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: slo-servicediscovery-feature
+  SCENARIO_NAME: slo-servicediscovery-cilium-nodesubnet
   SCENARIO_VERSION: main
 
 stages:

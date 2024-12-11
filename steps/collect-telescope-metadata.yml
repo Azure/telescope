@@ -17,11 +17,13 @@ steps:
       --arg run_id $RUN_ID \
       --arg run_url  $RUN_URL \
       --arg code_url  $CODE_URL \
+      --arg time_stamp "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
       --arg reason "$(Build.Reason)" \
       --arg pipeline_branch "$(Build.SourceBranchName)" \
       --arg requester "$(Build.RequestedFor)" \
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
+      --arg owner $OWNER \
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
       --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
@@ -42,11 +44,13 @@ steps:
             pipeline_name: $pipeline_name,
             cron_schedule_display_name: $cron_schedule_display_name,
             project_name: $project_name,
-            code_url: $code_url
+            code_url: $code_url,
+            time_stamp: $time_stamp
           },
           scenario_info: {
             scenario_name: $scenario_name,
             scenario_type: $scenario_type,
+            owner: $owner,
             engine: $engine,
             topology: $topology,
             engine_input: $engine_input
@@ -69,12 +73,16 @@ steps:
     REGIONS: ${{ convertToJson(parameters.regions) }}
 
 - script: |
-    # Read the test results file and add the telescope metadata to it for each json record in the file
+    # Append run_id to the test results file if the file exists
     set -eux
-    jq --argfile telescope_metadata $(TELESCOPE_METADATA_FILE) \
-      -c '. + {telescope_metadata: $telescope_metadata}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
-       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
-  displayName: "Add Telescope Metadata to Test Results"
+    if [ -f "$(TEST_RESULTS_FILE)" ]; then
+      jq --arg telescope_run_id $RUN_ID \
+      -c '. + {telescope_run_id: $telescope_run_id}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
+      && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
+    else
+      echo "File $(TEST_RESULTS_FILE) does not exist."
+    fi
+  displayName: "Add RUN_ID to Test Results"
   condition: always()
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
@@ -83,6 +91,7 @@ steps:
       source_file_name: $(TELESCOPE_METADATA_FILE)
       destination_file_name: $(RUN_ID).json
       subfolder: telescope-metadata/main
+      container_name: system
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
       upload_type: "Telescope Metadata"
