@@ -7,7 +7,7 @@
 {{$TargetLabelKey := DefaultParam .TargetLabelKey "net-pol-test"}}
 {{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
 {{$NetPolServerOnEveryNthPod := DefaultParam .NetPolServerOnEveryNthPod 3}}
-{{$RunNetPolicyTest := $EnableNetworkPolicyEnforcementLatencyTest}}
+{{$RunNetPolicyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}} #TODO: Look into this later
 
 apiVersion: apps/v1
 kind: Deployment
@@ -50,14 +50,14 @@ spec:
         image: {{$Image}}
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
-{{if $RunNetPolicyTest}}
-      - image: nginx
-        name: nginx-server
-        ports:
-        - containerPort: 80
-{{else}}
+# {{if $RunNetPolicyTest}}
+#       - image: nginx
+#         name: nginx-server
+#         ports:
+#         - containerPort: 80
+# {{else}}
         ports: []
-{{end}}
+# {{end}}
         resources:
           requests:
             cpu: {{$CpuRequest}}
