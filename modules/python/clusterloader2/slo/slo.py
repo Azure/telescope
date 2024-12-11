@@ -65,6 +65,7 @@ def configure_clusterloader2(
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
+        file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pods_per_node}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
