@@ -54,8 +54,7 @@ tuningSets:
       qps: {{$deploymentQPS}}
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}} nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploym
-  entsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}} nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
     measurements:
       - Identifier: Dummy
         Method: Sleep
