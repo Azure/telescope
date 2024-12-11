@@ -124,7 +124,7 @@ def collect_clusterloader2(
     cpu_per_node,
     node_count,
     max_pods,
-    pods_in_node
+    pods_in_node,
     repeats,
     cl2_report_dir,
     cloud_info,
