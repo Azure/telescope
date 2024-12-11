@@ -56,7 +56,7 @@ spec:
         ports:
         - containerPort: 80
 {{else}}
-      ports:
+        ports: []
 {{end}}
         resources:
           requests:
