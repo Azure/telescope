@@ -38,3 +38,8 @@ variable "network_config" {
   }
 
 }
+
+variable "run_id" {
+  type        = string
+  description = "Unique identifier for the run"
+}

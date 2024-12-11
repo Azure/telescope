@@ -4,14 +4,14 @@ locals {
 }
 
 resource "google_compute_network" "vpc" {
-  name                    = var.network_config.vpc_name
+  name                    = "${var.network_config.vpc_name}-${var.run_id}"
   auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "subnets" {
   for_each = local.input_subnet_map
 
-  name          = each.value.name
+  name          = "${each.value.name}-${var.run_id}"
   ip_cidr_range = each.value.cidr
   network       = google_compute_network.vpc.id
 
@@ -27,7 +27,7 @@ resource "google_compute_subnetwork" "subnets" {
 
 resource "google_compute_firewall" "firewall" {
   for_each           = local.input_firewall_map
-  name               = each.value.name
+  name               = "${each.value.name}-${var.run_id}"
   network            = google_compute_network.vpc.name
   direction          = each.value.direction
   priority           = each.value.priority

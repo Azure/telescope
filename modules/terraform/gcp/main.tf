@@ -21,6 +21,7 @@ module "network" {
   for_each = local.network_config_map
 
   network_config = each.value
+  run_id         = local.run_id
 }
 
 module "gke" {
@@ -29,7 +30,8 @@ module "gke" {
   for_each = local.gke_config_map
 
   gke_config = each.value
-  subnet_id  = try(local.all_subnets[each.value.subnet_name], null)
+  subnet_id  = try(local.all_subnets["${each.value.subnet_name}-${local.run_id}"], null)
   vpc_id     = try(module.network[each.value.role].vpc_id, null)
   labels     = local.labels
+  run_id     = local.run_id
 }
