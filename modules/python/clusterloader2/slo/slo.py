@@ -9,6 +9,7 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
 LOAD_PODS_PER_NODE = 20
+NETWORK_PODS_PER_NODE = 10 # TODO: Update this value
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -24,13 +25,15 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider, service_test):
+def calculate_config(cpu_per_node, node_count, provider, service_test, network_test):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
     pods_per_node = DEFAULT_PODS_PER_NODE
     if service_test:
         pods_per_node = LOAD_PODS_PER_NODE
+    if network_test:
+        pods_per_node = NETWORK_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -52,6 +55,7 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
+    network_test,
     override_file):
 
     steps = node_count // node_per_step
@@ -81,6 +85,26 @@ def configure_clusterloader2(
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
+
+         if network_test:
+            file.write("CL2_NETWORK_TEST: true\n")
+            file.write("CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_KUBE_PROXY: true\n")
+            file.write("CL2_NETWORK_PROGRAMMING_LATENCY_THRESHOLD: 30s\n")
+            file.write("CL2_ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES: false\n")
+            file.write("CL2_NETWORK_LATENCY_THRESHOLD: 0s\n")
+            file.write("CL2_PROBE_MEASUREMENTS_PING_SLEEP_DURATION: 1s\n")
+            file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: true\n")
+            file.write("CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT: 15m\n")
+            file.write("CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE: false\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY: net-pol-test\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE: enforcement-latency\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE: net-policy-client\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 100\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: 1000\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS: 10\n")
+            file.write("CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME: small-deployment\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -115,6 +139,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
+    network_test,
     result_file,
     test_type="default_config",
 ):
@@ -128,7 +153,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, network_test)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -199,6 +224,8 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_configure.add_argument("network_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether network test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -227,6 +254,8 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_collect.add_argument("network_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether network test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
@@ -236,7 +265,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cl2_override_file)
+                                 args.service_test, args.network_test, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -245,7 +274,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.result_file, args.test_type)
+                               args.service_test, args.network_test, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()
