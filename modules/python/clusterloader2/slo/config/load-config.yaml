@@ -168,7 +168,7 @@ steps:
         bigServicesPerNamespace: 0
 {{end}}
 
-{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+{{if $NETWORK_TEST}}
   - module:
       path: modules/network-policy/net-policy-metrics.yaml
       params:
