@@ -2,6 +2,7 @@ import json
 import os
 import argparse
 import time
+import sys
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
@@ -263,6 +264,9 @@ def main():
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
+
+    # Print the arguments to debug
+    print("Arguments passed to the script:", sys.argv)
 
     args = parser.parse_args()
 
