@@ -44,7 +44,7 @@ steps:
          az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 500
       fi
       az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
-      sleep 60 #TODO: Update to 300 later
+      #TODO: Update to sleep 300 later
     done
   env:
     ROLE: ${{ parameters.role }}
