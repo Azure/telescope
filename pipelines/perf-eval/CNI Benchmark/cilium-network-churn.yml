@@ -22,19 +22,19 @@ stages:
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 1
+              node_per_step: 1
               max_pods: 110
-              repeats: 10
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: False
               service_test: False
               network_test: True
-              cl2_config_file: np-load-config.yaml
+              cl2_config_file: load-config.yaml
             azure_cilium:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 1
+              node_per_step: 1
               max_pods: 110
               repeats: 10
               scale_timeout: "15m"
@@ -43,7 +43,7 @@ stages:
               network_dataplane: cilium
               service_test: False
               network_test: True
-              cl2_config_file: np-load-config.yaml
+              cl2_config_file: load-config.yaml
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
