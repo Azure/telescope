@@ -69,29 +69,28 @@ steps:
         action: start
         group: {{$groupName}}
 
-
 {{if $CILIUM_METRICS_ENABLED}}
-{{if $NETWORK_TEST}}
-- module:
+  {{if $NETWORK_TEST}}
+  - module:
       path: /modules/network-policy/net-policy-metrics.yaml
       params:
         action: start
         group: {{$groupName}}
         usePolicyCreationMetrics: true
         useCiliumMetrics: true
-{{end}}
   - module:
       path: /modules/cilium-measurements.yaml
       params:
         action: start
-{{else}}
-- module:
+  {{else}}
+  - module:
       path: /modules/network-policy/net-policy-metrics.yaml
       params:
         action: start
         group: {{$groupName}}
         usePolicyCreationMetrics: true
         useCiliumMetrics: false
+  {{end}}
 {{end}}
 
 {{range $i := Loop $repeats}}

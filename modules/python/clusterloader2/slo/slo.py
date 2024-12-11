@@ -85,6 +85,23 @@ def configure_clusterloader2(
 
         if network_test:
             file.write("CL2_NETWORK_TEST: true\n")
+            file.write("CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_KUBE_PROXY: true\n")
+            file.write("CL2_NETWORK_PROGRAMMING_LATENCY_THRESHOLD: 30s\n")
+            file.write("CL2_ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES: false\n")
+            file.write("CL2_NETWORK_LATENCY_THRESHOLD: 0s\n")
+            file.write("CL2_PROBE_MEASUREMENTS_PING_SLEEP_DURATION: 1s\n")
+            file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: true\n")
+            file.write("CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT: 15m\n")
+            file.write("CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE: false\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY: net-pol-test\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE: enforcement-latency\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE: net-policy-client\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 100\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: 1000\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS: 10\n")
+            file.write("CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME: small-deployment\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
