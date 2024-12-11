@@ -2,6 +2,8 @@ name: load-config
 
 # Config options for test type
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+{{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
+
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
@@ -66,6 +68,13 @@ steps:
       params:
         action: start
         group: {{$groupName}}
+{{if $NETWORK_TEST}}
+- module:
+      path: /modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+{{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
@@ -85,6 +94,14 @@ steps:
         bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
 {{end}}
 
+{{if $NETWORK_TEST}}
+- module:
+    path: modules/network-policy/net-policy-enforcement-latency.yaml
+    params:
+      setup: true
+      run: true
+      testType: "pod-creation"
+{{end}}
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -138,6 +155,26 @@ steps:
         namespaces: {{$namespaces}}
         smallServicesPerNamespace: 0
         bigServicesPerNamespace: 0
+{{end}}
+
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+        usePolicyCreationMetrics: false
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "pod-creation"
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        run: true
+        testType: "policy-creation"
 {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
