@@ -14,7 +14,8 @@
 {{$smallDeploymentSize := .smallDeploymentSize}}
 {{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
 
-{{$ENABLE_NETWORKPOLICIES := DefaultParam .CL2_ENABLE_NETWORKPOLICIES false}}
+{{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
+{{$ENABLE_NETWORKPOLICIES := true}} # TODO: update the default value
 {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
 {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY "net-pol-test"}}
 {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE "enforcement-latency"}}
@@ -52,7 +53,7 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-        EnableNetworkPolicyEnforcementLatencyTest: {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+        EnableNetworkPolicyEnforcementLatencyTest: {{$NETWORK_TEST}}
         TargetLabelKey: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
         TargetLabelValue: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
         NetPolServerOnEveryNthPod: {{$NET_POLICY_SERVER_EVERY_NTH_POD}}
