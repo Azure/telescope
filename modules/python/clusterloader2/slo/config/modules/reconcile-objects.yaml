@@ -45,10 +45,10 @@ steps:
     replicasPerNamespace: {{$smallDeploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-# {{if $ENABLE_NETWORKPOLICIES}}
-#     - basename: small-deployment
-#       objectTemplatePath: network-policy.yaml
-# {{end}}
+{{if $ENABLE_NETWORKPOLICIES}}
+    - basename: small-deployment
+      objectTemplatePath: network-policy.yaml
+{{end}}
     - basename: small-deployment
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
