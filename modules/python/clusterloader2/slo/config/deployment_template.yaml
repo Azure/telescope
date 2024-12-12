@@ -42,7 +42,7 @@ spec:
 {{end}}
         restart: {{.deploymentLabel}}
 {{if $RunNetPolicyTest}}
-        net-pol-test: {{$TargetLabelValue}}
+        net-pol-test: "enforcement-latency"
 {{end}}
      spec:
       nodeSelector:
