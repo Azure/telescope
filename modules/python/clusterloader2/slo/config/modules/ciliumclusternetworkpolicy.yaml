@@ -2,14 +2,13 @@
 
 ## Input params
 {{$actionName := .actionName}}
-{{$namespaces := .namespaces}}
 {{$ccnps := .ccnps}}
 
 steps:
 - name: "{{$actionName}} k8s CCNPs"
   phases:
-    replicasPerNamespace: {{$ccnps}}
-    tuningSet: Sequence
-    objectBundle:
-    - basename: ccnp
-      objectTemplatePath: ccnp_template.yaml
+    - replicas: {{$ccnps}}
+      tuningSet: Sequence
+      objectBundle:
+      - basename: ccnp
+        objectTemplatePath: ccnp_template.yaml
