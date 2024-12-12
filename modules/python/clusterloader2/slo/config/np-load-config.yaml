@@ -106,21 +106,21 @@ steps:
         run: true
         testType: "pod-creation"
 {{end}}
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "create"
-        namespaces: {{$namespaces}}
-        tuningSet: DeploymentCreateQps
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: start
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "create"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: DeploymentCreateQps
+  #       operationTimeout: {{$operationTimeout}}
+  #       bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+  #       bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+  #       smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+  #       smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+  #       CpuRequest: {{$latencyPodCpu}}m
+  #       MemoryRequest: {{$latencyPodMemory}}M
+  #       Group: {{$groupName}}
+  #       deploymentLabel: start
 
 {{if $NETWORK_TEST}}
   - module:
@@ -142,35 +142,35 @@ steps:
         testType: "policy-creation"
 {{end}}
 
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "restart"
-        namespaces: {{$namespaces}}
-        tuningSet: Sequence
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: restart
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "restart"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: Sequence
+  #       operationTimeout: {{$operationTimeout}}
+  #       bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+  #       bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+  #       smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+  #       smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+  #       CpuRequest: {{$latencyPodCpu}}m
+  #       MemoryRequest: {{$latencyPodMemory}}M
+  #       Group: {{$groupName}}
+  #       deploymentLabel: restart
 
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete"
-        namespaces: {{$namespaces}}
-        tuningSet: DeploymentDeleteQps
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: restart
-        Group: {{$groupName}}
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "delete"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: DeploymentDeleteQps
+  #       operationTimeout: {{$operationTimeout}}
+  #       bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+  #       bigDeploymentsPerNamespace: 0
+  #       smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+  #       smallDeploymentsPerNamespace: 0
+  #       deploymentLabel: restart
+  #       Group: {{$groupName}}
 
   - module:
       path: /modules/services.yaml
