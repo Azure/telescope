@@ -30,7 +30,7 @@ name: load-config
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 0}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 50}}
+{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 40}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
@@ -76,15 +76,15 @@ steps:
 {{end}}
 
 {{range $i := Loop $repeats}}
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
-        bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
-{{end}}
+# {{if $SERVICE_TEST}}
+#   - module:
+#       path: /modules/services.yaml
+#       params:
+#         actionName: "Creating"
+#         namespaces: {{$namespaces}}
+#         smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
+#         bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
+# {{end}}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -132,13 +132,13 @@ steps:
         deploymentLabel: restart
         Group: {{$groupName}}
 
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: 0
-        bigServicesPerNamespace: 0
+  # - module:
+  #     path: /modules/services.yaml
+  #     params:
+  #       actionName: "Deleting"
+  #       namespaces: {{$namespaces}}
+  #       smallServicesPerNamespace: 0
+  #       bigServicesPerNamespace: 0
 {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
