@@ -3,15 +3,13 @@
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
-
 #TODO: Look into this later
-{{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}}
+{{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}
 {{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
 # Run a server pod for network policy enforcement latency test only on every Nth pod.
 # Default every third pod.
 {{$NetPolServerOnEveryNthPod := 3}}
 {{$RunNetPolicyTest := and $EnableNetworkPolicyEnforcementLatencyTest (eq (Mod .Index $NetPolServerOnEveryNthPod) 0)}}
-
 
 apiVersion: apps/v1
 kind: Deployment

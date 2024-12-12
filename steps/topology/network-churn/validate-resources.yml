@@ -17,3 +17,4 @@ steps:
       region: ${{ parameters.regions[0] }}
       nodes_per_nodepool: 10 #TODO: Update once node-pools are added.
       enable_autoscale: "false"
+      
