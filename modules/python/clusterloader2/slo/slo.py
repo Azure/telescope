@@ -92,11 +92,11 @@ def configure_clusterloader2(
 
         if cnp_test:
             file.write("CL2_CNP_TEST: true\n")
-            file.write(f".CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
+            file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
 
         if ccnp_test:
             file.write("CL2_CCNP_TEST: true\n")
-            file.write(f".CL2_CCNPS: {num_ccnps}\n")
+            file.write(f"CL2_CCNPS: {num_ccnps}\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
