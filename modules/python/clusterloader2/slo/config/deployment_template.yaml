@@ -44,22 +44,18 @@ spec:
 {{if $RunNetPolicyTest}}
         net-pol-test: {{$TargetLabelValue}}
 {{end}}
-    spec:
+     spec:
       nodeSelector:
         slo: "true"
       containers:
       - env:
         - name: ENV_VAR
           value: a
-{{if $RunNetPolicyTest}}
-      - image: nginx
-        name: nginx-server
+        image: {{$Image}}
+        imagePullPolicy: IfNotPresent
+        name: {{.Name}}
         ports:
         - containerPort: 80
-{{else}}
-      - image: {{$Image}}
-        name: {{.Name}}
-{{end}}
         resources:
           requests:
             cpu: {{$CpuRequest}}
