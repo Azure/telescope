@@ -26,7 +26,7 @@ spec:
   replicas: {{.Replicas}}
   selector:
     matchLabels:
-      name: {{.Name}}
+      name: {{if $RunNetPolicyTest}}policy-load-{{end}}{{.Name}}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -35,7 +35,7 @@ spec:
   template:
     metadata:
       labels:
-        name: {{.Name}}
+        name: {{if $RunNetPolicyTest}}policy-load-{{end}}{{.Name}}
         group: {{.Group}}
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
