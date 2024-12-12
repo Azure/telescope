@@ -42,7 +42,7 @@ spec:
 {{end}}
         restart: {{.deploymentLabel}}
         net-pol-test: "enforcement-latency"
-     spec:
+    spec:
       nodeSelector:
         slo: "true"
       containers:
