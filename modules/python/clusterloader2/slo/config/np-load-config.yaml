@@ -172,13 +172,13 @@ steps:
   #       deploymentLabel: restart
   #       Group: {{$groupName}}
 
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: 0
-        bigServicesPerNamespace: 0
+  # - module:
+  #     path: /modules/services.yaml
+  #     params:
+  #       actionName: "Deleting"
+  #       namespaces: {{$namespaces}}
+  #       smallServicesPerNamespace: 0
+  #       bigServicesPerNamespace: 0
 
 {{end}}
 
