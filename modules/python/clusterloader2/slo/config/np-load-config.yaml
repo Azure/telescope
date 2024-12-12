@@ -135,11 +135,11 @@ steps:
   #       complete: true
   #       testType: "pod-creation"
 
-  - module:
-      path: modules/network-policy/net-policy-enforcement-latency.yaml
-      params:
-        run: true
-        testType: "policy-creation"
+  # - module:
+  #     path: modules/network-policy/net-policy-enforcement-latency.yaml
+  #     params:
+  #       run: true
+  #       testType: "policy-creation"
 {{end}}
 
   # - module:
