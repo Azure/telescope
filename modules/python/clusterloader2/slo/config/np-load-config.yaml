@@ -198,11 +198,11 @@ steps:
         group: {{$groupName}}
 
 {{if $NETWORK_TEST}}
-  # - module:
-  #     path: modules/network-policy/net-policy-metrics.yaml
-  #     params:
-  #       action: gather
-  #       usePolicyCreationMetrics: false
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+        usePolicyCreationMetrics: false
   # - module:
   #     path: modules/network-policy/net-policy-enforcement-latency.yaml
   #     params:
