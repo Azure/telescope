@@ -38,9 +38,9 @@ name: np-load-config
 namespace:
   number: {{$namespaces}}
   prefix: slo
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: false
+  deleteStaleNamespaces: false # TODO: Fix itt
+  deleteAutomanagedNamespaces: false
+  enableExistingNamespaces: true
 
 tuningSets:
   - name: Sequence
