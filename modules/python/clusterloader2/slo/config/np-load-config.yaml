@@ -158,27 +158,27 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: restart
 
-  # - module:
-  #     path: /modules/reconcile-objects.yaml
-  #     params:
-  #       actionName: "delete"
-  #       namespaces: {{$namespaces}}
-  #       tuningSet: DeploymentDeleteQps
-  #       operationTimeout: {{$operationTimeout}}
-  #       bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-  #       bigDeploymentsPerNamespace: 0
-  #       smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-  #       smallDeploymentsPerNamespace: 0
-  #       deploymentLabel: restart
-  #       Group: {{$groupName}}
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "delete"
+        namespaces: {{$namespaces}}
+        tuningSet: DeploymentDeleteQps
+        operationTimeout: {{$operationTimeout}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: 0
+        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+        smallDeploymentsPerNamespace: 0
+        deploymentLabel: restart
+        Group: {{$groupName}}
 
-  # - module:
-  #     path: /modules/services.yaml
-  #     params:
-  #       actionName: "Deleting"
-  #       namespaces: {{$namespaces}}
-  #       smallServicesPerNamespace: 0
-  #       bigServicesPerNamespace: 0
+  - module:
+      path: /modules/services.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        smallServicesPerNamespace: 0
+        bigServicesPerNamespace: 0
 
 {{end}}
 
@@ -203,11 +203,11 @@ steps:
       params:
         action: gather
         usePolicyCreationMetrics: false
-  # - module:
-  #     path: modules/network-policy/net-policy-enforcement-latency.yaml
-  #     params:
-  #       complete: true
-  #       testType: "policy-creation"
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "policy-creation"
 {{end}}
 
 
