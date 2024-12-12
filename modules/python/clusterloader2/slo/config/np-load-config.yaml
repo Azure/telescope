@@ -81,10 +81,6 @@ steps:
         path: /modules/network-policy/net-policy-metrics.yaml
         params:
           action: start
-          group: {{$groupName}}
-          # usePolicyCreationMetrics: false #TODO
-          # $usePodCreationMetrics: true
-          useCiliumMetrics: {{$CILIUM_METRICS_ENABLED}}
 {{end}}
 
 {{range $i := Loop $repeats}}

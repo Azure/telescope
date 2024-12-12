@@ -5,8 +5,8 @@
 
 
 #TODO: Look into this later
-{{$EnableNetworkPolicyEnforcementLatencyTest := true}}
-{{$TargetLabelValue := "enforcement-latency"}}
+{{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}}
+{{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
 # Run a server pod for network policy enforcement latency test only on every Nth pod.
 # Default every third pod.
 {{$NetPolServerOnEveryNthPod := 3}}
@@ -41,7 +41,9 @@ spec:
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
         restart: {{.deploymentLabel}}
-        net-pol-test: "enforcement-latency"
+{{if $RunNetPolicyTest}}
+        net-pol-test: {{$TargetLabelValue}}
+{{end}}
     spec:
       nodeSelector:
         slo: "true"
