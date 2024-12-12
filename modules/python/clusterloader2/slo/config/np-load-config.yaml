@@ -129,34 +129,34 @@ steps:
         action: gather
         usePolicyCreationMetrics: false
 
-  # - module:
-  #     path: modules/network-policy/net-policy-enforcement-latency.yaml
-  #     params:
-  #       complete: true
-  #       testType: "pod-creation"
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "pod-creation"
 
-  # - module:
-  #     path: modules/network-policy/net-policy-enforcement-latency.yaml
-  #     params:
-  #       run: true
-  #       testType: "policy-creation"
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        run: true
+        testType: "policy-creation"
 {{end}}
 
-  # - module:
-  #     path: /modules/reconcile-objects.yaml
-  #     params:
-  #       actionName: "restart"
-  #       namespaces: {{$namespaces}}
-  #       tuningSet: Sequence
-  #       operationTimeout: {{$operationTimeout}}
-  #       bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-  #       bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-  #       smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-  #       smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-  #       CpuRequest: {{$latencyPodCpu}}m
-  #       MemoryRequest: {{$latencyPodMemory}}M
-  #       Group: {{$groupName}}
-  #       deploymentLabel: restart
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "restart"
+        namespaces: {{$namespaces}}
+        tuningSet: Sequence
+        operationTimeout: {{$operationTimeout}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: restart
 
   # - module:
   #     path: /modules/reconcile-objects.yaml
