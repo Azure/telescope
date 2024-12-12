@@ -5,10 +5,13 @@
 
 
 #TODO: Look into this later
-{{$TargetLabelKey := "net-pol-test"}}
+{{$EnableNetworkPolicyEnforcementLatencyTest := true}}
 {{$TargetLabelValue := "enforcement-latency"}}
+# Run a server pod for network policy enforcement latency test only on every Nth pod.
+# Default every third pod.
 {{$NetPolServerOnEveryNthPod := 3}}
-{{$RunNetPolicyTest := true}} #TODO: Look into this later
+{{$RunNetPolicyTest := and $EnableNetworkPolicyEnforcementLatencyTest (eq (Mod .Index $NetPolServerOnEveryNthPod) 0)}}
+
 
 apiVersion: apps/v1
 kind: Deployment
@@ -38,6 +41,9 @@ spec:
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
         restart: {{.deploymentLabel}}
+{{if $RunNetPolicyTest}}
+        net-pol-test: {{$TargetLabelValue}}
+{{end}}
     spec:
       nodeSelector:
         slo: "true"
@@ -45,17 +51,15 @@ spec:
       - env:
         - name: ENV_VAR
           value: a
-        image: {{$Image}}
-        imagePullPolicy: IfNotPresent
+{{if $RunNetPolicyTest}}
+      - image: nginx
+        name: nginx-server
+        ports:
+        - containerPort: 80
+{{else}}
+      - image: {{$Image}}
         name: {{.Name}}
-# {{if $RunNetPolicyTest}}
-#       - image: nginx
-#         name: nginx-server
-#         ports:
-#         - containerPort: 80
-# {{else}}
-        ports: 
-# {{end}}
+{{end}}
         resources:
           requests:
             cpu: {{$CpuRequest}}
