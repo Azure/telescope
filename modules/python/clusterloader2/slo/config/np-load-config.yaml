@@ -13,7 +13,7 @@ name: np-load-config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
 # TODO: This should eventually use >1 namespace.
-{{$namespaces := 10}}
+{{$namespaces := 8}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
@@ -129,11 +129,11 @@ steps:
         action: gather
         usePolicyCreationMetrics: false
 
-  - module:
-      path: modules/network-policy/net-policy-enforcement-latency.yaml
-      params:
-        complete: true
-        testType: "pod-creation"
+  # - module:
+  #     path: modules/network-policy/net-policy-enforcement-latency.yaml
+  #     params:
+  #       complete: true
+  #       testType: "pod-creation"
 
   - module:
       path: modules/network-policy/net-policy-enforcement-latency.yaml
@@ -203,11 +203,11 @@ steps:
       params:
         action: gather
         usePolicyCreationMetrics: false
-  - module:
-      path: modules/network-policy/net-policy-enforcement-latency.yaml
-      params:
-        complete: true
-        testType: "policy-creation"
+  # - module:
+  #     path: modules/network-policy/net-policy-enforcement-latency.yaml
+  #     params:
+  #       complete: true
+  #       testType: "policy-creation"
 {{end}}
 
 
