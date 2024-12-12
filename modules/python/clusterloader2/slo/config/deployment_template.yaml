@@ -1,7 +1,7 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
-{{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
-{{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
+{{$cnpsPerNamespace := DefaultParam .cnpsPerNamespace "0"}}
+{{$ccnps := DefaultParam .ccnps "0"}}
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
@@ -37,13 +37,13 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
-{{if or $CNP_TEST $CCNP_TEST}}
-        - name: nginx
-          image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
-          command: ["sh", "-c", "while true; do curl -s ipv4.google.com; sleep 2; done"]
-          ports:
-          - name: http
-            containerPort: 80
+{{if or (gt $cnpsPerNamespace 0) (gt $ccnps 0)}}
+      - name: nginx
+        image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
+        command: ["sh", "-c", "while true; do curl -s ipv4.google.com; sleep 2; done"]
+        ports:
+        - name: http
+          containerPort: 80
 {{else}}
       - env:
         - name: ENV_VAR
