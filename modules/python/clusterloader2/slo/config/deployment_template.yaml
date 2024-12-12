@@ -41,9 +41,7 @@ spec:
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
         restart: {{.deploymentLabel}}
-{{if $RunNetPolicyTest}}
         net-pol-test: "enforcement-latency"
-{{end}}
      spec:
       nodeSelector:
         slo: "true"
