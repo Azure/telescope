@@ -147,7 +147,7 @@ steps:
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
-        cnpsPerNamespace: {{CNPS_PER_NAMESPACE}}
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
         ccnps: {{$CCNPS}}
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
