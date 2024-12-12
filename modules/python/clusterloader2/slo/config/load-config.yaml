@@ -37,8 +37,8 @@ name: load-config
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 # CNP & CCNP Test
-{{$cnpsPerNamespace := DefaultParam .CL2_CNPS_PER_NAMESPACE 1}}
-{{$ccnps := DefaultParam .CL2_CCNPS 1}}
+{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 1}}
+{{$CCNPS := DefaultParam .CL2_CCNPS 1}}
 
 {{if or $CCNP_TEST $CNP_TEST}}
     {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 0}}
@@ -105,7 +105,7 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$namespaces}}
-        cnpsPerNamespace: {{$cnpsPerNamespace}}
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
 {{end}}
 
 {{if $CCNP_TEST}}
@@ -114,7 +114,7 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$namespaces}}
-        ccnps: {{$ccnps}}
+        ccnps: {{$CCNPS}}
 {{end}}
         
   - module:
