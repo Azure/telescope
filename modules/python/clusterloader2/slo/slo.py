@@ -239,7 +239,7 @@ def main():
 
     args = parser.parse_args()
 
-    startTimestamp
+    startTimestamp = ""
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
