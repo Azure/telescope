@@ -20,7 +20,7 @@ name: load-config
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
+#{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 
@@ -33,11 +33,11 @@ name: load-config
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 250}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 25}} # Change to 30
+{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 50}} # Change to 30
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}} # TODO: Change to 1
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
-{{$deploymentQPS := DivideFloat $loadTestThroughput 25}}
+{{$deploymentQPS := DivideFloat $loadTestThroughput 50}}
 
 
 namespace:
