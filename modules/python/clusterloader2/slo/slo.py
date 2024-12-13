@@ -89,12 +89,16 @@ def configure_clusterloader2(
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
+        else:
+            file.write("CL2_SERVICE_TEST: false\n")
 
         if cnp_test:
+            print("cnp test is true")
             file.write("CL2_CNP_TEST: true\n")
             file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
 
         if ccnp_test:
+            print("ccnp test is true")
             file.write("CL2_CCNP_TEST: true\n")
             file.write(f"CL2_CCNPS: {num_ccnps}\n")
 
@@ -264,9 +268,6 @@ def main():
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
-
-    # Print the arguments to debug
-    print("Arguments passed to the script:", sys.argv)
 
     args = parser.parse_args()
 
