@@ -33,8 +33,13 @@ def calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test,
     if service_test:
         pods_per_node = LOAD_PODS_PER_NODE
 
+    print("right before cnp_test and ccnp_test in calculate ocnfig")
+    print(cnp_test)
+    print(ccnp_test)
+    print(pods_in_node)
     if cnp_test or ccnp_test:
-        pods_per_node= pods_in_node
+        print("inside if in calculate config")
+        pods_per_node = pods_in_node
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
@@ -91,7 +96,7 @@ def configure_clusterloader2(
             file.write("CL2_SERVICE_TEST: true\n")
         else:
             file.write("CL2_SERVICE_TEST: false\n")
-            
+
         print("right before cnp_test and ccnp_test")
         if cnp_test:
             print("cnp test is true")
