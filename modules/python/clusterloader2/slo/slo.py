@@ -25,15 +25,9 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider, service_test, network_test):
+def calculate_config(cpu_per_node, node_count, provider):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
-
-    pods_per_node = DEFAULT_PODS_PER_NODE
-    if service_test:
-        pods_per_node = LOAD_PODS_PER_NODE
-    if network_test:
-        pods_per_node = NETWORK_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -43,13 +37,14 @@ def calculate_config(cpu_per_node, node_count, provider, service_test, network_t
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
     cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
-    return throughput, nodes_per_namespace, pods_per_node, cpu_request
+    return throughput, nodes_per_namespace, cpu_request
 
 def configure_clusterloader2(
     cpu_per_node,
     node_count,
     node_per_step,
     max_pods,
+    pods_per_node,
     repeats,
     operation_timeout,
     provider,
@@ -59,7 +54,7 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, network_test)
+    throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_per_step, provider)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
@@ -134,6 +129,7 @@ def collect_clusterloader2(
     cpu_per_node,
     node_count,
     max_pods,
+    pods_per_node,
     repeats,
     cl2_report_dir,
     cloud_info,
@@ -154,7 +150,6 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, network_test)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -264,17 +259,17 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                                 args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.network_test, args.cl2_override_file)
+        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods, 
+                                 args.pods_per_node, args.repeats, args.operation_timeout, args.provider, 
+                                 args.cilium_enabled, args.service_test, args.network_test, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_per_node, 
+                               args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.network_test, args.result_file, args.test_type)
 
 if __name__ == "__main__":

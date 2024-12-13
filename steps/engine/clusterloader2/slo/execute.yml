@@ -7,13 +7,16 @@ parameters:
     default: {}
   - name: region
     type: string
+  - name: pods_per_node
+    type: number  
+    default: 50  # Default value for PODS_PER_NODE
 
 steps:
   - script: |
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-        $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP $MAX_PODS \
+        $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP $MAX_PODS $PODS_PER_NODE \
         $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED \
         $SERVICE_TEST $NETWORK_TEST ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
@@ -30,4 +33,5 @@ steps:
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
+      PODS_PER_NODE: ${{ parameters.pods_per_node }}
     displayName: "Run Benchmark"
