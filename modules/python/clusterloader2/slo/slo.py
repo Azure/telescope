@@ -91,7 +91,8 @@ def configure_clusterloader2(
             file.write("CL2_SERVICE_TEST: true\n")
         else:
             file.write("CL2_SERVICE_TEST: false\n")
-
+            
+        print("right before cnp_test and ccnp_test")
         if cnp_test:
             print("cnp test is true")
             file.write("CL2_CNP_TEST: true\n")
