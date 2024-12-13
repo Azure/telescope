@@ -21,9 +21,9 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, pods_per_node, provider):
+def calculate_config(cpu_per_node, node_per_step, pods_per_node, provider):
     throughput = 100
-    nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
+    nodes_per_namespace = min(node_per_step, DEFAULT_NODES_PER_NAMESPACE)
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow

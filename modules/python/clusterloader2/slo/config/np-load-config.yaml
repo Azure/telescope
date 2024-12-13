@@ -12,7 +12,7 @@ name: np-load-config
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-{{$namespaces := 100}}
+{{$namespaces := DivideInt .Nodes $NODES_PER_NAMESPACE}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
@@ -39,7 +39,7 @@ namespace:
   prefix: slo
   deleteStaleNamespaces: true 
   deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: false
+  enableExistingNamespaces: true
 
 tuningSets:
   - name: Sequence
