@@ -22,7 +22,7 @@ stages:
             azure_cilium:
               cpu_per_node: 4
               node_count: 100
-              node_per_step: 10
+              node_per_step: 100
               max_pods: 100
               pods_per_node: 100
               repeats: 1
