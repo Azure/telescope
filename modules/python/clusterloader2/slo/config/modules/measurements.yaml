@@ -9,6 +9,7 @@
 {{$NETWORK_LATENCY_THRESHOLD := DefaultParam .CL2_NETWORK_LATENCY_THRESHOLD "0s"}}
 {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION := DefaultParam .CL2_PROBE_MEASUREMENTS_PING_SLEEP_DURATION "1s"}}
 {{$ENABLE_IN_CLUSTER_NETWORK_LATENCY := DefaultParam .CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY true}}
+{{$ENABLE_TERMINATED_WATCHES_MEASUREMENT := DefaultParam .CL2_ENABLE_TERMINATED_WATCHES_MEASUREMENT false}}
 
 # Probe measurements shared parameter
 {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT := DefaultParam .CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT "15m"}}
@@ -106,3 +107,27 @@ steps:
             query: quantile(0.90, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
           - name: Perc50
             query: quantile(0.5, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+    {{if $ENABLE_TERMINATED_WATCHES_MEASUREMENT}}
+      - Identifier: TerminatedWatchesMetrics
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Terminated Watches
+          metricVersion: v1
+          dimensions:
+          - resource
+          queries:
+          - name: Terminated watches
+            query: sum(increase(apiserver_terminated_watchers_total[%v:])) by (resource)
+      - Identifier: WatchCacheInitializations
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Watch Cache Initializations
+          metricVersion: v1
+          dimensions:
+          - resource
+          queries:
+          - name: Watch cache reinitializations
+            query: sum(increase(apiserver_watch_cache_initializations_total[%v:])) by (resource)
+    {{end}}

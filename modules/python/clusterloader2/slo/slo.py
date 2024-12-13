@@ -8,7 +8,7 @@ from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
-LOAD_PODS_PER_NODE = 50 # Test Run, TODO: Switch to 100
+LOAD_PODS_PER_NODE = 100 # Test Run, TODO: Switch to 100
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -72,6 +72,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
+        file.write("CL2_ENABLE_TERMINATED_WATCHES_MEASUREMENT: true\n") # TODO: Consider gating
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
