@@ -37,7 +37,7 @@ name: load-config
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}} # TODO: Change to 1
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
-{{$deploymentQPS := DivideFloat $loadTestThroughput $smallDeploymentSize}}
+{{$deploymentQPS := DivideFloat $loadTestThroughput 25}}
 
 
 namespace:
