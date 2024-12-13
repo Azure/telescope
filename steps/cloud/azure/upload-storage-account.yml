@@ -2,7 +2,7 @@ parameters:
   storage_account_name: $(AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME)
   source_file_name: $(TEST_RESULTS_FILE)
   destination_file_name: $(RUN_ID).json
-  subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)
+  subfolder: $(SCENARIO_NAME)/$(Build.SourceBranchName)
   container_name: $(SCENARIO_TYPE)
   credential_type: string
   cloud: string
