@@ -8,7 +8,7 @@ variables:
   SCENARIO_VERSION: main
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_cilium_ces
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -33,7 +33,24 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
-              rg: jshr-cilscale-5249-20241212141354
+          max_parallel: 3
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          rg: jshr-cilscale-5249-20241212141354
+  - stage: azure_cilium_disablecrd
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cilium-usercluster
+          matrix:
             azure_cilium_disablecrd:
               cpu_per_node: 4
               node_count: 1000
@@ -46,7 +63,24 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
-              rg: jshr-cilscale-23403-20241212143120
+          max_parallel: 3
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          rg: jshr-cilscale-23403-20241212143120
+  - stage: azure_cni
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cilium-usercluster
+          matrix:
             azure_cni:
               cpu_per_node: 4
               node_count: 1000
@@ -57,8 +91,8 @@ stages:
               cilium_enabled: False
               service_test: True
               cl2_config_file: load-config.yaml
-              rg: jshr-azscale-27926-20241212130917
           max_parallel: 3
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
+          rg: jshr-azscale-27926-20241212130917
