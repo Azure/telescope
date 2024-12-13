@@ -21,7 +21,7 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider):
+def calculate_config(cpu_per_node, node_count, pods_per_node, provider):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
@@ -50,7 +50,7 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_per_step, provider)
+    throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_per_step, pods_per_node, provider)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
