@@ -33,6 +33,7 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
+              name: azure_cilium_ces
           max_parallel: 3
           timeout_in_minutes: 720
           credential_type: service_connection
@@ -63,6 +64,7 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
+              name: azure_cilium_disablecrd
           max_parallel: 3
           timeout_in_minutes: 720
           credential_type: service_connection
@@ -91,6 +93,7 @@ stages:
               cilium_enabled: False
               service_test: True
               cl2_config_file: load-config.yaml
+              name: azure_cni
           max_parallel: 3
           timeout_in_minutes: 720
           credential_type: service_connection

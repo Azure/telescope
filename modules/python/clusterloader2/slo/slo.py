@@ -118,6 +118,7 @@ def collect_clusterloader2(
     result_file,
     test_type,
     start_timestamp,
+    name,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -149,6 +150,7 @@ def collect_clusterloader2(
         "run_url": run_url,
         "test_type": test_type,
         "start_timestamp": start_timestamp,
+        "name": name,
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -233,6 +235,7 @@ def main():
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
     parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
+    parser_collect.add_argument("name", type=str, help="Test Name")
 
     args = parser.parse_args()
 
@@ -250,7 +253,8 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.result_file, args.test_type, startTimestamp)
+                               args.service_test, args.result_file, args.test_type, startTimestamp,
+                               args.name)
 
 if __name__ == "__main__":
     main()
