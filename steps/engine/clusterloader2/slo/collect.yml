@@ -16,7 +16,7 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CPU_PER_NODE $NODE_COUNT $MAX_PODS $REPEATS \
+      $CPU_PER_NODE $NODE_COUNT $MAX_PODS $PODS_IN_NODE $REPEATS \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $CNP_TEST $CCNP_TEST $NUM_CNPS $NUM_CCNPS $TEST_RESULTS_FILE \
       $TEST_TYPE
   workingDirectory: modules/python/clusterloader2

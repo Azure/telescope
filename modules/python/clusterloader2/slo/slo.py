@@ -10,7 +10,6 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
 LOAD_PODS_PER_NODE = 20
-CNP_CCNP_PODS_PER_NODE = 20
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -26,7 +25,7 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps):
+def calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, pods_in_node):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
@@ -34,8 +33,9 @@ def calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test,
     if service_test:
         pods_per_node = LOAD_PODS_PER_NODE
 
+    print("right before cnp_test and ccnp_test in calculate ocnfig")
     if cnp_test or ccnp_test:
-        pods_per_node = CNP_CCNP_PODS_PER_NODE
+        pods_per_node = pods_in_node
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
@@ -51,6 +51,7 @@ def configure_clusterloader2(
     node_count,
     node_per_step,
     max_pods,
+    pods_in_node,
     repeats,
     operation_timeout,
     provider,
@@ -63,7 +64,8 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps)
+    print(pods_in_node)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, pods_in_node)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
@@ -130,6 +132,7 @@ def collect_clusterloader2(
     cpu_per_node,
     node_count,
     max_pods,
+    pods_in_node,
     repeats,
     cl2_report_dir,
     cloud_info,
@@ -153,7 +156,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, pods_in_node)
     pod_count = node_count * pods_per_node
 
     template = {
@@ -216,6 +219,7 @@ def main():
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
     parser_configure.add_argument("max_pods", type=int, help="Maximum number of pods per node")
+    parser_configure.add_argument("pods_in_node", type=int, nargs='?', default=0, help="Number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
@@ -250,6 +254,7 @@ def main():
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Maximum number of pods per node")
+    parser_configure.add_argument("pods_in_node", type=int, nargs='?', default=0, help="Number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
@@ -271,7 +276,7 @@ def main():
 
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                                 args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
+                                 args.pods_in_node, args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
@@ -279,7 +284,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_in_node, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.result_file, args.test_type)
 
