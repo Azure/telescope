@@ -33,7 +33,7 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
-              run_id: jshr-cilscale-5249-20241212141354
+              rg: jshr-cilscale-5249-20241212141354
             azure_cilium_disablecrd:
               cpu_per_node: 4
               node_count: 1000
@@ -46,7 +46,7 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
-              run_id: jshr-cilscale-23403-20241212143120
+              rg: jshr-cilscale-23403-20241212143120
             azure_cni:
               cpu_per_node: 4
               node_count: 1000
@@ -57,7 +57,7 @@ stages:
               cilium_enabled: False
               service_test: True
               cl2_config_file: load-config.yaml
-              run_id: jshr-azscale-27926-20241212130917
+              rg: jshr-azscale-27926-20241212130917
           max_parallel: 3
           timeout_in_minutes: 720
           credential_type: service_connection
