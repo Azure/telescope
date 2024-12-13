@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-network-churn
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: test
 
 stages:
   - stage: azure_eastus2
@@ -24,7 +24,7 @@ stages:
               node_count: 10
               node_per_step: 1
               max_pods: 110
-              repeats: 10
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: False
               service_test: False
