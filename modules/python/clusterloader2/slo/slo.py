@@ -34,11 +34,7 @@ def calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test,
         pods_per_node = LOAD_PODS_PER_NODE
 
     print("right before cnp_test and ccnp_test in calculate ocnfig")
-    print(cnp_test)
-    print(ccnp_test)
-    print(pods_in_node)
     if cnp_test or ccnp_test:
-        print("inside if in calculate config")
         pods_per_node = pods_in_node
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -68,6 +64,7 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count // node_per_step
+    print(pods_in_node)
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, pods_in_node)
 
     with open(override_file, 'w') as file:
@@ -159,7 +156,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, pods_in_node)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
