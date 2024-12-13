@@ -8,7 +8,7 @@ from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
-LOAD_PODS_PER_NODE = 100 # Test Run, TODO: Switch to 100
+LOAD_PODS_PER_NODE = 5 # Test Run, TODO: Switch to 100
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -248,13 +248,12 @@ def main():
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
-        startTimestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.result_file, args.test_type, startTimestamp,
+                               args.service_test, args.result_file, args.test_type, args.start_timestamp,
                                args.name)
 
 if __name__ == "__main__":
