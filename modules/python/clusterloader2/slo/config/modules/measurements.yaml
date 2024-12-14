@@ -114,6 +114,7 @@ steps:
           action: {{$action}}
           metricName: Terminated Watches
           metricVersion: v1
+          unit: count
           dimensions:
           - resource
           queries:
@@ -125,6 +126,7 @@ steps:
           action: {{$action}}
           metricName: Watch Cache Initializations
           metricVersion: v1
+          unit: count
           dimensions:
           - resource
           queries:
