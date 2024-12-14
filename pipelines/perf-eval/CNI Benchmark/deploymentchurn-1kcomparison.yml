@@ -1,6 +1,11 @@
 trigger: none
-
-# TODO: Add a Schedule
+schedules:
+  - cron: "0 0,8,16 * * *"
+    displayName: "Every 8 Hours Daily"
+    branches:
+      include:
+        - jshr/churn1k-comparison
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
