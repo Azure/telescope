@@ -16,8 +16,8 @@ name: load-config
 # {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$namespaces := DivideInt .Nodes $nodesPerNamespace}} # 1000 / 100 = 10
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 10 * 100 * 25 = 25,000
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 25,000 / 10 = 2,500
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 10 * 100 * 50 = 50,000
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 50,000 / 10 = 5,000
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
@@ -33,8 +33,8 @@ name: load-config
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 250}}
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 50}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}} # all, 2500
-{{$smallDeploymentsPerNamespace := DivideInt $podsPerNamespace $SMALL_GROUP_SIZE}} # 2500 / 50 = 50
+{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}} # all, 5000
+{{$smallDeploymentsPerNamespace := DivideInt $podsPerNamespace $SMALL_GROUP_SIZE}} # 5000 / 50 = 100
 {{$deploymentQPS := DivideFloat $loadTestThroughput $SMALL_GROUP_SIZE}} # 2 deployment / sec
 
 
