@@ -10,10 +10,10 @@ output "aks_cluster_kubeconfig_path" {
 
 output "aks_cluster" {
   description = "Used for unit tests"
-  value = azurerm_kubernetes_cluster.aks
+  value       = azurerm_kubernetes_cluster.aks
 }
 
 output "aks_cluster_nood_pools" {
   description = "Used for unit tests"
-  value = azurerm_kubernetes_cluster_node_pool.pools
+  value       = azurerm_kubernetes_cluster_node_pool.pools
 }

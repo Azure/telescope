@@ -57,7 +57,7 @@ run "valid_aks_machine_type_override_all" {
     error_message = "Expected: ${var.json_input["aks_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster.default_node_pool[0].vm_size}"
   }
 
-  assert { 
+  assert {
     condition     = module.aks["test"].aks_cluster_nood_pools["server"].vm_size == var.json_input["aks_machine_type"]
     error_message = "Expected: ${var.json_input["aks_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["server"].vm_size}"
   }
@@ -85,7 +85,7 @@ run "valid_aks_machine_type_no_override" {
     error_message = "Expected: ${var.aks_config_list[0].default_node_pool.vm_size} \n Actual: ${module.aks["test"].aks_cluster.default_node_pool[0].vm_size}"
   }
 
-  assert { 
+  assert {
     condition     = module.aks["test"].aks_cluster_nood_pools["server"].vm_size == var.aks_config_list[0].extra_node_pool[0].vm_size
     error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[0].vm_size} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["server"].vm_size}"
   }
