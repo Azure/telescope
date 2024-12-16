@@ -17,13 +17,13 @@ steps:
       --arg run_id $RUN_ID \
       --arg run_url  $RUN_URL \
       --arg code_url  $CODE_URL \
-      --arg time_stamp "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
+      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
       --arg reason "$(Build.Reason)" \
       --arg pipeline_branch "$(Build.SourceBranchName)" \
       --arg requester "$(Build.RequestedFor)" \
       --arg scenario_name "$SCENARIO_NAME" \
       --arg scenario_type "$SCENARIO_TYPE" \
-      --arg owner $OWNER \
+      --arg owner "$OWNER" \
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
       --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
@@ -33,6 +33,7 @@ steps:
       --arg pipeline_name "$(Build.DefinitionName)" \
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
       --arg project_name "$(System.TeamProject)" \
+      --arg byo_resources $(SKIP_RESOURCE_MANAGEMENT) \
       '{
           pipeline_info: {
             run_id: $run_id,
@@ -45,7 +46,7 @@ steps:
             cron_schedule_display_name: $cron_schedule_display_name,
             project_name: $project_name,
             code_url: $code_url,
-            time_stamp: $time_stamp
+            timestamp: $timestamp
           },
           scenario_info: {
             scenario_name: $scenario_name,
@@ -53,14 +54,17 @@ steps:
             owner: $owner,
             engine: $engine,
             topology: $topology,
-            engine_input: $engine_input
+            engine_input: $engine_input,
+            byo_resources: $byo_resources
+
           },
           cloud_info: {
             cloud: $cloud,
             region: $region
           }
       }' | jq 'with_entries(select(.value != null and .value != ""))' | jq -c .)
-    echo "Telescope Metadata: $telescope_metadata"
+    echo "Telescope Metadata:"
+    echo "$telescope_metadata" | jq .
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
     echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
   displayName: "Collect Telescope Metadata"
