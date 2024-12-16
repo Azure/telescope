@@ -1,16 +1,16 @@
 trigger: none
-# schedules:
-#   - cron: "0 */2 * * *"
-#     displayName: "Every 2 Hour"
-#     branches:
-#       include:
-#         - main
-#     always: true
+schedules:
+  - cron: "0 */2 * * *"
+    displayName: "Every 2 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-c4n10p100
-  SCENARIO_VERSION: rafaelme/k8s_machine_type
+  SCENARIO_VERSION: rafaelme
 
 stages:
   - stage: aws_eastus2
