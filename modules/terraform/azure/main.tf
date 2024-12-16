@@ -25,8 +25,8 @@ locals {
     for aks in var.aks_config_list : merge(
       aks,
       {
-        sku_tier = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
-        kubernetes_version  = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
+        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
         network_profile = merge(
           aks.network_profile,
           {
@@ -45,7 +45,7 @@ locals {
       aks,
       {
         sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
-        kubernetes_version  = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
+        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
         aks_custom_headers = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         default_node_pool  = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool    = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
