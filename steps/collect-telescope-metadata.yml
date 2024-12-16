@@ -33,10 +33,10 @@ steps:
       --arg pipeline_name "$(Build.DefinitionName)" \
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
       --arg project_name "$(System.TeamProject)" \
-      --arg byo_resources $(SKIP_RESOURCE_MANAGEMENT) \
+      --arg byo_resources "$(SKIP_RESOURCE_MANAGEMENT)" \
       '{
+          run_id: $run_id,
           pipeline_info: {
-            run_id: $run_id,
             run_url: $run_url,
             reason: $reason,
             pipeline_branch: $pipeline_branch,
