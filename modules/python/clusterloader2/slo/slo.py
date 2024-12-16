@@ -65,6 +65,8 @@ def configure_clusterloader2(
 
     steps = node_count // node_per_step
     print(pods_in_node)
+    print(num_ccnps)
+    print(num_cnps)
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, pods_in_node)
 
     with open(override_file, 'w') as file:
