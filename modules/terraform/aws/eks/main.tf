@@ -193,7 +193,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   }
 
   ami_type       = each.value.ami_type
-  instance_types = each.value.instance_types
+  instance_types = var.eks_machine_type != null ? [var.eks_machine_type] : each.value.instance_types
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
 

@@ -20,6 +20,12 @@ variable "region" {
   default     = "us-east-2"
 }
 
+variable "eks_machine_type" {
+  description = "Value to replace EKS nodes instance_types"
+  type        = string
+  default     = null
+}
+
 variable "eks_config" {
   type = object({
     role                      = string

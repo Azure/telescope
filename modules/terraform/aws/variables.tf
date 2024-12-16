@@ -1,9 +1,10 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id        = string
-    region        = string
-    creation_time = string
+    run_id           = string
+    region           = string
+    creation_time    = string
+    eks_machine_type = optional(string)
   })
 
   validation {

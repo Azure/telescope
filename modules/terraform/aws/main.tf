@@ -1,7 +1,8 @@
 locals {
-  region        = lookup(var.json_input, "region", "us-east-1")
-  run_id        = lookup(var.json_input, "run_id", "123456")
-  creation_time = var.json_input["creation_time"]
+  region           = lookup(var.json_input, "region", "us-east-1")
+  run_id           = lookup(var.json_input, "run_id", "123456")
+  creation_time    = var.json_input["creation_time"]
+  eks_machine_type = lookup(var.json_input, "eks_machine_type", null)
 
   non_computed_tags = {
     # Note: Define only non computed values (i.e. values that do not change for each resource). This is required due to a limitation at "aws" provider default_tags.
@@ -47,11 +48,12 @@ module "virtual_network" {
 module "eks" {
   for_each = local.eks_config_map
 
-  source     = "./eks"
-  run_id     = local.run_id
-  region     = local.region
-  vpc_id     = local.all_vpcs[each.value.vpc_name].id
-  eks_config = each.value
-  tags       = local.tags
-  depends_on = [module.virtual_network]
+  source           = "./eks"
+  run_id           = local.run_id
+  region           = local.region
+  vpc_id           = local.all_vpcs[each.value.vpc_name].id
+  eks_config       = each.value
+  tags             = local.tags
+  eks_machine_type = local.eks_machine_type
+  depends_on       = [module.virtual_network]
 }
