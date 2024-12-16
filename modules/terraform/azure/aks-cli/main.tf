@@ -14,7 +14,7 @@ locals {
     "" :
     format(
       "%s %s",
-      "--kuberntes-version", var.aks_cli_config.kubernetes_version,
+      "--kubernetes-version", var.aks_cli_config.kubernetes_version,
     )
   )
 
