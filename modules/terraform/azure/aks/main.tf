@@ -76,6 +76,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
     }
   }
 
+  addon_profile {
+    azure_monitor_metrics {
+      enabled = true
+    }
+  }
+
   oidc_issuer_enabled       = var.aks_config.oidc_issuer_enabled
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
@@ -108,6 +114,53 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
   role_definition_name = each.key
   scope                = var.vnet_id
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+}
+
+resource "azurerm_monitor_workspace" "ama_workspace" {
+  name                = var.addons_config.ama_workspace.name
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+}
+
+resource "azurerm_monitor_data_collection_endpoint" "ama_workspace" {
+  name                = var.addons_config.ama_workspace.data_collection_endpoint.name
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  kind                = var.addons_config.ama_workspace.data_collection_endpoint.kind 
+}
+
+resource "azurerm_monitor_data_collection_rule" "ama_workspace" {
+  name                       = var.addons_config.ama_workspace.data_collection_rule.name
+  resource_group_name        = azurerm_resource_group.example.name
+  location                   = azurerm_resource_group.example.location
+  data_collection_endpoint_id = azurerm_monitor_data_collection_endpoint.example.id
+  kind                       = var.addons_config.ama_workspace.data_collection_rule.kind
+
+  destinations {
+    monitor_account {
+      monitor_account_id = azurerm_monitor_workspace.ama_workspace.id
+      name               = vars.addons_config.ama_workspace.data_collection_rule.destinations.monitor_account.name
+    }
+  }
+
+  data_flow {
+    streams     = var.addons_config.ama_workspace.data_collection_rule.data_flow.streams
+    destinations = [vars.addons_config.ama_workspace.data_collection_rule.destinations.monitor_account.name]
+  }
+
+  data_sources {
+    prometheus_forwarder {
+      streams = var.addons_config.ama_workspace.data_collection_rule.data_flow.streams
+      name    = var.addons_config.ama_workspace.data_collection_rule.data_sources.prometheus_forwarder.name
+    }
+  }
+}
+
+resource "azurerm_monitor_data_collection_rule_association" "ama_workspace" {
+  name                   = var.addons_config.ama_workspace.data_collection_rule_association.name
+  target_resource_id     = azurerm_kubernetes_cluster.example.id
+  data_collection_rule_id = azurerm_monitor_data_collection_rule.example.id
+  description            = var.addons_config.ama_workspace.data_collection_rule_association.description
 }
 
 resource "local_file" "kube_config" {
