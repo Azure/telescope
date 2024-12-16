@@ -1,7 +1,7 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{.basename}}-{{.namespace}}
+  name: {{.basename}}-{{.Index}}
   namespace: {{.namespace}}
 spec:
   endpointSelector:

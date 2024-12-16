@@ -105,6 +105,7 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$namespaces}}
+        nameOfNs: slo
         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
 {{end}}
 

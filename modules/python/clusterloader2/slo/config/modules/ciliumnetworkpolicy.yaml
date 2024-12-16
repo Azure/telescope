@@ -4,6 +4,7 @@
 {{$actionName := .actionName}}
 {{$namespaces := .namespaces}}
 {{$cnpsPerNamespace := .cnpsPerNamespace}}
+{{nameOfNs := .nameOfNs}}
 
 steps:
 - name: "{{$actionName}} k8s CNPs"
@@ -16,3 +17,11 @@ steps:
     objectBundle:
     - basename: cnp
       objectTemplatePath: cnp_template.yaml
+    objectParams:
+        - name: namespace
+          value: {{printf "%s-%d" $nameOfNs $namespaces}}
+        - name: basename
+          value: cnp
+        - name: Index
+          value: {{.Index}}
+    
