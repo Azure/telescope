@@ -10,7 +10,7 @@
     "creation_time": {
       "type": "string"
     },
-    "eks_machine_type" : {
+    "k8s_machine_type" : {
       "type": "string"
     }
   },

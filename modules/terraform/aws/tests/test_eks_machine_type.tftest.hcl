@@ -7,7 +7,7 @@ variables {
     "run_id" : "123456789",
     "region" : "us-east-1",
     "creation_time" : "2024-11-12T16:39:54Z"
-    "eks_machine_type" : "m4x.4large"
+    "k8s_machine_type" : "m4x.4large"
   }
 
   network_config_list = [
@@ -82,13 +82,13 @@ run "valid_eks_machine_type_override_all" {
   command = plan
 
   assert {
-    condition     = module.eks["eks_name"].eks_node_groups["default"].instance_types[0] == var.json_input["eks_machine_type"]
-    error_message = "Expected: ${var.json_input["eks_machine_type"]} \n Actual:  ${module.eks["eks_name"].eks_node_groups["default"].instance_types[0]}"
+    condition     = module.eks["eks_name"].eks_node_groups["default"].instance_types[0] == var.json_input["k8s_machine_type"]
+    error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.eks["eks_name"].eks_node_groups["default"].instance_types[0]}"
   }
 
   assert {
-    condition     = module.eks["eks_name"].eks_node_groups["userpool"].instance_types[0] == var.json_input["eks_machine_type"]
-    error_message = "Expected: ${var.json_input["eks_machine_type"]} \n Actual:  ${module.eks["eks_name"].eks_node_groups["userpool"].instance_types[0]}"
+    condition     = module.eks["eks_name"].eks_node_groups["userpool"].instance_types[0] == var.json_input["k8s_machine_type"]
+    error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.eks["eks_name"].eks_node_groups["userpool"].instance_types[0]}"
   }
 
   expect_failures = [check.deletion_due_time]

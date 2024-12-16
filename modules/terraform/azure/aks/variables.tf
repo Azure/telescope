@@ -30,7 +30,7 @@ variable "subnets" {
   default     = {}
 }
 
-variable "aks_machine_type" {
+variable "k8s_machine_type" {
   description = "Value to replace AKS nodes vm_size"
   type        = string
   default     = null

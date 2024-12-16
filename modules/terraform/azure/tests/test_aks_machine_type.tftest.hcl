@@ -7,7 +7,7 @@ variables {
     "run_id" : "123456789",
     "region" : "eastus",
     "public_key_path" : "public_key_path",
-    "aks_machine_type" : "Standard_D32s_v4"
+    "k8s_machine_type" : "Standard_D32s_v4"
   }
 
 
@@ -53,18 +53,18 @@ run "valid_aks_machine_type_override_all" {
   command = plan
 
   assert {
-    condition     = module.aks["test"].aks_cluster.default_node_pool[0].vm_size == var.json_input["aks_machine_type"]
-    error_message = "Expected: ${var.json_input["aks_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster.default_node_pool[0].vm_size}"
+    condition     = module.aks["test"].aks_cluster.default_node_pool[0].vm_size == var.json_input["k8s_machine_type"]
+    error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster.default_node_pool[0].vm_size}"
   }
 
   assert {
-    condition     = module.aks["test"].aks_cluster_nood_pools["server"].vm_size == var.json_input["aks_machine_type"]
-    error_message = "Expected: ${var.json_input["aks_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["server"].vm_size}"
+    condition     = module.aks["test"].aks_cluster_nood_pools["server"].vm_size == var.json_input["k8s_machine_type"]
+    error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["server"].vm_size}"
   }
 
   assert {
-    condition     = module.aks["test"].aks_cluster_nood_pools["client"].vm_size == var.json_input["aks_machine_type"]
-    error_message = "Expected: ${var.json_input["aks_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].vm_size}"
+    condition     = module.aks["test"].aks_cluster_nood_pools["client"].vm_size == var.json_input["k8s_machine_type"]
+    error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].vm_size}"
   }
 }
 
