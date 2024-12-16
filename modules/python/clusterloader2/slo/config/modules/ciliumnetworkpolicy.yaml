@@ -20,8 +20,4 @@ steps:
     objectParams:
         - name: namespace
           value: {{printf "%s-%d" $nameOfNs $namespaces}}
-        - name: basename
-          value: cnp
-        - name: Index
-          value: {{.Index}}
     

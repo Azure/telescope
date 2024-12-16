@@ -39,6 +39,7 @@ name: load-config
 # CNP & CCNP Test
 {{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
 {{$CCNPS := DefaultParam .CL2_CCNPS 0}}
+{{$nameOfNs := DefaultParam .CL2_NAME_OF_NS "slo"}}
 
 {{if or $CCNP_TEST $CNP_TEST}}
     {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 0}}
@@ -105,7 +106,7 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$namespaces}}
-        nameOfNs: slo
+        nameOfNs: {{$nameOfNs}}
         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
 {{end}}
 
