@@ -74,7 +74,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-cilscale-23403-20241212143120
+          rg: jshr-cilscale-19935-20241212122849
   - stage: azure_cni
     dependsOn: []
     jobs:
