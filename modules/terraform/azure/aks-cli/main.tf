@@ -10,7 +10,7 @@ locals {
   }
 
   kubernetes_version = (
-    length(var.aks_cli_config.kubernetes_version) == 0 ?
+    var.aks_cli_config.kubernetes_version == null ?
     "" :
     format(
       "%s %s",
