@@ -35,7 +35,7 @@ def calculate_config(cpu_per_node, node_count, pods_in_node, provider, service_t
 
     print("right before cnp_test and ccnp_test in calculate ocnfig")
     if cnp_test or ccnp_test:
-        pods_per_node = pods_in_node
+        pods_per_node = LOAD_PODS_PER_NODE
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
