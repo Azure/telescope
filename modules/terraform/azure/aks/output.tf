@@ -7,3 +7,13 @@ output "aks_cluster_kubeconfig_path" {
   description = "Path to the kubeconfig file for the AKS cluster"
   value       = local_file.kube_config.filename
 }
+
+output "aks_cluster" {
+  description = "Used for unit tests"
+  value = azurerm_kubernetes_cluster.aks
+}
+
+output "aks_cluster_nood_pools" {
+  description = "Used for unit tests"
+  value = azurerm_kubernetes_cluster_node_pool.pools
+}

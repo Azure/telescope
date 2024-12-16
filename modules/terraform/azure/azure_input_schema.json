@@ -21,6 +21,9 @@
     },
     "aks_cli_user_node_pool": {
       "type": "array"
+    },
+    "aks_machine_type" : {
+      "type": "string"
     }
   },
   "required": [

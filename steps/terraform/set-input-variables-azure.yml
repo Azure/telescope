@@ -36,6 +36,7 @@ steps:
                 --arg aks_sku_tier "$SKU_TIER" \
                 --arg aks_network_policy "$NETWORK_POLICY" \
                 --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
+                --arg aks_machine_type "$AKS_MACHINE_TYPE" \
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
@@ -45,6 +46,7 @@ steps:
                   aks_sku_tier: $aks_sku_tier,
                   aks_network_policy: $aks_network_policy,
                   aks_network_dataplane: $aks_network_dataplane,
+                  aks_machine_type: $aks_machine_type,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool

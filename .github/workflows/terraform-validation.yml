@@ -60,12 +60,16 @@ jobs:
       - name: Terraform Lint Check
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
 
-      - name: Terraform Test
+      - name: Terraform AWS Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
         run: terraform test
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Terraform AWS Test
+        working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
+        run: terraform test
 
   setup-matrix:
     runs-on: ubuntu-latest

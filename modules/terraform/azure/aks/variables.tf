@@ -30,6 +30,12 @@ variable "subnets" {
   default     = {}
 }
 
+variable "aks_machine_type" {
+  description = "Value to replace AKS nodes vm_size"
+  type        = string
+  default     = null
+}
+
 variable "aks_config" {
   type = object({
     role        = string
