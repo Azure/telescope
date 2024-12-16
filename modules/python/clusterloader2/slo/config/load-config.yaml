@@ -181,6 +181,7 @@ steps:
       params:
         actionName: "Deleting"
         namespaces: {{$namespaces}}
+        nameOfNs: {{$nameOfNs}}
         cnpsPerNamespace: 0
 
   - module:
