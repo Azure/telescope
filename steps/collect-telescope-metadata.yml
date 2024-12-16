@@ -56,15 +56,13 @@ steps:
             topology: $topology,
             engine_input: $engine_input,
             byo_resources: $byo_resources
-
           },
           cloud_info: {
             cloud: $cloud,
             region: $region
           }
       }' | jq 'with_entries(select(.value != null and .value != ""))' | jq -c .)
-    echo "Telescope Metadata:"
-    echo "$telescope_metadata" | jq .
+    echo -n "Telescope Metadata: " && echo "$telescope_metadata" | jq .
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
     echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
   displayName: "Collect Telescope Metadata"
