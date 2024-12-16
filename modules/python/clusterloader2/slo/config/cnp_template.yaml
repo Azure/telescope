@@ -2,7 +2,7 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: {{.basename}}
-  namespace: {{.namespace}}
+  namespace: slo-1
 spec:
   endpointSelector:
     matchLabels:
