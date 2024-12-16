@@ -4,7 +4,7 @@
 {{$actionName := .actionName}}
 {{$namespaces := .namespaces}}
 {{$cnpsPerNamespace := .cnpsPerNamespace}}
-{{nameOfNs := .nameOfNs}}
+{{$nameOfNs := .nameOfNs}}
 
 steps:
 - name: "{{$actionName}} k8s CNPs"
