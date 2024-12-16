@@ -9,6 +9,10 @@ locals {
     pool.name => pool
   }
 
+  kubernetes_version = (
+    var.aks_cli_config.kubernetes_version == null ? "" : var.aks_cli_config.kubernetes_version
+  )
+
   aks_custom_headers_flags = (
     length(var.aks_cli_config.aks_custom_headers) == 0 ?
     "" :
