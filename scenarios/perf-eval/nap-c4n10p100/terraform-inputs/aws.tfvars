@@ -76,7 +76,7 @@ eks_config_list = [{
     {
       name           = "nap-c4n10p100-ng"
       ami_type       = "AL2_x86_64"
-      instance_types = []
+      instance_types = ["m4.large"]
       min_size       = 5
       max_size       = 5
       desired_size   = 5

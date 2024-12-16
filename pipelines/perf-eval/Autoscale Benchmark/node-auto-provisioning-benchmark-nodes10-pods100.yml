@@ -10,7 +10,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-c4n10p100
-  SCENARIO_VERSION: rafaelme
+  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus2
@@ -28,14 +28,13 @@ stages:
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
-              node_count: 1
-              pod_count: 10
+              node_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              eks_machine_type: "m4.large"
+              loop_count: 5
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
@@ -55,14 +54,13 @@ stages:
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
-              node_count: 1
-              pod_count: 10
+              node_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              aks_machine_type: "Standard_D4_v3"
+              loop_count: 5
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
