@@ -7,7 +7,6 @@ spec:
   endpointSelector:
     matchLabels:
       app: nginx
-      actualLabelName: val
   egress:
   - toEndpoints:
     - {}

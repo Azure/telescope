@@ -5,7 +5,7 @@
 {{$ccnps := .ccnps}}
 
 steps:
-- name: "{{$actionName}} k8s CCNPs"
+- name: "{{$actionName}} {{$ccnps}} k8s CCNPs"
   phases:
     - replicas: {{$ccnps}}
       tuningSet: Sequence
