@@ -33,7 +33,6 @@ def calculate_config(cpu_per_node, node_count, pods_in_node, provider, service_t
     if service_test:
         pods_per_node = LOAD_PODS_PER_NODE
 
-    print("right before cnp_test and ccnp_test in calculate ocnfig")
     if cnp_test or ccnp_test:
         pods_per_node = LOAD_PODS_PER_NODE
     # Different cloud has different reserved values and number of daemonsets
@@ -64,9 +63,6 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count // node_per_step
-    print(pods_in_node)
-    print(num_ccnps)
-    print(num_cnps)
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, pods_in_node, provider, service_test, cnp_test, ccnp_test, num_cnps, num_ccnps)
 
     with open(override_file, 'w') as file:
@@ -96,14 +92,11 @@ def configure_clusterloader2(
         else:
             file.write("CL2_SERVICE_TEST: false\n")
 
-        print("right before cnp_test and ccnp_test")
         if cnp_test:
-            print("cnp test is true")
             file.write("CL2_CNP_TEST: true\n")
             file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
 
         if ccnp_test:
-            print("ccnp test is true")
             file.write("CL2_CCNP_TEST: true\n")
             file.write(f"CL2_CCNPS: {num_ccnps}\n")
 
@@ -275,6 +268,7 @@ def main():
                                 help="Description of test type")
 
     args = parser.parse_args()
+    print("Arguments parsed:", args)
 
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
