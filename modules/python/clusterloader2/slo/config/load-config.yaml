@@ -12,31 +12,27 @@ name: load-config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
 # TODO(jshr-w): This should eventually use >1 namespace.
-# {{$namespaces := 1}}
-# {{$nodes := DefaultParam .CL2_NODES 1000}}
+{{$namespaces := 1}}
+{{$nodes := DefaultParam .CL2_NODES 1000}}
 
-{{$namespaces := DivideInt .Nodes $nodesPerNamespace}} # 1000 / 100 = 10
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 10 * 100 * 50 = 50,000
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 50,000 / 10 = 5,000
-
+{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
-# Metrics gates
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 # Service test
-{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 250}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 50}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}} # all, 5000
-{{$smallDeploymentsPerNamespace := DivideInt $podsPerNamespace $SMALL_GROUP_SIZE}} # 5000 / 50 = 100
-{{$deploymentQPS := DivideFloat $loadTestThroughput $SMALL_GROUP_SIZE}} # 2 deployment / sec
-
+{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
+{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
+{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 namespace:
   number: {{$namespaces}}
@@ -57,7 +53,7 @@ tuningSets:
       qps: {{$deploymentQPS}}
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
