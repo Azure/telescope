@@ -31,8 +31,8 @@ name: np-load-config
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .CL2_DEPLOYMENT_SIZE 10}} # TODO: find the correct value
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-{{$smallDeploymentPods := 100}} # TODO: find the correct value
-{{$smallDeploymentsPerNamespace := DivideInt (if .CL2_NETWORK_TEST $SMALL_GROUP_SIZE $smallDeploymentPods) $SMALL_GROUP_SIZE}}
+{{$smallDeploymentPods := DivideInt $totalPods $namespaces}} # TODO: MUGESH - find the correct value
+{{$smallDeploymentsPerNamespace := DivideInt  $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 namespace:
   number: {{$namespaces}}
