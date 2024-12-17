@@ -26,7 +26,7 @@ stages:
               max_pods: 100
               pods_per_node: 10 # value is added to DeploymentSize 
               repeats: 1
-              scale_timeout: "45m"
+              scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
