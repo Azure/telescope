@@ -14,8 +14,8 @@
 {{$smallDeploymentSize := .smallDeploymentSize}}
 {{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
 
-{{$cnpsPerNamespace := DefaultParam .cnpsPerNamespace 0}}
-{{$ccnps := DefaultParam .ccnps 0}}
+{{$cnpsPerNamespace := .cnpsPerNamespace}}
+{{$ccnps := .ccnps}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -59,8 +59,8 @@ steps:
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
   {{if or (gt $cnpsPerNamespace 0) (gt $ccnps 0)}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
+        cnpsPerNamespace: {{$cnpsPerNamespace}}
+        ccnps: {{$ccnps}}
   {{else}}
         SvcName: small-service
   {{end}}
