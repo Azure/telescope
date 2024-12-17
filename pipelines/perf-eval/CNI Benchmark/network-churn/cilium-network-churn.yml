@@ -21,10 +21,10 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 250
-              node_per_step: 3 # node_per_namespace
+              node_count: 100
+              node_per_step: 10 # node_per_namespace
               max_pods: 100
-              pods_per_node: 250
+              pods_per_node: 10 # value is added to DeploymentSize 
               repeats: 1
               scale_timeout: "45m"
               cilium_enabled: True

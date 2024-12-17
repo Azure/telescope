@@ -12,7 +12,7 @@ name: np-load-config
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-{{$namespaces := 100}}
+{{$namespaces := 10}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
@@ -29,10 +29,10 @@ name: np-load-config
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := 10}} # TODO: find the correct value
+{{$SMALL_GROUP_SIZE := DefaultParam .CL2_DEPLOYMENT_SIZE 10}} # TODO: find the correct value
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
 {{$smallDeploymentPods := 100}} # TODO: find the correct value
-{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
+{{$smallDeploymentsPerNamespace := DivideInt (if .CL2_NETWORK_TEST $SMALL_GROUP_SIZE $smallDeploymentPods) $SMALL_GROUP_SIZE}}
 
 namespace:
   number: {{$namespaces}}
