@@ -1,7 +1,7 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
-{{$cnpsPerNamespace := DefaultParam .cnpsPerNamespace 0}}
-{{$ccnps := DefaultParam .ccnps 0}}
+{{$cnpsPerNamespace := .cnpsPerNamespace}}
+{{$ccnps := .ccnps}}
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
