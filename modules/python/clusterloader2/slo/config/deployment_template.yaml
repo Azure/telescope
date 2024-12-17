@@ -37,7 +37,7 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
-{{if or (gt $cnpsPerNamespace 0) (gt $ccnps 0)}}
+{{if or (gt (int $cnpsPerNamespace) 0) (gt (int $ccnps) 0)}}
       - name: nginx
         image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
         command: ["sh", "-c", "while true; do curl -s ipv4.google.com; sleep 2; done"]

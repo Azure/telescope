@@ -58,7 +58,7 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-  {{if or (gt $cnpsPerNamespace 0) (gt $ccnps 0)}}
+  {{if or (gt (int $cnpsPerNamespace) 0) (gt (int $ccnps) 0)}}
         cnpsPerNamespace: {{$cnpsPerNamespace}}
         ccnps: {{$ccnps}}
   {{else}}
