@@ -59,6 +59,12 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
     - `max_pods`: Maximum pods per node on the node pool.
     - `zones`: Zones of the node pool
 
+### `k8s_machine_type` (optional)
+
+- **Description:** The optional field `k8s_machine_type` overrides, when set, the vm_size of all AKS nodes defined in `aks_config`. This is useful to define scenarios with different instance types using the same base config. Valid values can be found in the [Azure VM sizes documentation](https://docs.microsoft.com/en-us/azure/virtual-machines/sizes).
+- **Type:** String
+- **Default:** null
+
 ## Usage Example
 
 ```hcl

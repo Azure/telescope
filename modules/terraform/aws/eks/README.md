@@ -80,6 +80,10 @@ To use the EKS module, follow these steps:
    - We can also provide the version of an addon we are created which is an optional input here.
    - For VPC-CNI, a default configuration is used (see [main.tf](./main.tf)). Use vpc_cni_warm_prefix_target to set WARM_PREFIX_TARGET (default: 1)
    
+3. **Config override**
+
+The optional field `k8s_machine_type` overrides, when set, the `instance_types` value of all EKS nodes defined in `eks_managed_node_groups`. This is useful to define scenarios with different instance types using the same base config. Valid values can be found in the [AWS EC2 instance types documentation](https://aws.amazon.com/ec2/instance-types/).
+
 ## Terraform Provider References
 
 ### Resources
