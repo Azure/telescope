@@ -121,6 +121,8 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+        ccnps: {{$CCNPS}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
@@ -128,8 +130,6 @@ steps:
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
@@ -144,6 +144,8 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+        ccnps: {{$CCNPS}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
@@ -151,8 +153,6 @@ steps:
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: restart
@@ -198,7 +198,7 @@ steps:
       params:
         actionName: "Deleting"
         namespaces: {{$namespaces}}
-        ccnpsPerNamespace: 0
+        ccnps: 0
 {{end}}
 {{end}}
 
