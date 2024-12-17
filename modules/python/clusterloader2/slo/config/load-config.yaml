@@ -36,20 +36,19 @@ name: load-config
   {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
   {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
   {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
-{{end}}
-
-# CNP & CCNP Test
-{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
-{{$CCNPS := DefaultParam .CL2_CCNPS 0}}
-{{$nameOfNs := DefaultParam .CL2_NAME_OF_NS "slo"}}
-
-{{if or $CCNP_TEST $CNP_TEST}}
+{{else if or $CCNP_TEST $CNP_TEST}}
+    {{printf "Entering CCNP or CNP test block"}}
     {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 0}}
     {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
     {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
     {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
     {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 {{end}}
+
+# CNP & CCNP Test
+{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
+{{$CCNPS := DefaultParam .CL2_CCNPS 0}}
+{{$nameOfNs := DefaultParam .CL2_NAME_OF_NS "slo"}}
 
 namespace:
   number: {{$namespaces}}
