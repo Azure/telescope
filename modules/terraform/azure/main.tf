@@ -32,7 +32,7 @@ locals {
           aks.network_profile,
           {
             network_policy    = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
-            network_dataplane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.network_dataplane
+            network_dataplane = aks.network_profile.network_dataplane
           }
         )
       }
@@ -92,6 +92,7 @@ module "aks" {
   vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
   subnets             = try(local.all_subnets, null)
   k8s_machine_type    = local.k8s_machine_type
+  network_dataplane   = local.aks_network_dataplane
 }
 
 module "aks-cli" {

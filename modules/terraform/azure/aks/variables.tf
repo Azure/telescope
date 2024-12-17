@@ -36,6 +36,14 @@ variable "k8s_machine_type" {
   default     = null
 }
 
+variable "network_dataplane" {
+  description = "Value to replace the AKS network_dataplane"
+  type        = string
+  default     = null
+
+  #TODO: validate: When network_policy is set to azure or cilium, the network_plugin field can only be set to same value.
+}
+
 variable "aks_config" {
   type = object({
     role        = string
