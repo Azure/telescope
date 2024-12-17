@@ -18,8 +18,6 @@ steps:
     - basename: cnp
       objectTemplatePath: cnp_template.yaml
     objectParams:
-      {{- range $i := until $namespaces }}
       - name: namespace
         value: {{printf "%s-%d" $nameOfNs $i}}
-      {{- end }}
     
