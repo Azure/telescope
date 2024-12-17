@@ -9,7 +9,7 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 50
 LOAD_PODS_PER_NODE = 20
-NETWORK_PODS_PER_NODE = 10 # TODO: Update this value
+NETWORK_PODS_PER_NODE = 100 # TODO: Update this value
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
