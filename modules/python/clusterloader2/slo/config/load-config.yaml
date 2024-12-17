@@ -121,14 +121,14 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
     {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+        ccnps: {{$CCNPS}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -144,14 +144,14 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
     {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+        ccnps: {{$CCNPS}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
