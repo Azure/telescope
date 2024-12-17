@@ -1,11 +1,11 @@
 trigger: none
-schedules:
-  - cron: "0 0,8,16 * * *"
-    displayName: "Every 8 Hours Daily"
-    branches:
-      include:
-        - jshr/churn1k-comparison
-    always: true
+# schedules:
+#   - cron: "0 0,8,16 * * *"
+#     displayName: "Every 8 Hours Daily"
+#     branches:
+#       include:
+#         - jshr/churn1k-comparison
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -43,7 +43,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-cilscale-5249-20241212141354
+          rg: jshr-cilscale-3153-20241216102930
   - stage: azure_cilium_disablecrd
     dependsOn: []
     jobs:
@@ -103,4 +103,5 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-azscale-27926-20241212130917
+          rg: jshr-azscale-30648-20241212122833
+
