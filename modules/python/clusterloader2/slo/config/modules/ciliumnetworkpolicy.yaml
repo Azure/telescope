@@ -19,5 +19,5 @@ steps:
       objectTemplatePath: cnp_template.yaml
     objectParams:
       - name: namespace
-        value: {{printf "%s-%d" $nameOfNs $i}}
+        value: {{printf "%s-%d" $nameOfNs $namespaces}}
     
