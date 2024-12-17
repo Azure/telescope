@@ -4,6 +4,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ab-testing-cilium-parameters
   SCENARIO_VERSION: main
+  OWNER: aks
 
 stages:
   - stage: azure_eastus2

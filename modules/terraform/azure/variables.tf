@@ -1,13 +1,14 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id                = string
-    region                = string
-    aks_sku_tier          = optional(string, null)
-    aks_network_policy    = optional(string, null)
-    aks_network_dataplane = optional(string, null)
-    aks_custom_headers    = optional(list(string), [])
-    k8s_machine_type      = optional(string, null)
+    run_id                 = string
+    region                 = string
+    aks_sku_tier           = optional(string, null)
+    aks_kubernetes_version = optional(string, null)
+    aks_network_policy     = optional(string, null)
+    aks_network_dataplane  = optional(string, null)
+    aks_custom_headers     = optional(list(string), [])
+    k8s_machine_type       = optional(string, null)
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -197,6 +198,7 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
+    kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
 

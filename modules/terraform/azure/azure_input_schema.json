@@ -10,6 +10,9 @@
     "aks_sku_tier": {
       "type": "string"
     },
+    "aks_kubernetes_version": {
+      "type": "string"
+    },
     "aks_network_policy": {
       "type": "string"
     },

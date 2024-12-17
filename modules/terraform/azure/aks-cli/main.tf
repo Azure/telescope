@@ -9,6 +9,15 @@ locals {
     pool.name => pool
   }
 
+  kubernetes_version = (
+    var.aks_cli_config.kubernetes_version == null ?
+    "" :
+    format(
+      "%s %s",
+      "--kubernetes-version", var.aks_cli_config.kubernetes_version,
+    )
+  )
+
   aks_custom_headers_flags = (
     length(var.aks_cli_config.aks_custom_headers) == 0 ?
     "" :
@@ -77,6 +86,7 @@ resource "terraform_data" "aks_cli" {
       local.aks_custom_headers_flags,
       "--no-ssh-key",
       "--enable-managed-identity",
+      local.kubernetes_version,
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
