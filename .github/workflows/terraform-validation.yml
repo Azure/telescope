@@ -60,7 +60,7 @@ jobs:
       - name: Terraform Lint Check
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
 
-      - name: Terraform Test
+      - name: Terraform AWS Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
         run: terraform test
         env:

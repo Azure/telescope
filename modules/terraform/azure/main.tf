@@ -8,6 +8,7 @@ locals {
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
+  k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
 
   tags = {
     "owner"             = var.owner
@@ -90,6 +91,7 @@ module "aks" {
   subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
   subnets             = try(local.all_subnets, null)
+  k8s_machine_type    = local.k8s_machine_type
 }
 
 module "aks-cli" {
