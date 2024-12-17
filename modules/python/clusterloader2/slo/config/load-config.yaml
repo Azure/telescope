@@ -30,20 +30,11 @@ name: load-config
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 # Service test
-{{if $SERVICE_TEST}}
-  {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-  {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
-  {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-  {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
-  {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
-{{else if or $CCNP_TEST $CNP_TEST}}
-    {{printf "Entering CCNP or CNP test block"}}
-    {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 0}}
-    {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
-    {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
-    {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
-    {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
-{{end}}
+{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
+{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
+{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 # CNP & CCNP Test
 {{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
@@ -127,8 +118,13 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: DeploymentCreateQps
         operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+    {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -145,8 +141,13 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: Sequence
         operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+    {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -163,13 +164,18 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: DeploymentDeleteQps
         operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+    {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: 0
+    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: 0
         deploymentLabel: restart
         Group: {{$groupName}}
-
+{{if $SERVICE_TEST}}
   - module:
       path: /modules/services.yaml
       params:
@@ -177,6 +183,8 @@ steps:
         namespaces: {{$namespaces}}
         smallServicesPerNamespace: 0
         bigServicesPerNamespace: 0
+{{end}}
+{{if or $CCNP_TEST $CNP_TEST}}
   - module:
       path: /modules/ciliumnetworkpolicy.yaml
       params:
@@ -191,6 +199,7 @@ steps:
         actionName: "Deleting"
         namespaces: {{$namespaces}}
         ccnpsPerNamespace: 0
+{{end}}
 {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
