@@ -60,7 +60,7 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-  {{if or (cnp_test) (ccnp_test)}}
+  {{if or $cnp_test $ccnp_test}}
         cnp_test: {{cnp_test}}
         ccnp_test: {{ccnp_test}}
   {{else}}
