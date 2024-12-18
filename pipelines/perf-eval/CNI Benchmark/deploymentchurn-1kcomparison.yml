@@ -13,7 +13,7 @@ variables:
   SCENARIO_VERSION: main
 
 stages:
-  - stage: azure_cilium_ces
+  - stage: azure_cilium_disablecrd
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -28,10 +28,10 @@ stages:
           matrix:
             azure_cilium_ces:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 500
+              node_per_step: 500
               max_pods: 110
-              repeats: 10
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -43,8 +43,8 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-cilscale-3153-20241216102930
-  - stage: azure_cilium_disablecrd
+          rg: jshr-cilscale-7208-20241217101614
+  - stage: azure_cilium_disablecnicall
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -59,10 +59,10 @@ stages:
           matrix:
             azure_cilium_disablecrd:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 500
+              node_per_step: 500
               max_pods: 110
-              repeats: 10
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -74,34 +74,5 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-cilscale-19935-20241212122849
-  - stage: azure_cni
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - $(LOCATION)
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: cilium-usercluster
-          matrix:
-            azure_cni:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
-              max_pods: 110
-              repeats: 10
-              scale_timeout: "15m"
-              cilium_enabled: False
-              service_test: True
-              cl2_config_file: load-config.yaml
-              name: azure_cni
-          max_parallel: 1
-          timeout_in_minutes: 720
-          credential_type: service_connection
-          ssh_key_enabled: false
-          rg: jshr-azscale-30648-20241212122833
-
+          rg: jshr-cilscale-15439-20241216110739
+ 
