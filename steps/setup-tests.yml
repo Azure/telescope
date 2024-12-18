@@ -26,8 +26,11 @@ parameters:
 steps:
 - script: |
     if [ "${ parameters.use_secondary_cluster }" == true ] && [ -n "${RUN_ID_2:-}" ]; then
+      echo "Using secondary cluster"
       run_id=$RUN_ID_2
+      echo $run_id
     elif [ -n "${RUN_ID:-}" ]; then
+      echo "Using primary cluster"
       run_id=$RUN_ID
     else
       run_id=$(Build.BuildId)-$(System.JobId)
