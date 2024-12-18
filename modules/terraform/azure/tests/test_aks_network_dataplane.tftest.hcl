@@ -7,7 +7,8 @@ variables {
     "run_id" : "123456789",
     "region" : "eastus",
     "public_key_path" : "public_key_path",
-    "aks_network_dataplane" : "cilium"
+    "aks_network_dataplane" : "cilium",
+    "aks_network_policy" : "cilium"
   }
 
   aks_config_list = [
@@ -64,4 +65,56 @@ run "valid_no_override_network_data_plane" {
   }
 }
 
+run "valid_aks_network_policy_and_dataplane_no_match_fails_1" {
 
+  command = plan
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "eastus",
+      "public_key_path" : "public_key_path",
+      "aks_network_dataplane" : "cilium"
+      "aks_network_policy" : "azure"
+    }
+  }
+
+  expect_failures = [var.json_input.aks_network_policy]
+}
+
+run "valid_aks_network_policy_and_dataplane_no_match_fails_2" {
+
+  command = plan
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "eastus",
+      "public_key_path" : "public_key_path",
+      "aks_network_dataplane" : "azure"
+      "aks_network_policy" : "cilium"
+    }
+  }
+
+  expect_failures = [var.json_input.aks_network_policy]
+}
+
+
+run "valid_aks_network_policy_ok" {
+
+  command = plan
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "eastus",
+      "public_key_path" : "public_key_path",
+      "aks_network_policy" : "cilium"
+    }
+  }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster.network_profile[0].network_policy == "cilium"
+    error_message = "Expected: 'cilium' \n Actual:  ${module.aks["test"].aks_cluster.network_profile[0].network_policy}"
+  }
+}
