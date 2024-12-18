@@ -37,18 +37,9 @@ variable "k8s_machine_type" {
 }
 
 variable "network_policy" {
-  description = "Value to replace the AKS network_policy"
+  description = "Value to replace the AKS network_policy. If network_policy is 'azure' or 'cilium', network_dataplane must match or be null."
   type        = string
   default     = null
-
-  validation {
-    condition = (var.network_policy == null
-      || (try(contains(["azure", "cilium"], var.network_policy), false)
-      && (var.network_policy == var.network_dataplane || var.network_dataplane == null))
-    )
-    # ref: https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster#network_policy-1
-    error_message = "If network_policy is 'azure' or 'cilium', network_dataplane must match or be null."
-  }
 }
 
 variable "network_dataplane" {
