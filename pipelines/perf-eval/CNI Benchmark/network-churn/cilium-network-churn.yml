@@ -37,7 +37,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2
+  - stage: azure_npm_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
