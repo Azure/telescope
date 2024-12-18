@@ -45,6 +45,7 @@ stages:
           cloud: azure
           regions:
             - eastus2
+          useSecondaryCluster: true
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
