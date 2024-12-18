@@ -129,6 +129,8 @@ steps:
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
         ccnps: {{$CCNPS}}
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -152,6 +154,8 @@ steps:
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
         ccnps: {{$CCNPS}}
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
