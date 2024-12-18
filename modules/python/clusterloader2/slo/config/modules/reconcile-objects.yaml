@@ -61,8 +61,8 @@ steps:
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
   {{if or $cnp_test $ccnp_test}}
-        cnp_test: {{cnp_test}}
-        ccnp_test: {{ccnp_test}}
+        cnp_test: {{$cnp_test}}
+        ccnp_test: {{$ccnp_test}}
   {{else}}
         SvcName: small-service
   {{end}}
