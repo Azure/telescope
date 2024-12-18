@@ -7,8 +7,8 @@
 steps:
 - name: "{{$actionName}} {{$ccnps}} k8s CCNPs"
   phases:
-      replicasPerNamespace: {{$ccnps}}
-      tuningSet: Sequence
-      objectBundle:
-      - basename: ccnp
-        objectTemplatePath: ccnp_template.yaml
+  - replicas: {{$ccnps}}
+    tuningSet: Sequence
+    objectBundle:
+    - basename: ccnp
+      objectTemplatePath: ccnp_template.yaml
