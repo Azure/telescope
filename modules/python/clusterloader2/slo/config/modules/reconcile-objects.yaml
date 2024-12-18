@@ -16,6 +16,8 @@
 
 {{$cnpsPerNamespace := .cnpsPerNamespace}}
 {{$ccnps := .ccnps}}
+{{cnp_test:= .cnp_test}}
+{{ccnp_test:= .ccnp_test}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -58,9 +60,9 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-  {{if or (gt $cnpsPerNamespace 0) (gt $ccnps 0))}}
-        cnpsPerNamespace: {{$cnpsPerNamespace}}
-        ccnps: {{$ccnps}}
+  {{if or (cnp_test) (ccnp_test)}}
+        cnp_test: {{cnp_test}}
+        ccnp_test: {{ccnp_test}}
   {{else}}
         SvcName: small-service
   {{end}}
