@@ -25,15 +25,15 @@ parameters:
 
 steps:
 - script: |
-    echo {{ parameters.run_id_2 }} {{ parameters.use_secondary_cluster }}
-    echo {{ parameters.run_id }}
-    echo {$RUN_ID_2:-}
-    echo {$RUN_ID:-}
-    if [ "${{ parameters.use_secondary_cluster }}" == true ] && [ -n "${RUN_ID_2:-}" ]; then
-      
+    set -eu
+
+    echo "RUN_ID: ${RUN_ID:-}"
+    echo "RUN_ID_2: ${RUN_ID_2:-}"
+    echo "use_secondary_cluster: ${{ parameters.use_secondary_cluster }}"
+
+    if [ "${{ parameters.use_secondary_cluster }}" == "true" ] && [ -n "${RUN_ID_2:-}" ]; then
       echo "Using secondary cluster"
       run_id=$RUN_ID_2
-      echo $run_id
     elif [ -n "${RUN_ID:-}" ]; then
       echo "Using primary cluster"
       run_id=$RUN_ID
@@ -47,8 +47,6 @@ steps:
   env:
     RUN_ID: ${{ parameters.run_id }}
     RUN_ID_2: ${{ parameters.run_id_2 }}
-    USE_SECONDARY_CLUSTER: ${{ parameters.use_secondary_cluster }}
-
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
     echo "Run URL: $run_url"
