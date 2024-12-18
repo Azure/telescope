@@ -2,8 +2,8 @@
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
 {{$cnpsPerNamespace := .cnpsPerNamespace}}
 {{$ccnps := .ccnps}}
-{{cnp_test:= .cnp_test}}
-{{ccnp_test:= .ccnp_test}}
+{{$cnp_test:= .cnp_test}}
+{{$ccnp_test:= .ccnp_test}}
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
