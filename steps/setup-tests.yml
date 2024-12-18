@@ -9,6 +9,9 @@ parameters:
 - name: run_id
   type: string
   default: ''
+- name: run_id_2
+  type: string
+  default: ''
 - name: retry_attempt_count
   type: number
   default: 3
@@ -16,19 +19,27 @@ parameters:
   type: string
 - name: ssh_key_enabled
   type: boolean
+- name: useSecondaryCluster
+  type: boolean
+  default: false
 
 steps:
 - script: |
-    if [ -n "$RUN_ID" ]; then
+    if [ "${USE_SECONDARY_CLUSTER:-}" == true ] && [ -n "${RUN_ID_2:-}" ]; then
+      run_id=$RUN_ID_2
+    elif [ -n "${RUN_ID:-}" ]; then
       run_id=$RUN_ID
     else
       run_id=$(Build.BuildId)-$(System.JobId)
     fi
+
     echo "Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
+    RUN_ID_2: ${{ parameters.run_id_2 }}
+    USE_SECONDARY_CLUSTER: ${{ parameters.useSecondaryCluster }}
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"

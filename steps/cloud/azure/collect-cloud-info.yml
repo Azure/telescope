@@ -9,17 +9,9 @@ steps:
 - script: |
     set -eu
 
-    RUN_ID_TO_USE=$RUN_ID
-
-    if [ "${{ parameters.useSecondaryCluster }}" == true ] && [ -n "${RUN_ID_2:-}" ]; then
-      RUN_ID_TO_USE=$RUN_ID_2
-    fi
-
-    echo "Using RUN_ID: $RUN_ID_TO_USE"
-
     aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
-      --resource-group $RUN_ID_TO_USE --query "[0].name" --location $REGION  --output tsv)
-    aks_info=$(az aks show --resource-group $RUN_ID_TO_USE --name $aks_name --output json)
+      --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+    aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
 
     cloud_info=$(jq -n \
       --arg cloud "azure" \
@@ -46,3 +38,4 @@ steps:
   displayName: 'Collect Cloud Info for Azure'
   env:
     REGION: ${{ parameters.region }}
+    USE_SECONDARY_CLUSTER: ${{ parameters.useSecondaryCluster }}

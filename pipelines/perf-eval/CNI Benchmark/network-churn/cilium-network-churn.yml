@@ -45,7 +45,6 @@ stages:
           cloud: azure
           regions:
             - eastus2
-          useSecondaryCluster: true
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
@@ -67,3 +66,4 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
+          useSecondaryCluster: true
