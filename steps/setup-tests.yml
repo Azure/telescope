@@ -25,7 +25,7 @@ parameters:
 
 steps:
 - script: |
-    if [ "${USE_SECONDARY_CLUSTER:-}" == true ] && [ -n "${RUN_ID_2:-}" ]; then
+    if [ "${ parameters.use_secondary_cluster }" == true ] && [ -n "${RUN_ID_2:-}" ]; then
       run_id=$RUN_ID_2
     elif [ -n "${RUN_ID:-}" ]; then
       run_id=$RUN_ID
