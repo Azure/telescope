@@ -31,7 +31,7 @@ steps:
     echo "RUN_ID_2: ${RUN_ID_2:-}"
     echo "use_secondary_cluster: ${{ parameters.use_secondary_cluster }}"
 
-    if [ "${{ parameters.use_secondary_cluster }}" == "true" ] && [ -n "${RUN_ID_2:-}" ]; then
+    if [ "${{ parameters.use_secondary_cluster }}" == "True" ] && [ -n "${RUN_ID_2:-}" ]; then
       echo "Using secondary cluster"
       run_id=$RUN_ID_2
     elif [ -n "${RUN_ID:-}" ]; then
