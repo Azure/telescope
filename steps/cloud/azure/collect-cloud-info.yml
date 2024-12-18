@@ -38,4 +38,3 @@ steps:
   displayName: 'Collect Cloud Info for Azure'
   env:
     REGION: ${{ parameters.region }}
-    USE_SECONDARY_CLUSTER: ${{ parameters.useSecondaryCluster }}
