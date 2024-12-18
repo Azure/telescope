@@ -19,7 +19,7 @@ parameters:
   type: string
 - name: ssh_key_enabled
   type: boolean
-- name: useSecondaryCluster
+- name: use_secondary_cluster
   type: boolean
   default: false
 
@@ -39,7 +39,7 @@ steps:
   env:
     RUN_ID: ${{ parameters.run_id }}
     RUN_ID_2: ${{ parameters.run_id_2 }}
-    USE_SECONDARY_CLUSTER: ${{ parameters.useSecondaryCluster }}
+    USE_SECONDARY_CLUSTER: ${{ parameters.use_secondary_cluster }}
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
