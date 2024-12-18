@@ -107,7 +107,6 @@ steps:
       path: /modules/ciliumclusternetworkpolicy.yaml
       params:
         actionName: "Creating"
-        namespaces: {{$namespaces}}
         ccnps: {{$CCNPS}}
 {{end}}
         
