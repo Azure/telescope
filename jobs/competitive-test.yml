@@ -33,6 +33,9 @@ parameters:
 - name: run_id
   type: string
   default: ''
+- name: run_id_2
+  type: string
+  default: ''
 - name: timeout_in_minutes
   type: number
   default: 60 # default when not specified is 60 minutes
