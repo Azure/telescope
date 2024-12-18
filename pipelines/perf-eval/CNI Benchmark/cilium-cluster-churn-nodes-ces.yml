@@ -1,17 +1,17 @@
 trigger: none
 
-schedules:
-  - cron: "0 */12 * * *"
-    displayName: "Every 12 Hour"
-    branches:
-      include:
-        - main
-    always: true
+# schedules:
+#   - cron: "0 */12 * * *"
+#     displayName: "Every 12 Hour"
+#     branches:
+#       include:
+#         - main
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-cluster-churn-ces
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: rafaelme-test
   OWNER: aks
 
 stages:
@@ -30,9 +30,9 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 100
-              max_pods: 110
+              node_count: 1
+              node_per_step: 1
+              max_pods: 1
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: True
