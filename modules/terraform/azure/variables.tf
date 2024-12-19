@@ -24,6 +24,15 @@ variable "json_input" {
       }))
     )
   })
+
+  validation {
+    condition = (var.json_input.aks_network_policy == null
+      || (try(contains(["azure", "cilium"], var.json_input.aks_network_policy), false)
+      && (var.json_input.aks_network_policy == var.json_input.aks_network_dataplane || var.json_input.aks_network_dataplane == null))
+    )
+    # ref: https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster#network_policy-1
+    error_message = "If aks_network_policy is 'azure' or 'cilium', aks_network_dataplane must match or be null"
+  }
 }
 
 variable "owner" {
