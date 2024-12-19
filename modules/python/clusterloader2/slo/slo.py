@@ -270,7 +270,12 @@ def main():
 
     args = parser.parse_args()
     print("Arguments parsed:", args)
-
+    print(f"The type of args.cnp_test is: {type(args.pods_in_node)}")
+    print(f"The type of args.cnp_test is: {type(args.cnp_test)}")
+    print(f"The type of args.ccnp_test is: {type(args.ccnp_test)}")
+    print(f"The type of args.cnp_test is: {type(args.num_cnps)}")
+    print(f"The type of args.cnp_test is: {type(args.num_ccnps)}")
+    
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.pods_in_node, args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
