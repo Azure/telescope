@@ -42,7 +42,7 @@ spec:
 {{if or $cnp_test $ccnp_test}}
       - name: nginx
         image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
-        command: ["sh", "-c", "while true; do curl ipv4.google.com; sleep 2; done"]
+        command: ["sh", "-c", "while true; do curl ipv4.google.com; sleep 6; done"]
         ports:
         - name: http
           containerPort: 80
