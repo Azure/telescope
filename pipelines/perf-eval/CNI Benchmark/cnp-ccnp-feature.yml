@@ -4,6 +4,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cnp-ccnp-feature
   SCENARIO_VERSION: karanadive/ccnp-cnp-test
+  OWNER: aks
 
 stages:
   - stage: azure_eastus2
