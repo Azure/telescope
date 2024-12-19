@@ -8,6 +8,9 @@ parameters:
 - name: regions
   type: object
   default: {}
+- name: storage_login_credential_type
+  type: string
+  default: ''
 
 steps:
 - template: /steps/engine/kperf/collect.yml
@@ -17,3 +20,4 @@ steps:
     flowcontrol: $(flowcontrol)
     extra_benchmark_subcmd_args: $(extra_benchmark_subcmd_args)
     region: ${{ parameters.regions[0] }}
+    storage_login_credential_type: ${{ parameters.storage_login_credential_type }}
