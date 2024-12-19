@@ -268,18 +268,16 @@ def main():
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
 
-    args = parser.parse_args()
-    print("Arguments parsed:", args)
-    print(f"The type of args.cnp_test is: {type(args.pods_in_node)}")
-    print(f"The type of args.cnp_test is: {type(args.cnp_test)}")
-    print(f"The type of args.ccnp_test is: {type(args.ccnp_test)}")
-    print(f"The type of args.cnp_test is: {type(args.num_cnps)}")
-    print(f"The type of args.cnp_test is: {type(args.num_ccnps)}")
     
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.pods_in_node, args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.cl2_override_file)
+        print(f"The type of args.cnp_test is: {type(args.cnp_test)}")
+        print(f"The type of args.ccnp_test is: {type(args.ccnp_test)}")
+        print(f"The type of args.num_cnps is: {type(args.num_cnps)}")
+        print(f"The type of args.num_ccnps is: {type(args.num_ccnps)}")
+        print(f"The type of args.pods_in_node is: {type(args.pods_in_node)}")
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -289,6 +287,11 @@ def main():
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_in_node, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.result_file, args.test_type)
+        print(f"The type of args.cnp_test is: {type(args.cnp_test)}")
+        print(f"The type of args.ccnp_test is: {type(args.ccnp_test)}")
+        print(f"The type of args.num_cnps is: {type(args.num_cnps)}")
+        print(f"The type of args.num_ccnps is: {type(args.num_ccnps)}")
+        print(f"The type of args.pods_in_node is: {type(args.pods_in_node)}")
 
 if __name__ == "__main__":
     main()
