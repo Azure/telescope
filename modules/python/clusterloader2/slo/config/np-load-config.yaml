@@ -12,7 +12,7 @@ name: np-load-config
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-{{$namespaces := 10}}
+{{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
