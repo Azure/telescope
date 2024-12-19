@@ -15,6 +15,23 @@ steps:
 - script: |
     set -eo pipefail
 
+    echo "CPU_PER_NODE: $CPU_PER_NODE"
+    echo "NODE_COUNT: $NODE_COUNT"
+    echo "MAX_PODS: $MAX_PODS"
+    echo "PODS_IN_NODE: $PODS_IN_NODE"
+    echo "REPEATS: $REPEATS"
+    echo "CL2_REPORT_DIR: $CL2_REPORT_DIR"
+    echo "CLOUD_INFO: $CLOUD_INFO"
+    echo "RUN_ID: $RUN_ID"
+    echo "RUN_URL: $RUN_URL"
+    echo "SERVICE_TEST: $SERVICE_TEST"
+    echo "CNP_TEST: $CNP_TEST"
+    echo "CCNP_TEST: $CCNP_TEST"
+    echo "NUM_CNPS: $NUM_CNPS"
+    echo "NUM_CCNPS: $NUM_CCNPS"
+    echo "TEST_RESULTS_FILE: $TEST_RESULTS_FILE"
+    echo "TEST_TYPE: $TEST_TYPE"
+
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       $CPU_PER_NODE $NODE_COUNT $MAX_PODS $PODS_IN_NODE $REPEATS \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $CNP_TEST $CCNP_TEST $NUM_CNPS $NUM_CCNPS $TEST_RESULTS_FILE \
