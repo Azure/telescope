@@ -4,6 +4,12 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-network-churn
   SCENARIO_VERSION: test
+  node_count: 100
+  node_per_step: 10 # node_per_namespace
+  max_pods: 100
+  pods_per_node: 10 # value is added to DeploymentSize 
+  repeats: 1
+  scale_timeout: "15m"
 
 stages:
   - stage: azure_eastus2
@@ -21,12 +27,12 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: 100
-              node_per_step: 10 # node_per_namespace
-              max_pods: 100
-              pods_per_node: 10 # value is added to DeploymentSize 
-              repeats: 1
-              scale_timeout: "15m"
+              node_count: ${variables.node_count}
+              node_per_step: ${variables.node_per_step} # node_per_namespace 
+              max_pods: ${variables.max_pods}
+              pods_per_node: ${variables.pods_per_node} # value is added to DeploymentSize
+              repeats: ${variables.repeats}
+              scale_timeout: ${variables.scale_timeout}
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
@@ -52,12 +58,12 @@ stages:
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 100
-              node_per_step: 10 # node_per_namespace
-              max_pods: 100
-              pods_per_node: 10 # value is added to DeploymentSize 
-              repeats: 1
-              scale_timeout: "15m"
+              node_count: ${variables.node_count}
+              node_per_step: ${variables.node_per_step} # node_per_namespace 
+              max_pods: ${variables.max_pods}
+              pods_per_node: ${variables.pods_per_node} # value is added to DeploymentSize
+              repeats: ${variables.repeats}
+              scale_timeout: ${variables.scale_timeout}
               cilium_enabled: False
               service_test: False
               network_test: True
