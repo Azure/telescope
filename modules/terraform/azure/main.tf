@@ -28,7 +28,6 @@ locals {
       {
         sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
         kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
-        network_profile    = aks.network_profile
       }
     )
   ] : []
