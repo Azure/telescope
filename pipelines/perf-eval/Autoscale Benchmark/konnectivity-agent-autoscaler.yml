@@ -1,0 +1,46 @@
+trigger: none
+schedules:
+  - cron: "0 */2 * * *"
+    displayName: "Every 2 Hour"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: konnectivity-monitoring
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: azure_eastus
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: aks-default
+          matrix:
+            scale_50_nodes:
+              node_count: 50
+              expected_agent_pods: 3
+            scale_250_nodes:
+              node_count: 250
+              expected_agent_pods: 4
+            scale_500_nodes:
+              node_count: 500
+              expected_agent_pods: 5
+            scale_1000_nodes:
+              node_count: 1000
+              expected_agent_pods: 6
+            scale_2000_nodes:
+              node_count: 2000
+              expected_agent_pods: 8
+          max_parallel: 1
+          timeout_in_minutes: 360
+          ssh_key_enabled: false
