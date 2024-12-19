@@ -27,10 +27,6 @@ steps:
 - script: |
     set -eu
 
-    echo "RUN_ID: ${RUN_ID:-}"
-    echo "RUN_ID_2: ${RUN_ID_2:-}"
-    echo "use_secondary_cluster: ${{ parameters.use_secondary_cluster }}"
-
     if [ "${{ parameters.use_secondary_cluster }}" == "True" ] && [ -n "${RUN_ID_2:-}" ]; then
       echo "Using secondary cluster"
       run_id=$RUN_ID_2
