@@ -44,6 +44,7 @@ def configure_clusterloader2(
     repeats,
     operation_timeout,
     no_of_namespaces,
+    total_network_policies,
     provider,
     cilium_enabled,
     service_test,
@@ -96,7 +97,7 @@ def configure_clusterloader2(
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE: net-policy-client\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 10\n")
-            file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: 100\n") # TODO: check for the right value
+            file.write(f"CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: {total_network_policies}\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS: 10\n")
             file.write("CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME: small-deployment\n")
 
@@ -215,6 +216,7 @@ def main():
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("no_of_namespaces", type=int, default=1, help="Number of namespaces to create")
+    parser_configure.add_argument("total_network_policies", type=int, help="Total number of network policies to create", default=1000)
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
@@ -261,7 +263,8 @@ def main():
 
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods, 
-                                 args.pods_per_node, args.repeats, args.operation_timeout, args.no_of_namespaces, args.provider, 
+                                 args.pods_per_node, args.repeats, args.operation_timeout, args.no_of_namespaces,
+                                 args.total_network_policies, args.provider, 
                                  args.cilium_enabled, args.service_test, args.network_test, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)

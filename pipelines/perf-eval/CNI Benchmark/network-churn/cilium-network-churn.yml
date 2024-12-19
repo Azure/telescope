@@ -22,6 +22,9 @@ parameters:
   - name: no_of_namespaces
     type: number
     default: 10
+  - name: total_nework_policies
+    type: number
+    default: 1000
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -83,6 +86,7 @@ stages:
               repeats: ${{ parameters.repeats }}
               scale_timeout: ${{ parameters.scale_timeout }}
               no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              total_nework_policies: ${{ parameters.total_nework_policies }}
               cilium_enabled: False
               service_test: False
               network_test: True
