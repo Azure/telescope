@@ -1,0 +1,20 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: net
+      region: ${{ parameters.regions[0] }}
+  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+    parameters:
+      role: net
+      region: ${{ parameters.regions[0] }}
+      nodes_per_nodepool: 10 #TODO: Update once node-pools are added.
+      enable_autoscale: "false"
+      
