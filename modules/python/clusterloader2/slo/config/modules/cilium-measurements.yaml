@@ -163,7 +163,7 @@ steps:
         enableViolations: true
         queries:
         - name: Total
-          query: sum(cilium_api_limiter_processed_requests_total[%v:])
+          query: sum(rate(cilium_api_limiter_processed_requests_total[%v:]))
 
 
     - Identifier: CiliumAPIRateLimiterProcessingDuration
