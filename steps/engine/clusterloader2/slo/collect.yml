@@ -15,8 +15,13 @@ steps:
 - script: |
     set -eo pipefail
 
+    echo "Initial PODS_IN_NODE: $PODS_IN_NODE"
+
     if [ -z "$PODS_IN_NODE" ]; then
       PODS_IN_NODE=0
+    elif ! [[ "$PODS_IN_NODE" =~ ^[0-9]+$ ]]; then
+      echo "Error: PODS_IN_NODE is not a valid number" >&2
+      exit 1
     else
       PODS_IN_NODE=$(printf "%d" "$PODS_IN_NODE")
     fi
@@ -46,8 +51,8 @@ steps:
     fi
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CPU_PER_NODE $NODE_COUNT $MAX_PODS $(PODS_IN_NODE) $REPEATS \
-      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $(CNP_TEST) $(CCNP_TEST) $(NUM_CNPS) $(NUM_CCNPS) $DUALSTACK $TEST_RESULTS_FILE \
+      $CPU_PER_NODE $NODE_COUNT $MAX_PODS $PODS_IN_NODE $REPEATS \
+      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $CNP_TEST $CCNP_TEST $NUM_CNPS $NUM_CCNPS $DUALSTACK $TEST_RESULTS_FILE \
       $TEST_TYPE
   workingDirectory: modules/python/clusterloader2
   env:
