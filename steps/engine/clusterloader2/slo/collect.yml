@@ -15,6 +15,36 @@ steps:
 - script: |
     set -eo pipefail
 
+    if [ -z "$PODS_IN_NODE" ]; then
+      PODS_IN_NODE=0
+    else
+      PODS_IN_NODE=$(printf "%d" "$PODS_IN_NODE")
+    fi
+
+    if [ -z "$NUM_CNPS" ]; then
+      NUM_CNPS=0
+    else
+      NUM_CNPS=$(printf "%d" "$NUM_CNPS")
+    fi
+
+    if [ -z "$NUM_CCNPS" ]; then
+      NUM_CCNPS=0
+    else
+      NUM_CCNP=$(printf "%d" "$NUM_CCNPS")
+    fi
+
+    if [ "$CNP_TEST" = "True" ] || [ "$CNP_TEST" = "true" ]; then
+      CNP_TEST=True
+    else
+      CNP_TEST=False
+    fi
+
+    if [ "$CCNP_TEST" = "True" ] || [ "$CCNP_TEST" = "true" ]; then
+      CCNP_TEST=True
+    else
+      CCNP_TEST=False
+    fi
+
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       $CPU_PER_NODE $NODE_COUNT $MAX_PODS $(PODS_IN_NODE) $REPEATS \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $(CNP_TEST) $(CCNP_TEST) $(NUM_CNPS) $(NUM_CCNPS) $DUALSTACK $TEST_RESULTS_FILE \

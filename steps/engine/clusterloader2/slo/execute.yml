@@ -12,10 +12,42 @@ steps:
   - script: |
       set -eo pipefail
 
+      # Ensure PODS_IN_NODE, NUM_CNPS, and NUM_CCNPS are integers
+      if [ -z "$PODS_IN_NODE" ]; then
+        PODS_IN_NODE=0
+      else
+        PODS_IN_NODE=$(printf "%d" "$PODS_IN_NODE")
+      fi
+
+      if [ -z "$NUM_CNPS" ]; then
+        NUM_CNPS=0
+      else
+        NUM_CNPS=$(printf "%d" "$NUM_CNPS")
+      fi
+
+      if [ -z "$NUM_CCNPS" ]; then
+        NUM_CCNPS=0
+      else
+        NUM_CCNP=$(printf "%d" "$NUM_CCNPS")
+      fi
+
+      # Convert CNP_TEST and CCNP_TEST to booleans
+      if [ "$CNP_TEST" = "True" ] || [ "$CNP_TEST" = "true" ]; then
+        CNP_TEST=True
+      else
+        CNP_TEST=False
+      fi
+
+      if [ "$CCNP_TEST" = "True" ] || [ "$CCNP_TEST" = "true" ]; then
+        CCNP_TEST=True
+      else
+        CCNP_TEST=False
+      fi
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-        $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP $MAX_PODS $(PODS_IN_NODE) \
+        $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP $MAX_PODS $PODS_IN_NODE \
         $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED \
-        $SERVICE_TEST $(CNP_TEST) $(CCNP_TEST) $(NUM_CNPS) $(NUM_CCNPS) $DUALSTACK ${CL2_CONFIG_DIR}/overrides.yaml
+        $SERVICE_TEST $CNP_TEST $CCNP_TEST $NUM_CNPS $NUM_CCNPS $DUALSTACK ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
         ${HOME}/.kube/config $CLOUD
