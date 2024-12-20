@@ -86,7 +86,7 @@ variables {
 run "valid_eks_nodes_subnet" {
 
   command = plan
-  
+
   # Cannot test it since data.subnet_ids is only known after apply
   #assert {
   #  condition     = tolist(module.eks["eks_name"].eks_node_groups["default"].subnet_ids) == "tolist(["nap-subnet-1", "nap-subnet-2"])"
@@ -100,7 +100,3 @@ run "valid_eks_nodes_subnet" {
 
   expect_failures = [check.deletion_due_time]
 }
-
-
-
-
