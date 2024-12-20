@@ -280,11 +280,6 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        print(f"The type of args.cnp_test is: {type(args.cnp_test)}")
-        print(f"The type of args.ccnp_test is: {type(args.ccnp_test)}")
-        print(f"The type of args.num_cnps is: {type(args.num_cnps)}")
-        print(f"The type of args.num_ccnps is: {type(args.num_ccnps)}")
-        print(f"The type of args.pods_in_node is: {type(args.pods_in_node)}")
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_in_node, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.result_file, args.test_type)
