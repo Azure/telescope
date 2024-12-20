@@ -34,7 +34,7 @@ def calculate_config(cpu_per_node, node_count, pods_in_node, provider, service_t
         pods_per_node = LOAD_PODS_PER_NODE
 
     if cnp_test or ccnp_test:
-        pods_per_node = LOAD_PODS_PER_NODE
+        pods_per_node = pods_in_node
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
@@ -250,7 +250,7 @@ def main():
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Maximum number of pods per node")
-    parser_configure.add_argument("pods_in_node", type=int, nargs='?', default=0, help="Number of pods per node")
+    parser_collect.add_argument("pods_in_node", type=int, nargs='?', default=0, help="Number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
