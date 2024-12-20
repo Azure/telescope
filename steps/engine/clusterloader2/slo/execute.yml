@@ -12,7 +12,7 @@ steps:
   - script: |
       set -eo pipefail
 
-      echo "Initial PODS_IN_NODE: $PODS_IN_NODE"
+      echo "Initial PODS_IN_NODE: $(PODS_IN_NODE)"
 
       if [ -z "$PODS_IN_NODE" ]; then
         PODS_IN_NODE=0
