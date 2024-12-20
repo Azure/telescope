@@ -175,7 +175,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   node_group_name = each.value.name
   cluster_name    = aws_eks_cluster.eks.name
   node_role_arn   = aws_iam_role.eks_cluster_role.arn
-  subnet_ids      = toset(data.aws_subnets.subnets.ids)
+  subnet_ids      = coalesce(each.value.subnet_ids, toset(data.aws_subnets.subnets.ids))
 
   scaling_config {
     min_size     = each.value.min_size
