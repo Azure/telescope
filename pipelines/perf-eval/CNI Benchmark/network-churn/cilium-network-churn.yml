@@ -51,6 +51,7 @@ stages:
               repeats: ${{ parameters.repeats }}
               scale_timeout: ${{ parameters.scale_timeout }}
               no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              total_nework_policies: ${{ parameters.total_nework_policies }}
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
