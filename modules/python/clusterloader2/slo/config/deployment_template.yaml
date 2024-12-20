@@ -4,6 +4,7 @@
 {{$ccnps := .ccnps}}
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
+{{dualstack := .dualstack}}
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
@@ -42,7 +43,11 @@ spec:
 {{if or $cnp_test $ccnp_test}}
       - name: nginx
         image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
-        command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
+        {{if $dualstack}}
+          command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
+        {{else}}
+          command: ["sh", "-c", "while true; do curl ipv6.bing.com; sleep 6; done"]
+        {{end}}
         ports:
         - name: http
           containerPort: 80

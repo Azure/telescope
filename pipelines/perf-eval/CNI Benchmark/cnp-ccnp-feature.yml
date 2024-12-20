@@ -36,6 +36,7 @@ stages:
               ccnp_test: True
               num_cnps: $(NUM_CNPS)
               num_ccnps: $(NUM_CCNPS)
+              dualstack: False
               cl2_config_file: load-config.yaml
           max_parallel: 2
           timeout_in_minutes: 720

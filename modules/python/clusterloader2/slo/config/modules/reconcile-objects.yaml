@@ -18,6 +18,7 @@
 {{$ccnps := .ccnps}}
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
+{{$dualstack:= .dualstack}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -63,6 +64,7 @@ steps:
   {{if or $cnp_test $ccnp_test}}
         cnp_test: {{$cnp_test}}
         ccnp_test: {{$ccnp_test}}
+        dualstack: {{$dualstack}}
   {{else}}
         SvcName: small-service
   {{end}}
