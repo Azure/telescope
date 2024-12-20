@@ -33,7 +33,7 @@ stages:
               network_dataplane: cilium
               service_test: False
               cnp_test: $(CNP_TEST)
-              ccnp_test: True
+              ccnp_test: $(CCNP_TEST)
               num_cnps: $(NUM_CNPS)
               num_ccnps: $(NUM_CCNPS)
               dualstack: False
