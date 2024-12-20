@@ -12,9 +12,13 @@ steps:
   - script: |
       set -eo pipefail
 
-      # Ensure PODS_IN_NODE, NUM_CNPS, and NUM_CCNPS are integers
+      echo "Initial PODS_IN_NODE: $PODS_IN_NODE"
+
       if [ -z "$PODS_IN_NODE" ]; then
         PODS_IN_NODE=0
+      elif ! [[ "$PODS_IN_NODE" =~ ^[0-9]+$ ]]; then
+        echo "Error: PODS_IN_NODE is not a valid number" >&2
+        exit 1
       else
         PODS_IN_NODE=$(printf "%d" "$PODS_IN_NODE")
       fi
