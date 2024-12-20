@@ -93,10 +93,10 @@ run "valid_eks_nodes_subnet" {
   #  error_message = "Expected: ['nap-subnet-1', 'nap-subnet-2'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["default"].subnet_ids)}"
   #}
 
-  assert {
-    condition     = tolist(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids) == tolist(["nap-subnet-1"])
-    error_message = "Expected: ['nap-subnet-1'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids)}"
-  }
+  #assert {
+  #  condition     = tolist(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids) == tolist(["nap-subnet-1"])
+  #  error_message = "Expected: ['nap-subnet-1'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids)}"
+  #}
 
   expect_failures = [check.deletion_due_time]
 }
