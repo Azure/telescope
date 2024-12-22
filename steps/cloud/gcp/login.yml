@@ -1,0 +1,22 @@
+parameters:
+- name: region
+  type: string
+  default: us-east1
+- name: credential_type
+  type: string
+
+steps:
+- script: |
+    set -eu
+    echo "login to GCP"
+
+    GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/application_default_credentials.json"
+    mkdir -p $(dirname $GOOGLE_APPLICATION_CREDENTIALS)
+    echo "$GCP_CREDENTIALS_JSON" > $GOOGLE_APPLICATION_CREDENTIALS
+    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+    gcloud config set project $GCP_PROJECT_ID
+  displayName: "GCP Login"
+  name: gcp_login
+  env:
+    GCP_CREDENTIALS_JSON: $(GCP_APPLICATION_CREDENTIALS)
+    GCP_PROJECT_ID: $(GCP_PROJECT_ID)
