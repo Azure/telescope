@@ -2,6 +2,28 @@
 
 This folder contains Terraform modules for creating new infrastructure setup, pipelines, Data Connections, and Tables for Kusto databases.
 
+## Quick Start
+1. Setup test framework by running commands as follows:
+```bash
+az login
+aws configure
+
+export AZDO_PERSONAL_ACCESS_TOKEN=<Azure DevOps Personal Access Token>
+export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Azure DevOps Org Name>
+export AZDO_GITHUB_SERVICE_CONNECTION_PAT=<GitHub Personal Access Token>
+export TF_VAR_resource_group_name=<Resource Group Name>
+export TF_VAR_storage_account_name=<Storage Account Name>
+export TF_VAR_kusto_cluster_name=<Kusto Cluster Name>
+
+make all
+```
+
+2. Run pipeline or wait for scheduled run on Azure DevOps
+![pipeline](../../../docs/imgs/pipeline.jpeg)
+
+3. Import [dashboard](../../..//dashboards/example.json) and check test results on Azure Data Explorer
+![results](../../..//docs/imgs/results.jpeg)
+
 ## Modules
 - [Infrastructure Setup](./infrastructure/main.tf)
 - [Pipeline Setup](./pipeline/main.tf)
