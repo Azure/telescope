@@ -83,20 +83,36 @@ variables {
   }]
 }
 
+mock_provider "aws" {
+  source = "./tests"
+}
+
+override_data {
+  target = module.eks["eks_name"].data.aws_subnets.subnets
+  values = { ids = ["nap-subnet-1-id", "nap-subnet-2-id"] }
+}
+
+override_data {
+  target = module.eks["eks_name"].data.aws_subnet.subnet["nap-subnet-1"]
+  values = { id = "nap-subnet-1-id" }
+}
+
+
 run "valid_eks_nodes_subnet" {
 
-  command = plan
+  command = apply
 
-  # Cannot test it since data.subnet_ids is only known after apply
-  #assert {
-  #  condition     = tolist(module.eks["eks_name"].eks_node_groups["default"].subnet_ids) == "tolist(["nap-subnet-1", "nap-subnet-2"])"
-  #  error_message = "Expected: ['nap-subnet-1', 'nap-subnet-2'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["default"].subnet_ids)}"
-  #}
+  # Expected all cluster's subnet_ids
+  assert {
+    condition     = tolist(module.eks["eks_name"].eks_node_groups["default"].subnet_ids) == tolist(["nap-subnet-1-id", "nap-subnet-2-id"])
+    error_message = "Expected: ['nap-subnet-1', 'nap-subnet-2'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["default"].subnet_ids)}"
+  }
 
-  #assert {
-  #  condition     = tolist(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids) == tolist(["nap-subnet-1"])
-  #  error_message = "Expected: ['nap-subnet-1'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids)}"
-  #}
+  # Expected only the subnet_id of the subnet defined in the node group
+  assert {
+    condition     = tolist(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids) == tolist(["nap-subnet-1-id"])
+    error_message = "Expected: ['nap-subnet-1'] \n Actual:  ${jsonencode(module.eks["eks_name"].eks_node_groups["userpool"].subnet_ids)}"
+  }
 
   expect_failures = [check.deletion_due_time]
 }
