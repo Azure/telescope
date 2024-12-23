@@ -9,11 +9,6 @@ parameters:
 
 steps:
   - script: |
-      set -e
-
-      if [[ "${DEBUG,,}" =~ "true" ]]; then
-        set -x
-      fi
 
       CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
       regional_config=$REGIONAL_CONFIG
@@ -21,21 +16,21 @@ steps:
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
           INPUT_VARIABLES=$(jq -n \
-                --arg run_id $RUN_ID \
-                --arg region $REGION \
-                --arg creation_time $CREATION_TIME \
-                --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
-                '{
-                run_id: $run_id,
-                region: $region,
-                creation_time: $creation_time,
-                k8s_machine_type: $k8s_machine_type,
-                }' | jq 'with_entries(select(.value != null and .value != ""))')
+          --arg project_id "$PROJECT_ID" \
+          --arg run_id "$RUN_ID" \
+          --arg region "$REGION" \
+          --arg creation_time "$CREATION_TIME" \
+          '{
+            project_id: $project_id,
+            run_id: $run_id,
+            region: $region,
+            creation_time: $creation_time
+          }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
         echo "Input variables: $input_variables_str"
         regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_variables_str" \
-          '.[$region].TERRAFORM_INPUT_VARIABLES += $input_variable')
+            '.[$region].TERRAFORM_INPUT_VARIABLES += $input_variable')
         echo "Regional config: $regional_config"
         INPUT_VARIABLES=""
       done
@@ -51,3 +46,4 @@ steps:
       RUN_ID: $(RUN_ID)
       INPUT_VARIABLES: ${{ convertToJson(parameters.input_variables) }}
       DEBUG: $(System.Debug)
+      PROJECT_ID: $(GCP_PROJECT_ID)

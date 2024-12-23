@@ -22,3 +22,8 @@ output "eks_addon" {
 output "eks_node_groups_launch_template" {
   value = aws_launch_template.launch_template
 }
+
+output "eks_node_groups" {
+  description = "Used for unit tests"
+  value       = aws_eks_node_group.eks_managed_node_groups
+}

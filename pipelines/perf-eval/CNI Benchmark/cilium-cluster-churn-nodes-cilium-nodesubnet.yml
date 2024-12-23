@@ -4,13 +4,14 @@ schedules:
     displayName: "10:00 AM & PM Daily"
     branches:
       include:
-        - main
+        - sanprabhu/40kpods
     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-cluster-churn-cilium-nodesubnet
   SCENARIO_VERSION: main
+  OWNER: aks
 
 stages:
   - stage: azure_cilium_nodesubnet

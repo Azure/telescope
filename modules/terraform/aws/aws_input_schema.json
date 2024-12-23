@@ -9,6 +9,9 @@
     },
     "creation_time": {
       "type": "string"
+    },
+    "k8s_machine_type" : {
+      "type": "string"
     }
   },
   "required": [
