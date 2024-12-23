@@ -77,7 +77,7 @@ variables {
         min_size       = 5
         max_size       = 5
         desired_size   = 5
-        subnet_names     = ["nap-subnet-1"]
+        subnet_names   = ["nap-subnet-1"]
     }]
     eks_addons = []
   }]
