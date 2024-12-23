@@ -77,7 +77,7 @@ variables {
         min_size       = 5
         max_size       = 5
         desired_size   = 5
-        subnet_ids     = ["nap-subnet-1"]
+        subnet_names     = ["nap-subnet-1"]
     }]
     eks_addons = []
   }]
@@ -93,7 +93,7 @@ override_data {
 }
 
 override_data {
-  target = module.eks["eks_name"].data.aws_subnet.subnet["nap-subnet-1"]
+  target = module.eks["eks_name"].data.aws_subnet.subnet_details["nap-subnet-1"]
   values = { id = "nap-subnet-1-id" }
 }
 

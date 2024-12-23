@@ -5,7 +5,7 @@ locals {
 
   eks_config_addons_map = { for addon in var.eks_config.eks_addons : addon.name => addon }
 
-  eks_nodes_subnets_list = flatten([for node_group in var.eks_config.eks_managed_node_groups : node_group.subnet_ids if node_group.subnet_ids != null])
+  eks_nodes_subnets_list = flatten([for node_group in var.eks_config.eks_managed_node_groups : node_group.subnet_names if node_group.subnet_names != null])
 
   karpenter_addons_map = {
     for addon in [
@@ -61,7 +61,7 @@ data "aws_subnets" "subnets" {
   }
 }
 
-data "aws_subnet" "subnet" {
+data "aws_subnet" "subnet_details" {
   for_each = toset(local.eks_nodes_subnets_list)
 
   filter {
@@ -192,7 +192,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   node_group_name = each.value.name
   cluster_name    = aws_eks_cluster.eks.name
   node_role_arn   = aws_iam_role.eks_cluster_role.arn
-  subnet_ids      = each.value.subnet_ids != null ? toset([for subnet_id in each.value.subnet_ids : data.aws_subnet.subnet[subnet_id].id]) : toset(data.aws_subnets.subnets.ids)
+  subnet_ids      = each.value.subnet_names != null ? toset([for subnet_name in each.value.subnet_names : data.aws_subnet.subnet_details[subnet_name].id]) : toset(data.aws_subnets.subnets.ids)
 
   scaling_config {
     min_size     = each.value.min_size

@@ -43,7 +43,7 @@ variable "eks_config" {
       desired_size   = number
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
-      subnet_ids     = optional(list(string), null)
+      subnet_names   = optional(list(string), null)
       taints = optional(list(object({
         key    = string
         value  = string
