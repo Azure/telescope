@@ -8,7 +8,7 @@ parameters:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: api-rate-limiting
-  SCENARIO_VERSION: main
+  SCENARIO_VERSION: v1
 
 stages:
   - stage: azure_eastus2
