@@ -44,9 +44,9 @@ spec:
       - name: nginx
         image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
         {{if $dualstack}}
-          command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
-        {{else}}
           command: ["sh", "-c", "while true; do curl ipv6.bing.com; sleep 6; done"]
+        {{else}}
+          command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
         {{end}}
         ports:
         - name: http
