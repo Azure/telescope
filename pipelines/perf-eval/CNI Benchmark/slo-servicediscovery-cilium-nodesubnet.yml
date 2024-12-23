@@ -4,7 +4,7 @@ schedules:
     displayName: "4:00 AM & PM Daily"
     branches:
       include:
-        - sanprabhu/40kpods
+        - main
     always: true
 
 variables:
