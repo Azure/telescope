@@ -4,12 +4,12 @@
 
 Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies on Azure, AWS and GCP.
 
-The current supported test scenarios are:
-1. Kubernetes API Server Benchmark
-2. Kubernetes Autoscaling Benchmark
-3. Kubernetes Container Networking Benchmark
-4. Kubernetes Container Storage Benchmark
-5. Kubernetes Container Runtime Benchmark (incoming)
+The current supported Kubernetes test scenarios are:
+1. [API Server Benchmark](pipelines/perf-eval/API%20Server%20Benchmark)
+2. [Autoscale Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
+3. [Container Networking Benchmark](pipelines/perf-eval/CNI%20Benchmark)
+4. [Container Storage Benchmark](pipelines/perf-eval/CSI%20Benchmark/)
+5. Container Runtime Benchmark (incoming)
 
 The current integrated test tools are:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
