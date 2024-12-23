@@ -161,7 +161,7 @@ steps:
   - module:
       path: /modules/reconcile-objects.yaml
       params:
-        actionName: "Create 200 pods"
+        actionName: "Create {{$PODS}} pods"
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
@@ -177,7 +177,7 @@ steps:
   - module:
       path: /modules/reconcile-objects.yaml
       params:
-        actionName: "delete 200 pods"
+        actionName: "delete {{$PODS}} pods"
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
@@ -192,7 +192,7 @@ steps:
   - module:
       path: /modules/reconcile-objects.yaml
       params:
-        actionName: "recreate 200 pods"
+        actionName: "recreate {{$PODS}} pods"
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
@@ -208,7 +208,7 @@ steps:
   - module:
       path: /modules/reconcile-objects.yaml
       params:
-        actionName: "delete 250 pods"
+        actionName: "delete {{$PODS}} pods"
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
