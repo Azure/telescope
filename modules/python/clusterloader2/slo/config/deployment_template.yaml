@@ -44,14 +44,14 @@ spec:
   {{if $dualstack}}
       - name: nginx
         image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
-          command: ["sh", "-c", "while true; do curl ipv6.bing.com; sleep 6; done"]
+        command: ["sh", "-c", "while true; do curl ipv6.bing.com; sleep 6; done"]
         ports:
         - name: http
           containerPort: 80
   {{else}}
       - name: nginx
         image: mcr.microsoft.com/mirror/docker/library/nginx:1.25
-          command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
+        command: ["sh", "-c", "while true; do curl ipv4.bing.com; sleep 6; done"]
         ports:
         - name: http
           containerPort: 80
