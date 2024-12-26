@@ -35,11 +35,12 @@ def infer_type(value):
         pass
 
     # Check if it's a datetime
-    try:
-        datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ')
-        return "datetime"
-    except ValueError:
-        pass
+    for fmt in ('%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S.%f'):
+        try:
+            datetime.strptime(value, fmt)
+            return "datetime"
+        except ValueError:
+            pass
 
     # If none of the above, take it as string
     return "string"
