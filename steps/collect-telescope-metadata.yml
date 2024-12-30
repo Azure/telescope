@@ -13,6 +13,16 @@ parameters:
   type: object
 steps:
 - script: |
+    if [ -z $CLOUD_INFO ]; then
+      CLOUD_INFO=$(jq -n -c \
+        --arg cloud "$CLOUD" \
+        --arg region "$(echo "$REGIONS" | jq -r '.[]')" \
+        '{
+          cloud: $cloud,
+          region: $region
+        }')
+    fi
+
     telescope_metadata=$(jq -n \
       --arg run_id $RUN_ID \
       --arg run_url  $RUN_URL \
@@ -27,8 +37,6 @@ steps:
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
       --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
-      --arg cloud "$CLOUD" \
-      --arg region "$(echo "$REGIONS" | jq -r '.[]')" \
       --arg pipeline_id "$(System.DefinitionId)" \
       --arg pipeline_name "$(Build.DefinitionName)" \
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
@@ -57,10 +65,7 @@ steps:
             engine_input: $engine_input,
             byo_resources: $byo_resources
           },
-          cloud_info: {
-            cloud: $cloud,
-            region: $region
-          }
+          cloud_info: $CLOUD_INFO
       }' | jq 'with_entries(select(.value != null and .value != ""))' | jq -c .)
     echo -n "Telescope Metadata: " && echo "$telescope_metadata" | jq .
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
