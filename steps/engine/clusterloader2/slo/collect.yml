@@ -8,7 +8,7 @@ parameters:
 - name: region
   type: string
 - name: pods_per_node
-  type: number  
+  type: number
   default: 50  # Default value for PODS_PER_NODE
 
 steps:

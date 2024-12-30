@@ -12,7 +12,7 @@ parameters:
     default: 10
   - name: repeats
     type: number
-    default: 1 
+    default: 1
   - name: scale_timeout
     type: string
     default: "15m"
@@ -27,6 +27,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-network-churn
   SCENARIO_VERSION: main
+  OWNER: aks
 
 stages:
   - stage: azure_eastus2
