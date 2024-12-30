@@ -13,6 +13,8 @@ parameters:
   type: object
 steps:
 - script: |
+    set -e
+
     if [ -z "$CLOUD_INFO" ]; then
       CLOUD_INFO=$(jq -n -c \
         --arg cloud "$CLOUD" \
@@ -37,6 +39,7 @@ steps:
       --arg engine "$ENGINE" \
       --arg topology "$TOPOLOGY" \
       --arg engine_input "$(echo $ENGINE_INPUT | jq -r '.')" \
+      --arg cloud_info "$CLOUD_INFO" \
       --arg pipeline_id "$(System.DefinitionId)" \
       --arg pipeline_name "$(Build.DefinitionName)" \
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
@@ -65,7 +68,7 @@ steps:
             engine_input: $engine_input,
             byo_resources: $byo_resources
           },
-          cloud_info: $CLOUD_INFO
+          cloud_info: $cloud_info
       }' | jq 'with_entries(select(.value != null and .value != ""))' | jq -c .)
     echo -n "Telescope Metadata: " && echo "$telescope_metadata" | jq .
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
