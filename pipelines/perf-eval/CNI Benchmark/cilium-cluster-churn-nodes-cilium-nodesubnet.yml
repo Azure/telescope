@@ -11,9 +11,10 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-cluster-churn-cilium-nodesubnet
   SCENARIO_VERSION: main
+  OWNER: aks
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_cilium_nodesubnet
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml

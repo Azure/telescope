@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
+DEFAULT_PODS_PER_NODE = 40
+LOAD_PODS_PER_NODE = 20
+
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
@@ -153,6 +156,7 @@ def collect_clusterloader2(
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
+    # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "cpu_per_node": cpu_per_node,
@@ -163,7 +167,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
-        # "test_details": details,
+        # # "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
