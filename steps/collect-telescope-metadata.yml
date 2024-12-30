@@ -13,7 +13,7 @@ parameters:
   type: object
 steps:
 - script: |
-    if [ -z $CLOUD_INFO ]; then
+    if [ -z "$CLOUD_INFO" ]; then
       CLOUD_INFO=$(jq -n -c \
         --arg cloud "$CLOUD" \
         --arg region "$(echo "$REGIONS" | jq -r '.[]')" \
@@ -41,7 +41,7 @@ steps:
       --arg pipeline_name "$(Build.DefinitionName)" \
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
       --arg project_name "$(System.TeamProject)" \
-      --arg byo_resources "$(SKIP_RESOURCE_MANAGEMENT)" \
+      --arg byo_resources "$SKIP_RESOURCE_MANAGEMENT" \
       '{
           run_id: $run_id,
           pipeline_info: {
