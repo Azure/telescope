@@ -9,12 +9,13 @@ The current supported Kubernetes test scenarios are:
 2. [Autoscale Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
 3. [Container Networking Benchmark](pipelines/perf-eval/CNI%20Benchmark)
 4. [Container Storage Benchmark](pipelines/perf-eval/CSI%20Benchmark/)
-5. Container Runtime Benchmark (incoming)
+5. [Container Runtime Benchmark](pipelines/perf-eval/CRI%20Benchmark/)
+6. KubeRay Benchmark (incoming)
 
 The current integrated test tools are:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
 2. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
-3. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md) (incoming)
+3. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
 
 ## Design
 ![design](./docs/imgs/design.jpeg)
