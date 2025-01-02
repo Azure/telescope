@@ -3,6 +3,13 @@
 
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
+{{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}
+{{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
+# Run a server pod for network policy enforcement latency test only on every Nth pod.
+# Default every third pod.
+{{$NetPolServerOnEveryNthPod := 3}}
+{{$RunNetPolicyTest := and $EnableNetworkPolicyEnforcementLatencyTest (eq (Mod .Index $NetPolServerOnEveryNthPod) 0)}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,7 +23,7 @@ spec:
   replicas: {{.Replicas}}
   selector:
     matchLabels:
-      name: {{.Name}}
+      name: {{if $RunNetPolicyTest}}policy-load-{{end}}{{.Name}}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,15 +32,30 @@ spec:
   template:
     metadata:
       labels:
-        name: {{.Name}}
+        name: {{if $RunNetPolicyTest}}policy-load-{{end}}{{.Name}}
         group: {{.Group}}
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
         restart: {{.deploymentLabel}}
+{{if $RunNetPolicyTest}}
+        net-pol-test: {{$TargetLabelValue}}
+{{end}}
     spec:
       nodeSelector:
         slo: "true"
+{{if $RunNetPolicyTest}}
+      hostNetwork: false
+      containers:
+      - image: nginx
+        name: nginx-server
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: {{$CpuRequest}}
+            memory: {{$MemoryRequest}}
+{{else}}
       containers:
       - env:
         - name: ENV_VAR
@@ -41,13 +63,12 @@ spec:
         image: {{$Image}}
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
-        ports:
+        ports: []
         resources:
           requests:
             cpu: {{$CpuRequest}}
             memory: {{$MemoryRequest}}
-      # Add not-ready/unreachable tolerations for 15 minutes so that node
-      # failure doesn't trigger pod deletion.
+{{end}}
       tolerations:
       - key: "node.kubernetes.io/not-ready"
         operator: "Exists"
