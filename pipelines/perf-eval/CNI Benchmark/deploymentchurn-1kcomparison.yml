@@ -1,11 +1,11 @@
 trigger: none
-# schedules:
-#   - cron: "0 3,7,11,23 * * *"
-#     displayName: "Every 8 Hours Daily"
-#     branches:
-#       include:
-#         - jshr/churn1k-comparison
-#     always: true
+schedules:
+  - cron: "0 */3 * * *"
+    displayName: "Every 3 Hours Daily"
+    branches:
+      include:
+        - jshr/churn1k-comparison
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
