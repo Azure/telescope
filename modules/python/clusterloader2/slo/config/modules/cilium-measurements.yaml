@@ -215,11 +215,11 @@ steps:
         enableViolations: true
         queries:
         - name: Avg
-          query: avg(sum_over_time(cilium_api_limiter_wait_duration_seconds[%v]))
+          query: avg(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-create"}[%v])
         - name: Max
-          query: max_over_time(cilium_api_limiter_wait_duration_seconds[%v])
+          query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-create"}[%v])
         - name: Min
-          query: min_over_time(cilium_api_limiter_wait_duration_seconds[%v])
+          query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", api_call="endpoint-create"}[%v])
 
 
     - Identifier: CiliumAPIRateLimiterRateLimit
@@ -232,11 +232,11 @@ steps:
         enableViolations: true
         queries:
         - name: Avg
-          query: avg(avg_over_time(cilium_api_limiter_rate_limit{value="limit", action="endpoint-create"}[%v]))
+          query: avg(avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v]))
         - name: Max
-          query: max_over_time(cilium_api_limiter_rate_limit{value="limit", action="endpoint-create"}[%v])
+          query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
         - name: Min
-          query: min_over_time(cilium_api_limiter_rate_limit{value="limit", action="endpoint-create"}[%v])
+          query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
 
 
     - Identifier: CiliumAgentAPIProcessTime
