@@ -153,6 +153,7 @@ steps:
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
     
     # Cilium API Rate Limiter
+
     - Identifier: CiliumAPIRateLimiterProcessedRequests
       Method: GenericPrometheusQuery
       Params:
@@ -162,8 +163,8 @@ steps:
         unit: requests/second
         enableViolations: true
         queries:
-        -name: Total
-         query: sum(cilium_api_limiter_processed_requests_count)
+        - name: Total
+          query: sum(cilium_api_limiter_processed_requests_count)
         - name: Rate
           query: sum(rate(cilium_api_limiter_processed_requests_count[%v:]))
 
@@ -178,9 +179,9 @@ steps:
         enableViolations: true
         queries:
         - name: Avg
-          query: avg(sum_over_time(cilium_api_limiter_processing_duration_seconds[0][%v])) # TODO: Check if this is correct
+          query: avg(sum_over_time(cilium_api_limiter_processing_duration_seconds[0][%v]))
         - name: Max
-          query: max_over_time(max(cilium_api_limiter_processing_duration_seconds[0])[%v]) # TODO: Check if this is correct
+          query: max_over_time(max(cilium_api_limiter_processing_duration_seconds[0])[%v])
 
 
     - Identifier: CiliumAPIRateLimiterRequestsInFlight
@@ -195,14 +196,15 @@ steps:
         - name: Instantaneous
           query: sum(cilium_api_limiter_requests_in_flight)
         - name: MaxOverTimeSum
-          query: max_over_time(max(cilium_api_limiter_requests_in_flight[0])[%v:])
+          query: max_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
         - name: AvgOverTimeSum
-          query: avg_over_time(sum(cilium_api_limiter_requests_in_flight[0])[%v:])
+          query: avg_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
         - name: SumOverTime
-          query: sum_over_time(sum(cilium_api_limiter_requests_in_flight[0])[%v:])
+          query: sum_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
         - name: MinOverTimeSum
-          query: min_over_time(min(cilium_api_limiter_requests_in_flight[0])[%v:])
-          
+          query: min_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
+
+
     - Identifier: CiliumAPIRateLimiterWaitDuration
       Method: GenericPrometheusQuery
       Params:
@@ -215,25 +217,10 @@ steps:
         - name: Avg
           query: avg(sum_over_time(cilium_api_limiter_wait_duration_seconds[%v]))
         - name: Max
-          query: max_over_time(max(cilium_api_limiter_wait_duration_seconds)[%v])
+          query: max_over_time(cilium_api_limiter_wait_duration_seconds[%v])
         - name: Min
-          query: min_over_time(min(cilium_api_limiter_wait_duration_seconds)[%v])
-    
-    - Identifier: CiliumAPIRateLimiterWaitDuration
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium API Rate Limiter Wait Duration in Seconds
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        - name: Avg
-          query: avg(sum_over_time(cilium_api_limiter_wait_duration_seconds[%v]))
-        - name: Max
-          query: max_over_time(max(cilium_api_limiter_wait_duration_seconds)[%v])
-        - name: Min
-          query: min_over_time(min(cilium_api_limiter_wait_duration_seconds)[%v])
+          query: min_over_time(cilium_api_limiter_wait_duration_seconds[%v])
+
 
     - Identifier: CiliumAPIRateLimiterRateLimit
       Method: GenericPrometheusQuery
@@ -250,7 +237,6 @@ steps:
           query: max_over_time(cilium_api_limiter_rate_limit{value="limit", action="endpoint-create"}[%v])
         - name: Min
           query: min_over_time(cilium_api_limiter_rate_limit{value="limit", action="endpoint-create"}[%v])
-
 
 
     - Identifier: CiliumAgentAPIProcessTime
