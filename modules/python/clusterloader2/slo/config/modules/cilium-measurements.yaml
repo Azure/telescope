@@ -152,7 +152,29 @@ steps:
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
     
-    # Cilium API Rate Limiter
+    # Cilium API Rate Limiter Metrics
+    - Identifier: CiliumAgentAPIProcessTime
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent API Process Time
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count[%v:]))
+        - name: Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum[%v:]))
+        - name: Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le)))
+
 
     - Identifier: CiliumAPIRateLimiterProcessedRequests
       Method: GenericPrometheusQuery
@@ -239,20 +261,3 @@ steps:
           query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
 
 
-    - Identifier: CiliumAgentAPIProcessTime
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Agent API Process Time
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
-        - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
-        - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
-        - name: Avg
-          query: avg(rate(cilium_agent_api_process_time_seconds_sum[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count[%v:]))
