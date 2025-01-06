@@ -189,7 +189,7 @@ steps:
         enableViolations: true
         queries:
         - name: Total
-          query: sum(cilium_api_limiter_processed_requests_total)
+          query: sum(increase(cilium_api_limiter_processed_requests_total))
         - name: Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total[%v:]))
 
