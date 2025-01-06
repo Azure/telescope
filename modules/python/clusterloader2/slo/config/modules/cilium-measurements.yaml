@@ -294,8 +294,6 @@ steps:
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean"}[%v:])
         - name: AllCalls_Estimated_Avg_OverTime
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated"}[%v:])
-        - name: AllCalls_Combined_Avg_ByAPI
-          query: avg_over_time(cilium_api_limiter_processing_duration_seconds[%v:]) by (api_call, value)
 
 
 
