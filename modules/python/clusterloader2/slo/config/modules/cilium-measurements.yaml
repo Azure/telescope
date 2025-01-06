@@ -297,58 +297,147 @@ steps:
 
 
 
-    # - Identifier: CiliumAPIRateLimiterRequestsInFlight
-    #   Method: GenericPrometheusQuery
-    #   Params:
-    #     action: {{$action}}
-    #     metricName: Cilium API Rate Limiter Requests In Flight
-    #     metricVersion: v1
-    #     unit: count
-    #     enableViolations: true
-    #     queries:
-    #     - name: Instantaneous
-    #       query: sum(cilium_api_limiter_requests_in_flight)
-    #     - name: MaxOverTimeSum
-    #       query: max_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
-    #     - name: AvgOverTimeSum
-    #       query: avg_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
-    #     - name: SumOverTime
-    #       query: sum_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
-    #     - name: MinOverTimeSum
-    #       query: min_over_time(cilium_api_limiter_requests_in_flight[0][%v:])
+    - Identifier: CiliumAPIRateLimiterRequestsInFlight
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Requests In Flight
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+      # Instantaneous Sum
+        - name: Instantaneous_Total
+          query: sum(cilium_api_limiter_requests_in_flight)
+        - name: Instantaneous_InFlight
+          query: sum(cilium_api_limiter_requests_in_flight{value="in-flight"})
+        - name: Instantaneous_Limit
+          query: sum(cilium_api_limiter_requests_in_flight{value="limit"})
+
+      # Endpoint-Specific
+        - name: EndpointCreate_InFlight_Instantaneous
+          query: cilium_api_limiter_requests_in_flight{api_call="endpoint-create", value="in-flight"}
+        - name: EndpointDelete_InFlight_Instantaneous
+          query: cilium_api_limiter_requests_in_flight{api_call="endpoint-delete", value="in-flight"}
+        - name: EndpointCreate_Limit_Instantaneous
+          query: cilium_api_limiter_requests_in_flight{api_call="endpoint-create", value="limit"}
+        - name: EndpointDelete_Limit_Instantaneous
+          query: cilium_api_limiter_requests_in_flight{api_call="endpoint-delete", value="limit"}
+
+      # Over Time Metrics
+        - name: MaxOverTime_InFlight
+          query: max_over_time(cilium_api_limiter_requests_in_flight{value="in-flight"}[%v:])
+        - name: MaxOverTime_Limit
+          query: max_over_time(cilium_api_limiter_requests_in_flight{value="limit"}[%v:])
+        - name: AvgOverTime_InFlight
+          query: avg_over_time(cilium_api_limiter_requests_in_flight{value="in-flight"}[%v:])
+        - name: AvgOverTime_Limit
+          query: avg_over_time(cilium_api_limiter_requests_in_flight{value="limit"}[%v:])
+        - name: SumOverTime_InFlight
+          query: sum_over_time(cilium_api_limiter_requests_in_flight{value="in-flight"}[%v:])
+        - name: SumOverTime_Limit
+          query: sum_over_time(cilium_api_limiter_requests_in_flight{value="limit"}[%v:])
+        - name: MinOverTime_InFlight
+          query: min_over_time(cilium_api_limiter_requests_in_flight{value="in-flight"}[%v:])
+        - name: MinOverTime_Limit
+          query: min_over_time(cilium_api_limiter_requests_in_flight{value="limit"}[%v:])
+
+      # Aggregated Queries
+        - name: AllAPICalls_MaxOverTime
+          query: max_over_time(cilium_api_limiter_requests_in_flight[%v:])
+        - name: AllAPICalls_AvgOverTime
+          query: avg_over_time(cilium_api_limiter_requests_in_flight[%v:])
+        - name: AllAPICalls_SumOverTime
+          query: sum_over_time(cilium_api_limiter_requests_in_flight[%v:])
+
+    - Identifier: CiliumAPIRateLimiterWaitDuration
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Wait Duration in Seconds
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        # Endpoint Create
+          - name: EndpointCreate_Mean_Avg
+            query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Max
+            query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Min
+            query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", api_call="endpoint-create"}[%v])
+
+        # Endpoint Delete
+          - name: EndpointDelete_Mean_Avg
+            query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-delete"}[%v])
+          - name: EndpointDelete_Max
+            query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-delete"}[%v])
+          - name: EndpointDelete_Min
+            query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", api_call="endpoint-delete"}[%v])
+
+        # Aggregated Metrics Across All API Calls
+          - name: AllCalls_Mean_Avg
+            query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean"}[%v])
+          - name: AllCalls_Max
+            query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max"}[%v])
+          - name: AllCalls_Min
+            query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min"}[%v])
 
 
-    # - Identifier: CiliumAPIRateLimiterWaitDuration
-    #   Method: GenericPrometheusQuery
-    #   Params:
-    #     action: {{$action}}
-    #     metricName: Cilium API Rate Limiter Wait Duration in Seconds
-    #     metricVersion: v1
-    #     unit: s
-    #     enableViolations: true
-    #     queries:
-    #     - name: Avg
-    #       query: avg(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-create"}[%v])
-    #     - name: Max
-    #       query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-create"}[%v])
-    #     - name: Min
-    #       query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", api_call="endpoint-create"}[%v])
 
+    - Identifier: CiliumAPIRateLimiterRateLimit
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Rate Limit
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        # Queries for Endpoint Create
+          - name: EndpointCreate_Limit_Avg
+            query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Limit_Max
+            query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Limit_Min
+            query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
 
-    # - Identifier: CiliumAPIRateLimiterRateLimit
-    #   Method: GenericPrometheusQuery
-    #   Params:
-    #     action: {{$action}}
-    #     metricName: Cilium API Rate Limiter Rate Limit
-    #     metricVersion: v1
-    #     unit: count
-    #     enableViolations: true
-    #     queries:
-    #     - name: Avg
-    #       query: avg(avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v]))
-    #     - name: Max
-    #       query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
-    #     - name: Min
-    #       query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Burst_Avg
+            query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Burst_Max
+            query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create"}[%v])
+          - name: EndpointCreate_Burst_Min
+            query: min_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create"}[%v])
+
+        # Queries for Endpoint Delete
+          - name: EndpointDelete_Limit_Avg
+            query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete"}[%v])
+          - name: EndpointDelete_Limit_Max
+            query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete"}[%v])
+          - name: EndpointDelete_Limit_Min
+            query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete"}[%v])
+
+          - name: EndpointDelete_Burst_Avg
+            query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete"}[%v])
+          - name: EndpointDelete_Burst_Max
+            query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete"}[%v])
+          - name: EndpointDelete_Burst_Min
+            query: min_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete"}[%v])
+
+        # Global Aggregated Queries Across All API Calls
+          - name: AllCalls_Limit_Avg
+            query: avg_over_time(cilium_api_limiter_rate_limit{value="limit"}[%v])
+          - name: AllCalls_Limit_Max
+            query: max_over_time(cilium_api_limiter_rate_limit{value="limit"}[%v])
+          - name: AllCalls_Limit_Min
+            query: min_over_time(cilium_api_limiter_rate_limit{value="limit"}[%v])
+
+          - name: AllCalls_Burst_Avg
+            query: avg_over_time(cilium_api_limiter_rate_limit{value="burst"}[%v])
+          - name: AllCalls_Burst_Max
+            query: max_over_time(cilium_api_limiter_rate_limit{value="burst"}[%v])
+          - name: AllCalls_Burst_Min
+            query: min_over_time(cilium_api_limiter_rate_limit{value="burst"}[%v])
+
 
 
