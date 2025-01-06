@@ -162,27 +162,57 @@ steps:
         unit: s
         enableViolations: true
         queries:
-          PUT:
-            - name: Perc99
-              query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT"}[%v:])) by (le))
-            - name: Perc95
-              query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT"}[%v:])) by (le))
-            - name: Avg
-              query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT"}[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT"}[%v:]))
-          DELETE:
-            - name: Perc99
-              query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE"}[%v:])) by (le))
-            - name: Perc95
-              query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE"}[%v:])) by (le))
-            - name: Avg
-              query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE"}[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="DELETE"}[%v:]))
-          Overall:
-            - name: Perc99
-              query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
-            - name: Perc95
-              query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
-            - name: Avg
-              query: avg(rate(cilium_agent_api_process_time_seconds_sum[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count[%v:]))
+        #
+        - name: PUT_Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT"}[%v:])) by (le))
+        - name: PUT_Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT"}[%v:])) by (le))
+        - name: PUT_Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT"}[%v:])) by (le))
+        - name: PUT_Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT"}[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT"}[%v:]))
+        - name: PUT_Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT"}[%v:]))
+        - name: PUT_Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT"}[%v:])) by (le)))
+        - name: PUT_Requests
+          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="PUT"}[%v:]))
+        - name: PUT_TotalTime
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="PUT"}[%v:]))
+        # DELETE
+        - name: DELETE_Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE"}[%v:])) by (le))
+        - name: DELETE_Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE"}[%v:])) by (le))
+        - name: DELETE_Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE"}[%v:])) by (le))
+        - name: DELETE_Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE"}[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="DELETE"}[%v:]))
+        - name: DELETE_Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE"}[%v:]))
+        - name: DELETE_Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE"}[%v:])) by (le)))
+        - name: DELETE_Requests
+          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="DELETE"}[%v:]))
+        - name: DELETE_TotalTime
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="DELETE"}[%v:]))
+        #OVERALL
+        - name: Overall_Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Overall_Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Overall_Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Overall_Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count[%v:]))
+        - name: Overall_Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum[%v:]))
+        - name: Overall_Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le)))
+        - name: Overall_Requests
+          query: sum(increase(cilium_agent_api_process_time_seconds_count[%v:]))
+        - name: Overall_TotalTime
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum[%v:]))
 
 
     - Identifier: CiliumAPIRateLimiterProcessedRequests
