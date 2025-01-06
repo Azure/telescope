@@ -175,24 +175,23 @@ steps:
         - name: Max
           query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le)))
         - name: Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count[%v:]))
+          query: sum(rate(cilium_agent_api_process_time_seconds_count[%v:]))
         - name: TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum[%v:]))
 
-
-    # - Identifier: CiliumAPIRateLimiterProcessedRequests
-    #   Method: GenericPrometheusQuery
-    #   Params:
-    #     action: {{$action}}
-    #     metricName: Cilium API Rate Limiter Processed Requests
-    #     metricVersion: v1
-    #     unit: requests/second
-    #     enableViolations: true
-    #     queries:
-    #     - name: Total
-    #       query: sum(cilium_api_limiter_processed_requests_count)
-    #     - name: Rate
-    #       query: sum(rate(cilium_api_limiter_processed_requests_count[%v:]))
+    - Identifier: CiliumAPIRateLimiterProcessedRequests
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Processed Requests
+        metricVersion: v1
+        unit: requests/second
+        enableViolations: true
+        queries:
+        - name: Total
+          query: sum(cilium_api_limiter_processed_requests_count)
+        - name: Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_count[%v:]))
 
 
     # - Identifier: CiliumAPIRateLimiterProcessingDuration
