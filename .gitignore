@@ -56,3 +56,6 @@ __pycache__/
 
 env/
 modules/python/clusterloader2/*/results
+
+# OSX
+.DS_Store
