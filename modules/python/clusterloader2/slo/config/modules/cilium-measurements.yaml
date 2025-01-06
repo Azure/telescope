@@ -175,7 +175,7 @@ steps:
         - name: Max
           query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le)))
         - name: Requests
-          query: sum(rate(cilium_agent_api_process_time_seconds_count[%v:]))
+          query: sum(increase(cilium_agent_api_process_time_seconds_count[%v:]))
         - name: TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum[%v:]))
 
