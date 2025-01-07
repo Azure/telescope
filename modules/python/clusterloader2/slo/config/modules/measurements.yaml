@@ -133,3 +133,83 @@ steps:
           - name: Watch cache reinitializations
             query: sum(increase(apiserver_watch_cache_initializations_total[%v:])) by (resource)
     {{end}}
+      - Identifier: ApiserverFlowcontrolCurrentExecutingRequests
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Flowcontrol Current Executing Requests
+          metricVersion: v1
+          unit: count
+          enableViolations: true
+          dimensions:
+          - instance
+          - priority_level
+          queries:
+          - name: CurrentExecutingByPriorityLevel
+            query: sum(increase(apiserver_flowcontrol_current_executing_requests[%v:])) by (priority_level)
+          - name: CurrentExecutingByInstancePriorityLevel
+            query: sum(increase(apiserver_flowcontrol_current_executing_requests[%v:])) by (instance, priority_level)
+      - Identifier: ApiserverFlowcontrolRequestWaitDuration
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Flowcontrol Request Wait Duration
+          metricVersion: v1
+          unit: s
+          enableViolations: true
+          dimensions:
+          - instance
+          - priority_level
+          queries:
+          - name: RequestWaitDurationByPriorityLevel
+            query: histogram_quantile(0.99, sum(rate(apiserver_flowcontrol_request_wait_duration_seconds_bucket[%v:]))  by (le, priority_level))
+          - name: RequestWaitDurationByInstancePriorityLevel
+            query: histogram_quantile(0.99, sum(rate(apiserver_flowcontrol_request_wait_duration_seconds_bucket[%v:]))  by (le, instance, priority_level))
+      - Identifier: ApiserverFlowcontrolRequestExecution
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Flowcontrol Request Execution
+          metricVersion: v1
+          unit: s
+          enableViolations: true
+          dimensions:
+          - instance
+          - priority_level
+          queries:
+          - name: RequestExecutionByPriorityLevel
+            query: histogram_quantile(0.99, sum(rate(apiserver_flowcontrol_request_execution_seconds_bucket[%v:]))  by (le, priority_level))
+          - name: RequestExecutionByInstancePriorityLevel
+            query: histogram_quantile(0.99, sum(rate(apiserver_flowcontrol_request_execution_seconds_bucket[%v:]))  by (le, instance, priority_level))
+      - Identifier: ApiserverFlowcontrolRequestsRatebyPriorityLevel
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Flowcontrol Requests Rate by Priority Level
+          metricVersion: v1
+          unit: count
+          enableViolations: true
+          dimensions:
+          - instance
+          - priority_level
+          queries:
+          - name: RequestRateByPriorityLevel
+            query: sum(irate(apiserver_flowcontrol_dispatched_requests_total[%v:])) by (priority_level)
+          - name: RequestRateByInstancePriorityLevel
+            query: sum(irate(apiserver_flowcontrol_dispatched_requests_total[%v:])) by (instance, priority_level)
+      - Identifier: ApiserverFlowcontrolRequestsMaxInqueue
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Flowcontrol Max Inqueue
+          metricVersion: v1
+          unit: count
+          enableViolations: true
+          dimensions:
+          - instance
+          - priority_level
+          queries:
+          - name: MaxInqueueByPriorityLevel
+            query: max(apiserver_flowcontrol_current_inqueue_requests[%v:])) by (priority_level)
+          - name: MaxInqueueByInstancePriorityLevel
+            query: max(apiserver_flowcontrol_current_inqueue_requests[%v:])) by (instance, priority_level)
