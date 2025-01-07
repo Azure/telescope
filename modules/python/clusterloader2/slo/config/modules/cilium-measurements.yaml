@@ -1,5 +1,7 @@
 {{$action := .action}} # start, gather
 
+
+
 steps:
   - name: {{$action}} Additional Measurements
     measurements:
@@ -164,11 +166,11 @@ steps:
         queries:
         # PUT
         - name: PUT_Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="cilium-plmxj"}[%v:])) by (le))
+          query: histogram_quantile(0.99, sum(increase(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="cilium-plmxj"}[%v:])) by (le))
         - name: PUT_Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="cilium-plmxj"}[%v:])) by (le))
+          query: histogram_quantile(0.95, sum(increase(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="cilium-plmxj"}[%v:])) by (le))
         - name: PUT_Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="cilium-plmxj"}[%v:])) by (le))
+          query: histogram_quantile(0.50, sum(increase(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="cilium-plmxj"}[%v:])) by (le))
         - name: PUT_Avg
           query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="cilium-plmxj"}[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="cilium-plmxj"}[%v:]))
         - name: PUT_Total
@@ -291,61 +293,6 @@ steps:
         #   query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean", pod="cilium-plmxj"}[%v:])
         # - name: AllCalls_Estimated_Avg_OverTime
         #   query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated", pod="cilium-plmxj"}[%v:])
-
-
-    # #TODO: IF required later on
-    # - Identifier: CiliumAPIRateLimiterRequestsInFlight
-    #   Method: GenericPrometheusQuery
-    #   Params:
-    #     action: {{$action}}
-    #     metricName: Cilium API Rate Limiter Requests In Flight
-    #     metricVersion: v1
-    #     unit: count
-    #     enableViolations: true
-    #     queries:
-    #     # Instantaneous Sum
-    #     - name: Instantaneous_Total
-    #       query: sum(cilium_api_limiter_requests_in_flight)
-    #     - name: Instantaneous_InFlight
-    #       query: sum(cilium_api_limiter_requests_in_flight{value="in-flight"})
-    #     - name: Instantaneous_Limit
-    #       query: sum(cilium_api_limiter_requests_in_flight{value="limit"})
-    #   # Endpoint-Specific
-    #     - name: EndpointCreate_InFlight_Instantaneous
-    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-create", value="in-flight", pod="cilium-plmxj"}
-    #     - name: EndpointDelete_InFlight_Instantaneous
-    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-delete", value="in-flight", pod="cilium-plmxj"}
-    #     - name: EndpointCreate_Limit_Instantaneous
-    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-create", value="limit", pod="cilium-plmxj"}
-    #     - name: EndpointDelete_Limit_Instantaneous
-    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-delete", value="limit", pod="cilium-plmxj"}
-
-    #   # Over Time Metrics
-    #     - name: MaxOverTime_InFlight
-    #       query: max_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
-    #     - name: MaxOverTime_Limit
-    #       query: max_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
-    #     - name: AvgOverTime_InFlight
-    #       query: avg_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
-    #     - name: AvgOverTime_Limit
-    #       query: avg_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
-    #     - name: SumOverTime_InFlight
-    #       query: sum_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
-    #     - name: SumOverTime_Limit
-    #       query: sum_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
-    #     - name: MinOverTime_InFlight
-    #       query: min_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
-    #     - name: MinOverTime_Limit
-    #       query: min_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
-
-
-      # # Aggregated Queries
-      #   - name: AllAPICalls_MaxOverTime
-      #     query: max_over_time(cilium_api_limiter_requests_in_flight[%v:])
-      #   - name: AllAPICalls_AvgOverTime
-      #     query: avg_over_time(cilium_api_limiter_requests_in_flight[%v:])
-      #   - name: AllAPICalls_SumOverTime
-      #     query: sum_over_time(cilium_api_limiter_requests_in_flight[%v:])
   
 
     - Identifier: CiliumAPIRateLimiterWaitDuration
@@ -437,4 +384,56 @@ steps:
       #     query: min_over_time(cilium_api_limiter_rate_limit{value="burst", pod="cilium-plmxj"}[%v:]) 
 
 
+    # #TODO: IF required later on
+    # - Identifier: CiliumAPIRateLimiterRequestsInFlight
+    #   Method: GenericPrometheusQuery
+    #   Params:
+    #     action: {{$action}}
+    #     metricName: Cilium API Rate Limiter Requests In Flight
+    #     metricVersion: v1
+    #     unit: count
+    #     enableViolations: true
+    #     queries:
+    #     # Instantaneous Sum
+    #     - name: Instantaneous_Total
+    #       query: sum(cilium_api_limiter_requests_in_flight)
+    #     - name: Instantaneous_InFlight
+    #       query: sum(cilium_api_limiter_requests_in_flight{value="in-flight"})
+    #     - name: Instantaneous_Limit
+    #       query: sum(cilium_api_limiter_requests_in_flight{value="limit"})
+    #   # Endpoint-Specific
+    #     - name: EndpointCreate_InFlight_Instantaneous
+    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-create", value="in-flight", pod="cilium-plmxj"}
+    #     - name: EndpointDelete_InFlight_Instantaneous
+    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-delete", value="in-flight", pod="cilium-plmxj"}
+    #     - name: EndpointCreate_Limit_Instantaneous
+    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-create", value="limit", pod="cilium-plmxj"}
+    #     - name: EndpointDelete_Limit_Instantaneous
+    #       query: cilium_api_limiter_requests_in_flight{api_call="endpoint-delete", value="limit", pod="cilium-plmxj"}
 
+    #   # Over Time Metrics
+    #     - name: MaxOverTime_InFlight
+    #       query: max_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
+    #     - name: MaxOverTime_Limit
+    #       query: max_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
+    #     - name: AvgOverTime_InFlight
+    #       query: avg_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
+    #     - name: AvgOverTime_Limit
+    #       query: avg_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
+    #     - name: SumOverTime_InFlight
+    #       query: sum_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
+    #     - name: SumOverTime_Limit
+    #       query: sum_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
+    #     - name: MinOverTime_InFlight
+    #       query: min_over_time(cilium_api_limiter_requests_in_flight{value="in-flight", pod="cilium-plmxj"}[%v:])
+    #     - name: MinOverTime_Limit
+    #       query: min_over_time(cilium_api_limiter_requests_in_flight{value="limit", pod="cilium-plmxj"}[%v:])
+
+
+      # # Aggregated Queries
+      #   - name: AllAPICalls_MaxOverTime
+      #     query: max_over_time(cilium_api_limiter_requests_in_flight[%v:])
+      #   - name: AllAPICalls_AvgOverTime
+      #     query: avg_over_time(cilium_api_limiter_requests_in_flight[%v:])
+      #   - name: AllAPICalls_SumOverTime
+      #     query: sum_over_time(cilium_api_limiter_requests_in_flight[%v:])
