@@ -1,0 +1,37 @@
+parameters:
+  storage_account_name: $(AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME)
+  source_file_name: $(TEST_RESULTS_FILE)
+  destination_file_name: $(RUN_ID).json
+  subfolder: $(SCENARIO_NAME)/$(Build.SourceBranchName)
+  container_name: $(SCENARIO_TYPE)
+  credential_type: string
+  cloud: string
+  upload_type: "Test Results"
+
+steps:
+- ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
+  - template: /steps/cloud/azure/login.yml
+    parameters:
+      region: eastus
+      credential_type: ${{ parameters.credential_type }}
+
+- bash: |
+    set -eux
+
+    if [ -f "$SOURCE_FILE_NAME" ]; then
+      az storage blob upload \
+      --file $SOURCE_FILE_NAME \
+      --name ${SUBFOLDER}/${DESTINATION_FILE_NAME} \
+      --account-name $STORAGE_ACCOUNT_NAME \
+      --container-name $CONTAINER_NAME \
+      --auth-mode login
+    else
+      echo "File $SOURCE_FILE_NAME does not exist."
+    fi
+  displayName: "Upload ${{ parameters.upload_type }} to ${{ parameters.storage_account_name}}"
+  env:
+    SOURCE_FILE_NAME: ${{ parameters.source_file_name }}
+    DESTINATION_FILE_NAME: ${{ parameters.destination_file_name }}
+    SUBFOLDER: ${{ parameters.subfolder }}
+    CONTAINER_NAME: ${{ parameters.container_name}}
+    STORAGE_ACCOUNT_NAME: ${{ parameters.storage_account_name }}
