@@ -258,8 +258,6 @@ steps:
         - name: Overall_Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total[%v:]))
 
-
-
     - Identifier: CiliumAPIRateLimiterProcessingDuration
       Method: GenericPrometheusQuery
       Params:
@@ -269,35 +267,33 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        # EndpointCreate:
-      queries:
-      # Endpoint Create
-      - name: EndpointCreate_Mean_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="cilium-plmxj"}[%v:]) 
-      - name: EndpointCreate_Estimated_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="cilium-plmxj"}[%v:]) 
-      - name: EndpointCreate_Mean_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="cilium-plmxj"}[%v:])
-      - name: EndpointCreate_Estimated_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="cilium-plmxj"}[%v:])
+        # Endpoint Create
+        - name: EndpointCreate_Mean_Avg_OverTime
+          query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="cilium-plmxj"}[%v:]) 
+        - name: EndpointCreate_Estimated_Avg_OverTime
+          query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="cilium-plmxj"}[%v:]) 
+        - name: EndpointCreate_Mean_Max_OverTime
+          query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="cilium-plmxj"}[%v:])
+        - name: EndpointCreate_Estimated_Max_OverTime
+          query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="cilium-plmxj"}[%v:])
 
 
-    # Endpoint Delete
-      - name: EndpointDelete_Mean_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="cilium-plmxj"}[%v:]) 
-      - name: EndpointDelete_Estimated_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
-      - name: EndpointDelete_Mean_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="cilium-plmxj"}[%v:]) 
-      - name: EndpointDelete_Estimated_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
+      # Endpoint Delete
+        - name: EndpointDelete_Mean_Avg_OverTime
+          query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="cilium-plmxj"}[%v:]) 
+        - name: EndpointDelete_Estimated_Avg_OverTime
+          query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
+        - name: EndpointDelete_Mean_Max_OverTime
+          query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="cilium-plmxj"}[%v:]) 
+        - name: EndpointDelete_Estimated_Max_OverTime
+          query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
 
 
-      # # Aggregated:
-      #   - name: AllCalls_Mean_Avg_OverTime
-      #     query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean"}[%v:])
-      #   - name: AllCalls_Estimated_Avg_OverTime
-      #     query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated"}[%v:])
+        # # Aggregated:
+        #   - name: AllCalls_Mean_Avg_OverTime
+        #     query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean"}[%v:])
+        #   - name: AllCalls_Estimated_Avg_OverTime
+        #     query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated"}[%v:])
 
 
     #TODO: IF required later on
