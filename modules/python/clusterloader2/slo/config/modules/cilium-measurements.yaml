@@ -226,7 +226,7 @@ steps:
         queries:
         # Endpoint-Create Specific Queries
         - name: EndpointCreate_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create"}[%v:]))
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="cilium-plmxj"}[%v:]))
         - name: EndpointCreate_Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create"}[%v:]))
         - name: EndpointCreate_Success_Total
@@ -273,24 +273,24 @@ steps:
       queries:
       # Endpoint Create
       - name: EndpointCreate_Mean_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean"}[%v]) without (instance, pod)
+        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="cilium-plmxj"}[%v:]) 
       - name: EndpointCreate_Estimated_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated"}[%v]) without (instance, pod)
+        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="cilium-plmxj"}[%v:]) 
       - name: EndpointCreate_Mean_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean"}[%v]) without (instance, pod)
+        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="cilium-plmxj"}[%v:])
       - name: EndpointCreate_Estimated_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated"}[%v]) without (instance, pod)
+        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="cilium-plmxj"}[%v:])
 
 
     # Endpoint Delete
       - name: EndpointDelete_Mean_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean"}[%v]) without (instance, pod)
+        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="cilium-plmxj"}[%v:]) 
       - name: EndpointDelete_Estimated_Avg_OverTime
-        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated"}[%v]) without (instance, pod)
+        query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
       - name: EndpointDelete_Mean_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean"}[%v]) without (instance, pod)
+        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="cilium-plmxj"}[%v:]) 
       - name: EndpointDelete_Estimated_Max_OverTime
-        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated"}[%v]) without (instance, pod)
+        query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
 
 
       # # Aggregated:
