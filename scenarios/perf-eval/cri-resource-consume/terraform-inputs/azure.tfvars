@@ -19,6 +19,7 @@ aks_config_list = [
       node_count                   = 3
       vm_size                      = "Standard_D16s_v3"
       os_disk_type                 = "Managed"
+      os_sku                       = "AzureLinux"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
     }
@@ -28,12 +29,14 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
+        os_sku               = "AzureLinux"
         node_labels          = { "prometheus" = "true" }
       },
       {
         name        = "userpool0"
         node_count  = 3
         vm_size     = "Standard_D16s_v3"
+        os_sku      = "AzureLinux"
         node_taints = ["cri-resource-consume=true:NoSchedule"]
         node_labels = { "cri-resource-consume" = "true" }
       }
