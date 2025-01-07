@@ -20,6 +20,12 @@ variable "region" {
   default     = "us-east-2"
 }
 
+variable "k8s_machine_type" {
+  description = "Value to replace EKS nodes instance_types"
+  type        = string
+  default     = null
+}
+
 variable "eks_config" {
   type = object({
     role                      = string
@@ -37,6 +43,7 @@ variable "eks_config" {
       desired_size   = number
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
+      subnet_names   = optional(list(string), null)
       taints = optional(list(object({
         key    = string
         value  = string

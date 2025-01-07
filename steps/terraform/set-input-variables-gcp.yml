@@ -1,0 +1,49 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: regions
+    type: object
+  - name: input_variables
+    type: object
+    default: {}
+
+steps:
+  - script: |
+
+      CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
+      regional_config=$REGIONAL_CONFIG
+      for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
+        if [ -z "$INPUT_VARIABLES" ]; then
+          echo "Set input variables for region $REGION"
+          INPUT_VARIABLES=$(jq -n \
+          --arg project_id "$PROJECT_ID" \
+          --arg run_id "$RUN_ID" \
+          --arg region "$REGION" \
+          --arg creation_time "$CREATION_TIME" \
+          '{
+            project_id: $project_id,
+            run_id: $run_id,
+            region: $region,
+            creation_time: $creation_time
+          }' | jq 'with_entries(select(.value != null and .value != ""))')
+        fi
+        input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
+        echo "Input variables: $input_variables_str"
+        regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_variables_str" \
+            '.[$region].TERRAFORM_INPUT_VARIABLES += $input_variable')
+        echo "Regional config: $regional_config"
+        INPUT_VARIABLES=""
+      done
+      regional_config_str=$(echo $regional_config | jq -c .)
+      echo "Final regional config: $regional_config_str"
+      echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
+
+    displayName: 'Set Terraform Input Variables'
+    condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    env:
+      CLOUD: ${{ parameters.cloud }}
+      REGIONS: ${{ convertToJson(parameters.regions) }}
+      RUN_ID: $(RUN_ID)
+      INPUT_VARIABLES: ${{ convertToJson(parameters.input_variables) }}
+      DEBUG: $(System.Debug)
+      PROJECT_ID: $(GCP_PROJECT_ID)

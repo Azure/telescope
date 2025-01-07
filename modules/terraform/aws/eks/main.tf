@@ -5,6 +5,8 @@ locals {
 
   eks_config_addons_map = { for addon in var.eks_config.eks_addons : addon.name => addon }
 
+  eks_nodes_subnets_list = flatten([for node_group in var.eks_config.eks_managed_node_groups : node_group.subnet_names if node_group.subnet_names != null])
+
   karpenter_addons_map = {
     for addon in [
       { name = "vpc-cni", vpc_cni_warm_prefix_target = 1 },
@@ -58,6 +60,21 @@ data "aws_subnets" "subnets" {
     values = [var.vpc_id]
   }
 }
+
+data "aws_subnet" "subnet_details" {
+  for_each = toset(local.eks_nodes_subnets_list)
+
+  filter {
+    name   = "tag:run_id"
+    values = [var.run_id]
+  }
+
+  filter {
+    name   = "tag:Name"
+    values = [each.value]
+  }
+}
+
 
 data "aws_iam_policy_document" "assume_role" {
   statement {
@@ -175,7 +192,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   node_group_name = each.value.name
   cluster_name    = aws_eks_cluster.eks.name
   node_role_arn   = aws_iam_role.eks_cluster_role.arn
-  subnet_ids      = toset(data.aws_subnets.subnets.ids)
+  subnet_ids      = each.value.subnet_names != null ? toset([for subnet_name in each.value.subnet_names : data.aws_subnet.subnet_details[subnet_name].id]) : toset(data.aws_subnets.subnets.ids)
 
   scaling_config {
     min_size     = each.value.min_size
@@ -193,7 +210,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   }
 
   ami_type       = each.value.ami_type
-  instance_types = each.value.instance_types
+  instance_types = var.k8s_machine_type != null ? [var.k8s_machine_type] : each.value.instance_types
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
 

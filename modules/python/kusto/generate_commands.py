@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from dateutil.parser import isoparse
 import sys
 import base64
 
@@ -34,9 +34,9 @@ def infer_type(value):
     except (json.JSONDecodeError, TypeError):
         pass
 
-    # Check if it's a datetime
+    # Check if it's a datetime    
     try:
-        datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ')
+        isoparse(value)
         return "datetime"
     except ValueError:
         pass

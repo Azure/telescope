@@ -2,8 +2,9 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: slo-servicediscovery-ces
+  SCENARIO_NAME: slo-servicediscovery-feature
   SCENARIO_VERSION: main
+  OWNER: aks
 
 stages:
   - stage: azure_eastus2

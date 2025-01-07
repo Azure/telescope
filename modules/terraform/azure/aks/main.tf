@@ -21,7 +21,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count
-    vm_size                      = var.aks_config.default_node_pool.vm_size
+    vm_size                      = coalesce(var.k8s_machine_type, var.aks_config.default_node_pool.vm_size)
     vnet_subnet_id               = try(local.subnets[var.aks_config.default_node_pool.subnet_name], try(var.subnet_id, null))
     os_sku                       = var.aks_config.default_node_pool.os_sku
     os_disk_type                 = var.aks_config.default_node_pool.os_disk_type
@@ -34,8 +34,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   network_profile {
     network_plugin      = var.aks_config.network_profile.network_plugin
     network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
-    network_policy      = var.aks_config.network_profile.network_policy
-    network_data_plane  = var.aks_config.network_profile.network_dataplane
+    network_policy      = try(coalesce(var.network_policy, var.aks_config.network_profile.network_policy), null)
+    network_data_plane  = try(coalesce(var.network_dataplane, var.aks_config.network_profile.network_dataplane), null)
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
     service_cidr        = var.aks_config.network_profile.service_cidr
@@ -88,7 +88,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   name                  = each.value.name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
   node_count            = each.value.node_count
-  vm_size               = each.value.vm_size
+  vm_size               = coalesce(var.k8s_machine_type, each.value.vm_size)
   vnet_subnet_id        = try(local.subnets[each.value.subnet_name], null)
   os_sku                = each.value.os_sku
   os_disk_type          = each.value.os_disk_type

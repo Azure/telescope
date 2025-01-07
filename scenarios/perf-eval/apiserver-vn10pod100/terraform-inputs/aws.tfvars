@@ -10,7 +10,7 @@ network_config_list = [
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "client-subnet"
+        name                    = "client-subnet-1"
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
@@ -31,8 +31,8 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "client-subnet-rt-assoc"
-        subnet_name      = "client-subnet"
+        name             = "client-subnet-rt-assoc-1"
+        subnet_name      = "client-subnet-1"
         route_table_name = "internet-rt"
       },
       {

@@ -54,10 +54,11 @@ steps:
     echo "Deletion Due Time: $deletion_due_time"
     echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
 
-    owner=$(grep "owner" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}')
+    owner=$(grep "owner" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//')
     echo "Owner: $owner"
     echo "##vso[task.setvariable variable=OWNER]$owner"
   displayName: "Get Deletion Due Time and Owner"
+  condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     region: ${{ parameters.regions[0] }}
 
