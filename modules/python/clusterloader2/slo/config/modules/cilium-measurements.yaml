@@ -287,10 +287,10 @@ steps:
         - name: EndpointDelete_Estimated_Max_OverTime
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="cilium-plmxj"}[%v:]) 
         # Aggregated:
-          - name: AllCalls_Mean_Avg_OverTime
-            query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean", pod="cilium-plmxj"}[%v:])
-          - name: AllCalls_Estimated_Avg_OverTime
-            query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated", pod="cilium-plmxj"}[%v:])
+        - name: AllCalls_Mean_Avg_OverTime
+          query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean", pod="cilium-plmxj"}[%v:])
+        - name: AllCalls_Estimated_Avg_OverTime
+          query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated", pod="cilium-plmxj"}[%v:])
 
 
     #TODO: IF required later on
@@ -350,7 +350,7 @@ steps:
         queries:
         # Queries for Endpoint Create
         - name: EndpointCreate_Limit_Avg
-            query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="cilium-plmxj"}[%v:])
+          query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="cilium-plmxj"}[%v:])
         - name: EndpointCreate_Limit_Max
           query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="cilium-plmxj"}[%v:])
         - name: EndpointCreate_Limit_Min
