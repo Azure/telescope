@@ -16,7 +16,7 @@ stages:
   - stage: azure_$(LOCATION)
     dependsOn: []
     jobs:
-      ${{ each i in range(1, parameters.repeat+1) }}:
+      ${{ each i in range(1, add(parameters.repeat, 1)) }}:
         - template: /jobs/competitive-test.yml
           parameters:
             cloud: azure
