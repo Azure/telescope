@@ -1,0 +1,9 @@
+scenario_type_choice: "1"  # 1 for Performance Evaluation, 2 for Issue Reproduction
+scenario_name: "kube-reserved-cpu"
+engine_name: "test"
+topology_name: "test"
+deletion_delay: "2h"
+owner: "aks"
+credential_choice: "1"  # 1 for Managed Identity, 2 for Service Connection
+pipeline_name: "aks-kube-reserver-cpu"
+cluster_input: "1"  # 1 for Basic Kubernetes, 2 for Kubernetes with Karpenter, 3 for Kubernetes with Cluster Autoscaler

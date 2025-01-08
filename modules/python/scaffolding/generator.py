@@ -4,6 +4,8 @@ from pathlib import Path
 import hcl2
 import glob
 import json
+import subprocess
+import yaml
 
 class TemplateGenerator:
     def __init__(self, templates, values):
@@ -64,76 +66,53 @@ class TemplateGenerator:
                 continue
             self.process_template(template_path, output_path)
 
-
-def get_user_input():
-    """Prompt the user for input values."""
+def get_user_input(config_file_path="modules/python/scaffolding/input_template.yml"):
+    """Load configuration from a file and return the values."""
     values = {}
+
+    # Load the config file (the user should fill in or edit this file)
+    try:
+        with open(config_file_path, 'r') as config_file:
+            config_data = yaml.safe_load(config_file)  # Parse the YAML file
+    except FileNotFoundError:
+        print(f"Error: The file {config_file_path} was not found.")
+        return {}
+    except yaml.YAMLError as e:
+        print(f"Error: The file {config_file_path} is not a valid YAML. {e}")
+        return {}
+
+    # Load terraform tfvars data (replace with your actual function)
     tfvars_data_azure, tfvars_data_aws = load_terraform_tfvars_data()
-    print("Please enter the following values:")
-    print("Note: The values will be used to generate the templates.")
-    print("Select Scenario Type:")
-    print("1. Performance Evaluation")
-    print("2. Issue Reproduction")
-    scenario_type_choice = input("Enter the number for Scenario Type (1 or 2): ")
-    if scenario_type_choice == '1':
-        values['SCENARIO_TYPE'] = 'perf-eval'
-    elif scenario_type_choice == '2':
-        values['SCENARIO_TYPE'] = 'issue-repro'
-    values['SCENARIO_NAME'] = input("Enter Scenario Name: ")
-    values['ENGINE_NAME'] = input("Enter Engine Name: ")
-    values['TOPOLOGY_NAME'] = input("Enter Topology Name: ")
-    values['DELETION_DELAY'] = input("Enter Deletion time (e.g., 2h): ") or "2h"
-    values['OWNER'] = input("Enter Owner: ") or "aks"
 
-    # Ask for CREDENTIAL_TYPE with options
-    print("Select Credential Type:")
-    print("1. Managed Identity")
-    print("2. Service Connection")
-    credential_choice = input("Enter the number for Credential Type (1 or 2): ")
-
-    if credential_choice == '1':
+    # Set values from the configuration file
+    values['SCENARIO_TYPE'] = 'perf-eval' if config_data.get("scenario_type_choice") == '1' else 'issue-repro'
+    values['SCENARIO_NAME'] = config_data.get("scenario_name", "")
+    values['ENGINE_NAME'] = config_data.get("engine_name", "")
+    values['TOPOLOGY_NAME'] = config_data.get("topology_name", "")
+    values['DELETION_DELAY'] = config_data.get("deletion_delay", "2h")
+    values['OWNER'] = config_data.get("owner", "aks")
+    
+    # Credential Type
+    if config_data.get("credential_choice") == '1':
         values['CREDENTIAL_TYPE'] = 'managed_identity'
-    elif credential_choice == '2':
+    elif config_data.get("credential_choice") == '2':
         values['CREDENTIAL_TYPE'] = 'service_connection'
     else:
         print("Invalid choice, using 'service_connection' as default.")
         values['CREDENTIAL_TYPE'] = 'service_connection'
 
-    values['PIPELINE_NAME'] = input("Enter Pipeline Name: ")
-  
+    values['PIPELINE_NAME'] = config_data.get("pipeline_name", "new-pipeline")
+
     # Default directories (no prompt needed)
     values['TOPOLOGY_DIRECTORY'] = 'steps/topology'
     values['ENGINE_DIRECTORY'] = 'steps/engine'
 
-    # Add network configuration
+    # Add network configuration (based on values from template or user inputs)
     values['AZURE_NETWORK_CONFIG_LIST'] = tfvars_data_azure['network_config_list']
     values['AWS_NETWORK_CONFIG_LIST'] = tfvars_data_aws['network_config_list']
 
-    # network_input = input("Do you want to add network configuration in this test scenario?(e.g Yes/No) ")
-    # if network_input == '1':
-    #     values['AZURE_NETWORK_CONFIG_LIST'] = tfvars_data_azure['basic_cluster_list']
-    #     values['AWS_NETWORK_CONFIG_LIST'] = tfvars_data_aws['basic_cluster_list']
-    # elif network_input == '2':
-    #     values['AZURE_NETWORK_CONFIG_LIST'] = tfvars_data_azure['nap_cluster_list']
-    #     values['AWS_NETWORK_CONFIG_LIST'] = tfvars_data_aws['nap_cluster_list']
-    # else:
-    #     print("Invalid choice, Cluster configuration will not be added.")
-    #     values['AZURE_NETWORK_CONFIG_LIST'] = []
-    #     values['AWS_NETWORK_CONFIG_LIST'] = []
-
-    print("\nSelect the cluster configuration you want to create in this test scenario:")
-
-    # List available resources with numbers
-    available_resources = [
-        "Kubernetes Cluster (Basic)",
-        "Kubernetes Cluster (With Karpenter)",
-        "Kubernetes Cluster (With Cluster Autoscaler)"
-    ]
-    
-    for index, resource in enumerate(available_resources, 1):
-        print(f"{index}. {resource}")
-
-    cluster_input = input("Please select the cluster you want to create in this test scenario (e.g., 1 or 2 or 3): ")
+    # Cluster Configuration
+    cluster_input = config_data.get("cluster_input", "1")
     if cluster_input == '1':
         values['AZURE_CLUSTER_CONFIG_LIST'] = tfvars_data_azure['basic_cluster_list']
         values['AWS_CLUSTER_CONFIG_LIST'] = tfvars_data_aws['basic_cluster_list']
@@ -147,7 +126,7 @@ def get_user_input():
         print("Invalid choice, Cluster configuration will not be added.")
         values['AZURE_CLUSTER_CONFIG_LIST'] = []
         values['AWS_CLUSTER_CONFIG_LIST'] = []
-    
+
     return values
 
 def load_terraform_tfvars_data():
@@ -161,6 +140,18 @@ def load_terraform_tfvars_data():
         tfvars_data_aws.update(load_tfvars(file_path))
       elif 'azure' in file_path:
         tfvars_data_azure.update(load_tfvars(file_path))
+
+    for key, value in tfvars_data_azure.items():
+      if isinstance(value, (dict, list)):
+        tfvars_data_azure[key] = json_to_terraform(value)
+      else:
+        tfvars_data_azure[key] = value
+
+    for key, value in tfvars_data_aws.items():
+      if isinstance(value, (dict, list)):
+        tfvars_data_aws[key] = json_to_terraform(value)
+      else:
+        tfvars_data_aws[key] = value
     
     return tfvars_data_azure, tfvars_data_aws
 
@@ -171,6 +162,39 @@ def load_tfvars(file_path):
     """Load and parse the tfvars file."""
     with open(file_path, 'r') as file:
         return hcl2.load(file)
+
+import json
+
+def json_to_terraform(data):
+    """Recursively convert the JSON to Terraform format (key = value)."""
+    
+    # If the data is a dictionary, process each key-value pair recursively
+    if isinstance(data, dict):
+        result = []
+        for key, value in data.items():
+            formatted_key = key  # No quotes around keys in Terraform
+            formatted_value = json_to_terraform(value)  # Recursively process value
+            # Add the key-value pair to the result as key = value
+            result.append(f"{formatted_key} = {formatted_value}")
+        return "{\n" + "\n".join(result) + "\n}"  # Return as a block-like structure
+    
+    # If the data is a list, process each item recursively
+    elif isinstance(data, list):
+        result = []
+        for item in data:
+            result.append(json_to_terraform(item))  # Process each item
+        return "[\n" + ",\n".join(result) + "\n]"  # Return as a list block
+    
+    # Otherwise, return the value as a string, handling booleans, strings, and numbers
+    elif isinstance(data, str):
+        return f'"{data}"'  # Quote strings for Terraform compatibility
+    elif isinstance(data, bool):
+        return "true" if data else "false"
+    else:
+        return str(data)  # Convert numbers directly
+
+
+
 
 def generate_templates_from_config():
     """Generate templates based on user input."""
@@ -183,8 +207,10 @@ def generate_templates_from_config():
         'config/execute-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'execute.yaml'),
         'config/validate-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'validate.yaml'),
         'config/collect-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'collect.yaml'),
-        'components/terraform/azure-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
-        'components/terraform/aws-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
+        'components/terraform/inputs/azure-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
+        'components/terraform/inputs/aws-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
+        'components/terraform/tests/aws.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'aws.json'),
+        'components/terraform/tests/azure.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'azure.json')
     }
   
     # Get user input
@@ -193,6 +219,13 @@ def generate_templates_from_config():
     # Initialize TemplateGenerator with the templates and values
     generator = TemplateGenerator(templates, values)
     generator.generate_templates()
+    command = ["terraform", "fmt"]
+    directory = os.path.join('scenarios', values['SCENARIO_TYPE'],values['SCENARIO_NAME'],"terraform-inputs")
+    result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
+    if result.returncode == 0:
+      print(f"Command succeeded: {result.stdout}")
+    else:
+      print(f"Command failed with error: {result.stderr}")
 
 if __name__ == "__main__":
     generate_templates_from_config()
