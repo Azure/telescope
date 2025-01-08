@@ -1,11 +1,11 @@
 trigger: none
-schedules:
-  - cron: "0 */5 * * *"
-    displayName: "Every 5 Hours Daily"
-    branches:
-      include:
-        - jshr/churn1k-comparison
-    always: true
+#  schedules:
+  # - cron: "0 */5 * * *"
+  #   displayName: "Every 5 Hours Daily"
+  #   branches:
+  #     include:
+  #       - jshr/churn1k-comparison
+  #   always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -31,7 +31,7 @@ stages:
               node_count: 1000
               node_per_step: 1000
               max_pods: 110
-              repeats: 10
+              repeats: 1 #0
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -62,7 +62,7 @@ stages:
               node_count: 1000
               node_per_step: 1000
               max_pods: 110
-              repeats: 10
+              repeats: 1 #0
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -93,7 +93,7 @@ stages:
               node_count: 1000
               node_per_step: 1000
               max_pods: 110
-              repeats: 10
+              repeats: 1 #0
               scale_timeout: "15m"
               cilium_enabled: False
               service_test: True
