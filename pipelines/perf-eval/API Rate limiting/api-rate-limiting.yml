@@ -4,6 +4,9 @@ parameters:
   - name: pods
     type: number
     default: 200
+  - name: pod_name
+    type: string
+    default: ""
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -38,6 +41,7 @@ stages:
               cl2_config_file: load-config.yaml
               api_rate_limiting_test: True
               pods: ${{ parameters.pods }} # Mugesh - Number of pods to test
+              pod_name: ${{ parameters.pod_name }}
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection

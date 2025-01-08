@@ -58,7 +58,8 @@ def configure_clusterloader2(
     service_test,
     override_file,
     api_rate_limiting_test = None,
-    pods = 100):
+    pods = 100,
+    pod_name = ""):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, api_rate_limiting_test)
@@ -95,6 +96,7 @@ def configure_clusterloader2(
             file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
             file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
             file.write(f"CL2_PODS: {pods}\n") # Passed Pods to Config
+            file.write(f"CL2_POD_NAME: {pod_name}\n") # Passed Pod Name to Config
 
 
     with open(override_file, 'r') as file:
@@ -218,6 +220,7 @@ def main():
     parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
                                   help="Whether API Rate limiting test is running. Must be either True or False")
     parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
+    parser_configure.add_argument("pod_name", type=str, help="Name of the pod")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -257,7 +260,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cl2_override_file, args.api_rate_limiting_test, args.pods)
+                                 args.service_test, args.cl2_override_file, args.api_rate_limiting_test, args.pods, args.pod_name)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
