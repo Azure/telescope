@@ -210,6 +210,6 @@ steps:
           - priority_level
           queries:
           - name: MaxInqueueByPriorityLevel
-            query: max(apiserver_flowcontrol_current_inqueue_requests[%v:])) by (priority_level)
+            query: max(apiserver_flowcontrol_current_inqueue_requests[%v:]) by (priority_level)
           - name: MaxInqueueByInstancePriorityLevel
-            query: max(apiserver_flowcontrol_current_inqueue_requests[%v:])) by (instance, priority_level)
+            query: max(apiserver_flowcontrol_current_inqueue_requests[%v:]) by (instance, priority_level)
