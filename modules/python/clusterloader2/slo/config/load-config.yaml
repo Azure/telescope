@@ -39,7 +39,6 @@ name: load-config
 # CNP & CCNP Test
 {{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
 {{$CCNPS := DefaultParam .CL2_CCNPS 0}}
-{{$nameOfNs := "slo-1"}}
 {{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
 
 namespace:
@@ -99,7 +98,6 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$namespaces}}
-        nameOfNs: {{$nameOfNs}}
         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
 {{end}}
 
