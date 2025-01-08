@@ -157,66 +157,32 @@ steps:
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
     
+    # API Rate Limiter Metrics
 
     - Identifier: CiliumAgentAPIProcessTimePutRequests
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Agent API Process Time PUT Requests
+        metricName: Cilium Agent API Process Time Put Requests
         metricVersion: v1
         unit: s
         enableViolations: true
         queries:
-        - name: PUT_Perc99
+        - name: Perc99
           query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
-        - name: PUT_Perc95
+        - name: Perc95
           query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
-        - name: PUT_Perc50
+        - name: Perc50
           query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
-        - name: PUT_Avg
-          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: Avg
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / sum(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
         - name: PUT_Avg_2
           query: rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]) / rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:])
-        - name: PUT_Total
+        - name: Total
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
-        - name: PUT_Max
-          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le)))
-        - name: PUT_Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
-        - name: PUT_TotalTime
+        - name: TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
 
-    # Cilium API Rate Limiter Metrics
-    - Identifier: CiliumAgentAPIProcessTime
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Agent API Process Time
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        # OVERALL
-        - name: Overall_Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
-        - name: Overall_Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
-        - name: Overall_Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
-        - name: Overall_Avg
-          query: avg(rate(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{pod="{{$podName}}" }[%v:]))
-        - name: Overall_Total
-          query: sum(rate(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
-        - name: Overall_Max
-          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le)))
-        - name: Overall_Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count{pod="{{$podName}}" }[%v:]))
-        - name: Overall_TotalTime
-          query: sum(increase(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
-
-
-
-    # Cilium API Rate Limiter Metrics
     - Identifier: CiliumAgentAPIProcessTimeDeleteRequests
       Method: GenericPrometheusQuery
       Params:
@@ -226,96 +192,144 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        - name: DELETE_Perc99
+        - name: Perc99
           query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
-        - name: DELETE_Perc95
+        - name: Perc95
           query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
-        - name: DELETE_Perc50
+        - name: Perc50
           query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
-        - name: DELETE_Avg
+        - name: Avg
           query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: DELETE_Total
+        - name: Total
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: DELETE_Max
+        - name: Max
           query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le)))
-        - name: DELETE_Requests
+        - name: Requests
           query: sum(increase(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: DELETE_TotalTime
+        - name: TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
-        # DELETE
 
-    - Identifier: CiliumAPIRateLimiterProcessedRequests
+    - Identifier: CiliumAgentAPIProcessTimeOverall
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Processed Requests
-        metricVersion: v1
-        unit: requests/second
-        enableViolations: true
-        queries:
-        # Endpoint-Create Specific Queries
-        - name: EndpointCreate_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointCreate_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointCreate_Success_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="success", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointCreate_Fail_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="fail", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointCreate_Success_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="success", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointCreate_Fail_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="fail", pod="{{ $podName }}" }[%v:]))
-
-        # Endpoint-Delete Specific Queries
-        - name: EndpointDelete_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointDelete_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointDelete_Success_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="success", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointDelete_Fail_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="fail", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointDelete_Success_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="success", pod="{{ $podName }}" }[%v:]))
-        - name: EndpointDelete_Fail_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="fail", pod="{{ $podName }}" }[%v:]))
-
-        # Overall Queries
-        - name: Overall_Total
-          query: sum(increase(cilium_api_limiter_processed_requests_total{pod="{{ $podName }}" }[%v:]))
-        - name: Overall_Rate
-          query: sum(rate(cilium_api_limiter_processed_requests_total{pod="{{ $podName }}" }[%v:]))
-
-
-
-    - Identifier: CiliumAPIRateLimiterProcessingDuration
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium API Rate Limiter Processing Duration in Seconds
+        metricName: Cilium Agent API Process Overall Time
         metricVersion: v1
         unit: s
         enableViolations: true
         queries:
-        # Endpoint Create
-        - name: EndpointCreate_Mean_Avg_OverTime
+        # OVERALL
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
+        - name: Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{pod="{{$podName}}" }[%v:]))
+        - name: Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
+        - name: Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le)))
+        - name: Requests
+          query: sum(increase(cilium_agent_api_process_time_seconds_count{pod="{{$podName}}" }[%v:]))
+        - name: TotalTime
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
+    
+    
+    - Identifier: CiliumAPIRateLimiterProcessedCreateRequests
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Processed Endpoint-Create Requests
+        metricVersion: v1
+        unit: requests/second
+        enableViolations: true
+        queries:
+        - name: Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
+        - name: Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
+        - name: Success_Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="success", pod="{{ $podName }}" }[%v:]))
+        - name: Fail_Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="fail", pod="{{ $podName }}" }[%v:]))
+        - name: Success_Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="success", pod="{{ $podName }}" }[%v:]))
+        - name: Fail_Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="fail", pod="{{ $podName }}" }[%v:]))
+
+
+    - Identifier: CiliumAPIRateLimiterProcessedDeleteRequests
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Processed Endpoint-Delete Requests
+        metricVersion: v1
+        unit: requests/second
+        enableViolations: true
+        queries:
+        - name: Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", pod="{{ $podName }}" }[%v:]))
+        - name: Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", pod="{{ $podName }}" }[%v:]))
+        - name: Success_Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="success", pod="{{ $podName }}" }[%v:]))
+        - name: Fail_Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="fail", pod="{{ $podName }}" }[%v:]))
+        - name: Success_Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="success", pod="{{ $podName }}" }[%v:]))
+        - name: Fail_Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="fail", pod="{{ $podName }}" }[%v:]))
+
+    - Identifier: CiliumAPIRateLimiterProcessedOverallRequests
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Processed Overall Requests
+        metricVersion: v1
+        unit: requests/second
+        enableViolations: true
+        queries:
+        - name: Total
+          query: sum(increase(cilium_api_limiter_processed_requests_total{pod="{{ $podName }}" }[%v:]))
+        - name: Rate
+          query: sum(rate(cilium_api_limiter_processed_requests_total{pod="{{ $podName }}" }[%v:]))
+
+    - Identifier: CiliumAPIRateLimiterProcessingDuration-EndpointCreate
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Endpoint-Create Processing Duration in Seconds
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Mean_Avg_OverTime
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: EndpointCreate_Estimated_Avg_OverTime
+        - name: Estimated_Avg_OverTime
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="{{ $podName }}" }[%v:]) 
-        - name: EndpointCreate_Mean_Max_OverTime
+        - name: Mean_Max_OverTime
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Estimated_Max_OverTime
+        - name: Estimated_Max_OverTime
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="{{ $podName }}" }[%v:])
-        
-        # Endpoint Delete
-        - name: EndpointDelete_Mean_Avg_OverTime
+
+    - Identifier: CiliumAPIRateLimiterProcessingDuration-EndpointDelete
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Endpoint-Delete Processing Duration in Seconds
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Mean_Avg_OverTime
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: EndpointDelete_Estimated_Avg_OverTime
+        - name: Estimated_Avg_OverTime
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="{{ $podName }}" }[%v:]) 
-        - name: EndpointDelete_Mean_Max_OverTime
+        - name: Mean_Max_OverTime
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: EndpointDelete_Estimated_Max_OverTime
+        - name: Estimated_Max_OverTime
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="{{ $podName }}" }[%v:])
 
         # # Aggregated:
@@ -323,31 +337,37 @@ steps:
         #   query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="mean", pod="cilium-plmxj"}[%v:])
         # - name: AllCalls_Estimated_Avg_OverTime
         #   query: avg_over_time(cilium_api_limiter_processing_duration_seconds{value="estimated", pod="cilium-plmxj"}[%v:])
-  
 
-    - Identifier: CiliumAPIRateLimiterWaitDuration
+    - Identifier: CiliumAPIRateLimiterWaitDuration-EndpointCreate
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Wait Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Create Wait Duration in Seconds
         metricVersion: v1
         unit: s
         enableViolations: true
         queries:
-        # Endpoint Create
-        - name: EndpointCreate_Mean_Avg
+        - name: Mean_Avg
           query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Max
+        - name: Max
           query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Min
+        - name: Min
           query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
 
-        # Endpoint Delete
-        - name: EndpointDelete_Mean_Avg
+    - Identifier: CiliumAPIRateLimiterWaitDuration-EndpointDelete
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Endpoint-Delete Wait Duration in Seconds
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Mean_Avg
           query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: EndpointDelete_Max
+        - name: Max
           query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: EndpointDelete_Min
+        - name: Min
           query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
 
 
@@ -360,43 +380,51 @@ steps:
       #     query: min_over_time(cilium_api_limiter_wait_duration_seconds{value="min", pod="cilium-plmxj"}[%v:])
 
 
-    - Identifier: CiliumAPIRateLimiterRateLimit
+    - Identifier: CiliumAPIRateLimiterRateLimit-EndpointCreate
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Rate Limit
+        metricName: Cilium API Rate Limiter Endpoint-Create Rate Limit
         metricVersion: v1
         unit: count
         enableViolations: true
         queries:
         # Queries for Endpoint Create
-        - name: EndpointCreate_Limit_Avg
+        - name: Limit_Avg
           query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Limit_Max
+        - name: Limit_Max
           query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Limit_Min
+        - name: Limit_Min
           query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
 
-        - name: EndpointCreate_Burst_Avg
+        - name: Burst_Avg
           query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Burst_Max
+        - name: Burst_Max
           query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: EndpointCreate_Burst_Min
+        - name: Burst_Min
           query: min_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-
+    - Identifier: CiliumAPIRateLimiterRateLimit-EndpointDelete
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium API Rate Limiter Endpoint-Delete Rate Limit
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
         # Queries for Endpoint Delete
-        - name: EndpointDelete_Limit_Avg
+        - name: Limit_Avg
           query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: EndpointDelete_Limit_Max
+        - name: Limit_Max
           query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: EndpointDelete_Limit_Min
+        - name: Limit_Min
           query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
 
-        - name: EndpointDelete_Burst_Avg
+        - name: Burst_Avg
           query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: EndpointDelete_Burst_Max
+        - name: Burst_Max
           query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: EndpointDelete_Burst_Min
+        - name: Burst_Min
           query: min_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
 
       # # Global Aggregated Queries Across All API Calls
