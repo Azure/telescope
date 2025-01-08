@@ -40,7 +40,7 @@ namespace:
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: false
+  enableExistingNamespaces: true
 
 tuningSets:
   - name: Sequence
