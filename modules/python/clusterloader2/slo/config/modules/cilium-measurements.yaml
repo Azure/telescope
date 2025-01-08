@@ -176,8 +176,6 @@ steps:
           query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
         - name: Avg
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / sum(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
-        - name: PUT_Avg_2
-          query: rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]) / rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:])
         - name: Total
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
         - name: TotalTime
@@ -202,10 +200,6 @@ steps:
           query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
         - name: Total
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: Max
-          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le)))
-        - name: Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
         - name: TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
 
@@ -229,10 +223,6 @@ steps:
           query: avg(rate(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{pod="{{$podName}}" }[%v:]))
         - name: Total
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
-        - name: Max
-          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le)))
-        - name: Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count{pod="{{$podName}}" }[%v:]))
         - name: TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
     
@@ -250,9 +240,9 @@ steps:
           query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
         - name: Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
-        - name: Success_Total
+        - name: Success
           query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="success", pod="{{ $podName }}" }[%v:]))
-        - name: Fail_Total
+        - name: Fail
           query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="fail", pod="{{ $podName }}" }[%v:]))
         - name: Success_Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", outcome="success", pod="{{ $podName }}" }[%v:]))
@@ -273,9 +263,9 @@ steps:
           query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", pod="{{ $podName }}" }[%v:]))
         - name: Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", pod="{{ $podName }}" }[%v:]))
-        - name: Success_Total
+        - name: Success
           query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="success", pod="{{ $podName }}" }[%v:]))
-        - name: Fail_Total
+        - name: Fail
           query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="fail", pod="{{ $podName }}" }[%v:]))
         - name: Success_Rate
           query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-delete", outcome="success", pod="{{ $podName }}" }[%v:]))
@@ -305,13 +295,13 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        - name: Mean_Avg_OverTime
+        - name: Avg
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: Estimated_Avg_OverTime
+        - name: Avg_Estimated
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="{{ $podName }}" }[%v:]) 
-        - name: Mean_Max_OverTime
+        - name: Max
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="{{ $podName }}" }[%v:])
-        - name: Estimated_Max_OverTime
+        - name: Max_Estimated
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="{{ $podName }}" }[%v:])
 
     - Identifier: CiliumAPIRateLimiterProcessingDuration-EndpointDelete
@@ -323,13 +313,13 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        - name: Mean_Avg_OverTime
+        - name: Avg
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: Estimated_Avg_OverTime
+        - name: Avg_Estimated
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="{{ $podName }}" }[%v:]) 
-        - name: Mean_Max_OverTime
+        - name: Max
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: Estimated_Max_OverTime
+        - name: Max_Estimated
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="{{ $podName }}" }[%v:])
 
         # # Aggregated:
@@ -347,7 +337,7 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        - name: Mean_Avg
+        - name: Avg
           query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
         - name: Max
           query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
@@ -363,7 +353,7 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        - name: Mean_Avg
+        - name: Avg
           query: avg_over_time(cilium_api_limiter_wait_duration_seconds{value="mean", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
         - name: Max
           query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
