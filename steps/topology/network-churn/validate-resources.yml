@@ -15,5 +15,5 @@ steps:
     parameters:
       role: net
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: 10 #TODO: Update once node-pools are added.
+      nodes_per_nodepool: 500
       enable_autoscale: "false"
