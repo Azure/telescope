@@ -157,6 +157,35 @@ steps:
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
     
+
+    - Identifier: CiliumAgentAPIProcessTimePutRequests
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent API Process Time PUT Requests
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: PUT_Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: PUT_Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: PUT_Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: PUT_Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: PUT_Avg_2
+          query: rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: PUT_Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: PUT_Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le)))
+        - name: PUT_Requests
+          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: PUT_TotalTime
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
+
     # Cilium API Rate Limiter Metrics
     - Identifier: CiliumAgentAPIProcessTime
       Method: GenericPrometheusQuery
@@ -167,40 +196,6 @@ steps:
         unit: s
         enableViolations: true
         queries:
-        # PUT
-        - name: PUT_Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
-        - name: PUT_Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
-        - name: PUT_Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
-        - name: PUT_Avg
-          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
-        - name: PUT_Total
-          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
-        - name: PUT_Max
-          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le)))
-        - name: PUT_Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
-        - name: PUT_TotalTime
-          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
-        # DELETE
-        - name: DELETE_Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
-        - name: DELETE_Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
-        - name: DELETE_Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
-        - name: DELETE_Avg
-          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: DELETE_Total
-          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: DELETE_Max
-          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le)))
-        - name: DELETE_Requests
-          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
-        - name: DELETE_TotalTime
-          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
         # OVERALL
         - name: Overall_Perc99
           query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
@@ -219,6 +214,35 @@ steps:
         - name: Overall_TotalTime
           query: sum(increase(cilium_agent_api_process_time_seconds_sum{pod="{{$podName}}" }[%v:]))
 
+
+
+    # Cilium API Rate Limiter Metrics
+    - Identifier: CiliumAgentAPIProcessTimeDeleteRequests
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent API Process Time Delete Requests
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: DELETE_Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
+        - name: DELETE_Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
+        - name: DELETE_Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
+        - name: DELETE_Avg
+          query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
+        - name: DELETE_Total
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
+        - name: DELETE_Max
+          query: max(histogram_quantile(1.0, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le)))
+        - name: DELETE_Requests
+          query: sum(increase(cilium_agent_api_process_time_seconds_count{method="DELETE", pod="{{$podName}}" }[%v:]))
+        - name: DELETE_TotalTime
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="DELETE", pod="{{$podName}}" }[%v:]))
+        # DELETE
 
     - Identifier: CiliumAPIRateLimiterProcessedRequests
       Method: GenericPrometheusQuery
