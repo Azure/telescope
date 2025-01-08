@@ -176,7 +176,7 @@ steps:
         - name: PUT_Avg
           query: avg(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / avg(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
         - name: PUT_Avg_2
-          query: rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
+          query: rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]) / rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:])
         - name: PUT_Total
           query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
         - name: PUT_Max
