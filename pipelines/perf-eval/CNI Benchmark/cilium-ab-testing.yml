@@ -1,12 +1,5 @@
 trigger: none
 
-parameters:
-  - name: repeat
-    displayName: Repeat
-    type: number
-    default: 1
-    values: [1, 10]
-
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ab-testing-cilium-parameters
@@ -17,7 +10,7 @@ stages:
   - stage: azure_$(LOCATION)
     dependsOn: []
     jobs:
-      {{ range $i := Loop $repeat }}
+      - ${{ each i in split("12", "") }}:
           - template: /jobs/competitive-test.yml
             parameters:
               cloud: azure
@@ -42,4 +35,3 @@ stages:
                   cl2_config_file: load-config.yaml
               max_parallel: 1
               timeout_in_minutes: 720
-      {{ end }}
