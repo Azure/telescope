@@ -14,7 +14,7 @@ variables:
 
 stages:
   - ${{ each repeat in parameters.repeat }}:
-      - stage: test_${{repeat}}
+      - stage: azure_test_${{repeat}}
         jobs:
           - template: /jobs/competitive-test.yml
             parameters:
