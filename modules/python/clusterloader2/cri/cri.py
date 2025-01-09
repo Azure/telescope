@@ -39,11 +39,13 @@ def override_config_clusterloader2(node_count, max_pods, repeats, operation_time
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request}\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
+        file.write(f"CL2_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+        file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
     file.close()
 
