@@ -1,13 +1,11 @@
 trigger: none
 
 parameters:
-  - name: listOfFruits
-    type: object
-    default:
-      - fruitName: "apple"
-        colors: ["red", "green"]
-      - fruitName: "lemon"
-        colors: ["yellow"]
+  - name: repeat
+    displayName: Repeat
+    type: number
+    default: 1
+    values: [1, 10]
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -19,7 +17,7 @@ stages:
   - stage: azure_$(LOCATION)
     dependsOn: []
     jobs:
-      - ${{ each fruit in parameters.listOfFruits }}:
+      - ${{ range $i := Loop $repeat }}:
           - template: /jobs/competitive-test.yml
             parameters:
               cloud: azure
