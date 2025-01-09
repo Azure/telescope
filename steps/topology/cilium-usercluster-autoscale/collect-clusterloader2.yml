@@ -1,7 +1,7 @@
 parameters:
 - name: cloud
   type: string
-  default: ''
+P[ ; ]  default: ''
 - name: engine_input
   type: object
   default: {}
@@ -16,7 +16,8 @@ steps:
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
 
-- template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+- template: /steps/engine/clusterloader2/cilium/  	qw
+0-+9*5614 0;'01'.yml
   parameters:
     role: ces
     region: ${{ parameters.regions[0] }}
