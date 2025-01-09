@@ -13,7 +13,7 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure
+  - stage: azure_eastus2
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
