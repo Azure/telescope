@@ -63,26 +63,7 @@ steps:
         SvcName: small-service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
-- name: test-get-nodes
-    repetitions: 1
-    steps:
-      - name: get-nodes
-        custom:
-          apiCall:
-            method: GET
-            resource: /api/v1/nodes
-            count: 100
-            interval: 1s
-  - name: test-get-pods
-    repetitions: 1
-    steps:
-      - name: get-pods
-        custom:
-          apiCall:
-            method: GET
-            resource: /api/v1/namespaces/default/pods
-            count: 100
-            interval: 1s
+
 # Mugesh - Wait for pods to be deleted
 {{if $waitToDelete}}
 - name: Waiting for '{{$actionName}}' to be completed
