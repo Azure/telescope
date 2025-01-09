@@ -15,7 +15,6 @@ variables:
 stages:
   - ${{ each repeat in parameters.repeat }}:
       - stage: test_${{repeat}}
-        dependsOn: []
         jobs:
           - template: /jobs/competitive-test.yml
             parameters:
