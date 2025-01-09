@@ -13,10 +13,10 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure_$(LOCATION)
-    dependsOn: []
-    jobs:
-      - ${{ each repeat in parameters.repeat }}:
+  - ${{ each repeat in parameters.repeat }}:
+      - stage: azure_{{$LOCATION}}_{{$repeat}}
+        dependsOn: []
+        jobs:
           - template: /jobs/competitive-test.yml
             parameters:
               cloud: azure
