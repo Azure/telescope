@@ -14,6 +14,7 @@ variables:
 
 stages:
   - stage: azure_eastus2
+    dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
