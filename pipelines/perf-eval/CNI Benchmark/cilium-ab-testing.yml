@@ -14,7 +14,7 @@ variables:
 
 stages:
   - ${{ each i in parameters.repeat }}:
-      - stage: test ${{i}}
+      - stage: test_${{i}}
         jobs:
           - template: /jobs/competitive-test.yml
             parameters:
