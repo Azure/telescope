@@ -17,7 +17,7 @@ stages:
   - stage: azure_$(LOCATION)
     dependsOn: []
     jobs:
-      - ${{ range $i := Loop $repeat }}:
+      {{ range $i := Loop $repeat }}
           - template: /jobs/competitive-test.yml
             parameters:
               cloud: azure
@@ -42,3 +42,4 @@ stages:
                   cl2_config_file: load-config.yaml
               max_parallel: 1
               timeout_in_minutes: 720
+      {{ end }}
