@@ -3,9 +3,10 @@
 ## Input params
 {{$actionName := .actionName}}
 {{$ccnps := .ccnps}}
+{{$Group := .Group}}
 
 steps:
-- name: "{{$actionName}} k8s CCNPs"
+- name: "{{$actionName}} {{$ccnps}} k8s CCNPs"
   phases:
   - namespaceRange: null
     replicasPerNamespace: {{$ccnps}}

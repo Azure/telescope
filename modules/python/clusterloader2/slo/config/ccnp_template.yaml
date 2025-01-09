@@ -5,10 +5,15 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app: nginx
-  egress:
-  - toEndpoints:
-    - {}
-  ingress:
+      group: cnp-ccnp
+  ingressDeny:
   - fromEndpoints:
-    - {}
+    - matchLabels:
+        io.kubernetes.pod.namespace: default
+  egress:
+  - toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+    toEntities:
+    - cluster
