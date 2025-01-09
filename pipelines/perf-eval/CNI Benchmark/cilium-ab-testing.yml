@@ -13,8 +13,8 @@ variables:
   OWNER: aks
 
 stages:
-  - ${{ each repeat in parameters.repeat }}:
-      - stage: azure_test_${{repeat}}
+  - ${{ each i in parameters.repeat }}:
+      - stage: test_${{i}}
         jobs:
           - template: /jobs/competitive-test.yml
             parameters:
