@@ -138,6 +138,7 @@ steps:
         namespaces: {{$namespaces}}
         smallServicesPerNamespace: 0
         bigServicesPerNamespace: 0
+{{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
@@ -151,5 +152,3 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
-
-{{end}}
