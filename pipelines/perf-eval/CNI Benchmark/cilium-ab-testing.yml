@@ -1,5 +1,11 @@
 trigger: none
 
+parameters:
+  - name: repeat
+    displayName: Repeat
+    type: object
+    default: [1, 2]
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ab-testing-cilium-parameters
@@ -10,7 +16,7 @@ stages:
   - stage: azure_$(LOCATION)
     dependsOn: []
     jobs:
-      - ${{ each i in split("12", "") }}:
+      - ${{ each repeat in parameters.repeat }}:
           - template: /jobs/competitive-test.yml
             parameters:
               cloud: azure
