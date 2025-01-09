@@ -98,6 +98,7 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$namespaces}}
+        Group: {{$groupName}}
         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
 {{end}}
 
@@ -106,6 +107,7 @@ steps:
       path: /modules/ciliumclusternetworkpolicy.yaml
       params:
         actionName: "Creating"
+        Group: {{$groupName}}
         ccnps: {{$CCNPS}}
 {{end}}
         
@@ -119,17 +121,14 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
     {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-        dualstack: {{$DUALSTACK}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -145,17 +144,14 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
     {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-        ccnps: {{$CCNPS}}
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-        dualstack: {{$DUALSTACK}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -171,6 +167,8 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: 0
@@ -188,15 +186,15 @@ steps:
         smallServicesPerNamespace: 0
         bigServicesPerNamespace: 0
 {{end}}
-{{if or $CCNP_TEST $CNP_TEST}}
+{{if $CNP_TEST}}
   - module:
       path: /modules/ciliumnetworkpolicy.yaml
       params:
         actionName: "Deleting"
         namespaces: {{$namespaces}}
-        nameOfNs: {{$nameOfNs}}
         cnpsPerNamespace: 0
-
+{{end}}
+{{if $CCNP_TEST}}
   - module:
       path: /modules/ciliumclusternetworkpolicy.yaml
       params:

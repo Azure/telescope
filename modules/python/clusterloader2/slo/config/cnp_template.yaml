@@ -6,7 +6,15 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app: nginx
+      group: cnp-ccnp
+  ingressDeny:
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: default
   egress:
-  - toEndpoints:
-    - {}
+  - toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+    toCIDR:
+    - 0.0.0.0/0
