@@ -1,5 +1,14 @@
 trigger: none
 
+parameters:
+  - name: listOfFruits
+    type: object
+    default:
+      - fruitName: "apple"
+        colors: ["red", "green"]
+      - fruitName: "lemon"
+        colors: ["yellow"]
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ab-testing-cilium-parameters
@@ -10,7 +19,7 @@ stages:
   - stage: azure_$(LOCATION)
     dependsOn: []
     jobs:
-      - ${{ each i in [1,2] }}:
+      - ${{ each fruit in parameters.listOfFruits }}:
           - template: /jobs/competitive-test.yml
             parameters:
               cloud: azure
