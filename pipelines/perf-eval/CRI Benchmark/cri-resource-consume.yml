@@ -41,7 +41,7 @@ stages:
               max_pods: 110
               repeats: 10
               operation_timeout: 11m
-          max_parallel: 1
+          max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
@@ -73,7 +73,7 @@ stages:
               max_pods: 110
               repeats: 10
               operation_timeout: 11m
-          max_parallel: 1
+          max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
