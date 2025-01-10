@@ -4,9 +4,11 @@ name: resource-consumer
 {{$memory := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY 100}}
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$totalNodes := DefaultParam .CL2_NODE_COUNT 10}}
 {{$nodePools := DefaultParam .CL2_NODEPOOL 1}}
 {{$agentPoolPrefix := DefaultParam .CL2_AGENTPOOL_PREFIX "userpool"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 namespace:
   number: 1
@@ -23,6 +25,12 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group = resource-consumer
+          threshold: {{$podStartupLatencyThreshold}}
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
@@ -64,6 +72,18 @@ steps:
         Params:
           action: gather
 
+  - name: Wait for nodes to be ready
+    measurements:
+      - Identifier: ConfirmNodeCount
+        Method: WaitForNodes
+        Params:
+          action: start
+          minDesiredNodeCount: {{$totalNodes}}
+          maxDesiredNodeCount: {{$totalNodes}}
+          labelSelector: cri-resource-consume = true
+          timeout: {{$operationTimeout}}
+          refreshInterval: 1m
+
   - name: Deleting deployments
     phases:
       - namespaceRange:
@@ -88,5 +108,9 @@ steps:
     measurements:
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
+        Params:
+          action: gather
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
         Params:
           action: gather
