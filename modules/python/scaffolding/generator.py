@@ -131,7 +131,7 @@ def get_user_input(config_file_path="modules/python/scaffolding/input_template.y
 
 def load_terraform_tfvars_data():
     # Load all tfvars files
-    terraform_template_files = get_tfvars_files('modules/python/scaffolding/components/terraform')
+    terraform_template_files = get_tfvars_files('modules/python/scaffolding/templates/terraform')
     tfvars_data_aws = {}
     tfvars_data_azure = {}
 
@@ -207,10 +207,10 @@ def generate_templates_from_config():
         'config/execute-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'execute.yaml'),
         'config/validate-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'validate.yaml'),
         'config/collect-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'collect.yaml'),
-        'components/terraform/inputs/azure-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
-        'components/terraform/inputs/aws-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
-        'components/terraform/tests/aws.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'aws.json'),
-        'components/terraform/tests/azure.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'azure.json')
+        'templates/terraform/azure-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
+        'templates/terraform/aws-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
+        'templates/terraform/tests/aws.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'aws.json'),
+        'templates/terraform/tests/azure.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'azure.json')
     }
   
     # Get user input
@@ -220,12 +220,8 @@ def generate_templates_from_config():
     generator = TemplateGenerator(templates, values)
     generator.generate_templates()
     command = ["terraform", "fmt"]
-    directory = os.path.join('scenarios', values['SCENARIO_TYPE'],values['SCENARIO_NAME'],"terraform-inputs")
-    result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
-    if result.returncode == 0:
-      print(f"Command succeeded: {result.stdout}")
-    else:
-      print(f"Command failed with error: {result.stderr}")
+    directory = os.path.join('scenarios', values['SCENARIO_TYPE'], values['SCENARIO_NAME'], "terraform-inputs")
+    subprocess.run(command, cwd=directory, capture_output=True, text=True)
 
 if __name__ == "__main__":
     generate_templates_from_config()
