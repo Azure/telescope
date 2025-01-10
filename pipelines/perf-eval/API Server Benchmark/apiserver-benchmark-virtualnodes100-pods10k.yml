@@ -143,3 +143,27 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
+  - stage: azure_eastus2_l7_custom_json
+    dependsOn: []
+    variables:
+      - group: API-Server-L7-Custom-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            podsize-20k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.1.8
+            benchmark_subcmd: node100_pod10k
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
+          max_parallel: 1
+          timeout_in_minutes: 760
+          credential_type: service_connection
+          ssh_key_enabled: false
