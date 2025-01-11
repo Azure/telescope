@@ -1,38 +1,26 @@
 basic_cluster_list = [{
   role        = "client"
-  eks_name    = "vn10-p100"
+  eks_name    = "eks-cluster"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
+      name           = "default"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
       min_size       = 1
       max_size       = 1
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
     },
     {
-      name           = "virtualnodes"
+      name           = "userpool"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.2xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "runner"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
     }
   ]
 
@@ -45,7 +33,7 @@ basic_cluster_list = [{
 
 cas_cluster_list = [{
   role                      = "cas"
-  eks_name                  = "cas-c4n10p100"
+  eks_name                  = "eks-cluster"
   enable_cluster_autoscaler = true
   vpc_name                  = "cas-vpc"
   policy_arns               = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
@@ -54,9 +42,9 @@ cas_cluster_list = [{
       name           = "default"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
       capacity_type  = "ON_DEMAND"
     },
     {
@@ -81,7 +69,7 @@ cas_cluster_list = [{
 
 nap_cluster_list = [{
   role             = "nap"
-  eks_name         = "nap-c4n10p100"
+  eks_name         = "eks-cluster"
   enable_karpenter = true
   vpc_name         = "nap-vpc"
   policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]

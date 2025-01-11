@@ -1,8 +1,8 @@
 basic_cluster_list = [
   {
     role        = "client"
-    aks_name    = "vn10-p100"
-    dns_prefix  = "kperf"
+    aks_name    = "aks-cluster"
+    dns_prefix  = "basic"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
     network_profile = {
@@ -19,14 +19,9 @@ basic_cluster_list = [
     }
     extra_node_pool = [
       {
-        name       = "virtualnodes"
-        node_count = 5
+        name       = "userpool"
+        node_count = 1
         vm_size    = "Standard_D8s_v3"
-      },
-      {
-        name       = "runner"
-        node_count = 3
-        vm_size    = "Standard_D16s_v3"
       }
     ]
   }
@@ -35,7 +30,7 @@ basic_cluster_list = [
 cas_cluster_list = [
   {
     role        = "cas"
-    aks_name    = "cas"
+    aks_name    = "aks-cluster"
     dns_prefix  = "cas"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
@@ -76,11 +71,11 @@ cas_cluster_list = [
 nap_cluster_list = [
   {
     role     = "nap"
-    aks_name = "nap-c4n10p100"
+    aks_name = "aks-cluster"
     sku_tier = "standard"
 
     default_node_pool = {
-      name       = "system"
+      name       = "default"
       node_count = 3
       vm_size    = "Standard_D4_v3"
     }
