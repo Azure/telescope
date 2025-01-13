@@ -58,8 +58,7 @@ def get_user_input(config_file_path="modules/python/scaffolding/input_template.y
     except (FileNotFoundError, yaml.YAMLError) as e:
         print(f"Error loading config file {config_file_path}: {e}")
         return {}
-
-    # Load terraform tfvars data (replace with your actual function)
+    
     tfvars_data_azure, tfvars_data_aws = load_terraform_tfvars_data()
 
     values = {

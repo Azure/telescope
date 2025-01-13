@@ -10,14 +10,14 @@ network_config_list = [
       }
     ]
     network_security_group_name = "client-sg"
-        nic_public_ip_associations = [
+    nic_public_ip_associations = [
       {
         nic_name              = "client-nic"
         subnet_name           = "client-subnet"
         ip_configuration_name = "client-ipconfig"
         public_ip_name        = "client-pip"
-      }
-    
-    nsr_rules                   = []
+    }]
+
+    nsr_rules = []
   }
 ]
