@@ -142,13 +142,13 @@ def generate_templates_from_config():
     """Generate templates based on user input."""
     # Define the templates and their corresponding output paths
     templates = {
-        'templates/yaml/pipeline_template.yaml': os.path.join('pipelines','{{SCENARIO_TYPE}}','{{PIPELINE_NAME}}.yml'),
-        'templates/yaml/collect-topology-template.yaml': os.path.join('{{TOPOLOGY_DIRECTORY}}', '{{TOPOLOGY_NAME}}', 'collect-{{TOPOLOGY_NAME}}.yaml'),
-        'templates/yaml/execute-topology-template.yaml': os.path.join('{{TOPOLOGY_DIRECTORY}}', '{{TOPOLOGY_NAME}}', 'execute-{{TOPOLOGY_NAME}}.yaml'),
-        'templates/yaml/validate-topology-template.yaml': os.path.join('{{TOPOLOGY_DIRECTORY}}', '{{TOPOLOGY_NAME}}', 'validate-{{TOPOLOGY_NAME}}.yaml'),
-        'templates/yaml/execute-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'execute.yaml'),
-        'templates/yaml/validate-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'validate.yaml'),
-        'templates/yaml/collect-engine-template.yaml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'collect.yaml'),
+        'templates/yml/pipeline_template.yml': os.path.join('pipelines','{{SCENARIO_TYPE}}','{{PIPELINE_NAME}}.yml'),
+        'templates/yml/collect-topology-template.yml': os.path.join('{{TOPOLOGY_DIRECTORY}}', '{{TOPOLOGY_NAME}}', 'collect-{{ENGINE_NAME}}.yml'),
+        'templates/yml/execute-topology-template.yml': os.path.join('{{TOPOLOGY_DIRECTORY}}', '{{TOPOLOGY_NAME}}', 'execute-{{ENGINE_NAME}}.yml'),
+        'templates/yml/validate-topology-template.yml': os.path.join('{{TOPOLOGY_DIRECTORY}}', '{{TOPOLOGY_NAME}}', 'validate-resources.yml'),
+        'templates/yml/execute-engine-template.yml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'execute.yml'),
+        'templates/yml/validate-engine-template.yml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'validate.yml'),
+        'templates/yml/collect-engine-template.yml': os.path.join('{{ENGINE_DIRECTORY}}', '{{ENGINE_NAME}}', 'collect.yml'),
         'templates/terraform/azure-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'azure.tfvars'),
         'templates/terraform/aws-main-template.tfvars': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-inputs' ,'aws.tfvars'),
         'templates/terraform/tests/aws.json': os.path.join('scenarios', '{{SCENARIO_TYPE}}','{{SCENARIO_NAME}}', 'terraform-test-inputs' ,'aws.json'),
