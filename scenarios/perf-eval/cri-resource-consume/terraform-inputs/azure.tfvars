@@ -32,7 +32,7 @@ aks_config_list = [
       },
       {
         name        = "userpool0"
-        node_count  = 3
+        node_count  = 10
         vm_size     = "Standard_D16s_v3"
         node_taints = ["cri-resource-consume=true:NoSchedule"]
         node_labels = { "cri-resource-consume" = "true" }

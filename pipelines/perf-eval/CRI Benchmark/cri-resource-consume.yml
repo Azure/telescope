@@ -29,19 +29,19 @@ stages:
             n10-p300:
               node_count: 10
               max_pods: 30
-              repeats: 10
+              repeats: 1
               operation_timeout: 3m
             n10-p700:
               node_count: 10
               max_pods: 70
-              repeats: 10
+              repeats: 1
               operation_timeout: 7m
             n10-p1100:
               node_count: 10
               max_pods: 110
-              repeats: 10
+              repeats: 1
               operation_timeout: 11m
-          max_parallel: 3
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
@@ -61,19 +61,19 @@ stages:
             n10-p300:
               node_count: 10
               max_pods: 30
-              repeats: 10
+              repeats: 1
               operation_timeout: 3m
             n10-p700:
               node_count: 10
               max_pods: 70
-              repeats: 10
+              repeats: 1
               operation_timeout: 7m
             n10-p1100:
               node_count: 10
               max_pods: 110
-              repeats: 10
+              repeats: 1
               operation_timeout: 11m
-          max_parallel: 3
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
