@@ -6,8 +6,8 @@
 {{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}
 {{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
 # Run a server pod for network policy enforcement latency test only on every Nth pod.
-# Default every third pod.
-{{$NetPolServerOnEveryNthPod := 3}}
+# Default run on every pod.
+{{$NetPolServerOnEveryNthPod := 1}}
 {{$RunNetPolicyTest := and $EnableNetworkPolicyEnforcementLatencyTest (eq (Mod .Index $NetPolServerOnEveryNthPod) 0)}}
 
 apiVersion: apps/v1

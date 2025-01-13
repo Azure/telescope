@@ -18,7 +18,7 @@ namespace:
   prefix: autoscale
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: true
+  enableExistingNamespaces: false
 
 tuningSets:
 - name: Uniform1qps

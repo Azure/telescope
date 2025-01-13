@@ -49,7 +49,7 @@ steps:
     - basename: big-deployment
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
-        Replicas: {{$bigDeploymentSize}}kube
+        Replicas: {{$bigDeploymentSize}}
         SvcName: big-service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
