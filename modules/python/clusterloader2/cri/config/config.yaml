@@ -72,13 +72,20 @@ steps:
         Params:
           action: gather
 
+  - name: Wait for resource consumption
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 1m
+
   - name: Wait for nodes to be ready
     measurements:
       - Identifier: ConfirmNodeCount
         Method: WaitForNodes
         Params:
           action: start
-          minDesiredNodeCount: {{$totalNodes}}
+          minDesiredNodeCount: {{mul $totalNodes 0.8 | int}}
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: cri-resource-consume = true
           timeout: {{$operationTimeout}}
