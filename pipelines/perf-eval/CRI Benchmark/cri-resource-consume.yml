@@ -30,7 +30,7 @@ stages:
               node_count: 3
               max_pods: 500
               repeats: 1
-              operation_timeout: 90
+              operation_timeout: 90m
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
