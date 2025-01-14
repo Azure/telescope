@@ -19,6 +19,7 @@
 {{$smallDeploymentSize := DefaultParam .smallDeploymentSize 0}}
 {{$smallDeploymentsPerNamespace := DefaultParam .smallDeploymentsPerNamespace 0}}
 
+{{$waitTime := DefaultParam .waitTime 0}}
 steps:
 - name: Starting measurement for '{{$actionName}}'
   measurements:
@@ -74,4 +75,11 @@ steps:
     Params:
       action: gather
       refreshInterval: 15s
+{{end}}
+
+{{if $waitTime > 0}}
+- name: Sleep for {{$waitTime}} minutes
+    phases:
+      - wait:
+        duration: {{$waitTime}}m
 {{end}}
