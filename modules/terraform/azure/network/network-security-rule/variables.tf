@@ -28,10 +28,7 @@ variable "source_port_range" {
   type        = string
 }
 
-variable "destination_port_range" {
-  description = "Destination port range for the network security rule."
-  type        = string
-}
+
 
 variable "destination_port_ranges" {
   description = "Destination port ranges for the network security rule."
