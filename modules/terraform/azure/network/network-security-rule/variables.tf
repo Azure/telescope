@@ -33,6 +33,12 @@ variable "destination_port_range" {
   type        = string
 }
 
+variable "destination_port_ranges" {
+  description = "Destination port ranges for the network security rule."
+  type        = list(string)
+  default     = []
+}
+
 variable "source_address_prefix" {
   description = "Source address prefix for the network security rule."
   type        = string
