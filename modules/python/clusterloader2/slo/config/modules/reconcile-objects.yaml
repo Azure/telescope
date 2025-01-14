@@ -78,8 +78,8 @@ steps:
 {{end}}
 
 # {{if gt $waitTime 0}}
-- name: Sleep for {{$waitTime}} minutes
-    phases:
-      - wait:
+- name: Sleep for 5 minutes
+  phases:
+    - wait:
         duration: 5m
 # {{end}}
