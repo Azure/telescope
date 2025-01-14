@@ -28,9 +28,9 @@ stages:
           matrix:
             n3-p330:
               node_count: 3
-              max_pods: 100
+              max_pods: 1000
               repeats: 1
-              operation_timeout: 15m
+              operation_timeout: 60m
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -52,7 +52,7 @@ stages:
               node_count: 3
               max_pods: 1000
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 60m
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
