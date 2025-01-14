@@ -77,7 +77,7 @@ steps:
       refreshInterval: 15s
 {{end}}
 
-{{if $waitTime > 0}}
+{{if gt $waitTime 0}}
 - name: Sleep for {{$waitTime}} minutes
     phases:
       - wait:
