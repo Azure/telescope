@@ -108,7 +108,7 @@ variable "network_config_list" {
       access                     = string
       protocol                   = string
       source_port_range          = string
-      destination_port_range     = string
+      destination_port_range     = optional(string)
       destination_port_ranges    = optional(list(string), [])
       source_address_prefix      = string
       destination_address_prefix = string
