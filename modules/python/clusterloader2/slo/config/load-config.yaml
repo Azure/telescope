@@ -30,12 +30,12 @@ name: load-config
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
+{{$SMALL_GROUP_SIZE := DefaultParam .CL2_DEPLOYMENT_SIZE 20}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
 
 # TODO: maintaining old logic when namespace value is 1, use smallDeploymentPods as calculatedPods count
 {{$calculatedPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
-{{$smallDeploymentPods := if eq $namespaces 1 $calculatedPods $podsPerNamespace}}
+{{$smallDeploymentPods := DivideInt $totalPods $namespaces}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 namespace:
