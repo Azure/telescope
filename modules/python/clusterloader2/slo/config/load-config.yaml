@@ -171,6 +171,37 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: start
   
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "delete {{$PODS}} pods"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: BurstLoad
+  #       operationTimeout: {{$operationTimeout}}
+  #       bigDeploymentSize: {{$PODS}}
+  #       bigDeploymentsPerNamespace: 0
+  #       smallDeploymentSize: 0
+  #       smallDeploymentsPerNamespace: 0
+  #       deploymentLabel: delete
+  #       Group: {{$groupName}}
+  #       waitForPods: false
+
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "recreate {{$PODS}} pods"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: BurstLoad
+  #       operationTimeout: {{$operationTimeout}}
+  #       bigDeploymentSize: {{$PODS}}
+  #       bigDeploymentsPerNamespace: 1
+  #       smallDeploymentSize: 0
+  #       smallDeploymentsPerNamespace: 0
+  #       CpuRequest: {{$latencyPodCpu}}m
+  #       MemoryRequest: {{$latencyPodMemory}}M
+  #       Group: {{$groupName}}
+  #       deploymentLabel: restart
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -184,38 +215,7 @@ steps:
         smallDeploymentsPerNamespace: 0
         deploymentLabel: delete
         Group: {{$groupName}}
-        waitForPods: false
 
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "recreate {{$PODS}} pods"
-        namespaces: {{$namespaces}}
-        tuningSet: BurstLoad
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$PODS}}
-        bigDeploymentsPerNamespace: 1
-        smallDeploymentSize: 0
-        smallDeploymentsPerNamespace: 0
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: restart
-
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete {{$PODS}} pods"
-        namespaces: {{$namespaces}}
-        tuningSet: BurstLoad
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$PODS}}
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: 0
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: delete
-        Group: {{$groupName}}
-        
   - name: Sleeping for {{$waitTime}}
     measurements:
     - Identifier: Sleep until {{$waitTime}}
