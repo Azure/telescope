@@ -3,6 +3,7 @@
 {{$usePolicyCreationMetrics := DefaultParam .usePolicyCreationMetrics true}}
 {{$usePodCreationMetrics := DefaultParam .usePodCreationMetrics true}}
 {{$useCiliumMetrics := DefaultParam .useCiliumMetrics true}}
+{{$useNPMMetrics := DefaultParam .useNPMMetrics true}}
 
 # CL2 params
 # Negative default values are used to turn thresholds off if not overridden. Thresholds are only enabled with values of zero or higher.
@@ -121,6 +122,7 @@ steps:
           query: sum(cilium_policy_endpoint_enforcement_status)
   {{end}}
 
+ {{if $useNPMMetrics}}
   - Identifier: NetworkPolicyMetrics-NPM
     Method: GenericPrometheusQuery
     Params:
