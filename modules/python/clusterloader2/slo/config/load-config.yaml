@@ -41,7 +41,7 @@ name: load-config
 
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
 {{$PODS := DefaultParam .CL2_PODS 0}}
-{{$waitTime := DefaultParam .CL2_WAIT_TIME "5m"}}
+{{$waitTime := DefaultParam .CL2_WAIT_TIME "2m"}}
 
 
 
@@ -185,7 +185,13 @@ steps:
   #       deploymentLabel: delete
   #       Group: {{$groupName}}
   #       waitForPods: false
-
+  - name: Sleeping for {{$waitTime}}
+    measurements:
+    - Identifier: Sleep until {{$waitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$waitTime}}
   # - module:
   #     path: /modules/reconcile-objects.yaml
   #     params:
