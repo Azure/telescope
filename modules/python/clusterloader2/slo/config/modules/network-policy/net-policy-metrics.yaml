@@ -120,3 +120,66 @@ steps:
         - name: Number of endpoints labeled by policy enforcement status
           query: sum(cilium_policy_endpoint_enforcement_status)
   {{end}}
+
+  - Identifier: NetworkPolicyMetrics-NPM
+    Method: GenericPrometheusQuery
+    Params:
+      action: {{$action}}
+      metricName: "Network Policy Performance"
+      metricVersion: v1
+      unit: s
+      queries:
+        # Policy Metrics
+        - name: Time taken to add network policy - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_add_policy_exec_time_bucket[%v])) by (le))
+        - name: Time taken to add network policy - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_add_policy_exec_time_bucket[%v])) by (le))
+        - name: Time taken to delete network policy - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_delete_policy_exec_time_bucket[%v])) by (le))
+        - name: Time taken to delete network policy - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_delete_policy_exec_time_bucket[%v])) by (le))
+        - name: Number of network policies currently active
+          query: avg(npm_policy_count)
+
+        # Pod and Namespace Metrics
+        - name: Time taken to add pod IP mapping - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_add_pod_exec_time_bucket[%v])) by (le))
+        - name: Time taken to add pod IP mapping - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_add_pod_exec_time_bucket[%v])) by (le))
+        - name: Time taken to delete pod IP mapping - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_delete_pod_exec_time_bucket[%v])) by (le))
+        - name: Time taken to delete pod IP mapping - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_delete_pod_exec_time_bucket[%v])) by (le))
+        - name: Number of pods currently managed
+          query: avg(npm_pod_count)
+        - name: Number of namespaces currently managed
+          query: avg(npm_namespace_count)
+
+        # IPSet Metrics
+        - name: Time taken to add IPSet - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_add_set_exec_time_bucket[%v])) by (le))
+        - name: Time taken to add IPSet - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_add_set_exec_time_bucket[%v])) by (le))
+        - name: Time taken to delete IPSet - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_delete_set_exec_time_bucket[%v])) by (le))
+        - name: Time taken to delete IPSet - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_delete_set_exec_time_bucket[%v])) by (le))
+        - name: Number of IPSets currently active
+          query: avg(npm_set_count)
+
+        # Performance Metrics
+        - name: NPM reconciliation time - Perc50
+          query: histogram_quantile(0.50, sum(rate(npm_reconcile_exec_time_bucket[%v])) by (le))
+        - name: NPM reconciliation time - Perc99
+          query: histogram_quantile(0.99, sum(rate(npm_reconcile_exec_time_bucket[%v])) by (le))
+        - name: Memory usage by NPM
+          query: avg(npm_memory_usage_bytes)
+
+        # Error Rates
+        - name: Policy application error rate
+          query: sum(rate(npm_add_policy_exec_time_count{status="error"}[%v]))
+        - name: Pod mapping error rate
+          query: sum(rate(npm_add_pod_exec_time_count{status="error"}[%v]))
+        - name: IPSet operation error rate
+          query: sum(rate(npm_add_set_exec_time_count{status="error"}[%v]))
+  {{end}}
