@@ -16,7 +16,7 @@ parameters:
   - name: total_network_policies
     type: number
     default: 0  # Default value for TOTAL_NETWORK_POLICIES
-  - name: service_test
+  - name: network_test
     type: boolean
     default: false  # Default value for NETWORK_TEST
 
@@ -43,4 +43,8 @@ steps:
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
       PODS_PER_NODE: ${{ parameters.pods_per_node }}
+      NO_OF_NAMESPACES: ${{ parameters.no_of_namespaces }}
+      TOTAL_NETWORK_POLICIES: ${{ parameters.total_network_policies }}  
+      NETWORK_TEST: ${{ parameters.network_test }}
+      CL2_CONFIG_FILE: load-config.yaml
     displayName: "Run Benchmark"

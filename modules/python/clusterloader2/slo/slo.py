@@ -221,7 +221,7 @@ def main():
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("no_of_namespaces", type=int, default=1, help="Number of namespaces to create")
-    parser_configure.add_argument("total_network_policies", type=int, help="Total number of network policies to create", default=1000)
+    parser_configure.add_argument("total_network_policies", type=int, default=0, help="Total number of network policies to create")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
