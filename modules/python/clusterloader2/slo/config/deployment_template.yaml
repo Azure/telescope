@@ -47,7 +47,7 @@ spec:
 {{if $RunNetPolicyTest}}
       hostNetwork: false
       containers:
-      - image: nginx
+      - image: acnpublic.azurecr.io/scaletest/nginx:latest
         name: nginx-server
         ports:
         - containerPort: 80
