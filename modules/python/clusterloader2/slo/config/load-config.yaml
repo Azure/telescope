@@ -215,15 +215,14 @@ steps:
         smallDeploymentsPerNamespace: 0
         deploymentLabel: delete
         Group: {{$groupName}}
-    
-    - name: Sleeping for {{$waitTime}}
-      measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          action: start
-          duration: {{$waitTime}}
-    
+        
+  - name: Sleeping for {{$waitTime}}
+    measurements:
+    - Identifier: Sleep until {{$waitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$waitTime}}
 {{end}}
 
 # Mugesh - Added conditional statement to delete services (Previously not there)
