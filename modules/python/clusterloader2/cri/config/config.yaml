@@ -23,18 +23,6 @@ tuningSets:
     qps: 1
 
 steps:
-  - name: Wait for nodes to be ready
-    measurements:
-      - Identifier: ConfirmNodeCount
-        Method: WaitForNodes
-        Params:
-          action: start
-          minDesiredNodeCount: {{$totalNodes}}
-          maxDesiredNodeCount: {{$totalNodes}}
-          labelSelector: cri-resource-consume = true
-          timeout: 1m
-          refreshInterval: 1m
-
   - name: Start measurements
     measurements:
       - Identifier: PodStartupLatency

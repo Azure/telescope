@@ -9,11 +9,11 @@ steps:
   - script: |
       set -eo pipefail
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate $DESIRED_NODES $OPERATION_TIMEOUT
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate $DESIRED_NODES $VALIDATION_TIMEOUT
     workingDirectory: modules/python/clusterloader2
     timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
     displayName: "Validate node count"
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
-      OPERATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
+      VALIDATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
