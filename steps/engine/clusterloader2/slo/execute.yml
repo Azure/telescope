@@ -9,7 +9,7 @@ parameters:
     type: string
   - name: pods_per_node
     type: number
-    default: 50
+    default: 40
   - name: no_of_namespaces
     type: number
     default: 1
