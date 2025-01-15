@@ -35,13 +35,7 @@ name: load-config
 
 # TODO: maintaining old logic when namespace value is 1, use smallDeploymentPods as calculatedPods count
 {{$calculatedPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
-{{$smallDeploymentPods := 0}} 
-{{printf "Type: %T, Value: %v" $namespaces $namespaces}}
-{{if eq (int $namespaces) 1}}
-  {{$smallDeploymentPods = $calculatedPods}}
-{{else}}
-  {{$smallDeploymentPods = DivideInt $totalPods $namespaces}}
-{{end}}
+{{$smallDeploymentPods := (if $NETWORK_TEST (DivideInt $totalPods $namespaces) $calculatedPods)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 namespace:
