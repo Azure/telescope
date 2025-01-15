@@ -24,8 +24,7 @@ stages:
               cpu_per_node: 4
               node_count: $(NODES)
               node_per_step: $(STEP_NODES)
-              max_pods: 110
-              pods_in_node: $(PODS)
+              max_pods: $(MAX_PODS_IN_NODE)
               repeats: 1
               scale_timeout: "15m"
               cilium_enabled: True
