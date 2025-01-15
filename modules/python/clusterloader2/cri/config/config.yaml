@@ -88,7 +88,7 @@ steps:
           minDesiredNodeCount: {{mul $totalNodes 0.8 | int}}
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: cri-resource-consume = true
-          timeout: {{$operationTimeout}}
+          timeout: 1m
           refreshInterval: 1m
 
   - name: Deleting deployments
