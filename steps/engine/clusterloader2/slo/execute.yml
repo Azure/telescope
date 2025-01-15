@@ -10,6 +10,15 @@ parameters:
   - name: pods_per_node
     type: number
     default: 50  # Default value for PODS_PER_NODE
+  - name: no_of_namespaces
+    type: number
+    default: 1  # Default value for NO_OF_NAMESPACES
+  - name: total_network_policies
+    type: number
+    default: 0  # Default value for TOTAL_NETWORK_POLICIES
+  - name: service_test
+    type: boolean
+    default: false  # Default value for NETWORK_TEST
 
 steps:
   - script: |
