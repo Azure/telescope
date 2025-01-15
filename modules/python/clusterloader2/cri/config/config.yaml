@@ -89,7 +89,7 @@ steps:
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: cri-resource-consume = true
           timeout: 1m
-          refreshInterval: 1m
+          refreshInterval: 5s
 
   - name: Deleting deployments
     phases:
