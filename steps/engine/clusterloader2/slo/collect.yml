@@ -9,7 +9,10 @@ parameters:
   type: string
 - name: pods_per_node
   type: number
-  default: 50  # Default value for PODS_PER_NODE
+  default: 50
+- name: network_test
+  type: boolean
+  default: false
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -29,4 +32,5 @@ steps:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
     PODS_PER_NODE: ${{ parameters.pods_per_node }}
+    NETWORK_TEST: ${{ parameters.network_test }}
   displayName: "Collect Results"
