@@ -85,7 +85,7 @@ steps:
         Method: WaitForNodes
         Params:
           action: start
-          minDesiredNodeCount: {{mul $totalNodes 0.8 | int}}
+          minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: cri-resource-consume = true
           timeout: 1m
