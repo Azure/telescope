@@ -2,7 +2,7 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: {{.basename}}
-  namespace: slo-1
+  namespace: slo-1 # slo-1 was used because tried passing in namespace from load-config but had object mismatch error, revise in future to possibly pass in ns
 spec:
   endpointSelector:
     matchLabels:
