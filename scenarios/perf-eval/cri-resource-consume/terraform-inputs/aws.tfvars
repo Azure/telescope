@@ -97,7 +97,7 @@ eks_config_list = [{
       ]
       labels = {
         "cri-resource-consume" = "true",
-        "agentpool"            = "userpool1"
+        "agentpool"            = "userpool0"
       }
     }
   ]
