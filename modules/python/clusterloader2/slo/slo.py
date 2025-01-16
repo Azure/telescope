@@ -9,6 +9,7 @@ from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 40
 LOAD_PODS_PER_NODE = 20
+API_RATE_LIMITING_PODS_PER_NODE = 250
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -24,13 +25,16 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider, service_test):
+def calculate_config(cpu_per_node, node_count, provider, service_test, api_rate_limiting_test):
     throughput = 100
+
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
     pods_per_node = DEFAULT_PODS_PER_NODE
     if service_test:
         pods_per_node = LOAD_PODS_PER_NODE
+    elif api_rate_limiting_test:
+        pods_per_node = API_RATE_LIMITING_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -52,10 +56,12 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
-    override_file):
+    override_file,
+    api_rate_limiting_test = None,
+    pods = 100):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, service_test, api_rate_limiting_test)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
@@ -79,8 +85,17 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
-        if service_test:
-            file.write("CL2_SERVICE_TEST: true\n")
+        if service_test: # Mugesh - Configured service_test to pass the value (True or False) to config
+            file.write(f"CL2_SERVICE_TEST: true\n") 
+
+        # Mugesh - API Rate Limiting Test Config Variable
+        if api_rate_limiting_test:
+            file.write("CL2_API_RATE_LIMITING_TEST: true\n")
+            file.write(f"CL2_SERVICE_TEST: false\n") 
+            file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
+            file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
+            file.write(f"CL2_PODS: {pods}\n") # Passed Pods to Config
+
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -115,6 +130,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
+    api_rate_limiting_test,
     result_file,
     test_type="default_config",
 ):
@@ -128,7 +144,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, service_test, api_rate_limiting_test)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -200,6 +216,9 @@ def main():
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether API Rate limiting test is running. Must be either True or False")
+    parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -227,6 +246,9 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_collect.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether API Rate limiting test is running. Must be either True or False")
+    parser_collect.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
@@ -236,7 +258,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cl2_override_file)
+                                 args.service_test, args.cl2_override_file, args.api_rate_limiting_test, args.pods)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -245,7 +267,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.result_file, args.test_type)
+                               args.service_test, args.api_rate_limiting_test, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()

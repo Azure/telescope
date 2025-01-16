@@ -28,14 +28,14 @@ steps:
           action: {{$action}}
           labelSelector: group = {{.group}}
           threshold: {{$podStartupLatencyThreshold}}
-    {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
-      - Identifier: NetworkProgrammingLatency
-        Method: NetworkProgrammingLatency
-        Params:
-          action: {{$action}}
-          enableViolations: {{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES}}
-          threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
-    {{end}}
+    # {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
+    #   - Identifier: NetworkProgrammingLatency
+    #     Method: NetworkProgrammingLatency
+    #     Params:
+    #       action: {{$action}}
+    #       enableViolations: {{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES}}
+    #       threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
+    # {{end}}
     {{if $ENABLE_IN_CLUSTER_NETWORK_LATENCY}}
       - Identifier: InClusterNetworkLatency
         Method: InClusterNetworkLatency
