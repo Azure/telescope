@@ -5,7 +5,7 @@ name: load-config
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
-{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
+{{$podsPerNode := 25}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
@@ -28,9 +28,9 @@ name: load-config
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 # Service test
-{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{$BIG_GROUP_SIZE := 0}}
+{{$SMALL_GROUP_SIZE := 5}}
+{{$bigDeploymentsPerNamespace := 0}}
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
