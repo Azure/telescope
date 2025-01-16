@@ -154,7 +154,6 @@ steps:
 # Mugesh - API Rate Limiting Test - create 200 pods, delete, restart with 250 pods
 
 {{if $API_RATE_LIMITING_TEST}}
-
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -228,7 +227,7 @@ steps:
       Method: Sleep
       Params:
         action: start
-        duration: {{$waitTime}}
+        duration: 10m
 {{end}}
 
 # Mugesh - Added conditional statement to delete services (Previously not there)
