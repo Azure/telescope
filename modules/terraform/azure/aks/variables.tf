@@ -70,7 +70,7 @@ variable "aks_config" {
       subnet_name                  = optional(string, null)
       node_count                   = number
       vm_size                      = string
-      os_sku                       = optional(string, "AzureLinux")
+      os_sku                       = optional(string, "Ubuntu")
       os_disk_type                 = optional(string, "Managed")
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
@@ -85,7 +85,7 @@ variable "aks_config" {
       subnet_name          = optional(string, null)
       node_count           = number
       vm_size              = string
-      os_sku               = optional(string, "AzureLinux")
+      os_sku               = optional(string, "Ubuntu")
       os_disk_type         = optional(string, "Managed")
       max_pods             = optional(number, null)
       ultra_ssd_enabled    = optional(bool, false)

@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-resource-consume"
-deletion_delay = "120h"
+scenario_name  = "azurelinux-resource-consume"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -97,7 +97,7 @@ eks_config_list = [{
       ]
       labels = {
         "cri-resource-consume" = "true",
-        "agentpool"            = "userpool1"
+        "agentpool"            = "userpool0"
       }
     }
   ]
