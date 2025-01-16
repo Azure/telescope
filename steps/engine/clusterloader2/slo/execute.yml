@@ -12,9 +12,6 @@ steps:
   - script: |
       set -eo pipefail
 
-      echo "max : ${MAX_PODS}"
-      echo "${MAX_PODS:-0}"
-
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP ${MAX_PODS:-0} \
         $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED \
