@@ -41,7 +41,7 @@ name: load-config
 
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
 {{$PODS := DefaultParam .CL2_PODS 0}}
-{{$waitTime := DefaultParam .CL2_WAIT_TIME "2m"}}
+{{$waitTime := DefaultParam .CL2_WAIT_TIME "5m"}}
 
 
 
@@ -192,10 +192,10 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$PODS}}
-        bigDeploymentsPerNamespace: 1
-        smallDeploymentSize: 0
-        smallDeploymentsPerNamespace: 0
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+        smallDeploymentSize: 1
+        smallDeploymentsPerNamespace: {{$PODS}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -208,7 +208,7 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$PODS}}
+        bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
         smallDeploymentSize: 0
         smallDeploymentsPerNamespace: 0
@@ -221,7 +221,7 @@ steps:
       Method: Sleep
       Params:
         action: start
-        duration: 10m
+        duration: {{$waitTime}}
 {{end}}
 
 # Mugesh - Added conditional statement to delete services (Previously not there)
