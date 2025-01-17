@@ -31,6 +31,7 @@ steps:
   displayName: "Set Run ID & Cloud"
   env:
     RUN_ID: ${{ parameters.run_id }}
+    CLOUD: ${{ parameters.cloud }}
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"

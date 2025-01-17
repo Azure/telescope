@@ -18,7 +18,7 @@ steps:
   condition: always()
 
 - task: ADXQuery@5
-  displayName: 'Run Cutsom Kusto Queries'
+  displayName: 'Run Custom Kusto Queries'
   inputs:
     files: '$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kql/*.csl'
     keepFormatting: true
