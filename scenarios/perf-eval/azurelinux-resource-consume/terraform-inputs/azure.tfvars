@@ -41,6 +41,5 @@ aks_config_list = [
         node_labels = { "cri-resource-consume" = "true" }
       }
     ]
-    kubernetes_version = "1.30"
   }
 ]

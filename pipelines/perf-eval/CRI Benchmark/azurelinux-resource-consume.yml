@@ -13,7 +13,7 @@ variables:
   SCENARIO_VERSION: main
 
 stages:
-  - stage: azure_westeurope
+  - stage: azurelinux_v3_westeurope
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -31,16 +31,54 @@ stages:
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
+              aks_kubernetes_version: 1.31
             n10-p700:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
+              aks_kubernetes_version: 1.31
             n10-p1100:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
+              aks_kubernetes_version: 1.31
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azurelinux_v2_westeurope
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westeurope
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              aks_kubernetes_version: 1.30
+            n10-p700:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              aks_kubernetes_version: 1.30
+            n10-p1100:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              aks_kubernetes_version: 1.30
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
