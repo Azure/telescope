@@ -1,7 +1,8 @@
 name: resource-consumer
 
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 10}}
-{{$memory := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY 100}}
+{{$memory := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY "100"}}
+{{$memoryKi := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_KI "100"}}
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$totalNodes := DefaultParam .CL2_NODE_COUNT 10}}
@@ -63,6 +64,8 @@ steps:
           Group: resource-consumer
           Memory: {{$memory}}K
           CPU: --millicores={{$cpu}}
+          MemoryRequest: {{$memoryKi}}
+          CPURequest: {{$cpu}}m
           AgentPool: {{$agentPoolPrefix}}{{$i}}
 
   - name: Waiting for latency pods to be running

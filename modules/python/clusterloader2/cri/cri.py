@@ -1,16 +1,27 @@
 import json
 import os
 import argparse
-import re
+import math
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
 DAEMONSETS_PER_NODE_MAP = {
-    "aws": 3,
+    "aws": 2,
     "aks": 6
 }
+
+def _get_daemonsets_pods_allocated_resources(client, node_name):
+    pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
+    cpu_request = 0
+    memory_request = 0
+    for pod in pods:
+        for container in pod.spec.containers:
+            print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+            cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+            memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+    return cpu_request, memory_request * 1024
 
 def override_config_clusterloader2(node_count, max_pods, repeats, operation_timeout, provider, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -27,16 +38,24 @@ def override_config_clusterloader2(node_count, max_pods, repeats, operation_time
     memory_value = int(allocatable_memory.replace("Ki", ""))
     print(f"Node {node.metadata.name} has cpu value of {cpu_value} and memory value of {memory_value}")
 
+    allocated_cpu, allocated_memory = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
+    print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu} and allocated memory of {allocated_memory}")
+
+    cpu_value -= allocated_cpu
+    memory_value -= allocated_memory
+
     # Calculate request cpu and memory for each pod
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     replica = pod_count * node_count
-    cpu_request = cpu_value // pod_count - 20
-    memory_request = int(memory_value * 1.024 // pod_count - 20)
-    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}K, total replica: {replica}")
+    cpu_request = cpu_value // pod_count
+    memory_request_in_Ki = math.ceil(memory_value // pod_count)
+    memory_request_in_K = int(memory_request_in_Ki // 1.024)
+    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_K}K, total replica: {replica}")
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {replica}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_K}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_Ki}Ki\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
