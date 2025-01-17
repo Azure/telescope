@@ -1,0 +1,8 @@
+let _time = ago(24h);
+telescope_metadata_main
+| where timestamp > _time
+| extend scenario_type = scenario_info.scenario_type, scenario_name = scenario_info.scenario_name
+| where scenario_type == "perf-eval" and scenario_name == "nap-c4n10p100"
+| summarize total_rows = count()
+| extend result = (total_rows != 0)
+| project result

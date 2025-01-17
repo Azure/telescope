@@ -1,0 +1,31 @@
+steps:
+- task: ADXQuery@5
+  displayName: 'Check for Missing Data'
+  inputs:
+    targetType: 'inline'
+    script: |
+      let _time = ago(24h);
+      $(KUSTO_TABLE_NAME)
+      | where timestamp > _time and cloud_info contains '$(CLOUD)'
+      | summarize total_rows = count()
+      | where total_rows != 0
+    kustoUrls: 'https://akstelescope.eastus.kusto.windows.net?DatabaseName=$(KUSTO_DATABASE_NAME)'
+    authType: 'armserviceconn'
+    connectedServiceARM: 'Azure-for-Telescope-internal'
+    minThreshold: '1'
+    maxThreshold: '1'
+  continueOnError: false
+  condition: always()
+
+- task: ADXQuery@5
+  displayName: 'Run Cutsom Kusto Queries'
+  inputs:
+    files: '$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kql/*.csl'
+    keepFormatting: true
+    kustoUrls: 'https://akstelescope.eastus.kusto.windows.net?DatabaseName=$(KUSTO_DATABASE_NAME)'
+    authType: 'armserviceconn'
+    connectedServiceARM: 'Azure-for-Telescope-internal'
+    SuccessCriteria: 'singleValue'
+    singleResult: 'true'
+  continueOnError: false
+  condition: always()
