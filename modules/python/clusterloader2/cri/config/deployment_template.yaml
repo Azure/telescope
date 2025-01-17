@@ -1,5 +1,7 @@
 {{$Memory := DefaultParam .Memory "1000M"}}
 {{$CPU := DefaultParam .CPU "--millicores=100"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
+{{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$AgentPool := DefaultParam .AgentPool "userpool1"}}
 
 apiVersion: apps/v1
@@ -37,7 +39,7 @@ spec:
           - "3600"
         resources:
           requests:
-            memory: "10Mi"
+            memory: {{$MemoryRequest}}
       - name: resource-consumer-cpu
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
         command:
@@ -47,7 +49,7 @@ spec:
           - {{$CPU}}
         resources:
           requests:
-            cpu: "10m"
+            cpu: {{$CPURequest}}
       tolerations:
       - key: "cri-resource-consume"
         operator: "Equal"
