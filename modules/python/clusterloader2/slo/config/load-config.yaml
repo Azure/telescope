@@ -192,10 +192,10 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: BurstLoad
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: 1
-        smallDeploymentsPerNamespace: {{$PODS}}
+        bigDeploymentSize: {{$PODS}}
+        bigDeploymentsPerNamespace: 1
+        smallDeploymentSize: 0
+        smallDeploymentsPerNamespace: 0
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -215,13 +215,13 @@ steps:
         deploymentLabel: delete
         Group: {{$groupName}}
 
-  - name: Sleeping for {{$waitTime}}
-    measurements:
-    - Identifier: Sleep until {{$waitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$waitTime}}
+  # - name: Sleeping for {{$waitTime}}
+  #   measurements:
+  #   - Identifier: Sleep until {{$waitTime}}
+  #     Method: Sleep
+  #     Params:
+  #       action: start
+  #       duration: {{$waitTime}}
 {{end}}
 
 # Mugesh - Added conditional statement to delete services (Previously not there)
