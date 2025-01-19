@@ -1,4 +1,11 @@
 trigger: none
+schedules:
+  - cron: "0 */3 * * *"
+    displayName: "Every 3 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 parameters:
   - name: node_count
