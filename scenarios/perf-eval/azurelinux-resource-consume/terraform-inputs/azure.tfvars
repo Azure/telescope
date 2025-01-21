@@ -53,13 +53,13 @@ aks_config_list = [
         node_labels          = { "prometheus" = "true" }
       },
       {
-        name        = "userpool0"
-        node_count  = 10
+        name                 = "userpool0"
+        node_count           = 10
         auto_scaling_enabled = false
-        vm_size     = "Standard_D16s_v3"
-        os_sku      = "AzureLinux"
-        node_taints = ["cri-resource-consume=true:NoSchedule"]
-        node_labels = { "cri-resource-consume" = "true" }
+        vm_size              = "Standard_D16s_v3"
+        os_sku               = "AzureLinux"
+        node_taints          = ["cri-resource-consume=true:NoSchedule"]
+        node_labels          = { "cri-resource-consume" = "true" }
       }
     ]
   }
