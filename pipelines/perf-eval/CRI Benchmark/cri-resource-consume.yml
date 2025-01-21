@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */12 * * *"
-    displayName: "Every 12 Hour"
+  - cron: "0 */4 * * *"
+    displayName: "Every 4 Hour"
     branches:
       include:
         - main
