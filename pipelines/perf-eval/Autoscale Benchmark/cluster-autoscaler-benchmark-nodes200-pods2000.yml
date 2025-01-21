@@ -1,0 +1,46 @@
+trigger: none
+schedules:
+  - cron: "0 */12 * * *"
+    displayName: "Every 12 Hour"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cas-c4n200p2k
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cluster-autoscaler
+          matrix:
+            azure_cni:
+              cpu_per_node: 4
+              node_count: 200
+              node_per_step: 20
+              pod_count: 2000
+              max_pods: 110
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 5
+              cilium_enabled: False
+              cl2_config_file: cluster-scale-config.yaml
+              service_test: False
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
