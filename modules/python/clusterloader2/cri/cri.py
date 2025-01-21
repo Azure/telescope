@@ -158,6 +158,8 @@ def main():
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
+    parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
+                                 default="memory", help="Type of load to generate")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
@@ -167,11 +169,13 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.max_pods, args.repeats, args.operation_timeout, args.load_type, args.provider, args.cl2_override_file)
+        override_config_clusterloader2(args.node_count, args.max_pods, args.repeats, args.operation_timeout, args.load_type,
+                                       args.provider, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type, 
+                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()
