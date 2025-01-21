@@ -10,6 +10,7 @@ name: resource-consumer
 {{$agentPoolPrefix := DefaultParam .CL2_AGENTPOOL_PREFIX "userpool"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
+{{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
 
 namespace:
   number: 1
@@ -67,6 +68,7 @@ steps:
           MemoryRequest: {{$memoryKi}}
           CPURequest: {{$cpu}}m
           AgentPool: {{$agentPoolPrefix}}{{$i}}
+          LoadType: {{$loadType}}
 
   - name: Waiting for latency pods to be running
     measurements:

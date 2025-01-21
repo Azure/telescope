@@ -3,6 +3,7 @@
 {{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$AgentPool := DefaultParam .AgentPool "userpool1"}}
+{{$LoadType := DefaultParam .LoadType "memory"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -24,6 +25,7 @@ spec:
       nodeSelector:
         agentpool: {{$AgentPool}}
       containers:
+{{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
         command:
@@ -40,6 +42,8 @@ spec:
         resources:
           requests:
             memory: {{$MemoryRequest}}
+{{end}}
+{{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
         command:
@@ -50,6 +54,7 @@ spec:
         resources:
           requests:
             cpu: {{$CPURequest}}
+{{end}}
       tolerations:
       - key: "cri-resource-consume"
         operator: "Equal"
