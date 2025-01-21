@@ -11,6 +11,7 @@ DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,
     "aks": 6
 }
+MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
@@ -48,7 +49,7 @@ def override_config_clusterloader2(node_count, max_pods, repeats, operation_time
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     replica = pod_count * node_count
     cpu_request = cpu_value // pod_count
-    memory_request_in_Ki = math.ceil(memory_value // pod_count - 20)
+    memory_request_in_Ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
     memory_request_in_K = int(memory_request_in_Ki // 1.024)
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_K}K, total replica: {replica}")
 
