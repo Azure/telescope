@@ -2,7 +2,6 @@
 {{$CPU := DefaultParam .CPU "--millicores=100"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
-{{$AgentPool := DefaultParam .AgentPool "userpool1"}}
 {{$LoadType := DefaultParam .LoadType "memory"}}
 
 apiVersion: apps/v1
@@ -23,7 +22,7 @@ spec:
         group: {{.Group}}
     spec:
       nodeSelector:
-        agentpool: {{$AgentPool}}
+        cri-resource-consume: "true"
       containers:
 {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory

@@ -5,9 +5,12 @@ name: resource-consumer
 {{$memoryKi := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_KI "100"}}
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
-{{$totalNodes := DefaultParam .CL2_NODE_COUNT 10}}
-{{$nodePools := DefaultParam .CL2_NODEPOOL 1}}
-{{$agentPoolPrefix := DefaultParam .CL2_AGENTPOOL_PREFIX "userpool"}}
+
+{{$steps := DefaultParam .CL2_STEPS 1}}
+{{$nodePerStep := DefaultParam .CL2_NODES_PER_STEP 1}}
+{{$totalNodes := AddInt (MultiplyInt $nodePerStep $steps) 1}}
+{{$deploymentSizePerStep := DivideInt $deploymentSize $steps}}
+
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 {{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
@@ -48,8 +51,8 @@ steps:
           labelSelector: group = resource-consumer
           operationTimeout: {{$operationTimeout}}
 
-{{range $i := Loop $nodePools}}
-  {{range $j := Loop $repeats}}
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
     phases:
     - namespaceRange:
@@ -58,16 +61,15 @@ steps:
       replicasPerNamespace: 1
       tuningSet: Uniform1qps
       objectBundle:
-      - basename: resource-consumer
+      - basename: resource-consumer-{{$j}}
         objectTemplatePath: deployment_template.yaml
         templateFillMap:
-          Replicas: {{$deploymentSize}}
+          Replicas: {{$deploymentSizePerStep}}
           Group: resource-consumer
           Memory: {{$memory}}K
           CPU: --millicores={{$cpu}}
           MemoryRequest: {{$memoryKi}}
           CPURequest: {{$cpu}}m
-          AgentPool: {{$agentPoolPrefix}}{{$i}}
           LoadType: {{$loadType}}
 
   - name: Waiting for latency pods to be running
@@ -95,8 +97,10 @@ steps:
           labelSelector: cri-resource-consume = true
           timeout: 1m
           refreshInterval: 5s
+  {{end}}
 
-  - name: Deleting deployments
+  {{range $j := Loop $steps}}
+  - name: Deleting deployments {{$j}}
     phases:
       - namespaceRange:
           min: 1
@@ -104,7 +108,7 @@ steps:
         replicasPerNamespace: 0
         tuningSet: Uniform1qps
         objectBundle:
-          - basename: resource-consumer
+          - basename: resource-consumer-{{$j}}
             objectTemplatePath: deployment_template.yaml
 
   - name: Waiting for latency pods to be deleted
