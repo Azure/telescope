@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */12 * * *"
-    displayName: "Every 12 Hour"
+  - cron: "0 */4 * * *"
+    displayName: "Every 4 Hour"
     branches:
       include:
         - main
@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cas-c4n200p2k
+  SCENARIO_NAME: cas-c4n200p200
   SCENARIO_VERSION: main
 
 stages:
@@ -23,24 +23,19 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            azure_cni:
+            c4-n200-p200:
               cpu_per_node: 4
               node_count: 200
-              node_per_step: 20
-              pod_count: 2000
-              max_pods: 110
+              pod_count: 200
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
-              loop_count: 5
-              cilium_enabled: False
-              cl2_config_file: cluster-scale-config.yaml
-              service_test: False
+              loop_count: 3
           max_parallel: 1
-          timeout_in_minutes: 720
+          timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false

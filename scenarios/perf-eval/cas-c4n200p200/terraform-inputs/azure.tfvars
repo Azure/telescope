@@ -1,12 +1,12 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cas-c4n200p2000"
+scenario_name  = "cas-c4n200p200"
 deletion_delay = "2h"
 owner          = "aks"
 
 aks_config_list = [
   {
     role        = "cas"
-    aks_name    = "cas"
+    aks_name    = "cas-c4n200p200"
     dns_prefix  = "cas"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
@@ -18,7 +18,7 @@ aks_config_list = [
       name                         = "default"
       node_count                   = 5
       auto_scaling_enabled         = false
-      vm_size                      = "Standard_D8_v3"
+      vm_size                      = "Standard_D4_v3"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = false
       temporary_name_for_rotation  = "defaulttmp"
@@ -30,7 +30,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 200
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_B4ps_v2"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       }
