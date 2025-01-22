@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */2 * * *"
-    displayName: "Every 2 Hour"
+  - cron: "0 1,13 * * *"
+    displayName: "1:00 AM & PM Daily"
     branches:
       include:
         - main
