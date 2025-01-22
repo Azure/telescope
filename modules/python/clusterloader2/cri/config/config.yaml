@@ -7,7 +7,7 @@ name: resource-consumer
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 
 {{$steps := DefaultParam .CL2_STEPS 1}}
-{{$nodePerStep := DefaultParam .CL2_NODES_PER_STEP 1}}
+{{$nodePerStep := DefaultParam .CL2_NODE_PER_STEP 1}}
 {{$totalNodes := MultiplyInt $nodePerStep $steps}}
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
 {{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
@@ -66,15 +66,15 @@ steps:
       - basename: resource-consumer-{{$j}}
         objectTemplatePath: deployment_template.yaml
         templateFillMap:
-        {{if $scale_enabled}}
-          {{if eq $j 0}}
-            Replicas: {{AddInt $scaleReplicas $deploymentSize}}
-          {{else}}
-            Replicas: {{$scaleReplicas}}
-          {{end}}
+      {{if $scale_enabled}}
+        {{if eq $j 0}}
+          Replicas: {{AddInt $scaleReplicas $deploymentSize}}
         {{else}}
-          Replicas: {{$replicas}}
+          Replicas: {{$scaleReplicas}}
         {{end}}
+      {{else}}
+          Replicas: {{$replicas}}
+      {{end}}
           Group: resource-consumer
           Memory: {{$memory}}K
           CPU: --millicores={{$cpu}}
@@ -102,13 +102,13 @@ steps:
         Method: WaitForNodes
         Params:
           action: start
-          {{if $scale_enabled}}
-            minDesiredNodeCount: {{MultiplyInt (AddInt $totalNodes 1) 0.8}}
-            maxDesiredNodeCount: {{AddInt $totalNodes 1}}
-          {{else}}
-            minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
-            maxDesiredNodeCount: {{$totalNodes}}
-          {{end}}
+        {{if $scale_enabled}}
+          minDesiredNodeCount: {{MultiplyInt (AddInt (MultiplyInt $nodePerStep (AddInt $j 1)) 1) 0.8}}
+          maxDesiredNodeCount: {{AddInt $totalNodes 1}}
+        {{else}}
+          minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
+          maxDesiredNodeCount: {{$totalNodes}}
+        {{end}}
           labelSelector: cri-resource-consume = true
           timeout: 1m
           refreshInterval: 5s
