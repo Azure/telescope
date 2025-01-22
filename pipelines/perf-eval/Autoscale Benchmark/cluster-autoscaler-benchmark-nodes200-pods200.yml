@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 */4 * * *"
-    displayName: "Every 4 Hour"
+  - cron: "0 16 * * *"
+    displayName: "Every day at 4:00 PM"
     branches:
       include:
         - main
@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cas-c4n200p200
+  SCENARIO_NAME: cas-c2n200p200
   SCENARIO_VERSION: main
 
 stages:
@@ -26,16 +26,42 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c4-n200-p200:
-              cpu_per_node: 4
+            c2-n200-p200:
+              cpu_per_node: 2
               node_count: 200
               pod_count: 200
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
-              loop_count: 3
+              loop_count: 1
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            c2-n200-p200:
+              cpu_per_node: 2
+              node_count: 200
+              pod_count: 200
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+          max_parallel: 1
+          timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
