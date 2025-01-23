@@ -48,9 +48,6 @@ locals {
   )
 }
 
-output "parms" {
-  value = local.extra_pool_optional_parameters_map
-}
 resource "terraform_data" "aks_cli_preview" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 

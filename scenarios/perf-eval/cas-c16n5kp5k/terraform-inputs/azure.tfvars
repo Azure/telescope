@@ -13,13 +13,13 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "default"
       node_count = 5
-      vm_size    = "Standard_D2s_v3"
+      vm_size    = "Standard_D16_v5"
     }
     extra_node_pool = [
       {
         name       = "userpool0"
         node_count = 0
-        vm_size    = "Standard_D16_v5"
+        vm_size    = "Standard_D2s_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -42,7 +42,7 @@ aks_cli_config_list = [
       {
         name       = "userpool1"
         node_count = 0
-        vm_size    = "Standard_D16_v5"
+        vm_size    = "Standard_D2s_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -65,7 +65,7 @@ aks_cli_config_list = [
       {
         name       = "userpool2"
         node_count = 0
-        vm_size    = "Standard_D16_v5"
+        vm_size    = "Standard_D2s_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -88,7 +88,7 @@ aks_cli_config_list = [
       {
         name       = "userpool3"
         node_count = 0
-        vm_size    = "Standard_D16_v5"
+        vm_size    = "Standard_D2s_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -111,7 +111,7 @@ aks_cli_config_list = [
       {
         name       = "userpool4"
         node_count = 0
-        vm_size    = "Standard_D16_v5"
+        vm_size    = "Standard_D2s_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"

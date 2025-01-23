@@ -1,0 +1,42 @@
+trigger: none
+schedules:
+  - cron: "0 16 * * *"
+    displayName: "Every day at 4:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cas-c16n5kp5k
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            c16-n5k-p5k:
+              cpu_per_node: 2
+              node_count: 5000
+              pod_count: 5000
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+          max_parallel: 1
+          timeout_in_minutes: 300
+          credential_type: service_connection
+          ssh_key_enabled: false
+
