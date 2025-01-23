@@ -289,7 +289,7 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "10.244.0.0/12"
+        value = "10.240.0.0/12"
       },
       {
         name  = "outbound-type"
