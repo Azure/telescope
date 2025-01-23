@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cas-c16n5kp5k
+  SCENARIO_NAME: cas-c2n5kp5k
   SCENARIO_VERSION: main
 
 stages:
@@ -26,7 +26,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c16-n5k-p5k:
+            c2-n5k-p5k:
               cpu_per_node: 2
               node_count: 5000
               pod_count: 5000
@@ -39,4 +39,3 @@ stages:
           timeout_in_minutes: 300
           credential_type: service_connection
           ssh_key_enabled: false
-
