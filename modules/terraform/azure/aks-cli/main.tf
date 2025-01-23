@@ -9,6 +9,16 @@ locals {
     pool.name => pool
   }
 
+  extra_pool_optional_parameters_map = length(var.aks_cli_config.extra_node_pool) == 0 ? {} : {
+    for pool in var.aks_cli_config.extra_node_pool :
+    pool.name => length(pool.optional_parameters) == 0 ?
+    "" :
+    join(" ", [
+      for param in pool.optional_parameters :
+      format("--%s %s", param.name, param.value)
+    ])
+  }
+
   kubernetes_version = (
     var.aks_cli_config.kubernetes_version == null ?
     "" :
@@ -38,6 +48,9 @@ locals {
   )
 }
 
+output "parms" {
+  value = local.extra_pool_optional_parameters_map
+}
 resource "terraform_data" "aks_cli_preview" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 
@@ -127,6 +140,7 @@ resource "terraform_data" "aks_nodepool_cli" {
       "--node-count", each.value.node_count,
       "--node-vm-size", each.value.vm_size,
       "--vm-set-type", each.value.vm_set_type,
+      local.extra_pool_optional_parameters_map[each.value.name],
     ])
   }
 }
