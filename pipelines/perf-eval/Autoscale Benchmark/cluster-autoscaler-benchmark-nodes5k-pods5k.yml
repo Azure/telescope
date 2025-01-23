@@ -30,12 +30,12 @@ stages:
               cpu_per_node: 2
               node_count: 5000
               pod_count: 5000
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
+              scale_up_timeout: "120m"
+              scale_down_timeout: "120m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 1
           max_parallel: 1
-          timeout_in_minutes: 300
+          timeout_in_minutes: 480
           credential_type: service_connection
           ssh_key_enabled: false
