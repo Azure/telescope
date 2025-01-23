@@ -19,7 +19,7 @@ aks_cli_config_list = [
       {
         name       = "userpool0"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -45,7 +45,7 @@ aks_cli_config_list = [
       {
         name       = "userpool1"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -71,7 +71,7 @@ aks_cli_config_list = [
       {
         name       = "userpool2"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -97,7 +97,7 @@ aks_cli_config_list = [
       {
         name       = "userpool3"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -123,7 +123,7 @@ aks_cli_config_list = [
       {
         name       = "userpool4"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -149,7 +149,7 @@ aks_cli_config_list = [
       {
         name       = "userpool5"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -175,7 +175,7 @@ aks_cli_config_list = [
       {
         name       = "userpool6"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -201,7 +201,7 @@ aks_cli_config_list = [
       {
         name       = "userpool7"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -227,7 +227,7 @@ aks_cli_config_list = [
       {
         name       = "userpool8"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -253,7 +253,7 @@ aks_cli_config_list = [
       {
         name       = "userpool9"
         node_count = 0
-        vm_size    = "Standard_D2s_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -289,7 +289,7 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "10.244.0.0/14"
+        value = "10.244.0.0/12"
       },
       {
         name  = "outbound-type"
@@ -302,5 +302,9 @@ aks_cli_config_list = [
       {
         name  = "nat-gateway-idle-timeout"
         value = "4"
+      },
+      {
+        name  = "cluster-autoscaler-profile"
+        value = "scale-down-delay-after-add=0m,scale-down-unneeded=0m"
       }
 ] }]
