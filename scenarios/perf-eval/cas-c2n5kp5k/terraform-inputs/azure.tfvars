@@ -302,9 +302,5 @@ aks_cli_config_list = [
       {
         name  = "nat-gateway-idle-timeout"
         value = "4"
-      },
-      {
-        name  = "cluster-autoscaler-profile"
-        value = "scale-down-delay-after-add=0m,scale-down-unneeded-time=0m"
       }
 ] }]
