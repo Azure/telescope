@@ -49,7 +49,7 @@ locals {
     "--enable-managed-identity" :
     format(
       "%s %s",
-      "--assign-identity", azurerm_user_assigned_identity.userassignedidentity.id,
+      "--assign-identity", azurerm_user_assigned_identity.userassignedidentity[0].id,
     )
   )
 }
@@ -65,7 +65,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 resource "azurerm_role_assignment" "network_contributor" {
   role_definition_name = "Network Contributor"
   scope                = local.subnet_id_parameter
-  principal_id         = azurerm_user_assigned_identity.userassignedidentity.principal_id
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
 resource "terraform_data" "aks_cli_preview" {
