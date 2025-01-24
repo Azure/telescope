@@ -3,6 +3,12 @@ scenario_name  = "cas-c2n5kp5k"
 deletion_delay = "5h"
 owner          = "aks"
 
+public_ip_config_list = [
+  {
+    name = "cas-nat-gateway-pip"
+  }
+]
+
 network_config_list = [
   {
     role               = "cas"
@@ -11,12 +17,17 @@ network_config_list = [
     subnet = [
       {
         name           = "cas-subnet"
-        address_prefix = "10.192.0.0/16"
+        address_prefix = "10.192.0.0/10"
       }
     ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
+    network_security_group_name = "cas-c2n5kp5k-nsg"
+    nat_gateway_associations = [{
+      nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
+      subnet_name      = "cas-subnet"
+      public_ip_name   = "cas-nat-gateway-pip"
+    }]
+    nic_public_ip_associations = []
+    nsr_rules                  = []
   }
 ]
 aks_cli_config_list = [
@@ -306,6 +317,10 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "10.193.0.0/16"
+        value = "10.128.0.0/11"
+      },
+      {
+        name  = "outbound-type"
+        value = "userAssignedNATGateway"
       }
 ] }]
