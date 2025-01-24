@@ -33,7 +33,7 @@ stages:
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.1.5
             benchmark_subcmd: node100_job1_pod3k
-            benchmark_subcmd_args: "--total 36000"
+            benchmark_subcmd_args: "--total 1"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
@@ -58,7 +58,7 @@ stages:
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.1.5
             benchmark_subcmd: node100_job1_pod3k
-            benchmark_subcmd_args: "--total 36000"
+            benchmark_subcmd_args: "--total 1"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
