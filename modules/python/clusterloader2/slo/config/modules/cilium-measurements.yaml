@@ -169,7 +169,7 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+          query: cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}"}
         - name: Perc95
           query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc50
