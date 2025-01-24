@@ -22,12 +22,6 @@ variable "subnet_id" {
   default     = null
 }
 
-variable "managed_identity_id" {
-  type        = string
-  default     = null
-  description = "value of the managed identity id"
-}
-
 variable "aks_cli_config" {
   type = object({
     role                          = string

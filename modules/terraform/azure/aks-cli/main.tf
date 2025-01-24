@@ -37,7 +37,7 @@ locals {
     ])
   )
 
-  subnet_id_paramter = (var.subnet_id == null ?
+  subnet_id_parameter = (var.subnet_id == null ?
     "" :
     format(
       "%s %s",
@@ -45,13 +45,27 @@ locals {
     )
   )
 
-  managed_identity_parameter = (var.managed_identity_id == null ?
+  managed_identity_parameter = (var.aks_cli_config.managed_identity_name == null ?
     "--enable-managed-identity" :
     format(
       "%s %s",
-      "--assign-identity", var.managed_identity_id,
+      "--assign-identity", azurerm_user_assigned_identity.userassignedidentity.id,
     )
   )
+}
+
+resource "azurerm_user_assigned_identity" "userassignedidentity" {
+  count               = var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  location            = var.location
+  name                = var.aks_cli_config.managed_identity_name
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
+resource "azurerm_role_assignment" "network_contributor" {
+  role_definition_name = "Network Contributor"
+  scope                = local.subnet_id_parameter
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity.principal_id
 }
 
 resource "terraform_data" "aks_cli_preview" {
@@ -81,7 +95,8 @@ resource "terraform_data" "aks_cli_preview" {
 
 resource "terraform_data" "aks_cli" {
   depends_on = [
-    terraform_data.aks_cli_preview
+    terraform_data.aks_cli_preview,
+    azurerm_role_assignment.network_contributor
   ]
 
   input = {
@@ -107,7 +122,7 @@ resource "terraform_data" "aks_cli" {
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
       local.optional_parameters,
-      local.subnet_id_paramter,
+      local.subnet_id_parameter,
       local.managed_identity_parameter,
     ])
   }
