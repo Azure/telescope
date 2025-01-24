@@ -3,12 +3,29 @@ scenario_name  = "cas-c2n5kp5k"
 deletion_delay = "5h"
 owner          = "aks"
 
+network_config_list = [
+  {
+    role               = "cas"
+    vnet_name          = "cas-vnet"
+    vnet_address_space = "10.192.0.0/10"
+    subnet = [
+      {
+        name           = "cas-subnet"
+        address_prefix = "10.192.0.0/16"
+      }
+    ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
+  }
+]
 aks_cli_config_list = [
   {
     role               = "cas"
     aks_name           = "cas-c2n5kp5k"
     sku_tier           = "standard"
     kubernetes_version = "1.31"
+    subnet_name        = "cas-subnet"
 
     default_node_pool = {
       name       = "default"
@@ -289,18 +306,6 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "10.240.0.0/11"
-      },
-      {
-        name  = "outbound-type"
-        value = "managedNATGateway"
-      },
-      {
-        name  = "nat-gateway-managed-outbound-ip-count"
-        value = "5"
-      },
-      {
-        name  = "nat-gateway-idle-timeout"
-        value = "4"
+        value = "10.193.0.0/16"
       }
 ] }]
