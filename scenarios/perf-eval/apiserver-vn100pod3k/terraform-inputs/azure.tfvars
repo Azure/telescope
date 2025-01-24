@@ -5,11 +5,13 @@ owner          = "aks"
 
 aks_config_list = [
   {
-    role        = "client"
-    aks_name    = "vn100-p3k"
-    dns_prefix  = "kperf"
-    subnet_name = "aks-network"
-    sku_tier    = "Standard"
+    role               = "client"
+    aks_name           = "vn100-p3k"
+    dns_prefix         = "kperf"
+    subnet_name        = "aks-network"
+    sku_tier           = "Standard"
+    kubernetes_version = "1.31"
+
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
