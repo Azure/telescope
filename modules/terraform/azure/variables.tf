@@ -76,6 +76,14 @@ variable "public_ip_config_list" {
   default = []
 }
 
+variable "managed_identity_config_list" {
+  description = "Configuration for creating managed identities."
+  type = list(object({
+    name = string
+  }))
+  default = []
+}
+
 variable "network_config_list" {
   description = "Configuration for creating the server network."
   type = list(object({

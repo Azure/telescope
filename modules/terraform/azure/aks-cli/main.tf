@@ -44,6 +44,14 @@ locals {
       "--vnet-subnet-id", var.subnet_id,
     )
   )
+
+  managed_identity_parameter = (var.managed_identity_id == null ?
+    "" :
+    format(
+      "%s %s",
+      "--assign-identity", var.managed_identity_id,
+    )
+  )
 }
 
 resource "terraform_data" "aks_cli_preview" {
@@ -101,6 +109,7 @@ resource "terraform_data" "aks_cli" {
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
       local.optional_parameters,
       local.subnet_id_paramter,
+      local.managed_identity_parameter,
     ])
   }
 

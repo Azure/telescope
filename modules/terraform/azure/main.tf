@@ -47,7 +47,8 @@ locals {
     )
   ] : []
 
-  aks_cli_config_map = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+  aks_cli_config_map          = length(local.updated_aks_cli_config_list) == 0 ? { for aks in var.aks_cli_config_list : aks.role => aks } : { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+  managed_identity_config_map = { for managed_identity in var.managed_identity_config_list : managed_identity.name => managed_identity }
 }
 
 provider "azurerm" {
@@ -60,6 +61,15 @@ module "public_ips" {
   location              = local.region
   public_ip_config_list = var.public_ip_config_list
   tags                  = local.tags
+}
+
+module "managed_identities" {
+  for_each            = local.managed_identity_config_map
+  source              = "./managed-identity"
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+  identity_name       = each.key
 }
 
 module "virtual_network" {
@@ -98,4 +108,5 @@ module "aks-cli" {
   subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   aks_cli_config      = each.value
   tags                = local.tags
+  managed_identity_id = try(module.managed_identities[each.value.managed_identity_name].id, null)
 }
