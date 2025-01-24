@@ -5,7 +5,8 @@ owner          = "aks"
 
 public_ip_config_list = [
   {
-    name = "cas-nat-gateway-pip"
+    name  = "cas-nat-gateway-pip"
+    count = 5
   }
 ]
 
@@ -24,8 +25,29 @@ network_config_list = [
     nat_gateway_associations = [{
       nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
       subnet_name      = "cas-subnet"
-      public_ip_name   = "cas-nat-gateway-pip"
-    }]
+      public_ip_name   = "cas-nat-gateway-pip-1"
+      },
+      {
+        nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
+        subnet_name      = "cas-subnet"
+        public_ip_name   = "cas-nat-gateway-pip-2"
+      },
+      {
+        nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
+        subnet_name      = "cas-subnet"
+        public_ip_name   = "cas-nat-gateway-pip-3"
+      },
+      {
+        nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
+        subnet_name      = "cas-subnet"
+        public_ip_name   = "cas-nat-gateway-pip-4"
+      },
+      {
+        nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
+        subnet_name      = "cas-subnet"
+        public_ip_name   = "cas-nat-gateway-pip-5"
+      }
+    ]
     nic_public_ip_associations = []
     nsr_rules                  = []
   }
