@@ -19,10 +19,10 @@ steps:
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
 
-      if [ -z "$AKS_CLI_CUSTOM_HEADERS" ]; then
+      if [ -z "$(AKS_CLI_CUSTOM_HEADERS)" ]; then
         AKS_CUSTOM_HEADERS='[]'
       else
-        IFS=', ' read -r -a aks_custom_headers_array <<< "$AKS_CLI_CUSTOM_HEADERS"
+        IFS=', ' read -r -a aks_custom_headers_array <<< "$(AKS_CLI_CUSTOM_HEADERS)"
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
