@@ -36,6 +36,14 @@ locals {
       format("--%s %s", param.name, param.value)
     ])
   )
+
+  subnet_id_paramter = (var.subnet_id == null ?
+    "" :
+    format(
+      "%s %s",
+      "--vnet-subnet-id", var.subnet_id,
+    )
+  )
 }
 
 resource "terraform_data" "aks_cli_preview" {
@@ -92,6 +100,7 @@ resource "terraform_data" "aks_cli" {
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
       local.optional_parameters,
+      local.subnet_id_paramter,
     ])
   }
 

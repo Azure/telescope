@@ -95,6 +95,7 @@ module "aks-cli" {
   source              = "./aks-cli"
   resource_group_name = local.run_id
   location            = local.region
+  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
   aks_cli_config      = each.value
   tags                = local.tags
 }
