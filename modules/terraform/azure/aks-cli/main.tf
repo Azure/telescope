@@ -46,7 +46,7 @@ locals {
   )
 
   managed_identity_parameter = (var.managed_identity_id == null ?
-    "" :
+    "--enable-managed-identity" :
     format(
       "%s %s",
       "--assign-identity", var.managed_identity_id,
@@ -101,7 +101,6 @@ resource "terraform_data" "aks_cli" {
       "--tags", join(" ", local.tags_list),
       local.aks_custom_headers_flags,
       "--no-ssh-key",
-      "--enable-managed-identity",
       local.kubernetes_version,
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
