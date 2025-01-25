@@ -207,6 +207,7 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
+    managed_identity_name         = optional(string, null)
     subnet_name                   = optional(string, null)
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
