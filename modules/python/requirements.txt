@@ -1,2 +1,2 @@
-docker
-kubernetes
+docker==7.1.0
+kubernetes==31.0.0
