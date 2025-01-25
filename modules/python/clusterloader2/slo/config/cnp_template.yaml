@@ -8,13 +8,13 @@ spec:
     matchLabels:
       group: cnp-ccnp
   ingressDeny:
-  - fromEndpoints:
-    - matchLabels:
-        io.kubernetes.pod.namespace: default
+  - fromEntities:
+    - host
+    - world
   egress:
   - toPorts:
     - ports:
       - port: "443"
         protocol: TCP
-    toCIDR:
-    - 0.0.0.0/0
+    toEntities:
+    - cluster

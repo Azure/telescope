@@ -7,9 +7,8 @@ spec:
     matchLabels:
       group: cnp-ccnp
   ingressDeny:
-  - fromEndpoints:
-    - matchLabels:
-        io.kubernetes.pod.namespace: default
+  - fromEntities:
+    - host
   egress:
   - toPorts:
     - ports:
