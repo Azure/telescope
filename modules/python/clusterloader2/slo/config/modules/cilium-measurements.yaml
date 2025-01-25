@@ -180,3 +180,111 @@ steps:
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
 
+    - Identifier: AvgCiliumBPFMapPressure
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Avg Cilium BPF Map Pressure
+        metricVersion: v1
+        unit: ratio
+        dimensions:
+        - map_name
+        enableViolations: true
+        queries: 
+        - name: avg bpf map pressure over time 
+          query: avg(avg_over_time(cilium_bpf_map_pressure[%v:])) by (map_name)
+    - Identifier: MaxCiliumBPFMapPressure
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Max Cilium BPF Map Pressure
+        metricVersion: v1
+        unit: ratio
+        dimensions:
+        - map_name
+        enableViolations: true
+        queries:
+        - name: max bpf map pressure over time
+          query: max(max_over_time(cilium_bpf_map_pressure[%v:])) by (map_name)
+    - Identifier: MaxCiliumPoliciesLoadedCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Max number of Cilium Policies Loaded
+        metricVersion: v1
+        unit: policies
+        enableViolations: true
+        queries:
+        - name: max number of cilium policies loaded over time
+          query: max(max_over_time(cilium_policy[%v:]))
+    - Identifier: AvgCiliumPoliciesLoadedCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Avg number of Cilium Policies Loaded
+        metricVersion: v1
+        unit: policies
+        enableViolations: true
+        queries:
+        - name: avg number of cilium policies loaded over time
+          query: avg(avg_over_time(cilium_policy[%v:]))
+    - Identifier: CiliumBPFMapsAvgMemoryUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Maps Avg Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumBPFMapsMaxMemoryUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Maps Max Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.50, max_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumBPFProgramsAvgMemoryUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Programs Avg Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumBPFProgramsMaxMemoryUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Programs Max Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.50, max_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
