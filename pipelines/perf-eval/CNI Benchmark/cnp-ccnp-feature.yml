@@ -3,10 +3,11 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cnp-ccnp-feature
+  SCENARIO_VERSION: additionstoccnp-cnpPipeline
   OWNER: aks
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_cnp_ccnp
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -24,7 +25,7 @@ stages:
               node_count: $(NODES)
               node_per_step: $(STEP_NODES)
               max_pods: $(MAX_PODS_IN_NODE)
-              repeats: 1
+              repeats: $(NUM_REPEATS)
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium

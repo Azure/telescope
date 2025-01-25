@@ -220,7 +220,7 @@ def main():
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
     parser_configure.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_configure.add_argument("repeats", type=int, nargs='?', default=1, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
@@ -256,7 +256,7 @@ def main():
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_collect.add_argument("repeats", type=int, nargs='?', default=1, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
