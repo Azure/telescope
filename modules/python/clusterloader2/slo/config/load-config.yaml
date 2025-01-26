@@ -133,8 +133,7 @@ steps:
       path: modules/network-policy/net-policy-metrics.yaml
       params:
         action: gather
-        usePolicyCreationMetrics: true
-        usePodCreationMetrics: true
+        usePolicyCreationMetrics: false
 
   - module:
       path: modules/network-policy/net-policy-enforcement-latency.yaml
@@ -206,8 +205,6 @@ steps:
       path: modules/network-policy/net-policy-metrics.yaml
       params:
         action: gather
-        usePolicyCreationMetrics: true
-        usePodCreationMetrics: true
 
   - module:
       path: modules/network-policy/net-policy-enforcement-latency.yaml
