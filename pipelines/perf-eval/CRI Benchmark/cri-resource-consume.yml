@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "0 */4 * * *"
+  - cron: "0 2-23/4 * * *"
     displayName: "Every 4 Hour"
     branches:
       include:
@@ -13,14 +13,14 @@ variables:
   SCENARIO_VERSION: main
 
 stages:
-  - stage: azure_westeurope
+  - stage: azure_swedencentral
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - westeurope
+            - swedencentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
