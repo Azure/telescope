@@ -47,7 +47,7 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "ghcr.io/agrawaliti/clusterloader2:latest"
           topology: network-churn
           matrix:
             azure_cilium:
@@ -80,7 +80,7 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "ghcr.io/agrawaliti/clusterloader2:latest"
           topology: network-churn
           matrix:
             azure_cni:
