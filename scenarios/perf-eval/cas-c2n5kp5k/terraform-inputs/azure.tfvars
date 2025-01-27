@@ -23,7 +23,7 @@ network_config_list = [
     network_security_group_name = "cas-c2n5kp5k-nsg"
     nat_gateway_associations = [{
       nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
-      subnet_name      = "cas-subnet"
+      subnet_names     = ["cas-subnet"]
       public_ip_names  = ["cas-nat-gateway-pip"]
       }
     ]
