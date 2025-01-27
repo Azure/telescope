@@ -19,12 +19,15 @@ network_config_list = [
       {
         name           = "cas-subnet"
         address_prefix = "10.192.0.0/10"
-      }
+      },
+			{
+				name           = "cas-subnet-1"
+				address_prefix = "10.192.4.0/22"
     ]
     network_security_group_name = "cas-c2n5kp5k-nsg"
     nat_gateway_associations = [{
       nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
-      subnet_names     = ["cas-subnet"]
+      subnet_names     = ["cas-subnet", "cas-subnet-1"]
       public_ip_names  = ["cas-nat-gateway-pip-1", "cas-nat-gateway-pip-2", "cas-nat-gateway-pip-3", "cas-nat-gateway-pip-4", "cas-nat-gateway-pip-5"]
       }
     ]
