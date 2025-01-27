@@ -34,5 +34,5 @@ variable "nat_gateway_association" {
 
 variable "subnets_map" {
   description = "Map of subnets"
-  type        = map()
+  type        = map(any)
 }
