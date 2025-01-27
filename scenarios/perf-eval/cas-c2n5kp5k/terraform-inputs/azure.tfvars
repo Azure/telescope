@@ -5,7 +5,8 @@ owner          = "aks"
 
 public_ip_config_list = [
   {
-    name = "cas-nat-gateway-pip"
+    name  = "cas-nat-gateway-pip"
+    count = 5
   }
 ]
 
@@ -24,7 +25,7 @@ network_config_list = [
     nat_gateway_associations = [{
       nat_gateway_name = "cas-c2n5kp5k-nat-gateway"
       subnet_names     = ["cas-subnet"]
-      public_ip_names  = ["cas-nat-gateway-pip"]
+      public_ip_names  = ["cas-nat-gateway-pip-1", "cas-nat-gateway-pip-2", "cas-nat-gateway-pip-3", "cas-nat-gateway-pip-4", "cas-nat-gateway-pip-5"]
       }
     ]
     nic_public_ip_associations = []
@@ -33,11 +34,12 @@ network_config_list = [
 ]
 aks_cli_config_list = [
   {
-    role               = "cas"
-    aks_name           = "cas-c2n5kp5k"
-    sku_tier           = "standard"
-    kubernetes_version = "1.31"
-    subnet_name        = "cas-subnet"
+    role                  = "cas"
+    aks_name              = "cas-c2n5kp5k"
+    sku_tier              = "standard"
+    kubernetes_version    = "1.31"
+    subnet_name           = "cas-subnet"
+    managed_identity_name = "cas-identity"
 
     default_node_pool = {
       name       = "default"
