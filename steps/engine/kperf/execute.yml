@@ -14,6 +14,9 @@ parameters:
 - name: disable_warmup
   type: string
   default: "false"
+- name: warmup_subcmd_args
+  type: string
+  default: "--total 12000"
 - name: region
   type: string
 
@@ -37,8 +40,9 @@ steps:
     set -euo pipefail
     set -x
 
+    is_eks="--eks"
     if [[ "${CLOUD}" != "aws" ]]; then
-      exit 0
+      is_eks=""
     fi
 
     if [[ "${DISABLE_WARMUP}" == "true" ]]; then
@@ -53,13 +57,14 @@ steps:
 
     sudo -E $(command -v runkperf) -v 3 ${cmd_name} \
       --kubeconfig ~/.kube/config \
-      --runner-image ${RUNNER_IMAGE} \
-      --total 12000
+      --runner-image ${RUNNER_IMAGE} ${is_eks} \
+      ${WARMUP_SUBCMD_ARGS}
   env:
     CLOUD: ${{ parameters.cloud }}
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
     DISABLE_WARMUP: ${{ parameters.disable_warmup }}
-  displayName: "Warmup if cloud is aws"
+    WARMUP_SUBCMD_ARGS: ${{ parameters.warmup_subcmd_args }}
+  displayName: "Warmup"
 - script: |
     set -euo pipefail
     set -x
