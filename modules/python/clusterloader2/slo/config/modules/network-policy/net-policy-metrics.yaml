@@ -69,7 +69,7 @@ steps:
           threshold: {{$NP_ENFORCE_POD_IP_ASSIGNED_99_THRESHOLD_SECONDS}}
         {{end}}
         - name: AzureNpmCpuUsage - Avg
-          query: sum(rate(npm_process_cpu_seconds_total{pod=~"azure-npm-.*", namespace="kube-system"}[5m]))
+          query:  avg(npm_num_policies{namespace="kube-system", pod=~"azure-npm-.*"}) by (pod)
         # - name: AzureCiliumCpuUsage - Avg
         #   query: avg(avg(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod="cilium-22tdq"}[5m])) by (pod))
         # - name: AzureNpmMemoryUsage - Avg
