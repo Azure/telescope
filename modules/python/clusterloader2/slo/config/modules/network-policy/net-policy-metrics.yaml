@@ -75,7 +75,7 @@ steps:
         # - name: AzureNpmMemoryUsage - Avg
         #   query: avg(avg(rate(container_memory_usage_bytes{namespace="kube-system", pod="azure-npm-zwm6s"}[5m])) by (pod))
         - name: AzureCiliumMemoryUsage - Avg
-          query: sum(rate(container_cpu_usage_seconds_total{namespace="kube-system"}[5m]))
+          query: sum(rate(cilium_process_cpu_seconds_total{pod=~"cilium-.*", namespace="kube-system"}[5m]))
 
       {{end}}
 
