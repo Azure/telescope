@@ -114,8 +114,8 @@ variable "network_config_list" {
     }))
     nat_gateway_associations = optional(list(object({
       nat_gateway_name = string
-      public_ip_names  = list(string)
-      subnet_names     = list(string)
+      public_ip_names  = optional(list(string), [])
+      subnet_names     = optional(list(string), [])
     })))
   }))
   default = []
