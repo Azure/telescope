@@ -389,7 +389,7 @@ steps:
     #       query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
     #     - name: Burst_Max
     #       query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-    # - Identifier: CiliumAPIRateLimiterRateLimit
+    - Identifier: CiliumAPIRateLimiterRateLimit
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
