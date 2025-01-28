@@ -1,0 +1,29 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -eo pipefail
+
+    # Override the configuration for scaling
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
+      $NODE_COUNT $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT ${CL2_CONFIG_DIR}/overrides.yaml
+
+    # Execute the scaling workload
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
+  workingDirectory: modules/python/clusterloader2
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-autoscale/cri-autoscale.py
+    CL2_IMAGE: ${{ parameters.engine_input.image }}
+    CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-autoscale/config
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-autoscale/results
+  displayName: "Execute Konnectivity Autoscaler Scaling Test"

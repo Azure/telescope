@@ -1,0 +1,40 @@
+trigger: none
+  #schedules:
+  #- cron: "0 */12 * * *"
+  #  displayName: "Every 12 Hours"
+  #  branches:
+  #    include:
+  #      - main
+  #  always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: konnectivity-autoscale
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: azure_eastus
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westeurope
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-autoscale
+          matrix:
+            n10:
+              node_count: 10
+              scale_up_timeout: "10m"
+              scale_down_timeout: "10m"
+            n100:
+              node_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+          max_parallel: 2
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
