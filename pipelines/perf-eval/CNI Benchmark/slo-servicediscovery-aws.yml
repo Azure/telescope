@@ -1,0 +1,42 @@
+trigger: none
+schedules:
+  - cron: "0 6 * * *"
+    displayName: "6:00 AM Daily"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: slo-servicediscovery
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: aws_eastus1
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-1
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: service-churn
+          matrix:
+            aws_vpc_cni:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 1000
+              max_pods: 110
+              repeats: 10
+              scale_timeout: "15m"
+              cilium_enabled: False
+              service_test: True
+              cl2_config_file: load-config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
