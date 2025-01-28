@@ -334,7 +334,7 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Create Processing Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Create Processing Duration
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -352,7 +352,7 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Delete Processing Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Delete Processing Duration
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -370,7 +370,7 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Get Processing Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Get Processing Duration
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -394,7 +394,7 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Create Wait Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Create Wait Duration
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -410,7 +410,7 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Delete Wait Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Delete Wait Duration
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -426,7 +426,7 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Get Wait Duration in Seconds
+        metricName: Cilium API Rate Limiter Endpoint-Get Wait Duration
         metricVersion: v1
         unit: s
         enableViolations: true
