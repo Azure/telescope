@@ -41,7 +41,7 @@ name: load-config
 
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
 {{$PODS := DefaultParam .CL2_PODS 0}}
-{{$waitTime := DefaultParam .CL2_WAIT_TIME "5m"}}
+{{$waitTime := DefaultParam .CL2_WAIT_TIME "2m"}}
 
 
 
@@ -169,7 +169,40 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
-  
+
+  - name: Sleeping for {{$waitTime}}
+    measurements:
+    - Identifier: Sleep until {{$waitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$waitTime}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}  
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -200,6 +233,39 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: restart
+
+  - name: Sleeping for {{$waitTime}}
+    measurements:
+    - Identifier: Sleep until {{$waitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$waitTime}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}  
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
 
   - module:
       path: /modules/reconcile-objects.yaml
