@@ -98,5 +98,7 @@ eks_config_list = [{
       name = "coredns"
     }
   ]
+
+  kubernetes_version = "1.31"
 }]
 

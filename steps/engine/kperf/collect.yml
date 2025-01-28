@@ -45,11 +45,13 @@ steps:
         --auth-mode login
     fi
 
+    extra_info=$(echo $CLOUD_INFO)
+
     cat ${TEST_RESULTS_DIR}/tmp_results.json \
       | jq 'del(.result.errors)' \
       | jq -c ".info += { flowcontrol: \"$FLOWCONTROL\", subcmdArgs: \"$BENCHMARK_SUBCMD_ARGS\", extraArgs: \"$EXTRA_BENCHMARK_SUBCMD_ARGS\" }" \
       | jq -c ". += { timestamp: $(date -u +\"%Y-%m-%dT%H:%M:%SZ\") }" \
-      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD_NAME\" }" > "${TEST_RESULTS_FILE}"
+      | jq -c ". += { runID: \"$RUN_ID\", runURL: \"$RUN_URL\", cloud: \"$CLOUD_NAME\", extraInfos: $extra_info }" > "${TEST_RESULTS_FILE}"
 
     cat $TEST_RESULTS_FILE | jq .
   env:

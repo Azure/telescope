@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-resource-consume"
+scenario_name  = "azurelinux-resource-consume"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -39,6 +39,7 @@ aks_config_list = [
       node_count                   = 3
       vm_size                      = "Standard_D16_v3"
       os_disk_type                 = "Managed"
+      os_sku                       = "AzureLinux"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
     }
@@ -48,6 +49,7 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
+        os_sku               = "AzureLinux"
         node_labels          = { "prometheus" = "true" }
       },
       {
@@ -55,10 +57,11 @@ aks_config_list = [
         node_count           = 10
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
+        os_sku               = "AzureLinux"
         node_taints          = ["cri-resource-consume=true:NoSchedule"]
         node_labels          = { "cri-resource-consume" = "true" }
       }
     ]
-    kubernetes_version = "1.30"
+    kubernetes_version = "1.31"
   }
 ]
