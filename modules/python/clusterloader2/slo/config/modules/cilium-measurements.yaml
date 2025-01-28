@@ -350,51 +350,86 @@ steps:
         - name: Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_wait_duration_seconds{value="max", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
 
-    - Identifier: CiliumAPIRateLimiterRateLimit-EndpointCreate
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Create Rate Limit
-        metricVersion: v1
-        unit: count
-        enableViolations: true
-        queries:
-          # Group for Limit Metrics
-          - group: Limit
-            metrics:
-              - name: Avg
-                query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-              - name: Max
-                query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-          
-          # Group for Burst Metrics
-          - group: Burst
-            metrics:
-              - name: Avg
-                query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-              - name: Max
-                query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+    # - Identifier: CiliumAPIRateLimiterRateLimit-EndpointCreate
+    #   Method: GenericPrometheusQuery
+    #   Params:
+    #     action: {{$action}}
+    #     metricName: Cilium API Rate Limiter Endpoint-Create Rate Limit
+    #     metricVersion: v1
+    #     unit: count
+    #     enableViolations: true
+    #     queries:
+    #     # Queries for Endpoint Create
+    #     - name: Limit_Avg
+    #       query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+    #     - name: Limit_Max
+    #       query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+     
+    #     - name: Burst_Avg
+    #       query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+    #     - name: Burst_Max
+    #       query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
 
-    - Identifier: CiliumAPIRateLimiterRateLimit-EndpointDelete
+    # - Identifier: CiliumAPIRateLimiterRateLimit-EndpointDelete
+    #   Method: GenericPrometheusQuery
+    #   Params:
+    #     action: {{$action}}
+    #     metricName: Cilium API Rate Limiter Endpoint-Delete Rate Limit
+    #     metricVersion: v1
+    #     unit: count
+    #     enableViolations: true
+    #     queries:
+    #     # Queries for Endpoint Delete
+    #     - name: Limit_Avg
+    #       query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+    #     - name: Limit_Max
+    #       query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+       
+    #     - name: Burst_Avg
+    #       query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+    #     - name: Burst_Max
+    #       query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+    # - Identifier: CiliumAPIRateLimiterRateLimit
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium API Rate Limiter Endpoint-Delete Rate Limit
+        metricName: Cilium API Rate Limiter Parameters
         metricVersion: v1
         unit: count
         enableViolations: true
         queries:
-        # Queries for Endpoint Delete
-        - name: Limit_Avg
-          query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: Limit_Max
-          query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-       
-        - name: Burst_Avg
-          query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: Burst_Max
-          query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-       
+          - metric: RateLimit
+            description: Queries for rate limit metrics
+            subgroups:
+              - name: Create
+                metrics:
+                  - name: Avg
+                    query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+                  - name: Max
+                    query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+              - name: Delete
+                metrics:
+                  - name: Avg
+                    query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+                  - name: Max
+                    query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+
+          - metric: Burst
+            description: Queries for burst metrics
+            subgroups:
+              - name: Create
+                metrics:
+                  - name: Avg
+                    query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+                  - name: Max
+                    query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
+              - name: Delete
+                metrics:
+                  - name: Avg
+                    query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+                  - name: Max
+                    query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
+      
 
         
     # - Identifier: CiliumAgentAPIProcessTimeGetRequests
