@@ -43,7 +43,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-cilscale-9135-20250106121756
+          rg: $(CES_RG)
   - stage: azure_cilium_disablecrd
     dependsOn: []
     jobs:
@@ -74,7 +74,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-cilscale-30606-20250106104443
+          rg: $(DISABLECRD_RG)
   - stage: azure_cni
     dependsOn: []
     jobs:
@@ -103,4 +103,4 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          rg: jshr-azscale-4076-20250106121952
+          rg: $(AZCNI_RG)
