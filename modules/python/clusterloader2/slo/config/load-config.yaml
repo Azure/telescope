@@ -82,12 +82,14 @@ steps:
       params:
         action: start
         group: {{$groupName}}
+        dataName: "create"
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
       params:
         action: start
+        dataName: "create"
 {{end}}
 
 {{range $i := Loop $repeats}}
@@ -183,25 +185,29 @@ steps:
       path: /modules/cilium-measurements.yaml
       params:
         action: gather
+        dataName: "create"
 {{end}}
 
   - module:
       path: /modules/measurements.yaml
       params:
         action: gather
-        group: {{$groupName}}  
+        group: {{$groupName}} 
+        dataName: "create" 
 
   - module:
       path: /modules/measurements.yaml
       params:
         action: start
         group: {{$groupName}}
+        dataName: "deletecreate"
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
       params:
         action: start
+        dataName: "deletecreate"
 {{end}}
   - module:
       path: /modules/reconcile-objects.yaml
@@ -247,24 +253,28 @@ steps:
       path: /modules/cilium-measurements.yaml
       params:
         action: gather
+        dataName: "deletecreate"
 {{end}}
 
   - module:
       path: /modules/measurements.yaml
       params:
         action: gather
-        group: {{$groupName}}  
+        group: {{$groupName}}
+        dataName: "deletecreate"
   - module:
       path: /modules/measurements.yaml
       params:
         action: start
         group: {{$groupName}}
+        dataName: "delete"
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
       params:
         action: start
+        dataName: "delete"
 {{end}}
 
   - module:
@@ -308,6 +318,7 @@ steps:
       path: /modules/cilium-measurements.yaml
       params:
         action: gather
+        dataName: "delete"
 {{end}}
 
   - module:
@@ -315,3 +326,4 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
+        dataName: "delete"
