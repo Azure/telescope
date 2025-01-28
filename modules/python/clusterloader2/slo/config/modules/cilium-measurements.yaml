@@ -519,34 +519,6 @@ steps:
         - name: Burst_Min
           query: min_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
     
-    - Identifier: CiliumAgentResidentMemory
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium API Rate Limiter Agent Memory Usage
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        - name: Avg
-          query: avg_over_time(cilium_process_resident_memory_bytes{pod="{{ $podName }}" }[%v:]) 
-        - name: Max
-          query: max_over_time(cilium_process_resident_memory_bytes{pod="{{ $podName }}" }[%v:]) 
-    
-    - Identifier: CiliumAgentCPU
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium API Rate Limiter Agent CPU Usage
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        - name: Avg
-          query: rate(container_cpu_usage_seconds_total{namespace="kube-system", pod="{{ $podName }}" }[%v:])
-        - name: Max
-          query: max(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod="{{ $podName }}" }[%v:]))
-
       # # Global Aggregated Queries Across All API Calls
       #   - name: AllCalls_Limit_Avg
       #     query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", pod="cilium-plmxj"}[%v:])
