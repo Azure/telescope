@@ -35,7 +35,7 @@ steps:
           query: histogram_quantile(0.95, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
         - name: Perc50-{{$dataName}}
           query: histogram_quantile(0.50, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
-        - name: CollectionType
+        - name: CollectionType-{{$dataName}}
           query: sum(rate(cilium_endpoint_propagation_delay_seconds_sum[%v:])) / sum(rate(cilium_endpoint_propagation_delay_seconds_count[%v:]))
     - Identifier: CiliumAvgCPUUsage
       Method: GenericPrometheusQuery
@@ -297,7 +297,7 @@ steps:
         queries:
         - name: Avg-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: Avg_Estimated
+        - name: Avg_Estimated-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="estimated", pod="{{ $podName }}" }[%v:]) 
         - name: Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-create", value="mean", pod="{{ $podName }}" }[%v:])
@@ -315,7 +315,7 @@ steps:
         queries:
         - name: Avg-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="{{ $podName }}" }[%v:]) 
-        - name: Avg_Estimated
+        - name: Avg_Estimated-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="estimated", pod="{{ $podName }}" }[%v:]) 
         - name: Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-delete", value="mean", pod="{{ $podName }}" }[%v:]) 
@@ -360,14 +360,14 @@ steps:
         enableViolations: true
         queries:
         # Queries for Endpoint Create
-        - name: Limit_Avg
+        - name: Limit_Avg-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: Limit_Max
+        - name: Limit_Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
      
-        - name: Burst_Avg
+        - name: Burst_Avg-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
-        - name: Burst_Max
+        - name: Burst_Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-create", pod="{{ $podName }}" }[%v:])
 
     - Identifier: CiliumAPIRateLimiterRateLimit-EndpointDelete
@@ -380,14 +380,14 @@ steps:
         enableViolations: true
         queries:
         # Queries for Endpoint Delete
-        - name: Limit_Avg
+        - name: Limit_Avg-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: Limit_Max
+        - name: Limit_Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
        
-        - name: Burst_Avg
+        - name: Burst_Avg-{{$dataName}}
           query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        - name: Burst_Max
+        - name: Burst_Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
         
     # - Identifier: CiliumAgentAPIProcessTimeGetRequests
@@ -446,7 +446,7 @@ steps:
     #     queries:
     #     - name: Avg-{{$dataName}}
     #       query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-get", value="mean", pod="{{ $podName }}" }[%v:]) 
-    #     - name: Avg_Estimated
+    #     - name: Avg_Estimated-{{$dataName}}
     #       query: avg_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-get", value="estimated", pod="{{ $podName }}" }[%v:]) 
     #     - name: Max-{{$dataName}}
     #       query: max_over_time(cilium_api_limiter_processing_duration_seconds{api_call="endpoint-get", value="mean", pod="{{ $podName }}" }[%v:]) 
@@ -492,28 +492,22 @@ steps:
     #     enableViolations: true
     #     queries:
     #     # Queries for Endpoint Delete
-    #     - name: Limit_Avg
+    #     - name: Limit_Avg-{{$dataName}}
     #       query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
-    #     - name: Limit_Max
+    #     - name: Limit_Max-{{$dataName}}
     #       query: max_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
-    #     - name: Limit_Min
-    #       query: min_over_time(cilium_api_limiter_rate_limit{value="limit", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
-
-    #     - name: Burst_Avg
+   
+    #     - name: Burst_Avg-{{$dataName}}
     #       query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
-    #     - name: Burst_Max
+    #     - name: Burst_Max-{{$dataName}}
     #       query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
-    #     - name: Burst_Min
-    #       query: min_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-get", pod="{{ $podName }}" }[%v:])
-    
+  
       # # Global Aggregated Queries Across All API Calls
       #   - name: AllCalls_Limit_Avg
       #     query: avg_over_time(cilium_api_limiter_rate_limit{value="limit", pod="cilium-plmxj"}[%v:])
       #   - name: AllCalls_Limit_Max
       #     query: max_over_time(cilium_api_limiter_rate_limit{value="limit", pod="cilium-plmxj"}[%v:])
-      #   - name: AllCalls_Limit_Min
-      #     query: min_over_time(cilium_api_limiter_rate_limit{value="limit", pod="cilium-plmxj"}[%v:])
-
+    
       #   - name: AllCalls_Burst_Avg
       #     query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", pod="cilium-plmxj"}[%v:])
       #   - name: AllCalls_Burst_Max
