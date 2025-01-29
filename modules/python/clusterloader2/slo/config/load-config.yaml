@@ -164,14 +164,6 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: restart
 
-  - name: Add wait
-    measurements:
-    - Identifier: Dummy-wait
-      Method: Sleep
-      Params:
-        action: start
-        duration: 10000s
-
   - module:
       path: /modules/reconcile-objects.yaml
       params:
