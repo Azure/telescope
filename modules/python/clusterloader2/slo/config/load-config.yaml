@@ -13,7 +13,7 @@ name: load-config
 
 # TODO(jshr-w): This should eventually use >1 namespace.
 {{$namespaces := 1}}
-{{$nodes := DefaultParam .CL2_NODES 1000}}
+{{$nodes := DefaultParam .CL2_NODES 5000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
@@ -30,7 +30,7 @@ name: load-config
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 10}}
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
