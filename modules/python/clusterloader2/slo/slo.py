@@ -30,7 +30,7 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
 
     pods_per_node = DEFAULT_PODS_PER_NODE
     if service_test:
-        pods_per_node = LOAD_PODS_PER_NODE
+        pods_per_node = max_pods
 
     if cnp_test or ccnp_test:
         pods_per_node = max_pods
@@ -54,7 +54,7 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
-    cnp_test, 
+    cnp_test,
     ccnp_test,
     num_cnps,
     num_ccnps,
@@ -65,6 +65,7 @@ def configure_clusterloader2(
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
 
     with open(override_file, 'w') as file:
+        file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
@@ -79,6 +80,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
+        file.write("CL2_ENABLE_TERMINATED_WATCHES_MEASUREMENT: true\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -136,7 +138,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
-    cnp_test, 
+    cnp_test,
     ccnp_test,
     num_cnps,
     num_ccnps,
@@ -274,7 +276,7 @@ def main():
                                 help="Description of test type")
 
     args = parser.parse_args()
-    
+
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
