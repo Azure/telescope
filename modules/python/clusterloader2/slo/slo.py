@@ -12,6 +12,7 @@ LOAD_PODS_PER_NODE = 20
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
+API_RATE_LIMITING_PODS_PER_NODE = 200
 DAEMONSETS_PER_NODE = {
     "aws": 2,
     "azure": 6,
@@ -24,7 +25,7 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test):
+def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test, api_rate_limiting_test):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
@@ -59,7 +60,10 @@ def configure_clusterloader2(
     num_cnps,
     num_ccnps,
     dualstack,
-    override_file):
+    override_file,
+    api_rate_limiting_test = None,
+    pods = 100,
+    pod_name = ""):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
@@ -103,6 +107,14 @@ def configure_clusterloader2(
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
+        if api_rate_limiting_test:
+            file.write("CL2_API_RATE_LIMITING_TEST: true\n")
+            file.write(f"CL2_SERVICE_TEST: false\n") 
+            file.write(f"CL2_GROUP_NAME: \"api-rate-limiting-test\"\n") # Passed Group Name to Config
+            file.write(f"CL2_NODES: {node_count}\n") # Passed Node Count to Config
+            file.write(f"CL2_PODS: {pods}\n") # Passed Pods to Config
+            file.write(f"CL2_POD_NAME: {pod_name}\n") # Passed Pod Name to Config
+
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
 
@@ -136,6 +148,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
+    api_rate_limiting_test,
     cnp_test, 
     ccnp_test,
     num_cnps,
@@ -154,7 +167,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test, api_rate_limiting_test)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -234,11 +247,15 @@ def main():
     parser_configure.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether API Rate limiting test is running. Must be either True or False")    parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
+    parser_configure.add_argument("pod_name", type=str, help="Name of the pod")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
     parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
+    
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -261,6 +278,8 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
+    parser_collect.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
+                                  help="Whether API Rate limiting test is running. Must be either True or False")
     parser_collect.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cnp test is running. Must be either True or False")
     parser_collect.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
@@ -278,7 +297,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file, args.api_rate_limiting_test, args.pods, args.pod_name)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -287,7 +306,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.result_file, args.test_type)
+                               args.service_test, args.api_rate_limiting_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()
