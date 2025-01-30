@@ -48,7 +48,6 @@ steps:
           pingSleepDuration: {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION}}
           threshold: {{$NETWORK_LATENCY_THRESHOLD}}
     {{end}}
-    {{if $PROMETHEUS_SCRAPE_KUBELETS}}
       - Identifier: NodeAvgCPUUsage
         Method: GenericPrometheusQuery
         Params:
@@ -79,7 +78,6 @@ steps:
             query: quantile(0.90, max_over_time(node_memory_working_set_bytes[%v:]) / 1024 / 1024)
           - name: Perc50
             query: quantile(0.5, max_over_time(node_memory_working_set_bytes[%v:]) / 1024 / 1024)
-    {{end}}
     {{if $ENABLE_TERMINATED_WATCHES_MEASUREMENT}}
       - Identifier: TerminatedWatchesMetrics
         Method: GenericPrometheusQuery
