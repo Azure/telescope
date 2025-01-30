@@ -248,7 +248,8 @@ def main():
                                   help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_configure.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
-                                  help="Whether API Rate limiting test is running. Must be either True or False")    parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
+                                  help="Whether API Rate limiting test is running. Must be either True or False")
+    parser_configure.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
     parser_configure.add_argument("pod_name", type=str, help="Name of the pod")
 
     # Sub-command for validate_clusterloader2
