@@ -13,7 +13,7 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
-      desired_nodes: 6
+      desired_nodes: 3
   - ${{ if eq(parameters.cloud, 'aws') }}:
       - script: kubectl apply -f $KARPENTER_NODEPOOL_FILE
         env:
