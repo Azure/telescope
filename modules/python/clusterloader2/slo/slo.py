@@ -280,6 +280,7 @@ def main():
                                   help="Whether service test is running. Must be either True or False")
     parser_collect.add_argument("api_rate_limiting_test", type=eval, choices=[True, False], default=False,
                                   help="Whether API Rate limiting test is running. Must be either True or False")
+    parser_collect.add_argument("pods", type=int, help="Number of pods for API Rate Limiting Test", default=0)
     parser_collect.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cnp test is running. Must be either True or False")
     parser_collect.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
@@ -306,7 +307,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.api_rate_limiting_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.result_file, args.test_type)
+                               args.service_test, args.api_rate_limiting_test, args.pods, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()
