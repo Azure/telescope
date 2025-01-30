@@ -4,6 +4,9 @@
 {{$namespaces := .namespaces}}
 {{$tuningSet := .tuningSet}}
 
+# flag to wait for pods to be deleted
+{{$waitToDelete := DefaultParam .waitForPods true}}
+
 # Derivative variables
 {{$is_deleting := (eq .actionName "delete")}}
 {{$operationTimeout := .operationTimeout}}
@@ -11,8 +14,10 @@
 # Deployments
 {{$bigDeploymentSize := .bigDeploymentSize}}
 {{$bigDeploymentsPerNamespace := .bigDeploymentsPerNamespace}}
-{{$smallDeploymentSize := .smallDeploymentSize}}
-{{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
+
+# Mugesh - Set Default values to 0 if not provided
+{{$smallDeploymentSize := DefaultParam .smallDeploymentSize 0}}
+{{$smallDeploymentsPerNamespace := DefaultParam .smallDeploymentsPerNamespace 0}}
 
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
@@ -67,6 +72,8 @@ steps:
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 
+# Mugesh - Wait for pods to be deleted
+{{if $waitToDelete}}
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
   - Method: WaitForControlledPodsRunning
@@ -75,3 +82,4 @@ steps:
     Params:
       action: gather
       refreshInterval: 15s
+{{end}}
