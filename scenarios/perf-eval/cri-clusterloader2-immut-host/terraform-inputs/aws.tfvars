@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-kbench-cp-bottlerocket"
+scenario_name  = "cri-clusterloader2-immut-host"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -84,9 +84,9 @@ eks_config_list = [{
       name           = "userpool0"
       ami_type       = "BOTTLEROCKET_x86_64"
       instance_types = ["m5.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
+      min_size       = 10
+      max_size       = 10
+      desired_size   = 10
       capacity_type  = "ON_DEMAND"
       taints = [
         {
