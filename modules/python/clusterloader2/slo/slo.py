@@ -83,6 +83,7 @@ def configure_clusterloader2(
 
         if network_test:
             file.write("CL2_NETWORK_TEST: true\n")
+            file.write("CL2_SERVICE_TEST: false\n")
             file.write("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true\n")
             file.write("CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_KUBE_PROXY: true\n")
