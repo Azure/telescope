@@ -34,10 +34,9 @@ name: load-config
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
 
 # TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250)
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 {{if (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-{{else}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 {{end}}
 
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
