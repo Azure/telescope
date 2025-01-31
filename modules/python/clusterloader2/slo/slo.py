@@ -30,7 +30,7 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
 
     pods_per_node = DEFAULT_PODS_PER_NODE
     if service_test:
-        pods_per_node = LOAD_PODS_PER_NODE
+        pods_per_node = max_pods
 
     if cnp_test or ccnp_test:
         pods_per_node = max_pods
@@ -65,6 +65,7 @@ def configure_clusterloader2(
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
 
     with open(override_file, 'w') as file:
+        file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
