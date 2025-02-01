@@ -56,7 +56,7 @@ def configure_clusterloader2(
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
-        file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
+        #file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n"): TEMP
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")

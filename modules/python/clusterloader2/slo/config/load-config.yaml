@@ -31,7 +31,7 @@ name: load-config
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE  20}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 
 # Use explicit conditional block to assign smallDeploymentPods to maintain backward compatibility
 {{$calculatedPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
