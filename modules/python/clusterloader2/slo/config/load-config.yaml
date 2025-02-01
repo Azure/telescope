@@ -1,7 +1,7 @@
 name: load-config
 
 # Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST false}}
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 
 # Config options for test parameters

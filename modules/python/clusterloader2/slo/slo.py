@@ -80,6 +80,8 @@ def configure_clusterloader2(
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
+        else:
+            file.write("CL2_SERVICE_TEST: false\n")
 
         if network_test:
             file.write("CL2_NETWORK_TEST: true\n")
