@@ -5,7 +5,7 @@ name: load-config
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 
 # Config options for test parameters
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 24}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
