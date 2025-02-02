@@ -132,7 +132,9 @@ steps:
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
-        deploymentLabel: start
+        deploymentLabel: start 
+        {{end}}
+
 
 #   - module:
 #       path: /modules/reconcile-objects.yaml
@@ -202,7 +204,7 @@ steps:
 #         namespaces: {{$namespaces}}
 #         ccnps: 0
 # {{end}}
- {{end}}
+# {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
