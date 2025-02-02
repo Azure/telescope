@@ -1,7 +1,7 @@
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
-  name: ccnp
+  name: {{.basename}}
 spec:
   endpointSelector:
     matchLabels:
