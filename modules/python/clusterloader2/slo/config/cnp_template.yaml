@@ -1,20 +1,36 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{.basename}}
+  name: cnp
   namespace: slo-1 # slo-1 was used because that is the ns pods are deployed in & tried passing in namespace from load-config but had object mismatch error, revise in future to possibly pass in ns
 spec:
   endpointSelector:
     matchLabels:
       group: cnp-ccnp
+  ingress:
+  - icmps:
+    - fields:
+      - type: 8
+        family: IPv4
+      - type: 128
+        family: IPv6
   ingressDeny:
-  - fromEntities:
-    - host
-    - world
+    - fromEntities:
+      - all
   egress:
+  - icmps:
+    - fields:
+      - type: 8
+        family: IPv4
+      - type: 128
+        family: IPv6
+    toEntities:
+    - cluster
   - toPorts:
     - ports:
       - port: "443"
         protocol: TCP
+      - port: "53"
+        protocol: UDP
     toEntities:
     - cluster
