@@ -1,18 +1,31 @@
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
-  name: {{.basename}}
+  name: ccnp
 spec:
   endpointSelector:
     matchLabels:
       group: cnp-ccnp
+  ingress:
+  - icmps:
+    - fields:
+      - type: 8
+        family: IPv4
+      - type: 128
+        family: IPv6
   ingressDeny:
-  - fromEntities:
-    - host
+    - fromEntities:
+      - world
   egress:
+  - icmps:
+    - fields:
+      - type: 8
+        family: IPv4
+      - type: 128
+        family: IPv6
   - toPorts:
     - ports:
-      - port: "53"
-        protocol: UDP
+      - port: "443"
+        protocol: ANY
     toEntities:
     - cluster

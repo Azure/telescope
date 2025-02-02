@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cnp-ccnp-feature
+  SCENARIO_NAME: additionstoccnp-cnpPipeline
   SCENARIO_VERSION: main
   OWNER: aks
 
