@@ -13,6 +13,7 @@ variable "json_input" {
       name        = string
       node_count  = number
       vm_size     = string
+      node_labels = optional(map(string), {})
       vm_set_type = string
     }))
     aks_cli_user_node_pool = optional(
@@ -20,6 +21,7 @@ variable "json_input" {
         name        = string
         node_count  = number
         vm_size     = string
+        node_labels = optional(map(string), {})
         vm_set_type = string
       }))
     )
@@ -217,6 +219,7 @@ variable "aks_cli_config_list" {
       name        = string
       node_count  = number
       vm_size     = string
+      node_labels = optional(map(string), {})
       vm_set_type = optional(string, "VirtualMachineScaleSets")
     })
     extra_node_pool = optional(
@@ -224,6 +227,7 @@ variable "aks_cli_config_list" {
         name        = string
         node_count  = number
         vm_size     = string
+        node_labels = optional(map(string), {})
         vm_set_type = optional(string, "VirtualMachineScaleSets")
     })), [])
     optional_parameters = optional(list(object({

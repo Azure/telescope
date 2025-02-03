@@ -121,6 +121,12 @@ resource "terraform_data" "aks_cli" {
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
+      length(var.aks_cli_config.default_node_pool.node_labels) == 0 ? "" : format("%s %s",
+        "--labels", join(" ", [
+          for label_name, label_value in var.aks_cli_config.default_node_pool.node_labels :
+          format("%s=%s", label_name, label_value)
+        ])
+      ),
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
       local.optional_parameters,
       local.subnet_id_parameter,
@@ -159,6 +165,13 @@ resource "terraform_data" "aks_nodepool_cli" {
       "--nodepool-name", each.value.name,
       "--node-count", each.value.node_count,
       "--node-vm-size", each.value.vm_size,
+      local.aks_custom_headers_flags,
+      length(each.value.node_labels) == 0 ? "" : format("%s %s",
+        "--labels", join(" ", [
+          for label_name, label_value in each.value.node_labels :
+          format("%s=%s", label_name, label_value)
+        ])
+      ),
       "--vm-set-type", each.value.vm_set_type,
     ])
   }
