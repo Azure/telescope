@@ -119,6 +119,7 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
+    parser_override.add_argument("provider", type=str, help="Cloud provider name")
     parser_override.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("pod_count", type=int, help="Number of pods")
