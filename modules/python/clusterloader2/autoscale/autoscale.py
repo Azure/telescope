@@ -6,9 +6,13 @@ import re
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):
-    # assuming 75% of the CPU cores can be used by test pods
-    cpu_request = (cpu_per_node * 1000 * 0.75) * node_count // pod_count
+def override_config_clusterloader2(provider, cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
+    if provider == "aks":
+      # assuming 75% of the CPU cores can be used by test pods
+      cpu_request = (cpu_per_node * 1000 * 0.75) * node_count // pod_count
+    elif provider == "aws":
+      # assuming 85% of the CPU cores can be used by test pods
+      cpu_request = (cpu_per_node * 1000 * 0.85) * node_count // pod_count
 
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
@@ -145,7 +149,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
+        override_config_clusterloader2(args.provider, args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
