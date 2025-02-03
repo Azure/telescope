@@ -86,9 +86,9 @@ eks_config_list = [{
       name           = "userpool"
       ami_type       = "AL2_x86_64"
       instance_types = ["m6i.large"]
-      min_size       = 0
-      max_size       = 200
-      desired_size   = 0
+      min_size       = 1
+      max_size       = 201
+      desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels         = { "cas" = "dedicated" }
       taints         = []

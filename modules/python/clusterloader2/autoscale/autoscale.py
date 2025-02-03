@@ -5,17 +5,41 @@ import re
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command
+from kubernetes_client import KubernetesClient
 
-def override_config_clusterloader2(provider, cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
-    if provider == "aks":
-      # assuming 75% of the CPU cores can be used by test pods in AKS
-      # Here we tested with Standard_D2_v5 and Standard_D4_v3
-      cpu_request = (cpu_per_node * 1000 * 0.75) * node_count // pod_count
-    elif provider == "aws":
-      # assuming 85% of the CPU cores can be used by test pods in AWS
-      # Here we tested with m6i.large and m5.xlarge
-      cpu_request = (cpu_per_node * 1000 * 0.85) * node_count // pod_count
+def _get_daemonsets_pods_allocated_resources(client, node_name):
+    pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
+    cpu_request = 0
+    for pod in pods:
+        for container in pod.spec.containers:
+            print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+            cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+    return cpu_request
 
+def override_config_clusterloader2(node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    nodes = client.get_ready_nodes(label_selector=node_label_selector)
+    if len(nodes) == 0:
+        raise Exception("No nodes found with the label ${node_label_selector}")
+
+    node = nodes[0]
+    allocatable_cpu = node.status.allocatable["cpu"]
+    print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
+
+    cpu_value = int(allocatable_cpu.replace("m", ""))
+    print(f"Node {node.metadata.name} has cpu value of {cpu_value}")
+
+    allocated_cpu = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
+    print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
+
+    cpu_value -= allocated_cpu
+
+    # Calculate the cpu request for each pod
+    if node_count == pod_count:
+        cpu_request = cpu_value 
+    else:
+        cpu_request = cpu_value // pod_count
+        
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
@@ -119,8 +143,6 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
-    parser_override.add_argument("provider", type=str, help="Cloud provider name")
-    parser_override.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("pod_count", type=int, help="Number of pods")
     parser_override.add_argument("scale_up_timeout", type=str, help="Timeout before failing the scale up test")
@@ -152,7 +174,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.provider, args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
+        override_config_clusterloader2(args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":

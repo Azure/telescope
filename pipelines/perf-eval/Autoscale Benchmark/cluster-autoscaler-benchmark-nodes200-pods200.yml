@@ -27,9 +27,8 @@ stages:
           topology: cluster-autoscaler
           matrix:
             c2-n200-p200:
-              cpu_per_node: 2
-              node_count: 200
-              pod_count: 200
+              node_count: 201
+              pod_count: 201
               scale_up_timeout: "15m"
               scale_down_timeout: "25m"
               node_label_selector: "cas = dedicated"
@@ -53,9 +52,8 @@ stages:
           topology: cluster-autoscaler
           matrix:
             c2-n200-p200:
-              cpu_per_node: 2
-              node_count: 200
-              pod_count: 200
+              node_count: 201
+              pod_count: 201
               scale_up_timeout: "15m"
               scale_down_timeout: "25m"
               node_label_selector: "cas = dedicated"

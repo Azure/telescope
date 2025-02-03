@@ -12,7 +12,7 @@ steps:
 - script: |
     set -eo pipefail
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-      $CLOUD $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
+      $NODE_COUNT $POD_COUNT \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
       $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
