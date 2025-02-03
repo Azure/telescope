@@ -8,10 +8,12 @@ from utils import parse_xml_to_json, run_cl2_command
 
 def override_config_clusterloader2(provider, cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
     if provider == "aks":
-      # assuming 75% of the CPU cores can be used by test pods
+      # assuming 75% of the CPU cores can be used by test pods in AKS
+      # Here we tested with Standard_D2_v5 and Standard_D4_v3
       cpu_request = (cpu_per_node * 1000 * 0.75) * node_count // pod_count
     elif provider == "aws":
-      # assuming 85% of the CPU cores can be used by test pods
+      # assuming 85% of the CPU cores can be used by test pods in AWS
+      # Here we tested with m6i.large and m5.xlarge
       cpu_request = (cpu_per_node * 1000 * 0.85) * node_count // pod_count
 
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
