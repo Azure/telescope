@@ -88,7 +88,7 @@ eks_config_list = [{
       instance_types = ["m5.xlarge"]
       min_size       = 0
       max_size       = 10
-      desired_size   = 0
+      desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels         = { "cas" = "dedicated" }
       taints         = []
