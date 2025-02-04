@@ -67,8 +67,10 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment):    
     print(f"CPU per node: {cpu_per_node}")
+    desired_node_count = 1
     if warmup_deployment == "true" or warmup_deployment == "True":
         warmup_deployment_for_karpeneter()
+        desired_node_count = 0
     
     cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment)
     
@@ -82,6 +84,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
+        file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
