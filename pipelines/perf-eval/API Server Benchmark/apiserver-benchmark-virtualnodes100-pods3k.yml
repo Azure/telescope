@@ -52,9 +52,11 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.1.5
             benchmark_subcmd: node100_job1_pod3k
