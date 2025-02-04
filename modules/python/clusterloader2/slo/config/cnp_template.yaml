@@ -1,13 +1,13 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{.basename}}
+  name: {{.Name}}
   namespace: slo-1 # slo-1 was used because that is the ns pods are deployed in & tried passing in namespace from load-config but had object mismatch error, revise in future to possibly pass in ns
 spec:
   endpointSelector:
     matchLabels:
       group: cnp-ccnp
-      deployment: {{.basename}}
+      deployment: {{.Name}}
   ingress:
   - icmps:
     - fields:
