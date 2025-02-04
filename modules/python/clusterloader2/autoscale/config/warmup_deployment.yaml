@@ -6,7 +6,7 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: warmup-deployment
+  name: inflate-warmup
   namespace: autoscale-1
   labels:
     app: inflate
@@ -27,9 +27,9 @@ spec:
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
           resources:
             requests:
-              cpu: 100
+              cpu: 100m
             limits:
-              cpu: 100
+              cpu: 100m
           command:
             - "/bin/bash"
             - "-c"
