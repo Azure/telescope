@@ -16,7 +16,7 @@ variables:
 # data for AWS and Azure from the Cilium cluster churn test. This significantly
 # reduces the resource impact of running this test.
 stages:
-  - stage: azure_eastus2_sched_override_default
+  - stage: azure_eastus_sched_override_default
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
