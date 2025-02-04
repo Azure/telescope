@@ -19,8 +19,6 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
     print(f"CPU per node: {cpu_per_node}")
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
-    if node_label_selector == "karpenter.sh/nodepool = default":
-        warmup_deployment(client, )
     nodes = client.get_ready_nodes(label_selector=node_label_selector)
     if len(nodes) == 0:
         raise Exception("No nodes found with the label ${node_label_selector}")
