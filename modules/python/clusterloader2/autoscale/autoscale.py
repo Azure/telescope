@@ -67,11 +67,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     cpu_value -= allocated_cpu
 
     # Calculate the cpu request for each pod
-    if node_count == pod_count:
-        cpu_request = cpu_value 
-    else:
-        pods_per_node = pod_count // node_count
-        cpu_request = cpu_value // pods_per_node
+    pods_per_node = pod_count // node_count
+    cpu_request = cpu_value // pods_per_node
         
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
