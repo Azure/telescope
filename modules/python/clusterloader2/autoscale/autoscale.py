@@ -2,10 +2,27 @@ import json
 import os
 import argparse
 import re
+import subprocess
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command
 from kubernetes_client import KubernetesClient
+import time
+
+def warmup_deployment_for_karpeneter():
+  deployment_file = "autoscale/config/warmup_deployment.yaml"
+  subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
+  print("Waiting for a new node to be ready...")
+
+  subprocess.run([
+      "kubectl", "wait", "--for=condition=Ready", "node",
+      "-l", "karpenter.sh/nodepool = default", 
+      "--timeout=300s"
+  ], check=True)
+
+def delete_warmup_deployment_for_karpeneter():
+  deployment_file = "autoscale/config/warmup_deployment.yaml"
+  subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
@@ -19,9 +36,23 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
     print(f"CPU per node: {cpu_per_node}")
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
-    nodes = client.get_ready_nodes(label_selector=node_label_selector)
+    if node_label_selector == "karpenter.sh/nodepool = default":
+        warmup_deployment_for_karpeneter()
+    
+    timeout = 300  # 5 minutes
+    interval = 30  # 30 seconds
+    elapsed = 0
+
+    while elapsed < timeout:
+      nodes = client.get_ready_nodes(label_selector=node_label_selector)
+      if len(nodes) > 0:
+        break
+      print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
+      time.sleep(interval)
+      elapsed += interval
+
     if len(nodes) == 0:
-        raise Exception("No nodes found with the label ${node_label_selector}")
+      raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
 
     node = nodes[0]
     allocatable_cpu = node.status.allocatable["cpu"]
@@ -39,11 +70,14 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     if node_count == pod_count:
         cpu_request = cpu_value 
     else:
-        cpu_request = cpu_value // pod_count
+        pods_per_node = pod_count // node_count
+        cpu_request = cpu_value // pods_per_node
         
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
+    if node_label_selector == "karpenter.sh/nodepool = default":
+        delete_warmup_deployment_for_karpeneter()
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w') as file:
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")

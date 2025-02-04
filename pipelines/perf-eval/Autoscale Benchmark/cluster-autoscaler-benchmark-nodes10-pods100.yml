@@ -55,7 +55,7 @@ stages:
             c4-n10-p100:
               cpu_per_node: 4
               node_count: 11
-              pod_count: 119
+              pod_count: 110
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "cas = dedicated"
