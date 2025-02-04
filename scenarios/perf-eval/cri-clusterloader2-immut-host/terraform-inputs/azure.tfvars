@@ -20,7 +20,7 @@ network_config_list = [
   }
 ]
 
-aks_cli_config_list = [
+aks_config_list = [
   {
     role        = "client"
     aks_name    = "cri-resource-consume"
@@ -39,6 +39,7 @@ aks_cli_config_list = [
       node_count                   = 2
       vm_size                      = "Standard_D16_v4"
       os_disk_type                 = "Managed"
+      os_sku                       = "AzureLinux"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
     }
@@ -48,6 +49,7 @@ aks_cli_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v4"
+        os_sku               = "AzureLinux"
         node_labels          = { "prometheus" = "true" }
       },
       {
@@ -55,6 +57,7 @@ aks_cli_config_list = [
         node_count           = 3
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v4"
+        os_sku               = "AzureLinux"
         node_taints          = ["cri-resource-consume=true:NoSchedule"]
         node_labels          = { "cri-resource-consume" = "true" }
       }
