@@ -10,12 +10,14 @@ from kubernetes_client import KubernetesClient
 import time
 
 def warmup_deployment_for_karpeneter():
+  print(f"WarmUp Deployment Started")
   deployment_file = "autoscale/config/warmup_deployment.yaml"
   subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
 def delete_warmup_deployment_for_karpeneter():
   deployment_file = "autoscale/config/warmup_deployment.yaml"
   subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
+  print(f"WarmUp Deployment Deleted")
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
@@ -49,8 +51,6 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
 
     cpu_value = int(allocatable_cpu.replace("m", ""))
-    print(f"Node {node.metadata.name} has cpu value of {cpu_value}")
-
     allocated_cpu = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
     print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
 
@@ -67,7 +67,6 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment):    
     print(f"CPU per node: {cpu_per_node}")
-    print(f"warmup_deployment: {warmup_deployment}")
     if warmup_deployment == "true" or warmup_deployment == "True":
         warmup_deployment_for_karpeneter()
     
