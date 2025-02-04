@@ -25,36 +25,6 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-            n3-p700-memory:
-              node_count: 3
-              max_pods: 21
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-            n3-p1100-memory:
-              node_count: 3
-              max_pods: 33
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-            n3-p300-cpu:
-              node_count: 3
-              max_pods: 9
-              repeats: 1
-              operation_timeout: 3m
-              load_type: cpu
-            n3-p700-cpu:
-              node_count: 3
-              max_pods: 21
-              repeats: 1
-              operation_timeout: 7m
-              load_type: cpu
-            n3-p1100-cpu:
-              node_count: 3
-              max_pods: 33
-              repeats: 1
-              operation_timeout: 11m
-              load_type: cpu
           max_parallel: 1
           timeout_in_minutes: 240
           credential_type: service_connection
