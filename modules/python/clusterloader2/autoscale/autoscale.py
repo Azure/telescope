@@ -18,7 +18,9 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
     print(f"CPU per node: {cpu_per_node}")
-    client = KubernetesClient(os.path.expanduser("~/.kube/config"))    
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    if node_label_selector == "karpenter.sh/nodepool = default":
+        warmup_deployment(client, )
     nodes = client.get_ready_nodes(label_selector=node_label_selector)
     if len(nodes) == 0:
         raise Exception("No nodes found with the label ${node_label_selector}")
@@ -176,11 +178,11 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
+        override_config_clusterloader2(args.cpu_per_node ,args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()
