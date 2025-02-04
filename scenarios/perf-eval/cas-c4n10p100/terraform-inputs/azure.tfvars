@@ -44,7 +44,7 @@ aks_config_list = [
       scan_interval                  = "20s"
       max_unready_percentage         = 90
       skip_nodes_with_local_storage  = false
-      empty_bulk_delete_max          = "200"
+      empty_bulk_delete_max          = "11"
       max_graceful_termination_sec   = "30"
     }
   }
