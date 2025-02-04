@@ -54,7 +54,7 @@ steps:
     replicasPerNamespace: {{$smallDeploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: small-deployment
+    - basename: cnp
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
