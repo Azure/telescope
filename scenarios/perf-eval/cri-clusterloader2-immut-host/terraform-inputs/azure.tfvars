@@ -36,8 +36,8 @@ aks_cli_config_list = [
     }
     default_node_pool = {
       name                         = "default"
-      node_count                   = 3
-      vm_size                      = "Standard_D16_v3"
+      node_count                   = 2
+      vm_size                      = "Standard_D16_v4"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
@@ -47,14 +47,14 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D16_v3"
+        vm_size              = "Standard_D16_v4"
         node_labels          = { "prometheus" = "true" }
       },
       {
         name                 = "userpool0"
-        node_count           = 10
+        node_count           = 3
         auto_scaling_enabled = false
-        vm_size              = "Standard_D16_v3"
+        vm_size              = "Standard_D16_v4"
         node_taints          = ["cri-resource-consume=true:NoSchedule"]
         node_labels          = { "cri-resource-consume" = "true" }
       }
