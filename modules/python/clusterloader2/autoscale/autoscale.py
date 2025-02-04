@@ -31,7 +31,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 
 def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
-    timeout = 300  # 5 minutes
+    timeout = 600  # 5 minutes
     interval = 30  # 30 seconds
     elapsed = 0
 
