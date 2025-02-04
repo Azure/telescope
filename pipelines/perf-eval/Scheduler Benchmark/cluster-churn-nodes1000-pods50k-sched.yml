@@ -18,8 +18,6 @@ variables:
 stages:
   - stage: azure_eastus2_sched_override_default
     dependsOn: []
-    variables:
-      - group: Scheduler-Override-Default-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
