@@ -11,6 +11,10 @@ parameters:
 steps:
 - script: |
     set -eo pipefail
+    if [ -z "$WARMUP_DEPLOYMENT" ]; then
+      WARMUP_DEPLOYMENT="false"
+    fi
+
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
       $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
