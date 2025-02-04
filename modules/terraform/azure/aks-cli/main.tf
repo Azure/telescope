@@ -160,6 +160,13 @@ resource "terraform_data" "aks_nodepool_cli" {
       "--node-count", each.value.node_count,
       "--node-vm-size", each.value.vm_size,
       "--vm-set-type", each.value.vm_set_type,
+      local.aks_custom_headers_flags,
+      length(each.value.optional_parameters) == 0 ?
+      "" :
+      join(" ", [
+        for param in each.value.optional_parameters :
+        format("--%s %s", param.name, param.value)
+      ]),
     ])
   }
 }

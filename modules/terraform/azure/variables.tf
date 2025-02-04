@@ -17,9 +17,13 @@ variable "json_input" {
     }))
     aks_cli_user_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
+        name       = string
+        node_count = number
+        vm_size    = string
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
         vm_set_type = string
       }))
     )
@@ -225,6 +229,10 @@ variable "aks_cli_config_list" {
         node_count  = number
         vm_size     = string
         vm_set_type = optional(string, "VirtualMachineScaleSets")
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
     })), [])
     optional_parameters = optional(list(object({
       name  = string
