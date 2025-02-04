@@ -26,7 +26,7 @@ aks_config_list = [
     extra_node_pool = [
       {
         name                 = "userpool"
-        node_count           = 0
+        node_count           = 1
         min_count            = 0
         max_count            = 10
         auto_scaling_enabled = true

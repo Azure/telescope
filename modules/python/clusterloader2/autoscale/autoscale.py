@@ -16,8 +16,9 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
             cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
     return cpu_request
 
-def override_config_clusterloader2(node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
-    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):    
+    print(f"CPU per node: {cpu_per_node}")
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))    
     nodes = client.get_ready_nodes(label_selector=node_label_selector)
     if len(nodes) == 0:
         raise Exception("No nodes found with the label ${node_label_selector}")
@@ -143,6 +144,7 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
+    parser_override.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("pod_count", type=int, help="Number of pods")
     parser_override.add_argument("scale_up_timeout", type=str, help="Timeout before failing the scale up test")
@@ -178,7 +180,7 @@ def main():
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     main()
