@@ -11,6 +11,7 @@ metadata:
   name: {{.Name}}
   labels:
     group: {{.Group}}
+    name: {{.Name}}
 {{if .SvcName}}
     svc: {{.SvcName}}-{{.Index}}
 {{end}}
