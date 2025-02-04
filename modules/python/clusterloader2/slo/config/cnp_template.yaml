@@ -7,7 +7,7 @@ spec:
   endpointSelector:
     matchLabels:
       group: cnp-ccnp
-      deployment: {{.Name}}
+      name: {{.Name}}
   ingress:
   - icmps:
     - fields:
