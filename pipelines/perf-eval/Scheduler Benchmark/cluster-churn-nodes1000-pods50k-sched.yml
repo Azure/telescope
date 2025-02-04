@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "19 1/12 * * *"
-    displayName: "1:19 AM and PM every day"
+  - cron: "30 1/12 * * *"
+    displayName: "1:30 AM and PM every day"
     branches:
       include:
         - main
@@ -25,7 +25,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastus
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
