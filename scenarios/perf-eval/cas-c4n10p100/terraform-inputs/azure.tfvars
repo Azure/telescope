@@ -27,7 +27,7 @@ aks_config_list = [
       {
         name                 = "userpool"
         node_count           = 1
-        min_count            = 0
+        min_count            = 1
         max_count            = 11
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"

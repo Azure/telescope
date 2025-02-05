@@ -24,12 +24,6 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
@@ -37,7 +31,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -57,20 +51,16 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
+              disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
             podsize-20k-exempt:
+              disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -90,20 +80,16 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
+              disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
             podsize-20k-exempt:
+              disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type json"
           max_parallel: 2
@@ -123,20 +109,16 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              disable_warmup: "true"
             podsize-20k-exempt:
+              disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type protobuf"
           max_parallel: 2
@@ -159,8 +141,10 @@ stages:
             podsize-20k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              disable_warmup: "false"
+              warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 1
