@@ -22,7 +22,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - centraluseuap
+            - uksouth
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
