@@ -28,7 +28,7 @@ spec:
 {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
 {{if eq $Provider "aks"}}
-        image: telescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
 {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
 {{end}}
@@ -51,7 +51,7 @@ spec:
 {{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
 {{if eq $Provider "aks"}}
-        image: telescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
 {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
 {{end}}
