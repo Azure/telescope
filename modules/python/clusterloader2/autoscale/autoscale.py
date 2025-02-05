@@ -36,12 +36,17 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     elapsed = 0
 
     while elapsed < timeout:
-      nodes = client.get_ready_nodes(label_selector=node_label_selector)
-      if len(nodes) > 0:
-        break
-      print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
-      time.sleep(interval)
-      elapsed += interval
+      try:
+        nodes = client.get_ready_nodes(label_selector=node_label_selector)      
+        if len(nodes) > 0:
+          break
+        print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
+        time.sleep(interval)
+        elapsed += interval
+      except Exception as e:
+        print(f"Error: {e}")
+        print(f"Retrying in {interval} seconds...")
+        time.sleep(interval)
 
     if len(nodes) == 0:
       raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
