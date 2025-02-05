@@ -32,7 +32,7 @@ spec:
           values: ["m6i"]
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
-          values: ["6"]
+          values: ["5"]
         - key: karpenter.k8s.aws/instance-cpu
           operator: In
           values: ["2"]
