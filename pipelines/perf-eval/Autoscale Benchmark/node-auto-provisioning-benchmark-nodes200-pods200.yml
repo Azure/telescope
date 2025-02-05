@@ -1,0 +1,69 @@
+trigger: none
+schedules:
+  - cron: "0 18 * * *"
+    displayName: "Every day at 6:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: nap-c2n200p200
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: karpenter
+          matrix:
+            c2-n200-p200:
+              cpu_per_node: 2
+              node_count: 200
+              pod_count: 200
+              scale_up_timeout: "25m"
+              scale_down_timeout: "25m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: karpenter
+          matrix:
+            c2-n200-p200:
+              cpu_per_node: 2
+              node_count: 200
+              pod_count: 200
+              scale_up_timeout: "25m"
+              scale_down_timeout: "25m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
