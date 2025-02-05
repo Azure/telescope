@@ -34,7 +34,7 @@ stages:
               scale_down_timeout: "35m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
-              loop_count: 1
+              loop_count: 5
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
