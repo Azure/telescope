@@ -105,6 +105,13 @@ eks_config_list = [{
   eks_addons = [
     {
       name = "coredns"
+    },
+    {
+      name = "vpc-cni"
+    },
+    {
+      name = "kube-proxy"
     }
   ]
+  kubernetes_version = "1.31"
 }]

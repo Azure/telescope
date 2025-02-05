@@ -10,11 +10,8 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/engine/kperf/execute.yml
+- template: /steps/engine/clusterloader2/cri/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
-    flowcontrol: $(flowcontrol) # should be defined by matrix
-    extra_benchmark_subcmd_args: $(extra_benchmark_subcmd_args) # should be defined by matrix
-    disable_warmup: $(disable_warmup) # should be defined by matrix
     region: ${{ parameters.regions[0] }}

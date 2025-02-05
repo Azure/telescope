@@ -26,9 +26,9 @@ aks_config_list = [
     extra_node_pool = [
       {
         name                 = "userpool"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 200
+        node_count           = 1
+        min_count            = 1
+        max_count            = 201
         auto_scaling_enabled = true
         vm_size              = "Standard_D2_v5"
         max_pods             = 110
@@ -37,8 +37,15 @@ aks_config_list = [
     ]
     kubernetes_version = "1.31"
     auto_scaler_profile = {
-      scale_down_delay_after_add = "0m"
-      scale_down_unneeded        = "0m"
+      scale_down_delay_after_add     = "2m"
+      scale_down_delay_after_failure = "1m"
+      scale_down_unneeded            = "3m"
+      scale_down_unready             = "5m"
+      scan_interval                  = "20s"
+      max_unready_percentage         = 90
+      skip_nodes_with_local_storage  = false
+      empty_bulk_delete_max          = "200"
+      max_graceful_termination_sec   = "30"
     }
   }
 ]

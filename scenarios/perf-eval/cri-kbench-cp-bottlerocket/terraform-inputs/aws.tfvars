@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-vn100pod3k"
-deletion_delay = "20h"
+scenario_name  = "cri-kbench-cp-bottlerocket"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -11,13 +11,13 @@ network_config_list = [
     subnet = [
       {
         name                    = "client-subnet"
-        cidr_block              = "10.0.0.0/24"
+        cidr_block              = "10.0.0.0/17"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "client-subnet-2"
-        cidr_block              = "10.0.1.0/24"
+        cidr_block              = "10.0.128.0/17"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       }
@@ -57,48 +57,61 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "vn100-p3k"
+  eks_name    = "cri-resource-consume"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.large"]
-      min_size       = 1
-      max_size       = 1
-      desired_size   = 1
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "virtualnodes"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.2xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "runner"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
+      name           = "default"
+      ami_type       = "BOTTLEROCKET_x86_64"
+      instance_types = ["m5.4xlarge"]
       min_size       = 3
       max_size       = 3
       desired_size   = 3
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+    },
+    {
+      name           = "prompool"
+      ami_type       = "BOTTLEROCKET_x86_64"
+      instance_types = ["m5.4xlarge"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
+      capacity_type  = "ON_DEMAND"
+      labels         = { "prometheus" = "true" }
+    },
+    {
+      name           = "userpool0"
+      ami_type       = "BOTTLEROCKET_x86_64"
+      instance_types = ["m5.4xlarge"]
+      min_size       = 3
+      max_size       = 3
+      desired_size   = 3
+      capacity_type  = "ON_DEMAND"
+      taints = [
+        {
+          key    = "cri-resource-consume"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+      labels = {
+        "cri-resource-consume" = "true",
+        "agentpool"            = "userpool0"
+      }
     }
   ]
 
   eks_addons = [
     {
       name = "coredns"
+    },
+    {
+      name = "vpc-cni"
+    },
+    {
+      name = "kube-proxy"
     }
   ]
-
   kubernetes_version = "1.31"
 }]
-

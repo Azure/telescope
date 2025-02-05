@@ -2,14 +2,85 @@ import json
 import os
 import argparse
 import re
+import subprocess
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command
+from kubernetes_client import KubernetesClient
+import time
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file):
-    # assuming 75% of the CPU cores can be used by test pods
-    cpu_request = (cpu_per_node * 1000 * 0.75) * node_count // pod_count
+def warmup_deployment_for_karpeneter():
+  print(f"WarmUp Deployment Started")
+  deployment_file = "autoscale/config/warmup_deployment.yaml"
+  subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
+def cleanup_warmup_deployment_for_karpeneter(node_name):
+  deployment_file = "autoscale/config/warmup_deployment.yaml"
+  subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
+  print(f"WarmUp Deployment Deleted")
+  subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
+
+def _get_daemonsets_pods_allocated_resources(client, node_name):
+    pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
+    cpu_request = 0
+    for pod in pods:
+        for container in pod.spec.containers:
+            print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+            if container.resources.requests is not None:
+              cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+    return cpu_request
+
+def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment):
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    timeout = 600  # 10 minutes
+    interval = 30  # 30 seconds
+    elapsed = 0
+
+    try: 
+      while elapsed < timeout:
+        nodes = client.get_ready_nodes(label_selector=node_label_selector)
+        if len(nodes) > 0:
+          break
+        print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
+        time.sleep(interval)
+        elapsed += interval
+    except Exception as e:
+      print(f"Error while getting nodes: {e}")
+      print(f"Retrying in {interval} seconds...")
+      time.sleep(interval)      
+
+    if len(nodes) == 0:
+      raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
+
+    node = nodes[0]
+    allocatable_cpu = node.status.allocatable["cpu"]
+    print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
+
+    cpu_value = int(allocatable_cpu.replace("m", ""))
+    allocated_cpu = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
+    print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
+
+    cpu_value -= allocated_cpu
+    # Remove warmup deployment cpu request from the total cpu value
+    if warmup_deployment == "true" or warmup_deployment == "True":
+        cpu_value -= 100
+        cleanup_warmup_deployment_for_karpeneter(node.metadata.name)
+
+    # Calculate the cpu request for each pod
+    pods_per_node = pod_count // node_count
+    cpu_request = cpu_value // pods_per_node
+    return cpu_request
+    
+
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment):    
+    print(f"CPU per node: {cpu_per_node}")
+    desired_node_count = 1
+    if warmup_deployment == "true" or warmup_deployment == "True":
+        warmup_deployment_for_karpeneter()
+        desired_node_count = 0
+    
+    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment)
+    
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
@@ -18,6 +89,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
+        file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
@@ -122,6 +194,7 @@ def main():
     parser_override.add_argument("node_label_selector", type=str, help="Node label selector")
     parser_override.add_argument("node_selector", type=str, help="Node selector for the test pods")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_override.add_argument("warmup_deployment", type=str, help="Warmup deployment to get the cpu request")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -145,7 +218,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
