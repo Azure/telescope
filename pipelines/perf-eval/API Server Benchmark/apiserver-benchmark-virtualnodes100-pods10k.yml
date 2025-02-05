@@ -31,7 +31,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -60,7 +60,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -89,7 +89,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type json"
           max_parallel: 2
@@ -118,7 +118,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type protobuf"
           max_parallel: 2
