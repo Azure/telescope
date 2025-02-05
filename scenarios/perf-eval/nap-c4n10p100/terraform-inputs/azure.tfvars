@@ -7,9 +7,10 @@ aks_config_list = []
 
 aks_cli_config_list = [
   {
-    role     = "nap"
-    aks_name = "nap-c4n10p100"
-    sku_tier = "standard"
+    role               = "nap"
+    aks_name           = "nap-c4n10p100"
+    sku_tier           = "standard"
+    kubernetes_version = "1.31"
 
     default_node_pool = {
       name       = "system"

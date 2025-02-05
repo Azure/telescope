@@ -90,5 +90,6 @@ eks_config_list = [{
       ]
     }
   ]
-  eks_addons = []
+  eks_addons         = []
+  kubernetes_version = "1.31"
 }]
