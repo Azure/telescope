@@ -3,6 +3,7 @@
 {{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$LoadType := DefaultParam .LoadType "memory"}}
+{{$Provider := DefaultParam .Provider "aks"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -26,7 +27,11 @@ spec:
       containers:
 {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
-        image: telescope.azurecr.io/perf-eval/resource-consumer:1.9
+{{if eq $Provider "aks"}}
+        image: telescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+{{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+{{end}}
         imagePullPolicy: IfNotPresent
         command:
           - stress
@@ -45,7 +50,11 @@ spec:
 {{end}}
 {{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
-        image: telescope.azurecr.io/perf-eval/resource-consumer:1.9
+{{if eq $Provider "aks"}}
+        image: telescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+{{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+{{end}}
         imagePullPolicy: IfNotPresent
         command:
           - ./consume-cpu/consume-cpu

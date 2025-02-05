@@ -75,6 +75,7 @@ def override_config_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
+        file.write(f"CL2_PROVIDER: {provider}\n")
 
     file.close()
 
