@@ -138,8 +138,8 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-20k:
-              flowcontrol: "workload-low:1000"
+            podsize-20k-exempt:
+              flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
               disable_warmup: "false"
               warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
