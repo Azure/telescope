@@ -18,7 +18,10 @@ def cleanup_warmup_deployment_for_karpeneter(node_name):
   deployment_file = "autoscale/config/warmup_deployment.yaml"
   subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
   print(f"WarmUp Deployment Deleted")
-  subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
+  try:
+    subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
+  except Exception as e:
+    print(f"Error while deleting node: {e}")
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
