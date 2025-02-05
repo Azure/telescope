@@ -36,6 +36,7 @@ stages:
               num_cnps: $(CNPS_NUM)
               num_ccnps: $(CCNPS_NUM)
               dualstack: $(DUAL)
+              no_of_namespaces: $(NUMBER_NAMESPACES)
               cl2_config_file: load-config.yaml
           max_parallel: 2
           timeout_in_minutes: 720
