@@ -14,10 +14,11 @@ def warmup_deployment_for_karpeneter():
   deployment_file = "autoscale/config/warmup_deployment.yaml"
   subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def delete_warmup_deployment_for_karpeneter():
+def cleanup_warmup_deployment_for_karpeneter(node_name):
   deployment_file = "autoscale/config/warmup_deployment.yaml"
   subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
   print(f"WarmUp Deployment Deleted")
+  subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
@@ -61,8 +62,9 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 
     cpu_value -= allocated_cpu
     # Remove warmup deployment cpu request from the total cpu value
-    if warmup_deployment:
+    if warmup_deployment == "true" or warmup_deployment == "True":
         cpu_value -= 100
+        cleanup_warmup_deployment_for_karpeneter(node.metadata.name)
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
@@ -82,8 +84,6 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
-    if warmup_deployment == "true" or warmup_deployment == "True":
-        delete_warmup_deployment_for_karpeneter()
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w') as file:
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
