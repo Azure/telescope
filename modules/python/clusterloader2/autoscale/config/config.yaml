@@ -5,6 +5,7 @@
 {{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR  "{karpenter.sh/nodepool: default}"}}
 {{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
 {{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 20}}
+{{$desiredNodeCount := DefaultParam .CL2_DESIRED_NODE_COUNT 1}}
 {{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
 {{$scaleUpTimeout := DefaultParam .CL2_SCALE_UP_TIMEOUT "30m"}}
 {{$scaleDownTimeout := DefaultParam .CL2_SCALE_DOWN_TIMEOUT "10m"}}
@@ -94,8 +95,8 @@ steps:
     Method: WaitForNodes
     Params:
       action: start
-      minDesiredNodeCount: 0
-      maxDesiredNodeCount: 0
+      minDesiredNodeCount: {{$desiredNodeCount}}
+      maxDesiredNodeCount: {{$desiredNodeCount}}
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
