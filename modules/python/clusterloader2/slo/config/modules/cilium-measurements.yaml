@@ -238,7 +238,7 @@ steps:
         enableViolations: true
         queries:
         - name: Total-{{$dataName}}
-          query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
+          query: sum(increase(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
         - name: Rate-{{$dataName}}
           query: sum(rate(cilium_api_limiter_processed_requests_total{api_call="endpoint-create", pod="{{ $podName }}" }[%v:]))
         - name: Success-{{$dataName}}

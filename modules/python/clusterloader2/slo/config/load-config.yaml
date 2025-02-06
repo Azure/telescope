@@ -46,6 +46,8 @@ name: load-config
 # Mugesh - API Rate Limiting Test - Added necessary config for API Rate Limiting Test
 {{$PODS := DefaultParam .CL2_PODS 0}}
 {{$waitTime := DefaultParam .CL2_WAIT_TIME "5m"}}
+{{$shorterWaitTime := DefaultParam .CL2_WAIT_TIME "2m"}}
+
 
 namespace:
   number: {{$namespaces}}
@@ -196,6 +198,15 @@ steps:
 # Mugesh - API Rate Limiting Test - create 200 pods, delete, restart with 250 pods
 
 {{if $API_RATE_LIMITING_TEST}}
+
+  - name: Sleeping for {{$shorterWaitTime}}
+    measurements:
+    - Identifier: Sleep until {{$shorterWaitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$shorterWaitTime}}
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -234,6 +245,13 @@ steps:
         action: start
         dataName: "deletecreate"
 {{end}}
+  - name: Sleeping for {{$shorterWaitTime}}
+    measurements:
+    - Identifier: Sleep until {{$shorterWaitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$shorterWaitTime}}
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -288,6 +306,13 @@ steps:
         action: start
         dataName: "delete"
 {{end}}
+  - name: Sleeping for {{$shorterWaitTime}}
+    measurements:
+    - Identifier: Sleep until {{$shorterWaitTime}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: {{$shorterWaitTime}}
 
   - module:
       path: /modules/reconcile-objects.yaml
