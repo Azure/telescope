@@ -15,7 +15,7 @@ steps:
     replicasPerNamespace: {{$cnpsPerNamespace}}
     tuningSet: Sequence
     objectBundle:
-    - basename: "slo-{{.i}}"
+    - basename: "slo-{{i}}"
       objectTemplatePath: cnp_template.yaml
       templateFillMap:
-        ns: "slo-{{.i}}"
+        ns: "{slo-{{i}}"
