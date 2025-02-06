@@ -11,7 +11,7 @@ parameters:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: api-rate-limiting
-  SCENARIO_VERSION: v.2.1
+  SCENARIO_VERSION: test
   OWNER: aks
 
 stages:
