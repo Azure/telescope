@@ -15,7 +15,7 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_uksouth
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
