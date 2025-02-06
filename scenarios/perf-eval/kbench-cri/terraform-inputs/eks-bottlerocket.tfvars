@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-kbench-cp-bottlerocket"
-deletion_delay = "2h"
+scenario_name  = "kbench-cri"
+deletion_delay = "8h"
 owner          = "aks"
 
 network_config_list = [
@@ -57,7 +57,7 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "cri-resource-consume"
+  eks_name    = "cri-kbench-immuthost"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
