@@ -59,6 +59,7 @@ def configure_clusterloader2(
     num_cnps,
     num_ccnps,
     dualstack,
+    no_of_namespaces,
     override_file):
 
     steps = node_count // node_per_step
@@ -95,6 +96,7 @@ def configure_clusterloader2(
             file.write("CL2_CNP_TEST: true\n")
             file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
+            file.write(f"CL2_NO_OF_NAMESPACES: {no_of_namespaces}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
         if ccnp_test:
@@ -218,7 +220,7 @@ def main():
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
     parser_configure.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_configure.add_argument("repeats", type=int, nargs='?', default=1, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
@@ -233,6 +235,7 @@ def main():
     parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
     parser_configure.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cluster is dualstack. Must be either True or False")
+    parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -254,7 +257,7 @@ def main():
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_collect.add_argument("repeats", type=int, nargs='?', default=1, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
@@ -278,7 +281,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.no_of_namespaces, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":

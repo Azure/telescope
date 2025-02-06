@@ -14,7 +14,7 @@ name: load-config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
 # TODO(jshr-w): This should eventually use >1 namespace.
-{{$namespaces := 1}}
+{{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
@@ -40,6 +40,7 @@ name: load-config
 {{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
 {{$CCNPS := DefaultParam .CL2_CCNPS 0}}
 {{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
+{{$smallDeploymentsPerNamespaceCNP := DivideInt $podsPerNamespace $SMALL_GROUP_SIZE}}
 
 namespace:
   number: {{$namespaces}}
@@ -121,18 +122,22 @@ steps:
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
         bigDeploymentsPerNamespace: 0
+        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespaceCNP}}
         cnp_test: {{$CNP_TEST}}
         ccnp_test: {{$CCNP_TEST}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+    {{end}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
-        deploymentLabel: start
+        deploymentLabel: start 
+        
+
 
   - module:
       path: /modules/reconcile-objects.yaml
