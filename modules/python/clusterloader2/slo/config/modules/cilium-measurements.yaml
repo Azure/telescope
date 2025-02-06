@@ -173,6 +173,8 @@ steps:
           query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc95-{{$dataName}}
           query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc75-{{$dataName}}
+          query: histogram_quantile(0.75, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc50-{{$dataName}}
           query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
         - name: Avg-{{$dataName}}
@@ -195,6 +197,8 @@ steps:
           query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc95-{{$dataName}}
           query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc75-{{$dataName}}
+          query: histogram_quantile(0.75, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc50-{{$dataName}}
           query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="DELETE", pod="{{$podName}}" }[%v:])) by (le))
         - name: Avg-{{$dataName}}
@@ -218,6 +222,8 @@ steps:
           query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc95-{{$dataName}}
           query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc75-{{$dataName}}
+          query: histogram_quantile(0.75, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
         - name: Perc50-{{$dataName}}
           query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{pod="{{$podName}}" }[%v:])) by (le))
         - name: Avg-{{$dataName}}
