@@ -17,3 +17,5 @@ steps:
     objectBundle:
     - basename: cnp
       objectTemplatePath: cnp_template.yaml
+      params:
+        ns: "{{.namespaceRange.basename}}-{{.i}}"
