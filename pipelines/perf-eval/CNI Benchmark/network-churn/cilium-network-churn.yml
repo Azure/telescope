@@ -1,22 +1,22 @@
 trigger: none
 schedules:
-  - cron: "0 */3 * * *"
-    displayName: "Every 3 Hour"
-    branches:
-      include:
-        - main
-    always: true
+- cron: "0 */2 * * *"
+  displayName: "Every 2 Hours Daily"
+  branches:
+    include:
+      - jshr/network-churn-corrections
+  always: true
 
 parameters:
   - name: node_count
     type: number
-    default: 100
+    default: 240
   - name: node_per_step
     type: number
-    default: 10
+    default: 240
   - name: pods_per_node
     type: number
-    default: 10
+    default: 40
   - name: repeats
     type: number
     default: 1
@@ -28,7 +28,7 @@ parameters:
     default: 10
   - name: total_nework_policies
     type: number
-    default: 1000
+    default: 4800
 
 variables:
   SCENARIO_TYPE: perf-eval

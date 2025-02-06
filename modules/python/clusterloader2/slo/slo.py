@@ -56,7 +56,7 @@ def configure_clusterloader2(
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
-        file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
+        #file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n"): TEMP
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
@@ -80,6 +80,8 @@ def configure_clusterloader2(
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
+        else:
+            file.write("CL2_SERVICE_TEST: false\n")
 
         if network_test:
             file.write("CL2_NETWORK_TEST: true\n")
@@ -96,9 +98,9 @@ def configure_clusterloader2(
             file.write("CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE: false\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY: net-pol-test\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE: enforcement-latency\n")
-            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
+            #file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE: net-policy-client\n")
-            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 10\n")
+            file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 100\n")
             file.write(f"CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: {total_network_policies}\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS: 10\n")
             file.write("CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME: small-deployment\n")
@@ -265,9 +267,9 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods, 
+        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.pods_per_node, args.repeats, args.operation_timeout, args.no_of_namespaces,
-                                 args.total_network_policies, args.provider, 
+                                 args.total_network_policies, args.provider,
                                  args.cilium_enabled, args.service_test, args.network_test, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
@@ -275,7 +277,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_per_node, 
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_per_node,
                                args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.network_test, args.result_file, args.test_type)
 

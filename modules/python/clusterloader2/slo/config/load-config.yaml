@@ -1,11 +1,11 @@
 name: load-config
 
 # Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST false}}
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 
 # Config options for test parameters
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 24}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
@@ -31,7 +31,7 @@ name: load-config
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE  20}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 
 # Use explicit conditional block to assign smallDeploymentPods to maintain backward compatibility
 {{$calculatedPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
