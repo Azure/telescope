@@ -17,5 +17,6 @@ steps:
     objectBundle:
     - basename: cnp
       objectTemplatePath: cnp_template.yaml
-      params:
+      templateFillMap:
         ns: "{{.namespaceRange.basename}}-{{.i}}"
+- echo: "Namespace: {{.namespaceRange.basename}}-{{.i}}"
