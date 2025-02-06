@@ -83,7 +83,6 @@ steps:
       params:
         action: start
         group: {{$groupName}}
-        dataName: "create"
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
@@ -228,21 +227,6 @@ steps:
         action: gather
         dataName: "create"
 {{end}}
-
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}} 
-        dataName: "create" 
-
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-        dataName: "deletecreate"
-
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
@@ -296,19 +280,6 @@ steps:
         action: gather
         dataName: "deletecreate"
 {{end}}
-
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
-        dataName: "deletecreate"
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-        dataName: "delete"
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
@@ -382,4 +353,3 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
-        dataName: "delete"
