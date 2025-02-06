@@ -10,6 +10,13 @@ parameters:
 
 steps:
   - script: |
+      echo "Set the start time for test execution"
+      startTimestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      echo "Start: $startTimestamp"
+      echo "##vso[task.setvariable variable=START]$startTimestamp"
+    displayName: set up timestamp variable
+
+  - script: |
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
