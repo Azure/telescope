@@ -1,8 +1,11 @@
 name: load-config
 
 # Config options for test type
+
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST false}}
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
+{{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
+{{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 24}}
@@ -44,6 +47,11 @@ name: load-config
 {{end}}
 
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
+
+# CNP & CCNP Test
+{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
+{{$CCNPS := DefaultParam .CL2_CCNPS 0}}
+{{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
 
 namespace:
   number: {{$namespaces}}
@@ -112,6 +120,25 @@ steps:
         testType: "pod-creation"
 {{end}}
 
+{{if $CNP_TEST}}
+  - module:
+      path: /modules/ciliumnetworkpolicy.yaml
+      params:
+        actionName: "Creating"
+        namespaces: {{$namespaces}}
+        Group: {{$groupName}}
+        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+{{end}}
+
+{{if $CCNP_TEST}}
+  - module:
+      path: /modules/ciliumclusternetworkpolicy.yaml
+      params:
+        actionName: "Creating"
+        Group: {{$groupName}}
+        ccnps: {{$CCNPS}}
+{{end}}
+        
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -119,8 +146,15 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: DeploymentCreateQps
         operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
+    {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -155,8 +189,15 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: Sequence
         operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
+    {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -171,13 +212,20 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: DeploymentDeleteQps
         operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
+    {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: 0
+    {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: 0
         deploymentLabel: restart
         Group: {{$groupName}}
-
+{{if $SERVICE_TEST}}
   - module:
       path: /modules/services.yaml
       params:
@@ -185,6 +233,23 @@ steps:
         namespaces: {{$namespaces}}
         smallServicesPerNamespace: 0
         bigServicesPerNamespace: 0
+{{end}}
+{{if $CNP_TEST}}
+  - module:
+      path: /modules/ciliumnetworkpolicy.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        cnpsPerNamespace: 0
+{{end}}
+{{if $CCNP_TEST}}
+  - module:
+      path: /modules/ciliumclusternetworkpolicy.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        ccnps: 0
+{{end}}
 {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}

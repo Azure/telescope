@@ -42,6 +42,11 @@ variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
   default     = "2h"
+
+  validation {
+    condition     = timecmp(timeadd(plantimestamp(), var.deletion_delay), timeadd(plantimestamp(), "+72h")) <= 0
+    error_message = "The deletion_delay must not be more than 3 days (72h)"
+  }
 }
 
 variable "network_config_list" {

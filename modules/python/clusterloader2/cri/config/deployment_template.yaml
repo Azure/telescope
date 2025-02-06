@@ -1,6 +1,8 @@
 {{$Memory := DefaultParam .Memory "1000M"}}
 {{$CPU := DefaultParam .CPU "--millicores=100"}}
-{{$AgentPool := DefaultParam .AgentPool "userpool1"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
+{{$CPURequest := DefaultParam .CPURequest "100m"}}
+{{$LoadType := DefaultParam .LoadType "memory"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -20,10 +22,12 @@ spec:
         group: {{.Group}}
     spec:
       nodeSelector:
-        agentpool: {{$AgentPool}}
+        cri-resource-consume: "true"
       containers:
+{{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+        imagePullPolicy: IfNotPresent
         command:
           - stress
         args:
@@ -37,9 +41,12 @@ spec:
           - "3600"
         resources:
           requests:
-            memory: "10Mi"
+            memory: {{$MemoryRequest}}
+{{end}}
+{{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+        imagePullPolicy: IfNotPresent
         command:
           - ./consume-cpu/consume-cpu
         args:
@@ -47,7 +54,8 @@ spec:
           - {{$CPU}}
         resources:
           requests:
-            cpu: "10m"
+            cpu: {{$CPURequest}}
+{{end}}
       tolerations:
       - key: "cri-resource-consume"
         operator: "Equal"

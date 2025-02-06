@@ -103,8 +103,8 @@ module "virtual_network" {
     nat_gateway_associations = [
       {
         nat_gateway_name = "web-nat-gw"
-        public_ip_name   = "web-nat-gw-public-ip"
-        subnet_name      = "web-subnet"
+        public_ip_names   = ["web-nat-gw-public-ip"]
+        subnet_names      = ["web-subnet"]
       }
     ]
   }

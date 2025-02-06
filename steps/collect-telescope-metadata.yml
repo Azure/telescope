@@ -47,6 +47,7 @@ steps:
       --arg byo_resources "$SKIP_RESOURCE_MANAGEMENT" \
       '{
           run_id: $run_id,
+          timestamp: $timestamp,
           pipeline_info: {
             run_url: $run_url,
             reason: $reason,
@@ -57,7 +58,6 @@ steps:
             cron_schedule_display_name: $cron_schedule_display_name,
             project_name: $project_name,
             code_url: $code_url,
-            timestamp: $timestamp
           },
           scenario_info: {
             scenario_name: $scenario_name,

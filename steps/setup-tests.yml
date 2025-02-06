@@ -75,7 +75,9 @@ steps:
     if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     fi
-  displayName: "Install Python Dependencies"
+
+    sudo apt-get -y install bc
+  displayName: "Install Dependencies"
 
 - template: /steps/cloud/${{ parameters.cloud }}/login.yml
   parameters:

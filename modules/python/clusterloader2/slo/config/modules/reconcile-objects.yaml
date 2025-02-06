@@ -21,6 +21,9 @@
 {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE "enforcement-latency"}}
 {{$NET_POLICY_SERVER_EVERY_NTH_POD := DefaultParam .CL2_NET_POLICY_SERVER_EVERY_NTH_POD 3}}
 
+{{$cnp_test:= .cnp_test}}
+{{$ccnp_test:= .ccnp_test}}
+
 steps:
 - name: Starting measurement for '{{$actionName}}'
   measurements:
@@ -68,7 +71,12 @@ steps:
         TargetLabelKey: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
         TargetLabelValue: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
         NetPolServerOnEveryNthPod: {{$NET_POLICY_SERVER_EVERY_NTH_POD}}
+  {{if or $cnp_test $ccnp_test}}
+        cnp_test: {{$cnp_test}}
+        ccnp_test: {{$ccnp_test}}
+  {{else}}
         SvcName: small-service
+  {{end}}
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 

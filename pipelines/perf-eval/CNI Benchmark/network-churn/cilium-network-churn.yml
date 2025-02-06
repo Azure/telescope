@@ -4,7 +4,7 @@ schedules:
   displayName: "Every 2 Hours Daily"
   branches:
     include:
-      - jshr/network-churn-corrections
+      - network-churn
   always: true
 
 parameters:

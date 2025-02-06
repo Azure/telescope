@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "cri-resource-consume"
-deletion_delay = "120h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -11,13 +11,13 @@ network_config_list = [
     subnet = [
       {
         name                    = "client-subnet"
-        cidr_block              = "10.0.0.0/24"
+        cidr_block              = "10.0.0.0/17"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "client-subnet-2"
-        cidr_block              = "10.0.1.0/24"
+        cidr_block              = "10.0.128.0/17"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       }
@@ -84,9 +84,9 @@ eks_config_list = [{
       name           = "userpool0"
       ami_type       = "AL2_x86_64"
       instance_types = ["m5.4xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
+      min_size       = 10
+      max_size       = 10
+      desired_size   = 10
       capacity_type  = "ON_DEMAND"
       taints = [
         {
@@ -97,7 +97,7 @@ eks_config_list = [{
       ]
       labels = {
         "cri-resource-consume" = "true",
-        "agentpool"            = "userpool1"
+        "agentpool"            = "userpool0"
       }
     }
   ]
@@ -105,6 +105,13 @@ eks_config_list = [{
   eks_addons = [
     {
       name = "coredns"
+    },
+    {
+      name = "vpc-cni"
+    },
+    {
+      name = "kube-proxy"
     }
   ]
+  kubernetes_version = "1.31"
 }]
