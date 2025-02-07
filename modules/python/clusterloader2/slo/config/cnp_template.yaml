@@ -1,6 +1,6 @@
 {{- $randomNamespace := "" -}}
   {{- while eq $randomNamespace "" -}}
-    {{- $randNum := randInt 1 3 -}}
+    {{- $randNum := randInt 1 2 -}}
     {{- if eq (printf "slo-%d" $randNum) .Namespace -}}
       {{- continue -}}
     {{- else -}}
