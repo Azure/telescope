@@ -3,7 +3,6 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
-  SCENARIO_VERSION: main
 
 stages:
   - stage: gcp_eastus1

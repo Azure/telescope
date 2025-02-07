@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-resource-consume
-  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_swedencentral
