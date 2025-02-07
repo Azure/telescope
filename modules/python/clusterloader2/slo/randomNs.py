@@ -1,7 +1,7 @@
 import random
 
 namespaces = ["slo-1", "slo-2"]
-namespace = {{.Namespace}}
+namespace = "{{.Namespace}}"
 randomNamespace = ""
 
 while randomNamespace == "":
@@ -10,4 +10,9 @@ while randomNamespace == "":
         randomNamespace = namespaces[randomIndex]
         break
 
-print(f"Selected random namespace: {randomNamespace}")
+def get_random_namespace():
+    return randomNamespace
+
+# Write the random namespace to a file
+with open("random_namespace.txt", "w") as file:
+    file.write(get_random_namespace())
