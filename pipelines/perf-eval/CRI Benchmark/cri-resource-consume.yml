@@ -26,42 +26,90 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241016"
           topology: cri-resource-consume
           matrix:
-            n10-p300-memory:
+            n10-p300-memory-1-30:
               node_count: 10
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-            n10-p700-memory:
+              kubernetes_version: "1.30"
+            n10-p700-memory-1-30:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: memory
-            n10-p1100-memory:
+              kubernetes_version: "1.30"
+            n10-p1100-memory-1-30:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-            n10-p300-cpu:
+              kubernetes_version: "1.30"
+            n10-p300-memory-1-31:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.31"
+            n10-p700-memory-1-31:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              kubernetes_version: "1.31"
+            n10-p1100-memory-1-31:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.31"
+            n10-p300-cpu-1-30:
               node_count: 10
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
-            n10-p700-cpu:
+              kubernetes_version: "1.30"
+            n10-p700-cpu-1-30:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: cpu
-            n10-p1100-cpu:
+              kubernetes_version: "1.30"
+            n10-p1100-cpu-1-30:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: cpu
+              kubernetes_version: "1.30"
+            n10-p300-cpu-1-31:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: cpu
+              kubernetes_version: "1.31"
+            n10-p700-cpu-1-31:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: cpu
+              kubernetes_version: "1.31"
+            n10-p1100-cpu-1-31:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: cpu
+              kubernetes_version: "1.31"
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection

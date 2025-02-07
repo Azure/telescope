@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-resource-consume"
+scenario_name  = "cri-kbench-cp-bottlerocket"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -63,7 +63,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "default"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "BOTTLEROCKET_x86_64"
       instance_types = ["m5.4xlarge"]
       min_size       = 3
       max_size       = 3
@@ -72,7 +72,7 @@ eks_config_list = [{
     },
     {
       name           = "prompool"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "BOTTLEROCKET_x86_64"
       instance_types = ["m5.4xlarge"]
       min_size       = 1
       max_size       = 1
@@ -82,11 +82,11 @@ eks_config_list = [{
     },
     {
       name           = "userpool0"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "BOTTLEROCKET_x86_64"
       instance_types = ["m5.4xlarge"]
-      min_size       = 10
-      max_size       = 10
-      desired_size   = 10
+      min_size       = 3
+      max_size       = 3
+      desired_size   = 3
       capacity_type  = "ON_DEMAND"
       taints = [
         {
