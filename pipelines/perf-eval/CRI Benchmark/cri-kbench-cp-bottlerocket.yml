@@ -3,7 +3,6 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-kbench-cp-bottlerocket
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_westeurope
