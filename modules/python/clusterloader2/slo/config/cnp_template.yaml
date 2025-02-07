@@ -1,15 +1,3 @@
-{{define "generateNamespace"}}
-  {{$randNum := randInt 1 3}}
-  {{$newNamespace := printf "slo-%d" $randNum}}
-  {{if eq $newNamespace .Namespace}}
-    {{template "generateNamespace" .}}
-  {{else}}
-    {{$newNamespace}}
-  {{end}}
-{{end}}
-
-{{- $randomNamespace := include "generateNamespace" . -}}
-
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
