@@ -1,3 +1,12 @@
+{{- $namespacesList := list "slo-1" "slo-2" "slo-3" "slo-4" "slo-5" "slo-6" "slo-7" "slo-8" "slo-9" "slo-10" -}}
+{{- $randomNamespace := "" -}}
+{{- range $index, $ns := $namespacesList -}}
+  {{- if ne $ns .Namespace -}}
+    {{- $randomNamespace = $ns -}}
+    {{- break -}}
+  {{- end -}}
+{{- end -}}
+
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -9,15 +18,15 @@ spec:
       group: cnp-ccnp
       name: {{.Name}}
   ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: {{.randomNamespace}}
   - icmps:
     - fields:
       - type: 8
         family: IPv4
       - type: 128
         family: IPv6
-  ingressDeny:
-    - fromEntities:
-      - all
   egress:
   - icmps:
     - fields:
