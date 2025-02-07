@@ -30,8 +30,8 @@ stages:
               cpu_per_node: 2
               node_count: 5000
               pod_count: 5000
-              scale_up_timeout: "120m"
-              scale_down_timeout: "120m"
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 1
