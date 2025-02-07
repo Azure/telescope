@@ -1,6 +1,6 @@
-{{- $namespacesMap := dict "ns1" "slo-1" "ns2" "slo-2" -}}
+{{- $namespacesList := ["slo-1", "slo-2", "slo-3", "slo-4", "slo-5", "slo-6", "slo-7", "slo-8", "slo-9", "slo-10"] -}}
 {{- $randomNamespace := "" -}}
-{{- range $key, $ns := $namespacesMap -}}
+{{- range $key, $ns := $namespacesList -}}
   {{- if ne $ns .Namespace -}}
     {{- $randomNamespace = $ns -}}
     {{- break -}}
