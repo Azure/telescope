@@ -14,7 +14,7 @@ NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus", "InClusterNetworkLaten
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 
-def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, enable_exec_service=False):
+def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, enable_exec_service=False, scrape_kubelets=True):
     docker_client = DockerClient()
 
     command=f"""--provider={provider} --v=2
@@ -23,7 +23,8 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 --kubeconfig /root/.kube/config
 --testconfig /root/perf-tests/clusterloader2/config/{cl2_config_file}
 --report-dir /root/perf-tests/clusterloader2/results
---tear-down-prometheus-server={enable_prometheus}"""
+--tear-down-prometheus-server={enable_prometheus}
+--prometheus-scrape-kubelets={scrape_kubelets}"""
     if overrides:
         command += f" --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 

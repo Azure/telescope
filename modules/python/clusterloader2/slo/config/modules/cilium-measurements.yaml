@@ -31,6 +31,34 @@ steps:
           query: histogram_quantile(0.95, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
         - name: Perc50
           query: histogram_quantile(0.50, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
+    - Identifier: CiliumServiceImplementationDelay
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Service Implementation Delay
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_service_implementation_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_service_implementation_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_service_implementation_delay_seconds_bucket[%v:])) by (le))
+    - Identifier: CiliumPolicyImplementationDelay
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Policy Implementation Delay
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_policy_implementation_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_policy_implementation_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_policy_implementation_delay_seconds_bucket[%v:])) by (le))
     - Identifier: CiliumAvgCPUUsage
       Method: GenericPrometheusQuery
       Params:
@@ -151,3 +179,4 @@ steps:
           query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+
