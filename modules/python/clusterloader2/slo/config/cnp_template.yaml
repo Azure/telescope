@@ -8,7 +8,7 @@
   {{- end -}}
 {{end}}
 
-{{$randomNamespace := (print (template "generateNamespace" .))}}
+{{$randomNamespace := (template "generateNamespace" .)}}
 
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
