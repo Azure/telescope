@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-- cron: "0 */2 * * *"
-  displayName: "Every 2 Hours Daily"
+- cron: "0 */4 * * *"
+  displayName: "Every 4 Hours Daily"
   branches:
     include:
       - jshr/network-churn-corrections
