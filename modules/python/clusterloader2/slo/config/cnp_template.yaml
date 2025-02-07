@@ -1,5 +1,5 @@
 {{define "generateNamespace"}}
-  {{- $randNum := RandIntRange 1 3 -}}
+  {{- $randNum := RandIntRange 1 2 -}}
   {{- $newNamespace := printf "slo-%d" $randNum -}}
   {{- if eq $newNamespace .Namespace -}}
     {{- template "generateNamespace" . -}}
@@ -8,7 +8,6 @@
   {{- end -}}
 {{end}}
 
-{{$randomNamespace := (template "generateNamespace" .)}}
 
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -23,7 +22,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: {{$randomNamespace}}
+        k8s:io.kubernetes.pod.namespace: {{template "generateNamespace" .}}
   - icmps:
     - fields:
       - type: 8
