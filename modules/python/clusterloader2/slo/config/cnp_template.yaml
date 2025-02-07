@@ -1,16 +1,12 @@
-{{- $sprig := import "github.com/Masterminds/sprig" -}}
-{{- $namespacesMap := $sprig.dict "ns1" "slo-1" "ns2" "slo-2" -}}
 {{- $randomNamespace := "" -}}
-{{- $keys := $sprig.keys $namespacesMap | $sprig.shuffle -}}
-{{- range $i, $key := $keys -}}
-  {{- $tempNs := index $namespacesMap $key -}}
-  {{- if eq $tempNs .Namespace -}}
-    {{- continue -}}
-  {{- else -}}
-    {{- $randomNamespace = $tempNs -}}
-    {{- break -}}
+  {{- while eq $randomNamespace "" -}}
+    {{- $randNum := randInt 1 3 -}}
+    {{- if eq (printf "slo-%d" $randNum) .Namespace -}}
+      {{- continue -}}
+    {{- else -}}
+      {{- $randomNamespace = printf "slo-%d" $randNum -}}
+    {{- end -}}
   {{- end -}}
-{{- end -}}
 
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
