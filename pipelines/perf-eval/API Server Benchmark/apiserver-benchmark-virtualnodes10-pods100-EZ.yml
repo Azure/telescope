@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: apiserver-vn10pod100-EZ  
+  SCENARIO_NAME: apiserver-vn10pod100-EZ
   AZURE_SUBSCRIPTION_ID: 1d85fdce-f71c-4ecd-a06d-ea46effcccd0
 
 stages:
