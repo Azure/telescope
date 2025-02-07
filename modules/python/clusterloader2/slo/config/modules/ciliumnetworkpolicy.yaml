@@ -14,9 +14,6 @@ steps:
       max: {{$namespaces}}
     replicasPerNamespace: {{$cnpsPerNamespace}}
     tuningSet: Sequence
-    runScript:
-      name: "Run Python Script"
-      command: "python modules/python/clusterloader2/slo/randomNs.py && python modules/python/clusterloader2/slo/config/process_template.py"
     objectBundle:
     - basename: cnp
       objectTemplatePath: cnp_template.yaml
