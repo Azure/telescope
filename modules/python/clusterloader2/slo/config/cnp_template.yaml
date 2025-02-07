@@ -5,7 +5,6 @@
     {{template "generateNamespace" .}}
   {{else}}
     {{$randomNamespace := $newNamespace}}
-    {{break}}
   {{end}}
 {{end}}
 
