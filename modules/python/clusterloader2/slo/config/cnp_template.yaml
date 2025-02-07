@@ -1,8 +1,13 @@
-{{- $namespacesList := ["slo-1", "slo-2", "slo-3", "slo-4", "slo-5", "slo-6", "slo-7", "slo-8", "slo-9", "slo-10"] -}}
+{{- $sprig := import "github.com/Masterminds/sprig" -}}
+{{- $namespacesMap := $sprig.dict "ns1" "slo-1" "ns2" "slo-2" "ns3" "slo-3" "ns4" "slo-4" "ns5" "slo-5" "ns6" "slo-6" "ns7" "slo-7" "ns8" "slo-8" "ns9" "slo-9" "ns10" "slo-10" -}}
 {{- $randomNamespace := "" -}}
-{{- range $key, $ns := $namespacesList -}}
-  {{- if ne $ns .Namespace -}}
-    {{- $randomNamespace = $ns -}}
+{{- $keys := $sprig.keys $namespacesMap | $sprig.shuffle -}}
+{{- range $i, $key := $keys -}}
+  {{- $tempNs := index $namespacesMap $key -}}
+  {{- if eq $tempNs .Namespace -}}
+    {{- continue -}}
+  {{- else -}}
+    {{- $randomNamespace = $tempNs -}}
     {{- break -}}
   {{- end -}}
 {{- end -}}
