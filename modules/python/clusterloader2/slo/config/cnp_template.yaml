@@ -20,7 +20,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: {{.randomNamespace}}
+        k8s:io.kubernetes.pod.namespace: {{$randomNamespace}}
   - icmps:
     - fields:
       - type: 8
