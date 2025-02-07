@@ -1,11 +1,11 @@
-trigger: none
-schedules:
-- cron: "0 */2 * * *"
-  displayName: "Every 2 Hours Daily"
-  branches:
-    include:
-      - network-churn
-  always: true
+# trigger: none
+# schedules:
+# - cron: "0 */2 * * *"
+#   displayName: "Every 2 Hours Daily"
+#   branches:
+#     include:
+#       - network-churn
+#   always: true
 
 parameters:
   - name: node_count
