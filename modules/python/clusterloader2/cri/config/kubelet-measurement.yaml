@@ -1,0 +1,54 @@
+{{$action := .action}} # start, gather
+
+steps:
+  - name: {{$action}} Kubelet Measurements
+    measurements:
+    - Identifier: KubeletPodStartupSLIDuration
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: KubeletPodStartupSLIDuration
+        metricVersion: v1
+        unit: s
+        threshold: 5
+        dimensions:
+          - node
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
+    - Identifier: KubeletPodStartupDuration
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: KubeletPodStartupDuration
+        metricVersion: v1
+        unit: s
+        dimensions:
+          - node
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (node, le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (node, le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (node, le))
+    - Identifier: KubeletPodStartupTotalDuration
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: KubeletPodStartupTotalDuration
+        metricVersion: v1
+        unit: s
+        dimensions:
+          - node
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[5m])) by (node, le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[5m])) by (node, le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[5m])) by (node, le))

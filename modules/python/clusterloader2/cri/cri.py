@@ -88,7 +88,7 @@ def override_config_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True)
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True, scrape_kubelets=True)
 
 def collect_clusterloader2(
     node_count,
@@ -136,11 +136,24 @@ def collect_clusterloader2(
             print(measurement, group_name)
             data = json.loads(f.read())
 
-            for percentile, items in data.items():
-                template["measurement"] = measurement
-                template["group"] = group_name
-                template["percentile"] = percentile
+            if measurement == "ResourceUsageSummary":
+                for percentile, items in data.items():
+                    template["measurement"] = measurement
+                    template["group"] = group_name
+                    template["percentile"] = percentile
+                    for item in items:
+                        template["data"] = item
+                        content += json.dumps(template) + "\n"
+            elif "dataItems" in data:
+                items = data["dataItems"]
+                if not items:
+                    print(f"No data items found in {file_path}")
+                    print(f"Data:\n{data}")
+                    continue
                 for item in items:
+                    template["measurement"] = measurement
+                    template["group"] = group_name
+                    template["percentile"] = "dataItems"
                     template["data"] = item
                     content += json.dumps(template) + "\n"
 

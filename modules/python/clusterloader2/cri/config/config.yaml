@@ -54,6 +54,10 @@ steps:
           kind: Deployment
           labelSelector: group = resource-consumer
           operationTimeout: {{$operationTimeout}}
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: start
 
 {{range $i := Loop $repeats}}
   {{range $j := Loop $steps}}
@@ -148,3 +152,7 @@ steps:
         Method: PodStartupLatency
         Params:
           action: gather
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: gather
