@@ -1,18 +1,5 @@
-{{define "generateNamespace"}}
-  {{- $maxTries := 10 -}}
-  {{- $newNamespace := "" -}}
-  {{- $stop := false -}}
-  {{- range $i := until $maxTries -}}
-    {{- if not $stop -}}
-      {{- $randNum := RandIntRange 1 2 -}}
-      {{- $newNamespace = printf "slo-%d" $randNum -}}
-      {{- if ne $newNamespace .Namespace -}}
-        {{- $stop = true -}}
-      {{- end -}}
-    {{- end -}}
-  {{- end -}}
-  {{- $newNamespace -}}
-{{end}}
+{{- $randNum := RandIntRange 1 2 -}}
+{{- $randomNamespace = printf "slo-%d" $randNum -}}
 
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -27,7 +14,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: {{template "generateNamespace" .}}
+        k8s:io.kubernetes.pod.namespace: {{$randomNamespace}}
   - icmps:
     - fields:
       - type: 8
