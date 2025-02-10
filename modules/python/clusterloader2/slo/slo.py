@@ -96,12 +96,14 @@ def configure_clusterloader2(
             file.write("CL2_CNP_TEST: true\n")
             file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
+            file.write("CL2_NODES_PER_NAMESPACE: 100\n")
             file.write(f"CL2_NO_OF_NAMESPACES: {no_of_namespaces}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
         if ccnp_test:
             file.write("CL2_CCNP_TEST: true\n")
             file.write(f"CL2_CCNPS: {num_ccnps}\n")
+            file.write("CL2_NODES_PER_NAMESPACE: 100\n")
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
