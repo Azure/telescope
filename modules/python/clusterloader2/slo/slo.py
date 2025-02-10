@@ -69,7 +69,7 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, network_test cnp_test, ccnp_test)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, network_test, cnp_test, ccnp_test)
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
