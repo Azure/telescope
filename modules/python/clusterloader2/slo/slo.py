@@ -264,7 +264,6 @@ def main():
                                   help="Whether service test is running. Must be either True or False")
     parser_configure.add_argument("network_test", type=eval, choices=[True, False], default=False,
                                   help="Whether network test is running. Must be either True or False")
-    parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_configure.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cnp test is running. Must be either True or False")
     parser_configure.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
