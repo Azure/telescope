@@ -1,5 +1,5 @@
 {{- $randNum := RandIntRange 1 2 -}}
-{{- $randomNamespace = printf "slo-%d" $randNum -}}
+{{- $randomNamespace := printf "slo-%d" $randNum -}}
 
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
