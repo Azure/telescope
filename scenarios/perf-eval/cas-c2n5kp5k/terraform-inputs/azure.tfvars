@@ -40,7 +40,6 @@ aks_cli_config_list = [
     kubernetes_version    = "1.31"
     subnet_name           = "cas-subnet"
     managed_identity_name = "cas-identity"
-    aks_custom_headers    = ["OverrideControlplaneResources=W3siY29udGFpbmVyTmFtZSI6Imt1YmUtYXBpc2VydmVyIiwiY3B1TGltaXQiOiIzMCIsImNwdVJlcXVlc3QiOiIyNyIsIm1lbW9yeUxpbWl0IjoiNjRHaSIsIm1lbW9yeVJlcXVlc3QiOiI2NEdpIiwiZ29tYXhwcm9jcyI6MzB9XSAg", "ControlPlaneUnderlay=hcp-underlay-eastus2-cx-382", "AKSHTTPCustomFeatures=OverrideControlplaneResources"]
 
     default_node_pool = {
       name       = "default"
@@ -49,7 +48,7 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "userpool0"
+        name       = "warmuppool"
         node_count = 1
         vm_size    = "Standard_D2_v5"
         optional_parameters = [
@@ -64,6 +63,33 @@ aks_cli_config_list = [
           {
             name  = "min-count"
             value = "1"
+          },
+          {
+            name  = "max-count"
+            value = "1"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          }
+        ]
+      },
+      {
+        name       = "userpool0"
+        node_count = 0
+        vm_size    = "Standard_D2_v5"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "min-count"
+            value = "0"
           },
           {
             name  = "max-count"
@@ -330,6 +356,6 @@ aks_cli_config_list = [
       },
       {
         name  = "ca-profile"
-        value = "scan-interval=20s scale-down-delay-after-add=2m scale-down-delay-after-failure=1m scale-down-unneeded-time=3m scale-down-unready-time=5m max-graceful-termination-sec=30 skip-nodes-with-local-storage=false max-empty-bulk-delete=1000 max-total-unready-percentage=90 ok-total-unready-count=950 max-node-provision-time=15m"
+        value = "scan-interval=20s scale-down-delay-after-add=2m scale-down-delay-after-failure=1m scale-down-unneeded-time=3m scale-down-unready-time=5m max-graceful-termination-sec=30 skip-nodes-with-local-storage=false max-empty-bulk-delete=1000 max-total-unready-percentage=100 ok-total-unready-count=5000 max-node-provision-time=15m"
       }
 ] }]
