@@ -164,6 +164,14 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: restart
 
+  - name: Adding lag to test
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1200s
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
