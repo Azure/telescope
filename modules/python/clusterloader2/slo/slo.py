@@ -54,7 +54,7 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
-    cnp_test, 
+    cnp_test,
     ccnp_test,
     num_cnps,
     num_ccnps,
@@ -136,13 +136,15 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
-    cnp_test, 
+    cnp_test,
     ccnp_test,
     num_cnps,
     num_ccnps,
     dualstack,
     result_file,
-    test_type="default_config",
+    test_type,
+    start_timestamp,
+    name,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -173,6 +175,8 @@ def collect_clusterloader2(
         "run_id": run_id,
         "run_url": run_url,
         "test_type": test_type,
+        "start_timestamp": start_timestamp,
+        "name": name,
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -272,9 +276,11 @@ def main():
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
+    parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
+    parser_collect.add_argument("name", type=str, help="Test Name")
 
     args = parser.parse_args()
-    
+
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
@@ -287,7 +293,9 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.result_file, args.test_type)
+                               args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps,
+                               args.num_ccnps, args.dualstack, args.result_file, args.test_type,
+                               args.start_timestamp, args.name)
 
 if __name__ == "__main__":
     main()
