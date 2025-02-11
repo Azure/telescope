@@ -33,6 +33,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.30"
+              scrape_kubelets: True
             n10-p700-memory-1-30:
               node_count: 10
               max_pods: 70
@@ -40,6 +41,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.30"
+              scrape_kubelets: True
             n10-p1100-memory-1-30:
               node_count: 10
               max_pods: 110
@@ -47,6 +49,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.30"
+              scrape_kubelets: True
             n10-p300-memory-1-31:
               node_count: 10
               max_pods: 30
@@ -54,6 +57,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.31"
+              scrape_kubelets: True
             n10-p700-memory-1-31:
               node_count: 10
               max_pods: 70
@@ -61,6 +65,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.31"
+              scrape_kubelets: True
             n10-p1100-memory-1-31:
               node_count: 10
               max_pods: 110
@@ -68,6 +73,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.31"
+              scrape_kubelets: True
             n10-p300-cpu-1-30:
               node_count: 10
               max_pods: 30
@@ -75,6 +81,7 @@ stages:
               operation_timeout: 3m
               load_type: cpu
               kubernetes_version: "1.30"
+              scrape_kubelets: True
             n10-p700-cpu-1-30:
               node_count: 10
               max_pods: 70
@@ -82,6 +89,7 @@ stages:
               operation_timeout: 7m
               load_type: cpu
               kubernetes_version: "1.30"
+              scrape_kubelets: True
             n10-p1100-cpu-1-30:
               node_count: 10
               max_pods: 110
@@ -89,6 +97,7 @@ stages:
               operation_timeout: 11m
               load_type: cpu
               kubernetes_version: "1.30"
+              scrape_kubelets: True
             n10-p300-cpu-1-31:
               node_count: 10
               max_pods: 30
@@ -96,6 +105,7 @@ stages:
               operation_timeout: 3m
               load_type: cpu
               kubernetes_version: "1.31"
+              scrape_kubelets: True
             n10-p700-cpu-1-31:
               node_count: 10
               max_pods: 70
@@ -103,6 +113,7 @@ stages:
               operation_timeout: 7m
               load_type: cpu
               kubernetes_version: "1.31"
+              scrape_kubelets: True
             n10-p1100-cpu-1-31:
               node_count: 10
               max_pods: 110
@@ -110,6 +121,7 @@ stages:
               operation_timeout: 11m
               load_type: cpu
               kubernetes_version: "1.31"
+              scrape_kubelets: True
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -133,36 +145,42 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
+              scrape_kubelets: True
             n10-p700-memory:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: memory
+              scrape_kubelets: True
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: memory
+              scrape_kubelets: True
             n10-p300-cpu:
               node_count: 10
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
+              scrape_kubelets: True
             n10-p700-cpu:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: cpu
+              scrape_kubelets: True
             n10-p1100-cpu:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: cpu
+              scrape_kubelets: True
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
