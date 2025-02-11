@@ -40,6 +40,11 @@ steps:
       #     action: start
       #     labelSelector: group = resource-consumer
       #     threshold: {{$podStartupLatencyThreshold}}
+      # - Identifier: SchedulingThroughput
+      #   Method: SchedulingThroughput
+      #   Params:
+      #     action: start
+      #     labelSelector: group = resource-consumer
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
@@ -152,6 +157,11 @@ steps:
       #   Method: PodStartupLatency
       #   Params:
       #     action: gather
+      # - Identifier: SchedulingThroughput
+      #   Method: SchedulingThroughput
+      #   Params:
+      #     action: gather
+      #     enableViolations: true
   - module:
       path: /kubelet-measurement.yaml
       params:
