@@ -4,7 +4,7 @@ schedules:
   displayName: "Every 4 Hours Daily"
   branches:
     include:
-      - jshr/network-churn-corrections
+      - network-policy-churn
   always: true
 
 parameters:
@@ -32,7 +32,7 @@ parameters:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-network-churn
+  SCENARIO_NAME: network-policy-churn
   SCENARIO_VERSION: main
   OWNER: aks
 
