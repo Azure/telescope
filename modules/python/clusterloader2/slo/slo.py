@@ -140,6 +140,7 @@ def collect_clusterloader2(
     service_test,
     network_test,
     result_file,
+    start_timestamp,
     test_type="default_config",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -170,6 +171,7 @@ def collect_clusterloader2(
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
+        "start_timestamp": start_timestamp,
         "test_type": test_type,
     }
     content = ""
@@ -260,6 +262,7 @@ def main():
     parser_collect.add_argument("network_test", type=eval, choices=[True, False], default=False,
                                   help="Whether network test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
 
@@ -278,7 +281,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.pods_per_node,
                                args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.network_test, args.result_file, args.test_type)
+                               args.service_test, args.network_test, args.result_file, args.start_timestamp, args.test_type)
 
 if __name__ == "__main__":
     main()
