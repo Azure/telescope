@@ -5,7 +5,7 @@ import math
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
-from kubernetes_client import KubernetesClient
+from kubernetes_client import KubernetesClient, client as k8s_client
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,
@@ -26,7 +26,8 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
-    load_type, scale_enabled, pod_startup_latency_threshold, provider, override_file):
+    load_type, scale_enabled, pod_startup_latency_threshold, provider, 
+    scrape_kubelets, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -64,7 +65,7 @@ def override_config_clusterloader2(
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
-    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}")
+    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
 
     with open(override_file, 'w') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
@@ -79,16 +80,47 @@ def override_config_clusterloader2(
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
         file.write(f"CL2_SCALE_ENABLED: {str(scale_enabled).lower()}\n")
         file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write(f"CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
+        file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True)
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True, scrape_kubelets=scrape_kubelets)
+
+def verify_measurement():
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    nodes = client.get_nodes(label_selector="cri-resource-consume=true")
+    user_pool = [node.metadata.name for node in nodes]
+    print(f"User pool: {user_pool}")
+    # Create an API client
+    api_client = k8s_client.ApiClient()
+    for node_name in user_pool:
+        url = f"/api/v1/nodes/{node_name}/proxy/metrics"
+
+        try:
+            response = api_client.call_api(
+                resource_path=url,
+                method="GET",
+                auth_settings=['BearerToken'],
+                response_type="str",
+                _preload_content=True
+            )
+            
+            metrics = response[0]  # The first item contains the response data
+            filtered_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start")
+            )
+            print("Metrics for node:", node_name)
+            print(filtered_metrics)
+
+        except client.ApiException as e:
+            print(f"Error fetching metrics: {e}")
 
 def collect_clusterloader2(
     node_count,
@@ -99,8 +131,12 @@ def collect_clusterloader2(
     cloud_info,
     run_id,
     run_url,
-    result_file
+    result_file,
+    scrape_kubelets
 ):
+    if scrape_kubelets:
+        verify_measurement()
+
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
@@ -136,11 +172,24 @@ def collect_clusterloader2(
             print(measurement, group_name)
             data = json.loads(f.read())
 
-            for percentile, items in data.items():
-                template["measurement"] = measurement
-                template["group"] = group_name
-                template["percentile"] = percentile
+            if measurement == "ResourceUsageSummary":
+                for percentile, items in data.items():
+                    template["measurement"] = measurement
+                    template["group"] = group_name
+                    template["percentile"] = percentile
+                    for item in items:
+                        template["data"] = item
+                        content += json.dumps(template) + "\n"
+            elif "dataItems" in data:
+                items = data["dataItems"]
+                if not items:
+                    print(f"No data items found in {file_path}")
+                    print(f"Data:\n{data}")
+                    continue
                 for item in items:
+                    template["measurement"] = measurement
+                    template["group"] = group_name
+                    template["percentile"] = "dataItems"
                     template["data"] = item
                     content += json.dumps(template) + "\n"
 
@@ -165,6 +214,8 @@ def main():
                                  help="Whether scale operation is enabled. Must be either True or False")
     parser_override.add_argument("pod_startup_latency_threshold", type=str, default="15s", help="Pod startup latency threshold")
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
+    parser_override.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape kubelets")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2
@@ -174,6 +225,8 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
+    parser_execute.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape kubelets")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect resource consume data")
@@ -187,18 +240,20 @@ def main():
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape kubelets")
 
     args = parser.parse_args()
 
     if args.command == "override":
         override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
-                                       args.provider, args.cl2_override_file)
+                                       args.provider, args.scrape_kubelets, args.cl2_override_file)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
     elif args.command == "collect":
         collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.scrape_kubelets)
 
 if __name__ == "__main__":
     main()
