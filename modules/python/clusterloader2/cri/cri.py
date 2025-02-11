@@ -38,7 +38,15 @@ def override_config_clusterloader2(
     print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu} and allocatable memory of {allocatable_memory}")
 
     cpu_value = int(allocatable_cpu.replace("m", ""))
-    memory_value = int(allocatable_memory.replace("Ki", ""))
+    # Bottlerocket OS SKU on EKS has allocatable_memory property in Mi. AKS and Amazon Linux (default SKUs)
+    # user Ki. Handling the Mi case here and converting Mi to Ki, if needed.
+    if "Mi" in allocatable_memory:
+        memory_value = int(allocatable_memory.replace("Mi", "")) * 1024
+    elif "Ki" in allocatable_memory:
+        memory_value = int(allocatable_memory.replace("Ki", ""))
+    else:
+        raise Exception("Unexpected format of allocatable memory node property")
+
     print(f"Node {node.metadata.name} has cpu value of {cpu_value} and memory value of {memory_value}")
 
     allocated_cpu, allocated_memory = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
@@ -183,13 +191,13 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout, 
+        override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
                                        args.provider, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type, 
+        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
