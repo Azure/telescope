@@ -5,7 +5,7 @@ import math
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
-from kubernetes_client import KubernetesClient
+from kubernetes_client import KubernetesClient, client as k8s_client
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,
@@ -91,6 +91,37 @@ def override_config_clusterloader2(
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True, scrape_kubelets=True)
 
+def verify_measurement():
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    nodes = client.get_nodes(label_selector="cri-resource-consume=true")
+    user_pool = [node.metadata.name for node in nodes]
+    print(f"User pool: {user_pool}")
+    # Create an API client
+    api_client = k8s_client.ApiClient()
+    for node_name in user_pool:
+        url = f"/api/v1/nodes/{node_name}/proxy/metrics"
+
+        try:
+            # Get raw response from the Kubernetes API
+            response = api_client.call_api(
+                resource_path=url,
+                method="GET",
+                auth_settings=['BearerToken'],
+                response_type="str",  # Expecting raw text response
+                _preload_content=True  # Return decoded response
+            )
+            
+            # Extract response body
+            metrics = response[0]  # The first item contains the response data
+            filtered_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start")
+            )
+            print("Metrics for node:", node_name)
+            print(filtered_metrics)
+
+        except client.ApiException as e:
+            print(f"Error fetching metrics: {e}")
+
 def collect_clusterloader2(
     node_count,
     max_pods,
@@ -102,6 +133,8 @@ def collect_clusterloader2(
     run_url,
     result_file
 ):
+    verify_measurement()
+
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]

@@ -56,12 +56,12 @@ steps:
           operationTimeout: {{$operationTimeout}}
 
 {{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: start
 
+  {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
     phases:
     - namespaceRange:

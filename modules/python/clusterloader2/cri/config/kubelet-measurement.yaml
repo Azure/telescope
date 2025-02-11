@@ -16,7 +16,6 @@ steps:
         - name: Perc99
           query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
           threshold: 5
-          lowerBound: false
         - name: Perc90
           query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
         - name: Perc50
