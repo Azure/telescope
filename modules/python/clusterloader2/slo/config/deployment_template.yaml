@@ -3,7 +3,7 @@
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
 
-{{$Image := DefaultParam .Image "acnpublic.azurecr.io/tamilmani/ubuntu22-tools"}}
+{{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
 apiVersion: apps/v1
 kind: Deployment
