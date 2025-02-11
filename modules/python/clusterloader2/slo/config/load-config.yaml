@@ -146,75 +146,79 @@ steps:
         
 
 
-#   - module:
-#       path: /modules/reconcile-objects.yaml
-#       params:
-#         actionName: "restart"
-#         namespaces: {{$namespaces}}
-#         tuningSet: Sequence
-#         operationTimeout: {{$operationTimeout}}
-#     {{if or $CCNP_TEST $CNP_TEST}}
-#         bigDeploymentSize: 0
-#         bigDeploymentsPerNamespace: 0
-#         cnp_test: {{$CNP_TEST}}
-#         ccnp_test: {{$CCNP_TEST}}
-#     {{else}}
-#         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-#         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-#     {{end}}
-#         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-#         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-#         CpuRequest: {{$latencyPodCpu}}m
-#         MemoryRequest: {{$latencyPodMemory}}M
-#         Group: {{$groupName}}
-#         deploymentLabel: restart
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "restart"
+        namespaces: {{$namespaces}}
+        tuningSet: Sequence
+        operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespaceCNP}}
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
+    {{else}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+    {{end}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: restart
 
-#   - module:
-#       path: /modules/reconcile-objects.yaml
-#       params:
-#         actionName: "delete"
-#         namespaces: {{$namespaces}}
-#         tuningSet: DeploymentDeleteQps
-#         operationTimeout: {{$operationTimeout}}
-#     {{if or $CCNP_TEST $CNP_TEST}}
-#         bigDeploymentSize: 0
-#         bigDeploymentsPerNamespace: 0
-#         cnp_test: {{$CNP_TEST}}
-#         ccnp_test: {{$CCNP_TEST}}
-#     {{else}}
-#         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-#         bigDeploymentsPerNamespace: 0
-#     {{end}}
-#         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-#         smallDeploymentsPerNamespace: 0
-#         deploymentLabel: restart
-#         Group: {{$groupName}}
-# {{if $SERVICE_TEST}}
-#   - module:
-#       path: /modules/services.yaml
-#       params:
-#         actionName: "Deleting"
-#         namespaces: {{$namespaces}}
-#         smallServicesPerNamespace: 0
-#         bigServicesPerNamespace: 0
-# {{end}}
-# {{if $CNP_TEST}}
-#   - module:
-#       path: /modules/ciliumnetworkpolicy.yaml
-#       params:
-#         actionName: "Deleting"
-#         namespaces: {{$namespaces}}
-#         cnpsPerNamespace: 0
-# {{end}}
-# {{if $CCNP_TEST}}
-#   - module:
-#       path: /modules/ciliumclusternetworkpolicy.yaml
-#       params:
-#         actionName: "Deleting"
-#         namespaces: {{$namespaces}}
-#         ccnps: 0
-# {{end}}
-# {{end}}
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "delete"
+        namespaces: {{$namespaces}}
+        tuningSet: DeploymentDeleteQps
+        operationTimeout: {{$operationTimeout}}
+    {{if or $CCNP_TEST $CNP_TEST}}
+        bigDeploymentSize: 0
+        bigDeploymentsPerNamespace: 0
+        cnp_test: {{$CNP_TEST}}
+        ccnp_test: {{$CCNP_TEST}}
+    {{else}}
+        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+        bigDeploymentsPerNamespace: 0
+    {{end}}
+        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+        smallDeploymentsPerNamespace: 0
+        deploymentLabel: restart
+        Group: {{$groupName}}
+{{if $SERVICE_TEST}}
+  - module:
+      path: /modules/services.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        smallServicesPerNamespace: 0
+        bigServicesPerNamespace: 0
+{{end}}
+{{if $CNP_TEST}}
+  - module:
+      path: /modules/ciliumnetworkpolicy.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        Group: {{$groupName}}
+        cnpsPerNamespace: 0
+{{end}}
+{{if $CCNP_TEST}}
+  - module:
+      path: /modules/ciliumclusternetworkpolicy.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        Group: {{$groupName}}
+        ccnps: 0
+{{end}}
+{{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
