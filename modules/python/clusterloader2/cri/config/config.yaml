@@ -34,17 +34,12 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
-      # - Identifier: PodStartupLatency
-      #   Method: PodStartupLatency
-      #   Params:
-      #     action: start
-      #     labelSelector: group = resource-consumer
-      #     threshold: {{$podStartupLatencyThreshold}}
-      # - Identifier: SchedulingThroughput
-      #   Method: SchedulingThroughput
-      #   Params:
-      #     action: start
-      #     labelSelector: group = resource-consumer
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group = resource-consumer
+          threshold: {{$podStartupLatencyThreshold}}
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
@@ -59,13 +54,14 @@ steps:
           kind: Deployment
           labelSelector: group = resource-consumer
           operationTimeout: {{$operationTimeout}}
+
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: start
 
-{{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
     phases:
     - namespaceRange:
@@ -126,6 +122,11 @@ steps:
           refreshInterval: 5s
   {{end}}
 
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: gather
+
   {{range $j := Loop $steps}}
   - name: Deleting deployments {{$j}}
     phases:
@@ -153,16 +154,7 @@ steps:
         Method: ResourceUsageSummary
         Params:
           action: gather
-      # - Identifier: PodStartupLatency
-      #   Method: PodStartupLatency
-      #   Params:
-      #     action: gather
-      # - Identifier: SchedulingThroughput
-      #   Method: SchedulingThroughput
-      #   Params:
-      #     action: gather
-      #     enableViolations: true
-  - module:
-      path: /kubelet-measurement.yaml
-      params:
-        action: gather
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather

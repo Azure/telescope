@@ -79,6 +79,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
         file.write(f"CL2_SCALE_ENABLED: {str(scale_enabled).lower()}\n")
         file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write(f"CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
