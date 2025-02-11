@@ -20,7 +20,7 @@ steps:
     region: ${{ parameters.region }}
 - script: |
     set -eo pipefail
-    echo "Start of test: $START"
+    echo "Tests Starting timestamp: $START"
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       $CPU_PER_NODE $NODE_COUNT $MAX_PODS $PODS_PER_NODE $REPEATS \
