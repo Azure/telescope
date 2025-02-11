@@ -1,4 +1,4 @@
-{{- $randNum := RandIntRange 1 2 -}}
+{{- $randNum := RandIntRange 1 10 -}}
 {{- $randomNamespace := printf "slo-%d" $randNum -}}
 
 apiVersion: cilium.io/v2
@@ -12,15 +12,16 @@ spec:
       group: cnp-ccnp
       name: {{.Name}}
   ingress:
-  - fromEndpoints:
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: {{$randomNamespace}}
   - icmps:
     - fields:
       - type: 8
         family: IPv4
       - type: 128
         family: IPv6
+  ingressDeny:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: {{$randomNamespace}}
   egress:
   - icmps:
     - fields:
