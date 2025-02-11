@@ -67,7 +67,7 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_l4_MI50
+  - stage: azure_eastus2_lower_max_inflight
     dependsOn: []
     variables:
       - group: API-Server-L4-Config-MI50
@@ -125,7 +125,7 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_l4_c32
+  - stage: azure_eastus2_l4_high_resources
     dependsOn: []
     variables:
       - group: API-Server-L4-Config-C32
