@@ -14,12 +14,12 @@ steps:
           - node
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[10m])) by (node, le))
           threshold: 5
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[10m])) by (node, le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[10m])) by (node, le))
     - Identifier: KubeletPodStartupDuration
       Method: GenericPrometheusQuery
       Params:
@@ -31,11 +31,11 @@ steps:
           - node
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_duration_seconds_bucket[10m])) by (node, le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_duration_seconds_bucket[10m])) by (node, le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_duration_seconds_bucket[10m])) by (node, le))
     - Identifier: KubeletPodStartupTotalDuration
       Method: GenericPrometheusQuery
       Params:
@@ -47,11 +47,11 @@ steps:
           - node
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[10m])) by (node, le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[10m])) by (node, le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[5m])) by (node, le))
+          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[10m])) by (node, le))
     - Identifier: KubeletRuntimeOperationDuration
       Method: GenericPrometheusQuery
       Params:
@@ -64,8 +64,8 @@ steps:
           - operation_type
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{node=~".*"}[5m])) by (node, operation_type, le))
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{node=~".*"}[10m])) by (node, operation_type, le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{node=~".*"}[5m])) by (node, operation_type, le))
+          query: histogram_quantile(0.90, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{node=~".*"}[10m])) by (node, operation_type, le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{node=~".*"}[5m])) by (node, operation_type, le))
+          query: histogram_quantile(0.50, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{node=~".*"}[10m])) by (node, operation_type, le))
