@@ -11,6 +11,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: clusterchurn-netpoldisabled
   SCENARIO_VERSION: jshr/clusterchurn-nonetpol
+  OWNER: aks
 
 stages:
   - stage: azure_cilium_disablecrd
