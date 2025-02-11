@@ -3,7 +3,7 @@
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
 
-{{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
+{{$Image := DefaultParam .Image "acnpublic.azurecr.io/tamilmani/ubuntu22-tools"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -42,6 +42,7 @@ spec:
         - name: ENV_VAR
           value: a
         image: {{$Image}}
+        command: ["/bin/sh", "-c", "sleep 3600"]
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
         ports:
