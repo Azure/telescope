@@ -273,7 +273,7 @@ def main():
     parser_collect.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
     parser_collect.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cluster is dualstack. Must be either True or False")
-    parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("result_file", type=str, nargs='?', help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
     parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
