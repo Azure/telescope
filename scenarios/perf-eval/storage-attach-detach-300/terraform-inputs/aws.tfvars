@@ -58,7 +58,7 @@ eks_config_list = [{
   role        = "client"
   eks_name    = "perfevala300"
   vpc_name    = "client-vpc"
-  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
       name           = "user"
@@ -67,6 +67,7 @@ eks_config_list = [{
       min_size       = 300
       max_size       = 300
       desired_size   = 300
+      capacity_type  = "ON_DEMAND"
       labels         = { "csi" = "true" }
     }
   ]

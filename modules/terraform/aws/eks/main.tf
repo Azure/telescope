@@ -297,7 +297,7 @@ resource "aws_iam_role" "addon_role" {
 
   assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy[0].json
 
-  depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
+  depends_on = [data.aws_iam_policy_document.addon_assume_role_policy, aws_eks_node_group.eks_managed_node_groups]
 }
 
 resource "aws_iam_role_policy_attachment" "addon_policy_attachments" {
