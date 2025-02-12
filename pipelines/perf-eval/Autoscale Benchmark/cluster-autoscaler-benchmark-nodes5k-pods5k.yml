@@ -13,14 +13,14 @@ variables:
   SCENARIO_VERSION: main
 
 stages:
-  - stage: azure_westus2
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - westus2
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241002"
