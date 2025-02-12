@@ -1,0 +1,57 @@
+trigger: none
+schedules:
+  - cron: "30 1/12 * * *"
+    displayName: "1:30 AM and PM every day"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: pod-churn-50k-sched
+  SCENARIO_VERSION: main
+
+# We only run with the override scheduler configuration, since we have baseline
+# data for AWS and Azure from the "SLO service discovery" pod churn test. This
+# significantly reduces the resource impact of running this test.
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: service-churn
+          matrix:
+            azure_cni:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 1000
+              max_pods: 110
+              repeats: 10
+              scale_timeout: "15m"
+              cilium_enabled: False
+              service_test: True
+              cl2_config_file: load-config.yaml
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 1000
+              max_pods: 110
+              repeats: 10
+              scale_timeout: "15m"
+              cilium_enabled: True
+              network_policy: cilium
+              network_dataplane: cilium
+              service_test: True
+              cl2_config_file: load-config.yaml
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
