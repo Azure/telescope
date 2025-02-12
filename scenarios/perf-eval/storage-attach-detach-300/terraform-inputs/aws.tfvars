@@ -77,5 +77,5 @@ eks_config_list = [{
       policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
     }
   ]
-  kubernetes_version = "1.30"
+  kubernetes_version = "1.31"
 }]
