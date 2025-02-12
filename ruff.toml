@@ -1,0 +1,53 @@
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+
+line-length = 120  # Set max line length
+indent-width = 4  # Set indent width
+target-version = "py311" 
+
+# Enable only essential linting rules
+[lint]
+select = [
+    "E",  # pycodestyle (style errors)
+    "F",  # pyflakes (potential errors)
+    "W",  # pycodestyle (warnings)   
+]
+ignore = [ "E501"]  # Ignore line length errors
+
+[lint.per-file-ignores]
+"*.py" = ["E501"]  # Ignore E501 as an error
+
+[format]
+# indent with spaces, rather than tabs.
+indent-style = "space"
+
+# automatically detect the appropriate line ending.
+line-ending = "auto"
