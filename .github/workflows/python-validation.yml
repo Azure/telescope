@@ -29,7 +29,7 @@ jobs:
 
       - name: Run Python Linter
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: ruff check .
+        run: ruff check . --output-format=github
 
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
