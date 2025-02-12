@@ -45,7 +45,12 @@ ignore = [ "E501"]  # Ignore line length errors
 [lint.per-file-ignores]
 "*.py" = ["E501"]  # Ignore E501 as an error
 
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+
 [format]
+quote-style = "double"
+
 # indent with spaces, rather than tabs.
 indent-style = "space"
 
