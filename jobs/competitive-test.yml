@@ -38,7 +38,7 @@ parameters:
   default: 60 # default when not specified is 60 minutes
 - name: retry_attempt_count
   type: number
-  default: 3
+  default: 1
 - name: credential_type
   type: string
   default: managed_identity

@@ -12,7 +12,7 @@ parameters:
   default: ''
 - name: retry_attempt_count
   type: number
-  default: 3
+  default: 1
 - name: credential_type
   type: string
   default: 'managed_identity'
