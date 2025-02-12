@@ -1,11 +1,11 @@
-trigger: none
-schedules:
-- cron: "0 */4 * * *"
-  displayName: "Every 4 Hours Daily"
-  branches:
-    include:
-      - jshr/network-churn-corrections
-  always: true
+# trigger: none
+# schedules:
+# - cron: "0 */4 * * *"
+#   displayName: "Every 4 Hours Daily"
+#   branches:
+#     include:
+#       - jshr/network-churn-corrections
+#   always: true
 
 parameters:
   - name: node_count
