@@ -16,8 +16,8 @@ ignore = [ "E501"]  # Ignore line length errors
 "*.py" = ["E501"]  # Ignore E501 as an error
 
 [tool.ruff.format]
-# Like Black, indent with spaces, rather than tabs.
+# indent with spaces, rather than tabs.
 indent-style = "space"
 
-# Like Black, automatically detect the appropriate line ending.
+# automatically detect the appropriate line ending.
 line-ending = "auto"
