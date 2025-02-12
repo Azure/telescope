@@ -356,6 +356,6 @@ aks_cli_config_list = [
       },
       {
         name  = "ca-profile"
-        value = "scan-interval=20s scale-down-delay-after-add=2m scale-down-delay-after-failure=1m scale-down-unneeded-time=3m scale-down-unready-time=5m max-graceful-termination-sec=30 skip-nodes-with-local-storage=false max-empty-bulk-delete=1000 max-total-unready-percentage=100 ok-total-unready-count=5000 max-node-provision-time=15m"
+        value = "scan-interval=20s scale-down-delay-after-add=2m scale-down-delay-after-failure=1m scale-down-unneeded-time=3m scale-down-unready-time=5m max-graceful-termination-sec=30 skip-nodes-with-local-storage=false max-empty-bulk-delete=1000 max-total-unready-percentage=90 ok-total-unready-count=950 max-node-provision-time=15m"
       }
 ] }]
