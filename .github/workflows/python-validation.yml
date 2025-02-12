@@ -27,6 +27,10 @@ jobs:
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: pip install -r requirements.txt
 
+      - name: Run Python Linter
+        working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        run: ruff check .
+
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: python -m unittest discover
