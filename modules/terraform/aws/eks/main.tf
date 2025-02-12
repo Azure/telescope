@@ -327,21 +327,21 @@ resource "aws_eks_addon" "addon" {
   ]
 }
 
-resource "aws_eks_addon" "before_compute" {
-  for_each = { for k, v in local.eks_addons_map : k => v if try(v.before_compute, false) }
+# resource "aws_eks_addon" "before_compute" {
+#   for_each = { for k, v in local.eks_addons_map : k => v if try(v.before_compute, false) }
 
-  cluster_name             = aws_eks_cluster.eks.name
-  addon_name               = each.value.name
-  addon_version            = try(each.value.version, null)
-  service_account_role_arn = aws_iam_role.addon_role[0].arn
-  configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
+#   cluster_name             = aws_eks_cluster.eks.name
+#   addon_name               = each.value.name
+#   addon_version            = try(each.value.version, null)
+#   service_account_role_arn = aws_iam_role.addon_role[0].arn
+#   configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
 
-  tags = {
-    "Name" = each.value.name
-  }
+#   tags = {
+#     "Name" = each.value.name
+#   }
 
-  depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
-}
+#   depends_on = [aws_iam_role_policy_attachment.addon_policy_attachments]
+# }
 
 
 resource "terraform_data" "install_cni_metrics_helper" {
