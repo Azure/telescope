@@ -83,10 +83,10 @@ steps:
           - operation_type
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
+          query: histogram_quantile(0.99, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m]) + 0.000000001) by (node, operation_type, le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
+          query: histogram_quantile(0.90, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m]) + 0.000000001) by (node, operation_type, le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
+          query: histogram_quantile(0.50, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m]) + 0.000000001) by (node, operation_type, le))
         - name: Sum
           query: kubelet_runtime_operations_duration_seconds_sum{operation_type="pull_image"} by (node, operation_type)

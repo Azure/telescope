@@ -101,13 +101,6 @@ steps:
         Params:
           action: gather
 
-  {{if $scrapeKubelets}}
-  - module:
-      path: /kubelet-measurement.yaml
-      params:
-        action: gather
-  {{end}}
-
   - name: Wait for resource consumption
     measurements:
       - Identifier: Sleep
@@ -131,6 +124,13 @@ steps:
           labelSelector: cri-resource-consume = true
           timeout: 1m
           refreshInterval: 5s
+  {{end}}
+
+  {{if $scrapeKubelets}}
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: gather
   {{end}}
 
   {{range $j := Loop $steps}}
