@@ -158,20 +158,20 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p1100-memory:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              scrape_kubelets: True
+            # n10-p700-memory:
+            #   node_count: 10
+            #   max_pods: 70
+            #   repeats: 1
+            #   operation_timeout: 7m
+            #   load_type: memory
+            #   scrape_kubelets: True
+            # n10-p1100-memory:
+            #   node_count: 10
+            #   max_pods: 110
+            #   repeats: 1
+            #   operation_timeout: 11m
+            #   load_type: memory
+            #   scrape_kubelets: True
             # n10-p300-cpu:
             #   node_count: 10
             #   max_pods: 30
