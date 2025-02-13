@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cluster-churn-n1000p50k-sched
-  SCENARIO_VERSION: main
 
 # We only run with the override scheduler configuration, since we have baseline
 # data for AWS and Azure from the Cilium cluster churn test. This significantly

@@ -105,15 +105,3 @@ steps:
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
       upload_type: "Telescope Metadata"
-
-  # TODO: Remove after migration
-  - template: /steps/cloud/azure/upload-storage-account.yml
-    parameters:
-      storage_account_name: $(AZURE_STORAGE_ACCOUNT_NAME)
-      source_file_name: $(TELESCOPE_METADATA_FILE)
-      destination_file_name: $(RUN_ID).json
-      subfolder: telescope-metadata/main
-      container_name: system
-      credential_type: ${{ parameters.credential_type }}
-      cloud: ${{ parameters.cloud }}
-      upload_type: "Telescope Metadata"

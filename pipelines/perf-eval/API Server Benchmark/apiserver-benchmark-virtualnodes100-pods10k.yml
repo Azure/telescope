@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn100pod10k
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus2
