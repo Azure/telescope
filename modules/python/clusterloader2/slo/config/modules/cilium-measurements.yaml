@@ -220,7 +220,7 @@ steps:
         enableViolations: true
         queries:
         - name: max bpf map pressure over time
-          query: max(max_over_time(cilium_bpf_map_pressure[%v:])) by (map_name, operation, outcome)
+          query: max(max_over_time(cilium_bpf_map_ops_total[%v:])) by (map_name, operation, outcome)
     - Identifier: MaxCiliumPoliciesLoadedCount
       Method: GenericPrometheusQuery
       Params:
