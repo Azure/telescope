@@ -81,7 +81,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         file.write("CL2_ENABLE_TERMINATED_WATCHES_MEASUREMENT: true\n")
-        file.write("CL2_SCRAPE_KUBELETS: true\n")
+        file.write("PROMETHEUS_SCRAPE_NODE_EXPORTER: true\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
