@@ -9,6 +9,7 @@ variable "json_input" {
     aks_network_dataplane  = optional(string, null)
     aks_custom_headers     = optional(list(string), [])
     k8s_machine_type       = optional(string, null)
+    k8s_os_disk_type       = optional(string, null)
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
