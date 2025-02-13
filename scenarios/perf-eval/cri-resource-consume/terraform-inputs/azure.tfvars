@@ -38,7 +38,7 @@ aks_config_list = [
       name                         = "default"
       node_count                   = 3
       vm_size                      = "Standard_D16_v3"
-      os_disk_type                 = "Ephemeral"
+      os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
     }
@@ -48,7 +48,7 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
-        os_disk_type         = "Ephemeral"
+        os_disk_type         = "Managed"
         node_labels          = { "prometheus" = "true" }
       },
       {

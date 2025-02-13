@@ -106,7 +106,7 @@ steps:
       - Identifier: Sleep
         Method: Sleep
         Params:
-          duration: 3m
+          duration: 1m
 
   - name: Wait for nodes to be ready
     measurements:
