@@ -115,10 +115,9 @@ def verify_measurement():
             
             metrics = response[0]  # The first item contains the response data
             filtered_metrics = "\n".join(
-                # line for line in metrics.splitlines() if line.startswith("kubelet_pod_start"),
-                line for line in metrics.splitlines() if line.startswith("kubelet_runtime_operations")
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
             )
-            print("Metrics for node:", node_name)
+            print("##[section]Metrics for node:", node_name)
             print(filtered_metrics)
 
         except k8s_client.ApiException as e:
