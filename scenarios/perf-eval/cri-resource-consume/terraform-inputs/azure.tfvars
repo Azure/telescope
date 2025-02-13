@@ -57,7 +57,7 @@ aks_config_list = [
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
         os_disk_type         = "Ephemeral"
-        node_taints          = ["cri-resource-consume=true:NoSchedule"]
+        node_taints          = ["cri-resource-consume=true:NoSchedule", "cri-resource-consume=true:NoExecute"]
         node_labels          = { "cri-resource-consume" = "true" }
       }
     ]
