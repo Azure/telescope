@@ -47,6 +47,7 @@ steps:
       --arg byo_resources "$SKIP_RESOURCE_MANAGEMENT" \
       '{
           run_id: $run_id,
+          timestamp: $timestamp,
           pipeline_info: {
             run_url: $run_url,
             reason: $reason,
@@ -57,7 +58,6 @@ steps:
             cron_schedule_display_name: $cron_schedule_display_name,
             project_name: $project_name,
             code_url: $code_url,
-            timestamp: $timestamp
           },
           scenario_info: {
             scenario_name: $scenario_name,
@@ -90,7 +90,7 @@ steps:
       -c '. + {telescope_run_id: $telescope_run_id, start_timestamp: $start_timestamp}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
     else
-      echo "File $(TEST_RESULTS_FILE) does not exist."
+      echo  "##vso[task.logissue type=warning;]File $(TEST_RESULTS_FILE) does not exist."
     fi
   displayName: "Add RUN_ID to Test Results"
   condition: always()

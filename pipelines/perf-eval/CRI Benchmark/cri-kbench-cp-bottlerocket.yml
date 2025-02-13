@@ -1,0 +1,37 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cri-kbench-cp-bottlerocket
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: aws_westeurope
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - eu-west-1
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-kbench-cp
+          matrix:
+            n3-p300-memory:
+              node_count: 3
+              max_pods: 9
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+            n3-p300-cpu:
+              node_count: 3
+              max_pods: 9
+              repeats: 1
+              operation_timeout: 3m
+              load_type: cpu
+          max_parallel: 3
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
