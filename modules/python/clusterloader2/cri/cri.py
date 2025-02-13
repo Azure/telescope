@@ -92,7 +92,7 @@ def override_config_clusterloader2(
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=True, scrape_kubelets=scrape_kubelets)
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
