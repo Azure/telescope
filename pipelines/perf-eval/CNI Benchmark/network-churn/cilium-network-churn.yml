@@ -54,7 +54,7 @@ stages:
               cpu_per_node: 4
               node_count: ${{ parameters.node_count }}
               node_per_step: ${{ parameters.node_per_step }}
-              max_pods: 100
+              max_pods: 40
               pods_per_node: ${{ parameters.pods_per_node }}
               repeats: ${{ parameters.repeats }}
               scale_timeout: ${{ parameters.scale_timeout }}
