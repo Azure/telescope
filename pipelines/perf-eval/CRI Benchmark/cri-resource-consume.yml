@@ -35,51 +35,51 @@ stages:
               kubernetes_version: "1.30"
               scrape_kubelets: True
               k8s_machine_type: Standard_D16ds_v4
-            n10-p700-memory-1-30:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              kubernetes_version: "1.30"
-              scrape_kubelets: True
-              k8s_machine_type: Standard_D16ds_v4
-            n10-p1100-memory-1-30:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.30"
-              scrape_kubelets: True
-              k8s_machine_type: Standard_D16ds_v4
-            n10-p300-memory-1-31:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              kubernetes_version: "1.31"
-              scrape_kubelets: True
-              k8s_machine_type: Standard_D16ds_v4
-            n10-p700-memory-1-31:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              kubernetes_version: "1.31"
-              scrape_kubelets: True
-              k8s_machine_type: Standard_D16ds_v4
-            n10-p1100-memory-1-31:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.31"
-              scrape_kubelets: True
-              k8s_machine_type: Standard_D16ds_v4
+            # n10-p700-memory-1-30:
+            #   node_count: 10
+            #   max_pods: 70
+            #   repeats: 1
+            #   operation_timeout: 7m
+            #   load_type: memory
+            #   kubernetes_version: "1.30"
+            #   scrape_kubelets: True
+            #   k8s_machine_type: Standard_D16ds_v4
+            # n10-p1100-memory-1-30:
+            #   node_count: 10
+            #   max_pods: 110
+            #   repeats: 1
+            #   operation_timeout: 11m
+            #   load_type: memory
+            #   kubernetes_version: "1.30"
+            #   scrape_kubelets: True
+            #   k8s_machine_type: Standard_D16ds_v4
+            # n10-p300-memory-1-31:
+            #   node_count: 10
+            #   max_pods: 30
+            #   repeats: 1
+            #   operation_timeout: 3m
+            #   load_type: memory
+            #   kubernetes_version: "1.31"
+            #   scrape_kubelets: True
+            #   k8s_machine_type: Standard_D16ds_v4
+            # n10-p700-memory-1-31:
+            #   node_count: 10
+            #   max_pods: 70
+            #   repeats: 1
+            #   operation_timeout: 7m
+            #   load_type: memory
+            #   kubernetes_version: "1.31"
+            #   scrape_kubelets: True
+            #   k8s_machine_type: Standard_D16ds_v4
+            # n10-p1100-memory-1-31:
+            #   node_count: 10
+            #   max_pods: 110
+            #   repeats: 1
+            #   operation_timeout: 11m
+            #   load_type: memory
+            #   kubernetes_version: "1.31"
+            #   scrape_kubelets: True
+            #   k8s_machine_type: Standard_D16ds_v4
             # n10-p300-memory-1-30-v5:
             #   node_count: 10
             #   max_pods: 30
