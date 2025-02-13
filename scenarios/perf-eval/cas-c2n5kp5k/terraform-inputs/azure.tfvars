@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "cas-c2n5kp5k"
-deletion_delay = "10h"
+deletion_delay = "5h"
 owner          = "aks"
 
 public_ip_config_list = [
