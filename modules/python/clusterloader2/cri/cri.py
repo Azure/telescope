@@ -91,7 +91,8 @@ def override_config_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True, scrape_kubelets=scrape_kubelets)
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -114,12 +115,12 @@ def verify_measurement():
             
             metrics = response[0]  # The first item contains the response data
             filtered_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start")
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
             )
-            print("Metrics for node:", node_name)
+            print("##[section]Metrics for node:", node_name)
             print(filtered_metrics)
 
-        except client.ApiException as e:
+        except k8s_client.ApiException as e:
             print(f"Error fetching metrics: {e}")
 
 def collect_clusterloader2(

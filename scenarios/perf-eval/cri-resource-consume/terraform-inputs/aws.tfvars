@@ -93,6 +93,11 @@ eks_config_list = [{
           key    = "cri-resource-consume"
           value  = "true"
           effect = "NO_SCHEDULE"
+        },
+        {
+          key    = "cri-resource-consume"
+          value  = "true"
+          effect = "NO_EXECUTE"
         }
       ]
       labels = {
