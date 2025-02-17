@@ -1,0 +1,23 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
+  - template: /steps/topology/kwok/start-wok.yml
+  - template: /steps/engine/clusterloader2/default/validate.yml
+    parameters:
+      desired_nodes: 6
+  - ${{ if eq(parameters.cloud, 'aws') }}:
+      - script: kubectl apply -f $KARPENTER_NODEPOOL_FILE
+        env:
+          CLOUD: ${{ parameters.cloud }}
+          KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+        displayName: "Validate Karpenter setup"

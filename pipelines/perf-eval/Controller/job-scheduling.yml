@@ -1,0 +1,20 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: job-scheduling
+  SCENARIO_VERSION: main
+
+jobs:
+- template: /jobs/competitive-test.yml
+  parameters:
+    cloud: azure
+    regions:
+      - westus
+    topology: kwok
+    engine: clusterloader2
+    matrix:
+      default:
+        kwok_node: 20
+    max_parallel: 1
+  
