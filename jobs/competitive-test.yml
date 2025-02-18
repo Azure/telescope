@@ -38,7 +38,7 @@ parameters:
   default: 60 # default when not specified is 60 minutes
 - name: retry_attempt_count
   type: number
-  default: 3
+  default: 1
 - name: credential_type
   type: string
   default: managed_identity
@@ -97,10 +97,10 @@ jobs:
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
-  - template: /steps/cleanup-resources.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      regions: ${{ parameters.regions }}
-      terraform_arguments: ${{ parameters.terraform_arguments }}
-      retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
+  # - template: /steps/cleanup-resources.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     regions: ${{ parameters.regions }}
+  #     terraform_arguments: ${{ parameters.terraform_arguments }}
+  #     retry_attempt_count: ${{ parameters.retry_attempt_count }}
+  #     credential_type: ${{ parameters.credential_type }}

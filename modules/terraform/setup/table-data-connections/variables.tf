@@ -16,6 +16,7 @@ variable "scenario_type" {
 variable "scenario_version" {
   description = "Version of the scenario"
   type        = string
+  default     = "main"
 }
 
 variable "resource_group_name" {
