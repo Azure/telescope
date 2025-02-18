@@ -39,7 +39,7 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_free
+  - stage: azure_eastus2_default
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -53,12 +53,10 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
-              sku_tier: Free
               disable_warmup: "true"
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
-              sku_tier: Free
               disable_warmup: "true"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.2.0
@@ -68,8 +66,10 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_standard
+  - stage: azure_eastus2_lower_max_inflight
     dependsOn: []
+    variables:
+      - group: API-Server-L4-Config-MI50
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -82,12 +82,10 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
-              sku_tier: Standard
               disable_warmup: "true"
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
-              sku_tier: Standard
               disable_warmup: "true"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.2.0

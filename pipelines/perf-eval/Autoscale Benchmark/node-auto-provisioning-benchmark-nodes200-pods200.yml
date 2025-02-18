@@ -29,8 +29,8 @@ stages:
               cpu_per_node: 2
               node_count: 200
               pod_count: 200
-              scale_up_timeout: "25m"
-              scale_down_timeout: "25m"
+              scale_up_timeout: "35m"
+              scale_down_timeout: "35m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
@@ -56,8 +56,8 @@ stages:
               cpu_per_node: 2
               node_count: 200
               pod_count: 200
-              scale_up_timeout: "25m"
-              scale_down_timeout: "25m"
+              scale_up_timeout: "35m"
+              scale_down_timeout: "35m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1

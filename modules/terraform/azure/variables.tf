@@ -9,6 +9,7 @@ variable "json_input" {
     aks_network_dataplane  = optional(string, null)
     aks_custom_headers     = optional(list(string), [])
     k8s_machine_type       = optional(string, null)
+    k8s_os_disk_type       = optional(string, null)
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -21,6 +22,10 @@ variable "json_input" {
         node_count  = number
         vm_size     = string
         vm_set_type = string
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
       }))
     )
   })
@@ -225,6 +230,10 @@ variable "aks_cli_config_list" {
         node_count  = number
         vm_size     = string
         vm_set_type = optional(string, "VirtualMachineScaleSets")
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
     })), [])
     optional_parameters = optional(list(object({
       name  = string

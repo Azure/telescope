@@ -48,6 +48,7 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
+        os_disk_type         = "Managed"
         node_labels          = { "prometheus" = "true" }
       },
       {
@@ -55,7 +56,8 @@ aks_config_list = [
         node_count           = 10
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
-        node_taints          = ["cri-resource-consume=true:NoSchedule"]
+        os_disk_type         = "Managed"
+        node_taints          = ["cri-resource-consume=true:NoSchedule", "cri-resource-consume=true:NoExecute"]
         node_labels          = { "cri-resource-consume" = "true" }
       }
     ]
