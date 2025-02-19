@@ -90,7 +90,7 @@ steps:
       -c '. + {telescope_run_id: $telescope_run_id}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
     else
-      echo "File $(TEST_RESULTS_FILE) does not exist."
+      echo  "##vso[task.logissue type=warning;]File $(TEST_RESULTS_FILE) does not exist."
     fi
   displayName: "Add RUN_ID to Test Results"
   condition: always()
@@ -98,18 +98,6 @@ steps:
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
-      source_file_name: $(TELESCOPE_METADATA_FILE)
-      destination_file_name: $(RUN_ID).json
-      subfolder: telescope-metadata/main
-      container_name: system
-      credential_type: ${{ parameters.credential_type }}
-      cloud: ${{ parameters.cloud }}
-      upload_type: "Telescope Metadata"
-
-  # TODO: Remove after migration
-  - template: /steps/cloud/azure/upload-storage-account.yml
-    parameters:
-      storage_account_name: $(AZURE_STORAGE_ACCOUNT_NAME)
       source_file_name: $(TELESCOPE_METADATA_FILE)
       destination_file_name: $(RUN_ID).json
       subfolder: telescope-metadata/main

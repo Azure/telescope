@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-1000
-  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2

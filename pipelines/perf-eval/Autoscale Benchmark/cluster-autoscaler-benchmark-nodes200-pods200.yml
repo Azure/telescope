@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cas-c2n200p200
-  SCENARIO_VERSION: main
 
 stages:
   - stage: azure_eastus2

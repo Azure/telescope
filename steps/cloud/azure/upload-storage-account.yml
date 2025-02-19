@@ -26,7 +26,7 @@ steps:
       --container-name $CONTAINER_NAME \
       --auth-mode login
     else
-      echo "File $SOURCE_FILE_NAME does not exist."
+      echo "##vso[task.logissue type=warning;]File $SOURCE_FILE_NAME does not exist."
     fi
   displayName: "Upload ${{ parameters.upload_type }} to ${{ parameters.storage_account_name}}"
   env:
@@ -35,3 +35,4 @@ steps:
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     STORAGE_ACCOUNT_NAME: ${{ parameters.storage_account_name }}
+  condition: always()
