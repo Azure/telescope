@@ -11,7 +11,7 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-  - template: /steps/topology/kwok/start-wok.yml
+  - template: /steps/topology/kwok/start-kwok.yml
   - template: /steps/engine/clusterloader2/default/validate.yml
     parameters:
       desired_nodes: 6
