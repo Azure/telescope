@@ -10,7 +10,7 @@ jobs:
   parameters:
     cloud: azure
     regions:
-      - westus
+      - eastus
     topology: kwok
     engine: clusterloader2
     engine_input:
