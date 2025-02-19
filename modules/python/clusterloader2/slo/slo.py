@@ -142,7 +142,7 @@ def collect_clusterloader2(
     num_ccnps,
     dualstack,
     result_file,
-    test_type="default_config",
+    test_type,
     start_timestamp,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
