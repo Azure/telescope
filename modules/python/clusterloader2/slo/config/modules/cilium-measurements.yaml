@@ -40,11 +40,11 @@ steps:
         unit: s
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_service_implementation_delay_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.99, sum(rate(cilium_service_implementation_delay_bucket[%v:])) by (le))
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_service_implementation_delay_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.95, sum(rate(cilium_service_implementation_delay_bucket[%v:])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_service_implementation_delay_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.50, sum(rate(cilium_service_implementation_delay_bucket[%v:])) by (le))
     - Identifier: CiliumPolicyImplementationDelay
       Method: GenericPrometheusQuery
       Params:
@@ -54,11 +54,11 @@ steps:
         unit: s
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_policy_implementation_delay_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.99, sum(rate(cilium_policy_implementation_delay_bucket[%v:])) by (le))
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_policy_implementation_delay_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.95, sum(rate(cilium_policy_implementation_delay_bucket[%v:])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_policy_implementation_delay_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.50, sum(rate(cilium_policy_implementation_delay_bucket[%v:])) by (le))
     - Identifier: CiliumAvgCPUUsage
       Method: GenericPrometheusQuery
       Params:
