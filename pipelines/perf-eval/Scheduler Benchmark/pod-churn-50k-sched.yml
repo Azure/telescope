@@ -16,14 +16,14 @@ variables:
 # data for AWS and Azure from the "SLO service discovery" pod churn test. This
 # significantly reduces the resource impact of running this test.
 stages:
-  - stage: azure_eastus2
+  - stage: azure_eastus
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastus
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
