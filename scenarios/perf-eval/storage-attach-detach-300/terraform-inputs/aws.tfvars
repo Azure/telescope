@@ -17,7 +17,7 @@ network_config_list = [
       {
         name                    = "client-subnet-2"
         cidr_block              = "10.0.128.0/17"
-        zone_suffix             = "b"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
