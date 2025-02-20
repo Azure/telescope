@@ -11,11 +11,14 @@ name: resource-consumer
 {{$totalNodes := MultiplyInt $nodePerStep $steps}}
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
 {{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
-{{$scale_enabled := DefaultParam .CL2_SCALE_ENABLED false}}
+{{$scaleEnabled := DefaultParam .CL2_SCALE_ENABLED false}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 {{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
+
+{{$provider := DefaultParam .CL2_PROVIDER "aks"}}
+{{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
 
 namespace:
   number: 1
@@ -54,6 +57,14 @@ steps:
           operationTimeout: {{$operationTimeout}}
 
 {{range $i := Loop $repeats}}
+
+  {{if $scrapeKubelets}}
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: start
+  {{end}}
+
   {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
     phases:
@@ -66,7 +77,7 @@ steps:
       - basename: resource-consumer-{{$j}}
         objectTemplatePath: deployment_template.yaml
         templateFillMap:
-      {{if $scale_enabled}}
+      {{if $scaleEnabled}}
         {{if eq $j 0}}
           Replicas: {{AddInt $scaleReplicas $deploymentSize}}
         {{else}}
@@ -81,6 +92,7 @@ steps:
           MemoryRequest: {{$memoryKi}}
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
+          Provider: {{$provider}}
 
   - name: Waiting for latency pods to be running
     measurements:
@@ -102,7 +114,7 @@ steps:
         Method: WaitForNodes
         Params:
           action: start
-        {{if $scale_enabled}}
+        {{if $scaleEnabled}}
           minDesiredNodeCount: {{MultiplyInt (AddInt (MultiplyInt $nodePerStep (AddInt $j 1)) 1) 0.8}}
           maxDesiredNodeCount: {{AddInt $totalNodes 1}}
         {{else}}
@@ -112,6 +124,13 @@ steps:
           labelSelector: cri-resource-consume = true
           timeout: 1m
           refreshInterval: 5s
+  {{end}}
+
+  {{if $scrapeKubelets}}
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: gather
   {{end}}
 
   {{range $j := Loop $steps}}

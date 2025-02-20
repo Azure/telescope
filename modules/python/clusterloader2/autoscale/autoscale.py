@@ -18,7 +18,10 @@ def cleanup_warmup_deployment_for_karpeneter(node_name):
   deployment_file = "autoscale/config/warmup_deployment.yaml"
   subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
   print(f"WarmUp Deployment Deleted")
-  subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
+  try:
+    subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
+  except Exception as e:
+    print(f"Error while deleting node: {e}")
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
@@ -218,7 +221,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node ,args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
