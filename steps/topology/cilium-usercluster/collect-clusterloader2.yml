@@ -28,3 +28,4 @@ steps:
     echo "Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
   displayName: "Set unique Run ID before publish"
+  condition: always()
