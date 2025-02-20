@@ -7,6 +7,12 @@ parameters:
   default: {}
 - name: region
   type: string
+- name: pods_per_node
+  type: number
+  default: 50
+- name: network_test
+  type: boolean
+  default: false
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -17,7 +23,7 @@ steps:
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       $CPU_PER_NODE $NODE_COUNT ${MAX_PODS:-0} \
-      $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} $TEST_RESULTS_FILE \
+      $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST $NETWORK_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} $TEST_RESULTS_FILE \
       $TEST_TYPE
   workingDirectory: modules/python/clusterloader2
   env:
@@ -25,4 +31,6 @@ steps:
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
+    PODS_PER_NODE: ${{ parameters.pods_per_node }}
+    NETWORK_TEST: ${{ parameters.network_test }}
   displayName: "Collect Results"
