@@ -13,7 +13,7 @@ steps:
       echo "Set the start time for test execution"
       startTimestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
       echo "Start: $startTimestamp"
-      echo "##vso[task.setvariable variable=START]$startTimestamp"
+      echo "##vso[task.setvariable variable=SLO_START_TIME]$startTimestamp"
     displayName: set up timestamp variable
 
   - script: |

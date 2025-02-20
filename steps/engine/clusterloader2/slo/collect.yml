@@ -19,7 +19,7 @@ steps:
       $CPU_PER_NODE $NODE_COUNT ${MAX_PODS:-0} \
       $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST ${CNP_TEST:-False} \
       ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} $TEST_RESULTS_FILE \
-      $TEST_TYPE $START
+      $TEST_TYPE $SLO_START_TIME
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}
