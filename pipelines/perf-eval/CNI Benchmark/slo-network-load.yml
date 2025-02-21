@@ -13,7 +13,7 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_westus2
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM & PM Daily'),
@@ -25,7 +25,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
