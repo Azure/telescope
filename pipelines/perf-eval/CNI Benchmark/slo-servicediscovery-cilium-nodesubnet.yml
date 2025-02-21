@@ -30,7 +30,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 1000
-              max_pods: 110
+              max_pods: 20
               repeats: 10
               scale_timeout: "15m"
               cilium_enabled: True
