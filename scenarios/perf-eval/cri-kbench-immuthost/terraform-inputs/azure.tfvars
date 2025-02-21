@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "cri-kbench-immuthost"
-deletion_delay = "2h"
+deletion_delay = "8h"
 owner          = "aks"
 
 network_config_list = [
@@ -27,6 +27,12 @@ aks_cli_config_list = [
     dns_prefix  = "cri"
     subnet_name = "cri-vnet"
     sku_tier    = "Standard"
+    optional_parameters = [
+      {
+        name = "os-sku"
+        value = "AzureLinux"
+      }
+    ]
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
@@ -52,6 +58,10 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "prometheus=true"
+          },
+          {
+            name = "os-sku"
+            value = "AzureLinux"
           }
         ]
       },
@@ -68,6 +78,10 @@ aks_cli_config_list = [
           {
             name  = "node-taints"
             value = "cri-resource-consume=true:NoSchedule"
+          },
+          {
+            name = "os-sku"
+            value = "AzureLinux"
           }
         ]
       }

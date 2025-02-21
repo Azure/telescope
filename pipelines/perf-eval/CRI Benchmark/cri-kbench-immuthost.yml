@@ -26,6 +26,6 @@ stages:
               operation_timeout: 3m
               load_type: memory
           max_parallel: 1
-          timeout_in_minutes: 240
+          timeout_in_minutes: 300
           credential_type: service_connection
           ssh_key_enabled: false
