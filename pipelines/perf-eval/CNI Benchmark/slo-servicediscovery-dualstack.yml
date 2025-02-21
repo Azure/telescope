@@ -38,10 +38,9 @@ stages:
               network_dataplane: cilium
               service_test: True
               cl2_config_file: load-config.yaml
-              name: azure_cilium_disablecrd
+              name: azure_cilium_dualstack
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
           rg: $(CILIUM_RG)
-          
