@@ -208,6 +208,8 @@ def collect_clusterloader2(
     with open(result_file, 'w') as f:
         f.write(content)
 
+# NOTE: take "service_test: true" as an example. We will need to add another flag for network_load_test
+# note how service test is configured as an environment variable that impacts load-config.yaml
 def main():
     parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
