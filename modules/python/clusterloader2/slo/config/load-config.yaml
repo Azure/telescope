@@ -30,7 +30,7 @@ name: load-config
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 # Service test
-{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
+{{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
