@@ -1,11 +1,11 @@
 trigger: none
-# schedules:
-# - cron: "0 */12 * * *"
-#   displayName: "Every 12 Hours Daily"
-#   branches:
-#     include:
-#       - jshr/ciliumdualstack
-#   always: true
+schedules:
+- cron: "0 */8 * * *"
+  displayName: "Every 8 Hours Daily"
+  branches:
+    include:
+      - jshr/ciliumdualstack
+  always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
