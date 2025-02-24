@@ -91,8 +91,8 @@ class TestKubernetesClient(unittest.TestCase):
         mock_namespace = self._create_namespace(name)
         mock_read_namespace.return_value = mock_namespace
 
-        ns = self.client.create_namespace(name)
-        self.assertEqual(ns.metadata.name, mock_read_namespace.return_value.metadata.name)
+        namespace = self.client.create_namespace(name)
+        self.assertEqual(namespace.metadata.name, mock_read_namespace.return_value.metadata.name)
         mock_create_namespace.assert_not_called()
 
     @patch('clusterloader2.kubernetes_client.KubernetesClient.create_namespace')
@@ -102,14 +102,14 @@ class TestKubernetesClient(unittest.TestCase):
         mock_namespace = self._create_namespace(name)
         mock_create_namespace.return_value = mock_namespace
 
-        ns = self.client.create_namespace(name)
+        namespace = self.client.create_namespace(name)
 
-        self.assertEqual(ns.metadata.name, mock_create_namespace.return_value.metadata.name)
+        self.assertEqual(namespace.metadata.name, mock_create_namespace.return_value.metadata.name)
         mock_create_namespace.assert_called_once_with(name)
 
         mock_delete_namespace.return_value = None
-        ns = self.client.delete_namespace(name)
-        self.assertEqual(mock_delete_namespace.return_value, ns)
+        namespace = self.client.delete_namespace(name)
+        self.assertEqual(mock_delete_namespace.return_value, namespace)
         mock_delete_namespace.assert_called_once_with(name)
 
     @patch('clusterloader2.kubernetes_client.KubernetesClient.get_pods_by_namespace')

@@ -1,8 +1,8 @@
+from xml.dom import minidom
 import json
 import os
 import docker
 
-from xml.dom import minidom
 from docker_client import DockerClient
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
