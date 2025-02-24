@@ -13,6 +13,7 @@ metadata:
     group: {{.Group}}
 spec:
   replicas: {{.Replicas}}
+  hostNetwork: true
   selector:
     matchLabels:
       name: {{.Name}}
