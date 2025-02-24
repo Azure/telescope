@@ -78,8 +78,8 @@ def create_statefulset(namespace, replicas, storage_class):
         ),
     )
     app_client = KUBERNETERS_CLIENT.get_app_client()
-    ss = app_client.create_namespaced_stateful_set(namespace, statefulset)
-    return ss
+    statefulset_obj  = app_client.create_namespaced_stateful_set(namespace, statefulset)
+    return statefulset_obj
 
 def log_duration(description, start_time, log_file):
     """Log the time duration of an operation."""
@@ -128,15 +128,15 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     detach_thresholds = [(p100 - p50, "p50"), (p100 - p90, "p90"), (p100 - p99, "p99"), (0, "p100")]
 
     # Create a namespace
-    ns = KUBERNETERS_CLIENT.create_namespace(namespace)
-    print(f"Created namespace {ns.metadata.name}")
+    namespace_obj  = KUBERNETERS_CLIENT.create_namespace(namespace)
+    print(f"Created namespace {namespace_obj .metadata.name}")
 
     # Start the timer
     creation_start_time = datetime.now()
 
     # Create StatefulSet
-    ss = create_statefulset(namespace, disk_number, storage_class)
-    print(f"Created StatefulSet {ss.metadata.name}")
+    statefulset_obj = create_statefulset(namespace, disk_number, storage_class)
+    print(f"Created StatefulSet {statefulset_obj.metadata.name}")
 
     # Measure PVC creation and attachment
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -175,7 +175,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     deletion_start_time = datetime.now()
 
     # Delete StatefulSet
-    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(ss.metadata.name, namespace)
+    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(statefulset_obj.metadata.name, namespace)
     KUBERNETERS_CLIENT.delete_persistent_volume_claim_by_namespace(namespace)
 
     # Measure PVC detachment

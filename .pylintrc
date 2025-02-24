@@ -2,7 +2,7 @@
 max-line-length=120
 
 [BASIC]
-good-names=i,j,k,e,f,ex,_,id  # Allow short variable names used in PEP8 examples
+good-names=e,f,ex,_,id  # Allow short variable names
 
 [MESSAGES CONTROL]
 disable=
@@ -22,4 +22,5 @@ disable=
     relative-beyond-top-level,  # Allow relative imports
     unnecessary-lambda,  # Allow unnecessary lambda
     import-error,  # Allow import errors
+    no-name-in-module,  # Allow no name in module
     
