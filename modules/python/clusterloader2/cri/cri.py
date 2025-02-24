@@ -26,7 +26,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
-    load_type, scale_enabled, pod_startup_latency_threshold, provider, 
+    load_type, scale_enabled, pod_startup_latency_threshold, provider,
     scrape_kubelets, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
@@ -79,8 +79,8 @@ def override_config_clusterloader2(
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
         file.write(f"CL2_SCALE_ENABLED: {str(scale_enabled).lower()}\n")
-        file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write(f"CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
@@ -112,7 +112,7 @@ def verify_measurement():
                 response_type="str",
                 _preload_content=True
             )
-            
+
             metrics = response[0]  # The first item contains the response data
             filtered_metrics = "\n".join(
                 line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
