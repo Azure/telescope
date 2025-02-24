@@ -33,11 +33,14 @@ jobs:
       - name: Get changed Python files
         id: changed-files
         run: |
-          file_changes=$(git diff --name-only -r origin/main HEAD)
-          # extract only python files
+          # Get list of changed files
+          file_changes=$(git diff --name-only origin/main HEAD)
+          # Extract only Python files
           CHANGED_FILES=$(echo "$file_changes" | grep -E '\.py$')
           echo "Changed files: $CHANGED_FILES"
-          echo "PYTHON_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          # Ensure it's in a valid format for GitHub Actions (space-separated)
+          CHANGED_FILES_LIST=$(echo "$CHANGED_FILES" | tr '\n' ' ')
+          echo "PYTHON_FILES=$CHANGED_FILES_LIST" >> $GITHUB_ENV
 
       - name: Run pylint on changed files
         if:  ${{ env.PYTHON_FILES != '' }}
