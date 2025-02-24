@@ -30,7 +30,9 @@ jobs:
       - name: Get changed Python files
         id: changed-files
         run: |
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- '*.py')
+          file_changes=$(git diff --name-only -r origin/main HEAD)
+          # extract only python files
+          CHANGED_FILES=$(echo "$file_changes" | grep -E '\.py$')
           echo "Changed files: $CHANGED_FILES"
           echo "PYTHON_FILES=$CHANGED_FILES" >> $GITHUB_ENV
 
