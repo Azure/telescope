@@ -58,7 +58,7 @@ class TestCSI(unittest.TestCase):
         log_duration(description, mock_start_time, log_file)
 
         # Verify file write
-        mock_open_file.assert_called_once_with(log_file, "a")
+        mock_open_file.assert_called_once_with(log_file, "a", encoding='utf-8')
         mock_open_file().write.assert_called_once_with(f"{description}: {duration}\n")
 
         # Verify print output
@@ -226,7 +226,7 @@ PV detachment p100: 412
 
         mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
 
-        mock_open_file.assert_any_call(raw_result_file, "r")
+        mock_open_file.assert_any_call(raw_result_file, 'r', encoding='utf-8')
         mock_open_file().read.assert_called_once()
 
         expected_metrics = {
@@ -244,7 +244,7 @@ PV detachment p100: 412
             "PV_detachment_p100": "412",
         }
 
-        mock_open_file.assert_any_call(result_file, "w")
+        mock_open_file.assert_any_call(result_file, 'w', encoding='utf-8')
         written_content = mock_open_file().write.call_args[0][0]
         written_json = json.loads(written_content)
 
