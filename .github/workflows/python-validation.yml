@@ -27,6 +27,9 @@ jobs:
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: pip install -r requirements.txt
 
+      - name: Fetch all branches
+        run: git fetch --prune --unshallow
+
       - name: Get changed Python files
         id: changed-files
         run: |
