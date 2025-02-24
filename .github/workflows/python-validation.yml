@@ -27,8 +27,17 @@ jobs:
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: pip install -r requirements.txt
 
-      - name: Run pylint on all Python files
-        run: pylint $(git ls-files '*.py')
+      - name: Get changed Python files
+        id: changed-files
+        run: |
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- '*.py')
+          echo "Changed files: $CHANGED_FILES"
+          echo "FILES=$CHANGED_FILES" >> $GITHUB_ENV
+
+      - name: Run pylint on changed files
+        if: env.FILES != ''
+        run: |
+          pylint $FILES
 
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
