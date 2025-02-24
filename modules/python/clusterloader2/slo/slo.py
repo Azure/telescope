@@ -4,8 +4,8 @@ import argparse
 import time
 
 from datetime import datetime, timezone
-from ..utils import parse_xml_to_json, run_cl2_command, get_measurement
-from ..kubernetes_client import KubernetesClient
+from utils import parse_xml_to_json, run_cl2_command, get_measurement
+from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 40
 
