@@ -4,8 +4,8 @@ import argparse
 import time
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement
-from kubernetes_client import KubernetesClient
+from ..utils import parse_xml_to_json, run_cl2_command, get_measurement
+from ..kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 40
 
@@ -63,7 +63,7 @@ def configure_clusterloader2(
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
 
-    with open(override_file, 'w') as file:
+    with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
@@ -103,7 +103,7 @@ def configure_clusterloader2(
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
-    with open(override_file, 'r') as file:
+    with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
@@ -144,7 +144,7 @@ def collect_clusterloader2(
     result_file,
     test_type,
     start_timestamp,
-):
+): # pylint: disable=unused-argument
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
@@ -179,7 +179,7 @@ def collect_clusterloader2(
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             print(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
@@ -207,7 +207,7 @@ def collect_clusterloader2(
                 content += json.dumps(result) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
+    with open(result_file, 'w', encoding='utf-8') as f:
         f.write(content)
 
 def main():

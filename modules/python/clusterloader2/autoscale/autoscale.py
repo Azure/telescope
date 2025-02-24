@@ -6,8 +6,8 @@ import subprocess
 import time
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command
-from kubernetes_client import KubernetesClient
+from ..utils import parse_xml_to_json, run_cl2_command
+from ..kubernetes_client import KubernetesClient
 
 def warmup_deployment_for_karpeneter():
     print("WarmUp Deployment Started")
@@ -65,7 +65,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 
     cpu_value -= allocated_cpu
     # Remove warmup deployment cpu request from the total cpu value
-    if warmup_deployment == "true" or warmup_deployment == "True":
+    if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
         cleanup_warmup_deployment_for_karpeneter(node.metadata.name)
 
@@ -77,7 +77,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment):
     print(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
-    if warmup_deployment == "true" or warmup_deployment == "True":
+    if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter()
         desired_node_count = 0
 
@@ -152,12 +152,12 @@ def collect_clusterloader2(
                 summary[index]["down"]["failures"] += 1 if failure else 0
 
         content = ""
-        for index in summary:
-            for key in summary[index]:
+        for index, inner_dict in summary.items():
+            for key, value in inner_dict.items():
                 data = {
-                    "wait_for_nodes_seconds": summary[index][key]["wait_for_nodes_seconds"],
-                    "wait_for_pods_seconds": summary[index][key]["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if summary[index][key]["failures"] == 0 else "failure"
+                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                    "wait_for_pods_seconds": value["wait_for_pods_seconds"],
+                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
                 }
                 # TODO: Expose optional parameter to include test details
                 result = {

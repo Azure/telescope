@@ -40,7 +40,7 @@ class TestCSI(unittest.TestCase):
             self.assertEqual(p90, expected_percentiles[disk_number][1])
             self.assertEqual(p99, expected_percentiles[disk_number][2])
             self.assertEqual(p100, expected_percentiles[disk_number][3])
-    
+
     @patch("builtins.open", new_callable=mock_open)
     @patch("csi.csi.datetime")
     def test_log_duration_success(self, mock_datetime, mock_open_file):
@@ -65,7 +65,7 @@ class TestCSI(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             log_duration(description, mock_start_time, log_file)
             mock_print.assert_called_with(f"{description}: {duration}s")
-    
+
     def test_log_duration_failure(self):
         # Test that an exception is raised when the description contains ":"
         start_time = datetime.now()
@@ -260,7 +260,7 @@ PV detachment p100: 412
             "run_url": run_url,
         }
 
-        self.maxDiff = None
+        self.maxDiff = None # pylint: disable=invalid-name
         self.assertEqual(written_json, expected_content)
 
 if __name__ == '__main__':

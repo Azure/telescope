@@ -4,7 +4,7 @@ import os
 import json
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from clusterloader2.kubernetes_client import KubernetesClient, client
+from ..clusterloader2.kubernetes_client import KubernetesClient, client
 
 KUBERNETERS_CLIENT=KubernetesClient()
 
@@ -86,8 +86,8 @@ def log_duration(description, start_time, log_file):
     end_time = datetime.now()
     duration = int((end_time - start_time).total_seconds())
     if ":" in description:
-        raise Exception(f"Description cannot contain a colon ':' character!")
-    with open(log_file, "a") as f:
+        raise Exception("Description cannot contain a colon ':' character!")
+    with open(log_file, 'a', encoding='utf-8') as f:
         f.write(f"{description}: {duration}\n")
     print(f"{description}: {duration}s")
 
@@ -167,7 +167,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
         # Wait for all threads to complete
         for future in as_completed(futures):
             future.result() # Blocks until the thread finishes execution
-    
+
     print(f"Measuring creation and attachment of PVCs completed! Waiting for {wait_time} seconds before starting deletion.")
     time.sleep(wait_time)
 
@@ -190,7 +190,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
             log_file
         )
         future.result()
-    
+
     KUBERNETERS_CLIENT.delete_namespace(namespace)
     print("Measuring detachment of PVCs completed.")
 
@@ -199,19 +199,19 @@ def collect_attach_detach(case_name, node_number, disk_number, storage_class, cl
     result_file = os.path.join(result_dir, "results.json")
     print(f"Collecting attach detach test results from {raw_result_file} into {result_file}")
 
-    with open(raw_result_file, 'r') as file:
+    with open(raw_result_file, 'r', encoding='utf-8') as file:
         content = file.read()
         print(content)
-    
+
     # Parse metrics from the result file
     metrics = {}
     for line in content.splitlines():
         if ':' in line:  # Only process lines with key-value pairs
             key, value = map(str.strip, line.split(':', 1))
             metrics[key.replace(' ', '_')] = value
-    
+
     print(f"Parsed metrics: {metrics}")
-    
+
     content = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "case_name": case_name,
@@ -225,7 +225,7 @@ def collect_attach_detach(case_name, node_number, disk_number, storage_class, cl
     }
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
+    with open(result_file, 'w', encoding='utf-8') as f:
         f.write(json.dumps(content))
 
 def main():
@@ -262,7 +262,7 @@ def main():
     elif args.command == "execute":
         execute_attach_detach(args.disk_number, args.storage_class, args.wait_time, args.result_dir)
     elif args.command == "collect":
-        collect_attach_detach(args.case_name, args.node_number, args.disk_number, args.storage_class, 
+        collect_attach_detach(args.case_name, args.node_number, args.disk_number, args.storage_class,
                               args.cloud_info, args.run_id, args.run_url, args.result_dir)
 
 if __name__ == "__main__":

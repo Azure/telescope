@@ -43,7 +43,7 @@ jobs:
           echo "PYTHON_FILES=$CHANGED_FILES_LIST" >> $GITHUB_ENV
 
       - name: Run pylint on changed files
-        if:  ${{ env.PYTHON_FILES != '' }}
+        if: ${{ env.PYTHON_FILES != '' }}
         run: |
           pylint ${{ env.PYTHON_FILES }}
 

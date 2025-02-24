@@ -11,10 +11,10 @@ from clusterloader2.kubernetes_client import KubernetesClient
 class TestKubernetesClient(unittest.TestCase):
 
     @patch('kubernetes.config.load_kube_config')
-    def setUp(self, mock_load_kube_config):
+    def setUp(self, mock_load_kube_config):  # pylint: disable=unused-argument, arguments-differ
         self.client = KubernetesClient()
         return super().setUp()
-    
+
     def _create_node(self, name, ready_status, network_unavailable_status=None, unschedulable=False, taints=None):
         conditions = [V1NodeCondition(type="Ready", status=ready_status)]
         if network_unavailable_status is not None:
@@ -39,12 +39,12 @@ class TestKubernetesClient(unittest.TestCase):
         node_ready_unschedulable_true = self._create_node(name="node_ready_unschedulable", ready_status="True", unschedulable=True)
         node_ready_shutdown_taint = self._create_node(
             name="node_ready_shutdown_taint", ready_status="True", taints=[V1Taint(key="node.cloudprovider.kubernetes.io/shutdown", effect="NoSchedule")])
-       
+
 
         mock_get_nodes.return_value = [
             node_not_ready,
-            node_ready_network_available, 
-            node_ready_network_unavailable, 
+            node_ready_network_available,
+            node_ready_network_unavailable,
             node_ready_no_network_condition,
             node_ready_unschedulable_true,
             node_ready_shutdown_taint,
@@ -53,11 +53,11 @@ class TestKubernetesClient(unittest.TestCase):
 
         ready_nodes = self.client.get_ready_nodes()
 
-        self.maxDiff = None
-        self.assertCountEqual(ready_nodes, 
+        self.maxDiff = None # pylint: disable=invalid-name
+        self.assertCountEqual(ready_nodes,
             [node_ready_network_available, node_ready_no_network_condition, node_ready_taint_no_effect]
         )
-    
+
     def _create_namespace(self, name):
         return V1Namespace(metadata=V1ObjectMeta(name=name))
 
@@ -67,7 +67,7 @@ class TestKubernetesClient(unittest.TestCase):
             status=V1PodStatus(phase=phase),
             spec=V1PodSpec(containers=[])
         )
-    
+
     def _create_pvc(self, name, namespace, phase):
         return V1PersistentVolumeClaim(
             metadata=V1ObjectMeta(name=name, namespace=namespace),
@@ -130,14 +130,14 @@ class TestKubernetesClient(unittest.TestCase):
 
         expected_pods = [pod for pod in mock_get_pods_by_namespace.return_value if pod.status.phase == "Running"]
         returned_pods = self.client.get_running_pods_by_namespace(namespace=namespace, label_selector="app=nginx")
-        
+
         for pod in returned_pods:
             self.assertEqual(pod.metadata.labels, labels)
             self.assertEqual(pod.status.phase, "Running")
-        
+
         mock_get_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="app=nginx", field_selector=None)
         self.assertCountEqual(returned_pods, expected_pods)
-    
+
     @patch('clusterloader2.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
     def test_get_bound_persistent_volume_claims_by_namespace(self, mock_get_persistent_volume_claims_by_namespace):
         namespace = "test-namespace"

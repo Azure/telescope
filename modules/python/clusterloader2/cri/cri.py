@@ -4,8 +4,8 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement
-from kubernetes_client import KubernetesClient, client as k8s_client
+from ..utils import parse_xml_to_json, run_cl2_command, get_measurement
+from ..kubernetes_client import KubernetesClient, client as k8s_client
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,
@@ -59,18 +59,18 @@ def override_config_clusterloader2(
     # Calculate request cpu and memory for each pod
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     cpu_request = cpu_value // pod_count
-    memory_request_in_Ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
-    memory_request_in_K = int(memory_request_in_Ki // 1.024)
-    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_K}K, total pod per node: {pod_count}")
+    memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
+    memory_request_in_k = int(memory_request_in_ki // 1.024)
+    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
     print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
 
-    with open(override_file, 'w') as file:
+    with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_K}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_Ki}Ki\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_k}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_ki}Ki\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
@@ -166,7 +166,7 @@ def collect_clusterloader2(
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
@@ -195,7 +195,7 @@ def collect_clusterloader2(
                     content += json.dumps(template) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
+    with open(result_file, 'w', encoding='utf-8') as f:
         f.write(content)
 
 def main():
