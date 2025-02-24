@@ -27,6 +27,18 @@ jobs:
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: pip install -r requirements.txt
 
+      - name: Run pylint on all Python files
+        run: |
+          THRESHOLD=9.0 
+            SCORE=$(pylint $(git ls-files '*.py') --score=y | grep "Your code has been rated at" | awk '{print $7}' | cut -d'/' -f1)
+            echo "Pylint Score: $SCORE"
+            if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+              echo "❌ Code quality below threshold ($THRESHOLD). Failing build."
+              exit 1
+            else
+              echo "✅ Code quality meets threshold."
+            fi
+
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: python -m unittest discover
