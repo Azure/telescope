@@ -166,13 +166,13 @@ class TestCSI(unittest.TestCase):
         mock_get_app_client.return_value = mock_app_client
         mock_app_client.create_namespaced_stateful_set.return_value = stateful_set
 
-        ss = create_statefulset(namespace, replicas, storage_class)
+        statefulset_obj = create_statefulset(namespace, replicas, storage_class)
 
         mock_get_app_client.assert_called_once()
         mock_app_client.create_namespaced_stateful_set.assert_called_once_with(
             namespace, stateful_set
         )
-        self.assertEqual(ss, stateful_set)
+        self.assertEqual(statefulset_obj, stateful_set)
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
