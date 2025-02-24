@@ -32,12 +32,12 @@ jobs:
         run: |
           CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- '*.py')
           echo "Changed files: $CHANGED_FILES"
-          echo "FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "PYTHON_FILES=$CHANGED_FILES" >> $GITHUB_ENV
 
       - name: Run pylint on changed files
-        if: env.FILES != ''
+        if:  ${{ env.PYTHON_FILES != '' }}
         run: |
-          pylint $FILES
+          pylint ${{ env.PYTHON_FILES }}
 
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
