@@ -6,7 +6,6 @@ disable=
     missing-docstring,  # Allow missing docstrings
     too-many-arguments, # Allow too many arguments
     too-many-statements, # Allow too many statements
-    too-many-positional-arguments, # Allow too many positional arguments
     too-many-locals, # Allow too many locals
     too-few-public-methods, # Allow too few public methods
     too-many-instance-attributes, # Allow too many instance attributes
