@@ -51,7 +51,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - $(LOCATION2)
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
