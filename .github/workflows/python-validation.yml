@@ -34,7 +34,7 @@ jobs:
         id: changed-files
         run: |
           # Get list of changed files
-          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')          
+          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
           echo "Files changed: $file_changes
           if [ -z "$file_changes" ]; then
             echo "No Python files were changed."
