@@ -52,7 +52,7 @@ spec:
             "0",
             "-t",
             "0",
-            "http://big-service-1:8080",
+            "http://big-service-0:8080",
           ]
         ports:
           - containerPort: 8078 # tcp echo
