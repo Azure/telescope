@@ -26,7 +26,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
-    load_type, scale_enabled, pod_startup_latency_threshold, provider, 
+    load_type, scale_enabled, pod_startup_latency_threshold, provider,
     scrape_kubelets, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
@@ -59,18 +59,18 @@ def override_config_clusterloader2(
     # Calculate request cpu and memory for each pod
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     cpu_request = cpu_value // pod_count
-    memory_request_in_Ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
-    memory_request_in_K = int(memory_request_in_Ki // 1.024)
-    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_K}K, total pod per node: {pod_count}")
+    memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
+    memory_request_in_k = int(memory_request_in_ki // 1.024)
+    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
     print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
 
-    with open(override_file, 'w') as file:
+    with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_K}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_Ki}Ki\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_k}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_ki}Ki\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
@@ -79,8 +79,8 @@ def override_config_clusterloader2(
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
         file.write(f"CL2_SCALE_ENABLED: {str(scale_enabled).lower()}\n")
-        file.write(f"CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write(f"CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
@@ -112,7 +112,7 @@ def verify_measurement():
                 response_type="str",
                 _preload_content=True
             )
-            
+
             metrics = response[0]  # The first item contains the response data
             filtered_metrics = "\n".join(
                 line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
@@ -166,12 +166,12 @@ def collect_clusterloader2(
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as file:
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
             print(measurement, group_name)
-            data = json.loads(f.read())
+            data = json.loads(file.read())
 
             if measurement == "ResourceUsageSummary":
                 for percentile, items in data.items():
@@ -195,8 +195,8 @@ def collect_clusterloader2(
                     content += json.dumps(template) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
-        f.write(content)
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(content)
 
 def main():
     parser = argparse.ArgumentParser(description="CRI Kubernetes resources.")

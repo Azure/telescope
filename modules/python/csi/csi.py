@@ -78,17 +78,17 @@ def create_statefulset(namespace, replicas, storage_class):
         ),
     )
     app_client = KUBERNETERS_CLIENT.get_app_client()
-    ss = app_client.create_namespaced_stateful_set(namespace, statefulset)
-    return ss
+    statefulset_obj  = app_client.create_namespaced_stateful_set(namespace, statefulset)
+    return statefulset_obj
 
 def log_duration(description, start_time, log_file):
     """Log the time duration of an operation."""
     end_time = datetime.now()
     duration = int((end_time - start_time).total_seconds())
     if ":" in description:
-        raise Exception(f"Description cannot contain a colon ':' character!")
-    with open(log_file, "a") as f:
-        f.write(f"{description}: {duration}\n")
+        raise Exception("Description cannot contain a colon ':' character!")
+    with open(log_file, 'a', encoding='utf-8') as file:
+        file.write(f"{description}: {duration}\n")
     print(f"{description}: {duration}s")
 
 def wait_for_condition(check_function, target, comparison="gte", interval=1):
@@ -128,15 +128,15 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     detach_thresholds = [(p100 - p50, "p50"), (p100 - p90, "p90"), (p100 - p99, "p99"), (0, "p100")]
 
     # Create a namespace
-    ns = KUBERNETERS_CLIENT.create_namespace(namespace)
-    print(f"Created namespace {ns.metadata.name}")
+    namespace  = KUBERNETERS_CLIENT.create_namespace(namespace)
+    print(f"Created namespace {namespace .metadata.name}")
 
     # Start the timer
     creation_start_time = datetime.now()
 
     # Create StatefulSet
-    ss = create_statefulset(namespace, disk_number, storage_class)
-    print(f"Created StatefulSet {ss.metadata.name}")
+    statefulset = create_statefulset(namespace, disk_number, storage_class)
+    print(f"Created StatefulSet {statefulset.metadata.name}")
 
     # Measure PVC creation and attachment
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -167,7 +167,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
         # Wait for all threads to complete
         for future in as_completed(futures):
             future.result() # Blocks until the thread finishes execution
-    
+
     print(f"Measuring creation and attachment of PVCs completed! Waiting for {wait_time} seconds before starting deletion.")
     time.sleep(wait_time)
 
@@ -175,7 +175,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     deletion_start_time = datetime.now()
 
     # Delete StatefulSet
-    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(ss.metadata.name, namespace)
+    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(statefulset.metadata.name, namespace)
     KUBERNETERS_CLIENT.delete_persistent_volume_claim_by_namespace(namespace)
 
     # Measure PVC detachment
@@ -190,7 +190,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
             log_file
         )
         future.result()
-    
+
     KUBERNETERS_CLIENT.delete_namespace(namespace)
     print("Measuring detachment of PVCs completed.")
 
@@ -199,19 +199,19 @@ def collect_attach_detach(case_name, node_number, disk_number, storage_class, cl
     result_file = os.path.join(result_dir, "results.json")
     print(f"Collecting attach detach test results from {raw_result_file} into {result_file}")
 
-    with open(raw_result_file, 'r') as file:
+    with open(raw_result_file, 'r', encoding='utf-8') as file:
         content = file.read()
         print(content)
-    
+
     # Parse metrics from the result file
     metrics = {}
     for line in content.splitlines():
         if ':' in line:  # Only process lines with key-value pairs
             key, value = map(str.strip, line.split(':', 1))
             metrics[key.replace(' ', '_')] = value
-    
+
     print(f"Parsed metrics: {metrics}")
-    
+
     content = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "case_name": case_name,
@@ -225,8 +225,8 @@ def collect_attach_detach(case_name, node_number, disk_number, storage_class, cl
     }
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
-        f.write(json.dumps(content))
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(json.dumps(content))
 
 def main():
     parser = argparse.ArgumentParser(description="CSI Benchmark.")
@@ -262,7 +262,7 @@ def main():
     elif args.command == "execute":
         execute_attach_detach(args.disk_number, args.storage_class, args.wait_time, args.result_dir)
     elif args.command == "collect":
-        collect_attach_detach(args.case_name, args.node_number, args.disk_number, args.storage_class, 
+        collect_attach_detach(args.case_name, args.node_number, args.disk_number, args.storage_class,
                               args.cloud_info, args.run_id, args.run_url, args.result_dir)
 
 if __name__ == "__main__":
