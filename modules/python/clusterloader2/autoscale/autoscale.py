@@ -178,8 +178,8 @@ def collect_clusterloader2(
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w', encoding='utf-8') as f:
-        f.write(content)
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(content)
 
 def main():
     parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")

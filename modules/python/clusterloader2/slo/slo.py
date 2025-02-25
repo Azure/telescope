@@ -179,13 +179,13 @@ def collect_clusterloader2(
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, 'r', encoding='utf-8') as file:
             print(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
             print(measurement, group_name)
-            data = json.loads(f.read())
+            data = json.loads(file.read())
 
             if "dataItems" in data:
                 items = data["dataItems"]
@@ -207,8 +207,8 @@ def collect_clusterloader2(
                 content += json.dumps(result) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w', encoding='utf-8') as f:
-        f.write(content)
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(content)
 
 def main():
     parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")

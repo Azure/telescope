@@ -87,8 +87,8 @@ def log_duration(description, start_time, log_file):
     duration = int((end_time - start_time).total_seconds())
     if ":" in description:
         raise Exception("Description cannot contain a colon ':' character!")
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(f"{description}: {duration}\n")
+    with open(log_file, 'a', encoding='utf-8') as file:
+        file.write(f"{description}: {duration}\n")
     print(f"{description}: {duration}s")
 
 def wait_for_condition(check_function, target, comparison="gte", interval=1):
@@ -225,8 +225,8 @@ def collect_attach_detach(case_name, node_number, disk_number, storage_class, cl
     }
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w', encoding='utf-8') as f:
-        f.write(json.dumps(content))
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(json.dumps(content))
 
 def main():
     parser = argparse.ArgumentParser(description="CSI Benchmark.")
