@@ -12,7 +12,7 @@ metadata:
   labels:
     group: {{.Group}}
     app: fortio
-    role: load
+    role: server
 {{if .SvcName}}
     svc: {{.SvcName}}-{{.Index}}
 {{end}}
@@ -21,6 +21,8 @@ spec:
   selector:
     matchLabels:
       name: {{.Name}}
+      app: fortio
+      role: server
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -31,8 +33,6 @@ spec:
       labels:
         name: {{.Name}}
         group: {{.Group}}
-        app: fortio
-        role: load
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
@@ -43,17 +43,7 @@ spec:
       containers:
       - name: fortio
         image: fortio/fortio
-        args:
-          [
-            "load",
-            "-c",
-            "160",
-            "-qps",
-            "0",
-            "-t",
-            "0",
-            "http://big-service-1:8080",
-          ]
+        args: ["server", "-http-port", "0.0.0.0:8080"]
         ports:
           - containerPort: 8078 # tcp echo
           - containerPort: 8079 # grpc echo
