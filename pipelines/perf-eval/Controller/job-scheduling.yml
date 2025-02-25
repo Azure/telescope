@@ -22,4 +22,5 @@ jobs:
       default:
         kwok_node: 20
     max_parallel: 1
+    credential_type: service_connection
   
