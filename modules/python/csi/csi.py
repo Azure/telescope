@@ -128,15 +128,15 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     detach_thresholds = [(p100 - p50, "p50"), (p100 - p90, "p90"), (p100 - p99, "p99"), (0, "p100")]
 
     # Create a namespace
-    namespace_obj  = KUBERNETERS_CLIENT.create_namespace(namespace)
-    print(f"Created namespace {namespace_obj .metadata.name}")
+    namespace  = KUBERNETERS_CLIENT.create_namespace(namespace)
+    print(f"Created namespace {namespace .metadata.name}")
 
     # Start the timer
     creation_start_time = datetime.now()
 
     # Create StatefulSet
-    statefulset_obj = create_statefulset(namespace, disk_number, storage_class)
-    print(f"Created StatefulSet {statefulset_obj.metadata.name}")
+    statefulset = create_statefulset(namespace, disk_number, storage_class)
+    print(f"Created StatefulSet {statefulset.metadata.name}")
 
     # Measure PVC creation and attachment
     with ThreadPoolExecutor(max_workers=2) as executor:

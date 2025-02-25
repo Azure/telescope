@@ -116,7 +116,7 @@ class TestCSI(unittest.TestCase):
         namespace = "test"
         replicas = 10
         storage_class = "default"
-        stateful_set = V1StatefulSet(
+        expected_statefulset = V1StatefulSet(
             api_version="apps/v1",
             kind="StatefulSet",
             metadata=V1ObjectMeta(name="statefulset-local"),
@@ -164,15 +164,15 @@ class TestCSI(unittest.TestCase):
 
         mock_app_client = MagicMock()
         mock_get_app_client.return_value = mock_app_client
-        mock_app_client.create_namespaced_stateful_set.return_value = stateful_set
+        mock_app_client.create_namespaced_stateful_set.return_value = expected_statefulset
 
-        statefulset_obj = create_statefulset(namespace, replicas, storage_class)
+        actual_statefulset = create_statefulset(namespace, replicas, storage_class)
 
         mock_get_app_client.assert_called_once()
         mock_app_client.create_namespaced_stateful_set.assert_called_once_with(
-            namespace, stateful_set
+            namespace, expected_statefulset
         )
-        self.assertEqual(statefulset_obj, stateful_set)
+        self.assertEqual(actual_statefulset, expected_statefulset)
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
