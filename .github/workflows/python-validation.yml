@@ -30,22 +30,17 @@ jobs:
       - name: Fetch all branches
         run: git fetch --prune --unshallow
 
-      - name: Get changed Python files
+      - name: Run Pylint on changed files
         id: changed-files
         run: |
           # Get list of changed files
-          file_changes=$(git diff --name-only origin/main HEAD)
-          # Extract only Python files
-          CHANGED_FILES=$(echo "$file_changes" | grep -E '\.py$')
-          echo "Changed files: $CHANGED_FILES"
-          # Ensure it's in a valid format for GitHub Actions (space-separated)
-          CHANGED_FILES_LIST=$(echo "$CHANGED_FILES" | tr '\n' ' ')
-          echo "PYTHON_FILES=$CHANGED_FILES_LIST" >> $GITHUB_ENV
-
-      - name: Run pylint on changed files
-        if: ${{ env.PYTHON_FILES != '' }}
-        run: |
-          pylint ${{ env.PYTHON_FILES }}
+          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')          
+          CHANGED_FILES_LIST=$(echo "$file_changes" | tr '\n' ' ')
+          if [ -z "$CHANGED_FILES_LIST" ]; then
+            echo "No Python files were changed."            
+          else
+            pylint $CHANGED_FILES_LIST
+          fi
 
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
