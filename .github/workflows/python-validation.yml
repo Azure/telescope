@@ -34,10 +34,11 @@ jobs:
         id: changed-files
         run: |
           # Get list of changed files
-          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')          
+          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
           CHANGED_FILES_LIST=$(echo "$file_changes" | tr '\n' ' ')
+          echo "Files changed: $CHANGED_FILES_LIST"
           if [ -z "$CHANGED_FILES_LIST" ]; then
-            echo "No Python files were changed."            
+            echo "No Python files were changed."
           else
             pylint $CHANGED_FILES_LIST
           fi
