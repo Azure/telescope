@@ -33,6 +33,8 @@ spec:
       labels:
         name: {{.Name}}
         group: {{.Group}}
+        app: fortio
+        role: server
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
 {{end}}

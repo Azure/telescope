@@ -21,6 +21,8 @@ spec:
   selector:
     matchLabels:
       name: {{.Name}}
+      app: fortio
+      role: load
   strategy:
     type: RollingUpdate
     rollingUpdate:
