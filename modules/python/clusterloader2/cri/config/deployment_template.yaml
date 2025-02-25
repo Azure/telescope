@@ -4,6 +4,7 @@
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$LoadType := DefaultParam .LoadType "memory"}}
 {{$Provider := DefaultParam .Provider "aks"}}
+{{$HostNetwork := DefaultParam .HostNetwork false }}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -23,6 +24,9 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
     spec:
+{{if eq $HostNetwork true}}
+      hostNetwork: true
+{{end}}
       nodeSelector:
         cri-resource-consume: "true"
       containers:
