@@ -19,6 +19,7 @@ name: resource-consumer
 
 {{$provider := DefaultParam .CL2_PROVIDER "aks"}}
 {{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
+{{$hostNetwork := DefaultParam .USE_HOST_NETWORK false}}
 
 namespace:
   number: 1
@@ -93,6 +94,7 @@ steps:
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}
+          HostNetwork: {{$hostNetwork}}
 
   - name: Waiting for latency pods to be running
     measurements:

@@ -27,7 +27,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    scrape_kubelets, override_file):
+    scrape_kubelets, use_host_network, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -87,12 +87,13 @@ def override_config_clusterloader2(
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
+        file.write(f"USE_HOST_NETWORK: {str(use_host_network).lower()}\n")
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, use_host_network):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, use_host_network=use_host_network)
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -133,7 +134,8 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    use_host_network
 ):
     if scrape_kubelets:
         verify_measurement()
@@ -160,7 +162,8 @@ def collect_clusterloader2(
         "data": None,
         "cloud_info": cloud_info,
         "run_id": run_id,
-        "run_url": run_url
+        "run_url": run_url,
+        "use_host_network": use_host_network
     }
 
     content = ""
@@ -207,6 +210,8 @@ def main():
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("node_per_step", type=int, help="Number of nodes to scale per step")
     parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
+    parser_override.add_argument("use_host_network", type=eval, choices=[True, False], default=False,
+                                    help="Whether to use host network to isolate from cni")
     parser_override.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
     parser_override.add_argument("operation_timeout", type=str, default="2m", help="Operation timeout")
     parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"],
@@ -225,6 +230,8 @@ def main():
     parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
+    parser_override.add_argument("use_host_network", type=eval, choices=[True, False], default=False,
+                                    help="Whether to use host network to isolate from cni")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
     parser_execute.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
@@ -236,6 +243,8 @@ def main():
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
     parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
+    parser_override.add_argument("use_host_network", type=eval, choices=[True, False], default=False,
+                                      help="Whether to use host network to isolate from cni")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
@@ -249,12 +258,14 @@ def main():
     if args.command == "override":
         override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
-                                       args.provider, args.scrape_kubelets, args.cl2_override_file)
+                                       args.provider, args.scrape_kubelets, args.use_host_network, args.cl2_override_file)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider,
+                               args.scrape_kubelets, args.use_host_network)
     elif args.command == "collect":
         collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.scrape_kubelets)
+                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file,
+                               args.scrape_kubelets, args.use_host_network)
 
 if __name__ == "__main__":
     main()
