@@ -212,7 +212,7 @@ steps:
 #         Group: {{$groupName}}
 #         ccnps: 0
 # {{end}}
-# {{end}}
+{{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
