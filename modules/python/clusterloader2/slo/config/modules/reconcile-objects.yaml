@@ -42,7 +42,7 @@ steps:
     tuningSet: {{$tuningSet}}
     objectBundle:
     - basename: big-deployment
-      objectTemplatePath: deployment_template.yaml
+      objectTemplatePath: big_client_deployment_template.yaml
       templateFillMap:
         Replicas: {{$bigDeploymentSize}}
         SvcName: big-service
