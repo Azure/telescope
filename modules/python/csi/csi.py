@@ -175,7 +175,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     deletion_start_time = datetime.now()
 
     # Delete StatefulSet
-    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(statefulset_obj.metadata.name, namespace)
+    KUBERNETERS_CLIENT.app.delete_namespaced_stateful_set(statefulset.metadata.name, namespace)
     KUBERNETERS_CLIENT.delete_persistent_volume_claim_by_namespace(namespace)
 
     # Measure PVC detachment
