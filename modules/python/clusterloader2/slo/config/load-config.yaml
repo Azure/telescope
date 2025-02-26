@@ -134,13 +134,13 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: start
 
-  - name: Log 2 - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 1h
+  # - name: Log 2 - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  #   measurements:
+  #   - Identifier: Dummy
+  #     Method: Sleep
+  #     Params:
+  #       action: start
+  #       duration: 1h
 
   - module:
       path: /modules/reconcile-objects.yaml
