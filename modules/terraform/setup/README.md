@@ -4,7 +4,6 @@ This folder contains Terraform modules for creating new infrastructure setup, pi
 
 ## Install
 
-
 For all modules, you need to have the following tools:
 
 - Install [Terraform - 1.7.3](https://developer.hashicorp.com/terraform/tutorials/azure-get-started/install-cli)
@@ -34,7 +33,7 @@ The ADO PAT token requires the follow permissions (click all settings at the bot
 - Variable Groups (Read, Create & Manage)
 - Code (Read) - For pipeline setup, if the pipeline is in ADO repository
 
-run `make` to setup test framework. It will create all [resources](#infrastructure-setup) required to run the experimenet in Azure, AWS, and ADO. It takes about 20 min.
+run `make` to setup test framework. It will create all [resources](#infrastructure) required to run the experiments in Azure, AWS, and ADO. It will take about 20 min.
 
 ```bash
 az login
@@ -44,9 +43,12 @@ aws configure
 make all 
 ```
 
-## Test Locally
+## Build / Run
 
-1. Run pipeline or wait for scheduled run on Azure DevOps
+1. Run pipeline or wait for scheduled run on Azure DevOps. 
+
+- [Telescope Pipelines All](https://dev.azure.com/akstelescope/telescope/_build?view=runs)
+- [CRI Benchmark](https://dev.azure.com/akstelescope/telescope/_build?definitionScope=%5CAKS%5CTelescope%5CPerf%20Eval%5CCRI%20Benchmark&view=runs)
 
 ![pipeline](../../../docs/imgs/pipeline.jpeg)
 
@@ -100,13 +102,13 @@ This module creates the following resources:
 
 All the resources are created based on the input tfvars file which is located here [table-data-connections.tfvars](./table-data-connections/table-data-connections.tfvars). Run `make table_dataconnection_setup` to create the kusto cluster and tables.
 
-### Date Ingestion
+### Data Ingestion
 
 This module will ingest data into the Azure Data Explorer Table created in the previous step. The data is ingested from azure storage account blob container to the Azure Data Explorer Table.
 
 In addition, the module requires tools and variables:
 
-**Kusto LightIngest** [Download](https://github.com/Azure/Kusto-Lightingest/releases/tag/12.1.2)
+**Kusto LightIngest** [Download v12.1.2](https://github.com/Azure/Kusto-Lightingest/releases/tag/12.1.2)
 
 The variables can be extracted from previous run, and for now login to Azure Portal and locate the resources you created earlier:
 
