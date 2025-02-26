@@ -30,6 +30,7 @@ debug/
 *.pem
 *.pub
 # local dev files
+.idea
 .vscode/*
 **/.vscode
 *.un~
