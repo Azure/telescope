@@ -1,8 +1,6 @@
-# Setup Module
+# Tooling and Setup
 
 This folder contains Terraform modules for creating new infrastructure setup, pipelines, Data Connections, and Tables for Kusto databases.
-
-## Install
 
 For all modules, you need to have the following tools:
 
@@ -11,7 +9,25 @@ For all modules, you need to have the following tools:
 - Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 - Install [AWS CLI - 2.15.19](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html)
 
-You also need the follow env variables. Since `make` invokes `terraform` to setup the infrastructure, for local testing it is recommended to use new values for `TF_VAR_xxx` variables, such as `<normal_variable>$(date +%H%M)`.
+## Test Pipeline
+
+To verify changes to the test scenario, job, or just the pipeline, you can configure a test pipeline manually and run with a more controlled test. Please refer to the guidelines for each cloud provider:
+
+- [AKS](../azure/README.md)
+- [EKS](../aws/README.md)
+- [GCP](../gcp/README.md)
+
+With pipeline setup manually, you can uun pipeline or wait for scheduled run on Azure DevOps.
+![pipeline](../../../docs/imgs/pipeline.jpeg).
+
+The [existing pipelines](../../../README.md) are hosted in Azure Devops.
+
+After the test run, import [dashboard](../../../dashboards/example.json) and check test results on Azure Data Explorer:
+![results](../../../docs/imgs/results.jpeg)
+
+## Production Pipeline
+
+To run the full setup, set the follow environment variables:
 
 ```bash
 export AZDO_PERSONAL_ACCESS_TOKEN=<Azure DevOps Personal Access Token>
@@ -33,7 +49,7 @@ The ADO PAT token requires the follow permissions (click all settings at the bot
 - Variable Groups (Read, Create & Manage)
 - Code (Read) - For pipeline setup, if the pipeline is in ADO repository
 
-run `make` to setup test framework. It will create all [resources](#infrastructure) required to run the experiments in Azure, AWS, and ADO. It will take about 20 min.
+Run `make` to setup test framework. It will create all [resources](#infrastructure) required to run the experiments in Azure, AWS, and ADO.
 
 ```bash
 az login
@@ -42,18 +58,6 @@ aws configure
 # under directory ./modules/terraform/setup
 make all 
 ```
-
-## Build / Run
-
-1. Run pipeline or wait for scheduled run on Azure DevOps. 
-
-- [Telescope Pipelines All](https://dev.azure.com/akstelescope/telescope/_build?view=runs)
-- [CRI Benchmark](https://dev.azure.com/akstelescope/telescope/_build?definitionScope=%5CAKS%5CTelescope%5CPerf%20Eval%5CCRI%20Benchmark&view=runs)
-
-![pipeline](../../../docs/imgs/pipeline.jpeg)
-
-1. Import [dashboard](../../..//dashboards/example.json) and check test results on Azure Data Explorer
-![results](../../..//docs/imgs/results.jpeg)
 
 ## Modules
 
