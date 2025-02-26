@@ -28,7 +28,7 @@ stages:
             - westus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "acnpublic.azurecr.io/clusterloader2:latest" # "ghcr.io/azure/clusterloader2:v20241022"
           topology: network-load
           matrix:
             azure_cilium:

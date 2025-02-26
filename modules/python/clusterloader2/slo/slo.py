@@ -94,6 +94,9 @@ def configure_clusterloader2(
             # renaming this variable to have "CL2_" due to this quote from perf-tests: "Only variables that start with the prefix `CL2_` will be available in the template"
             file.write("CL2_BIG_GROUP_SIZE: 25\n")
             # small pod count is derived from: total pods - (big group size * namespace count)
+            file.write("CL2_BIG_GROUP_SIZE: 25\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
+            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_HUBBLE: true\n")
         else:
             file.write("CL2_SERVICE_TEST: false\n")
 
