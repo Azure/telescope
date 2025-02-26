@@ -151,3 +151,21 @@ steps:
           query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumHubbleMetricCardinality
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Hubble Metric Cardinality
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: Drop
+          query: count(hubble_drop_total[%v:])
+        - name: TCPFlags
+          query: count(hubble_tcp_flags_total[%v:])
+        - name: FlowsProcessed
+          query: count(hubble_flows_processed_total[%v:])
+        - name: DNSQueries
+          query: count(hubble_dns_queries_total[%v:])
+        - name: DNSResponses
+          query: count(hubble_dns_responses_total[%v:])
