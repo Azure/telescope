@@ -30,14 +30,18 @@ name: load-config
 
 {{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}}
+
 # TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250) X
 # {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 # {{if (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
 # {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
 # {{end}}
 #{{if and $IDENTITY_CHURN_TEST (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
+
 {{$bigDeploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt 4 $BIG_GROUP_SIZE)}}
+
 #{{end}}
+
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
