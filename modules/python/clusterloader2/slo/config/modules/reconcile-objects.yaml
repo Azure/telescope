@@ -61,11 +61,13 @@ steps:
   {{if or $cnp_test $ccnp_test}}
         cnp_test: {{$cnp_test}}
         ccnp_test: {{$ccnp_test}}
-  {{else}}
+  {{end}}
+  {{if $svcTest}}
         SvcName: small-service
   {{end}}
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
+        identityChurnTest: {{$IDENTITY_CHURN_TEST}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:

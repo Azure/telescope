@@ -1,8 +1,7 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
-
+{{$cnp_test := .cnp_test}}
+{{$ccnp_test := .ccnp_test}}
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
 apiVersion: apps/v1
@@ -33,6 +32,9 @@ spec:
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
         restart: {{.deploymentLabel}}
+{{if .identityChurnTest}}
+        identity-load: {{.deploymentLabel}}-{{.Namespace}}-{{.Index}}
+{{end}}
     spec:
       nodeSelector:
         slo: "true"
