@@ -138,7 +138,7 @@ steps:
         deploymentLabel: start
 {{end}}
 
-{{if $CILIUM_METRICS_ENABLED}}
+{{if $ciliumMetricsEnabled}}
   - module:
       path: /modules/cilium-measurements.yaml
       params:
