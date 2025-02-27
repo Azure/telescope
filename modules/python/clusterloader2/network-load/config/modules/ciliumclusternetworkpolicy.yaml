@@ -1,0 +1,16 @@
+## CCNP module provides a module for creating / deleting CCNPs.
+
+## Input params
+{{$actionName := .actionName}}
+{{$ccnps := .ccnps}}
+{{$Group := .Group}}
+
+steps:
+- name: "{{$actionName}} {{$ccnps}} k8s CCNPs"
+  phases:
+  - namespaceRange: null
+    replicasPerNamespace: {{$ccnps}}
+    tuningSet: Sequence
+    objectBundle:
+    - basename: ccnp
+      objectTemplatePath: ccnp_template.yaml

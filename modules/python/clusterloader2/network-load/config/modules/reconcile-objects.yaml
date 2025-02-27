@@ -1,0 +1,77 @@
+## Input params
+# Valid actions: "create", "delete"
+{{$actionName := printf "%s objects" .actionName}}
+{{$namespaces := .namespaces}}
+{{$tuningSet := .tuningSet}}
+
+# Derivative variables
+{{$is_deleting := (eq .actionName "delete")}}
+{{$operationTimeout := .operationTimeout}}
+
+# Deployments
+{{$bigDeploymentSize := .bigDeploymentSize}}
+{{$bigDeploymentsPerNamespace := .bigDeploymentsPerNamespace}}
+{{$smallDeploymentSize := .smallDeploymentSize}}
+{{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
+
+{{$cnp_test:= .cnp_test}}
+{{$ccnp_test:= .ccnp_test}}
+
+steps:
+- name: Starting measurement for '{{$actionName}}'
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      checkIfPodsAreUpdated: true
+      labelSelector: group = {{.Group}}
+      operationTimeout: {{$operationTimeout}}
+      apiVersion: apps/v1
+
+- name: {{$actionName}}
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$bigDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: fortio-client-deployment
+      objectTemplatePath: fortio_client_deployment_template.yaml
+      templateFillMap:
+        Replicas: {{$bigDeploymentSize}}
+        SvcName: fortio-client-service
+        Group: {{.Group}}
+        deploymentLabel: {{.deploymentLabel}}
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$smallDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: fortio-server-deployment
+      objectTemplatePath: fortio_server_deployment_template.yaml
+      templateFillMap:
+        Replicas: {{$smallDeploymentSize}}
+  {{if or $cnp_test $ccnp_test}}
+        cnp_test: {{$cnp_test}}
+        ccnp_test: {{$ccnp_test}}
+  {{else}}
+        SvcName: small-service
+  {{end}}
+        Group: {{.Group}}
+        deploymentLabel: {{.deploymentLabel}}
+
+- name: Waiting for '{{$actionName}}' to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+      refreshInterval: 15s

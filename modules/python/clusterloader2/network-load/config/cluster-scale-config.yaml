@@ -1,0 +1,148 @@
+name: deployment-churn
+
+{{$nodesPerStep := DefaultParam .CL2_NODES_PER_STEP 100}}
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
+{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
+{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
+{{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$steps := DefaultParam .CL2_STEPS 5}}
+
+{{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
+{{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
+{{$namespaces := DivideInt $nodesPerStep $nodesPerNamespace}}
+{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
+
+{{$totalNodes := MultiplyInt $nodesPerStep $steps}}
+{{$totalPods := MultiplyInt $nodesPerStep $steps $podsPerNode}}
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $deploymentSize $steps)}}
+
+{{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: slo
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+tuningSets:
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+  - name: DeploymentDeleteQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+
+steps:
+  - name: Log - totalNodes={{$totalNodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
+
+  - name: Start measurements
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: true
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = deployment-churn
+          operationTimeout: {{$operationTimeout}}
+
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
+  - name: Creating Deployments {{$j}}
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        objectBundle:
+          - basename: deployment-churn-{{$j}}
+            objectTemplatePath: deployment_template.yaml
+            templateFillMap:
+              Replicas: {{$deploymentSize}}
+              Group: {{$groupName}}
+              CpuRequest: {{$latencyPodCpu}}m
+              MemoryRequest: {{$latencyPodMemory}}M
+              deploymentLabel: start
+
+  - name: Wait for nodes to be ready
+    measurements:
+      - Identifier: ConfirmNodeCount
+        Method: WaitForNodes
+        Params:
+          action: start
+          minDesiredNodeCount: {{MultiplyInt $nodesPerNamespace (AddInt $j 1)}}
+          maxDesiredNodeCount: {{$totalNodes}}
+          labelSelector: slo = true
+          timeout: {{$operationTimeout}}
+          refreshInterval: 1m
+
+  - name: Waiting for latency pods to be running
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
+  {{end}}
+
+  {{range $j := Loop $steps}}
+  - name: Deleting Deployments {{$j}}
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: 0
+        tuningSet: DeploymentDeleteQps
+        objectBundle:
+          - basename: deployment-churn-{{$j}}
+            objectTemplatePath: deployment_template.yaml
+
+  - name: Waiting for latency pods to be deleted
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
+  {{end}}
+{{end}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
