@@ -1,21 +1,16 @@
 ## Input params
 # Valid actions: "create", "delete"
 {{$actionName := printf "%s objects" .actionName}}
-{{$namespaces := .namespaces}}
 {{$tuningSet := .tuningSet}}
-
-# Derivative variables
-{{$is_deleting := (eq .actionName "delete")}}
 {{$operationTimeout := .operationTimeout}}
-
-# Deployments
-{{$bigDeploymentSize := .bigDeploymentSize}}
-{{$bigDeploymentsPerNamespace := .bigDeploymentsPerNamespace}}
-{{$smallDeploymentSize := .smallDeploymentSize}}
-{{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
-
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
+{{$Group := .Group}}
+{{$namespaces := .namespaces}}
+{{$deploymentLabel := .deploymentLabel}}
+{{$fortioDeploymentsPerNamespace := .fortioDeploymentsPerNamespace}}
+{{$fortioServerReplicas := .fortioServerReplicas}}
+{{$fortioClientReplicas := .fortioClientReplicas}}
+{{$CpuRequest := DefaultParam .CpuRequest}}
+{{$MemoryRequest := DefaultParam .MemoryRequest}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -38,34 +33,32 @@ steps:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$bigDeploymentsPerNamespace}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: fortio-client-deployment
-      objectTemplatePath: fortio_client_deployment_template.yaml
-      templateFillMap:
-        Replicas: {{$bigDeploymentSize}}
-        SvcName: fortio-client-service
-        Group: {{.Group}}
-        deploymentLabel: {{.deploymentLabel}}
+      - basename: fortio-server-deployment
+        objectTemplatePath: fortio_server_deployment_template.yaml
+        templateFillMap:
+          Replicas: {{$fortioServerReplicas}}
+          SvcName: fortio-server-service
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$smallDeploymentsPerNamespace}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: fortio-server-deployment
-      objectTemplatePath: fortio_server_deployment_template.yaml
-      templateFillMap:
-        Replicas: {{$smallDeploymentSize}}
-  {{if or $cnp_test $ccnp_test}}
-        cnp_test: {{$cnp_test}}
-        ccnp_test: {{$ccnp_test}}
-  {{else}}
-        SvcName: small-service
-  {{end}}
-        Group: {{.Group}}
-        deploymentLabel: {{.deploymentLabel}}
+      - basename: fortio-client-deployment
+        objectTemplatePath: fortio_client_deployment_template.yaml
+        templateFillMap:
+          Replicas: {{$fortioClientReplicas}}
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:

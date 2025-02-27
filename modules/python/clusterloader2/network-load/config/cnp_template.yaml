@@ -1,20 +1,25 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{.basename}}
-  namespace: slo-1 # slo-1 was used because that is the ns pods are deployed in & tried passing in namespace from load-config but had object mismatch error, revise in future to possibly pass in ns
+  name: allow-client-egress-to-dns-and-any-fqdn
+  # network-load-1 was used because that is the ns pods are deployed in & tried passing in namespace from load-config but had object mismatch error, revise in future to possibly pass in ns
+  namespace: network-load-1
 spec:
   endpointSelector:
     matchLabels:
-      group: cnp-ccnp
-  ingressDeny:
-  - fromEndpoints:
-    - matchLabels:
-        io.kubernetes.pod.namespace: default
+      app: fortio
+      role: load
   egress:
-  - toPorts:
-    - ports:
-      - port: "443"
-        protocol: TCP
-    toCIDR:
-    - 0.0.0.0/0
+    - toEndpoints:
+      - matchLabels:
+          "k8s:io.kubernetes.pod.namespace": kube-system
+          "k8s:k8s-app": kube-dns
+      toPorts:
+        - ports:
+           - port: "53"
+             protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toFQDNs:
+      - matchPattern: "*"

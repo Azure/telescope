@@ -1,9 +1,6 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
-
-{{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
+{{$Image := DefaultParam .Image "fortio/fortio"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -41,10 +38,11 @@ spec:
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
-        slo: "true"
+        network-load: "true"
       containers:
       - name: fortio
-        image: fortio/fortio
+        image: {{$Image}}
+        imagePullPolicy: IfNotPresent
         args:
           [
             "load",
@@ -54,20 +52,13 @@ spec:
             "0",
             "-t",
             "0",
-            "http://big-service-0:8080",
+            "http://fortio-server-service-{{.Index}}:8080",
           ]
         ports:
           - containerPort: 8078 # tcp echo
           - containerPort: 8079 # grpc echo
           - containerPort: 8080 # main serving port
           - containerPort: 8081 # redirection to https port
-      - env:
-        - name: ENV_VAR
-          value: a
-        image: {{$Image}}
-        imagePullPolicy: IfNotPresent
-        name: {{.Name}}
-        ports:
         resources:
           requests:
             cpu: {{$CpuRequest}}
@@ -83,7 +74,7 @@ spec:
         operator: "Exists"
         effect: "NoExecute"
         tolerationSeconds: 900
-      - key: "slo"
+      - key: "network-load"
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"

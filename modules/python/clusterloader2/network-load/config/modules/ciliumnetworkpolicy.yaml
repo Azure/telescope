@@ -3,17 +3,15 @@
 ## Input params
 {{$actionName := .actionName}}
 {{$namespaces := .namespaces}}
-{{$cnpsPerNamespace := .cnpsPerNamespace}}
 {{$Group := .Group}}
 
 steps:
-- name: "{{$actionName}} {{$cnpsPerNamespace}} k8s CNPs"
+- name: "{{$actionName}} k8s CNPs"
   phases:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$cnpsPerNamespace}}
+    replicasPerNamespace: 1
     tuningSet: Sequence
     objectBundle:
-    - basename: cnp
-      objectTemplatePath: cnp_template.yaml
+    - objectTemplatePath: cnp_template.yaml

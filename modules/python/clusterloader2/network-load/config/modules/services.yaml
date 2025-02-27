@@ -3,8 +3,6 @@
 ## Input params
 {{$actionName := .actionName}}
 {{$namespaces := .namespaces}}
-{{$smallServicesPerNamespace := .smallServicesPerNamespace}}
-{{$bigServicesPerNamespace := .bigServicesPerNamespace}}
 
 steps:
 - name: "{{$actionName}} k8s services"
@@ -12,16 +10,8 @@ steps:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$bigServicesPerNamespace}}
+    replicasPerNamespace: 1
     tuningSet: Sequence
     objectBundle:
-    - basename: big-service
-      objectTemplatePath: service_template.yaml
-  - namespaceRange:
-      min: 1
-      max: {{$namespaces}}
-    replicasPerNamespace: {{$smallServicesPerNamespace}}
-    tuningSet: Sequence
-    objectBundle:
-    - basename: small-service
+    - basename: fortio-server-service
       objectTemplatePath: service_template.yaml
