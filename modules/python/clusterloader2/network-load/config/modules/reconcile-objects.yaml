@@ -9,8 +9,8 @@
 {{$fortioDeploymentsPerNamespace := .fortioDeploymentsPerNamespace}}
 {{$fortioServerReplicas := .fortioServerReplicas}}
 {{$fortioClientReplicas := .fortioClientReplicas}}
-{{$CpuRequest := DefaultParam .CpuRequest}}
-{{$MemoryRequest := DefaultParam .MemoryRequest}}
+{{$CpuRequest := .CpuRequest}}
+{{$MemoryRequest := .MemoryRequest}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
