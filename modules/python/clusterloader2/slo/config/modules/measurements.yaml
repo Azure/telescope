@@ -60,7 +60,94 @@ steps:
           queries:
           - name: Terminated watches
             query: sum(increase(apiserver_terminated_watchers_total[%v:])) by (resource)
+      - Identifier: WatchCacheInitializations
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Watch Cache Initializations
+          metricVersion: v1
+          dimensions:
+          - resource
+          queries:
+          - name: Watch cache reinitializations
+            query: sum(increase(apiserver_watch_cache_initializations_total[%v:])) by (resource)
     {{end}}
+    # TODO: If block for node exporter
+      - Identifier: NodeCPUUsage
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Node CPU Usage
+          metricVersion: v1
+          dimensions:
+          - instance
+          queries:
+          - name: Max Node CPU Usage by Node
+            query: max(rate(node_cpu_seconds_total[%v:])) by (instance)
+          - name: Max Node CPU Usage Overall
+            query: max(max(rate(node_cpu_seconds_total{instance!~".*prom.*"}[%v:])) by (instance))
+          - name: Avg Node CPU Usage by Node
+            query: avg(rate(node_cpu_seconds_total[%v:])) by (instance)
+      - Identifier: NodeMemUtilization
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Max Node Mem Utilization
+          metricVersion: v1
+          dimensions:
+          - instance
+          queries:
+          - name: Max Node Mem Utilization by Node
+            query: max(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) by (instance)
+          - name: Max Node Mem Utilization Overall
+            query: max(max(node_memory_MemTotal_bytes{instance!~".*prom.*"} - node_memory_MemAvailable_bytes{instance!~".*prom.*"}) by (instance))
+          - name: Avg Node Mem Utilization by Node
+            query: avg(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) by (instance)
+      - Identifier: NodeMemAvailable
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Max Node Mem Available
+          metricVersion: v1
+          dimensions:
+          - instance
+          queries:
+          - name: Max Node Mem Available by Node
+            query: max(rate(node_memory_MemAvailable_bytes[%v:])) by (instance)
+          - name: Max Node Mem Available Overall
+            query: max(max(rate(node_memory_MemAvailable_bytes{instance!~".*prom.*"}[%v:])) by (instance))
+          - name: Avg Node Mem Available by Node
+            query: avg(rate(node_memory_MemAvailable_bytes[%v:])) by (instance)
+      - Identifier: NodeMemFree
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Max Node Mem Free
+          metricVersion: v1
+          dimensions:
+          - instance
+          queries:
+          - name: Max Node Mem Free by Node
+            query: max(rate(node_memory_MemFree_bytes[%v:])) by (instance)
+          - name: Max Node Mem Free Overall
+            query: max(max(rate(node_memory_MemFree_bytes{instance!~".*prom.*"}[%v:])) by (instance))
+          - name: Avg Node Mem Free by Node
+            query: avg(rate(node_memory_MemFree_bytes[%v:])) by (instance)
+      - Identifier: NodeMemTotal
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Max Node Mem Total
+          metricVersion: v1
+          dimensions:
+          - instance
+          queries:
+          - name: Max Node Mem Total by Node
+            query: max(rate(node_memory_MemTotal_bytes[%v:])) by (instance)
+          - name: Max Node Mem Total Overall
+            query: max(max(rate(node_memory_MemTotal_bytes{instance!~".*prom.*"}[%v:])) by (instance))
+          - name: Avg Node Mem Total by Node
+            query: avg(rate(node_memory_MemTotal_bytes[%v:])) by (instance)
       - Identifier: ApiserverAvgCPUUsage
         Method: GenericPrometheusQuery
         Params:
