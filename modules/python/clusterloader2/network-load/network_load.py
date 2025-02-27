@@ -106,8 +106,8 @@ def collect_clusterloader2(
     fortio_client_queries_per_second,
     fortio_namespaces,
     fortio_deployments_per_namespace,
-    apply_fqdn_cnp
-    test_type="default_config",
+    apply_fqdn_cnp,
+    test_type="default_config"
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -118,8 +118,6 @@ def collect_clusterloader2(
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
-
-    pod_count = node_count * pods_per_node
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
