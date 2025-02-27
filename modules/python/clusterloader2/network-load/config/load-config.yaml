@@ -29,9 +29,9 @@ name: load-config
 {{$fortioServerClientDeployments := MultiplyInt $fortioDeploymentsPerNamespace $fortioNamespaces}}
 {{$fortioServerReplicas := DivideInt (DivideInt (MultiplyInt $fortioServersPerNode $nodes) $fortioServerClientDeployments) $fortioNamespaces}}
 {{$fortioClientReplicas := DivideInt (DivideInt (MultiplyInt $fortioClientsPerNode $nodes) $fortioServerClientDeployments) $fortioNamespaces}}
-{{totalServerPods := MultiplyInt $fortioClientReplicas $fortioNamespaces}}
-{{totalClientPods := MultiplyInt $fortioClientReplicas $fortioNamespaces}}
-{{totalDeployments := MultiplyInt 2 $fortioServerClientDeployments}}
+{{$totalServerPods := MultiplyInt $fortioClientReplicas $fortioNamespaces}}
+{{$totalClientPods := MultiplyInt $fortioClientReplicas $fortioNamespaces}}
+{{$totalDeployments := MultiplyInt 2 $fortioServerClientDeployments}}
 
 # other test toggles
 {{$applyFqdnCnp := DefaultParam .CL2_APPLY_FQDN_CNP true}}
