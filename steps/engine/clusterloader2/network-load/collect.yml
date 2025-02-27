@@ -4,6 +4,9 @@ parameters:
   default: ''
 - name: region
   type: string
+- name: engine_input
+  type: object
+  default: {}
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
