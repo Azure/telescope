@@ -93,7 +93,7 @@ steps:
         actionName: "Creating"
         namespaces: {{$fortioNamespaces}}
         Group: {{$groupName}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+        cnpsPerNamespace: 1
   {{end}}
 
 # deployment creation
