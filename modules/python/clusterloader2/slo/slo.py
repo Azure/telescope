@@ -88,15 +88,6 @@ def configure_clusterloader2(
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
-            # FIXME: this should be for network-load test only
-            # this impacts total pods, which is nodes * pods_per_node (latter is defined in calculate_config)
-            file.write("CL2_NODES: 10\n")
-            # renaming this variable to have "CL2_" due to this quote from perf-tests: "Only variables that start with the prefix `CL2_` will be available in the template"
-            file.write("CL2_BIG_GROUP_SIZE: 25\n")
-            # small pod count is derived from: total pods - (big group size * namespace count)
-            file.write("CL2_BIG_GROUP_SIZE: 25\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_HUBBLE: true\n")
         else:
             file.write("CL2_SERVICE_TEST: false\n")
 
@@ -217,8 +208,6 @@ def collect_clusterloader2(
     with open(result_file, 'w') as f:
         f.write(content)
 
-# NOTE: take "service_test: true" as an example. We will need to add another flag for network_load_test
-# note how service test is configured as an environment variable that impacts load-config.yaml
 def main():
     parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
