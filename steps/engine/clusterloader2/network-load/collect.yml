@@ -12,10 +12,21 @@ steps:
 - script: |
     set -eo pipefail
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CPU_PER_NODE $NODE_COUNT ${MAX_PODS:-0} \
-      $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} $TEST_RESULTS_FILE \
-      $TEST_TYPE
-# FIXME: above arguments
+      --cl2-report-dir $CL2_REPORT_DIR \
+      --cloud-info "$CLOUD_INFO" \
+      --run-id $RUN_ID \
+      --run-rul $RUN_URL \
+      --result-file $TEST_RESULTS_FILE \
+      --test-type $TEST_TYPE \
+      --deployment-recreation-count $DEPLOYMENT_RECREATION_COUNT \
+      --cpu-per-node $CPU_PER_NODE \
+      --node-count $NODE_COUNT \
+      --fortio-servers-per-node $FORTIO_SERVERS_PER_NODE \
+      --fortio-clients-per-node $FORTIO_CLIENTS_PER_NODE \
+      --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
+      --fortio-namespaces $FORTIO_NAMESPACES \
+      --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+      --apply-fqdn-cnp $APPLY_FQDN_CNP
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}
