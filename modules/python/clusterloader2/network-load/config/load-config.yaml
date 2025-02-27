@@ -86,7 +86,7 @@ steps:
         actionName: "Creating"
         namespaces: {{$fortioNamespaces}}
 
-  {{if $APPLY_FQDN_CNP}}
+  {{if $applyFqdnCnp}}
   - module:
       path: /modules/ciliumnetworkpolicy.yaml
       params:

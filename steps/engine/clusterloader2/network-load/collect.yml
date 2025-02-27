@@ -18,7 +18,7 @@ steps:
       --cl2-report-dir $CL2_REPORT_DIR \
       --cloud-info "$CLOUD_INFO" \
       --run-id $RUN_ID \
-      --run-rul $RUN_URL \
+      --run-url $RUN_URL \
       --result-file $TEST_RESULTS_FILE \
       --test-type $TEST_TYPE \
       --deployment-recreation-count $DEPLOYMENT_RECREATION_COUNT \
