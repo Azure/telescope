@@ -32,6 +32,8 @@ stages:
           topology: network-load
           matrix:
             azure_cilium_acns:
+              cl2_config_file: load-config.yaml
+              scale_timeout: "15m"
               deployment_recreation_count: 2
               cpu_per_node: 4
               node_count: 10
