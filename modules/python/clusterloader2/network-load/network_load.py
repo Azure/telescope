@@ -48,29 +48,29 @@ def configure_clusterloader2(
     with open(override_file, 'w') as file:
         # generic config
         file.write("CL2_GROUP_NAME: cilium-acns-network-load\n")
-        file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
-        file.write(f"CL2_API_SERVER_CALLS_PER_SECOND: 100\n")
+        file.write("CL2_OPERATION_TIMEOUT: {}\n".format(operation_timeout))
+        file.write("CL2_API_SERVER_CALLS_PER_SECOND: 100\n")
 
         # repetition config
-        file.write(f"CL2_DEPLOYMENT_RECREATION_COUNT: {deployment_recreation_count}\n")
+        file.write("CL2_DEPLOYMENT_RECREATION_COUNT: {}\n".format(deployment_recreation_count))
 
         # scale logistics
-        # file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
+        # file.write("CL2_NODES_PER_STEP: {}\n".format(node_per_step))
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
         # topology config
-        file.write("CL2_NODES: {node_count}\n")
-        file.write("CL2_FORTIO_SERVERS_PER_NODE: {fortio_servers_per_node}\n")
-        file.write("CL2_FORTIO_CLIENTS_PER_NODE: {fortio_clients_per_node}\n")
-        file.write("CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {fortio_client_queries_per_second}\n")
-        file.write("CL2_FORTIO_NAMESPACES: {fortio_namespaces}\n")
-        file.write("CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {fortio_deployments_per_namespace}\n")
+        file.write("CL2_NODES: {}\n".format(node_count))
+        file.write("CL2_FORTIO_SERVERS_PER_NODE: {}\n".format(fortio_servers_per_node))
+        file.write("CL2_FORTIO_CLIENTS_PER_NODE: {}\n".format(fortio_clients_per_node))
+        file.write("CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {}\n".format(fortio_client_queries_per_second))
+        file.write("CL2_FORTIO_NAMESPACES: {}\n".format(fortio_namespaces))
+        file.write("CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {}\n".format(fortio_deployments_per_namespace))
         file.write("CL2_FORTIO_POD_CPU: 10\n")
         file.write("CL2_FORTIO_POD_MEMORY: 50\n")
 
         # other test toggles
         # creates Hubble DNS metrics
-        file.write("CL2_APPLY_FQDN_CNP: true\n")
+        file.write("CL2_APPLY_FQDN_CNP: {}\n".format(apply_fqdn_cnp))
 
         # prometheus scrape config
         file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
