@@ -3,6 +3,8 @@ parameters:
     type: string
   - name: regions
     type: object
+  - name: engine
+    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
