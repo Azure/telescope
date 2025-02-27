@@ -98,7 +98,6 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    test_type="default_config",
     deployment_recreation_count,
     cpu_per_node,
     node_count,
@@ -108,6 +107,7 @@ def collect_clusterloader2(
     fortio_namespaces,
     fortio_deployments_per_namespace,
     apply_fqdn_cnp
+    test_type="default_config",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
