@@ -38,4 +38,4 @@ steps:
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/network_load.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/results
-      displayName: "Collect Results"
+    displayName: "Collect Results"
