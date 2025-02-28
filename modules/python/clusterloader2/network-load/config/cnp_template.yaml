@@ -1,9 +1,7 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: allow-client-egress-to-dns-and-any-fqdn
-  # network-load-1 was used because that is the ns pods are deployed in & tried passing in namespace from load-config but had object mismatch error, revise in future to possibly pass in ns
-  namespace: network-load-1
+  name: {{.basename}}
 spec:
   endpointSelector:
     matchLabels:
