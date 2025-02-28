@@ -1,6 +1,9 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
 {{$Image := DefaultParam .Image "fortio/fortio"}}
+{{$FortioClientQueriesPerSecond := .FortioClientQueriesPerSecond}}
+{{$FortioClientConnections := .FortioClientConnections}}
+{{$FortioClientConnectionDuration := .FortioClientConnectionDuration}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -47,11 +50,11 @@ spec:
           [
             "load",
             "-c",
-            "160",
-            "-qps", #FIXME set qps and modify conntrack?
-            "0",
+            "{{$FortioClientConnections}}",
+            "-qps",
+            "{{$FortioClientQueriesPerSecond}}",
             "-t",
-            "0",
+            "{{$FortioClientConnectionDuration}}",
             "http://fortio-server-service-0:8080",
           ]
         ports:

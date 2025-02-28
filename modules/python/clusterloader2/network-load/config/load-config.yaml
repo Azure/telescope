@@ -18,6 +18,8 @@ name: load-config
 {{$fortioServersPerNode := DefaultParam .CL2_FORTIO_SERVERS_PER_NODE 10}}
 {{$fortioClientsPerNode := DefaultParam .CL2_FORTIO_CLIENTS_PER_NODE 10}}
 {{$fortioClientQueriesPerSecond := DefaultParam .CL2_FORTIO_CLIENT_QUERIES_PER_SECOND 1000}}
+{{$fortioClientConnections := DefaultParam .CL2_FORTIO_CLIENT_CONNECTIONS 10}}
+{{$fortioClientConnectionDuration := DefaultParam .CL2_FORTIO_CLIENT_CONNECTION_DURATION "5s"}}
 {{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
 {{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 {{$fortioPodCPU := DefaultParam .CL2_FORTIO_POD_CPU 10}}
@@ -107,6 +109,9 @@ steps:
         fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
         fortioServerReplicas: {{$fortioServerReplicas}}
         fortioClientReplicas: {{$fortioClientReplicas}}
+        fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+        fortioClientConnections: {{$fortioClientConnections}}
+        fortioClientConnectionDuration: {{$fortioClientConnectionDuration}}
         CpuRequest: {{$fortioPodCPU}}m
         MemoryRequest: {{$fortioPodMemory}}M
         deploymentLabel: start
@@ -131,6 +136,9 @@ steps:
         fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
         fortioServerReplicas: {{$fortioServerReplicas}}
         fortioClientReplicas: {{$fortioClientReplicas}}
+        fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+        fortioClientConnections: {{$fortioClientConnections}}
+        fortioClientConnectionDuration: {{$fortioClientConnectionDuration}}
         CpuRequest: {{$fortioPodCPU}}m
         MemoryRequest: {{$fortioPodMemory}}M
         deploymentLabel: start

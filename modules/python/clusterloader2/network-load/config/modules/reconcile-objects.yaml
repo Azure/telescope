@@ -9,6 +9,9 @@
 {{$fortioDeploymentsPerNamespace := .fortioDeploymentsPerNamespace}}
 {{$fortioServerReplicas := .fortioServerReplicas}}
 {{$fortioClientReplicas := .fortioClientReplicas}}
+{{$fortioClientQueriesPerSecond := .fortioClientQueriesPerSecond}}
+{{$fortioClientConnections := .fortioClientConnections}}
+{{$fortioClientConnectionDuration := .fortioClientConnectionDuration}}
 {{$CpuRequest := .CpuRequest}}
 {{$MemoryRequest := .MemoryRequest}}
 
@@ -59,6 +62,9 @@ steps:
           deploymentLabel: {{.deploymentLabel}}
           CpuRequest: {{$CpuRequest}}
           MemoryRequest: {{$MemoryRequest}}
+          FortioClientConnections: {{$fortioClientConnections}}
+          FortioClientConnectionDuration: {{$fortioClientConnectionDuration}}
+          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
