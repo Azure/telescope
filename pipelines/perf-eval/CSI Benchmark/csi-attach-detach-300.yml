@@ -1,7 +1,13 @@
 trigger: none
 schedules:
   - cron: "0 16 1-31/2 * *"
-    displayName: "Every Odd Day"
+    displayName: "4:00 PM Every Odd Day"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 16 1-31/2 * 4"
+    displayName: "4:00 PM on Thursdays"
     branches:
       include:
         - main
@@ -12,7 +18,12 @@ variables:
   SCENARIO_NAME: storage-attach-detach-300
 
 stages:
-  - stage: azure_westus
+  - stage: azure_westus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM Every Odd Day'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -35,6 +46,11 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: aws_westus
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
