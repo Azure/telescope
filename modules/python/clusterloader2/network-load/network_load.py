@@ -30,7 +30,6 @@ def configure_clusterloader2(
     fortio_clients_per_node,
     fortio_client_queries_per_second,
     fortio_client_connections,
-    fortio_client_connection_duration,
     fortio_namespaces,
     fortio_deployments_per_namespace,
     apply_fqdn_cnp):
@@ -64,7 +63,6 @@ def configure_clusterloader2(
         file.write(f"CL2_FORTIO_CLIENTS_PER_NODE: {fortio_clients_per_node}\n")
         file.write(f"CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {fortio_client_queries_per_second}\n")
         file.write(f"CL2_FORTIO_CLIENT_CONNECTIONS: {fortio_client_connections}\n")
-        file.write(f"CL2_FORTIO_CLIENT_CONNECTION_DURATION: {fortio_client_connection_duration}\n")
         file.write(f"CL2_FORTIO_NAMESPACES: {fortio_namespaces}\n")
         file.write(f"CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {fortio_deployments_per_namespace}\n")
         file.write("CL2_FORTIO_POD_CPU: 10\n")
@@ -107,7 +105,6 @@ def collect_clusterloader2(
     fortio_clients_per_node,
     fortio_client_queries_per_second,
     fortio_client_connections,
-    fortio_client_connection_duration,
     fortio_namespaces,
     fortio_deployments_per_namespace,
     apply_fqdn_cnp,
@@ -142,7 +139,6 @@ def collect_clusterloader2(
         "fortio_clients_per_node": fortio_clients_per_node,
         "fortio_client_queries_per_second": fortio_client_queries_per_second,
         "fortio_client_connections": fortio_client_connections,
-        "fortio_client_connection_duration": fortio_client_connection_duration,
         "fortio_namespaces": fortio_namespaces,
         "fortio_deployments_per_namespace": fortio_deployments_per_namespace,
         "apply_fqdn_cnp": apply_fqdn_cnp,
@@ -197,7 +193,6 @@ def main():
     parser_configure.add_argument("--fortio-clients-per-node", type=int, required=True, help="Number of Fortio clients per node")
     parser_configure.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client")
     parser_configure.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
-    parser_configure.add_argument("--fortio-client-connection-duration", type=str, required=True, help="Connection duration for each Fortio client")
     parser_configure.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_configure.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
     parser_configure.add_argument("--apply-fqdn-cnp", type=eval, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
@@ -226,7 +221,6 @@ def main():
     parser_collect.add_argument("--fortio-clients-per-node", type=int, required=True, help="Number of Fortio clients per node")
     parser_collect.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client")
     parser_collect.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
-    parser_collect.add_argument("--fortio-client-connection-duration", type=str, required=True, help="Connection duration for each Fortio client")
     parser_collect.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_collect.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
     parser_collect.add_argument("--apply-fqdn-cnp", type=eval, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
@@ -245,7 +239,6 @@ def main():
             args.fortio_clients_per_node,
             args.fortio_client_queries_per_second,
             args.fortio_client_connections,
-            args.fortio_client_connection_duration,
             args.fortio_namespaces,
             args.fortio_deployments_per_namespace,
             args.apply_fqdn_cnp
@@ -263,7 +256,6 @@ def main():
             args.fortio_clients_per_node,
             args.fortio_client_queries_per_second,
             args.fortio_client_connections,
-            args.fortio_client_connection_duration,
             args.fortio_namespaces,
             args.fortio_deployments_per_namespace,
             args.apply_fqdn_cnp

@@ -3,7 +3,6 @@
 {{$Image := DefaultParam .Image "fortio/fortio"}}
 {{$FortioClientQueriesPerSecond := .FortioClientQueriesPerSecond}}
 {{$FortioClientConnections := .FortioClientConnections}}
-{{$FortioClientConnectionDuration := .FortioClientConnectionDuration}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -49,15 +48,15 @@ spec:
         args:
           [
             "load",
+            "-nocatchup",
+            "-uniform",
             "-c",
             "{{$FortioClientConnections}}",
             "-qps",
             "{{$FortioClientQueriesPerSecond}}",
             "-t",
-            "{{$FortioClientConnectionDuration}}",
-            "http://fortio-server-service-0:8080",
-            "-nocatchup",
-            "-uniform"
+            "0",
+            "http://fortio-server-service-0:8080"
           ]
         ports:
           - containerPort: 8078 # tcp echo

@@ -11,7 +11,6 @@
 {{$fortioClientReplicas := .fortioClientReplicas}}
 {{$fortioClientQueriesPerSecond := .fortioClientQueriesPerSecond}}
 {{$fortioClientConnections := .fortioClientConnections}}
-{{$fortioClientConnectionDuration := .fortioClientConnectionDuration}}
 {{$CpuRequest := .CpuRequest}}
 {{$MemoryRequest := .MemoryRequest}}
 
@@ -63,7 +62,6 @@ steps:
           CpuRequest: {{$CpuRequest}}
           MemoryRequest: {{$MemoryRequest}}
           FortioClientConnections: {{$fortioClientConnections}}
-          FortioClientConnectionDuration: {{$fortioClientConnectionDuration}}
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
 
 - name: Waiting for '{{$actionName}}' to be completed

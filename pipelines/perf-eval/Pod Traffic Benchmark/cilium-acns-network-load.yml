@@ -41,7 +41,6 @@ stages:
               fortio_clients_per_node: 20
               fortio_client_queries_per_second: 1000
               fortio_client_connections: 2
-              fortio_client_connection_duration: "5s"
               fortio_namespaces: 5
               fortio_deployments_per_namespace: 2
               apply_fqdn_cnp: True

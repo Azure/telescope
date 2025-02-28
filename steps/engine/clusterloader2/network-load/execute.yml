@@ -23,7 +23,6 @@ steps:
         --fortio-clients-per-node $FORTIO_CLIENTS_PER_NODE \
         --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
         --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
-        --fortio-client-connection-duration $FORTIO_CLIENT_CONNECTION_DURATION \
         --fortio-namespaces $FORTIO_NAMESPACES \
         --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
         --apply-fqdn-cnp $APPLY_FQDN_CNP
