@@ -38,7 +38,7 @@ steps:
     replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-      - basename: fortio-server-deployment
+      - basename: fortio-server
         objectTemplatePath: fortio_server_deployment_template.yaml
         templateFillMap:
           Replicas: {{$fortioServerReplicas}}
@@ -53,7 +53,7 @@ steps:
     replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-      - basename: fortio-client-deployment
+      - basename: fortio-client
         objectTemplatePath: fortio_client_deployment_template.yaml
         templateFillMap:
           Replicas: {{$fortioClientReplicas}}
