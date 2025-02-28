@@ -248,7 +248,7 @@ def main():
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
         collect_clusterloader2(
-            args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.test_type,
+            args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file,
             args.deployment_recreation_count,
             args.cpu_per_node,
             args.node_count,
@@ -258,7 +258,8 @@ def main():
             args.fortio_client_connections,
             args.fortio_namespaces,
             args.fortio_deployments_per_namespace,
-            args.apply_fqdn_cnp
+            args.apply_fqdn_cnp,
+            test_type=args.test_type,
         )
 
 if __name__ == "__main__":
