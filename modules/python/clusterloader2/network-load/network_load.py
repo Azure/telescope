@@ -1,11 +1,9 @@
 import json
 import os
 import argparse
-import time
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
-from kubernetes_client import KubernetesClient
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -45,32 +43,32 @@ def configure_clusterloader2(
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
     cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
-    with open(override_file, 'w') as file:
+    with open(override_file, 'w', encoding='utf-8') as file:
         # generic config
         file.write("CL2_GROUP_NAME: cilium-acns-network-load\n")
-        file.write("CL2_OPERATION_TIMEOUT: {}\n".format(operation_timeout))
+        file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_API_SERVER_CALLS_PER_SECOND: 100\n")
 
         # repetition config
-        file.write("CL2_DEPLOYMENT_RECREATION_COUNT: {}\n".format(deployment_recreation_count))
+        file.write(f"CL2_DEPLOYMENT_RECREATION_COUNT: {deployment_recreation_count}\n")
 
         # scale logistics
-        # file.write("CL2_NODES_PER_STEP: {}\n".format(node_per_step))
+        # file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
         # topology config
-        file.write("CL2_NODES: {}\n".format(node_count))
-        file.write("CL2_FORTIO_SERVERS_PER_NODE: {}\n".format(fortio_servers_per_node))
-        file.write("CL2_FORTIO_CLIENTS_PER_NODE: {}\n".format(fortio_clients_per_node))
-        file.write("CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {}\n".format(fortio_client_queries_per_second))
-        file.write("CL2_FORTIO_NAMESPACES: {}\n".format(fortio_namespaces))
-        file.write("CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {}\n".format(fortio_deployments_per_namespace))
+        file.write(f"CL2_NODES: {node_count}\n")
+        file.write(f"CL2_FORTIO_SERVERS_PER_NODE: {fortio_servers_per_node}\n")
+        file.write(f"CL2_FORTIO_CLIENTS_PER_NODE: {fortio_clients_per_node}\n")
+        file.write(f"CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {fortio_client_queries_per_second}\n")
+        file.write(f"CL2_FORTIO_NAMESPACES: {fortio_namespaces}\n")
+        file.write(f"CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {fortio_deployments_per_namespace}\n")
         file.write("CL2_FORTIO_POD_CPU: 10\n")
         file.write("CL2_FORTIO_POD_MEMORY: 50\n")
 
         # other test toggles
         # creates Hubble DNS metrics
-        file.write("CL2_APPLY_FQDN_CNP: {}\n".format(apply_fqdn_cnp))
+        file.write(f"CL2_APPLY_FQDN_CNP: {apply_fqdn_cnp}\n")
 
         # prometheus scrape config
         file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -84,7 +82,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
 
-    with open(override_file, 'r') as file:
+    with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
@@ -144,7 +142,7 @@ def collect_clusterloader2(
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             print(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
@@ -172,7 +170,7 @@ def collect_clusterloader2(
                 content += json.dumps(result) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
+    with open(result_file, 'w', encoding='utf-8') as f:
         f.write(content)
 
 def main():
@@ -222,7 +220,7 @@ def main():
     parser_collect.add_argument("--apply-fqdn-cnp", type=eval, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
 
     args = parser.parse_args()
-    
+
     if args.command == "configure":
         configure_clusterloader2(
             args.cl2_override_file,
