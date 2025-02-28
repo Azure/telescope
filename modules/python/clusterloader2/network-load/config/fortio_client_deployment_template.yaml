@@ -48,7 +48,7 @@ spec:
             "load",
             "-c",
             "160",
-            "-qps",
+            "-qps", #FIXME set qps and modify conntrack?
             "0",
             "-t",
             "0",
@@ -74,7 +74,7 @@ spec:
         operator: "Exists"
         effect: "NoExecute"
         tolerationSeconds: 900
-      - key: "prometheus"
+      - key: "network-load"
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
