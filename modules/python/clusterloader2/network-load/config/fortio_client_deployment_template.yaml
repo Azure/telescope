@@ -56,6 +56,8 @@ spec:
             "-t",
             "{{$FortioClientConnectionDuration}}",
             "http://fortio-server-service-0:8080",
+            "-nocatchup",
+            "-uniform"
           ]
         ports:
           - containerPort: 8078 # tcp echo
