@@ -108,7 +108,7 @@ steps:
         fortioServerReplicas: {{$fortioServerReplicas}}
         fortioClientReplicas: {{$fortioClientReplicas}}
         CpuRequest: {{$fortioPodCPU}}m
-        MemoryRequest: {{$fortioPodMemory}}MB
+        MemoryRequest: {{$fortioPodMemory}}M
         deploymentLabel: start
 
 # FIXME sleep intervals
@@ -132,7 +132,7 @@ steps:
         fortioServerReplicas: {{$fortioServerReplicas}}
         fortioClientReplicas: {{$fortioClientReplicas}}
         CpuRequest: {{$fortioPodCPU}}m
-        MemoryRequest: {{$fortioPodMemory}}MB
+        MemoryRequest: {{$fortioPodMemory}}M
         deploymentLabel: start
 {{end}}
 
