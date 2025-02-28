@@ -42,8 +42,7 @@ name: load-config
 namespace:
   number: {{$fortioNamespaces}}
   prefix: network-load
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
+  deleteAutomanagedNamespaces: false
   enableExistingNamespaces: false
 
 tuningSets:
@@ -116,32 +115,32 @@ steps:
         MemoryRequest: {{$fortioPodMemory}}M
         deploymentLabel: start
 
-# FIXME sleep intervals
-  - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 7m
+# # FIXME sleep intervals
+#   - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
+#     measurements:
+#     - Identifier: Dummy
+#       Method: Sleep
+#       Params:
+#         action: start
+#         duration: 7m
 
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete"
-        tuningSet: DeploymentDeleteQps
-        operationTimeout: {{$operationTimeout}}
-        Group: {{$groupName}}
-        namespaces: {{$fortioNamespaces}}
-        fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
-        fortioServerReplicas: {{$fortioServerReplicas}}
-        fortioClientReplicas: {{$fortioClientReplicas}}
-        fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
-        fortioClientConnections: {{$fortioClientConnections}}
-        fortioClientConnectionDuration: {{$fortioClientConnectionDuration}}
-        CpuRequest: {{$fortioPodCPU}}m
-        MemoryRequest: {{$fortioPodMemory}}M
-        deploymentLabel: start
+#   - module:
+#       path: /modules/reconcile-objects.yaml
+#       params:
+#         actionName: "delete"
+#         tuningSet: DeploymentDeleteQps
+#         operationTimeout: {{$operationTimeout}}
+#         Group: {{$groupName}}
+#         namespaces: {{$fortioNamespaces}}
+#         fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
+#         fortioServerReplicas: {{$fortioServerReplicas}}
+#         fortioClientReplicas: {{$fortioClientReplicas}}
+#         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+#         fortioClientConnections: {{$fortioClientConnections}}
+#         fortioClientConnectionDuration: {{$fortioClientConnectionDuration}}
+#         CpuRequest: {{$fortioPodCPU}}m
+#         MemoryRequest: {{$fortioPodMemory}}M
+#         deploymentLabel: start
 {{end}}
 
 {{if $ciliumMetricsEnabled}}

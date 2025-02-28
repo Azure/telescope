@@ -34,7 +34,7 @@ stages:
             azure_cilium_acns:
               cl2_config_file: load-config.yaml
               scale_timeout: "15m"
-              deployment_recreation_count: 2
+              deployment_recreation_count: 0
               cpu_per_node: 4
               node_count: 10
               fortio_servers_per_node: 20
