@@ -21,15 +21,6 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
+        - key: node.kubernetes.io/instance-type
           operator: In
-          values: ["m"]
-        - key: karpenter.k8s.aws/instance-family
-          operator: In
-          values: ["m6i"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["5"]
-        - key: karpenter.k8s.aws/instance-cpu
-          operator: In
-          values: ["2"]
+          values: ["m6i.large"]
