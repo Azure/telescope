@@ -160,12 +160,12 @@ steps:
         unit: count
         queries:
         - name: Drop
-          query: count(hubble_drop_total[%v:])
+          query: count(hubble_drop_total)
         - name: TCPFlags
-          query: count(hubble_tcp_flags_total[%v:])
+          query: count(hubble_tcp_flags_total)
         - name: FlowsProcessed
-          query: count(hubble_flows_processed_total[%v:])
+          query: count(hubble_flows_processed_total)
         - name: DNSQueries
-          query: count(hubble_dns_queries_total[%v:])
+          query: count(hubble_dns_queries_total)
         - name: DNSResponses
-          query: count(hubble_dns_responses_total[%v:])
+          query: count(hubble_dns_responses_total)
