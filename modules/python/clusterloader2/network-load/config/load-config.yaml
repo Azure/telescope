@@ -5,8 +5,6 @@ name: load-config
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 {{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 100}}
 
-{{$apiServerQPS := DivideFloat 1 $apiServerCallsPerSecond}}
-
 # repetition config
 {{$deploymentRecreationCount := DefaultParam .CL2_DEPLOYMENT_RECREATION_COUNT 1}}
 
@@ -52,10 +50,10 @@ tuningSets:
       parallelismLimit: 1
   - name: DeploymentCreateQps
     qpsLoad:
-      qps: {{$apiServerQPS}}
+      qps: {{$apiServerCallsPerSecond}}
   - name: DeploymentDeleteQps
     qpsLoad:
-      qps: {{$apiServerQPS}}
+      qps: {{$apiServerCallsPerSecond}}
 
 steps:
   - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
