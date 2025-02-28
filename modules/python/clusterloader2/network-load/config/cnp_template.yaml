@@ -21,3 +21,7 @@ spec:
               - matchPattern: "*"
     - toFQDNs:
       - matchPattern: "*"
+    - toEndpoints:
+      - matchLabels:
+          app: fortio
+          role: server

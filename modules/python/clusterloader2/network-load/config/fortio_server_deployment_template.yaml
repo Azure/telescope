@@ -33,7 +33,7 @@ spec:
         app: fortio
         role: server
 {{if .SvcName}}
-        svc: {{.SvcName}}-{{.Index}}
+        svc: {{.SvcName}}-0
 {{end}}
         restart: {{.deploymentLabel}}
     spec:
