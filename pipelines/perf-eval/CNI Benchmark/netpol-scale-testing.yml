@@ -17,7 +17,7 @@ stages:
             - $(LOCATION)
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest"
           topology: cilium-usercluster
           matrix:
             azure_cilium:
