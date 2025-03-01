@@ -3,7 +3,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-acns-network-load
+  SCENARIO_NAME: cnp-ccnp-feature
   OWNER: aks
 
 stages:
