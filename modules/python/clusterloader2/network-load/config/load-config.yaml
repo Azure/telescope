@@ -113,14 +113,14 @@ steps:
         MemoryRequest: {{$fortioPodMemory}}M
         deploymentLabel: start
 
-# # FIXME sleep intervals
-#   - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
-#     measurements:
-#     - Identifier: Dummy
-#       Method: Sleep
-#       Params:
-#         action: start
-#         duration: 7m
+# FIXME sleep intervals
+  - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1m30s
 
 #   - module:
 #       path: /modules/reconcile-objects.yaml
