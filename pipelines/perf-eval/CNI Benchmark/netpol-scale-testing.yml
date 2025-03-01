@@ -3,7 +3,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: netpol-scale-test
+  SCENARIO_NAME: cilium-acns-network-load
   OWNER: aks
 
 stages:
