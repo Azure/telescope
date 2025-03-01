@@ -30,7 +30,7 @@ steps:
       operationTimeout: {{$operationTimeout}}
       apiVersion: apps/v1
 
-- name: {{$actionName}}
+- name: '{{$actionName}} servers'
   phases:
   - namespaceRange:
       min: 1
@@ -47,6 +47,19 @@ steps:
           deploymentLabel: {{.deploymentLabel}}
           CpuRequest: {{$CpuRequest}}
           MemoryRequest: {{$MemoryRequest}}
+
+- name: Waiting for '{{$actionName}} servers' to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+      refreshInterval: 15s
+
+# Create clients after the servers have been created because we want all servers to be backend pods for their service
+- name: '{{$actionName}} clients'
+  phases:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
@@ -64,7 +77,7 @@ steps:
           FortioClientConnections: {{$fortioClientConnections}}
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
 
-- name: Waiting for '{{$actionName}}' to be completed
+- name: Waiting for '{{$actionName}} clients' to be completed
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
