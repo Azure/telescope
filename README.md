@@ -5,6 +5,7 @@
 Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies on Azure, AWS and GCP.
 
 The current supported Kubernetes test scenarios are:
+
 1. [API Server Benchmark](pipelines/perf-eval/API%20Server%20Benchmark)
 2. [Autoscale Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
 3. [Container Networking Benchmark](pipelines/perf-eval/CNI%20Benchmark)
@@ -13,11 +14,13 @@ The current supported Kubernetes test scenarios are:
 6. KubeRay Benchmark (incoming)
 
 The current integrated test tools are:
+
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
 2. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
 3. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
 
 ## Design
+
 ![design](./docs/imgs/design.jpeg)
 As the achitecture diagram above shows, Telescope streamlines the evaluation process through five key steps:
 
@@ -34,6 +37,7 @@ Telescope offers three primary reusable components:
 3. **Data Analytics** including Blob Storage, Event Hub, and Data Explorer for continuous monitoring.
 
 ## Setup
+
 [Read more](modules/terraform/setup/README.md)
 
 ## Contributing
