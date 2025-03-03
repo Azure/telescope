@@ -19,7 +19,7 @@ stages:
           engine_input:
             image: "ghcr.io/sanamsarath/clusterloader2:vtest"
           topology: netpol-scale
-          role: $(ROLE)
+          role: $(role)
           matrix:
             azure_cilium:
               number_of_groups: $(GROUPS)
