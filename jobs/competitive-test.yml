@@ -48,6 +48,8 @@ parameters:
 - name: ssh_key_enabled
   type: boolean
   default: true
+- name: rg
+  type: string
 
 jobs:
 - job: ${{ parameters.cloud }}
@@ -61,7 +63,7 @@ jobs:
     parameters:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
-      run_id: ${{ parameters.run_id }}
+      run_id: ${{ parameters.rg }}
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
