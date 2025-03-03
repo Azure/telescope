@@ -153,7 +153,7 @@ variable "aks_config_list" {
       node_count                   = number
       vm_size                      = string
       os_sku                       = optional(string)
-      os_disk_type                 = optional(string)
+      os_disk_type                 = optional(string, "Ephemeral")
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
@@ -168,7 +168,7 @@ variable "aks_config_list" {
       node_count           = number
       vm_size              = string
       os_sku               = optional(string)
-      os_disk_type         = optional(string)
+      os_disk_type         = optional(string, "Ephemeral")
       max_pods             = optional(number)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])
