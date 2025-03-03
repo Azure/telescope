@@ -110,7 +110,7 @@ steps:
         Group: {{$groupName}}
         ccnps: {{$CCNPS}}
 {{end}}
-        
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:

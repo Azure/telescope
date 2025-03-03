@@ -31,10 +31,6 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
-        name  = "network-dataplane"
-        value = "cilium"
-      },
-      {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       }

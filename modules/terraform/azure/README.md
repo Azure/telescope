@@ -67,6 +67,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   --arg aks_network_policy "$NETWORK_POLICY" \
   --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
   --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
+  --arg k8s_os_disk_type "$K8S_OS_DISK_TYPE" \
   --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
   --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
   '{
@@ -77,6 +78,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
     aks_network_policy: $aks_network_policy,
     aks_network_dataplane: $aks_network_dataplane,
     k8s_machine_type: $k8s_machine_type,
+    k8s_os_disk_type: $k8s_os_disk_type,
     aks_cli_system_node_pool: $aks_cli_system_node_pool,
     aks_cli_user_node_pool: $aks_cli_user_node_pool
   }' | jq 'with_entries(select(.value != null and .value != ""))')

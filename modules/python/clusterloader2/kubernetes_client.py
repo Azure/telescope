@@ -49,7 +49,7 @@ class KubernetesClient:
     def _is_node_schedulable(self, node):
         status_conditions = {cond.type: cond.status for cond in node.status.conditions}
         is_schedulable = (
-            status_conditions.get("Ready") == "True" 
+            status_conditions.get("Ready") == "True"
             and status_conditions.get("NetworkUnavailable") != "True"
             and node.spec.unschedulable is not True
         )
@@ -110,8 +110,7 @@ class KubernetesClient:
             if e.status == 404:
                 body = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
                 return self.api.create_namespace(body)
-            else:
-                raise e
-    
+            raise e
+
     def delete_namespace(self, namespace):
         return self.api.delete_namespace(namespace)

@@ -6,8 +6,8 @@ schedules:
       include:
         - main
     always: true
-  - cron: "0 6 * * *"
-    displayName: "6:00 AM Daily"
+  - cron: "0 6 * * 2"
+    displayName: "6:00 AM on Tuesdays"
     branches:
       include:
         - main
@@ -21,7 +21,7 @@ stages:
   - stage: aws_eastus1
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM Daily'),
+        eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM on Tuesdays'),
         and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
       )
     dependsOn: []
@@ -40,7 +40,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 1000
-              max_pods: 110
+              max_pods: 20
               repeats: 10
               scale_timeout: "15m"
               cilium_enabled: False
@@ -72,7 +72,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 1000
-              max_pods: 110
+              max_pods: 20
               repeats: 10
               scale_timeout: "15m"
               cilium_enabled: False
@@ -82,7 +82,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 1000
-              max_pods: 110
+              max_pods: 20
               repeats: 10
               scale_timeout: "15m"
               cilium_enabled: True

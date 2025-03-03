@@ -1,7 +1,13 @@
 trigger: none
 schedules:
   - cron: "0 20 1-31/2 * *"
-    displayName: "Every Odd Day"
+    displayName: "8:00 PM Every Odd Day"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 20 * * 3"
+    displayName: "8:00 PM on Wednesdays"
     branches:
       include:
         - main
@@ -13,6 +19,11 @@ variables:
 
 stages:
   - stage: azure_eastus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM Every Odd Day'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -35,6 +46,11 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: aws_eastus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM on Wednesdays'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
