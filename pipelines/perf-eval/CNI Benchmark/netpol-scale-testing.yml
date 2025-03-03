@@ -21,13 +21,13 @@ stages:
           topology: netpol-scale
           matrix:
             azure_cilium:
-              number_of_groups: $(Groups)
-              number_of_servers_per_group: $(ServersPerGroup)
-              number_of_clients_per_group: $(ClientsPerGroup)
-              number_of_workers_per_client: $(WorkersPerClient)
-              network_policy_type: $(NetworkPolicyType)
-              cilium_enabled: $(CiliumEnabled)
-              cilium_envoy_enabled: $(CiliumEnvoyEnabled)
+              number_of_groups: $(GROUPS)
+              number_of_servers_per_group: $(SERVERS_PER_GROUP)
+              number_of_clients_per_group: $(CLIENTS_PER_GROUP)
+              number_of_workers_per_client: $(WORKERS_PER_CLIENT)
+              network_policy_type: $(NETWORKPOLICY_TYPE)
+              cilium_enabled: $(CILIUM_ENABLED)
+              cilium_envoy_enabled: $(CILIUM_ENVOY_ENABLED)
               target_port: 8080
               cl2_config_file: net-scale-config.yaml
           max_parallel: 2
