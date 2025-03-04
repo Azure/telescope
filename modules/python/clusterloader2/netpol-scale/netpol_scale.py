@@ -61,7 +61,7 @@ def configure_clusterloader2(
         file.write("CL2_NUMBER_OF_WORKERS_PER_CLIENT: {}\n".format(workers_per_client))
         file.write("CL2_NUMBER_OF_GROUPS: {}\n".format(number_of_groups))
         file.write("CL2_NETWORK_POLICY_TYPE: {}\n".format(netpol_type))
-        file.write("CL2_TARGET_PORT: {}\n".format(test_duration))
+        file.write("CL2_DURATION: {}\n".format(test_duration))
 
     with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
