@@ -37,31 +37,34 @@ def configure_clusterloader2(
 
     with open(override_file, 'w', encoding='utf-8') as file:
         # prometheus server config
+        file.write("# Prometheus server config\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
 
         if cilium_enabled:
+            file.write("# Cilium config\n")
             file.write("CL2_CILIUM_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
         if cilium_envoy_enabled:
+            file.write("# Cilium Envoy config\n")
             file.write("CL2_CILIUM_ENVOY_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_ENVOY: true\n")
         
         # test config
         # add "s" at the end of test_duration_secs
+        file.write("# Test config\n")
         test_duration = str(test_duration_secs) + "s"
         file.write("CL2_DURATION: {}\n".format(test_duration))
         file.write("CL2_NUMBER_OF_CLIENTS_PER_GROUP: {}\n".format(clients_per_group))
         file.write("CL2_NUMBER_OF_SERVERS_PER_GROUP: {}\n".format(servers_per_group))
-        file.write("CL2_NUMBER_OF_WORKERS_PER_CLIENT: {}\n".format(workers_per_client))
+        file.write("CL2_WORKERS_PER_CLIENT: {}\n".format(workers_per_client))
         file.write("CL2_NUMBER_OF_GROUPS: {}\n".format(number_of_groups))
         file.write("CL2_NETWORK_POLICY_TYPE: {}\n".format(netpol_type))
-        file.write("CL2_DURATION: {}\n".format(test_duration))
 
     with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -174,20 +177,20 @@ def main():
     parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
 
-    # Sub-command for configure_clusterloader2
+    # Updated sub-command for configure_clusterloader2 with flag arguments
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
-    parser_configure.add_argument("number_of_groups", type=int, help="Number of groups")
-    parser_configure.add_argument("clients_per_group", type=int, help="Number of client pods per group")
-    parser_configure.add_argument("servers_per_group", type=int, help="Number of server pods per group")
-    parser_configure.add_argument("workers_per_client", type=int, help="Number of workers per client")
-    parser_configure.add_argument("netpol_type", type=str, help="Type of network policy")
-    parser_configure.add_argument("test_duration_secs", type=int, help="Test duration in seconds")
-    parser_configure.add_argument("provider", type=str, help="Cloud provider name")
-    parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
+    parser_configure.add_argument("--number_of_groups", type=int, required=True, help="Number of groups")
+    parser_configure.add_argument("--clients_per_group", type=int, required=True, help="Number of client pods per group")
+    parser_configure.add_argument("--servers_per_group", type=int, required=True, help="Number of server pods per group")
+    parser_configure.add_argument("--workers_per_client", type=int, required=True, help="Number of workers per client")
+    parser_configure.add_argument("--netpol_type", type=str, required=True, help="Type of network policy")
+    parser_configure.add_argument("--test_duration_secs", type=int, required=True, help="Test duration in seconds")
+    parser_configure.add_argument("--provider", type=str, required=True, help="Cloud provider name")
+    parser_configure.add_argument("--cilium_enabled", type=eval, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
-    parser_configure.add_argument("cilium_envoy_enabled", type=eval, choices=[True, False], default=False,
+    parser_configure.add_argument("--cilium_envoy_enabled", type=eval, choices=[True, False], default=False,
                                   help="Whether cilium envoy is enabled. Must be either True or False")
-    parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_configure.add_argument("--cl2_override_file", type=str, required=True, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -229,6 +232,9 @@ def main():
     parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
 
     args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        exit(0)
 
     if args.command == "configure":
         configure_clusterloader2(args.number_of_groups, args.clients_per_group, 
