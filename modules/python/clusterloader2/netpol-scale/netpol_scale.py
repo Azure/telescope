@@ -196,29 +196,16 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
-    parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
-    parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
-    parser_collect.add_argument("run_id", type=str, help="Run ID")
-    parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")
-    parser_collect.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cnp test is running. Must be either True or False")
-    parser_collect.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
-                                  help="Whether ccnp test is running. Must be either True or False")
-    parser_collect.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-    parser_collect.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
-    parser_collect.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cluster is dualstack. Must be either True or False")
-    parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
+    parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("--max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
+    parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
+    parser_collect.add_argument("--run_id", type=str, help="Run ID")
+    parser_collect.add_argument("--run_url", type=str, help="Run URL")
+    parser_collect.add_argument("--result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("--test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
-    parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
-
+    
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
@@ -236,10 +223,8 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps,
-                               args.dualstack, args.result_file, args.test_type, args.start_timestamp)
+        collect_clusterloader2(args.node_count, args.max_pods, args.cl2_report_dir, args.cloud_info, 
+                               args.run_id, args.run_url, args.result_file, args.test_type)
 
 if __name__ == "__main__":
     main()
