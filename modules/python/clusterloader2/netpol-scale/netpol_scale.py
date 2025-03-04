@@ -90,23 +90,14 @@ def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True)
 
 def collect_clusterloader2(
-    cpu_per_node,
     node_count,
     max_pods,
-    repeats,
     cl2_report_dir,
     cloud_info,
     run_id,
     run_url,
-    service_test,
-    cnp_test,
-    ccnp_test,
-    num_cnps,
-    num_ccnps,
-    dualstack,
     result_file,
     test_type,
-    start_timestamp,
 ): # pylint: disable=unused-argument
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -118,16 +109,14 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    pods_per_node = 110
+    pods_per_node = max_pods
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        "cpu_per_node": cpu_per_node,
         "node_count": node_count,
         "pod_count": pod_count,
-        "churn_rate": repeats,
         "status": status,
         "group": None,
         "measurement": None,
@@ -137,7 +126,6 @@ def collect_clusterloader2(
         "run_id": run_id,
         "run_url": run_url,
         "test_type": test_type,
-        "start_timestamp": start_timestamp,
     }
     content = ""
     for f in os.listdir(cl2_report_dir):

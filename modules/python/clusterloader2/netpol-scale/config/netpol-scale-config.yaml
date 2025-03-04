@@ -2,7 +2,7 @@ name: netpol-scale-test
 
 # cluster config
 {{$CILIUM_ENABLED := DefaultParam .CL2_CILIUM_ENABLED false}}
-{{$CILIUM_ENVOY_ENABLED := DefaultParm .CL2_CILIUM_ENVOY_ENABLED false}}
+{{$CILIUM_ENVOY_ENABLED := DefaultParam .CL2_CILIUM_ENVOY_ENABLED false}}
 
 # test setup config
 {{$NUMBER_OF_SERVERS_PER_Group := DefaultParam .CL2_NUMBER_OF_SERVERS_PER_GROUP 2}}
