@@ -22,6 +22,7 @@ steps:
       # configure
       echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --number_of_groups $GROUPS --clients_per_group $CLIENTS_PER_GROUP --servers_per_group $SERVERS_PER_GROUP --workers_per_client $WORKERS_PER_CLIENT --netpol_type $NETWORKPOLICY_TYPE --test_duration_secs $TEST_RUN_DURATION_SECS --provider $CLOUD --cilium_enabled $CILIUM_ENABLED --cilium_envoy_enabled $CLILIUM_ENVOY_ENABLED --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml"
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml \
         --number_of_groups $GROUPS \
         --clients_per_group $CLIENTS_PER_GROUP \
         --servers_per_group $SERVERS_PER_GROUP \
@@ -30,8 +31,7 @@ steps:
         --test_duration_secs $TEST_RUN_DURATION_SECS \
         --provider $CLOUD \
         --cilium_enabled $CILIUM_ENABLED \
-        --cilium_envoy_enabled $CLILIUM_ENVOY_ENABLED \
-        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
+        --cilium_envoy_enabled $CLILIUM_ENVOY_ENABLED 
 
       # execute
       echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute --cl2_image ${CL2_IMAGE} --cl2_config_dir ${CL2_CONFIG_DIR} --cl2_report_dir $CL2_REPORT_DIR --cl2_config_file $CL2_CONFIG_FILE --kubeconfig ${HOME}/.kube/config --provider $CLOUD"
