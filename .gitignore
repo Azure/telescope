@@ -10,6 +10,8 @@ Repository Bloat Risks
 *.gz
 bin/
 debug/
+venv/
+.gitignore
 
 # *.pfx
 *.[Pp][Ff][Xx]
