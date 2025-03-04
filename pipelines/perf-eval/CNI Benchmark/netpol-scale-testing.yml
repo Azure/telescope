@@ -26,6 +26,7 @@ stages:
               number_of_clients_per_group: $(CLIENTS_PER_GROUP)
               number_of_workers_per_client: $(WORKERS_PER_CLIENT)
               network_policy_type: $(NETWORKPOLICY_TYPE)
+              test_run_duration_secs: $(TEST_RUN_DURATION_SECS)
               cilium_enabled: $(CILIUM_ENABLED)
               cilium_envoy_enabled: $(CILIUM_ENVOY_ENABLED)
               target_port: 8080

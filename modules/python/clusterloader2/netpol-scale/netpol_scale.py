@@ -27,7 +27,7 @@ def configure_clusterloader2(
     number_of_groups,
     clients_per_group,
     servers_per_group,
-    worker_per_client,
+    workers_per_client,
     netpol_type,
     test_duration_secs,
     provider,
@@ -58,7 +58,7 @@ def configure_clusterloader2(
         file.write("CL2_DURATION: {}\n".format(test_duration))
         file.write("CL2_NUMBER_OF_CLIENTS_PER_GROUP: {}\n".format(clients_per_group))
         file.write("CL2_NUMBER_OF_SERVERS_PER_GROUP: {}\n".format(servers_per_group))
-        file.write("CL2_NUMBER_OF_WORKERS_PER_CLIENT: {}\n".format(worker_per_client))
+        file.write("CL2_NUMBER_OF_WORKERS_PER_CLIENT: {}\n".format(workers_per_client))
         file.write("CL2_NUMBER_OF_GROUPS: {}\n".format(number_of_groups))
         file.write("CL2_NETWORK_POLICY_TYPE: {}\n".format(netpol_type))
         file.write("CL2_TARGET_PORT: {}\n".format(test_duration))
@@ -115,7 +115,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
+    pods_per_node = 110
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -179,7 +179,7 @@ def main():
     parser_configure.add_argument("number_of_groups", type=int, help="Number of groups")
     parser_configure.add_argument("clients_per_group", type=int, help="Number of client pods per group")
     parser_configure.add_argument("servers_per_group", type=int, help="Number of server pods per group")
-    parser_configure.add_argument("worker_per_client", type=int, help="Number of workers per client")
+    parser_configure.add_argument("workers_per_client", type=int, help="Number of workers per client")
     parser_configure.add_argument("netpol_type", type=str, help="Type of network policy")
     parser_configure.add_argument("test_duration_secs", type=int, help="Test duration in seconds")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
@@ -232,7 +232,7 @@ def main():
 
     if args.command == "configure":
         configure_clusterloader2(args.number_of_groups, args.clients_per_group, 
-                                 args.servers_per_group, args.worker_per_client, 
+                                 args.servers_per_group, args.workers_per_client, 
                                  args.netpol_type, args.test_duration_secs,
                                  args.provider, args.cilium_enabled,
                                  args.cilium_envoy_enabled, args.cl2_override_file)                                
