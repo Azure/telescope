@@ -17,8 +17,8 @@ steps:
     
     # print the collect command
     echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      --node_count 7 \
-      --max_pods 110 \
+      --node_count "7" \
+      --max_pods "110" \
       --cl2_report_dir $CL2_REPORT_DIR \ 
       --cloud_info "$CLOUD_INFO" \
       --run_id $RUN_ID \
@@ -26,8 +26,8 @@ steps:
       --result_file $TEST_RESULTS_FILE \
       --test_type $NETWORKPOLICY_TYPE"
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      --node_count 7 \
-      --max_pods 110 \
+      --node_count "7" \
+      --max_pods "110" \
       --cl2_report_dir $CL2_REPORT_DIR \ 
       --cloud_info "$CLOUD_INFO" \
       --run_id $RUN_ID \
@@ -39,5 +39,5 @@ steps:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/netpol_scale.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/results
   displayName: "Collect Results"
