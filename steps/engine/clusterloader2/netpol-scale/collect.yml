@@ -17,7 +17,7 @@ steps:
     
     # print the collect command
     echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      --node_count $NODE_COUNT \
+      --node_count 7 \
       --max_pods 110 \
       --cl2_report_dir $CL2_REPORT_DIR \ 
       --cloud_info "$CLOUD_INFO" \
@@ -38,6 +38,6 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/collect.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/netpol_scale.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
   displayName: "Collect Results"
