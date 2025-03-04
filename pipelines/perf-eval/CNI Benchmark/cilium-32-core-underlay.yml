@@ -28,7 +28,7 @@ parameters:
   #   default: 10
   # - name: total_nework_policies
   #   type: number
-  #   default: 4800
+  #   default: 0
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -37,7 +37,7 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: 32_core_underlay
+  - stage: azure_canada_central_32_core_underlay
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -70,7 +70,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_canada_central_
+  - stage: azure_canada_central_default_underlay
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
