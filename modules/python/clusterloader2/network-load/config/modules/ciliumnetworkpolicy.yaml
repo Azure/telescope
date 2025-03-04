@@ -1,0 +1,18 @@
+## CNP module provides a module for creating / deleting CNPs.
+
+## Input params
+{{$actionName := .actionName}}
+{{$namespaces := .namespaces}}
+{{$Group := .Group}}
+
+steps:
+- name: "{{$actionName}} k8s CNPs"
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 1
+    tuningSet: Sequence
+    objectBundle:
+    - basename: cnp-allow-client-egress-to-dns-and-any-fqdn
+      objectTemplatePath: cnp_template.yaml
