@@ -35,7 +35,7 @@ aks_cli_config_list = [
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
-        name = "enable-addons"
+        name  = "enable-addons"
         value = "azure-policy"
       }
     ]
