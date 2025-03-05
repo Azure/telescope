@@ -38,8 +38,8 @@ stages:
               network_policy: cilium
               network_dataplane: cilium
               service_test: False
-              cnp_test: False
-              ccnp_test: False
+              cnp_test: $(CNP)
+              ccnp_test: $(CCNP)
               num_cnps: 0
               num_ccnps: 0
               dualstack: $(DUAL)
