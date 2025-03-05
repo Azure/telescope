@@ -4,6 +4,7 @@ variable "json_input" {
     run_id           = string
     region           = string
     creation_time    = string
+    user_data_path   = optional(string, "")
     k8s_machine_type = optional(string, null)
   })
 
