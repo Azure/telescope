@@ -16,10 +16,10 @@ steps:
     region=${{ parameters.region }}
 
     aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].name" --output tsv)
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE' && name == '${CLUSTER_NAME}')].name" --output tsv)
 
     aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].resourceGroup" --output tsv)
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE' && name == '${CLUSTER_NAME}')].resourceGroup" --output tsv)
 
     if [ -z "$aks_name" ]; then
         echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $region."
@@ -55,4 +55,5 @@ steps:
     done
   env:
     ROLE: ${{ parameters.role }}
+    CLUSTER_NAME: $(CLUSTER_NAME)
   displayName: "Scale Cluster"
