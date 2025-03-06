@@ -63,6 +63,10 @@ steps:
       path: /kubelet-measurement.yaml
       params:
         action: start
+  - module:
+      path: /containerd-measurement.yaml
+      params:
+        action: start
   {{end}}
 
   {{range $j := Loop $steps}}
@@ -106,7 +110,7 @@ steps:
       - Identifier: Sleep
         Method: Sleep
         Params:
-          duration: 1m
+          duration: 5m
 
   - name: Wait for nodes to be ready
     measurements:
@@ -129,6 +133,10 @@ steps:
   {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
+      params:
+        action: gather
+  - module:
+      path: /containerd-measurement.yaml
       params:
         action: gather
   {{end}}
