@@ -182,7 +182,7 @@ resource "aws_launch_template" "launch_template" {
     tags          = var.tags
   }
 
-  user_data = var.user_data_path != "" ? filebase64("${var.user_data_path}/userdata.sh") : null
+  user_data = var.user_data_path != "" ? filebase64("${var.user_data_path}/${local.role}-userdata.sh") : null
 
   tags = var.tags
 }
