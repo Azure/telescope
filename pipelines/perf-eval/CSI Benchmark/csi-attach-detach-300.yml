@@ -6,7 +6,7 @@ schedules:
       include:
         - main
     always: true
-  - cron: "0 16 1-31/2 * 4"
+  - cron: "0 16 * * 4"
     displayName: "4:00 PM on Thursdays"
     branches:
       include:
