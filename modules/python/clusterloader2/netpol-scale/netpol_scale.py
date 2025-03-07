@@ -1,4 +1,5 @@
 import json
+import sys
 import os
 import argparse
 import time
@@ -23,7 +24,6 @@ def configure_clusterloader2(
     workers_per_client,
     netpol_type,
     test_duration_secs,
-    provider,
     cilium_enabled,
     cilium_envoy_enabled,
     override_file,
@@ -53,7 +53,7 @@ def configure_clusterloader2(
         # add "s" at the end of test_duration_secs
         file.write("# Test config\n")
         test_duration = str(test_duration_secs) + "s"
-                # Test config
+        # Test config
         # add "s" at the end of test_duration_secs
         file.write("# Test config\n")
         test_duration = f"{test_duration_secs}s"
@@ -292,7 +292,7 @@ def main():
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
-        exit(0)
+        sys.exit(0)
 
     if args.command == "configure":
         configure_clusterloader2(
@@ -302,7 +302,6 @@ def main():
             args.workers_per_client,
             args.netpol_type,
             args.test_duration_secs,
-            args.provider,
             args.cilium_enabled,
             args.cilium_envoy_enabled,
             args.cl2_override_file,
