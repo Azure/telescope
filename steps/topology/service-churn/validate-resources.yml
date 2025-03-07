@@ -9,7 +9,7 @@ parameters:
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
-      role: slo
+      role: client
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
