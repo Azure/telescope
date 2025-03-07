@@ -28,6 +28,7 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+{{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
@@ -83,6 +84,13 @@ steps:
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
+
+{{if $SCRAPE_CONTAINERD}}
+  - module:
+      path: /modules/containerd-measurements.yaml
       params:
         action: start
 {{end}}
@@ -213,6 +221,13 @@ steps:
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+{{if $SCRAPE_CONTAINERD}}
+  - module:
+      path: /modules/containerd-measurements.yaml
       params:
         action: gather
 {{end}}
