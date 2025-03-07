@@ -1,0 +1,36 @@
+trigger: none
+# TODO: Add scheduled pipeline run later
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: netpol-scale
+  OWNER: aks
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest"
+          topology: netpol-scale
+          matrix:
+            azure_cilium:
+              # number_of_groups: $(GROUPS)
+              # number_of_servers_per_group: $(SERVERS_PER_GROUP)
+              # number_of_clients_per_group: $(CLIENTS_PER_GROUP)
+              # number_of_workers_per_client: $(WORKERS_PER_CLIENT)
+              # network_policy_type: $(NETWORKPOLICY_TYPE)
+              # test_run_duration_secs: $(TEST_RUN_DURATION_SECS)
+              # cilium_enabled: $(CILIUM_ENABLED)
+              # cilium_envoy_enabled: $(CILIUM_ENVOY_ENABLED)
+              cl2_config_file: netpol-scale-config.yaml
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

@@ -1,0 +1,182 @@
+{{$action := .action}} # start, gather
+
+steps:
+  - name: {{$action}} Additional Measurements
+    measurements:
+    - Identifier: CESQueueingDelay
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CES Queue Delay
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_operator_ces_queueing_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_operator_ces_queueing_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_operator_ces_queueing_delay_seconds_bucket[%v:])) by (le))
+    - Identifier: CiliumEndpointPropagationDelay
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Propagation Delay
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_propagation_delay_seconds_bucket[%v:])) by (le))
+    - Identifier: CiliumServiceImplementationDelay
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Service Implementation Delay
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_service_implementation_delay_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_service_implementation_delay_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_service_implementation_delay_bucket[%v:])) by (le))
+    - Identifier: CiliumPolicyImplementationDelay
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Policy Implementation Delay
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_policy_implementation_delay_bucket[%v:])) by (le))
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_policy_implementation_delay_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_policy_implementation_delay_bucket[%v:])) by (le))
+    - Identifier: CiliumAvgCPUUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Average CPU Usage
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+    - Identifier: CiliumMaxCPUUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Max CPU Usage
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+    - Identifier: CiliumAvgMemUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Avg Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, avg_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumMaxMemUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Max Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumOperatorAvgCPUUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Operator Avg CPU Usage
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+    - Identifier: CiliumOperatorMaxCPUUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Operator Max CPU Usage
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+    - Identifier: CiliumOperatorMaxMemUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Operator Max Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumOperatorAvgMemUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Operator Avg Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+
