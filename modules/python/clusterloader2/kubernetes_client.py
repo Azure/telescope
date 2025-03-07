@@ -47,12 +47,14 @@ class KubernetesClient:
         ]
 
     def _is_node_schedulable(self, node):
-        status_conditions = {cond.type: cond.status for cond in node.status.conditions}
-        is_schedulable = (
-            status_conditions.get("Ready") == "True" 
-            and status_conditions.get("NetworkUnavailable") != "True"
-            and node.spec.unschedulable is not True
-        )
+        is_schedulable = False
+        if node and node.status and node.status.conditions:
+            status_conditions = {cond.type: cond.status for cond in node.status.conditions}
+            is_schedulable = (
+                status_conditions.get("Ready") == "True" 
+                and status_conditions.get("NetworkUnavailable") != "True"
+                and node.spec.unschedulable is not True
+            )
         if not is_schedulable:
             print(f"Node NOT Ready: '{node.metadata.name}' is not schedulable. status_conditions: {status_conditions}. unschedulable: {node.spec.unschedulable}")
 
