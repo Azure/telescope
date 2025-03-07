@@ -7,6 +7,13 @@ schedules:
         - main
     always: true
 
+  - cron: "0 18 * * 2,4,6"
+    displayName: "6:00 PM on Tuesday, Thursday, and Saturday"
+    branches:
+      include:
+        - main
+    always: true
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-c2n200p200
