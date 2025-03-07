@@ -44,6 +44,7 @@ stages:
               repeats: 2
               scale_timeout: "15m"
               cilium_enabled: False
+              scrape_containerd: True
               service_test: True
               cl2_config_file: load-config.yaml
           max_parallel: 1
@@ -76,6 +77,7 @@ stages:
               repeats: 2
               scale_timeout: "15m"
               cilium_enabled: False
+              scrape_containerd: True
               service_test: True
               cl2_config_file: load-config.yaml
             azure_cilium:
@@ -88,6 +90,7 @@ stages:
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
+              scrape_containerd: True
               service_test: True
               cl2_config_file: load-config.yaml
           max_parallel: 2

@@ -38,7 +38,7 @@ aks_config_list = [
       name                         = "default"
       node_count                   = 5
       auto_scaling_enabled         = false
-      vm_size                      = "Standard_D8_v3"
+      vm_size                      = "Standard_D8ds_v4"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = false
       temporary_name_for_rotation  = "defaulttmp"
@@ -48,33 +48,33 @@ aks_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D64_v3"
+        vm_size              = "Standard_D64ds_v4"
         max_pods             = 110
         node_labels          = { "prometheus" = "true" }
       },
       {
         name                 = "userpool0"
-        node_count           = 300
+        node_count           = 30
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4ds_v4"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
       },
       {
         name                 = "userpool1"
-        node_count           = 300
+        node_count           = 30
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4ds_v4"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
       },
       {
         name                 = "userpool2"
-        node_count           = 400
+        node_count           = 40
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4ds_v4"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
