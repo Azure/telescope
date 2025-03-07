@@ -53,13 +53,13 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
 INPUT_JSON=$(jq -n \
       --arg run_id $RUN_ID \
       --arg region $REGION \
-      --arg user_data_path $TERRAFORM_USER_DATA_PATH \
       --arg creation_time $CREATION_TIME \
+      --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
       '{
       run_id: $run_id,
       region: $region,
+      creation_time: $creation_time,
       user_data_path: $user_data_path,
-      creation_time: $creation_time
       }' | jq 'with_entries(select(.value != null and .value != ""))')
 ```
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.
