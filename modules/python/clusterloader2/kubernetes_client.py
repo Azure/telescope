@@ -48,6 +48,7 @@ class KubernetesClient:
 
     def _is_node_schedulable(self, node):
         is_schedulable = False
+        status_conditions = None
         if node and node.status and node.status.conditions:
             status_conditions = {cond.type: cond.status for cond in node.status.conditions}
             is_schedulable = (
