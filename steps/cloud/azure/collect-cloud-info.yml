@@ -6,8 +6,8 @@ steps:
 - script: |
     set -eu
 
-    aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
-      --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+    aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $REGION \
+      --query "[?(tags.run_id == '${RUN_ID}' && name == '${CLUSTER_NAME}')].name" --output tsv)
     aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
 
     cloud_info=$(jq -n \
@@ -37,3 +37,4 @@ steps:
   displayName: 'Collect Cloud Info for Azure'
   env:
     REGION: ${{ parameters.region }}
+    CLUSTER_NAME: $(CLUSTER_NAME)
