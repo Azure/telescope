@@ -132,7 +132,8 @@ def execute_clusterloader2(
     cl2_config_file,
     kubeconfig,
     provider,
-    scrape_containerd):
+    scrape_containerd
+):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, 
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
                     scrape_containerd=scrape_containerd)
@@ -149,13 +150,10 @@ def collect_clusterloader2(
     service_test,
     cnp_test,
     ccnp_test,
-    num_cnps,
-    num_ccnps,
-    dualstack,
     result_file,
     test_type,
     start_timestamp,
-): # pylint: disable=unused-argument
+):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
@@ -282,10 +280,6 @@ def main():
                                   help="Whether cnp test is running. Must be either True or False")
     parser_collect.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether ccnp test is running. Must be either True or False")
-    parser_collect.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-    parser_collect.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
-    parser_collect.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cluster is dualstack. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
@@ -306,8 +300,8 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps,
-                               args.dualstack, args.result_file, args.test_type, args.start_timestamp)
+                               args.service_test, args.cnp_test, args.ccnp_test,
+                               args.result_file, args.test_type, args.start_timestamp)
 
 if __name__ == "__main__":
     main()
