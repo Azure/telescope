@@ -7,8 +7,8 @@ schedules:
         - main
     always: true
 
-  - cron: "0 18 * * 2,4,6"
-    displayName: "6:00 PM on Tuesday, Thursday, and Saturday"
+  - cron: "0 18 * * 1,5"
+    displayName: "6:00 PM on Monday and Friday"
     branches:
       include:
         - main
@@ -20,6 +20,11 @@ variables:
 
 stages:
   - stage: aws_westus2
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '6:00 PM on Monday and Friday'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -47,6 +52,11 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_westus2
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 6:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
