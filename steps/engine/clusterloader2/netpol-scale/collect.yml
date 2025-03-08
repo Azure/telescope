@@ -16,7 +16,7 @@ steps:
     set -eo pipefail
     echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       --node_count $NODE_COUNT \
-      --max_pods "110" \
+      --pod_count "$(( ($CLIENTS_PER_GROUP + $SERVERS_PER_GROUP) * $GROUPS ))" \
       --cl2_report_dir $CL2_REPORT_DIR\
       --cloud_info "$CLOUD_INFO" \
       --run_id $RUN_ID \
@@ -25,7 +25,7 @@ steps:
       --test_type $NETWORKPOLICY_TYPE"
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       --node_count $NODE_COUNT \
-      --max_pods "110" \
+      --pod_count "$(( ($CLIENTS_PER_GROUP + $SERVERS_PER_GROUP) * $GROUPS ))" \
       --cl2_report_dir $CL2_REPORT_DIR\
       --cloud_info "{\"cloud\":\"azure\",\"region\":\"centralus\",\"k8s_version\":\"1.30.9\",\"sku_tier\":\"Standard\"}" \
       --run_id $RUN_ID \

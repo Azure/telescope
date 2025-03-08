@@ -105,7 +105,7 @@ def execute_clusterloader2(
 
 def collect_clusterloader2(
     node_count,
-    max_pods,
+    pod_count,
     cl2_report_dir,
     cloud_info,
     run_id,
@@ -122,9 +122,6 @@ def collect_clusterloader2(
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
-
-    pods_per_node = max_pods
-    pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
     template = {
@@ -265,13 +262,7 @@ def main():
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument(
-        "--max_pods",
-        type=int,
-        nargs="?",
-        default=0,
-        help="Maximum number of pods per node",
-    )
+    parser_collect.add_argument("--pod_count", type=int, nargs="?", default=0, help="Maximum number of pods per node")
     parser_collect.add_argument(
         "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
     )
@@ -320,7 +311,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(
             args.node_count,
-            args.max_pods,
+            args.pod_count,
             args.cl2_report_dir,
             args.cloud_info,
             args.run_id,
