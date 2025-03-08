@@ -24,7 +24,7 @@ steps:
       --result_file $TEST_RESULTS_FILE \
       --test_type $NETWORKPOLICY_TYPE"
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      --node_count "7" \
+      --node_count $NODE_COUNT \
       --max_pods "110" \
       --cl2_report_dir $CL2_REPORT_DIR\
       --cloud_info "{\"cloud\":\"azure\",\"region\":\"centralus\",\"k8s_version\":\"1.30.9\",\"sku_tier\":\"Standard\"}" \
