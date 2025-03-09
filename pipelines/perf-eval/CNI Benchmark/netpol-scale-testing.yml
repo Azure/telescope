@@ -1,5 +1,12 @@
 trigger: none
-# TODO: Add scheduled pipeline run later
+
+schedules:
+- cron: "0 */8 * * *"
+  displayName: "Every 8 hours"
+  branches:
+    include:
+      - sarathsa/cilium-l7-scale
+  always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -21,14 +28,6 @@ stages:
           topology: netpol-scale
           matrix:
             azure_cilium:
-              # number_of_groups: $(GROUPS)
-              # number_of_servers_per_group: $(SERVERS_PER_GROUP)
-              # number_of_clients_per_group: $(CLIENTS_PER_GROUP)
-              # number_of_workers_per_client: $(WORKERS_PER_CLIENT)
-              # network_policy_type: $(NETWORKPOLICY_TYPE)
-              # test_run_duration_secs: $(TEST_RUN_DURATION_SECS)
-              # cilium_enabled: $(CILIUM_ENABLED)
-              # cilium_envoy_enabled: $(CILIUM_ENVOY_ENABLED)
               cl2_config_file: netpol-scale-config.yaml
           max_parallel: 2
           timeout_in_minutes: 720
