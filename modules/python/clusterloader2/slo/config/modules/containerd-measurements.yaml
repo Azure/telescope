@@ -12,16 +12,15 @@ steps:
         unit: s
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[%v:])) by (le))
-          threshold: 5
+          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[%v:])) by (le))
+          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Sum
-          query: sum(containerd_cri_sandbox_create_network_seconds_sum)
+          query: sum(containerd_cri_sandbox_create_network_seconds_sum{nodepool=~"userpool.*"})
         - name: Count
-          query: sum(containerd_cri_sandbox_create_network_seconds_count)
+          query: sum(containerd_cri_sandbox_create_network_seconds_count{nodepool=~"userpool.*"})
     - Identifier: ContainerdCriSandboxRuntimeCreate
       Method: GenericPrometheusQuery
       Params:
@@ -31,15 +30,15 @@ steps:
         unit: s
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket[%v])) by (le))
+          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket[%v])) by (le))
+          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket[%v])) by (le))
+          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Sum
-          query: sum(containerd_cri_sandbox_runtime_create_seconds_sum)
+          query: sum(containerd_cri_sandbox_runtime_create_seconds_sum{nodepool=~"userpool.*"})
         - name: Count
-          query: sum(containerd_cri_sandbox_runtime_create_seconds_count)
+          query: sum(containerd_cri_sandbox_runtime_create_seconds_count{nodepool=~"userpool.*"})
     - Identifier: ContainerdCriNetworkPluginOperations
       Method: GenericPrometheusQuery
       Params:
@@ -51,12 +50,12 @@ steps:
           - operation_type
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[%v])) by (operation_type, le))
+          query: histogram_quantile(0.99, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (operation_type, le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[%v])) by (operation_type, le))
+          query: histogram_quantile(0.90, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (operation_type, le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[%v])) by (operation_type, le))
+          query: histogram_quantile(0.50, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (operation_type, le))
         - name: Sum
-          query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_sum) by (operation_type)
+          query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_sum{nodepool=~"userpool.*"}) by (operation_type)
         - name: Count
-          query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_count) by (operation_type)
+          query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_count{nodepool=~"userpool.*"}) by (operation_type)

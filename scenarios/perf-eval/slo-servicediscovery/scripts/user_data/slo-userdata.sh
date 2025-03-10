@@ -14,7 +14,7 @@ EOF
 
 # Restart containerd and kubelet to apply changes
 sudo systemctl restart containerd
-sudo systemctl restart kubelet
+# sudo systemctl restart kubelet
 
 cat /etc/eks/containerd/containerd-config.toml >> /var/log/user-data.log
 echo "Containerd metrics enabled on port 10257" >> /var/log/user-data.log

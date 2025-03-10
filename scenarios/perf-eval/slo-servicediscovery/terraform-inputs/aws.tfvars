@@ -101,7 +101,10 @@ eks_config_list = [{
       max_size       = 30
       desired_size   = 30
       capacity_type  = "ON_DEMAND"
-      labels         = { "slo" = "true" }
+      labels = {
+        "slo"       = "true",
+        "agentpool" = "userpool0"
+      }
       taints = [
         {
           key    = "slo"
@@ -118,7 +121,10 @@ eks_config_list = [{
       max_size       = 30
       desired_size   = 30
       capacity_type  = "ON_DEMAND"
-      labels         = { "slo" = "true" }
+      labels = {
+        "slo"       = "true",
+        "agentpool" = "userpool1"
+      }
       taints = [
         {
           key    = "slo"
@@ -135,7 +141,10 @@ eks_config_list = [{
       max_size       = 40
       desired_size   = 40
       capacity_type  = "ON_DEMAND"
-      labels         = { "slo" = "true" }
+      labels = {
+        "slo"       = "true",
+        "agentpool" = "userpool2"
+      }
       taints = [
         {
           key    = "slo"

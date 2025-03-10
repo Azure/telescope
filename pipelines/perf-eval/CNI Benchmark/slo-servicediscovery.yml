@@ -33,7 +33,8 @@ stages:
             - us-east-1
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250305"
+            # image: "ghcr.io/azure/clusterloader2:v20250305"
+            image: "telescope.azurecr.io/perf-eval/clusterloader2:20250310.3"
           topology: service-churn
           matrix:
             aws_vpc_cni:
@@ -66,7 +67,8 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250305"
+            # image: "ghcr.io/azure/clusterloader2:v20250305"
+            image: "telescope.azurecr.io/perf-eval/clusterloader2:20250310.3"
           topology: service-churn
           matrix:
             azure_cni:
