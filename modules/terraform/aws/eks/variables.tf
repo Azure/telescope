@@ -84,3 +84,9 @@ variable "eks_config" {
     enable_cni_metrics_helper = optional(bool, false)
   })
 }
+
+variable "user_data_path" {
+  description = "The path to the user data file"
+  type        = string
+  default     = ""
+}

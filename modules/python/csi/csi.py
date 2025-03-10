@@ -78,7 +78,7 @@ def create_statefulset(namespace, replicas, storage_class):
         ),
     )
     app_client = KUBERNETERS_CLIENT.get_app_client()
-    statefulset_obj  = app_client.create_namespaced_stateful_set(namespace, statefulset)
+    statefulset_obj = app_client.create_namespaced_stateful_set(namespace, statefulset)
     return statefulset_obj
 
 def log_duration(description, start_time, log_file):
@@ -128,8 +128,8 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     detach_thresholds = [(p100 - p50, "p50"), (p100 - p90, "p90"), (p100 - p99, "p99"), (0, "p100")]
 
     # Create a namespace
-    namespace  = KUBERNETERS_CLIENT.create_namespace(namespace)
-    print(f"Created namespace {namespace .metadata.name}")
+    namespace_obj = KUBERNETERS_CLIENT.create_namespace(namespace)
+    print(f"Created namespace {namespace_obj.metadata.name}")
 
     # Start the timer
     creation_start_time = datetime.now()

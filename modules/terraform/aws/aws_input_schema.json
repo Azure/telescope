@@ -12,6 +12,9 @@
     },
     "k8s_machine_type" : {
       "type": "string"
+    },
+    "user_data_path": {
+      "type": "string"
     }
   },
   "required": [

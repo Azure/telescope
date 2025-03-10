@@ -21,11 +21,7 @@ spec:
           operator: In
           values:
             - on-demand
-        - key: karpenter.azure.com/sku-family
+        - key: karpenter.azure.com/sku-name
           operator: In
           values:
-            - D
-        - key: karpenter.azure.com/sku-cpu
-          operator: In
-          values:
-            - "4"
+            - Standard_D4_v5
