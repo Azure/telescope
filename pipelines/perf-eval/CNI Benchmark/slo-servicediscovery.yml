@@ -41,7 +41,7 @@ stages:
               node_count: 100
               node_per_step: 100
               max_pods: 20
-              repeats: 2
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: False
               scrape_containerd: True
@@ -74,7 +74,7 @@ stages:
               node_count: 100
               node_per_step: 100
               max_pods: 20
-              repeats: 2
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: False
               scrape_containerd: True
@@ -85,7 +85,7 @@ stages:
               node_count: 100
               node_per_step: 100
               max_pods: 20
-              repeats: 2
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
