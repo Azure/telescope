@@ -20,7 +20,7 @@ jobs:
             report_dir: $(Pipeline.Workspace)/s/scenarios/job-scheduling/results
     matrix:
       default:
-        kwok_node: 20
+        kwok_nodes: 20
     max_parallel: 1
     credential_type: service_connection
   
