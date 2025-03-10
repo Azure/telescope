@@ -37,7 +37,7 @@ steps:
 
   {{if $CILIUM_ENVOY_ENABLED}}
   - module:
-      path: /modules/cilium-envoy-measurments.yaml
+      path: /modules/cilium-envoy-measurements.yaml
       params:
         action: start
   {{end}}
@@ -76,7 +76,7 @@ steps:
 
   {{if $CILIUM_ENVOY_ENABLED}}
   - module:
-      path: /modules/cilium-envoy-measurments.yaml
+      path: /modules/cilium-envoy-measurements.yaml
       params:
         action: gather
   {{end}}
