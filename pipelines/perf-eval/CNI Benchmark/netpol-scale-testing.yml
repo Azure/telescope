@@ -5,7 +5,7 @@ schedules:
   displayName: "Every 4 hours"
   branches:
     include:
-      - sarathsa/cilium-l7-scale
+    - sarathsa/cilium-l7-scale
   always: true
 
 variables:
@@ -14,22 +14,22 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure_eastus2
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - $(LOCATION)
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest" # TODO: Fix this after perf-tests PR is merged
-          topology: netpol-scale
-          matrix:
-            azure_cilium:
-              cl2_config_file: netpol-scale-config.yaml
-          max_parallel: 2
-          timeout_in_minutes: 720
-          credential_type: service_connection
-          ssh_key_enabled: false
+- stage: azure_eastus2
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - $(LOCATION)
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/sanamsarath/clusterloader2:vtest" # TODO: Fix this after perf-tests PR is merged
+      topology: netpol-scale
+      matrix:
+        azure_cilium:
+          cl2_config_file: netpol-scale-config.yaml
+      max_parallel: 2
+      timeout_in_minutes: 720
+      credential_type: service_connection
+      ssh_key_enabled: false

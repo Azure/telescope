@@ -27,7 +27,7 @@ steps:
       --node_count $NODE_COUNT \
       --pod_count "$(( ($CLIENTS_PER_GROUP + $SERVERS_PER_GROUP) * $GROUPS ))" \
       --cl2_report_dir $CL2_REPORT_DIR\
-      --cloud_info "{\"cloud\":\"azure\",\"region\":\"centralus\",\"k8s_version\":\"1.30.9\",\"sku_tier\":\"Standard\"}" \
+      --cloud_info "$CLOUD_INFO" \
       --run_id $RUN_ID \
       --run_url $RUN_URL \
       --result_file $TEST_RESULTS_FILE \
