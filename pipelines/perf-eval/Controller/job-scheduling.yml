@@ -21,9 +21,10 @@ jobs:
     matrix:
       default:
         kwok_nodes: 1
+        node_per_step: 1
         node_count: 1
         repeats: 1
-        max_pods: 5
+        max_pods: 10
         operation_timeout: 11m
         load_type: cpu
     max_parallel: 1
