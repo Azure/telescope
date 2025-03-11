@@ -425,7 +425,108 @@ steps:
           query: avg_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
         - name: Burst_Max-{{$dataName}}
           query: max_over_time(cilium_api_limiter_rate_limit{value="burst", api_call="endpoint-delete", pod="{{ $podName }}" }[%v:])
-        
+
+    - Identifier: Cilium
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent API Process Time Put Requests
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99-{{$dataName}}
+          query: histogram_quantile(0.99, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc95-{{$dataName}}
+          query: histogram_quantile(0.95, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc75-{{$dataName}}
+          query: histogram_quantile(0.75, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: Perc50-{{$dataName}}
+          query: histogram_quantile(0.50, sum(rate(cilium_agent_api_process_time_seconds_bucket{method="PUT", pod="{{$podName}}" }[%v:])) by (le))
+        - name: Avg-{{$dataName}}
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:])) / sum(rate(cilium_agent_api_process_time_seconds_count{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: Total-{{$dataName}}
+          query: sum(rate(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
+        - name: TotalTime-{{$dataName}}
+          query: sum(increase(cilium_agent_api_process_time_seconds_sum{method="PUT", pod="{{$podName}}" }[%v:]))
+
+
+
+
+    #Cilium Endpoint Regeneration Stats Metrics
+    
+    - Identifier: CiliumEndpointRegenerationStats
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Regeneration Stats
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: P99-mapSync
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="mapSync", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-mapSync
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="mapSync", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-mapSync
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="mapSync", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-policyCalculation
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="policyCalculation", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-policyCalculation
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="policyCalculation", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-policyCalculation
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="policyCalculation", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-prepareBuild
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="prepareBuild", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-prepareBuild
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="prepareBuild", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-prepareBuild
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="prepareBuild", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-proxyConfiguration
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="proxyConfiguration", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-proxyConfiguration
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="proxyConfiguration", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-proxyConfiguration
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="proxyConfiguration", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-proxyWaitForAck
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="proxyWaitForAck", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-proxyWaitForAck
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="proxyWaitForAck", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-proxyWaitForAck
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="proxyWaitForAck", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-bpfWaitForELF
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="bpfWaitForELF", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-bpfWaitForELF
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="bpfWaitForELF", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-bpfWaitForELF
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="bpfWaitForELF", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-bpfWriteELF
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="bpfWriteELF", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-bpfWriteELF
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="bpfWriteELF", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-bpfWriteELF
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="bpfWriteELF", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-total
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="total", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-total
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="total", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-total
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="total", pod="{{$podName}}" }[%v:])) by (le))
+
+        - name: P99-waitingForCTClean
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="waitingForCTClean", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P90-waitingForCTClean
+          query: histogram_quantile(0.90, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="waitingForCTClean", pod="{{$podName}}" }[%v:])) by (le))
+        - name: P50-waitingForCTClean
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_stats_bucket{scope="waitingForCTClean", pod="{{$podName}}" }[%v:])) by (le))
+
     # - Identifier: CiliumAgentAPIProcessTimeGetRequests
     #   Method: GenericPrometheusQuery
     #   Params:
