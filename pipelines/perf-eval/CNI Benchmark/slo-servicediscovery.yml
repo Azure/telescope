@@ -33,8 +33,7 @@ stages:
             - us-east-1
           engine: clusterloader2
           engine_input:
-            # image: "ghcr.io/azure/clusterloader2:v20250305"
-            image: "telescope.azurecr.io/perf-eval/clusterloader2:20250310.3"
+            image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: service-churn
           matrix:
             aws_vpc_cni:
@@ -67,8 +66,7 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            # image: "ghcr.io/azure/clusterloader2:v20250305"
-            image: "telescope.azurecr.io/perf-eval/clusterloader2:20250310.3"
+            image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: service-churn
           matrix:
             azure_cni:
@@ -95,7 +93,7 @@ stages:
               scrape_containerd: True
               service_test: True
               cl2_config_file: load-config.yaml
-          max_parallel: 1
+          max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false

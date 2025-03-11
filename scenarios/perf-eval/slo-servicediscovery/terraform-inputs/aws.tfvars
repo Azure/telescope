@@ -97,9 +97,9 @@ eks_config_list = [{
       name           = "userpool0"
       ami_type       = "AL2_x86_64"
       instance_types = ["m5a.xlarge"]
-      min_size       = 300
-      max_size       = 300
-      desired_size   = 300
+      min_size       = 200
+      max_size       = 200
+      desired_size   = 200
       capacity_type  = "ON_DEMAND"
       labels = {
         "slo"       = "true",
@@ -117,9 +117,9 @@ eks_config_list = [{
       name           = "userpool1"
       ami_type       = "AL2_x86_64"
       instance_types = ["m5a.xlarge"]
-      min_size       = 300
-      max_size       = 300
-      desired_size   = 300
+      min_size       = 200
+      max_size       = 200
+      desired_size   = 200
       capacity_type  = "ON_DEMAND"
       labels = {
         "slo"       = "true",
@@ -137,13 +137,53 @@ eks_config_list = [{
       name           = "userpool2"
       ami_type       = "AL2_x86_64"
       instance_types = ["m5a.xlarge"]
-      min_size       = 400
-      max_size       = 400
-      desired_size   = 400
+      min_size       = 200
+      max_size       = 200
+      desired_size   = 200
       capacity_type  = "ON_DEMAND"
       labels = {
         "slo"       = "true",
         "agentpool" = "userpool2"
+      }
+      taints = [
+        {
+          key    = "slo"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+    },
+    {
+      name           = "userpool3"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m5a.xlarge"]
+      min_size       = 200
+      max_size       = 200
+      desired_size   = 200
+      capacity_type  = "ON_DEMAND"
+      labels = {
+        "slo"       = "true",
+        "agentpool" = "userpool3"
+      }
+      taints = [
+        {
+          key    = "slo"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
+    },
+    {
+      name           = "userpool4"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m5a.xlarge"]
+      min_size       = 200
+      max_size       = 200
+      desired_size   = 200
+      capacity_type  = "ON_DEMAND"
+      labels = {
+        "slo"       = "true",
+        "agentpool" = "userpool4"
       }
       taints = [
         {
