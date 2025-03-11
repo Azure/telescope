@@ -21,6 +21,7 @@ jobs:
     matrix:
       default:
         kwok_nodes: 20
+        node_count: 20
     max_parallel: 1
     credential_type: service_connection
   
