@@ -1,8 +1,8 @@
 trigger: none
 
 schedules:
-- cron: "0 */4 * * *"
-  displayName: "Every 4 hours"
+- cron: "0 */8 * * *"
+  displayName: "Every 8 hours"
   branches:
     include:
     - sarathsa/cilium-l7-scale
