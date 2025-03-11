@@ -28,7 +28,7 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, identity_test
     throughput = 100
     pods_per_node = max_pods
 
-    nodes_per_namespace = node_count # Don't know if this breaks churn test
+    nodes_per_namespace = node_count # TODO: Does this break churn test?
     if identity_test:
         nodes_per_namespace = min(nodes_per_namespace, IDENTITY_CHURN_NODES_PER_NAMESPACE)
 
