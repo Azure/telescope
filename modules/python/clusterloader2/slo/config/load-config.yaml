@@ -36,17 +36,6 @@ name: load-config
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
-# TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250) X
-# {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
-
-# The lt comparison needs to be debugged
-# {{if (lt $BIG_GROUP_SIZE $podsPerNamespace) }}
-# {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-# {{end}}
-
-# {{if and $IDENTITY_CHURN_TEST (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
-# {{end}}
-
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
 # Specifically, we aim to create/delete LOAD_TEST_THROUGHPUT/DELETE_TEST_THROUGHPUT pods per second, on average.
