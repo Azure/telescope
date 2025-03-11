@@ -26,3 +26,13 @@ steps:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
   displayName: "Collect Results"
+- script: |
+    # Install Cilium CLI
+    CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+    GOOS=linux
+    GOARCH=amd64
+    curl -L --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-${GOOS}-${GOARCH}.tar.gz{,.sha256sum}
+    sha256sum --check cilium-${GOOS}-${GOARCH}.tar.gz.sha256sum
+    sudo tar -C /usr/local/bin -xzvf cilium-${GOOS}-${GOARCH}.tar.gz
+    rm cilium-${GOOS}-${GOARCH}.tar.gz{,.sha256sum}
+

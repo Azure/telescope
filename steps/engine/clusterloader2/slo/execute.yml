@@ -17,6 +17,14 @@ steps:
     displayName: set up timestamp variable
 
   - script: |
+      if [ ${SCRAPE_NODE_EXPORTER} = true ]; then
+        kubectl apply -f ${NODE_EXPORTER}
+      fi
+    env:
+      NODE_EXPORTER: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config/modules/nodeexporter
+    displayName: "Set Up Node Exporter"
+
+  - script: |
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
