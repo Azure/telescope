@@ -33,7 +33,7 @@ name: load-config
 {{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}}
 
 # TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250) X
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
+# {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 
 # The lt comparison needs to be debugged
 # {{if (lt $BIG_GROUP_SIZE $podsPerNamespace) }}
