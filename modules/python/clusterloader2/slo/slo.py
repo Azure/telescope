@@ -105,8 +105,8 @@ def configure_clusterloader2(
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
         if identity_test:
-            file.write("CL2_BIG_GROUP_SIZE: 250\n")
-            file.write("CL2_SMALL_GROUP_SIZE: 20\n")
+            file.write("CL2_BIG_GROUP_SIZE: 5\n") #250\n")
+            file.write("CL2_SMALL_GROUP_SIZE: 1\n") #20\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
