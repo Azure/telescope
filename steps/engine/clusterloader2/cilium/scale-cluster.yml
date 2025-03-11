@@ -30,8 +30,8 @@ steps:
     nodepools=$(az aks nodepool list --cluster-name $aks_name --resource-group $aks_rg -o json)
     usernodepools=$(echo $nodepools | jq -r '.[] | select(.mode == "User" and .name != "promnodepool") | .name')
 
-    for np in $usernodepools; do
-      currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
+    # for np in $usernodepools; do
+    #   currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
 
     #   # disable autoscaler before scaling nodepool to desire node count
     #   az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --disable-cluster-autoscaler
