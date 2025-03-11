@@ -44,26 +44,6 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
 
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
-#TODO: Remove this function once the debug is done
-def debug_clusterloader2(cpu_per_node, node_count, node_per_step, max_pods,
-                             repeats, operation_timeout, provider, cilium_enabled,
-                             service_test, cnp_test, ccnp_test, num_cnps, num_ccnps, dualstack, cl2_override_file):
-    # Function implementation
-    print(f"CPU per Node: {cpu_per_node}")
-    print(f"Node Count: {node_count}")
-    print(f"Node per Step: {node_per_step}")
-    print(f"Max Pods: {max_pods}")
-    print(f"Repeats: {repeats}")
-    print(f"Operation Timeout: {operation_timeout}")
-    print(f"Provider: {provider}")
-    print(f"Cilium Enabled: {cilium_enabled}")
-    print(f"Service Test: {service_test}")
-    print(f"CNP Test: {cnp_test}")
-    print(f"CCNP Test: {ccnp_test}")
-    print(f"Num CNPs: {num_cnps}")
-    print(f"Num CCNPs: {num_ccnps}")
-    print(f"Dualstack: {dualstack}")
-    print(f"CL2 Override File: {cl2_override_file}")
 def configure_clusterloader2(
     cpu_per_node,
     node_count,
@@ -296,9 +276,7 @@ def main():
     args = parser.parse_args()
     
     if args.command == "configure":
-        debug_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                             args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                             args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)

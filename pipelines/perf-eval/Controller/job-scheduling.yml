@@ -14,19 +14,16 @@ jobs:
     topology: kwok
     engine: clusterloader2
     engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
-            config_dir: $(Pipeline.Workspace)/s/scenarios/job-scheduling/cl2-config
-            config_file: config.yml
-            report_dir: $(Pipeline.Workspace)/s/scenarios/job-scheduling/results
+      image: "ghcr.io/azure/clusterloader2:v20241022"
+      config_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/cl2-config"
+      config_file: "config.yml"
+      report_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/results"
     matrix:
       default:
         kwok_nodes: 1
         node_count: 1
-        max_pods: 1
         repeats: 1
         operation_timeout: 11m
         load_type: cpu
-  
     max_parallel: 1
     credential_type: service_connection
-  
