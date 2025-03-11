@@ -10,6 +10,22 @@ parameters:
 
 steps:
   - script: |
+  
+      echo "CPU_PER_NODE: $CPU_PER_NODE"
+      echo "NODE_COUNT: $NODE_COUNT"
+      echo "NODE_PER_STEP: $NODE_PER_STEP"
+      echo "MAX_PODS: ${MAX_PODS:-0}"
+      echo "REPEATS: $REPEATS"
+      echo "SCALE_TIMEOUT: $SCALE_TIMEOUT"
+      echo "CLOUD: $CLOUD"
+      echo "CILIUM_ENABLED: $CILIUM_ENABLED"
+      echo "SERVICE_TEST: $SERVICE_TEST"
+      echo "CNP_TEST: ${CNP_TEST:-False}"
+      echo "CCNP_TEST: ${CCNP_TEST:-False}"
+      echo "NUM_CNPS: ${NUM_CNPS:-0}"
+      echo "NUM_CCNPS: ${NUM_CCNPS:-0}"
+      echo "DUALSTACK: ${DUALSTACK:-False}"
+      echo "CL2_CONFIG_DIR: ${CL2_CONFIG_DIR}/overrides.yaml"
 
       set -eo pipefail
       
@@ -18,7 +34,7 @@ steps:
         $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP ${MAX_PODS:-0} \
         $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED \
         $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
-      echo "PYTHONPATH: $PYTHONPATH"
+      
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
         ${HOME}/.kube/config $CLOUD
