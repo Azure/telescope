@@ -21,7 +21,7 @@ jobs:
     matrix:
       default:
         kwok_nodes: 1
-        node_per_step: 1
+        node_per_step: 0
         node_count: 1
         repeats: 1
         max_pods: 10
