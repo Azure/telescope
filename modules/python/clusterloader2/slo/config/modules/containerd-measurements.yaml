@@ -39,42 +39,6 @@ steps:
           query: sum(containerd_cri_sandbox_delete_network_seconds_sum{nodepool=~"userpool.*"})
         - name: Count
           query: sum(containerd_cri_sandbox_delete_network_seconds_count{nodepool=~"userpool.*"})
-    - Identifier: ContainerdCriSandboxRuntimeCreate
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: ContainerdCriSandboxRuntimeCreate
-        metricVersion: v1
-        unit: s
-        queries:
-        - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-        - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-        - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_runtime_create_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-        - name: Sum
-          query: sum(containerd_cri_sandbox_runtime_create_seconds_sum{nodepool=~"userpool.*"})
-        - name: Count
-          query: sum(containerd_cri_sandbox_runtime_create_seconds_count{nodepool=~"userpool.*"})
-    - Identifier: ContainerdCriSandboxRuntimeStop
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: ContainerdCriSandboxRuntimeStop
-        metricVersion: v1
-        unit: s
-        queries:
-        - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_runtime_stop_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-        - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_runtime_stop_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-        - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_runtime_stop_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-        - name: Sum
-          query: sum(containerd_cri_sandbox_runtime_stop_seconds_sum{nodepool=~"userpool.*"})
-        - name: Count
-          query: sum(containerd_cri_sandbox_runtime_stop_seconds_count{nodepool=~"userpool.*"})
     - Identifier: ContainerdCriNetworkPluginOperations
       Method: GenericPrometheusQuery
       Params:
