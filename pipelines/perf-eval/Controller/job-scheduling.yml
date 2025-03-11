@@ -20,10 +20,9 @@ jobs:
       report_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/results"
     matrix:
       default:
-        kwok_nodes: 1
         node_per_step: 0
         node_count: 1
-        repeats: 1
+        repeats: 0
         max_pods: 10
         operation_timeout: 11m
         load_type: cpu
