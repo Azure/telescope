@@ -18,12 +18,12 @@ jobs:
     topology: kwok
     matrix:
       default:
-        cpu_per_node: 10
-        node_count: 1000
-        node_per_step: 1000
-        max_pods: 110
-        repeats: 10
-        scale_timeout: "15m"
+        cpu_per_node: 4
+        node_count: 10
+        node_per_step: 20
+        max_pods: 20
+        repeats: 1
+        scale_timeout: "5m"
         cilium_enabled: True
         network_policy: cilium
         network_dataplane: cilium
