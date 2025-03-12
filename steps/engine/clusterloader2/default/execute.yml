@@ -37,7 +37,6 @@ steps:
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/default/cli.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
-      CL2_CONFIG_DIR: ${{ parameters.engine_input.config_dir }}
-      CL2_CONFIG_FILE: ${{ parameters.engine_input.config_file }}
-      CL2_REPORT_DIR: ${{ parameters.engine_input.report_dir }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
     displayName: "Run Benchmark"
