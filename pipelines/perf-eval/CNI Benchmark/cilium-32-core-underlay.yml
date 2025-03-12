@@ -23,12 +23,12 @@ parameters:
   - name: scale_timeout
     type: string
     default: "15m"
-  # - name: no_of_namespaces
-  #   type: number
-  #   default: 10
-  # - name: total_nework_policies
-  #   type: number
-  #   default: 0
+  - name: no_of_namespaces
+    type: number
+    default: 10
+  - name: total_nework_policies
+    type: number
+    default: 0
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -58,8 +58,8 @@ stages:
               pods_per_node: ${{ parameters.pods_per_node }}
               repeats: ${{ parameters.repeats }}
               scale_timeout: ${{ parameters.scale_timeout }}
-              # no_of_namespaces: ${{ parameters.no_of_namespaces }}
-              # total_network_policies: ${{ parameters.total_nework_policies }}
+              no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              total_network_policies: ${{ parameters.total_nework_policies }}
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
