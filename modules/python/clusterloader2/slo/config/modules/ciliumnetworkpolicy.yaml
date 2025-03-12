@@ -7,7 +7,7 @@
 {{$Group := .Group}}
 
 steps:
-- name: "{{$actionName}} {{$cnpsPerNamespace}} k8s CNPs"
+- name: "{{$actionName}} k8s CNPs"
   phases:
   - namespaceRange:
       min: 1
