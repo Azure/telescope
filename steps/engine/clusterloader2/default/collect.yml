@@ -13,6 +13,7 @@ steps:
   parameters:
     region: ${{ parameters.region }}
 - script: |
+    ls $CL2_REPORT_DIR
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
