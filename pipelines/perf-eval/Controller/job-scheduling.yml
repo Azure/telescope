@@ -16,7 +16,7 @@ jobs:
     engine_input:
       image: "ghcr.io/azure/clusterloader2:v20241022"
       config_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/cl2-config"
-      config_file: "config.yml"
+      config_file: "config.yaml"
       report_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/results"
     topology: kwok
     matrix:
@@ -31,7 +31,7 @@ jobs:
         network_policy: cilium
         network_dataplane: cilium
         service_test: True
-        cl2_config_file: load-config.yaml
+        cl2_config_file: config.yaml
         kwok_nodes: 20
         
       
