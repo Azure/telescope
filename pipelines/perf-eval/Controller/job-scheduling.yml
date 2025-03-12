@@ -21,7 +21,9 @@ jobs:
     topology: kwok
     matrix:
       default:
+        
         kwok_nodes: 20
+        cpu_per_node: 4
         node_count: 20
         node_per_step: 1
         max_pods: 100
