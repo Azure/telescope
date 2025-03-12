@@ -19,12 +19,14 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$nodes := DefaultParam .CL2_NODES 1000}}
-# TODO(jshr-w): This should eventually use >1 namespace. X
-{{$namespaces := 1}}
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
-{{if $IDENTITY_CHURN_TEST}}
-{{$namespaces := DivideInt $nodes $nodesPerNamespace}} # 20 / 10 = 2
-{{end}}
+{{$namespaces := DivideInt $nodes $nodesPerNamespace}}
+
+# TODO(jshr-w): This should eventually use >1 namespace. X
+# {{$namespaces := 1}}
+# {{if $IDENTITY_CHURN_TEST}}
+ # 20 / 10 = 2
+# {{end}}
 
 {{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 2 * 10 * 10 = 200
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 200 / 2 = 100
@@ -35,6 +37,8 @@ name: load-config
 {{$bigDeploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt 4 $BIG_GROUP_SIZE)}} # 1/4 of Pods in Big Deployments
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
+{{$totalDeploymentsPerNamespace := AddInt $smallDeploymentsPerNamespace $bigDeploymentsPerNamespace}}
+{{$expectedIdentities := MultiplyInt 2 $namespaces $totalDeploymentsPerNamespace}}
 
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
@@ -69,7 +73,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, loadTestThroughput={{$LOAD_TEST_THROUGHPUT}}
+  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, expectedIdentities={{$expectedIdentities}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
