@@ -11,7 +11,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-300
   SCENARIO_VERSION: main
-
+  
 stages:
   - stage: azure_eastus2
     dependsOn: []
