@@ -62,7 +62,7 @@ steps:
         cnp_test: {{$cnp_test}}
         ccnp_test: {{$ccnp_test}}
   {{end}}
-  {{if $svcTest}}
+  {{if $.svcTest}}
         SvcName: small-service
   {{end}}
         Group: {{.Group}}
