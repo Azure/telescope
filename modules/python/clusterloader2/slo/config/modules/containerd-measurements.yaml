@@ -11,6 +11,8 @@ steps:
         metricVersion: v1
         unit: s
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc99
           query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc90
@@ -29,6 +31,8 @@ steps:
         metricVersion: v1
         unit: s
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, sum(rate(containerd_cri_sandbox_delete_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc99
           query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_delete_network_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (le))
         - name: Perc90
@@ -49,6 +53,8 @@ steps:
         dimensions:
           - operation_type
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (operation_type, le))
         - name: Perc99
           query: histogram_quantile(0.99, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"}[%v])) by (operation_type, le))
         - name: Perc90

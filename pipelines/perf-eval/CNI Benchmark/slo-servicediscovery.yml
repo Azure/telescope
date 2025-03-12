@@ -93,7 +93,7 @@ stages:
               scrape_containerd: True
               service_test: True
               cl2_config_file: load-config.yaml
-          max_parallel: 1
+          max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
