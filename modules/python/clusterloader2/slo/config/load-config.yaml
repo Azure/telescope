@@ -22,12 +22,6 @@ name: load-config
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
 {{$namespaces := DivideInt $nodes $nodesPerNamespace}}
 
-# TODO(jshr-w): This should eventually use >1 namespace. X
-# {{$namespaces := 1}}
-# {{if $IDENTITY_CHURN_TEST}}
- # 20 / 10 = 2
-# {{end}}
-
 {{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 2 * 10 * 10 = 200
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 200 / 2 = 100
 
@@ -73,7 +67,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, expectedIdentities={{$expectedIdentities}}
+  - name: Log - schedulableNodes={{$nodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, expectedIdentities={{$expectedIdentities}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
