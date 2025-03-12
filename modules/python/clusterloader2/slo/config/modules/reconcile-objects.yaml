@@ -67,7 +67,7 @@ steps:
   {{end}}
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
-        identityChurnTest: {{$IDENTITY_CHURN_TEST}}
+        identityChurnTest: {{$.identityChurnTest}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
