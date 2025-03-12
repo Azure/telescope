@@ -226,6 +226,13 @@ steps:
 {{end}}
 
 {{if $SCRAPE_CONTAINERD}}
+  - name: Wait for last scrape
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 10m
+
   - module:
       path: /modules/containerd-measurements.yaml
       params:
