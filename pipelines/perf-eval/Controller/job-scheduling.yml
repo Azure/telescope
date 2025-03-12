@@ -21,14 +21,12 @@ jobs:
     topology: kwok
     matrix:
       c4-n10-p100:
-      cpu_per_node: 4
-      node_count: 10
-      pod_count: 100
-      scale_up_timeout: "15m"
-      scale_down_timeout: "15m"
-      node_label_selector: "karpenter.sh/nodepool = default"
-      node_selector: "{karpenter.sh/nodepool: default}"
-      loop_count: 5
+        cpu_per_node: 4
+        node_count: 10
+        pod_count: 100
+        scale_up_timeout: "15m"
+        scale_down_timeout: "15m"
+        loop_count: 5
     max_parallel: 1
     timeout_in_minutes: 360
     credential_type: service_connection
