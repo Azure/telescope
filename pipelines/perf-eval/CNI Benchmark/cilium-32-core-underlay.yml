@@ -28,7 +28,7 @@ parameters:
     default: 10
   - name: total_nework_policies
     type: number
-    default: 0
+    default: 4800
 
 variables:
   SCENARIO_TYPE: perf-eval
