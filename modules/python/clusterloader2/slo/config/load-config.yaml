@@ -125,7 +125,7 @@ steps:
       params:
         actionName: "create"
         namespaces: {{$namespaces}}
-        tuningSet: DeploymentCreateQps
+        tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
@@ -171,7 +171,7 @@ steps:
       params:
         actionName: "delete"
         namespaces: {{$namespaces}}
-        tuningSet: DeploymentDeleteQps
+        tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
