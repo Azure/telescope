@@ -78,9 +78,11 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
+        file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -136,7 +138,7 @@ def execute_clusterloader2(
 ):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
-                    scrape_containerd=scrape_containerd)
+                    scrape_containerd=scrape_containerd, tear_down_prometheus=False)
 
 def collect_clusterloader2(
     cpu_per_node,
