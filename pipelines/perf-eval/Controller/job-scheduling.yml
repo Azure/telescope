@@ -27,7 +27,6 @@ jobs:
         max_pods: 100
         repeats: 1
         operation_timeout: "15m"
-        provider: "azure"
         cilium_enabled: False
         service_test: False
         cnp_test: False
