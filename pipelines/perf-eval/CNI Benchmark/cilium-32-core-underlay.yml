@@ -1,11 +1,4 @@
 trigger: none
-# schedules:
-# - cron: "0 */12 * * *"
-#   displayName: "Every 12 Hours Daily"
-#   branches:
-#     include:
-#       - network-policy-churn
-#   always: true
 
 parameters:
   - name: node_count
@@ -70,37 +63,3 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-  # - stage: azure_canada_central_default_underlay
-    # dependsOn: []
-    # jobs:
-    #   - template: /jobs/competitive-test.yml
-    #     parameters:
-    #       cloud: azure
-    #       regions:
-    #         - canadacentral
-    #       engine: clusterloader2
-    #       engine_input:
-    #         image: "ghcr.io/agrawaliti/clusterloader2:latest"
-    #       topology: network-churn
-    #       matrix:
-    #         azure_cilium:
-    #           cpu_per_node: 4
-    #           node_count: ${{ parameters.node_count }}
-    #           node_per_step: ${{ parameters.node_per_step }}
-    #           max_pods: 100
-    #           pods_per_node: ${{ parameters.pods_per_node }}
-    #           repeats: ${{ parameters.repeats }}
-    #           scale_timeout: ${{ parameters.scale_timeout }}
-    #           # no_of_namespaces: ${{ parameters.no_of_namespaces }}
-    #           # total_network_policies: ${{ parameters.total_nework_policies }}
-    #           cilium_enabled: True
-    #           network_policy: cilium
-    #           network_dataplane: cilium
-    #           service_test: False
-    #           network_test: True
-    #           cl2_config_file: load-config.yaml
-    #       max_parallel: 2
-    #       timeout_in_minutes: 720
-    #       credential_type: service_connection
-    #       ssh_key_enabled: false
-    #       use_secondary_cluster: true
