@@ -10,21 +10,26 @@ jobs:
   parameters:
     cloud: azure
     regions:
-      - eastus
-    topology: kwok
+      - eastus2
     engine: clusterloader2
+    
     engine_input:
       image: "ghcr.io/azure/clusterloader2:v20241022"
       config_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/cl2-config"
       config_file: "config.yml"
       report_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/results"
+    topology: kwok
     matrix:
-      default:
-        node_per_step: 0
-        node_count: 1
-        repeats: 0
-        max_pods: 10
-        operation_timeout: 11m
-        load_type: cpu
+      c4-n10-p100:
+      cpu_per_node: 4
+      node_count: 10
+      pod_count: 100
+      scale_up_timeout: "15m"
+      scale_down_timeout: "15m"
+      node_label_selector: "karpenter.sh/nodepool = default"
+      node_selector: "{karpenter.sh/nodepool: default}"
+      loop_count: 5
     max_parallel: 1
+    timeout_in_minutes: 360
     credential_type: service_connection
+    ssh_key_enabled: false
