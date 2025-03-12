@@ -18,7 +18,7 @@ steps:
 
   - script: |
       set -ex
-      if [ ${SCRAPE_NODE_EXPORTER} = true ]; then
+      if [ ${SCRAPE_NODE_EXPORTER} = True ]; then
         kubectl apply -f ${NODE_EXPORTER}
       fi
     env:
