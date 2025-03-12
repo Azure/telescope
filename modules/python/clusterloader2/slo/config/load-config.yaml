@@ -142,6 +142,8 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
+        svcTest: {{$SERVICE_TEST}}
+        identityChurnTest: {$IDENTITY_CHURN_TEST}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -165,6 +167,8 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: restart
+        svcTest: {{$SERVICE_TEST}}
+        identityChurnTest: {$IDENTITY_CHURN_TEST}
 
   - module:
       path: /modules/reconcile-objects.yaml

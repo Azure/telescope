@@ -66,6 +66,7 @@ steps:
           action: {{$action}}
           metricName: Watch Cache Initializations
           metricVersion: v1
+          unit: count
           dimensions:
           - resource
           queries:
@@ -79,6 +80,7 @@ steps:
           action: {{$action}}
           metricName: Node CPU Usage
           metricVersion: v1
+          unit: cpu
           dimensions:
           - instance
           queries:
@@ -94,6 +96,7 @@ steps:
           action: {{$action}}
           metricName: Max Node Mem Utilization
           metricVersion: v1
+          unit: bytes
           dimensions:
           - instance
           queries:
@@ -109,6 +112,7 @@ steps:
           action: {{$action}}
           metricName: Max Node Mem Available
           metricVersion: v1
+          unit: bytes
           dimensions:
           - instance
           queries:
@@ -124,6 +128,7 @@ steps:
           action: {{$action}}
           metricName: Max Node Mem Free
           metricVersion: v1
+          unit: bytes
           dimensions:
           - instance
           queries:
@@ -139,6 +144,7 @@ steps:
           action: {{$action}}
           metricName: Max Node Mem Total
           metricVersion: v1
+          unit: bytes
           dimensions:
           - instance
           queries:

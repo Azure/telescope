@@ -74,6 +74,8 @@ steps:
           query: quantile(0.90, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
+        - name: Avg
+          query: max(avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
     - Identifier: CiliumMaxCPUUsage
       Method: GenericPrometheusQuery
       Params:
@@ -119,6 +121,8 @@ steps:
           query: quantile(0.90, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Max
+          query: max(max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
     - Identifier: CiliumOperatorAvgCPUUsage
       Method: GenericPrometheusQuery
       Params:
@@ -134,6 +138,8 @@ steps:
           query: quantile(0.90, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
+        - name: Average
+          query: max(avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
     - Identifier: CiliumOperatorMaxCPUUsage
       Method: GenericPrometheusQuery
       Params:
@@ -164,6 +170,8 @@ steps:
           query: quantile(0.90, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+        - name: Max
+          query: max(max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
     - Identifier: CiliumOperatorAvgMemUsage
       Method: GenericPrometheusQuery
       Params:
@@ -244,3 +252,17 @@ steps:
         queries:
         - name: total
           query: sum(increase(apiserver_longrunning_requests{resource="ciliumidentities", verb="WATCH"}[%v]))
+    - Identifier: CiliumBPFMapPressure
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Map Pressure
+        metricVersion: v1
+        unit: "%"
+        dimensions:
+        - map_name
+        queries:
+        - name: Max BPF Map Pressure
+          query: max_over_time(max(cilium_bpf_map_pressure)[%v:]) * 100
+          threshold: 90
+    

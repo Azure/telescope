@@ -17,6 +17,7 @@ steps:
     displayName: set up timestamp variable
 
   - script: |
+      set -ex
       if [ ${SCRAPE_NODE_EXPORTER} = true ]; then
         kubectl apply -f ${NODE_EXPORTER}
       fi
