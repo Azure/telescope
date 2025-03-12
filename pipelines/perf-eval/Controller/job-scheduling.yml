@@ -15,7 +15,6 @@ jobs:
     
     engine_input:
       image: "ghcr.io/azure/clusterloader2:v20241022"
-      report_dir: "$(Pipeline.Workspace)/s/scenarios/job-scheduling/results"
     topology: kwok
     matrix:
       default:
