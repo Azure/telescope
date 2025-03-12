@@ -32,7 +32,7 @@ parameters:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: network-policy-churn
+  SCENARIO_NAME: 32-core-network-policy-churn
   SCENARIO_VERSION: main
   OWNER: aks
 
