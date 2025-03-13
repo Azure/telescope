@@ -125,7 +125,7 @@ def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
         raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True)
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=False)
 
 def collect_clusterloader2(
     cpu_per_node,
