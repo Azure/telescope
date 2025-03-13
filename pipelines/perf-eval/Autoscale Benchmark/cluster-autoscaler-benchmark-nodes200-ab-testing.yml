@@ -30,7 +30,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c2-n200-p200:
+            c2-n200-p200-np4:
               cpu_per_node: 2
               node_count: 201
               pod_count: 201
