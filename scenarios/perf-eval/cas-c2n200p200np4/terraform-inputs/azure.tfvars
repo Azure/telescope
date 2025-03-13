@@ -36,9 +36,9 @@ aks_config_list = [
       },
       {
         name                 = "userpool2"
-        node_count           = 1
-        min_count            = 1
-        max_count            = 51
+        node_count           = 0
+        min_count            = 0
+        max_count            = 50
         auto_scaling_enabled = true
         vm_size              = "Standard_D2ds_v4"
         max_pods             = 110
@@ -46,9 +46,9 @@ aks_config_list = [
       },
       {
         name                 = "userpool3"
-        node_count           = 1
-        min_count            = 1
-        max_count            = 51
+        node_count           = 0
+        min_count            = 0
+        max_count            = 50
         auto_scaling_enabled = true
         vm_size              = "Standard_D2ds_v4"
         max_pods             = 110
@@ -56,8 +56,8 @@ aks_config_list = [
       },
       {
         name                 = "userpool4"
-        node_count           = 1
-        min_count            = 1
+        node_count           = 0
+        min_count            = 0
         max_count            = 51
         auto_scaling_enabled = true
         vm_size              = "Standard_D2ds_v4"
