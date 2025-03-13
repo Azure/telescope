@@ -8,7 +8,7 @@ from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient
 
 DEFAULT_NODES_PER_NAMESPACE = 100
-IDENTITY_CHURN_NODES_PER_NAMESPACE = 10
+IDENTITY_CHURN_NODES_PER_NAMESPACE = 100
 
 CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
@@ -105,8 +105,8 @@ def configure_clusterloader2(
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
         if identity_test:
-            file.write("CL2_BIG_GROUP_SIZE: 5\n") #250\n")
-            file.write("CL2_SMALL_GROUP_SIZE: 1\n") #20\n")
+            file.write("CL2_BIG_GROUP_SIZE: 500\n")
+            file.write("CL2_SMALL_GROUP_SIZE: 20\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
