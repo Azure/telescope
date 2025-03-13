@@ -40,7 +40,7 @@ steps:
       tuningSet: Uniform1qps
       objectBundle:
       - basename: test-job-{{$i}}
-        objectTemplatePath: deployment_template.yaml
+        objectTemplatePath: /modules/job_test.yml
   {{end}}
 
   - name: Waiting for jobs to be finished
