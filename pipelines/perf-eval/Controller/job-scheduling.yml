@@ -21,10 +21,10 @@ jobs:
         cpu_per_node: 10
         node_count: 1000
         node_per_step: 1000
+        cilium_enabled: False
         max_pods: 110
         repeats: 10
         scale_timeout: "15m"
-        cilium_enabled: True
         network_policy: cilium
         network_dataplane: cilium
         service_test: True

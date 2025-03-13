@@ -74,17 +74,17 @@ def configure_clusterloader2(
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_STEPS: {steps}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
-        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
-        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
-        file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+        # file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        # file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
+        # file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        # file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
+            # file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
+            # file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
+            # file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")

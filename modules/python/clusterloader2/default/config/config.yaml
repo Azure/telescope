@@ -1,21 +1,6 @@
-name: resource-consumer
+name: job-scheduling
 
-{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 10}}
-{{$memory := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY "100"}}
-{{$memoryKi := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_KI "100"}}
-{{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
-{{$repeats := DefaultParam .CL2_REPEATS 1}}
-
-{{$steps := DefaultParam .CL2_STEPS 1}}
-{{$nodePerStep := DefaultParam .CL2_NODE_PER_STEP 1}}
-{{$totalNodes := MultiplyInt $nodePerStep $steps}}
-{{$replicas := MultiplyInt $deploymentSize $totalNodes}}
-{{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
-{{$scale_enabled := DefaultParam .CL2_SCALE_ENABLED false}}
-
-{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
-{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
-{{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
+{{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
 
 namespace:
   number: 1
@@ -32,30 +17,21 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
+      - Identifier: Start JobLifecycleLatency
+        Method: JobLifecycleLatency
         Params:
           action: start
-          labelSelector: group = resource-consumer
-          threshold: {{$podStartupLatencyThreshold}}
-      - Identifier: ResourceUsageSummary
-        Method: ResourceUsageSummary
+          timeout: 1h
+          labelSelector: perf_test=true
+      - Identifier: Start WaitForFinishedJobs
+        Method: WaitForFinishedJobs
         Params:
           action: start
-          labelSelector: group = resource-consumer
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: start
-          checkIfPodsAreUpdated: true
-          apiVersion: apps/v1
-          kind: Deployment
-          labelSelector: group = resource-consumer
-          operationTimeout: {{$operationTimeout}}
+          timeout: 1h
+          labelSelector: perf_test=true
 
-{{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
-  - name: Create deployment {{$j}}
+  {{range $i := Loop $job_count}}
+  - name: Create job {{$i}}
     phases:
     - namespaceRange:
           min: 1
@@ -63,85 +39,19 @@ steps:
       replicasPerNamespace: 1
       tuningSet: Uniform1qps
       objectBundle:
-      - basename: resource-consumer-{{$j}}
+      - basename: test-job-{{$i}}
         objectTemplatePath: deployment_template.yaml
-        templateFillMap:
-      {{if $scale_enabled}}
-        {{if eq $j 0}}
-          Replicas: {{AddInt $scaleReplicas $deploymentSize}}
-        {{else}}
-          Replicas: {{$scaleReplicas}}
-        {{end}}
-      {{else}}
-          Replicas: {{$replicas}}
-      {{end}}
-          Group: resource-consumer
-          Memory: {{$memory}}K
-          CPU: --millicores={{$cpu}}
-          MemoryRequest: {{$memoryKi}}
-          CPURequest: {{$cpu}}m
-          LoadType: {{$loadType}}
-
-  - name: Waiting for latency pods to be running
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
-
-  - name: Wait for resource consumption
-    measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          duration: 1m
-
-  - name: Wait for nodes to be ready
-    measurements:
-      - Identifier: ConfirmNodeCount
-        Method: WaitForNodes
-        Params:
-          action: start
-        {{if $scale_enabled}}
-          minDesiredNodeCount: {{MultiplyInt (AddInt (MultiplyInt $nodePerStep (AddInt $j 1)) 1) 0.8}}
-          maxDesiredNodeCount: {{AddInt $totalNodes 1}}
-        {{else}}
-          minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
-          maxDesiredNodeCount: {{$totalNodes}}
-        {{end}}
-          labelSelector: cri-resource-consume = true
-          timeout: 1m
-          refreshInterval: 5s
   {{end}}
 
-  {{range $j := Loop $steps}}
-  - name: Deleting deployments {{$j}}
-    phases:
-      - namespaceRange:
-          min: 1
-          max: 1
-        replicasPerNamespace: 0
-        tuningSet: Uniform1qps
-        objectBundle:
-          - basename: resource-consumer-{{$j}}
-            objectTemplatePath: deployment_template.yaml
-
-  - name: Waiting for latency pods to be deleted
+  - name: Waiting for jobs to be finished
     measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
+      - Identifier: Gather WaitForFinishedJobs
+        Method: WaitForFinishedJobs
         Params:
           action: gather
-  {{end}}
-{{end}}
-
+        
   - name: Collect measurements
-    measurements:
-      - Identifier: ResourceUsageSummary
-        Method: ResourceUsageSummary
-        Params:
-          action: gather
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
+      - Identifier: Gather JobLifecycleLatency
+        Method: JobLifecycleLatency
         Params:
           action: gather

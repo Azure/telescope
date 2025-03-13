@@ -1,61 +1,32 @@
-{{$Memory := DefaultParam .Memory "1000M"}}
-{{$CPU := DefaultParam .CPU "--millicores=100"}}
-{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
-{{$CPURequest := DefaultParam .CPURequest "100m"}}
-{{$LoadType := DefaultParam .LoadType "memory"}}
-
 apiVersion: apps/v1
-kind: Deployment
+kind: Job
 metadata:
   name: {{.Name}}
   labels:
-    group: {{.Group}}
+    perf_test: true
 spec:
-  replicas: {{.Replicas}}
   selector:
     matchLabels:
-      name: {{.Name}}
+      group: 
   template:
     metadata:
-      labels:
-        name: {{.Name}}
-        group: {{.Group}}
+      name: {{.Name}}
     spec:
-      nodeSelector:
-        cri-resource-consume: "true"
-      containers:
-{{if eq $LoadType "memory"}}
-      - name: resource-consumer-memory
-        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
-        command:
-          - stress
-        args:
-          - --vm
-          - "1"
-          - --vm-bytes
-          - {{$Memory}}
-          - --vm-hang
-          - "0"
-          - --timeout
-          - "3600"
-        resources:
-          requests:
-            memory: {{$MemoryRequest}}
-{{end}}
-{{if eq $LoadType "cpu"}}
-      - name: resource-consumer-cpu
-        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
-        command:
-          - ./consume-cpu/consume-cpu
-        args:
-          - --duration-sec=3600
-          - {{$CPU}}
-        resources:
-          requests:
-            cpu: {{$CPURequest}}
-{{end}}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: In
+                values:
+                - kwok
+      # A taints was added to an automatically created Node.
+      # You can remove taints of Node or add this tolerations.
       tolerations:
-      - key: "cri-resource-consume"
-        operator: "Equal"
-        value: "true"
+      - key: "kwok.x-k8s.io/node"
+        operator: "Exists"
         effect: "NoSchedule"
+      containers:
+      - image: registry.k8s.io/pause:3.9
+        name: {{.Name}}
