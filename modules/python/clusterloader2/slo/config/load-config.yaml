@@ -128,6 +128,14 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: start
 
+  - name: Adding lag to test - after creation of pods
+    measurements:
+    - Identifier: Dummy1
+      Method: Sleep
+      Params:
+        action: start
+        duration: 600s
+
 {{if $NETWORK_TEST}}
   - module:
       path: modules/network-policy/net-policy-metrics.yaml
@@ -163,6 +171,15 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: restart
+
+  
+  - name: Adding lag to test - before deletion of pods
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1200s
 
   - module:
       path: /modules/reconcile-objects.yaml
