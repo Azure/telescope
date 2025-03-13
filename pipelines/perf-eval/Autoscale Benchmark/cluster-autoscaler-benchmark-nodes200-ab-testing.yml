@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 20 * * *"
-    displayName: "Every day at 8:00 PM"
+  - cron: "0 8,20 * * *"
+    displayName: "Every day at 8:00 AM and 8:00 PM"
     branches:
       include:
         - main
@@ -15,7 +15,7 @@ stages:
   - stage: azure_eastus2
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 8:00 PM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 8:00 AM and 8:00 PM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
