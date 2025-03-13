@@ -1,218 +1,57 @@
-name: load-config
+name: job-scheduling
 
-# Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
-{{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
-{{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
-
-# Config options for test parameters
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
-{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
-{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
-{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
-{{$repeats := DefaultParam .CL2_REPEATS 1}}
-{{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
-
-# TODO(jshr-w): This should eventually use >1 namespace.
-{{$namespaces := 1}}
-{{$nodes := DefaultParam .CL2_NODES 1000}}
-
-{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
-{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
-{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
-
-{{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
-{{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
-{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
-
-{{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
-
-# Service test
-{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
-{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
-
-# CNP & CCNP Test
-{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
-{{$CCNPS := DefaultParam .CL2_CCNPS 0}}
-{{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
+{{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
 
 namespace:
-  number: {{$namespaces}}
-  prefix: slo
+  number: 1
+  prefix: resource-consumer
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
 
 tuningSets:
-  - name: Sequence
-    parallelismLimitedLoad:
-      parallelismLimit: 1
-  - name: DeploymentCreateQps
-    qpsLoad:
-      qps: {{$deploymentQPS}}
-  - name: DeploymentDeleteQps
-    qpsLoad:
-      qps: {{$deploymentQPS}}
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Start measurements
     measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 1ms
+      - Identifier: Start JobLifecycleLatency
+        Method: JobLifecycleLatency
+        Params:
+          action: start
+          timeout: 1h
+          labelSelector: perf_test=true
+      - Identifier: Start WaitForFinishedJobs
+        Method: WaitForFinishedJobs
+        Params:
+          action: start
+          timeout: 1h
+          labelSelector: perf_test=true
 
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
+  {{range $i := Loop $job_count}}
+  - name: Create job {{$i}}
+    phases:
+    - namespaceRange:
+          min: 1
+          max: 1
+      replicasPerNamespace: 1
+      tuningSet: Uniform1qps
+      objectBundle:
+      - basename: test-job-{{$i}}
+        objectTemplatePath: deployment_template.yaml
+  {{end}}
 
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: start
-{{end}}
-
-{{range $i := Loop $repeats}}
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
-        bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
-{{end}}
-
-{{if $CNP_TEST}}
-  - module:
-      path: /modules/ciliumnetworkpolicy.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        Group: {{$groupName}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-{{end}}
-
-{{if $CCNP_TEST}}
-  - module:
-      path: /modules/ciliumclusternetworkpolicy.yaml
-      params:
-        actionName: "Creating"
-        Group: {{$groupName}}
-        ccnps: {{$CCNPS}}
-{{end}}
+  - name: Waiting for jobs to be finished
+    measurements:
+      - Identifier: Gather WaitForFinishedJobs
+        Method: WaitForFinishedJobs
+        Params:
+          action: gather
         
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "create"
-        namespaces: {{$namespaces}}
-        tuningSet: DeploymentCreateQps
-        operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-    {{end}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: start
-
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "restart"
-        namespaces: {{$namespaces}}
-        tuningSet: Sequence
-        operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-    {{end}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: restart
-
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete"
-        namespaces: {{$namespaces}}
-        tuningSet: DeploymentDeleteQps
-        operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: 0
-    {{end}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: restart
-        Group: {{$groupName}}
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: 0
-        bigServicesPerNamespace: 0
-{{end}}
-{{if $CNP_TEST}}
-  - module:
-      path: /modules/ciliumnetworkpolicy.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        cnpsPerNamespace: 0
-{{end}}
-{{if $CCNP_TEST}}
-  - module:
-      path: /modules/ciliumclusternetworkpolicy.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        ccnps: 0
-{{end}}
-{{end}}
-
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: gather
-{{end}}
-
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
+  - name: Collect measurements
+      - Identifier: Gather JobLifecycleLatency
+        Method: JobLifecycleLatency
+        Params:
+          action: gather
