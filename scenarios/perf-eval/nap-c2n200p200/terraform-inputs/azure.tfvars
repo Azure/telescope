@@ -33,6 +33,10 @@ aks_cli_config_list = [
       {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
+      },
+      {
+        name  = "enable-addons"
+        value = "azure-policy"
       }
     ]
   }
