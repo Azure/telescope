@@ -82,7 +82,7 @@ def validate_clusterloader2(node_count=2, operation_timeout_in_minutes=10):
             break
         print(f"Waiting for {node_count} nodes to be ready.")
         time.sleep(10)
-    if ready_node_count != node_count:
+    if ready_node_count < node_count:
         raise Exception(
             f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!"
         )
