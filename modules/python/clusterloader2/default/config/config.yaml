@@ -30,18 +30,18 @@ steps:
           timeout: 1h
           labelSelector: perf_test=true
 
-  {{range $i := Loop $job_count}}
+  {{- range $i := seq 0 $job_count }}
   - name: Create job {{$i}}
     phases:
-    - namespaceRange:
+      - namespaceRange:
           min: 1
           max: 1
-      replicasPerNamespace: 1
-      tuningSet: Uniform1qps
-      objectBundle:
-      - basename: test-job-{{$i}}
-        objectTemplatePath: deployment_template.yaml
-  {{end}}
+        replicasPerNamespace: 1
+        tuningSet: Uniform1qps
+        objectBundle:
+          - basename: test-job-{{$i}}
+            objectTemplatePath: deployment_template.yaml
+  {{- end }}
 
   - name: Waiting for jobs to be finished
     measurements:
@@ -49,8 +49,9 @@ steps:
         Method: WaitForFinishedJobs
         Params:
           action: gather
-        
+
   - name: Collect measurements
+    measurements:  # <-- This was missing
       - Identifier: Gather JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
