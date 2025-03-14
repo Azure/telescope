@@ -19,7 +19,7 @@ def cleanup_warmup_deployment_for_karpeneter():
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
     print("WarmUp Deployment Deleted")
     try:
-        subprocess.run(["kubectl", "delete", "nodeclaim", "--all"], check=True)
+        subprocess.run(["kubectl", "delete", "nodeclaims", "--all"], check=True)
     except Exception as e:
         print(f"Error while deleting node: {e}")
 
