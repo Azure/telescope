@@ -14,12 +14,12 @@ def warmup_deployment_for_karpeneter():
     deployment_file = "autoscale/config/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def cleanup_warmup_deployment_for_karpeneter(node_name):
+def cleanup_warmup_deployment_for_karpeneter():
     deployment_file = "autoscale/config/warmup_deployment.yaml"
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
     print("WarmUp Deployment Deleted")
     try:
-        subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
+        subprocess.run(["kubectl", "delete", "nodeclaim", "--all"], check=True)
     except Exception as e:
         print(f"Error while deleting node: {e}")
 
