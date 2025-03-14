@@ -67,7 +67,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     # Remove warmup deployment cpu request from the total cpu value
     if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
-        cleanup_warmup_deployment_for_karpeneter(node.metadata.name)
+        cleanup_warmup_deployment_for_karpeneter()
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
