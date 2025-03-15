@@ -33,8 +33,9 @@ def configure_clusterloader2(
         # prometheus server config
         file.write("# Prometheus server config\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
-        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
 
         if cilium_enabled:
