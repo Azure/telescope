@@ -1,0 +1,24 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- template: /steps/engine/clusterloader2/netpol-scale/collect.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}
+- script: |
+    run_id=$(Build.BuildId)-$(System.JobId)
+    echo "Run ID: $run_id"
+    echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+  displayName: "Set unique Run ID before publish"
+- ${{ if eq(parameters.cloud, 'aws') }}:
+  - template: /steps/engine/clusterloader2/autoscale/cleanup.yml
