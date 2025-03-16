@@ -83,7 +83,10 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
 class TestNetworkPolicyScale(unittest.TestCase):
     def test_collect_clusterloader2(self):
         # Setup using provided mock report directory
-        cl2_report_dir = "/home/sarathsa/work/pr-changes/telescope/modules/python/tests/mock_data/network-policy-scale/report"
+        # set report_dir path to ./mock_data/network-policy-scale/report
+        cl2_report_dir = os.path.join(
+            os.path.dirname(__file__), "mock_data", "network-policy-scale", "report"
+        )
         # Create a temporary file for result output
         result_file = tempfile.mktemp()
         # Setup additional parameters
