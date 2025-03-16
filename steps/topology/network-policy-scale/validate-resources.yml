@@ -9,7 +9,7 @@ parameters:
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
-      role: netpol-scale # TODO: update this to configurable
+      role: netpol-scale # role value passed here is ignored by update-kubeconfig.yml
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/network-policy-scale/validate.yml
     parameters:

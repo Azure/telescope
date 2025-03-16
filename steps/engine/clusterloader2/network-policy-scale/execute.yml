@@ -49,8 +49,8 @@ steps:
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/netpol_scale.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network-policy-scale.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/config
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/results
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network-policy-scale-report
     displayName: "Run Benchmark"

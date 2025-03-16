@@ -36,6 +36,6 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/netpol_scale.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/netpol-scale/results
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network-policy-scale.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network-policy-scale-report
   displayName: "Collect Results"
