@@ -2,12 +2,18 @@ import os
 import unittest
 import tempfile
 import json
-from clusterloader2.slo.network_policy_scale import configure_clusterloader2, collect_clusterloader2
+from clusterloader2.slo.network_policy_scale import (
+    configure_clusterloader2,
+    collect_clusterloader2,
+)
+
 
 class TestConfigureNetworkPolicyScale(unittest.TestCase):
     def test_default_config(self):
         # Create a temporary file for the override file
-        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
             tmp_path = tmp.name
 
         try:
@@ -39,7 +45,9 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
 
     def test_with_cilium_configs(self):
         # Create a temporary file for the override file
-        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
             tmp_path = tmp.name
 
         try:
@@ -71,6 +79,7 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
         finally:
             os.remove(tmp_path)
 
+
 class TestNetworkPolicyScale(unittest.TestCase):
     def test_collect_clusterloader2(self):
         # Setup using provided mock report directory
@@ -94,9 +103,8 @@ class TestNetworkPolicyScale(unittest.TestCase):
             run_id,
             run_url,
             result_file,
-            test_type
+            test_type,
         )
-
         # Verify that the result file is created and contains expected data
         self.assertTrue(os.path.exists(result_file))
         with open(result_file, "r", encoding="utf-8") as f:
@@ -104,5 +112,6 @@ class TestNetworkPolicyScale(unittest.TestCase):
         self.assertTrue(len(content) > 0)
         # TODO: Add more specific assertions based on expected content
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

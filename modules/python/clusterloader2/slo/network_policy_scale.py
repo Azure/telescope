@@ -4,7 +4,8 @@ import argparse
 
 from datetime import datetime, timezone
 from slo import validate_clusterloader2, execute_clusterloader2
-from utils import parse_xml_to_json,get_measurement
+from utils import parse_xml_to_json, get_measurement
+
 
 def configure_clusterloader2(
     number_of_groups,
@@ -62,6 +63,7 @@ def configure_clusterloader2(
         print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
+
 
 def collect_clusterloader2(
     node_count,
@@ -131,14 +133,21 @@ def collect_clusterloader2(
     os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
     with open(result_file, "w", encoding="utf-8") as file:
         file.write(content)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Network Policy Scale Test")
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2
-    parser_configure = subparsers.add_parser("configure", help="Configure ClusterLoader2 overrides file")
+    parser_configure = subparsers.add_parser(
+        "configure", help="Configure ClusterLoader2 overrides file"
+    )
     parser_configure.add_argument(
-        "--number_of_groups", type=int, required=True, help="Number of network policy groups to create"
+        "--number_of_groups",
+        type=int,
+        required=True,
+        help="Number of network policy groups to create",
     )
     parser_configure.add_argument(
         "--clients_per_group",
@@ -159,8 +168,11 @@ def main():
         help="Number of workers per client pod",
     )
     parser_configure.add_argument(
-        "--netpol_type", type=str, required=True, choices=["k8s", "cnp", "ccnp"],
-        help="Type of network policy"
+        "--netpol_type",
+        type=str,
+        required=True,
+        choices=["k8s", "cnp", "ccnp"],
+        help="Type of network policy",
     )
     parser_configure.add_argument(
         "--test_duration_secs", type=int, required=True, help="Test duration in seconds"
@@ -191,7 +203,9 @@ def main():
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument("--node_count", type=int, help="Number of desired nodes")
+    parser_validate.add_argument(
+        "--node_count", type=int, help="Number of desired nodes"
+    )
     parser_validate.add_argument(
         "--operation_timeout",
         type=int,
@@ -219,7 +233,13 @@ def main():
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("--pod_count", type=int, nargs="?", default=0, help="Maximum number of pods per node")
+    parser_collect.add_argument(
+        "--pod_count",
+        type=int,
+        nargs="?",
+        default=0,
+        help="Maximum number of pods per node",
+    )
     parser_collect.add_argument(
         "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
     )
@@ -241,7 +261,7 @@ def main():
     if args.command is None:
         parser.print_help()
         return
-    
+
     if args.command == "configure":
         configure_clusterloader2(
             args.number_of_groups,
@@ -267,7 +287,7 @@ def main():
             args.cl2_config_file,
             args.kubeconfig,
             args.provider,
-            scrape_containerd=False, # for network policy scale test, we don't need to scrape containerd for now
+            scrape_containerd=False,  # for network policy scale test, we don't need to scrape containerd for now
         )
     elif args.command == "collect":
         collect_clusterloader2(
@@ -280,6 +300,7 @@ def main():
             args.result_file,
             args.test_type,
         )
+
 
 if __name__ == "__main__":
     main()
