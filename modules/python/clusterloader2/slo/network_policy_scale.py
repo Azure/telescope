@@ -3,8 +3,9 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from slo import validate_clusterloader2, execute_clusterloader2
-from utils import parse_xml_to_json, get_measurement
+from clusterloader2.utils import parse_xml_to_json, get_measurement
+from clusterloader2.slo.slo import validate_clusterloader2, execute_clusterloader2
+
 
 
 def configure_clusterloader2(
@@ -130,7 +131,7 @@ def collect_clusterloader2(
                 content += json.dumps(result) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
+    # os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
     with open(result_file, "w", encoding="utf-8") as file:
         file.write(content)
 
