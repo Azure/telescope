@@ -1,6 +1,7 @@
 locals {
   region           = lookup(var.json_input, "region", "us-east-1")
   run_id           = lookup(var.json_input, "run_id", "123456")
+  user_data_path   = lookup(var.json_input, "user_data_path", "")
   creation_time    = var.json_input["creation_time"]
   k8s_machine_type = lookup(var.json_input, "k8s_machine_type", null)
 
@@ -55,5 +56,6 @@ module "eks" {
   eks_config       = each.value
   tags             = local.tags
   k8s_machine_type = local.k8s_machine_type
+  user_data_path   = local.user_data_path
   depends_on       = [module.virtual_network]
 }

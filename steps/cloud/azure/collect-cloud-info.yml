@@ -19,6 +19,7 @@ steps:
       --arg subscription "$(az account show --query id --output tsv)" \
       --arg edge_zone "$(echo $aks_info | jq -r .extendedLocation.name)" \
       --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
+      --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
       '{
         cloud: $cloud,
         region: $region,
@@ -27,7 +28,8 @@ steps:
         sku_tier: $sku_tier,
         subscription: $subscription,
         edge_zone: $edge_zone,
-        network_profile: $network_profile
+        network_profile: $network_profile,
+        agentpool_profile: $agentpool_profile
       }')
     cloud_info_str=$(echo $cloud_info | jq -c .)
     echo "Cloud info: $cloud_info_str"

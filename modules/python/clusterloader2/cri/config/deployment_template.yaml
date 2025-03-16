@@ -3,6 +3,7 @@
 {{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$LoadType := DefaultParam .LoadType "memory"}}
+{{$Provider := DefaultParam .Provider "aks"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -21,12 +22,18 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
     spec:
+      hostNetwork: true
       nodeSelector:
         cri-resource-consume: "true"
       containers:
 {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
+{{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+{{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+{{end}}
+        imagePullPolicy: IfNotPresent
         command:
           - stress
         args:
@@ -44,7 +51,12 @@ spec:
 {{end}}
 {{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
+{{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+{{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+{{end}}
+        imagePullPolicy: IfNotPresent
         command:
           - ./consume-cpu/consume-cpu
         args:
@@ -59,3 +71,7 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"

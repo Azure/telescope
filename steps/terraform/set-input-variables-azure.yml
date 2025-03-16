@@ -19,10 +19,10 @@ steps:
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
 
-      if [ -z "$AKS_CLI_CUSTOM_HEADERS" ]; then
+      if [ -z "$(AKS_CLI_CUSTOM_HEADERS)" ]; then
         AKS_CUSTOM_HEADERS='[]'
       else
-        IFS=', ' read -r -a aks_custom_headers_array <<< "$AKS_CLI_CUSTOM_HEADERS"
+        IFS=', ' read -r -a aks_custom_headers_array <<< "$(AKS_CLI_CUSTOM_HEADERS)"
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
@@ -38,6 +38,7 @@ steps:
                 --arg aks_network_policy "$NETWORK_POLICY" \
                 --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
                 --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
+                --arg k8s_os_disk_type "$K8S_OS_DISK_TYPE" \
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
@@ -49,6 +50,7 @@ steps:
                   aks_network_policy: $aks_network_policy,
                   aks_network_dataplane: $aks_network_dataplane,
                   k8s_machine_type: $k8s_machine_type,
+                  k8s_os_disk_type: $k8s_os_disk_type,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool
