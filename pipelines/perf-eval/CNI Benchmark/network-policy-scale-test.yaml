@@ -11,17 +11,17 @@ stages:
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
-      cloud: azure
-      regions:
-      - $(LOCATION)
-      topology: netpol-scale
-      engine: clusterloader2
-      engine_input:
-        image: "ghcr.io/sanamsarath/clusterloader2:vtest" # TODO: Fix this after perf-tests PR is merged
-      matrix:
-        azure_cilium:
-          cl2_config_file: network-policy-scale-config.yaml
-      max_parallel: 2
-      timeout_in_minutes: 720 # 12 hours
-      credential_type: service_connection
-      ssh_key_enabled: false
+        cloud: azure
+        regions:
+        - $(LOCATION)
+        topology: netpol-scale
+        engine: clusterloader2
+        engine_input:
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest" # TODO: Fix this after perf-tests PR is merged
+        matrix:
+            azure_cilium:
+                cl2_config_file: network-policy-scale-config.yaml
+        max_parallel: 2
+        timeout_in_minutes: 720 # 12 hours
+        credential_type: service_connection
+        ssh_key_enabled: false
