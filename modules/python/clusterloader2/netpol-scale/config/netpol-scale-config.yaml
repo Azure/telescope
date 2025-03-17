@@ -60,6 +60,7 @@ steps:
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
         npType: {{$Network_Policy_Type}}
+        resourceGatheringEnabled: false
   # 5. gather network performance measurement (wait and gather results)
   - name: Network Policy Soak Test - Gather Results
     measurements:
