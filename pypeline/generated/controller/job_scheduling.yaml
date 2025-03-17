@@ -1,0 +1,97 @@
+stages:
+- displayName: eastus
+  jobs:
+  - job: setup
+    displayName: Setup resources
+    steps:
+    - displayName: Set run id
+      script: |
+        if [ -n "$RUN_ID" ]; then
+        run_id=$RUN_ID
+        else
+        run_id=$(Build.BuildId)-$(System.JobId)
+        fi
+        echo "Run ID: $run_id"
+        echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+      env:
+        RUN_ID: null
+    - displayName: Set Run URL & Code URL
+      script: |
+        run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
+        echo "Run URL: $run_url"
+        echo "##vso[task.setvariable variable=RUN_URL]$run_url"
+
+        code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
+        echo "Code URL: $code_url"
+        echo "##vso[task.setvariable variable=CODE_URL]$code_url"
+    - displayName: Set Test Results Directory
+      script: |
+        test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
+        mkdir -p $test_results_directory
+        echo "Test Results directory: $test_results_directory"
+        echo "##vso[task.setvariable variable=TEST_RESULTS_DIR]$test_results_directory"
+
+        test_results_file=$test_results_directory/results.json
+
+        echo "Test Results file: $test_results_file"
+        echo "##vso[task.setvariable variable=TEST_RESULTS_FILE]$test_results_file"
+    - displayName: Set Script Module Directory
+      script: |
+        if [ -n "${TEST_MODULES_DIR}" ]; then
+            test_modules_directory=$(Pipeline.Workspace)/s/${TEST_MODULES_DIR}
+        else
+            test_modules_directory=$(Pipeline.Workspace)/s/modules/bash
+        fi
+        echo "Script modules directory: $test_modules_directory"
+        echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
+      env:
+        TEST_MODULES_DIR: ''
+    - displayName: Get login credentials
+      task: AzureCLI@2
+      inputs:
+        azureSubscription: null
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
+          echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
+          echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
+        addSpnToEnvironment: 'true'
+    - displayName: Azure Login
+      script: |
+        set -eu
+
+        echo "login to Azure in $REGION"
+        az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
+        az account set --subscription "$AZURE_SP_SUBSCRIPTION_ID"
+        az config set defaults.location="$REGION"
+        az account show
+      env:
+        REGION: eastus
+        AZURE_SP_SUBSCRIPTION_ID: null
+    - displayName: Check Dependencies
+      script: |
+        python3 --version && pip3 --version
+        jq --version
+    - displayName: Install Dependencies
+      script: |
+        set -e
+        if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
+            pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+        fi
+        sudo apt-get -y install bc
+  - job: validate
+    displayName: Validate resources
+    steps: []
+    dependsOn:
+    - setup
+  - job: run
+    displayName: Run the benchmark
+    steps: []
+    dependsOn:
+    - validate
+  - job: tear down
+    displayName: Tear down resources
+    steps: []
+    dependsOn:
+    - run
