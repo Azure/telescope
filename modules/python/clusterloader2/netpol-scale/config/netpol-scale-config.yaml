@@ -82,4 +82,9 @@ steps:
         action: gather
   {{end}}
 {{end}}
-
+  - name: Sleep for 5 minutes
+    measurements:
+    - Identifier: Sleep
+      Method: Sleep
+      Params:
+        duration: 5m
