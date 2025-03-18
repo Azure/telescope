@@ -1,22 +1,16 @@
-{{$Memory := DefaultParam .Memory "1000M"}}
-{{$CPU := DefaultParam .CPU "--millicores=100"}}
-{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
-{{$CPURequest := DefaultParam .CPURequest "100m"}}
-{{$LoadType := DefaultParam .LoadType "memory"}}
-{{$Provider := DefaultParam .Provider "aks"}}
-
 apiVersion: apps/v1
-kind: Deployment
+kind: Job
 metadata:
   name: {{.Name}}
   labels:
     perf_test: true
 spec:
+  selector:
+    matchLabels:
+      group: 
   template:
     metadata:
-      labels:
-        name: {{.Name}}
-        group: {{.Group}}
+      name: {{.Name}}
     spec:
       affinity:
         nodeAffinity:
@@ -27,6 +21,8 @@ spec:
                 operator: In
                 values:
                 - kwok
+      # A taints was added to an automatically created Node.
+      # You can remove taints of Node or add this tolerations.
       tolerations:
       - key: "kwok.x-k8s.io/node"
         operator: "Exists"
@@ -34,10 +30,3 @@ spec:
       containers:
       - image: registry.k8s.io/pause:3.9
         name: {{.Name}}
-        resources:
-          requests:
-            memory: {{$MemoryRequest}}
-            cpu: {{$CPURequest}}
-          limits:
-            memory: {{$Memory}}
-            cpu: {{$CPU}}
