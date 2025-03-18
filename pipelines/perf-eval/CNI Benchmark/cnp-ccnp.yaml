@@ -1,11 +1,11 @@
 trigger: none
-schedules:
-- cron: "0 */8 * * *"
-  displayName: "Every 8 Hours Daily"
-  branches:
-    include:
-      - karanadive/schedule-cnp
-  always: true
+# schedules:
+# - cron: "0 */8 * * *"
+#   displayName: "Every 8 Hours Daily"
+#   branches:
+#     include:
+#       - karanadive/schedule-cnp
+#   always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
