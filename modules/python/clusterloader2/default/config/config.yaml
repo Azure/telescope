@@ -4,7 +4,7 @@ name: job-scheduling
 
 namespace:
   number: 1
-  prefix: resource-consumer
+  prefix: job-scheduling
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
@@ -30,7 +30,7 @@ steps:
           timeout: 1h
           labelSelector: perf_test=true
 
-  {{range $i := Loop $job_count}}
+{{range $i := Loop $job_count}}
   - name: Create job {{$i}}
     phases:
     - namespaceRange:
@@ -41,7 +41,7 @@ steps:
       objectBundle:
       - basename: test-job-{{$i}}
         objectTemplatePath: deployment_template.yaml
-  {{end}}
+{{end}}
 
   - name: Waiting for jobs to be finished
     measurements:
