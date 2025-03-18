@@ -24,7 +24,7 @@ stages:
       - $(LOCATION)
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/sanamsarath/clusterloader2:vtest3" # TODO: Fix this after perf-tests PR is merged
+        image: "ghcr.io/sanamsarath/clusterloader2:vtest" # TODO: Fix this after perf-tests PR is merged
       topology: netpol-scale
       matrix:
         azure_cilium:
