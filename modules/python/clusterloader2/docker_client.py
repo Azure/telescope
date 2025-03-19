@@ -6,4 +6,4 @@ class DockerClient:
         self.client = docker.from_env()
 
     def run_container(self, image, command, volumes, detach):
-        return self.client.containers.run(image, command, volumes=volumes, detach=detach)
+        return self.client.containers.run(image, command, volumes=volumes, detach=detach, environment={"GOMEMLIMIT": "10GiB"})
