@@ -17,6 +17,7 @@ locals {
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
     "run_id"            = local.run_id
+    "SkipAKSCluster"    = "1"
   }
 
   network_config_map = { for network in var.network_config_list : network.role => network }
