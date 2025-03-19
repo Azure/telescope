@@ -1,6 +1,5 @@
 name: job-scheduling
-
-{{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
+{{$job_count := DefaultParam .CL2_JOB_COUNT 20}} # 1
 
 namespace:
   number: 1
@@ -21,14 +20,16 @@ steps:
         Method: JobLifecycleLatency
         Params:
           action: start
-          timeout: 1h
-          labelSelector: perf_test=true
-      - Identifier: Start WaitForFinishedJobs
+          labelSelector: group=job-scheduling
+          threshold: 1h
+      - Identifier: WaitForFinishedJobs
         Method: WaitForFinishedJobs
         Params:
           action: start
-          timeout: 1h
-          labelSelector: perf_test=true
+          apiVersion: batch/v1
+          kind: Job
+          labelSelector: group=job-scheduling
+          operationTimeout: 1h
 
 {{range $i := Loop $job_count}}
   - name: Create job {{$i}}
@@ -40,17 +41,18 @@ steps:
       tuningSet: Uniform1qps
       objectBundle:
       - basename: test-job-{{$i}}
-        objectTemplatePath: deployment_template.yaml
+        objectTemplatePath: job_template.yaml
+       
 {{end}}
-
+       
   - name: Waiting for jobs to be finished
     measurements:
-      - Identifier: WaitForFinishedJobs
-        Method: WaitForFinishedJobs
-        Params:
-          action: gather
-        
+    - Identifier: WaitForFinishedJobs
+      Method: WaitForFinishedJobs
+      Params:
+        action: gather
   - name: Collect measurements
+    measurements:
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:

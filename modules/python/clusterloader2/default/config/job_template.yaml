@@ -1,17 +1,11 @@
-apiVersion: apps/v1
+apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{.Name}}
-  labels:
-    perf_test: true
 spec:
-  selector:
-    matchLabels:
-      group: 
   template:
-    metadata:
-      name: {{.Name}}
     spec:
+      restartPolicy: Never
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -21,12 +15,13 @@ spec:
                 operator: In
                 values:
                 - kwok
-      # A taints was added to an automatically created Node.
-      # You can remove taints of Node or add this tolerations.
+      containers:
+      - image: registry.k8s.io/pause:3.9 
+        name: {{.Name}}
       tolerations:
       - key: "kwok.x-k8s.io/node"
         operator: "Exists"
         effect: "NoSchedule"
-      containers:
-      - image: registry.k8s.io/pause:3.9
-        name: {{.Name}}
+      
+
+     
