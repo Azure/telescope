@@ -29,6 +29,11 @@ steps:
 # 3. gather network performance measurement (wait and gather results)
 # 4. gather cilium envoy metrics
 # 5. gather cilium agent metrics
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: "service-discovery""
 {{if $CILIUM_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
@@ -88,3 +93,8 @@ steps:
       Method: Sleep
       Params:
         duration: 5m
+  - module:
+    path: /modules/measurements.yaml
+    params:
+      action: gather
+      group: "service-discovery""
