@@ -64,6 +64,7 @@ def configure_clusterloader2(
         file.write(f"CL2_WORKERS_PER_CLIENT: {workers_per_client}\n")
         file.write(f"CL2_NUMBER_OF_GROUPS: {number_of_groups}\n")
         file.write(f"CL2_NETWORK_POLICY_TYPE: {netpol_type}\n")
+        file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
 
     with open(override_file, "r", encoding="utf-8") as file:
         print(f"Content of file {override_file}:\n{file.read()}")
