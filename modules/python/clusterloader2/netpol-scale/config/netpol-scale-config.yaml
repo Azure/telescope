@@ -33,7 +33,7 @@ steps:
       path: /modules/measurements.yaml
       params:
         action: start
-        group: "service-discovery""
+        group: "service-discovery"
 {{if $CILIUM_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
@@ -87,14 +87,14 @@ steps:
         action: gather
   {{end}}
 {{end}}
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: "service-discovery"
   - name: Sleep for 5 minutes
     measurements:
     - Identifier: Sleep
       Method: Sleep
       Params:
         duration: 5m
-  - module:
-    path: /modules/measurements.yaml
-    params:
-      action: gather
-      group: "service-discovery""
