@@ -20,8 +20,9 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
     for pod in pods:
         for container in pod.spec.containers:
             print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-            cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-            memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+            if container.resources.requests:
+                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
     return cpu_request, memory_request * 1024
 
 def override_config_clusterloader2(
@@ -102,11 +103,11 @@ def verify_measurement():
     # Create an API client
     api_client = k8s_client.ApiClient()
     for node_name in user_pool:
-        url = f"/api/v1/nodes/{node_name}/proxy/metrics"
+        kubelet_url = f"/api/v1/nodes/{node_name}/proxy/metrics"
 
         try:
             response = api_client.call_api(
-                resource_path=url,
+                resource_path=kubelet_url,
                 method="GET",
                 auth_settings=['BearerToken'],
                 response_type="str",
@@ -114,11 +115,27 @@ def verify_measurement():
             )
 
             metrics = response[0]  # The first item contains the response data
-            filtered_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
+            kubelet_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start_sli_duration") or "run_podsandbox" in line
             )
+
+            containerd_url = f"/api/v1/nodes/{node_name}:10257/proxy/v1/metrics"
+            response = api_client.call_api(
+                resource_path=containerd_url,
+                method="GET",
+                auth_settings=['BearerToken'],
+                response_type="str",
+                _preload_content=True
+            )
+
+            metrics = response[0]  # The first item contains the response data
+            containerd_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("containerd_cri_network_plugin_operations") or line.startswith("containerd_cri_sandbox_create_network")
+            )
+
             print("##[section]Metrics for node:", node_name)
-            print(filtered_metrics)
+            print(kubelet_metrics)
+            print(containerd_metrics)
 
         except k8s_client.ApiException as e:
             print(f"Error fetching metrics: {e}")
