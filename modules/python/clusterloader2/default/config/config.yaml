@@ -43,7 +43,6 @@ steps:
         objectTemplatePath: job_template.yaml
         templateFillMap:
           Group: job-scheduling
-
 {{end}}
        
   - name: Waiting for jobs to be finished
