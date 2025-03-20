@@ -16,17 +16,17 @@ steps:
       echo "##vso[task.setvariable variable=SLO_START_TIME]$startTimestamp"
     displayName: set up timestamp variable
 
-  # - script: |
-  #     # This won't work if you try to create node exporter without ever running prometheus first
-  #     set -ex
+  - script: |
+      # This won't work if you try to create node exporter without ever running prometheus first
+      set -ex
 
-  #     if [ "${SCRAPE_NODE_EXPORTER}" = "True" ]; then
-  #       kubectl create ns monitoring
-  #       kubectl apply -f ${NODE_EXPORTER}
-  #     fi
-  #   env:
-  #     NODE_EXPORTER: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config/modules/nodeexporter
-  #   displayName: "Set Up Node Exporter"
+      if [ "${SCRAPE_NODE_EXPORTER}" = "True" ]; then
+        kubectl create ns monitoring
+        kubectl apply -f ${NODE_EXPORTER}
+      fi
+    env:
+      NODE_EXPORTER: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config/modules/nodeexporter
+    displayName: "Set Up Node Exporter"
 
   - script: |
       set -eo pipefail
