@@ -22,7 +22,7 @@ def validate_node_count(node_label, node_count, operation_timeout_in_minutes):
             break
         print(f"Waiting for {node_count} nodes to be ready.")
         time.sleep(10)
-    if ready_node_count > node_count:
+    if ready_node_count < node_count:
         raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
 def calculate_percentiles(disk_number):
