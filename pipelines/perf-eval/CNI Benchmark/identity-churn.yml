@@ -32,7 +32,7 @@ stages:
               node_count: $(NODES)
               node_per_step: $(NODES)
               max_pods: $(PODS_PER_NODE)
-              repeats: $(REPEATS)
+              repeats: $(NO_REPEATS)
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -64,7 +64,7 @@ stages:
               node_count: $(NODES)
               node_per_step: $(NODES)
               max_pods: $(PODS_PER_NODE)
-              repeats: $(REPEATS)
+              repeats: $(NO_REPEATS)
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
