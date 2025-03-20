@@ -26,10 +26,9 @@ steps:
         Method: WaitForFinishedJobs
         Params:
           action: start
-          apiVersion: batch/v1
-          kind: Job
           labelSelector: group=job-scheduling
-          operationTimeout: 1h
+          threshold: 1h
+
 
 {{range $i := Loop $job_count}}
   - name: Create job {{$i}}
@@ -42,7 +41,9 @@ steps:
       objectBundle:
       - basename: test-job-{{$i}}
         objectTemplatePath: job_template.yaml
-       
+        templateFillMap:
+          Group: job-scheduling
+
 {{end}}
        
   - name: Waiting for jobs to be finished
@@ -56,4 +57,4 @@ steps:
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
-          action: gather
+          action: gather                                  
