@@ -208,8 +208,8 @@ def collect_clusterloader2(
     print(content)
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
-        f.write(content)
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(content)
 
 def main():
     parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
