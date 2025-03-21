@@ -206,7 +206,6 @@ def collect_clusterloader2(
                 result["measurement"] = measurement
                 result["result"] = data
                 content += json.dumps(result) + "\n"
-    print(content)
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w', encoding='utf-8') as file:
