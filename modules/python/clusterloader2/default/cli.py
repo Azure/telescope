@@ -147,6 +147,7 @@ def collect_clusterloader2(
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
+    print(json_data)
     testsuites = json_data["testsuites"]
     provider = json.loads(cloud_info)["cloud"]
 
