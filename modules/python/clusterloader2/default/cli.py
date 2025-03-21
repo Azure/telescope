@@ -147,7 +147,7 @@ def collect_clusterloader2(
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
-    print(json_data)
+    
     testsuites = json_data["testsuites"]
     provider = json.loads(cloud_info)["cloud"]
 
@@ -170,7 +170,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
-        "test_details": details,
+        # "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
@@ -205,6 +205,7 @@ def collect_clusterloader2(
                 result["measurement"] = measurement
                 result["result"] = data
                 content += json.dumps(result) + "\n"
+    print(content)
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w') as f:
