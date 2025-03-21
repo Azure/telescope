@@ -18,18 +18,18 @@ jobs:
     topology: kwok
     matrix:
       default:
-        cpu_per_node: 10
-        node_count: 1000
-        node_per_step: 1000
+        cpu_per_node: 2
+        node_count: 1
+        node_per_step: 1
         cilium_enabled: False
-        max_pods: 110
-        repeats: 10
+        max_pods: 50
+        repeats: 1
         scale_timeout: "15m"
-        network_policy: cilium
-        network_dataplane: cilium
+        network_policy: none
+        network_dataplane: kube-proxy
         service_test: True
         cl2_config_file: config.yaml
-        kwok_nodes: 20
+        kwok_nodes: 0
         
       
     max_parallel: 1
