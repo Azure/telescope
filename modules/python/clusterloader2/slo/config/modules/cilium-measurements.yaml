@@ -303,3 +303,47 @@ steps:
           query: quantile(0.90, max_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.50, max_over_time(cilium_bpf_progs_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+    - Identifier: CiliumAgentApiProcessTimeSeconds
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent Api Process Time Seconds
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(increase(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
+    - Identifier: AvgCiliumAgentApiProcessTimeSecondsCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Avg Cilium Agent Api Process Time Seconds Count
+        metricVersion: v1
+        unit: ratio
+        dimensions:
+        - method
+        - return_code
+        - endpoint
+        enableViolations: true
+        queries: 
+        - name: avg cilium agent api process time seconds count
+          query: avg(avg_over_time(cilium_agent_api_process_time_seconds_count[%v:])) by (method, return_code, endpoint)
+    - Identifier: MaxCiliumAgentApiProcessTimeSecondsCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Avg Cilium Agent Api Process Time Seconds Count
+        metricVersion: v1
+        unit: ratio
+        dimensions:
+        - method
+        - return_code
+        - endpoint
+        enableViolations: true
+        queries: 
+        - name: max cilium agent api process time seconds count 
+          query: max(max_over_time(cilium_agent_api_process_time_seconds_count[%v:])) by (method, return_code, endpoint)
