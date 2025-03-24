@@ -64,7 +64,7 @@ def configure_clusterloader2(
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
 
-    with open(override_file, 'w') as file:
+    with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
@@ -103,7 +103,7 @@ def configure_clusterloader2(
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
-    with open(override_file, 'r') as file:
+    with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
@@ -139,9 +139,6 @@ def collect_clusterloader2(
     service_test,
     cnp_test, 
     ccnp_test,
-    num_cnps,
-    num_ccnps,
-    dualstack,
     result_file,
     test_type="default_config",
 ):
@@ -180,7 +177,7 @@ def collect_clusterloader2(
     for f in os.listdir(cl2_report_dir):
 
         file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             print(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
