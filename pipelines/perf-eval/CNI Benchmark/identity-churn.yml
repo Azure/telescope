@@ -74,7 +74,7 @@ stages:
               name: idmgmt_agent
               scrape_node_exporter: true
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
           rg: $(AGENT_RG)
