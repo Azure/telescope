@@ -69,8 +69,7 @@ eks_config_list = [{
       max_size       = 2
       desired_size   = 2
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true"} # Optional input
-    },
+      labels         = { terraform = "true", k8s = "true" }
     {
       name           = "virtualnodes"
       ami_type       = "AL2_x86_64"
@@ -79,7 +78,7 @@ eks_config_list = [{
       max_size       = 3
       desired_size   = 3
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true"} # Optional input
+      labels         = { terraform = "true", k8s = "true" }
     }
   ]
 
