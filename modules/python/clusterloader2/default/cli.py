@@ -53,7 +53,7 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     service_test,
-    cnp_test, 
+    cnp_test,
     ccnp_test,
     num_cnps,
     num_ccnps,
@@ -136,14 +136,13 @@ def collect_clusterloader2(
     run_id,
     run_url,
     service_test,
-    cnp_test, 
+    cnp_test,
     ccnp_test,
     result_file,
     test_type="default_config",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
-    
     testsuites = json_data["testsuites"]
     provider = json.loads(cloud_info)["cloud"]
 
@@ -273,7 +272,6 @@ def main():
                                 help="Description of test type")
 
     args = parser.parse_args()
-    
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
