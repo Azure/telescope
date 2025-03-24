@@ -6,28 +6,28 @@ variables:
   SCENARIO_VERSION: main
 
 jobs:
-- template: /jobs/competitive-test.yml
-  parameters:
-    cloud: azure
-    regions:
-      - eastus2
-    engine: clusterloader2
-    engine_input:
-      image: "ghcr.io/azure/clusterloader2:v20241022"
-    topology: kwok
-    matrix:
-      default:
-        cpu_per_node: 1
-        node_count: 20
-        node_per_step: 5
-        cilium_enabled: False
-        max_pods: 50
-        repeats: 1
-        scale_timeout: "15m"
-        service_test: True
-        cl2_config_file: config.yaml
-        kwok_nodes: 20
-    max_parallel: 1
-    timeout_in_minutes: 360
-    credential_type: service_connection
-    ssh_key_enabled: false
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+        - eastus2
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20241022"
+      topology: kwok
+      matrix:
+        default:
+          cpu_per_node: 1
+          node_count: 20
+          node_per_step: 5
+          cilium_enabled: false
+          max_pods: 50
+          repeats: 1
+          scale_timeout: "15m"
+          service_test: true
+          cl2_config_file: config.yaml
+          kwok_nodes: 20
+      max_parallel: 1
+      timeout_in_minutes: 360
+      credential_type: service_connection
+      ssh_key_enabled: false
