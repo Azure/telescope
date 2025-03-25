@@ -166,15 +166,22 @@ def collect_clusterloader2(
         content = ""
         for index, inner_dict in summary.items():
             for key, value in inner_dict.items():
-                data = {
-                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
-                    "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
-                    "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
-                    "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
-                    "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
-                    "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
-                }
+                if key == "up":
+                    data = {
+                        "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                        "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
+                        "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
+                        "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
+                        "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
+                        "wait_for_pods_seconds": value["wait_for_pods_seconds"],
+                        "autoscale_result": "success" if value["failures"] == 0 else "failure"
+                    }
+                else:
+                    data = {
+                        "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                        "wait_for_pods_seconds": value["wait_for_pods_seconds"],
+                        "autoscale_result": "success" if value["failures"] == 0 else "failure"
+                    }                
                 # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
