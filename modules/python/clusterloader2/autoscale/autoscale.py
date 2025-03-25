@@ -159,29 +159,34 @@ def collect_clusterloader2(
             elif "WaitForRunningPodsDown" in name:
                 summary[index]["down"]["wait_for_pods_seconds"] = -1 if failure else testcase["time"]
                 summary[index]["down"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesDown" in name:
+            elif "WaitForNodesDownPerc50" in name:
+                summary[index]["down"]["wait_for_50Perc_nodes_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["down"]["failures"] += 1 if failure else 0
+            elif "WaitForNodesDownPerc70" in name:
+                summary[index]["down"]["wait_for_70Perc_nodes_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["down"]["failures"] += 1 if failure else 0
+            elif "WaitForNodesDownPerc90" in name:
+                summary[index]["down"]["wait_for_90Perc_nodes_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["down"]["failures"] += 1 if failure else 0
+            elif "WaitForNodesDownPerc99" in name:
+                summary[index]["down"]["wait_for_99Perc_nodes_seconds"] = -1 if failure else testcase["time"]
+                summary[index]["down"]["failures"] += 1 if failure else 0
+            elif "WaitForNodesDownPerc100" in name:
                 summary[index]["down"]["wait_for_nodes_seconds"] = -1 if failure else testcase["time"]
                 summary[index]["down"]["failures"] += 1 if failure else 0
 
         content = ""
         for index, inner_dict in summary.items():
             for key, value in inner_dict.items():
-                if key == "up":
-                    data = {
-                        "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
-                        "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
-                        "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
-                        "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
-                        "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
-                        "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                        "autoscale_result": "success" if value["failures"] == 0 else "failure"
-                    }
-                else:
-                    data = {
-                        "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
-                        "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                        "autoscale_result": "success" if value["failures"] == 0 else "failure"
-                    }                
+                data = {
+                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                    "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
+                    "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
+                    "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
+                    "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
+                    "wait_for_pods_seconds": value["wait_for_pods_seconds"],
+                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
+                }              
                 # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),

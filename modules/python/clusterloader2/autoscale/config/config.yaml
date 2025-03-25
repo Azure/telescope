@@ -134,7 +134,43 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesDown {{$i}}
+  - Identifier: WaitForNodesDownPerc50 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$desiredNodeCount}}
+      maxDesiredNodeCount: {{SubtractInt  $minNodeCount $50PercentileNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForNodesDownPerc70 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$desiredNodeCount}}
+      maxDesiredNodeCount: {{SubtractInt  $minNodeCount  $70PercentileNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForNodesDownPerc90 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$desiredNodeCount}}
+      maxDesiredNodeCount: {{SubtractInt  $minNodeCount $90PercentileNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForNodesDownPerc99 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$desiredNodeCount}}
+      maxDesiredNodeCount: {{SubtractInt  $minNodeCount $99PercentileNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}     
+  - Identifier: WaitForNodesDownPerc100 {{$i}}
     Method: WaitForNodes
     Params:
       action: start
