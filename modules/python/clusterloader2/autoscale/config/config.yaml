@@ -29,9 +29,6 @@ tuningSets:
 - name: Uniform1qps
   qpsLoad:
     qps: 1
-- name: Parallel
-  parallelismLimitedLoad:
-    parallelismLimit: 10    
 
 steps:
 {{range $i := Loop $loopCount}}
@@ -51,6 +48,14 @@ steps:
         NodeSelector: {{ (StructuralData $nodeSelector) }}
 - name: Measure nodes and pods scale up {{$i}}
   measurements:
+  - Identifier: WaitForRunningPodsUp {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: {{$deploymentSize}}
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
   - Identifier: WaitForNodesUpPerc50 {{$i}}
     Method: WaitForNodes
     Params:
@@ -96,14 +101,6 @@ steps:
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForRunningPodsUp {{$i}}
-    Method: WaitForRunningPods
-    Params:
-      action: start
-      desiredPodCount: {{$deploymentSize}}
-      labelSelector: {{$podLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}      
 - name: WaitBeforeDelete
   measurements:
   - Identifier: WaitBeforeDelete
