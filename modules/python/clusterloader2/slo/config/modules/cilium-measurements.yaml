@@ -310,6 +310,9 @@ steps:
         metricName: Cilium Agent Api Process Time Seconds
         metricVersion: v1
         unit: s
+        dimensions:
+        - le
+        enableViolations: true
         queries:
         - name: Perc99
           query: histogram_quantile(0.99, sum(increase(cilium_agent_api_process_time_seconds_bucket[%v:])) by (le))
@@ -326,24 +329,20 @@ steps:
         unit: count
         dimensions:
         - method
-        - return_code
-        - endpoint
         enableViolations: true
         queries: 
         - name: avg cilium agent api process time seconds count
-          query: avg(avg_over_time(cilium_agent_api_process_time_seconds_count[%v:])) by (method, return_code, endpoint)
+          query: avg(avg_over_time(cilium_agent_api_process_time_seconds_count[%v:])) by (method)
     - Identifier: MaxCiliumAgentApiProcessTimeSecondsCount
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Avg Cilium Agent Api Process Time Seconds Count
+        metricName: Max Cilium Agent Api Process Time Seconds Count
         metricVersion: v1
         unit: count
         dimensions:
         - method
-        - return_code
-        - endpoint
         enableViolations: true
         queries: 
         - name: max cilium agent api process time seconds count 
-          query: max(max_over_time(cilium_agent_api_process_time_seconds_count[%v:])) by (method, return_code, endpoint)
+          query: max(max_over_time(cilium_agent_api_process_time_seconds_count[%v:])) by (method)
