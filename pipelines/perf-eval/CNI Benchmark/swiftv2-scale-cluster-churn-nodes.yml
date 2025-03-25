@@ -28,6 +28,7 @@ stages:
               scale_timeout: "30m"
               cilium_enabled: True
               cl2_config_file: cluster-scale-config.yaml
+              service_test: False
               ds_test: True
           max_parallel: 2
           timeout_in_minutes: 720
