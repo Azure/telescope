@@ -113,7 +113,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file
-):
+): # pylint: disable=too-many-branches
     index_pattern = re.compile(r'(\d+)$')
 
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -186,7 +186,7 @@ def collect_clusterloader2(
                     "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
                     "wait_for_pods_seconds": value["wait_for_pods_seconds"],
                     "autoscale_result": "success" if value["failures"] == 0 else "failure"
-                }              
+                }
                 # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
