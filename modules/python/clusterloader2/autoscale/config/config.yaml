@@ -6,6 +6,10 @@
 {{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
 {{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 20}}
 {{$desiredNodeCount := DefaultParam .CL2_DESIRED_NODE_COUNT 1}}
+{{$50PercentileNodeCount := MultiplyInt $minNodeCount 0.50}}
+{{$70PercentileNodeCount := MultiplyInt $minNodeCount 0.70}}
+{{$90PercentileNodeCount := MultiplyInt $minNodeCount 0.90}}
+{{$99PercentileNodeCount := MultiplyInt $minNodeCount 0.99}}
 {{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
 {{$scaleUpTimeout := DefaultParam .CL2_SCALE_UP_TIMEOUT "30m"}}
 {{$scaleDownTimeout := DefaultParam .CL2_SCALE_DOWN_TIMEOUT "10m"}}
@@ -25,6 +29,9 @@ tuningSets:
 - name: Uniform1qps
   qpsLoad:
     qps: 1
+- name: Parallel
+  parallelismLimitedLoad:
+    parallelismLimit: 10    
 
 steps:
 {{range $i := Loop $loopCount}}
@@ -44,15 +51,43 @@ steps:
         NodeSelector: {{ (StructuralData $nodeSelector) }}
 - name: Measure nodes and pods scale up {{$i}}
   measurements:
-  - Identifier: WaitForRunningPodsUp {{$i}}
-    Method: WaitForRunningPods
+  - Identifier: WaitForNodesUpPerc50 {{$i}}
+    Method: WaitForNodes
     Params:
       action: start
-      desiredPodCount: {{$deploymentSize}}
-      labelSelector: {{$podLabelSelector}}
+      minDesiredNodeCount: {{$50PercentileNodeCount}}
+      maxDesiredNodeCount: {{$minNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUp {{$i}}
+  - Identifier: WaitForNodesUpPerc70 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$70PercentileNodeCount}}
+      maxDesiredNodeCount: {{$minNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForNodesUpPerc90 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$90PercentileNodeCount}}
+      maxDesiredNodeCount: {{$minNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForNodesUpPerc99 {{$i}}
+    Method: WaitForNodes
+    Params:
+      action: start
+      minDesiredNodeCount: {{$99PercentileNodeCount}}
+      maxDesiredNodeCount: {{$minNodeCount}}
+      labelSelector: {{$nodeLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForNodesUpPerc100 {{$i}}
     Method: WaitForNodes
     Params:
       action: start
@@ -61,6 +96,14 @@ steps:
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
+  - Identifier: WaitForRunningPodsUp {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: {{$deploymentSize}}
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}      
 - name: WaitBeforeDelete
   measurements:
   - Identifier: WaitBeforeDelete
