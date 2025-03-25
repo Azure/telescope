@@ -23,7 +23,7 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test):
+def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test, ds_test):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
@@ -32,6 +32,9 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
         pods_per_node = max_pods
 
     if cnp_test or ccnp_test:
+        pods_per_node = max_pods
+    
+    if ds_test:
         pods_per_node = max_pods
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -56,6 +59,7 @@ def configure_clusterloader2(
     service_test,
     cnp_test,
     ccnp_test,
+    ds_test,
     num_cnps,
     num_ccnps,
     dualstack,
@@ -109,6 +113,11 @@ def configure_clusterloader2(
             file.write(f"CL2_DUALSTACK: {dualstack}\n")
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
+        if ds_test:
+            file.write("CL2_DS_TEST: true\n")
+        else:
+            file.write("CL2_DS_TEST: false\n")
+
     with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
 
@@ -154,6 +163,7 @@ def collect_clusterloader2(
     service_test,
     cnp_test,
     ccnp_test,
+    ds_test,
     result_file,
     test_type,
     start_timestamp,
@@ -168,7 +178,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test, ds_test)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -246,6 +256,8 @@ def main():
                                   help="Whether cnp test is running. Must be either True or False")
     parser_configure.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether ccnp test is running. Must be either True or False")
+    parser_configure.add_argument("ds_test", type=eval, choices=[True, False], nargs='?', default=False,
+                                  help="Whether ds test is running. Must be either True or False")
     parser_configure.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
     parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
     parser_configure.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
@@ -284,6 +296,8 @@ def main():
                                   help="Whether cnp test is running. Must be either True or False")
     parser_collect.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether ccnp test is running. Must be either True or False")
+    parser_collect.add_argument("ds_test", type=eval, choices=[True, False], nargs='?', default=False,
+                                  help="Whether ds test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
@@ -295,7 +309,7 @@ def main():
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider,
                                  args.cilium_enabled, args.scrape_containerd,
-                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+                                 args.service_test, args.cnp_test, args.ccnp_test, args.ds_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -304,7 +318,7 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test,
+                               args.service_test, args.cnp_test, args.ccnp_test, args.ds_test, 
                                args.result_file, args.test_type, args.start_timestamp)
 
 if __name__ == "__main__":

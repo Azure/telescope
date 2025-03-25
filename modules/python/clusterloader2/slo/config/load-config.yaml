@@ -4,6 +4,7 @@ name: load-config
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
 {{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
 {{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
+{{$DS_TEST := DefaultParam .CL2_DS_TEST false}}
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
