@@ -35,13 +35,13 @@ steps:
 
       # disable autoscaler before scaling nodepool to desire node count
       az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --disable-cluster-autoscaler
-      if [ "$currentnodes" != "${{ parameters.nodes_per_nodepool }}" ]; then
-        az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}
-      fi
+      # if [ "$currentnodes" != "${{ parameters.nodes_per_nodepool }}" ]; then
+      #   az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}
+      # fi
 
       # turn on autoscaler if test necessitates it
       if [ "true" =  "${{ parameters.enable_autoscale }}" ]; then
-         az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 500
+         az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 50
       fi
       az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
       sleep 300
