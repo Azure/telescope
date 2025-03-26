@@ -102,7 +102,7 @@ steps:
     Params:
       action: start
       minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{ $PercentileNodeCount}} 
+      maxDesiredNodeCount: {{if eq $PercentileNodeCount 0}}{{$desiredNodeCount}}{{else}}{{$PercentileNodeCount}}{{end}} 
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
