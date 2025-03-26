@@ -113,7 +113,7 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file
-): # pylint: disable=too-many-branches
+):
     index_pattern = re.compile(r'(\d+)$')
 
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
