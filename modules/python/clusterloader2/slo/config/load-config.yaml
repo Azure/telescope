@@ -28,6 +28,7 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+{{$CILIUM_WIREGUARD := DefaultParam .CL2_CILIUM_WIREGUARD false}}
 {{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
 # Service test
@@ -80,6 +81,13 @@ steps:
       params:
         action: start
         group: {{$groupName}}
+
+{{if $CILIUM_WIREGUARD}}
+  - module:
+      path: /modules/cilium-wireguard-measurements.yaml
+      params:
+        action: start
+{{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
@@ -221,6 +229,13 @@ steps:
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+{{if $CILIUM_WIREGUARD}}
+  - module:
+      path: /modules/cilium-wireguard-measurements.yaml
       params:
         action: gather
 {{end}}

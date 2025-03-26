@@ -1,0 +1,87 @@
+{{$nodes := DefaultParam .CL2_NODES 10}}
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+
+steps:
+- name: Start measurements
+  measurements:
+  - Identifier: WaitForControlledPodsRunning
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: start
+      apiVersion: apps/v1
+      kind: DaemonSet
+      labelSelector: app = wireguard-exporter
+      operationTimeout: 180s
+- name: "Gathering measurement - Peer Count"
+  measurements:
+  - Identifier: WireGuard_Peer_Count
+    Method: GenericPrometheusQuery
+    Params:
+      action: start
+      metricName: WireGuard Peer Count
+      metricVersion: v1
+      enableViolations: true
+      unit: peer
+      queries:
+      - name: peer_count_equal_node_count
+        query: (sum(wireguard_peers_total) / {{$nodes}})+1
+- name: "Gathering measurement - Allowed IPs Count"
+  measurements:
+  - Identifier: WireGuard_Allowed_Ips_Count
+    Method: GenericPrometheusQuery
+    Params:
+      action: start
+      metricName: WireGuard Allowed IPs Count
+      metricVersion: v1
+      enableViolations: true
+      unit: ip
+      queries:
+      - name: allowed_ip_count
+        query: sum(wireguard_allowed_ips_total)
+        threshold: 5
+- name: "Gathering measurement - Handshake Within Range"
+  measurements:
+  - Identifier: WireGuard_Handshake_InRange
+    Method: GenericPrometheusQuery
+    Params:
+      action: start
+      metricName: WireGuard Handshake within range
+      metricVersion: v1
+      enableViolations: true
+      unit: ip
+      queries:
+      - name: wireguard_handshake_range
+        query: (sum(wireguard_last_handshake) / {{$nodes}})
+- name: Wait for pods to be running
+  measurements:
+  - Identifier: WaitForControlledPodsRunning
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: gather
+- name: Sleep
+  measurements:
+  - Identifier: sleep
+    Method: Sleep
+    Params:
+      duration: 300s
+- name: Collect WG Metrics
+  measurements:
+    - Identifier: WireGuard_Peer_Count
+      Method: GenericPrometheusQuery
+      Params:
+        action: gather
+        enableViolations: true
+    - Identifier: WireGuard_Allowed_Ips_Count
+      Method: GenericPrometheusQuery
+      Params:
+        action: gather
+        enableViolations: true
+    - Identifier: WireGuard_Handshake_InRange
+      Method: GenericPrometheusQuery
+      Params:
+        action: gather
+        enableViolations: true
