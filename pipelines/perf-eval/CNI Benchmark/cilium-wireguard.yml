@@ -1,0 +1,39 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cilium-wireguard-feature
+  OWNER: aks
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cilium-wireguard
+          matrix:
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: $(NODES)
+              node_per_step: $(STEP_NODES)
+              max_pods: $(MAX_PODS_IN_NODE)
+              repeats: 1
+              scale_timeout: "15m"
+              cilium_enabled: True
+              cilium_wireguard: True
+              network_policy: cilium
+              network_dataplane: cilium
+              service_test: False
+              dualstack: False
+              cl2_config_file: load-config.yaml
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

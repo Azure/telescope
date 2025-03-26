@@ -1,0 +1,25 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: nap
+    region: ${{ parameters.regions[0] }}
+
+- bash: |
+    set -euo pipefail
+    set -x
+    kubectl patch configmap cilium-config -n kube-system --type merge -p '{"data":{"enable-wireguard":"true"}}'
+    kubectl rollout restart -n kube-system ds cilium
+    kubectl rollout status -n kube-system ds/cilium --timeout=30m
+
+    kubectl apply -f $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config/wireguard/
+
+    sleep 60
+  displayName: "Enable Cilium WireGuard"

@@ -24,6 +24,7 @@ steps:
       --name ${SUBFOLDER}/${DESTINATION_FILE_NAME} \
       --account-name $STORAGE_ACCOUNT_NAME \
       --container-name $CONTAINER_NAME \
+      --overwrite \
       --auth-mode login
     else
       echo "##vso[task.logissue type=warning;]File $SOURCE_FILE_NAME does not exist."
