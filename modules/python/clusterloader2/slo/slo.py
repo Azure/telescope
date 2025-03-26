@@ -91,6 +91,7 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
+            file.write("CL2_CILIUM_WIREGUARD: true\n")
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
@@ -251,6 +252,8 @@ def main():
     parser_configure.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
                                   help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_configure.add_argument("cilium_wireguard", type=str2bool, choices=[True, False], default=False,
+                                  help="Whether cilium WireGuard is enabled. Must be either True or False")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
