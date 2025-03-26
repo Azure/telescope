@@ -104,7 +104,7 @@ steps:
       minDesiredNodeCount: {{$desiredNodeCount}}
       maxDesiredNodeCount: {{if eq $PercentileNodeCount 0}}{{$desiredNodeCount}}{{else}}{{$PercentileNodeCount}}{{end}} 
       labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
+      timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
 {{- end }}
 - name: WaitBeforeCreate
