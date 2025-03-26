@@ -6,16 +6,13 @@
 {{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
 {{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 20}}
 {{$desiredNodeCount := DefaultParam .CL2_DESIRED_NODE_COUNT 1}}
-{{$50PercentileNodeCount := MultiplyInt $minNodeCount 0.50}}
-{{$70PercentileNodeCount := MultiplyInt $minNodeCount 0.70}}
-{{$90PercentileNodeCount := MultiplyInt $minNodeCount 0.90}}
-{{$99PercentileNodeCount := MultiplyInt $minNodeCount 0.99}}
 {{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
 {{$scaleUpTimeout := DefaultParam .CL2_SCALE_UP_TIMEOUT "30m"}}
 {{$scaleDownTimeout := DefaultParam .CL2_SCALE_DOWN_TIMEOUT "10m"}}
 {{$refreshInterval := DefaultParam .CL2_REFRESH_INTERVAL "5s"}}
 {{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
 {{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "30s"}}
+{{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
 
 name: autoscale
 namespace:
@@ -56,51 +53,18 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUpPerc50 {{$i}}
+{{range $value := $percentilesList}}
+{{$PercentileNodeCount := MultiplyInt $minNodeCount (StructuralData $value) }}
+  - Identifier: WaitForNodesUpPerc{{ MultiplyInt 100 (StructuralData $value) }} {{$i}}
     Method: WaitForNodes
     Params:
       action: start
-      minDesiredNodeCount: {{$50PercentileNodeCount}}
+      minDesiredNodeCount: {{ $PercentileNodeCount }}
       maxDesiredNodeCount: {{$minNodeCount}}
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUpPerc70 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$70PercentileNodeCount}}
-      maxDesiredNodeCount: {{$minNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUpPerc90 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$90PercentileNodeCount}}
-      maxDesiredNodeCount: {{$minNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUpPerc99 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$99PercentileNodeCount}}
-      maxDesiredNodeCount: {{$minNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUpPerc100 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$minNodeCount}}
-      maxDesiredNodeCount: {{$maxNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}
+{{- end }}            
 - name: WaitBeforeDelete
   measurements:
   - Identifier: WaitBeforeDelete
@@ -131,51 +95,18 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesDownPerc50 {{$i}}
+{{range $value := $percentilesList}}
+{{$PercentileNodeCount := SubtractInt  $minNodeCount (MultiplyInt $minNodeCount (StructuralData $value)) }}
+  - Identifier: WaitForNodesDownPerc{{ MultiplyInt 100 (StructuralData $value) }} {{$i}}
     Method: WaitForNodes
     Params:
       action: start
       minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{SubtractInt  $minNodeCount $50PercentileNodeCount}}
+      maxDesiredNodeCount: {{ $PercentileNodeCount}} 
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesDownPerc70 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{SubtractInt  $minNodeCount  $70PercentileNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesDownPerc90 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{SubtractInt  $minNodeCount $90PercentileNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesDownPerc99 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{SubtractInt  $minNodeCount $99PercentileNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleUpTimeout}}
-      refreshInterval: {{$refreshInterval}}     
-  - Identifier: WaitForNodesDownPerc100 {{$i}}
-    Method: WaitForNodes
-    Params:
-      action: start
-      minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{$desiredNodeCount}}
-      labelSelector: {{$nodeLabelSelector}}
-      timeout: {{$scaleDownTimeout}}
-      refreshInterval: {{$refreshInterval}}
+{{- end }}
 - name: WaitBeforeCreate
   measurements:
   - Identifier: WaitBeforeCreate
