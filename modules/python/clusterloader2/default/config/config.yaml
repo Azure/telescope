@@ -1,5 +1,5 @@
 name: job-scheduling
-{{$job_count := DefaultParam .CL2_JOB_COUNT 200}}
+{{$job_count := DefaultParam .CL2_JOB_COUNT 2000}}
 
 namespace:
   number: 1
