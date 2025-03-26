@@ -18,33 +18,6 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "warmuppool"
-        node_count = 1
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "min-count"
-            value = "1"
-          },
-          {
-            name  = "max-count"
-            value = "1"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      },
-      {
         name       = "userpool0"
         node_count = 0
         vm_size    = "Standard_D2ds_v4"
@@ -59,11 +32,11 @@ aks_cli_config_list = [
           },
           {
             name  = "min-count"
-            value = "0"
+            value = "1"
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "501"
           },
           {
             name  = "labels"
