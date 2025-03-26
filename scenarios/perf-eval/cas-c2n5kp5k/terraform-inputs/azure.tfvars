@@ -18,33 +18,6 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "userpool0"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "min-count"
-            value = "1"
-          },
-          {
-            name  = "max-count"
-            value = "501"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      },
-      {
         name       = "userpool1"
         node_count = 0
         vm_size    = "Standard_D2ds_v4"
@@ -58,11 +31,11 @@ aks_cli_config_list = [
           },
           {
             name  = "min-count"
-            value = "0"
+            value = "1"
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "1000"
           },
           {
             name  = "labels"
@@ -88,7 +61,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "1000"
           },
           {
             name  = "labels"
@@ -114,7 +87,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "1000"
           },
           {
             name  = "labels"
@@ -140,7 +113,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "1000"
           },
           {
             name  = "labels"
@@ -166,112 +139,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "500"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      },
-      {
-        name       = "userpool6"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "min-count"
-            value = "0"
-          },
-          {
-            name  = "max-count"
-            value = "500"
-            }, {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      },
-      {
-        name       = "userpool7"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-            }, {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "min-count"
-            value = "0"
-          },
-          {
-            name  = "max-count"
-            value = "500"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      },
-      {
-        name       = "userpool8"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "min-count"
-            value = "0"
-            }, {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "max-count"
-            value = "500"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      },
-      {
-        name       = "userpool9"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "min-count"
-            value = "0"
-          },
-          {
-            name  = "max-count"
-            value = "500"
+            value = "1000"
           },
           {
             name  = "labels"

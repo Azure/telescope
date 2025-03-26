@@ -28,8 +28,8 @@ stages:
           matrix:
             c2-n5k-p5k:
               cpu_per_node: 2
-              node_count: 5001
-              pod_count: 5001
+              node_count: 4990
+              pod_count: 4990
               scale_up_timeout: "60m"
               scale_down_timeout: "60m"
               node_label_selector: "cas = dedicated"

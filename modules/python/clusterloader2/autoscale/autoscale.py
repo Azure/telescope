@@ -89,7 +89,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
-        file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
+        file.write(f"CL2_MIN_NODE_COUNT: {node_count - 5}\n")
         file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
         file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
