@@ -120,6 +120,20 @@ def collect_clusterloader2(
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
     summary = {}
+    metric_mappings = {
+        "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+        "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
+        "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
+        "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
+        "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
+        "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
+        "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+        "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
+        "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
+        "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
+        "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
+        "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
+    }
 
     if testsuites:
         # Process each loop
@@ -138,42 +152,11 @@ def collect_clusterloader2(
                 continue
 
             failure = testcase["failure"]
-            if "WaitForRunningPodsUp" in name:
-                summary[index]["up"]["wait_for_pods_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["up"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesUpPerc50" in name:
-                summary[index]["up"]["wait_for_50Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["up"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesUpPerc70" in name:
-                summary[index]["up"]["wait_for_70Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["up"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesUpPerc90" in name:
-                summary[index]["up"]["wait_for_90Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["up"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesUpPerc99" in name:
-                summary[index]["up"]["wait_for_99Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["up"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesUpPerc100" in name:
-                summary[index]["up"]["wait_for_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["up"]["failures"] += 1 if failure else 0
-            elif "WaitForRunningPodsDown" in name:
-                summary[index]["down"]["wait_for_pods_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["down"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesDownPerc50" in name:
-                summary[index]["down"]["wait_for_50Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["down"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesDownPerc70" in name:
-                summary[index]["down"]["wait_for_70Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["down"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesDownPerc90" in name:
-                summary[index]["down"]["wait_for_90Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["down"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesDownPerc99" in name:
-                summary[index]["down"]["wait_for_99Perc_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["down"]["failures"] += 1 if failure else 0
-            elif "WaitForNodesDownPerc100" in name:
-                summary[index]["down"]["wait_for_nodes_seconds"] = -1 if failure else testcase["time"]
-                summary[index]["down"]["failures"] += 1 if failure else 0
+            for test_key, (category, summary_key) in metric_mappings.items():
+                if test_key in name:
+                    summary[index][category][summary_key] = -1 if failure else testcase["time"]
+                    summary[index][category]["failures"] += 1 if failure else 0
+                    break  # Exit loop once matched
 
         content = ""
         for index, inner_dict in summary.items():
