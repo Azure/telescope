@@ -11,14 +11,8 @@ steps:
     parameters:
       role: netpol-scale # role value passed here is ignored by update-kubeconfig.yml
       region: ${{ parameters.regions[0] }}
-  - template: /steps/engine/clusterloader2/network-policy-scale/validate.yml
+  - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       # keeping this low value for now, in auto scale enabled clusters
       # usually the node count will be min and scale up.
       desired_nodes: 6
-  - ${{ if eq(parameters.cloud, 'aws') }}:
-      - script: kubectl apply -f $KARPENTER_NODEPOOL_FILE
-        env:
-          CLOUD: ${{ parameters.cloud }}
-          KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-        displayName: "Validate Karpenter setup"

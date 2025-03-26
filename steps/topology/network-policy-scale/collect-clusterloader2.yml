@@ -10,7 +10,7 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/engine/clusterloader2/netpol-scale/collect.yml
+- template: /steps/engine/clusterloader2/network-policy-scale/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
@@ -20,5 +20,3 @@ steps:
     echo "Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
   displayName: "Set unique Run ID before publish"
-- ${{ if eq(parameters.cloud, 'aws') }}:
-  - template: /steps/engine/clusterloader2/autoscale/cleanup.yml
