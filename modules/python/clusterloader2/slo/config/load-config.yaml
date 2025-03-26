@@ -28,11 +28,18 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+{{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
+
+# TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250)
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
+{{if (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{end}}
+
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
@@ -81,6 +88,13 @@ steps:
         action: start
 {{end}}
 
+{{if $SCRAPE_CONTAINERD}}
+  - module:
+      path: /modules/containerd-measurements.yaml
+      params:
+        action: start
+{{end}}
+
 {{range $i := Loop $repeats}}
 {{if $SERVICE_TEST}}
   - module:
@@ -110,7 +124,7 @@ steps:
         Group: {{$groupName}}
         ccnps: {{$CCNPS}}
 {{end}}
-        
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -207,6 +221,20 @@ steps:
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+{{if $SCRAPE_CONTAINERD}}
+  - name: Wait for last scrape
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 10m
+
+  - module:
+      path: /modules/containerd-measurements.yaml
       params:
         action: gather
 {{end}}

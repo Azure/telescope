@@ -24,6 +24,7 @@ REGION="us-east-2"
 CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
 TERRAFORM_MODULES_DIR=$(pwd)/modules/terraform/$CLOUD
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
+TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
 ```
 
 **Note**:
@@ -53,10 +54,12 @@ INPUT_JSON=$(jq -n \
       --arg run_id $RUN_ID \
       --arg region $REGION \
       --arg creation_time $CREATION_TIME \
+      --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
       '{
       run_id: $run_id,
       region: $region,
-      creation_time: $creation_time
+      creation_time: $creation_time,
+      user_data_path: $user_data_path,
       }' | jq 'with_entries(select(.value != null and .value != ""))')
 ```
 **Note**: The `jq` command will remove any null or empty values from the JSON object. So any variable surrounded by double quotes means it is optional and can be removed if not needed.

@@ -7,13 +7,24 @@ schedules:
         - main
     always: true
 
+  - cron: "0 13 * * 2,4,6"
+    displayName: "1:00 PM on Tuesday, Thursday, and Saturday"
+    branches:
+      include:
+        - main
+    always: true
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cas-c4n10p100
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus1
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 PM on Tuesday, Thursday, and Saturday'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -40,6 +51,11 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM & PM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml

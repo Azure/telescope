@@ -1,8 +1,8 @@
+from xml.dom import minidom
 import json
 import os
 import docker
 
-from xml.dom import minidom
 from docker_client import DockerClient
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
@@ -14,7 +14,8 @@ NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus", "InClusterNetworkLaten
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 
-def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, enable_exec_service=False, scrape_kubelets=False):
+def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
+                    enable_exec_service=False, scrape_kubelets=False, scrape_containerd=False):
     docker_client = DockerClient()
 
     command=f"""--provider={provider} --v=2
@@ -24,9 +25,13 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 --kubeconfig /root/.kube/config
 --testconfig /root/perf-tests/clusterloader2/config/{cl2_config_file}
 --report-dir /root/perf-tests/clusterloader2/results
---tear-down-prometheus-server={enable_prometheus}"""
+--tear-down-prometheus-server={tear_down_prometheus}"""
+
+    if scrape_containerd:
+        command += f" --prometheus-scrape-containerd={scrape_containerd}"
+
     if overrides:
-        command += f" --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
+        command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
     volumes = {
         kubeconfig: {'bind': '/root/.kube/config', 'mode': 'rw'},
@@ -67,7 +72,7 @@ def get_measurement(file_path):
     return None, None
 
 def parse_xml_to_json(file_path, indent = 0):
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         xml_content = file.read()
 
     dom = minidom.parseString(xml_content)

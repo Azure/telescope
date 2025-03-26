@@ -22,6 +22,7 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
     spec:
+      hostNetwork: true
       nodeSelector:
         cri-resource-consume: "true"
       containers:
@@ -70,3 +71,7 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"

@@ -36,6 +36,12 @@ variable "k8s_machine_type" {
   default     = null
 }
 
+variable "k8s_os_disk_type" {
+  description = "Value to replace AKS nodes os_disk_type"
+  type        = string
+  default     = null
+}
+
 variable "network_policy" {
   description = "Value to replace the AKS network_policy. If network_policy is 'azure' or 'cilium', network_dataplane must match or be null."
   type        = string

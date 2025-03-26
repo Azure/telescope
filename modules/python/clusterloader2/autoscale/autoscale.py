@@ -3,25 +3,25 @@ import os
 import argparse
 import re
 import subprocess
+import time
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command
 from kubernetes_client import KubernetesClient
-import time
 
 def warmup_deployment_for_karpeneter():
-  print(f"WarmUp Deployment Started")
-  deployment_file = "autoscale/config/warmup_deployment.yaml"
-  subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
+    print("WarmUp Deployment Started")
+    deployment_file = "autoscale/config/warmup_deployment.yaml"
+    subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def cleanup_warmup_deployment_for_karpeneter(node_name):
-  deployment_file = "autoscale/config/warmup_deployment.yaml"
-  subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
-  print(f"WarmUp Deployment Deleted")
-  try:
-    subprocess.run(["kubectl", "delete", "node", node_name ], check=True)
-  except Exception as e:
-    print(f"Error while deleting node: {e}")
+def cleanup_warmup_deployment_for_karpeneter():
+    deployment_file = "autoscale/config/warmup_deployment.yaml"
+    subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
+    print("WarmUp Deployment Deleted")
+    try:
+        subprocess.run(["kubectl", "delete", "nodeclaims", "--all"], check=True)
+    except Exception as e:
+        print(f"Error while deleting node: {e}")
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
@@ -30,7 +30,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
         for container in pod.spec.containers:
             print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
             if container.resources.requests is not None:
-              cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
     return cpu_request
 
 def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment):
@@ -39,21 +39,21 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     interval = 30  # 30 seconds
     elapsed = 0
 
-    try: 
-      while elapsed < timeout:
-        nodes = client.get_ready_nodes(label_selector=node_label_selector)
-        if len(nodes) > 0:
-          break
-        print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
-        time.sleep(interval)
-        elapsed += interval
+    try:
+        while elapsed < timeout:
+            nodes = client.get_ready_nodes(label_selector=node_label_selector)
+            if len(nodes) > 0:
+                break
+            print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
+            time.sleep(interval)
+            elapsed += interval
     except Exception as e:
-      print(f"Error while getting nodes: {e}")
-      print(f"Retrying in {interval} seconds...")
-      time.sleep(interval)      
+        print(f"Error while getting nodes: {e}")
+        print(f"Retrying in {interval} seconds...")
+        time.sleep(interval)
 
     if len(nodes) == 0:
-      raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
+        raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
 
     node = nodes[0]
     allocatable_cpu = node.status.allocatable["cpu"]
@@ -65,30 +65,29 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 
     cpu_value -= allocated_cpu
     # Remove warmup deployment cpu request from the total cpu value
-    if warmup_deployment == "true" or warmup_deployment == "True":
+    if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
-        cleanup_warmup_deployment_for_karpeneter(node.metadata.name)
+        cleanup_warmup_deployment_for_karpeneter()
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
     cpu_request = cpu_value // pods_per_node
     return cpu_request
-    
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment):    
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment):
     print(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
-    if warmup_deployment == "true" or warmup_deployment == "True":
+    if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter()
         desired_node_count = 0
-    
+
     cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment)
-    
+
     print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     print(f"CPU request for each pod: {cpu_request}m")
 
     # assuming the number of surge nodes is no more than 10
-    with open(override_file, 'w') as file:
+    with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
@@ -153,12 +152,12 @@ def collect_clusterloader2(
                 summary[index]["down"]["failures"] += 1 if failure else 0
 
         content = ""
-        for index in summary:
-            for key in summary[index]:
+        for index, inner_dict in summary.items():
+            for key, value in inner_dict.items():
                 data = {
-                    "wait_for_nodes_seconds": summary[index][key]["wait_for_nodes_seconds"],
-                    "wait_for_pods_seconds": summary[index][key]["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if summary[index][key]["failures"] == 0 else "failure"
+                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                    "wait_for_pods_seconds": value["wait_for_pods_seconds"],
+                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
                 }
                 # TODO: Expose optional parameter to include test details
                 result = {
@@ -179,8 +178,8 @@ def collect_clusterloader2(
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
-    with open(result_file, 'w') as f:
-        f.write(content)
+    with open(result_file, 'w', encoding='utf-8') as file:
+        file.write(content)
 
 def main():
     parser = argparse.ArgumentParser(description="Autoscale Kubernetes resources.")
