@@ -75,6 +75,6 @@ aks_config_list = [
         node_labels          = { "slo" = "true" }
       }
     ]
-    kubernetes_version = "1.30"
+    kubernetes_version = "1.32"
   }
 ]
