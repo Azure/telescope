@@ -19,6 +19,9 @@ parameters:
   - name: network_test
     type: boolean
     default: false
+  - name: small_group_size
+    type: number
+    default: 20
 
 steps:
   - script: |
@@ -26,7 +29,7 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP $MAX_PODS $PODS_PER_NODE \
-        $REPEATS $SCALE_TIMEOUT $NO_OF_NAMESPACES $TOTAL_NETWORK_POLICIES $CLOUD $CILIUM_ENABLED \
+        $REPEATS $SCALE_TIMEOUT $NO_OF_NAMESPACES $TOTAL_NETWORK_POLICIES $SMALL_GROUP_SIZE $CLOUD $CILIUM_ENABLED \
         $SERVICE_TEST $NETWORK_TEST ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
@@ -45,6 +48,7 @@ steps:
       PODS_PER_NODE: ${{ parameters.pods_per_node }}
       NO_OF_NAMESPACES: ${{ parameters.no_of_namespaces }}
       TOTAL_NETWORK_POLICIES: ${{ parameters.total_network_policies }}
+      SMALL_GROUP_SIZE: ${{ parameters.small_group_size }}
       NETWORK_TEST: ${{ parameters.network_test }}
       CL2_CONFIG_FILE: load-config.yaml
     displayName: "Run Benchmark"

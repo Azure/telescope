@@ -22,7 +22,7 @@
 {{$NET_POLICY_SERVER_EVERY_NTH_POD := DefaultParam .CL2_NET_POLICY_SERVER_EVERY_NTH_POD 3}}
 
 steps:
-- name: Starting measurement for '{{$actionName}}'
+- name: Starting measurement for '{{$actionName}}' bigDeploymentsPerNamespace - {{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace - {{$smallDeploymentsPerNamespace}}
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:

@@ -5,7 +5,6 @@ name: load-config
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 
 # Config options for test parameters
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 24}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
@@ -15,6 +14,7 @@ name: load-config
 # TODO(jshr-w): This should eventually use >1 namespace.
 {{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
+{{$nodesPerNamespace := DivideInt $nodes $namespaces}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
@@ -30,7 +30,7 @@ name: load-config
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE  20}}
+{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE  20}}
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
 
 # Use explicit conditional block to assign smallDeploymentPods to maintain backward compatibility
@@ -45,6 +45,12 @@ name: load-config
 
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
+# Pod deployment rate
+{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$DELETE_TEST_THROUGHPUT := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $LOAD_TEST_THROUGHPUT}}
+{{$saturationTime := DivideInt $totalPods $LOAD_TEST_THROUGHPUT}}
+{{$deletionTime := DivideInt $totalPods $DELETE_TEST_THROUGHPUT}}
+
 namespace:
   number: {{$namespaces}}
   prefix: slo
@@ -56,15 +62,15 @@ tuningSets:
   - name: Sequence
     parallelismLimitedLoad:
       parallelismLimit: 1
-  - name: DeploymentCreateQps
-    qpsLoad:
-      qps: {{$deploymentQPS}}
-  - name: DeploymentDeleteQps
-    qpsLoad:
-      qps: {{$deploymentQPS}}
+  - name: RandomizedSaturationTimeLimited
+    RandomizedTimeLimitedLoad:
+      timeLimit: {{$saturationTime}}s
+  - name: RandomizedDeletionTimeLimited
+    RandomizedTimeLimitedLoad:
+      timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}, BIG_GROUP_SIZE={{$BIG_GROUP_SIZE}}, SMALL_GROUP_SIZE={{$SMALL_GROUP_SIZE}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentPods={{$smallDeploymentPods}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -117,7 +123,7 @@ steps:
       params:
         actionName: "create"
         namespaces: {{$namespaces}}
-        tuningSet: DeploymentCreateQps
+        tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
@@ -169,7 +175,7 @@ steps:
       params:
         actionName: "delete"
         namespaces: {{$namespaces}}
-        tuningSet: DeploymentDeleteQps
+        tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: 0
