@@ -16,7 +16,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: storage-attach-detach-300
-  
+
 stages:
   - stage: azure_westus2
     condition: |
