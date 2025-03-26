@@ -158,8 +158,16 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
+        name  = "outbound-type"
+        value = "managedNATGateway"
+      },
+      {
+        name  = "nat-gateway-managed-outbound-ip-count"
+        value = "10"
+      },
+      {
         name  = "pod-cidr"
-        value = "10.192.0.0/11"
+        value = "10.128.0.0/11"
       },
       {
         name  = "ca-profile"
