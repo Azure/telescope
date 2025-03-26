@@ -14,6 +14,7 @@ name: netpol-scale-test
 {{$Network_Policy_Type := DefaultParam .CL2_NETWORK_POLICY_TYPE "k8s"}}
 {{$Netwrok_POlicy_L7_Enabled := DefaultParam .CL2_NETWORK_POLICY_L7_ENABLED false}}
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
+{{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
   prefix: slo
@@ -43,6 +44,12 @@ steps:
         action: start
   {{end}}
 {{end}}
+{{if $CLIENT_METRICS_GATHERING}}
+  - module:
+      path: /modules/network-policy-client-metrics.yaml
+      params:
+        action: start
+{{end}}
   # start network performance measurement
   - name: Network Policy Soak Test - Start
     measurements:
@@ -61,6 +68,11 @@ steps:
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
         npType: {{$Network_Policy_Type}}
+        resourceGatheringEnabled: true
+        ingressEgressMode: egress # ingress, egress, both, none
+{{if $CLIENT_METRICS_GATHERING}}
+        clientMetricsGatheringEnabled: true
+{{end}}
   # 5. gather network performance measurement (wait and gather results)
   - name: Network Policy Soak Test - Gather Results
     measurements:
@@ -68,7 +80,12 @@ steps:
       Method: NetworkPolicySoakMeasurement
       Params:
         action: gather #gather will wait for the soak test to finish    
-
+{{if $CLIENT_METRICS_GATHERING}}
+  - module:
+      path: /modules/network-policy-client-metrics.yaml
+      params:
+        action: gather
+{{end}}
 {{if $CILIUM_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
