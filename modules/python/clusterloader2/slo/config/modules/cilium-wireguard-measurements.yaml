@@ -1,0 +1,62 @@
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+
+steps:
+- name: Start measurements
+  measurements:
+  - Identifier: WaitForControlledPodsRunning
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: start
+      apiVersion: apps/v1
+      kind: DaemonSet
+      labelSelector: app = wireguard-exporter
+      operationTimeout: 180s
+- name: "Gathering measurement - Peer Count"
+  measurements:
+  - Identifier: WireGuard_Peer_Count
+    Method: GenericPrometheusQuery
+    Params:
+      action: start
+      metricName: WireGuard Peer Count
+      metricVersion: v1
+      unit: peer
+      queries:
+      - name: peer_count_equal_node_count
+        query: (sum(wireguard_peers_total) / {{$nodes}})+1
+- name: Create WireGuard DS
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 1
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: wireguard-exporter
+      objectTemplatePath: "wireguard-ds.yaml"
+    - basename: wireguard-exporter
+      objectTemplatePath: "wireguard-svc.yaml"
+    - basename: wireguard-exporter
+      objectTemplatePath: "wireguard-svcmon.yaml"
+- name: Wait for pods to be running
+  measurements:
+  - Identifier: WaitForControlledPodsRunning
+    Method: WaitForControlledPodsRunning
+    Params:
+      action: gather
+- name: Sleep
+  measurements:
+  - Identifier: sleep
+    Method: Sleep
+    Params:
+      duration: 300s
+- name: Collect WG Metrics
+  measurements:
+    - Identifier: WireGuard_Peer_Count
+      Method: GenericPrometheusQuery
+      Params:
+        action: gather
+        enableViolations: true

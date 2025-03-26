@@ -91,6 +91,7 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
+            file.write("CL2_CILIUM_WIREGUARD_ENABLED: true\n")
 
         if service_test:
             file.write("CL2_SERVICE_TEST: true\n")
@@ -238,6 +239,8 @@ def main():
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
+    parser_configure.add_argument("cilium_wireguard", type=eval, choices=[True, False], default=False,
+                                  help="Whether cilium WireGuard is enabled. Must be either True or False")
     parser_configure.add_argument("scrape_containerd", type=eval, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
@@ -246,8 +249,8 @@ def main():
                                   help="Whether cnp test is running. Must be either True or False")
     parser_configure.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether ccnp test is running. Must be either True or False")
-    parser_configure.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-    parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
+    parser_configure.add_argument("num_cnps", type=int, nargs='?', default=-1, help="Number of cnps")
+    parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=-1, help="Number of ccnps")
     parser_configure.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
