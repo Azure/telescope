@@ -203,5 +203,5 @@ eks_config_list = [{
     { name = "kube-proxy" },
     { name = "coredns" }
   ]
-  kubernetes_version = "1.30"
+  kubernetes_version = "1.32"
 }]
