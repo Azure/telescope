@@ -35,17 +35,6 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: start
-          labelSelector: group = resource-consumer
-          threshold: {{$podStartupLatencyThreshold}}
-      - Identifier: ResourceUsageSummary
-        Method: ResourceUsageSummary
-        Params:
-          action: start
-          labelSelector: group = resource-consumer
       - Identifier: WaitForRunningLatencyDeployments
         Method: WaitForControlledPodsRunning
         Params:
@@ -55,16 +44,14 @@ steps:
           kind: Deployment
           labelSelector: group = resource-consumer
           operationTimeout: {{$operationTimeout}}
-
-{{range $i := Loop $repeats}}
-
-  {{if $scrapeKubelets}}
+{{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: start
-  {{end}}
+{{end}}
 
+{{range $i := Loop $repeats}}
   {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
     phases:
@@ -126,13 +113,6 @@ steps:
           refreshInterval: 5s
   {{end}}
 
-  {{if $scrapeKubelets}}
-  - module:
-      path: /kubelet-measurement.yaml
-      params:
-        action: gather
-  {{end}}
-
   {{range $j := Loop $steps}}
   - name: Deleting deployments {{$j}}
     phases:
@@ -154,13 +134,16 @@ steps:
   {{end}}
 {{end}}
 
-  - name: Collect measurements
+  - name: Wait for metrics to be collected
     measurements:
-      - Identifier: ResourceUsageSummary
-        Method: ResourceUsageSummary
+      - Identifier: Sleep
+        Method: Sleep
         Params:
-          action: gather
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: gather
+          duration: 1m
+
+{{if $scrapeKubelets}}
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: gather
+{{end}}

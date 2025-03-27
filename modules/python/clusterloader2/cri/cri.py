@@ -61,7 +61,7 @@ def override_config_clusterloader2(
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
-    memory_request_in_k = int(memory_request_in_ki // 1.024)
+    memory_request_in_k = int(memory_request_in_ki // 1.024) - 1000
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
 
     # Calculate the number of steps to scale up
