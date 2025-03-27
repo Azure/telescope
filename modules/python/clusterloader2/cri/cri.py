@@ -66,7 +66,7 @@ def override_config_clusterloader2(
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
-    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
+    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}, scrape containerd: {scrape_containerd}")
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
@@ -274,7 +274,8 @@ def main():
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
                                        args.provider, args.scrape_kubelets, args.scrape_containerd, args.cl2_override_file)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider,
+                               args.scrape_kubelets, args.scrape_containerd)
     elif args.command == "collect":
         collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.scrape_kubelets)
