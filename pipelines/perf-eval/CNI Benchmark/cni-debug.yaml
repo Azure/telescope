@@ -19,13 +19,13 @@ stages:
           topology: cri-resource-consume
           matrix:
             n10-p1100-memory:
-              node_count: $(NODE_COUNT)
+              node_count: $(NODE_COUNT_VALUE)
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               scrape_kubelets: True
               scrape_containerd: True
-              cluster_type: $(CLUSTER_TYPE)
+              cluster_type: $(CLUSTER_TYPE_VALUE)
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -47,13 +47,13 @@ stages:
           topology: cri-resource-consume
           matrix:
             n10-p1100-memory:
-              node_count: $(NODE_COUNT)
+              node_count: $(NODE_COUNT_VALUE)
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               scrape_kubelets: True
               scrape_containerd: True
-              cluster_type: $(CLUSTER_TYPE)
+              cluster_type: $(CLUSTER_TYPE_VALUE)
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
