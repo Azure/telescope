@@ -28,7 +28,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    scrape_kubelets, override_file):
+    scrape_kubelets, scrape_containerd, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -88,12 +88,14 @@ def override_config_clusterloader2(
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
+        file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
+        file.write("CONTAINERD_SCRAPE_INTERVAL: 30s\n")
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -116,7 +118,7 @@ def verify_measurement():
 
             metrics = response[0]  # The first item contains the response data
             kubelet_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start_sli_duration") or "run_podsandbox" in line
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start_sli_duration")
             )
 
             containerd_url = f"/api/v1/nodes/{node_name}:10257/proxy/v1/metrics"
@@ -234,6 +236,8 @@ def main():
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
     parser_override.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
+    parser_override.add_argument("scrape_containerd", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape containerd")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2
@@ -245,6 +249,8 @@ def main():
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
     parser_execute.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
+    parser_execute.add_argument("scrape_containerd", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape containerd")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect resource consume data")
@@ -266,7 +272,7 @@ def main():
     if args.command == "override":
         override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
-                                       args.provider, args.scrape_kubelets, args.cl2_override_file)
+                                       args.provider, args.scrape_kubelets, args.scrape_containerd, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
     elif args.command == "collect":
