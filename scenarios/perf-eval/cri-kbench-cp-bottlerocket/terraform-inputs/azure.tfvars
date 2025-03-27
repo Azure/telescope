@@ -23,7 +23,7 @@ network_config_list = [
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "cri-kbench-cp-bottlerocket"
+    aks_name    = "cri-kbench-cp"
     dns_prefix  = "cri"
     subnet_name = "cri-kbench-vnet"
     sku_tier    = "Standard"
@@ -57,8 +57,8 @@ aks_config_list = [
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
         os_disk_type         = "Managed"
-        node_taints          = ["cri-kbench-cp-bottlerocket=true:NoSchedule", "cri-kbench-cp-bottlerocket=true:NoExecute"]
-        node_labels          = { "cri-kbench-cp-bottlerocket" = "true" }
+        node_taints          = ["cri-kbench-cp=true:NoSchedule", "cri-kbench-cp=true:NoExecute"]
+        node_labels          = { "cri-kbench-cp" = "true" }
       }
     ]
   }
