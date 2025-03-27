@@ -132,7 +132,10 @@ def verify_measurement():
 
             metrics = response[0]  # The first item contains the response data
             containerd_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("containerd_cri_network_plugin_operations") or line.startswith("containerd_cri_sandbox_create_network")
+                line for line in metrics.splitlines() if 
+                    line.startswith("containerd_cri_network_plugin_operations") or 
+                    line.startswith("containerd_cri_sandbox_create_network") or 
+                    line.startswith("containerd_cri_sandbox_delete_network")
             )
 
             print("##[section]Metrics for node:", node_name)
@@ -152,7 +155,8 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    cluster_type,
 ):
     if scrape_kubelets:
         verify_measurement()
@@ -177,6 +181,7 @@ def collect_clusterloader2(
         "measurement": None,
         "percentile": None,
         "data": None,
+        "cluster_type": cluster_type,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url
@@ -266,6 +271,7 @@ def main():
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
+    parser_collect.add_argument("cluster_type", type=str, choices=["default", "tuned"])
 
     args = parser.parse_args()
 
@@ -278,7 +284,8 @@ def main():
                                args.scrape_kubelets, args.scrape_containerd)
     elif args.command == "collect":
         collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.scrape_kubelets)
+                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file,
+                               args.scrape_kubelets, args.cluster_type)
 
 if __name__ == "__main__":
     main()

@@ -25,6 +25,7 @@ stages:
               operation_timeout: 11m
               scrape_kubelets: True
               scrape_containerd: True
+              cluster_type: $(CLUSTER_TYPE)
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -52,6 +53,7 @@ stages:
               operation_timeout: 11m
               scrape_kubelets: True
               scrape_containerd: True
+              cluster_type: $(CLUSTER_TYPE)
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
