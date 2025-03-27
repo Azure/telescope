@@ -41,6 +41,9 @@ stages:
               cl2_config_file: load-config.yaml
               name: idmgmt_operator
               scrape_node_exporter: true
+              small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
+              big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
+              proportion_in_big: $(PROPORTION_IN_BIG)
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
@@ -73,6 +76,9 @@ stages:
               cl2_config_file: load-config.yaml
               name: idmgmt_agent
               scrape_node_exporter: true
+              small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
+              big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
+              proportion_in_big: $(PROPORTION_IN_BIG)
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection

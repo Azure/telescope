@@ -28,7 +28,8 @@ name: load-config
 {{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}}
 {{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}}
 
-{{$bigDeploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt 4 $BIG_GROUP_SIZE)}} # 1/4 of Pods in Big Deployments
+{{$PROPORTION_IN_BIG := DefaultParam .CL2_PROPORTION_IN_BIG 4 }} # Represents 1/4
+{{$bigDeploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $PROPORTION_IN_BIG $BIG_GROUP_SIZE)}} # 1/4 of Pods in Big Deployments
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 {{$totalDeploymentsPerNamespace := AddInt $smallDeploymentsPerNamespace $bigDeploymentsPerNamespace}}

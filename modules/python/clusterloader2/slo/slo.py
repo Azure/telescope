@@ -58,7 +58,10 @@ def configure_clusterloader2(
     num_ccnps,
     dualstack,
     override_file,
-    identity_test):
+    identity_test,
+    small_group_size,
+    big_group_size,
+    proportion_in_big):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, identity_test)
@@ -105,8 +108,9 @@ def configure_clusterloader2(
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
         if identity_test:
-            file.write("CL2_BIG_GROUP_SIZE: 500\n")
-            file.write("CL2_SMALL_GROUP_SIZE: 20\n")
+            file.write(f"CL2_BIG_GROUP_SIZE: {small_group_size}\n")
+            file.write(f"CL2_SMALL_GROUP_SIZE: {big_group_size}\n")
+            file.write(f"CL2_PROPORTION_IN_BIG: {proportion_in_big}\n")
 
     with open(override_file, 'r') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -239,6 +243,9 @@ def main():
                                   help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_configure.add_argument("identity_test", type=eval, nargs='?', choices=[True, False], default=False)
+    parser_configure.add_argument("small_group_size", type=int)
+    parser_configure.add_argument("big_group_size", type=int)
+    parser_configure.add_argument("proportion_in_big", type=int)
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -276,7 +283,8 @@ def main():
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, 
-                                 args.dualstack, args.cl2_override_file, args.identity_test)
+                                 args.dualstack, args.cl2_override_file, args.identity_test,
+                                 args.small_group_size, args.big_group_size, args.proportion_in_big)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
