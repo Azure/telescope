@@ -19,7 +19,7 @@ stages:
           topology: cri-resource-consume
           matrix:
             n10-p1100-memory:
-              node_count: 10
+              node_count: $(NODE_COUNT)
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
@@ -47,7 +47,7 @@ stages:
           topology: cri-resource-consume
           matrix:
             n10-p1100-memory:
-              node_count: 10
+              node_count: $(NODE_COUNT)
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
