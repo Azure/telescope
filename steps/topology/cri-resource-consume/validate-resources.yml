@@ -13,7 +13,7 @@ steps:
     region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/slo/validate.yml
   parameters:
-    desired_nodes: 14
+    desired_nodes: $(DESIRED_NODE_COUNT_VALUE)
 - script: |
     node_rg=$(az aks show --resource-group $RUN_ID --name $AKS_NAME --query nodeResourceGroup --output tsv)
     vmss_list=$(az vmss list -g $node_rg --query [].name -o tsv | grep "userpool")
