@@ -43,7 +43,7 @@ stages:
               scrape_node_exporter: true
               small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
               big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
-              proportion_in_big: $(PROPORTION_IN_BIG)
+              proportion_in_big: $(PROPORTION_IN_BIG_DEPLOYMENTS)
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
