@@ -31,6 +31,11 @@ steps:
 # 4. gather cilium envoy metrics
 # 5. gather cilium agent metrics
 # 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: "service-discovery"
 {{if $CILIUM_ENABLED}}
   - module:
       path: /modules/cilium-measurements.yaml
@@ -99,6 +104,11 @@ steps:
         action: gather
   {{end}}
 {{end}}
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: "service-discovery"
 # 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
   - name: Sleep
     measurements:

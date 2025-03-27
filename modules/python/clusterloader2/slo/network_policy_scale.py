@@ -32,6 +32,8 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
         file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
+        file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
+        file.write("PROMETHEUS_SCRAPE_KUBE_PROXY: false\n")
 
         if cilium_enabled:
             file.write("# Cilium config\n")
@@ -59,6 +61,11 @@ def configure_clusterloader2(
         file.write(f"CL2_WORKERS_PER_CLIENT: {workers_per_client}\n")
         file.write(f"CL2_NUMBER_OF_GROUPS: {number_of_groups}\n")
         file.write(f"CL2_NETWORK_POLICY_TYPE: {netpol_type}\n")
+        file.write("CL2_CLIENT_METRICS_GATHERING: true\n")
+
+        # Disable non related tests in measurements.yaml
+        file.write("# Disable non related tests in measurements.yaml\n")
+        file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
 
     with open(override_file, "r", encoding="utf-8") as file:
         print(f"Content of file {override_file}:\n{file.read()}")
