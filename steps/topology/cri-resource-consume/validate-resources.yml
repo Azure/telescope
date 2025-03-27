@@ -11,13 +11,13 @@ steps:
   parameters:
     role: client
     region: ${{ parameters.regions[0] }}
-- template: /steps/engine/clusterloader2/slo/validate.yml
-  parameters:
-    desired_nodes: $(DESIRED_NODE_COUNT_VALUE)
 - script: |
     node_rg=$(az aks show --resource-group $RUN_ID --name $AKS_NAME --query nodeResourceGroup --output tsv)
     vmss_list=$(az vmss list -g $node_rg --query [].name -o tsv | grep "userpool")
     for vmss in $vmss_list; do
+      echo "Restarting nodepool $vmss"
       az vmss restart -g $node_rg --name $vmss
     done
+
+    kubectl get nodes
   displayName: "Restart test nodepool"

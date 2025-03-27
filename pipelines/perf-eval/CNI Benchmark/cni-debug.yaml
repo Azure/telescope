@@ -23,6 +23,7 @@ stages:
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
+              load_type: memory
               scrape_kubelets: True
               scrape_containerd: True
               cluster_type: $(CLUSTER_TYPE_VALUE)
