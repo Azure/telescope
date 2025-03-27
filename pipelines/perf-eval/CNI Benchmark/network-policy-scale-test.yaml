@@ -21,7 +21,7 @@ stages:
         matrix:
             azure_cilium:
                 cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 2
+        max_parallel: 1
         timeout_in_minutes: 720 # 12 hours
         credential_type: service_connection
         ssh_key_enabled: false
