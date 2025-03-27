@@ -14,3 +14,10 @@ steps:
 - template: /steps/engine/clusterloader2/slo/validate.yml
   parameters:
     desired_nodes: 14
+- script: |
+    node_rg=$(az aks show --resource-group $RUN_ID --name $AKS_NAME --query nodeResourceGroup --output tsv)
+    vmss_list=$(az vmss list -g $node_rg --query [].name -o tsv | grep "userpool")
+    for vmss in $vmss_list; do
+      az vmss restart -g $node_rg --name $vmss
+    done
+  displayName: "Restart test nodepool"
