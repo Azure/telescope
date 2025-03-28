@@ -53,30 +53,18 @@ stages:
 - stage: scale_test
   dependsOn: []
   jobs:
-  - job: scale_test
-    strategy:
-      maxParallel: ${{ variables.max_parallel }}
-      matrix: ${{ parameters.clusterConfig }}
-    variables:
-      regions: $(regions)
-    steps:
-    - script: echo "all good here"
-    - script: echo "${{ convertToJson(parameters.clusterConfig) }}"
-    - script: echo "$(condition)"
-    - script: echo "$(cloud)"
-    - ${{ each r in split($(regions), ',') }}:
-      - script: echo "region ${{ r }}"
-    # - template: /jobs/competitive-test.yml
+    - template: /jobs/competitive-test.yml
       # condition: ${{ parameters.condition }}
-      # parameters:
-      #   cloud: $(cloud)
-      #   regions: ${{ matrix.regions }}
-      #   engine: clusterloader2
-      #   engine_input:
-      #     image: "ghcr.io/azure/clusterloader2:v20250311"
-      #   topology: service-churn
-      #   matrix: ${{ parameters.matrix }}
-      #   max_parallel: ${{ variables.max_parallel }}
-      #   timeout_in_minutes: 720
-      #   credential_type: service_connection
-      #   ssh_key_enabled: false
+      parameters:
+        matrix: ${{ parameters.clusterConfig }}
+        cloud: $(cloud)
+        regions: $(regions)
+        engine: clusterloader2
+        engine_input:
+          image: "ghcr.io/azure/clusterloader2:v20250311"
+        topology: service-churn
+        # matrix: ${{ parameters.matrix }}
+        max_parallel: ${{ variables.max_parallel }}
+        timeout_in_minutes: 720
+        credential_type: service_connection
+        ssh_key_enabled: false

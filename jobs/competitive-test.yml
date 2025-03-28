@@ -51,10 +51,10 @@ parameters:
 
 jobs:
 - job: ${{ parameters.cloud }}
-  strategy:
-    maxParallel: ${{ parameters.max_parallel }}
-    matrix:
-      ${{ parameters.matrix }}
+  # strategy:
+  #   maxParallel: ${{ parameters.max_parallel }}
+  #   matrix:
+  #     ${{ parameters.matrix }}
   timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
   steps:
   - template: /steps/setup-tests.yml
