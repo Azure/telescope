@@ -1,11 +1,11 @@
 trigger: none
-schedules:
-  - cron: "0 */1 * * *"
-    displayName: "Every Hour"
-    branches:
-      include:
-        - alyssa/test-cni
-    always: true
+# schedules:
+#   - cron: "0 */1 * * *"
+#     displayName: "Every Hour"
+#     branches:
+#       include:
+#         - alyssa/test-cni
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
