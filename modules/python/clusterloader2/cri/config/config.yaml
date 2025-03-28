@@ -146,4 +146,5 @@ steps:
       path: /kubelet-measurement.yaml
       params:
         action: gather
+        enableViolations: true
 {{end}}

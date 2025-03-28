@@ -10,6 +10,7 @@ steps:
         metricName: KubeletPodStartupSLIDuration
         metricVersion: v1
         unit: s
+        enableViolations: true
         dimensions:
           - node
         queries:
