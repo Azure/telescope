@@ -1,98 +1,82 @@
 trigger: none
-schedules:
-  - cron: "0 6,18 * * *"
-    displayName: "6:00 AM & PM Daily"
-    branches:
-      include:
-        - main
-    always: true
-  - cron: "0 6 * * 2"
-    displayName: "6:00 AM on Tuesdays"
-    branches:
-      include:
-        - main
-    always: true
+# schedules:
+#   - cron: "0 6,18 * * *"
+#     displayName: "6:00 AM & PM Daily"
+#     branches:
+#       include:
+#         - main
+#     always: true
+#   - cron: "0 6 * * 2"
+#     displayName: "6:00 AM on Tuesdays"
+#     branches:
+#       include:
+#         - main
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-servicediscovery
+  
+# common variables across matrix:
+  cpu_per_node: 4
+  node_count: 1000
+  node_per_step: 1000
+  max_pods: 20
+  repeats: 10
+  scale_timeout: "15m"
+  service_test: True
+  cl2_config_file: load-config.yaml
+  max_parallel: 3 #1 for aws/2 for azure (it were separate stages)
+
+parameters:
+- name: clusterConfig
+  type: object
+  default:
+    aws_vpc_cni:
+      cilium_enabled: False
+      cloud: aws
+      regions: us-east-1
+    azure_cni:
+      cilium_enabled: False
+      scrape_containerd: True
+      cloud: azure
+      regions: eastus2
+    azure_cilium:
+      cilium_enabled: True
+      network_policy: cilium
+      network_dataplane: cilium
+      scrape_containerd: True
+      cloud: azure
+      regions: eastus2,eastus1
 
 stages:
-  - stage: aws_eastus1
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM on Tuesdays'),
-        and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
-      )
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: aws
-          regions:
-            - us-east-1
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: service-churn
-          matrix:
-            aws_vpc_cni:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
-              max_pods: 20
-              repeats: 10
-              scale_timeout: "15m"
-              cilium_enabled: False
-              service_test: True
-              cl2_config_file: load-config.yaml
-          max_parallel: 1
-          timeout_in_minutes: 720
-          credential_type: service_connection
-          ssh_key_enabled: false
-  - stage: azure_eastus2
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM & PM Daily'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - eastus2
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: service-churn
-          matrix:
-            azure_cni:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
-              max_pods: 20
-              repeats: 10
-              scale_timeout: "15m"
-              cilium_enabled: False
-              scrape_containerd: True
-              service_test: True
-              cl2_config_file: load-config.yaml
-            azure_cilium:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
-              max_pods: 20
-              repeats: 10
-              scale_timeout: "15m"
-              cilium_enabled: True
-              network_policy: cilium
-              network_dataplane: cilium
-              scrape_containerd: True
-              service_test: True
-              cl2_config_file: load-config.yaml
-          max_parallel: 2
-          timeout_in_minutes: 720
-          credential_type: service_connection
-          ssh_key_enabled: false
+- stage: scale_test
+  dependsOn: []
+  jobs:
+  - job: scale_test
+    strategy:
+      maxParallel: ${{ variables.max_parallel }}
+      matrix: ${{ parameters.clusterConfig }}
+    variables:
+      regions: $(regions)
+    steps:
+    - script: echo "all good here"
+    - script: echo "${{ convertToJson(parameters.clusterConfig) }}"
+    - script: echo "$(condition)"
+    - script: echo "$(cloud)"
+    - ${{ each r in split($(regions), ',') }}:
+      - script: echo "region ${{ r }}"
+    # - template: /jobs/competitive-test.yml
+      # condition: ${{ parameters.condition }}
+      # parameters:
+      #   cloud: $(cloud)
+      #   regions: ${{ matrix.regions }}
+      #   engine: clusterloader2
+      #   engine_input:
+      #     image: "ghcr.io/azure/clusterloader2:v20250311"
+      #   topology: service-churn
+      #   matrix: ${{ parameters.matrix }}
+      #   max_parallel: ${{ variables.max_parallel }}
+      #   timeout_in_minutes: 720
+      #   credential_type: service_connection
+      #   ssh_key_enabled: false
