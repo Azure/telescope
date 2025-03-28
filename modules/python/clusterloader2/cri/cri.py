@@ -20,14 +20,15 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
     for pod in pods:
         for container in pod.spec.containers:
             print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-            cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-            memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+            if container.resources.requests:
+                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
     return cpu_request, memory_request * 1024
 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    scrape_kubelets, override_file):
+    scrape_kubelets, scrape_containerd, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -60,12 +61,12 @@ def override_config_clusterloader2(
     pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
-    memory_request_in_k = int(memory_request_in_ki // 1.024)
+    memory_request_in_k = int(memory_request_in_ki // 1.024) - 1000
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
-    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
+    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}, scrape containerd: {scrape_containerd}")
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
@@ -87,12 +88,14 @@ def override_config_clusterloader2(
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
+        file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
+        file.write("CONTAINERD_SCRAPE_INTERVAL: 30s\n")
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -102,11 +105,11 @@ def verify_measurement():
     # Create an API client
     api_client = k8s_client.ApiClient()
     for node_name in user_pool:
-        url = f"/api/v1/nodes/{node_name}/proxy/metrics"
+        kubelet_url = f"/api/v1/nodes/{node_name}/proxy/metrics"
 
         try:
             response = api_client.call_api(
-                resource_path=url,
+                resource_path=kubelet_url,
                 method="GET",
                 auth_settings=['BearerToken'],
                 response_type="str",
@@ -114,11 +117,30 @@ def verify_measurement():
             )
 
             metrics = response[0]  # The first item contains the response data
-            filtered_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
+            kubelet_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start_sli_duration")
             )
+
+            containerd_url = f"/api/v1/nodes/{node_name}:10257/proxy/v1/metrics"
+            response = api_client.call_api(
+                resource_path=containerd_url,
+                method="GET",
+                auth_settings=['BearerToken'],
+                response_type="str",
+                _preload_content=True
+            )
+
+            metrics = response[0]  # The first item contains the response data
+            containerd_metrics = "\n".join(
+                line for line in metrics.splitlines() if 
+                    line.startswith("containerd_cri_network_plugin_operations") or 
+                    line.startswith("containerd_cri_sandbox_create_network") or 
+                    line.startswith("containerd_cri_sandbox_delete_network")
+            )
+
             print("##[section]Metrics for node:", node_name)
-            print(filtered_metrics)
+            print(kubelet_metrics)
+            print(containerd_metrics)
 
         except k8s_client.ApiException as e:
             print(f"Error fetching metrics: {e}")
@@ -133,7 +155,8 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    cluster_type,
 ):
     if scrape_kubelets:
         verify_measurement()
@@ -158,6 +181,7 @@ def collect_clusterloader2(
         "measurement": None,
         "percentile": None,
         "data": None,
+        "cluster_type": cluster_type,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url
@@ -217,6 +241,8 @@ def main():
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
     parser_override.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
+    parser_override.add_argument("scrape_containerd", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape containerd")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2
@@ -228,6 +254,8 @@ def main():
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
     parser_execute.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
+    parser_execute.add_argument("scrape_containerd", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape containerd")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect resource consume data")
@@ -243,18 +271,21 @@ def main():
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
+    parser_collect.add_argument("cluster_type", type=str, choices=["default", "tuned"])
 
     args = parser.parse_args()
 
     if args.command == "override":
         override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
-                                       args.provider, args.scrape_kubelets, args.cl2_override_file)
+                                       args.provider, args.scrape_kubelets, args.scrape_containerd, args.cl2_override_file)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider,
+                               args.scrape_kubelets, args.scrape_containerd)
     elif args.command == "collect":
         collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.scrape_kubelets)
+                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file,
+                               args.scrape_kubelets, args.cluster_type)
 
 if __name__ == "__main__":
     main()
