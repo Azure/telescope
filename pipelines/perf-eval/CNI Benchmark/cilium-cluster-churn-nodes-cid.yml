@@ -10,7 +10,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-cluster-churn-ces
+  SCENARIO_NAME: cilium-cluster-churn-cid
   OWNER: aks
 
 stages:
