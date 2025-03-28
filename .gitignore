@@ -55,6 +55,7 @@ __pycache__/
 *.pyc
 
 env/
+venv/
 modules/python/clusterloader2/*/results
 
 # OSX
