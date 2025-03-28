@@ -16,6 +16,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: slo-servicediscovery
+  OWNER: aks
   
 # common variables across matrix:
   cpu_per_node: 4
@@ -29,54 +30,53 @@ variables:
   max_parallel: 3 #1 for aws/2 for azure (it were separate stages)
 
 parameters:
-- name: clusterConfig
+- name: clusterConfigs
   type: object
   default:
-    aws_vpc_cni:
-      cilium_enabled: False
-      cloud: aws
-      regions: us-east-1
+    # aws_vpc_cni:
+    #   cilium_enabled: False
+    #   cloud: aws
+    #   regions:
+    #     - us-east-1
     azure_cni:
-      cilium_enabled: False
-      scrape_containerd: True
-      cloud: azure
-      regions: eastus2
+      variables:
+        cilium_enabled: False
+        scrape_containerd: True
+      parameters:
+        cloud: azure
+        regions:
+          - westeurope
     azure_cilium:
-      cilium_enabled: True
-      network_policy: cilium
-      network_dataplane: cilium
-      scrape_containerd: True
-      cloud: azure
-      regions: eastus2,eastus1
+      variables:
+        cilium_enabled: True
+        network_policy: cilium
+        network_dataplane: cilium
+        scrape_containerd: True
+      parameters:
+        cloud: azure
+        regions:
+          - westeurope
+          - eastus1
 
 stages:
-- stage: scale_test
-  dependsOn: []
-  jobs:
-  - job: scale_test
-    strategy:
-      maxParallel: ${{ variables.max_parallel }}
-      matrix: ${{ parameters.clusterConfig }}
-    variables:
-      regions: $(regions)
-    steps:
-    - script: echo "all good here"
-    - script: echo "${{ convertToJson(parameters.clusterConfig) }}"
-    - script: echo "$(condition)"
-    - script: echo "$(cloud)"
-    - ${{ each r in split($(regions), ',') }}:
-      - script: echo "region ${{ r }}"
-    # - template: /jobs/competitive-test.yml
-      # condition: ${{ parameters.condition }}
-      # parameters:
-      #   cloud: $(cloud)
-      #   regions: ${{ matrix.regions }}
-      #   engine: clusterloader2
-      #   engine_input:
-      #     image: "ghcr.io/azure/clusterloader2:v20250311"
-      #   topology: service-churn
-      #   matrix: ${{ parameters.matrix }}
-      #   max_parallel: ${{ variables.max_parallel }}
-      #   timeout_in_minutes: 720
-      #   credential_type: service_connection
-      #   ssh_key_enabled: false
+- ${{ each cc in parameters.clusterConfigs }}:
+  - stage: ${{ cc.Key }}
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        # condition: ${{ parameters.condition }}
+        parameters:
+          cloud: ${{ cc.Value.parameters.cloud }}
+          regions: ${{ cc.Value.parameters.regions }}
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: service-churn
+          matrix:
+            clusterConfig: ${{ cc.Value.variables }}
+          # matrix: ${{ parameters.matrix }}
+          max_parallel: ${{ variables.max_parallel }}
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          run_id: lx-cluster
