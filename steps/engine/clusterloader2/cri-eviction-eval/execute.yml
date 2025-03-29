@@ -25,7 +25,7 @@ steps:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/eviction-eval.py
-      NODE_LABEL: ${{ strconcat(parameters.topology, "=true" }}
+      NODE_LABEL: ${{ parameters.topology }}
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/results
