@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-evictionhard-threshold"
+scenario_name  = "cri-eviction-eval"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -58,8 +58,8 @@ aks_config_list = [
         vm_size              = "Standard_D16_v3"
         os_disk_type         = "Ephemeral"
         kubernetes_version   = "1.30"
-        node_taints          = ["cri-evictionhard-threshold=true:NoSchedule", "cri-evictionhard-threshold:NoExecute"]
-        node_labels          = { "cri-evictionhard-threshold" = "true" }
+        node_taints          = ["cri-eviction-eval=true:NoSchedule", "cri-eviction-eval:NoExecute"]
+        node_labels          = { "cri-eviction-eval" = "true" }
       }
     ]
   }
