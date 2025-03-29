@@ -23,7 +23,7 @@ network_config_list = [
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "cri-eviction-threshold"
+    aks_name    = "cri-eviction"
     dns_prefix  = "cri"
     subnet_name = "cri-vnet"
     sku_tier    = "Standard"
