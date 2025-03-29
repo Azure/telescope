@@ -1,10 +1,11 @@
-{{$Memory := DefaultParam .Memory "500Mi"}}
-{{$DUERA := DefaultParam .Duration "300"}}
-{{$CPU := DefaultParam .CPU "--millicores=100"}}
-{{$MemoryRequest := DefaultParam .MemoryRequest "250Mi"}}
-{{$CPURequest := DefaultParam .CPURequest "100m"}}
-{{$LoadType := DefaultParam .LoadType "memory"}}
-{{$Provider := DefaultParam .Provider "aks"}}
+{{$Memory := DefaultParam .Memory}}
+{{$DUERA := DefaultParam .Duration}}
+{{$CPU := DefaultParam .CPU}}
+{{$MemoryRequest := DefaultParam .MemoryRequest}}
+{{$CPURequest := DefaultParam .CPURequest}}
+{{$LoadType := DefaultParam .LoadType}}
+{{$Provider := DefaultParam .Provider}}
+{{$NodeLabel := DefaultParam .NodeLabel}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -25,7 +26,7 @@ spec:
     spec:
       hostNetwork: true
       nodeSelector:
-        cri-evictionhard-threshold: "true"
+        {{.NodeLabel}}: "true"
       containers:
 {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
@@ -68,11 +69,11 @@ spec:
             cpu: {{$CPURequest}}
 {{end}}
       tolerations:
-      - key: "cri-evictionhard-threshold"
+      - key: {{.NodeLabel}}
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
-      - key: "cri-evictionhard-threshold-consume"
+      - key: {{.NodeLabel}}
         operator: "Equal"
         value: "true"
         effect: "NoExecute"

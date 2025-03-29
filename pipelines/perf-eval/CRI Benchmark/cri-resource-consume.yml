@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cri-evictionhard-threshold
+  SCENARIO_NAME: cri-eviction-eval
 
 stages:
   - stage: azure_swedencentral
@@ -16,24 +16,21 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
-          topology: cri-evictionhard-threshold
+          topology: cri-eviction-eval
           matrix:
             n5-p150-memory-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 30
-              repeats: 1
               operation_timeout: 3m
               load_type: memory
             n5-p350-memory-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 70
-              repeats: 1
               operation_timeout: 7m
               load_type: memory
             n5-p550-memory-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
-              repeats: 1
               operation_timeout: 11m
               load_type: memory
           max_parallel: 3
@@ -51,27 +48,24 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
-          topology: cri-evictionhard-threshold
+          topology: cri-eviction-eval
           matrix:
             n5-p150-memory-d16:
               max_pods: 30
-              repeats: 1
               operation_timeout: 3m
               load_type: memory
               k8s_machine_type: Standard_D16ds_v4
             n5-p350-memory-d16:
               max_pods: 70
-              repeats: 1
               operation_timeout: 7m
               load_type: memory
               k8s_machine_type: Standard_D16ds_v4
             n10-p550-memory-d16:
               max_pods: 110
-              repeats: 1
               operation_timeout: 11m
               load_type: memory
               k8s_machine_type: Standard_D16ds_v4
           max_parallel: 3
-          timeout_in_minutes: 120
+          timeout_in_minutes: 60
           credential_type: service_connection
           ssh_key_enabled: false

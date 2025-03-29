@@ -1,29 +1,24 @@
 name: evictionhard-threshold
 
-{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE}}
 {{$memoryConsume := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI}}
 {{$memoryRequest := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI}}
-{{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
-{{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU}}
 {{$stressDuration := DefaultParam .CL2_RESOURCE_CONSUME_DURATION_SEC}}
 
-{{$steps := DefaultParam .CL2_STEPS 1}}
-{{$nodePerStep := DefaultParam .CL2_NODE_PER_STEP 1}}
-{{$totalNodes := MultiplyInt $nodePerStep $steps}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE}}
+{{$totalNodes := DefaultParam .CL2_NODE_COUNT}}
+{{$nodeLabel := DefaultParam .CL2_NODE_LABEL}}
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
 {{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
-{{$scaleEnabled := DefaultParam .CL2_SCALE_ENABLED false}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT}}
-{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD}}
-{{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
-
-{{$provider := DefaultParam .CL2_PROVIDER "aks"}}
-{{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
+{{$loadType := DefaultParam .CL2_LOAD_TYPE}}
+{{$provider := DefaultParam .CL2_PROVIDER }}
+{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
 
 namespace:
   number: 1
-  prefix: evictionhard-threshold
+  prefix: eviction-eval
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
@@ -40,14 +35,9 @@ steps:
         Method: WaitForNodes
         Params:
           action: start
-        {{if $scaleEnabled}}
-          minDesiredNodeCount: {{MultiplyInt (AddInt (MultiplyInt $nodePerStep (AddInt $j 1)) 1) 0.8}}
-          maxDesiredNodeCount: {{AddInt $totalNodes 1}}
-        {{else}}
           minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
           maxDesiredNodeCount: {{$totalNodes}}
-        {{end}}
-          labelSelector: cri-evictionhard-threshold = true
+          labelSelector: {{$$nodeSelector}}
           timeout: 1m
           refreshInterval: 5s
 
@@ -57,7 +47,7 @@ steps:
         Method: ResourceUsageSummary
         Params:
           action: start
-          labelSelector: group = evictionhard-threshold
+          labelSelector: group = {{$deploymentLabel}}
           interval: 10s
       - Identifier: CPUProfile
         Method: CPUProfile
@@ -75,18 +65,11 @@ steps:
             - kubelet
             - containerd
           duration: 60s
-
-{{range $i := Loop $repeats}}
-  {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: start
-  {{end}}
-
-
-  {{range $j := Loop $steps}}
-  - name: Create deployment {{$j}}
+  - name: Create deployment
     phases:
     - namespaceRange:
           min: 1
@@ -94,19 +77,11 @@ steps:
       replicasPerNamespace: 1
       tuningSet: Uniform1qps
       objectBundle:
-      - basename: evictionhard-threshold-{{$j}}
+      - basename: eviction-eval
         objectTemplatePath: deployment_template.yaml
         templateFillMap:
-      {{if $scaleEnabled}}
-        {{if eq $j 0}}
-          Replicas: {{AddInt $scaleReplicas $deploymentSize}}
-        {{else}}
-          Replicas: {{$scaleReplicas}}
-        {{end}}
-      {{else}}
           Replicas: {{$replicas}}
-      {{end}}
-          Group: evictionhard-threshold
+          Group: {{$deploymentLabel}}
           Memory: {{$memoryConsume}}
           CPU: --millicores={{$cpu}}
           MemoryRequest: {{$memoryRequest}}
@@ -114,6 +89,7 @@ steps:
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}
+          NodeLabel: {{$nodeLabel}}
 
   - name: Waiting for pods to be running
     measurements:
@@ -121,7 +97,7 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: start
-          labelSelector: group = evictionhard-threshold
+          labelSelector: group = {{$deploymentLabel}}
           apiVersion: apps/v1
           kind: Deployment
           checkIfPodsAreUpdated: true
@@ -133,17 +109,12 @@ steps:
         Method: Sleep
         Params:
           duration: {{$operationTimeout}}m
-  {{end}}
-
-  {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: gather
-  {{end}}
 
-  {{range $j := Loop $steps}}
-  - name: Deleting deployments {{$j}}
+  - name: Deleting deployments 
     phases:
       - namespaceRange:
           min: 1
@@ -151,11 +122,10 @@ steps:
         replicasPerNamespace: 0
         tuningSet: Uniform1qps
         objectBundle:
-          - basename: evictionhard-threshold-{{$j}}
+          - basename: evictionhard-threshold
             objectTemplatePath: deployment_template.yaml
 
-  {{end}}
-{{end}}
+
   - name: Collect measurements
     measurements:
       - Identifier: ResourceUsageSummary
