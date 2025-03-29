@@ -7,8 +7,6 @@ variables:
 stages:
   - stage: azure_swedencentral
     dependsOn: []
-    variables:
-      - group: evictionhard-threshold
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -45,8 +43,6 @@ stages:
           ssh_key_enabled: false
   - stage: azure_swedencentral_d16
     dependsOn: []
-    variables:
-      - group: evictionhard-threshold
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
