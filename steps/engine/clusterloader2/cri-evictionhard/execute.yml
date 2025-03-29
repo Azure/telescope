@@ -1,0 +1,33 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
+        $NODE_COUNT ${NODE_PER_STEP:-$NODE_COUNT} $MAX_PODS $REPEATS $OPERATION_TIMEOUT \
+        $LOAD_TYPE ${SCALE_ENABLED:-False} ${POD_STARTUP_LATENCY_THRESHOLD:-150s} \
+        $CLOUD ${SCRAPE_KUBELETS:-True} ${CL2_CONFIG_DIR}/overrides.yaml
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD \
+        ${SCRAPE_KUBELETS:-True}
+    workingDirectory: modules/python/clusterloader2
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-evictionhard/cri.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-evictionhard/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-evictionhard/results
+    displayName: "Run EvictionHard threshold Benchmark"

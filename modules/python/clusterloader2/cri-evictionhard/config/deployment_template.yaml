@@ -1,0 +1,78 @@
+{{$Memory := DefaultParam .Memory "500Mi"}}
+{{$DUERA := DefaultParam .Duration "300"}}
+{{$CPU := DefaultParam .CPU "--millicores=100"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "250Mi"}}
+{{$CPURequest := DefaultParam .CPURequest "100m"}}
+{{$LoadType := DefaultParam .LoadType "memory"}}
+{{$Provider := DefaultParam .Provider "aks"}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        cri-evictionhard-threshold: "true"
+      containers:
+{{if eq $LoadType "memory"}}
+      - name: resource-consumer-memory
+{{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+{{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+{{end}}
+        imagePullPolicy: IfNotPresent
+        command:
+          - stress
+        args:
+          - --vm
+          - "1"
+          - --vm-bytes
+          - {{$Memory}}
+          - --vm-hang
+          - "0"
+          - --timeout
+          - {{$Duration}}
+        resources:
+          requests:
+            memory: {{$MemoryRequest}}
+{{end}}
+{{if eq $LoadType "cpu"}}
+      - name: resource-consumer-cpu
+{{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
+{{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
+{{end}}
+        imagePullPolicy: IfNotPresent
+        command:
+          - ./consume-cpu/consume-cpu
+        args:
+          - --duration-sec=3600
+          - {{$CPU}}
+        resources:
+          requests:
+            cpu: {{$CPURequest}}
+{{end}}
+      tolerations:
+      - key: "cri-evictionhard-threshold"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "cri-evictionhard-threshold-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
