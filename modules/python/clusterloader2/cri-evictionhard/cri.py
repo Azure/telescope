@@ -216,12 +216,12 @@ def main():
     parser_override.add_argument("operation_timeout", type=str, default="5m", help="Operation timeout")
     parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
-    # parser_override.add_argument("scale_enabled", type=eval, choices=[True, False], default=False,
-    #                              help="Whether scale operation is enabled. Must be either True or False")
-    # parser_override.add_argument("pod_startup_latency_threshold", type=str, default="15s", help="Pod startup latency threshold")
+    parser_override.add_argument("scale_enabled", type=eval, choices=[True, False], default=False,
+                                 help="Whether scale operation is enabled. Must be either True or False")
+    parser_override.add_argument("pod_startup_latency_threshold", type=str, default="15s", help="Pod startup latency threshold")
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
-    # parser_override.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
-    #                             help="Whether to scrape kubelets")
+    parser_override.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+                                help="Whether to scrape kubelets")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2

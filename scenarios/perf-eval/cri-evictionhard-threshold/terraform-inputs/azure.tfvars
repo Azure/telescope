@@ -36,7 +36,7 @@ aks_config_list = [
     }
     default_node_pool = {
       name                         = "default"
-      node_count                   = 5
+      node_count                   = 3
       vm_size                      = "Standard_D16_v3"
       os_disk_type                 = "Ephemeral"
       only_critical_addons_enabled = true
