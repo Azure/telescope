@@ -5,8 +5,6 @@ parameters:
   type: string
 - name: engine
   type: string
-- name: topology
-  type: string
 - name: engine_input
   type: object
   default: {}
