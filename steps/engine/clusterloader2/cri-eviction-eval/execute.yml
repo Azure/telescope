@@ -7,6 +7,9 @@ parameters:
     default: {}
   - name: region
     type: string
+  - name: topology
+    type: string
+
 
 steps:
   - script: |
