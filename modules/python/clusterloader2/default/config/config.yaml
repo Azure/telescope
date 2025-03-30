@@ -21,13 +21,13 @@ steps:
         Params:
           action: start
           labelSelector: group=job-scheduling
-          threshold: 1h
+          threshold: 4h
       - Identifier: WaitForFinishedJobs
         Method: WaitForFinishedJobs
         Params:
           action: start
           labelSelector: group=job-scheduling
-          threshold: 1h
+          threshold: 4h
 
 
 {{range $i := Loop $job_count}}
