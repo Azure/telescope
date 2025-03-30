@@ -22,9 +22,6 @@ parameters:
 - name: eviction_hard_memory
   type: string
   default: "100Mi"
-  allowedValues:
-    - "100Mi"
-    - "750Mi"
 
 
 steps:
