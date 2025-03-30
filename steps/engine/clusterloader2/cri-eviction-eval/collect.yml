@@ -9,12 +9,6 @@ parameters:
   type: string
 - name: topology
   type: string
-- name: node_count
-  type: number
-- name: max_pods
-  type: number
-- name: operation_timeout
-  type: string
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
