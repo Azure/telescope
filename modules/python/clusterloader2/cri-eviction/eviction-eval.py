@@ -220,7 +220,6 @@ def main():
     parser_override.add_argument("node_label", type=str, help="Node label selector")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
     parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")

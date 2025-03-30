@@ -9,15 +9,20 @@ parameters:
     type: string
   - name: topology
     type: string
-
+  - name: node_count
+    type: number
+  - name: max_pods
+    type: number
+  - name: operation_timeout
+    type: string
 
 steps:
   - script: |
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-        $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
-        $LOAD_TYPE $CLOUD $NODE_LABEL ${CL2_CONFIG_DIR}/overrides.yaml
+        $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
+        $LOAD_TYPE $CLOUD ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD 
     workingDirectory: modules/python/clusterloader2

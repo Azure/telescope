@@ -7,6 +7,14 @@ parameters:
   default: {}
 - name: region
   type: string
+- name: topology
+  type: string
+- name: node_count
+  type: number
+- name: max_pods
+  type: number
+- name: operation_timeout
+  type: string
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -16,7 +24,7 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $NODE_COUNT $MAX_PODS $REPEATS $LOAD_TYPE \
+      $NODE_COUNT $MAX_PODS $LOAD_TYPE \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE 
   workingDirectory: modules/python/clusterloader2
   env:
