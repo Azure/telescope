@@ -57,6 +57,10 @@ jobs:
       ${{ parameters.matrix }}
   timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
   steps:
+  - script: |
+      echo "##vso[task.setvariable variable=node_count_n]$(convert(node_count))"
+      echo "##vso[task.setvariable variable=max_pods_n]$(convert(max_pods))"
+    displayName: 'Convert String to Number'
   - template: /steps/setup-tests.yml
     parameters:
       cloud: ${{ parameters.cloud }}
@@ -89,8 +93,8 @@ jobs:
       engine: ${{ parameters.engine }}
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
-      node_count: $(node_count)
-      max_pods: $(max_pods)
+      node_count: $(node_count_n)
+      max_pods: $(max_pods_n)
       load_type: $(load_type)
       operation_timeout: $(operation_timeout)
   - template: /steps/publish-results.yml
@@ -101,8 +105,8 @@ jobs:
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
-      node_count: $(node_count)
-      max_pods: $(max_pods)
+      node_count: $(node_count_n)
+      max_pods: $(max_pods_n)
       load_type: $(load_type)
   - template: /steps/cleanup-resources.yml
     parameters:
