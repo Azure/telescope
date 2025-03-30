@@ -89,8 +89,8 @@ jobs:
       engine: ${{ parameters.engine }}
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
-      node_count: $(node_count_n)
-      max_pods: $(max_pods_n)
+      node_count: $(node_count)
+      max_pods: $(max_pods)
       load_type: $(load_type)
       operation_timeout: $(operation_timeout)
   - template: /steps/publish-results.yml
@@ -101,8 +101,8 @@ jobs:
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
-      node_count: $(node_count_n)
-      max_pods: $(max_pods_n)
+      node_count: $(node_count)
+      max_pods: $(max_pods)
       load_type: $(load_type)
   - template: /steps/cleanup-resources.yml
     parameters:
