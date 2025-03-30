@@ -25,7 +25,7 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
     return cpu_request, memory_request * 1024
 
 
-def override_config_clusterloader2( node_label, node_count, max_pods, operation_timeout, load_type, provider, override_file):
+def override_config_clusterloader2( node_label, node_count, max_pods, operation_timeout, eviction_hard_memory, load_type, provider, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     node_selector = f"{node_label}=true"
     nodes = client.get_nodes(label_selector=node_selector)
@@ -70,6 +70,7 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
         raise Exception(f"Unexpected format of operation_timeout property, should end with m (min) or s (second): {operation_timeout}")
 
     resouce_stress_duration = int(timeout * 0.9)
+
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_ki} Ki, pod will try to consume memory: {memory_consume_mi} Mi, total pod per node: {pod_count} \n will run stress test in {resouce_stress_duration} seconds")
     print(f"write override file to {override_file}")
 
@@ -85,6 +86,11 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
         file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {resouce_stress_duration}\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
 
+
+        # if eviction_hard_memory is not 100Mi, set kubelet restart flag to true and update eviction_hard_memory accordingly
+        if eviction_hard_memory != "100Mi":
+            file.write("CL2_UPDATE_KUBELET: true\n")
+            file.write(f"CL2_KUBELET_EVICTION_HARD_MEMORY: {eviction_hard_memory}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
@@ -96,8 +102,9 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     print(f"CL2 image: {cl2_image}, config dir: {cl2_config_dir}, report dir: {cl2_report_dir}, kubeconfig: {kubeconfig}, provider: {provider}")
+    # scrap containerd is not supported in this test
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=True)
+                    tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False)
 
 def verify_measurement(node_label):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))

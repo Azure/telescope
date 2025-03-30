@@ -17,6 +17,9 @@ parameters:
     type: string
   - name: operation_timeout
     type: string
+  - name: eviction_hard_memory
+    type: string
+    default: "100Mi"
 
 steps:
   - script: |
@@ -24,7 +27,7 @@ steps:
       echo "Running eviction benchmark"
       echo "with nodes: $NODE_COUNT ($NODE_LABEL), pods: $MAX_PODS, load: $LOAD_TYPE, use config $CL2_CONFIG_DIR and result in $CL2_REPORT_DIR" 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-        $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
+        $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT $EVICTION_HARD_MEMORY \
         $LOAD_TYPE $CLOUD $CL2_CONFIG_DIR/overrides.yaml
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
@@ -41,6 +44,7 @@ steps:
       MAX_PODS: ${{ parameters.max_pods }}
       LOAD_TYPE: ${{ parameters.load_type }}
       OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
+      EVICTION_HARD_MEMORY: ${{ parameters.eviction_hard_memory }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/eviction-eval.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/config

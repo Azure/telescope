@@ -18,6 +18,9 @@ parameters:
   type: string
 - name: operation_timeout
   type: string
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
 
 steps:
 - template: /steps/engine/clusterloader2/cri-eviction-eval/execute.yml
@@ -30,3 +33,4 @@ steps:
     max_pods: ${{ parameters.max_pods }}
     load_type: ${{ parameters.load_type }}
     operation_timeout: ${{ parameters.operation_timeout }}
+    eviction_hard_memory: ${{ parameters.eviction_hard_memory }}

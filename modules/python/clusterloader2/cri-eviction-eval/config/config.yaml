@@ -8,6 +8,11 @@ name: evictionhard-threshold
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE}}
 {{$totalNodes := DefaultParam .CL2_NODE_COUNT}}
 {{$nodeLabel := DefaultParam .CL2_NODE_LABEL}}
+
+{{$updateKubelet := DefaultParam .CL2_UPDATE_KUBELET False}}
+{{$kubeletEvictionHardMemory := DefaultParam .CL2_KUBELET_EVICTION_HARD_MEMORY}}
+
+
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
 {{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
 
@@ -40,7 +45,12 @@ steps:
           labelSelector: {{$$nodeSelector}}
           timeout: 1m
           refreshInterval: 5s
-
+  {{if $updateKubelet}}
+  - module:
+      path: /kubelet-measurement.yaml
+      params:
+        action: start
+  {{end}}
   - name: Start measurements
     measurements:
       - Identifier: ResourceUsageSummary
