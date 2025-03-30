@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kubelet-config-updater
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: kubelet-config-updater
+  template:
+    metadata:
+      labels:
+        app: kubelet-config-updater
+    spec:
+      hostPID: true
+      nodeSelector:
+        kubernetes.azure.com/mode: user
+      containers:
+      - name: kubelet-config-updater
+        image: busybox:latest
+        securityContext:
+          privileged: true
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Updating kubelet configuration..."
+          sed -i 's/--eviction-hard=memory\.available<100Mi/--eviction-hard=memory\.available<750Mi/' "/etc/default/kubelet"
+          echo "Restarting kubelet..."
+          nsenter --mount=/proc/1/ns/mnt -- systemctl restart kubelet
+          echo "Done. Sleeping indefinitely to keep the pod running."
+          sleep infinity
+        volumeMounts:
+        - name: systemd
+          mountPath: /run/systemd
+        - name: kubelet-config
+          mountPath: /etc/default
+      volumes:
+      - name: kubelet-config
+        hostPath:
+          path: /etc/default
+          type: Directory
+      - name: systemd
+        hostPath:
+          path: /run/systemd
+      restartPolicy: Always

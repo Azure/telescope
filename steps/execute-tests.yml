@@ -19,6 +19,12 @@ parameters:
   type: string
 - name: operation_timeout
   type: string
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
+  allowedValues:
+    - "100Mi"
+    - "750Mi"
 
 
 steps:

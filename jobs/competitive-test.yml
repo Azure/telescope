@@ -93,6 +93,7 @@ jobs:
       max_pods: $(max_pods)
       load_type: $(load_type)
       operation_timeout: $(operation_timeout)
+      eviction_hard_memory: $(eviction_hard_memory)
   - template: /steps/publish-results.yml
     parameters:
       cloud: ${{ parameters.cloud }}

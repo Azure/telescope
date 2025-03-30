@@ -71,6 +71,7 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
 
     resouce_stress_duration = int(timeout * 0.9)
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_ki} Ki, pod will try to consume memory: {memory_consume_mi} Mi, total pod per node: {pod_count} \n will run stress test in {resouce_stress_duration} seconds")
+    print(f"write override file to {override_file}")
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
@@ -94,6 +95,7 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
+    print(f"CL2 image: {cl2_image}, config dir: {cl2_config_dir}, report dir: {cl2_report_dir}, kubeconfig: {kubeconfig}, provider: {provider}")
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
                     tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=True)
 

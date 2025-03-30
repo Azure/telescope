@@ -34,6 +34,6 @@ steps:
     NODE_COUNT: ${{ parameters.node_count }}
     MAX_PODS: ${{ parameters.max_pods }}
     LOAD_TYPE: ${{ parameters.load_type }}
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/eviction-eval.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/results
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/eviction-eval.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/results
   displayName: "Collect Results"

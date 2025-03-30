@@ -22,13 +22,13 @@ steps:
   - script: |
       set -eo pipefail
       echo "Running eviction benchmark"
-      echo "with nodes: $NODE_COUNT ($NODE_LABEL), pods: $MAX_PODS, load: $LOAD_TYPE" 
+      echo "with nodes: $NODE_COUNT ($NODE_LABEL), pods: $MAX_PODS, load: $LOAD_TYPE, use config $CL2_CONFIG_DIR and result in $CL2_REPORT_DIR" 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
         $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
-        $LOAD_TYPE $CLOUD ${CL2_CONFIG_DIR}/overrides.yaml
-        
+        $LOAD_TYPE $CLOUD $CL2_CONFIG_DIR/overrides.yaml
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD 
+        $CL2_IMAGE $CL2_CONFIG_DIR $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD 
     workingDirectory: modules/python/clusterloader2
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
@@ -41,8 +41,8 @@ steps:
       MAX_PODS: ${{ parameters.max_pods }}
       LOAD_TYPE: ${{ parameters.load_type }}
       OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/eviction-eval.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/eviction-eval.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/config
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/results
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/results
     displayName: "Run Eviction threshold (Hard) Benchmark"

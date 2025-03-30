@@ -18,12 +18,20 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241016"
           topology: cri-eviction-eval
           matrix:
-            n5-p150-memory-d8:
+            n5-p150-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 30
               node_count: 5
               load_type: memory
               operation_timeout: 3m
+              eviction_hard_memory: 100Mi
+            # n5-p150-750mi-d8:
+            #   k8s_machine_type: Standard_D8ds_v4
+            #   max_pods: 30
+            #   node_count: 5
+            #   load_type: memory
+            #   operation_timeout: 3m
+            #   eviction_hard_memory: 750Mi
             # n5-p350-memory-d8:
             #   k8s_machine_type: Standard_D8ds_v4
             #   max_pods: 70
