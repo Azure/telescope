@@ -97,7 +97,7 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     print(f"CL2 image: {cl2_image}, config dir: {cl2_config_dir}, report dir: {cl2_report_dir}, kubeconfig: {kubeconfig}, provider: {provider}")
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=True)
+                    tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False)
 
 def verify_measurement(node_label):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
