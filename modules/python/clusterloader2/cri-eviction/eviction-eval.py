@@ -217,7 +217,7 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect resource consume data")
-    parser_override.add_argument("node_label", type=str, help="Node label selector")
+    parser_collect.add_argument("node_label", type=str, help="Node label selector")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
