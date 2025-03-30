@@ -25,4 +25,7 @@ steps:
     engine_input: ${{ parameters.engine_input }}
     regions: ${{ parameters.regions }}
     topology: ${{ parameters.topology }}
+    node_count: ${{ parameters.node_count }}
+    max_pods: ${{ parameters.max_pods }}
+    operation_timeout: ${{ parameters.operation_timeout }}
 
