@@ -24,12 +24,6 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
             memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
     return cpu_request, memory_request * 1024
 
-def convert_to_timedelta(time_str):
-    if time_str.endswith("m"):  # Check if the string ends with 'm' for minutes
-        minutes = int(time_str[:-1])  # Extract the numeric part and convert to integer
-        return timedelta(minutes=minutes)
-    else:
-        raise ValueError(f"Unsupported time format: {time_str}")
 
 def override_config_clusterloader2( node_label, node_count, max_pods, operation_timeout, load_type, provider, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -68,8 +62,14 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
     # greedy behave workload consume memory more than requested to trigger OOM
     memory_consume_mi= int(memory_request_ki * 1.3 // 1024)
     # set workoad to last 90% of the operation timeout, specified in minutes
-    operation_timeout_ts = convert_to_timedelta(operation_timeout)
-    resouce_stress_duration = int(operation_timeout_ts.total_seconds() * 0.9)
+    if operation_timeout.endswith("m"):  # Check if the string ends with 'm' for minutes
+        timeout = int(operation_timeout[:-1]) * 60 # Extract the numeric part and convert to integer
+    elif operation_timeout.endswith("s"):
+        timeout = int(operation_timeout[:-1])
+    else:
+        raise Exception(f"Unexpected format of operation_timeout property, should end with m (min) or s (second): {operation_timeout}")
+
+    resouce_stress_duration = int(timeout * 0.9)
     print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_ki} Ki, pod will try to consume memory: {memory_consume_mi} Mi, total pod per node: {pod_count} \n will run stress test in {resouce_stress_duration} seconds")
 
     with open(override_file, 'w', encoding='utf-8') as file:
