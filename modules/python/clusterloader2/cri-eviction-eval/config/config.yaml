@@ -5,16 +5,17 @@ name: evictionhard-threshold
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU}}
 {{$stressDuration := DefaultParam .CL2_RESOURCE_CONSUME_DURATION_SEC}}
 
+{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE}}
 {{$totalNodes := DefaultParam .CL2_NODE_COUNT}}
-{{$nodeLabel := DefaultParam .CL2_NODE_LABEL}}
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
-{{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
+
+{{$nodeLabel := DefaultParam .CL2_NODE_LABEL}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT}}
 {{$loadType := DefaultParam .CL2_LOAD_TYPE}}
 {{$provider := DefaultParam .CL2_PROVIDER }}
-{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
 
 namespace:
   number: 1
@@ -37,7 +38,7 @@ steps:
           action: start
           minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
           maxDesiredNodeCount: {{$totalNodes}}
-          labelSelector: {{$$nodeSelector}}
+          labelSelector: {{$nodeSelector}}
           timeout: 1m
           refreshInterval: 5s
 

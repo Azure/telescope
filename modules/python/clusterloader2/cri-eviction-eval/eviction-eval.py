@@ -78,6 +78,7 @@ def override_config_clusterloader2( node_label, node_count, max_pods, operation_
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_NODE_LABEL: {node_label}\n")
+        file.write(f"CL2_NODE_SELECTOR: {node_selector}\n")
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
 
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {memory_request_ki}Ki\n")
