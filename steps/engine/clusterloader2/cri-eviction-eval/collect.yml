@@ -18,13 +18,12 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $NODE_LABE $NODE_COUNT $MAX_PODS $LOAD_TYPE \
+      ${{ parameters.topology }} $NODE_COUNT $MAX_PODS $LOAD_TYPE \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE 
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
-    NODE_LABEL: ${{ parameters.topology }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/eviction-eval.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/results
   displayName: "Collect Results"
