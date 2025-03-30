@@ -26,7 +26,7 @@ jobs:
                   scale_timeout: "15m"
                   service_test: true
                   cl2_config_file: config.yaml
-                  kwok_nodes: 20
+                  kwok_nodes: 2000
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
