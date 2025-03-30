@@ -19,6 +19,7 @@ steps:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
     engine_input: ${{ parameters.engine_input }}
+    topology: ${{ parameters.topology }}
 
 - template: /steps/collect-telescope-metadata.yml
   parameters:
