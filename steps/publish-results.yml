@@ -13,9 +13,9 @@ parameters:
 - name: credential_type
   type: string
 - name: node_count
-  type: number
+  type: string
 - name: max_pods
-  type: number
+  type: string
 - name: load_type
   type: string
 
