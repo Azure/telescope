@@ -1,11 +1,11 @@
-{{$Memory := DefaultParam .Memory}}
-{{$DUERA := DefaultParam .Duration}}
-{{$CPU := DefaultParam .CPU}}
-{{$MemoryRequest := DefaultParam .MemoryRequest}}
-{{$CPURequest := DefaultParam .CPURequest}}
-{{$LoadType := DefaultParam .LoadType}}
-{{$Provider := DefaultParam .Provider}}
-{{$NodeLabel := DefaultParam .NodeLabel}}
+{{$Memory := DefaultParam .Memory "1000"}}
+{{$Duration := DefaultParam .Duration "90"}}
+{{$CPU := DefaultParam .CPU "100"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
+{{$CPURequest := DefaultParam .CPURequest "1000"}}
+{{$LoadType := DefaultParam .LoadType "memory"}}
+{{$Provider := DefaultParam .Provider "aks"}}
+{{$NodeLabel := DefaultParam .NodeLabel "cri-eviction-eval"}}
 
 apiVersion: apps/v1
 kind: Deployment
