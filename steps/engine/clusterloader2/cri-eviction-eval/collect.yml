@@ -9,6 +9,13 @@ parameters:
   type: string
 - name: topology
   type: string
+- name: node_count
+  type: number
+- name: max_pods
+  type: number
+- name: load_type
+  type: string
+
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -24,6 +31,9 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
+    NODE_COUNT: ${{ parameters.node_count }}
+    MAX_PODS: ${{ parameters.max_pods }}
+    LOAD_TYPE: ${{ parameters.load_type }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/eviction-eval.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/results
   displayName: "Collect Results"

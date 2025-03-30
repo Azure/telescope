@@ -12,6 +12,12 @@ parameters:
   default: {}
 - name: credential_type
   type: string
+- name: node_count
+  type: number
+- name: max_pods
+  type: number
+- name: load_type
+  type: string
 
 steps:
 - template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml@self
@@ -20,6 +26,9 @@ steps:
     regions: ${{ parameters.regions }}
     engine_input: ${{ parameters.engine_input }}
     topology: ${{ parameters.topology }}
+    node_count: ${{ parameters.node_count }}
+    max_pods: ${{ parameters.max_pods }}
+    load_type: ${{ parameters.load_type }}
 
 - template: /steps/collect-telescope-metadata.yml
   parameters:

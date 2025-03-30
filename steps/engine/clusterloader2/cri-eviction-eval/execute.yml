@@ -9,14 +9,22 @@ parameters:
     type: string
   - name: topology
     type: string
+  - name: node_count
+    type: number
+  - name: max_pods
+    type: number
+  - name: load_type
+    type: string
+  - name: operation_timeout
+    type: string
 
 steps:
   - script: |
       set -eo pipefail
       echo "Running eviction benchmark"
-      echo "with nodes: $NODE_COUNT (${{ parameters.topology }}, pods: $MAX_PODS, load: $LOAD_TYPE" 
+      echo "with nodes: $NODE_COUNT ($NODE_LABEL), pods: $MAX_PODS, load: $LOAD_TYPE" 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-        $${{ parameters.topology }} $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
+        $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
         $LOAD_TYPE $CLOUD ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD 
@@ -27,6 +35,11 @@ steps:
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
+      NODE_COUNT: ${{ parameters.node_count }}
+      NODE_LABEL: ${{ parameters.topology }}
+      MAX_PODS: ${{ parameters.max_pods }}
+      LOAD_TYPE: ${{ parameters.load_type }}
+      OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/eviction-eval.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction/config
