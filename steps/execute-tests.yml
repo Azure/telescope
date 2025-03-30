@@ -11,12 +11,6 @@ parameters:
 - name: regions
   type: object
   default: {}
-- name: node_count
-  type: number
-- name: max_pods
-  type: number
-- name: operation_timeout
-  type: string
 
 steps:
 - template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml@self
@@ -25,7 +19,4 @@ steps:
     engine_input: ${{ parameters.engine_input }}
     regions: ${{ parameters.regions }}
     topology: ${{ parameters.topology }}
-    node_count: ${{ parameters.node_count }}
-    max_pods: ${{ parameters.max_pods }}
-    operation_timeout: ${{ parameters.operation_timeout }}
 
