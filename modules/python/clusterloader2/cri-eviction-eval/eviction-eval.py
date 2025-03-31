@@ -118,6 +118,7 @@ stressPod:
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {memory_consume_mi_pod}Mi\n")
         file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {resouce_stress_duration}\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request_pod}\n")
+        file.write(f"CL2_REPEATS: 5\n")
 
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
