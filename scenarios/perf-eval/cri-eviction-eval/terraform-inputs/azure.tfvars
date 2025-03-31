@@ -58,7 +58,7 @@ aks_config_list = [
         vm_size              = "Standard_D16_v3"
         os_disk_type         = "Ephemeral"
         kubernetes_version   = "1.30"
-        node_taints          = ["cri-eviction-eval=true:NoSchedule", "cri-eviction-eval:NoExecute"]
+        node_taints          = ["cri-eviction-eval=true:NoSchedule", "cri-eviction-eval=true:NoExecute"]
         node_labels          = { "cri-eviction-eval" = "true" }
       }
     ]
