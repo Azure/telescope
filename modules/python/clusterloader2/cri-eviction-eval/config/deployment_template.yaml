@@ -19,37 +19,23 @@ spec:
       nodeSelector:
         cri-eviction-eval: "true"
       containers:
-{{if eq .LoadType "memory"}}
-      - name: resource-consumer-memory
+      - name: resource-consumer
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
         imagePullPolicy: IfNotPresent
-        command:
-          - stress
-        args:
-          - --vm
-          - "1"
-          - --vm-bytes
-          - {{.Memory}}
-          - --vm-hang
-          - "0"
-          - --timeout
-          - {{.Duration}}
         resources:
           requests:
             memory: {{.MemoryRequest}}
+            cpu: {{.CPURequest}}
+        ports:
+        - containerPort: 8080
+      - name: resource-consumer-client
+        image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+        imagePullPolicy: IfNotPresent
+{{if eq .LoadType "memory"}}
+        command: ["sh", "-c", "while true; do curl --data 'megabytes={{.Memory}}&durationSec={{.Duration}}' http://localhost:8080/ConsumeMemory; sleep 60; done"]
 {{end}}
 {{if eq .LoadType "cpu"}}
-      - name: resource-consumer-cpu
-        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
-        imagePullPolicy: IfNotPresent
-        command:
-          - ./consume-cpu/consume-cpu
-        args:
-          - --duration-sec=3600
-          - {{.CPU}}
-        resources:
-          requests:
-            cpu: {{.CPURequest}}
+        command: ["sh", "-c", "while true; do curl --data 'millicores=300&durationSec={{.Duration}}' http://localhost:8080/ConsumeCPU; sleep 60; done"]
 {{end}}
       tolerations:
       - key: {{.NodeLabel}}

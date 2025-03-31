@@ -80,7 +80,7 @@ steps:
           Memory: {{$memoryConsume}}
           CPU: --millicores={{$cpu}}
           MemoryRequest: {{$memoryRequest}}
-          Duration: {{$stressDuration}}s
+          Duration: {{$stressDuration}}
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}

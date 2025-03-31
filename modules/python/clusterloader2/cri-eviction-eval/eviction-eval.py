@@ -115,7 +115,7 @@ stressPod:
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
 
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {memory_request_ki_pod}Ki\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {memory_consume_mi_pod}Mi\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {memory_consume_mi_pod}\n")
         file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {resouce_stress_duration}\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request_pod}\n")
 
