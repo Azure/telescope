@@ -27,64 +27,97 @@ def _get_daemonsets_pods_allocated_resources(client, node_name):
 
 def override_config_clusterloader2( node_label, node_count, max_pods, operation_timeout, load_type, provider, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    print(f"Override with Config: \nNode Counts: {node_count} \nNode Label: {node_label} \nTotal pods: {max_pods}")
+
     node_selector = f"{node_label}=true"
     nodes = client.get_nodes(label_selector=node_selector)
     if len(nodes) == 0:
         raise Exception(f"Invalid node selector: {node_selector}")
-    
+    # Calculate request cpu and memory for each pod
     node = nodes[0]
-    allocatable_cpu = node.status.allocatable["cpu"]
-    allocatable_memory = node.status.allocatable["memory"]
-    print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu} and allocatable memory of {allocatable_memory}")
+    node_allocatable_cpu = int(node.status.allocatable["cpu"].replace("m", ""))
 
-    cpu_value = int(allocatable_cpu.replace("m", ""))
     # Bottlerocket OS SKU on EKS has allocatable_memory property in Mi. AKS and Amazon Linux (default SKUs)
     # user Ki. Handling the Mi case here and converting Mi to Ki, if needed.
-    if "Mi" in allocatable_memory:
-        memory_value = int(allocatable_memory.replace("Mi", "")) * 1024
-    elif "Ki" in allocatable_memory:
-        memory_value = int(allocatable_memory.replace("Ki", ""))
+    node_allocatable_memory_str = node.status.allocatable["memory"]
+    if "Mi" in node_allocatable_memory_str:
+        node_allocatable_memory_ki = int(node_allocatable_memory_str.replace("Mi", "")) * 1024
+    elif "Ki" in node_allocatable_memory_str:
+        node_allocatable_memory_ki = int(node_allocatable_memory_str.replace("Ki", ""))
     else:
         raise Exception(f"Unexpected format of allocatable memory node property: {allocatable_memory}")
-    print(f"Node {node.metadata.name} has cpu value of {cpu_value} and memory value of {memory_value}")
 
     allocated_cpu, allocated_memory = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
-    print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu} milli and allocated memory of {allocated_memory} Ki")
 
-    cpu_value -= allocated_cpu
-    memory_value -= allocated_memory
+    node_remaining_cpu = node_allocatable_cpu - allocated_cpu
+    node_remaining_memory_ki = node_allocatable_memory_ki - allocated_memory
+    
+    node_info_template = """
+node: 
+  name: {name}
+  memory:
+    allocatable: {allocatable_memory}Ki
+    allocated: {allocated_memory}Ki
+    testRunActual: {actual_memory}Ki
+  cpu:
+    allocatable: {allocatable_cpu}m
+    allocated: {allocated_cpu}m
+    testRunActual: {actual_cpu}m
+"""
 
-    # Calculate request cpu and memory for each pod
-    pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
+    print(node_info_template.format(name=node.metadata.name, allocatable_memory=node_allocatable_memory_ki, allocated_memory=allocated_memory, 
+    actual_memory=node_remaining_memory_ki, allocatable_cpu=node_allocatable_cpu, allocated_cpu=allocated_cpu, actual_cpu=node_remaining_cpu))
 
-    cpu_request = cpu_value // pod_count
-    memory_request_ki = int(memory_value * MEMORY_SCALE_FACTOR // pod_count)
-    # greedy behave workload consume memory more than requested to trigger OOM
-    memory_consume_mi= int(memory_request_ki * 1.3 // 1024)
-    # set workoad to last 90% of the operation timeout, specified in minutes
+   # set workoad to last 90% of the operation timeout, specified in minutes
     if operation_timeout.endswith("m"):  # Check if the string ends with 'm' for minutes
-        timeout = int(operation_timeout[:-1]) * 60 # Extract the numeric part and convert to integer
+        timeout_seconds = int(operation_timeout[:-1]) * 60 # Extract the numeric part and convert to integer
     elif operation_timeout.endswith("s"):
-        timeout = int(operation_timeout[:-1])
+        timeout_seconds = int(operation_timeout[:-1])
     else:
         raise Exception(f"Unexpected format of operation_timeout property, should end with m (min) or s (second): {operation_timeout}")
+    resouce_stress_duration = int(timeout_seconds * 0.9)
+    
+    # Limit the resource-consume runtime to 300 seconds
+    if resouce_stress_duration > 300:
+        resouce_stress_duration = 300
 
-    resouce_stress_duration = int(timeout * 0.9)
-    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_ki} Ki, pod will try to consume memory: {memory_consume_mi} Mi, total pod per node: {pod_count} \n will run stress test in {resouce_stress_duration} seconds")
+    pods_per_node = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
+    cpu_request_pod = node_remaining_cpu // pods_per_node
+    memory_request_ki_pod = int(node_remaining_memory_ki * MEMORY_SCALE_FACTOR // pods_per_node)
+    # greedy behave workload consume memory more than requested to trigger OOM
+    memory_consume_mi_pod= int(memory_request_ki_pod * 1.3 // 1024)
+
+    stress_pod_info_template = """
+stressPod: 
+  load: {load_type}
+  timeout: {timeout}
+  memory:
+    request: {memory_request}Ki
+    limit: {memory_limit}Ki
+    consume: {memory_consume}Mi
+  cpu:
+    request: {cpu_request}m
+    limit: {cpu_limit}m
+    consume: {cpu_consume}m
+"""
+    print(stress_pod_info_template.format(
+        load_type=load_type,timeout=resouce_stress_duration, 
+        memory_request=memory_request_ki_pod, memory_limit=memory_request_ki_pod, memory_consume=memory_consume_mi_pod, 
+        cpu_request=cpu_request_pod, cpu_limit=cpu_request_pod, cpu_consume=cpu_request_pod))
+
     print(f"write override file to {override_file}")
-
     with open(override_file, 'w', encoding='utf-8') as file:
-        file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
+        file.write(f"CL2_DEPLOYMENT_SIZE: {pods_per_node}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_NODE_LABEL: {node_label}\n")
         file.write(f"CL2_NODE_SELECTOR: {node_selector}\n")
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
 
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {memory_request_ki}Ki\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {memory_consume_mi}Mi\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {memory_request_ki_pod}Ki\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {memory_consume_mi_pod}Mi\n")
         file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {resouce_stress_duration}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request_pod}\n")
 
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
@@ -243,7 +276,6 @@ def main():
 
 
     args = parser.parse_args()
-
     if args.command == "override":
         override_config_clusterloader2(args.node_label, args.node_count, args.max_pods, args.operation_timeout, args.load_type, args.provider, args.cl2_override_file)
     elif args.command == "execute":

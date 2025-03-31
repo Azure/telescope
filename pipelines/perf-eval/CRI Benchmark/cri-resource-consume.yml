@@ -23,21 +23,21 @@ stages:
               max_pods: 30
               node_count: 5
               load_type: memory
-              operation_timeout: 3m
+              operation_timeout: 15m
               eviction_hard_memory: 100Mi
             n5-p350-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 70
               node_count: 5
               load_type: memory
-              operation_timeout: 7m
+              operation_timeout: 15m
               eviction_hard_memory: 100Mi
             n5-p550-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
               node_count: 5
               load_type: memory
-              operation_timeout: 11m
+              operation_timeout: 15m
               eviction_hard_memory: 100Mi
           max_parallel: 3
           timeout_in_minutes: 120

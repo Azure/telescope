@@ -22,13 +22,14 @@ steps:
   - script: |
       set -eo pipefail
       echo "Running eviction benchmark"
-      echo "with nodes: $NODE_COUNT ($NODE_LABEL), pods: $MAX_PODS, load: $LOAD_TYPE, use config $CL2_CONFIG_DIR and result in $CL2_REPORT_DIR" 
+      echo "Running $PYTHON_SCRIPT_FILE with config $CL2_CONFIG_DIR. " 
+      
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-        $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
-        $LOAD_TYPE $CLOUD $CL2_CONFIG_DIR/overrides.yaml
+      $NODE_LABEL $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT \
+      $LOAD_TYPE $CLOUD $CL2_CONFIG_DIR/overrides.yaml
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        $CL2_IMAGE $CL2_CONFIG_DIR $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD 
+      $CL2_IMAGE $CL2_CONFIG_DIR $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD 
     workingDirectory: modules/python/clusterloader2
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
