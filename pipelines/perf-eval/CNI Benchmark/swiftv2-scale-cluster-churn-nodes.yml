@@ -17,20 +17,19 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: cilium-usercluster-autoscale
+          topology: service-churn
           matrix:
-            azure_cilium:
+            azure_cni:
               cpu_per_node: 4
-              node_count: 50
-              node_per_step: 25
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              cilium_enabled: True
-              cl2_config_file: cluster-scale-config.yaml
-              service_test: False
+              node_count: 20
+              node_per_step: 20
+              max_pods: 10
+              repeats: 2
+              scale_timeout: "15m"
+              cilium_enabled: False
               ds_test: True
-          max_parallel: 2
+              cl2_config_file: load-config.yaml
+          max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
