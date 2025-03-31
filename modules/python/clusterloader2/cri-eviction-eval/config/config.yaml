@@ -8,7 +8,7 @@ name: eviction-eval
 {{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
 {{$totalNodes := DefaultParam .CL2_NODE_COUNT 5}}
-{{$replicas := MultiplyInt $deploymentSize $totalNodes 150}}
+{{$replicas := MultiplyInt $deploymentSize $totalNodes}}
 
 {{$nodeLabel := DefaultParam .CL2_NODE_LABEL "cri-eviction-eval"}}
 {{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR "cri-eviction-eval=true"}}
