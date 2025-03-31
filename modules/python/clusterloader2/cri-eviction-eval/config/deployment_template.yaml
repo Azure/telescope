@@ -27,7 +27,7 @@ spec:
             memory: {{.MemoryRequest}}
             cpu: {{.CPURequest}}
 {{if eq .LoadType "memory"}}
-        command: ["sh", "-c", "stress -m 1 --vm-bytes {{.Memory}} --vm-hang 0 -t {{.Duration}}"]
+        command: ["sh", "-c", "stress -m 1 --vm-bytes {{.Memory}}M --vm-hang 0 -t {{.Duration}}"]
 {{end}}
 {{if eq .LoadType "cpu"}}
       - name: resource-consumer-client
