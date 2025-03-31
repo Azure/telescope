@@ -15,7 +15,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: cri-eviction-eval
           matrix:
             n5-p150-100mi-d8:

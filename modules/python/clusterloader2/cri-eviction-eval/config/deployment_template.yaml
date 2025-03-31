@@ -1,12 +1,3 @@
-{{$Memory := DefaultParam .Memory "1000"}}
-{{$Duration := DefaultParam .Duration "90"}}
-{{$CPU := DefaultParam .CPU "100"}}
-{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
-{{$CPURequest := DefaultParam .CPURequest "1000"}}
-{{$LoadType := DefaultParam .LoadType "memory"}}
-{{$Provider := DefaultParam .Provider "aks"}}
-{{$NodeLabel := DefaultParam .NodeLabel "cri-eviction-eval"}}
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,15 +17,11 @@ spec:
     spec:
       hostNetwork: true
       nodeSelector:
-        {{.NodeLabel}}: "true"
+        cri-eviction-eval: "true"
       containers:
-{{if eq $LoadType "memory"}}
+{{if eq .LoadType "memory"}}
       - name: resource-consumer-memory
-{{if eq $Provider "aks"}}
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
-{{else}}
-        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
-{{end}}
         imagePullPolicy: IfNotPresent
         command:
           - stress
@@ -42,31 +29,27 @@ spec:
           - --vm
           - "1"
           - --vm-bytes
-          - {{$Memory}}
+          - {{.Memory}}
           - --vm-hang
           - "0"
           - --timeout
-          - {{$Duration}}
+          - {{.Duration}}
         resources:
           requests:
-            memory: {{$MemoryRequest}}
+            memory: {{.MemoryRequest}}
 {{end}}
-{{if eq $LoadType "cpu"}}
+{{if eq .LoadType "cpu"}}
       - name: resource-consumer-cpu
-{{if eq $Provider "aks"}}
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
-{{else}}
-        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
-{{end}}
         imagePullPolicy: IfNotPresent
         command:
           - ./consume-cpu/consume-cpu
         args:
           - --duration-sec=3600
-          - {{$CPU}}
+          - {{.CPU}}
         resources:
           requests:
-            cpu: {{$CPURequest}}
+            cpu: {{.CPURequest}}
 {{end}}
       tolerations:
       - key: {{.NodeLabel}}

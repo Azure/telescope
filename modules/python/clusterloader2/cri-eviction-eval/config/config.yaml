@@ -1,4 +1,4 @@
-name: evictionhard-threshold
+name: eviction-eval
 
 {{$memoryConsume := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI "100"}}
 {{$memoryRequest := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI "1000Ki"}}
@@ -50,22 +50,16 @@ steps:
           action: start
           labelSelector: group = {{$deploymentLabel}}
           interval: 10s
-      - Identifier: CPUProfile
-        Method: CPUProfile
+      - Identifier: ClusterOOMsTracker
+        Method: ClusterOOMsTracker
         Params:
           action: start
-          componets:
-            - kubelet
-            - containerd
-          duration: 60s
-      - Identifier: MemoryProfile
-        Method: MemoryProfile
+          clusterOOMsTrackerEnabled: true
+      - Identifier: MetricsForE2E
+        Method: MetricsForE2E
         Params:
           action: start
-          componets:
-            - kubelet
-            - containerd
-          duration: 60s
+          gatherKubeletsMetrics: true
   - module:
       path: /kubelet-measurement.yaml
       params:
@@ -86,7 +80,7 @@ steps:
           Memory: {{$memoryConsume}}
           CPU: --millicores={{$cpu}}
           MemoryRequest: {{$memoryRequest}}
-          Duration: {{$stressDuration}}
+          Duration: {{$stressDuration}}s
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}
@@ -109,22 +103,22 @@ steps:
       - Identifier: Sleep
         Method: Sleep
         Params:
-          duration: {{$operationTimeout}}m
+          duration: {{$operationTimeout}}
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: gather
 
-  - name: Deleting deployments 
-    phases:
-      - namespaceRange:
-          min: 1
-          max: 1
-        replicasPerNamespace: 0
-        tuningSet: Uniform1qps
-        objectBundle:
-          - basename: evictionhard-threshold
-            objectTemplatePath: deployment_template.yaml
+  # - name: Deleting deployments 
+  #   phases:
+  #     - namespaceRange:
+  #         min: 1
+  #         max: 1
+  #       replicasPerNamespace: 0
+  #       tuningSet: Uniform1qps
+  #       objectBundle:
+  #         - basename: eviction-eval
+  #           objectTemplatePath: deployment_template.yaml
 
 
   - name: Collect measurements
@@ -133,11 +127,11 @@ steps:
         Method: ResourceUsageSummary
         Params:
           action: gather
-      - Identifier: CPUProfile
-        Method: CPUProfile
+      - Identifier: ClusterOOMsTracker
+        Method: ClusterOOMsTracker
         Params:
           action: gather
-      - Identifier: MemoryProfile
-        Method: MemoryProfile
+      - Identifier: MetricsForE2E
+        Method: MetricsForE2E
         Params:
           action: gather

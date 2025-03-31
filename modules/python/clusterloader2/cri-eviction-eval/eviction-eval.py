@@ -216,6 +216,8 @@ def main():
     parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
+    # parser_override.add_argument("eviction_threshold_mem", type=str, help="Eviction threshold to evaluate (e.g., memory.available<750Mi)")
+    
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for execute_clusterloader2
