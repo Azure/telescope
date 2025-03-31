@@ -32,7 +32,7 @@ steps:
       --run_url $RUN_URL \
       --result_file $TEST_RESULTS_FILE \
       --test_type $NETWORKPOLICY_TYPE
-  workingDirectory: modules/python/clusterloader2
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
