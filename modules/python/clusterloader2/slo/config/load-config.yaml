@@ -52,8 +52,8 @@ name: load-config
 namespace:
   number: {{$namespaces}}
   prefix: slo
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
+  deleteStaleNamespaces: false
+  deleteAutomanagedNamespaces: false
   enableExistingNamespaces: false
 
 tuningSets:
