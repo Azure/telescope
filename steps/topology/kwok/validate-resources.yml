@@ -14,10 +14,4 @@ steps:
   - template: /steps/topology/kwok/start-kwok.yml
   - template: /steps/engine/clusterloader2/default/validate.yml
     parameters:
-      desired_nodes: 5
-  - ${{ if eq(parameters.cloud, 'aws') }}:
-      - script: kubectl apply -f $KARPENTER_NODEPOOL_FILE
-        env:
-          CLOUD: ${{ parameters.cloud }}
-          KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-        displayName: "Validate Kwok setup"
+      desired_nodes: 14
