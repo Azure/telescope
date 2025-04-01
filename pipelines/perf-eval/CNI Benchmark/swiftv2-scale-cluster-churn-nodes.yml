@@ -27,9 +27,10 @@ stages:
               repeats: 2
               scale_timeout: "15m"
               cilium_enabled: False
+              scrape_containerd: False
               service_test: False
               ds_test: True
-              cl2_config_file: load-config.yaml
+              cl2_config_file: daemonset_scale_config.yaml
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
