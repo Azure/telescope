@@ -11,7 +11,7 @@ namespace:
 tuningSets:
 - name: Uniform1qps
   qpsLoad:
-    qps: 200
+    qps: 150
 
 steps:
   - name: Start measurements
