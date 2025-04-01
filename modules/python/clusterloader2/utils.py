@@ -1,8 +1,7 @@
 try:
-    from docker import DockerClient
+    from docker_client import DockerClient
 except ImportError:
     from clusterloader2.docker_client import DockerClient
-    
 from xml.dom import minidom
 import json
 import os
