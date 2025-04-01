@@ -39,7 +39,7 @@ namespace:
   number: 1
   prefix: slo
   deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: false
+  deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
 
 tuningSets:
@@ -126,6 +126,26 @@ steps:
         action: gather
         refreshInterval: 15s
 
+{{if $SCRAPE_CONTAINERD}}
+  - name: Wait for last scrape
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 10m
+
+  - module:
+      path: /modules/containerd-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        # group: {{$groupName}}
+
   - name: Starting measurement for Delete Daemonset
     measurements:
     - Identifier: WaitForDeletedDaemonSets
@@ -158,23 +178,3 @@ steps:
         kind: DaemonSet
         action: gather
         refreshInterval: 15s
-
-{{if $SCRAPE_CONTAINERD}}
-  - name: Wait for last scrape
-    measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          duration: 10m
-
-  - module:
-      path: /modules/containerd-measurements.yaml
-      params:
-        action: gather
-{{end}}
-
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
-        # group: {{$groupName}}
