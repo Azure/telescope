@@ -17,7 +17,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: service-churn
+          topology: swiftv2-ds-churn
           matrix:
             azure_cni:
               cpu_per_node: 4
