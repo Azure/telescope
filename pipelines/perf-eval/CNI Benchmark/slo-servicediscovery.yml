@@ -28,6 +28,10 @@ variables:
   service_test: True
   cl2_config_file: load-config.yaml
   max_parallel: 3 #1 for aws/2 for azure (it were separate stages)
+  ${{ if eq(parameters.scenario, 'slo-servicediscovery') }}:
+    paramA: valueA
+  ${{ if eq(parameters.scenario, 'scenario2') }}:
+    paramB: valueB
 
 parameters:
 - name: clusterConfigs
@@ -57,26 +61,44 @@ parameters:
         regions:
           - westeurope
           - eastus1
+  values:
+  - |
+      azure_cni:
+        variables:
+          testing: A
+  - |
+      cilium:
+        variables:
+          testing: B
+- name: scenario
+  type: string
+  default: slo-servicediscovery
+  values: 
+  - slo-servicediscovery
+  - scenario2
 
 stages:
 - ${{ each cc in parameters.clusterConfigs }}:
   - stage: ${{ cc.Key }}
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
-        # condition: ${{ parameters.condition }}
-        parameters:
-          cloud: ${{ cc.Value.parameters.cloud }}
-          regions: ${{ cc.Value.parameters.regions }}
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: service-churn
-          matrix:
-            clusterConfig: ${{ cc.Value.variables }}
-          # matrix: ${{ parameters.matrix }}
-          max_parallel: ${{ variables.max_parallel }}
-          timeout_in_minutes: 720
-          credential_type: service_connection
-          ssh_key_enabled: false
-          run_id: lx-cluster
+        - job: myjob
+          steps:
+            - script: echo "A- ${{ variables.paramA }}, B- ${{ variables.paramB }}"
+      # - template: /jobs/competitive-test.yml
+      #   # condition: ${{ parameters.condition }}
+      #   parameters:
+      #     cloud: ${{ cc.Value.parameters.cloud }}
+      #     regions: ${{ cc.Value.parameters.regions }}
+      #     engine: clusterloader2
+      #     engine_input:
+      #       image: "ghcr.io/azure/clusterloader2:v20250311"
+      #     topology: service-churn
+      #     matrix:
+      #       clusterConfig: ${{ cc.Value.variables }}
+      #     # matrix: ${{ parameters.matrix }}
+      #     max_parallel: ${{ variables.max_parallel }}
+      #     timeout_in_minutes: 720
+      #     credential_type: service_connection
+      #     ssh_key_enabled: false
+      #     run_id: lx-cluster
