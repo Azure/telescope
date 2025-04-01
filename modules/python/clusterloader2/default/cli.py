@@ -165,7 +165,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
-        # "test_details": details,
+        "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
@@ -207,7 +207,7 @@ def collect_clusterloader2(
         file.write(content)
 
 def main():
-    parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
+    parser = argparse.ArgumentParser(description="CLI Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2

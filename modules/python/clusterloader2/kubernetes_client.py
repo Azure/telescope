@@ -3,7 +3,8 @@ from kubernetes import client, config
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
-# TODO: add kwok nodes to this to validae 
+# TODO: add kwok nodes to this to validate
+
 builtin_taints_keys = [
 	"node.kubernetes.io/not-ready",
 	"node.kubernetes.io/unreachable",
