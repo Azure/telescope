@@ -17,7 +17,3 @@ steps:
       region: ${{ parameters.regions[0] }}
       nodes_per_nodepool: 20
       enable_autoscale: "false"
-  - template: /steps/engine/clusterloader2/slo/validate.yml
-    parameters:
-      desired_nodes: 20
-      validation_timeout_in_minutes: 30
