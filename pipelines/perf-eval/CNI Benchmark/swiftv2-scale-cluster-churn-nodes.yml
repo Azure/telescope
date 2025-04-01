@@ -27,6 +27,7 @@ stages:
               repeats: 2
               scale_timeout: "15m"
               cilium_enabled: False
+              service_test: False
               ds_test: True
               cl2_config_file: load-config.yaml
           max_parallel: 1
