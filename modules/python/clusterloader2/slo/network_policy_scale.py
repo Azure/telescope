@@ -1,13 +1,9 @@
 import json
 import os
 import argparse
-import time
 
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, get_measurement,run_cl2_command
-from clusterloader2.kubernetes_client import KubernetesClient
-
-
 
 def configure_clusterloader2(
     number_of_groups,
@@ -72,24 +68,6 @@ def configure_clusterloader2(
         print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
-
-def validate_clusterloader2(node_count=2, operation_timeout_in_minutes=10):
-    kube_client = KubernetesClient()
-    ready_node_count = 0
-    timeout = time.time() + (operation_timeout_in_minutes * 60)
-    while time.time() < timeout:
-        ready_nodes = kube_client.get_ready_nodes()
-        ready_node_count = len(ready_nodes)
-        print(f"Currently {ready_node_count} nodes are ready.")
-        if ready_node_count >= node_count:
-            break
-        print(f"Waiting for {node_count} nodes to be ready.")
-        time.sleep(10)
-    if ready_node_count < node_count:
-        raise Exception(
-            f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!"
-        )
-
 
 def execute_clusterloader2(
     cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider, scrape_containerd
@@ -242,18 +220,6 @@ def main():
         help="Path to the overrides of CL2 config file",
     )
 
-    # Sub-command for validate_clusterloader2
-    parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument(
-        "--node_count", type=int, help="Number of desired nodes"
-    )
-    parser_validate.add_argument(
-        "--operation_timeout",
-        type=int,
-        default=600,
-        help="Operation timeout to wait for nodes to be ready",
-    )
-
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("--cl2_image", type=str, help="Name of the CL2 image")
@@ -314,11 +280,6 @@ def main():
             args.cilium_enabled,
             args.cilium_envoy_enabled,
             args.cl2_override_file,
-        )
-    elif args.command == "validate":
-        validate_clusterloader2(
-            args.node_count,
-            args.operation_timeout,
         )
     elif args.command == "execute":
         execute_clusterloader2(
