@@ -11,6 +11,12 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
+  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
+      nodes_per_nodepool: 20
+      enable_autoscale: "false"
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       desired_nodes: 20
