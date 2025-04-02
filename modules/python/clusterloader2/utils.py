@@ -5,6 +5,7 @@ except ImportError:
 from xml.dom import minidom
 import json
 import os
+import argparse
 import docker
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
@@ -130,3 +131,12 @@ def parse_xml_to_json(file_path, indent = 0):
     # Convert the result dictionary to JSON
     json_result = json.dumps(result, indent = indent)
     return json_result
+
+def str2bool(val):
+    if isinstance(val, bool):
+        return val
+    if val.lower() in ("true", "yes", "1"):
+        return True
+    if val.lower() in ("false", "no", "0"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
