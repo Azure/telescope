@@ -175,7 +175,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
-        "test_details": details,
+        # "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
