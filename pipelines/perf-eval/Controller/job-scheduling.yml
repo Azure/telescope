@@ -20,16 +20,16 @@ stages:
           topology: kwok
           matrix:
             default:
-              kwok_nodes: 20
-              qps: 50
-              job_count: 1000
+              kwok_nodes: 2000
+              qps: 200
+              job_count: 20000
               cpu_per_node: 1
               node_count: 20
               node_per_step: 5
               cilium_enabled: False
               max_pods: 50
               repeats: 1
-              scale_timeout: "15m"
+              scale_timeout: "1h"
               service_test: true
               cl2_config_file: config.yaml              
           max_parallel: 1
@@ -37,31 +37,33 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  # - stage: aws_eastus2
-  #   dependsOn: []
-  #   jobs:
-  #     - template: /jobs/competitive-test.yml
-  #       parameters:
-  #         cloud: aws
-  #         regions:
-  #           - us-east-2
-  #         engine: clusterloader2
-  #         engine_input:
-  #           image: "ghcr.io/azure/clusterloader2:v20241022"
-  #         topology: kwok
-  #         matrix:
-  #           default:
-  #             cpu_per_node: 1
-  #             node_count: 20
-  #             node_per_step: 5
-  #             cilium_enabled: false
-  #             max_pods: 50
-  #             repeats: 1
-  #             scale_timeout: "15m"
-  #             service_test: true
-  #             cl2_config_file: config.yaml
-  #             kwok_nodes: 2000
-  #         max_parallel: 1
-  #         timeout_in_minutes: 360
-  #         credential_type: service_connection
-  #         ssh_key_enabled: false
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: kwok
+          matrix:
+            default:
+              kwok_nodes: 2000
+              qps: 200
+              job_count: 20000
+              cpu_per_node: 1
+              node_count: 20
+              node_per_step: 5
+              cilium_enabled: False
+              max_pods: 50
+              repeats: 1
+              scale_timeout: "1h"
+              service_test: true
+              cl2_config_file: config.yaml    
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
