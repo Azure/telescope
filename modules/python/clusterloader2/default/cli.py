@@ -266,9 +266,9 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_configure.add_argument("kwok_nodes", type=int, help="number of virtual nodes")
-    parser_configure.add_argument("qps", type=int, help="number of request send per seconds")
-    parser_configure.add_argument("job_count", type=int, help="number of jobs")
+    parser_collect.add_argument("kwok_nodes", type=int, help="number of virtual nodes")
+    parser_collect.add_argument("qps", type=int, help="number of request send per seconds")
+    parser_collect.add_argument("job_count", type=int, help="number of jobs")
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
