@@ -1,10 +1,12 @@
+try:
+    from docker_client import DockerClient
+except ImportError:
+    from clusterloader2.docker_client import DockerClient
 from xml.dom import minidom
 import json
 import os
 import argparse
 import docker
-
-from docker_client import DockerClient
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "PodStartupLatency_PodStartupLatency_": "PodStartupLatency_PodStartupLatency",
@@ -14,6 +16,7 @@ POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
 NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus", "InClusterNetworkLatency", "NetworkProgrammingLatency"]
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
+NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
                     enable_exec_service=False, scrape_kubelets=False, scrape_containerd=False):
@@ -70,6 +73,9 @@ def get_measurement(file_path):
     if file_name.startswith(RESOURCE_USAGE_SUMMARY_PREFIX):
         group_name = file_name.split("_")[1]
         return RESOURCE_USAGE_SUMMARY_PREFIX, group_name
+    if file_name.startswith(NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX):
+        group_name = file_name.split("_")[1]
+        return NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX, group_name
     return None, None
 
 def parse_xml_to_json(file_path, indent = 0):

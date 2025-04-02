@@ -1,0 +1,36 @@
+{{$action := .action}} # start, gather
+
+steps:
+  - name: {{$action}} Network Policy Client Metrics 
+    measurements:
+    - Identifier: NetworkPolicyClientMetrics
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Network Policy Client Metrics
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+          - name: http_requests_total
+            query: sum(increase(http_requests_total{service="np-soak-client-metrics-svc"}[%v:]))
+          - name: http_requests_success
+            query: sum(increase(http_requests_success{service="np-soak-client-metrics-svc"}[%v:]))
+          - name: http_requests_fail
+            query: sum(increase(http_requests_fail{service="np-soak-client-metrics-svc"}[%v:]))
+          - name: http_requests_latency_le_0.01s
+            query: sum(increase(http_request_latency_seconds_bucket{le="0.01"}[%v:]))
+          - name: http_requests_latency_le_0.025s
+            query: sum(increase(http_request_latency_seconds_bucket{le="0.025"}[%v:]))
+          - name: http_requests_latency_le_0.1s
+            query: sum(increase(http_request_latency_seconds_bucket{le="0.1"}[%v:]))
+          - name: http_requests_latency_le_0.25s
+            query: sum(increase(http_request_latency_seconds_bucket{le="0.25"}[%v:]))
+          - name: http_requests_latency_le_0.5s
+            query: sum(increase(http_request_latency_seconds_bucket{le="0.5"}[%v:]))
+          - name: http_requests_latency_le_1s
+            query: sum(increase(http_request_latency_seconds_bucket{le="1"}[%v:]))  
+          - name: http_requests_latency_le_5s
+            query: sum(increase(http_request_latency_seconds_bucket{le="5"}[%v:]))
+          - name: http_requests_latency_le_10s
+            query: sum(increase(http_request_latency_seconds_bucket{le="10"}[%v:]))
