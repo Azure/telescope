@@ -180,6 +180,9 @@ def collect_clusterloader2(
         "run_id": run_id,
         "run_url": run_url,
         "test_type": test_type,
+        "kwok_nodes": kwok_nodes,
+        "qps": qps,
+        "job_count": job_count
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
