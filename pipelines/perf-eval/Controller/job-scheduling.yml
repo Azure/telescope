@@ -60,7 +60,7 @@ stages:
               cilium_enabled: False
               max_pods: 50
               repeats: 1
-              scale_timeout: "1h"
+              scale_timeout: "3h"
               service_test: true
               cl2_config_file: config.yaml    
           max_parallel: 1
