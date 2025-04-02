@@ -217,7 +217,9 @@ def collect_clusterloader2(
 
 def main():
     parser = argparse.ArgumentParser(description="CLI Kubernetes resources.")
+    print(parser.parse_args())
     subparsers = parser.add_subparsers(dest="command")
+
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
