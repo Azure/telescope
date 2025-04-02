@@ -27,7 +27,7 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
-    if service_test:
+    if network_test:
         nodes_per_namespace = 24 #TODO: itia: fix hardcoded value
 
     pods_per_node = DEFAULT_PODS_PER_NODE
