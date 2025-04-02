@@ -86,8 +86,8 @@ steps:
     # Append run_id to the test results file if the file exists
     set -eux
     if [ -f "$(TEST_RESULTS_FILE)" ]; then
-      jq --arg telescope_run_id $RUN_ID \
-      -c '. + {telescope_run_id: $telescope_run_id}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
+      jq --arg telescope_run_id $RUN_ID --arg start_timestamp $START \
+      -c '. + {telescope_run_id: $telescope_run_id, start_timestamp: $start_timestamp}' $(TEST_RESULTS_FILE) > temp-$RUN_ID.json \
       && mv temp-$RUN_ID.json $(TEST_RESULTS_FILE)
     else
       echo  "##vso[task.logissue type=warning;]File $(TEST_RESULTS_FILE) does not exist."

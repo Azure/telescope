@@ -13,6 +13,13 @@ parameters:
   default: {}
 
 steps:
+- script: |
+    echo "Set the start time for test execution"
+    startTimestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    echo "Start: $startTimestamp"
+    echo "##vso[task.setvariable variable=START]$startTimestamp"
+  displayName: Set up start timestamp variable
+  
 - template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}

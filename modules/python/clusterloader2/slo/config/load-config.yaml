@@ -1,12 +1,13 @@
 name: load-config
 
 # Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST false}}
+{{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 {{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
 {{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
 
 # Config options for test parameters
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}} #TODO itia: check if its passed right
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
 {{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
@@ -14,12 +15,12 @@ name: load-config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
 # TODO(jshr-w): This should eventually use >1 namespace.
-{{$namespaces := 1}}
+{{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} #TODO itia: can it break existing tests?
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 
@@ -40,7 +41,16 @@ name: load-config
 {{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
 {{end}}
 
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
+# Use explicit conditional block to assign smallDeploymentPods to maintain backward compatibility
+{{$calculatedPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
+
+{{$smallDeploymentPods := 0}}
+{{if $NETWORK_TEST}}
+  {{$smallDeploymentPods = $podsPerNamespace}}
+{{else}}
+  {{$smallDeploymentPods = $calculatedPods}}
+{{end}}
+
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
 # CNP & CCNP Test
@@ -67,7 +77,7 @@ tuningSets:
       qps: {{$deploymentQPS}}
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -86,6 +96,13 @@ steps:
       path: /modules/cilium-measurements.yaml
       params:
         action: start
+{{end}}
+
+{{if $NETWORK_TEST}}
+  - module:
+        path: /modules/network-policy/net-policy-metrics.yaml
+        params:
+          action: start
 {{end}}
 
 {{if $SCRAPE_CONTAINERD}}
@@ -125,6 +142,15 @@ steps:
         ccnps: {{$CCNPS}}
 {{end}}
 
+{{if $NETWORK_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        setup: true
+        run: true
+        testType: "pod-creation"
+{{end}}
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -147,6 +173,26 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
+
+{{if $NETWORK_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+        usePolicyCreationMetrics: false
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "pod-creation"
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        run: true
+        testType: "policy-creation"
+{{end}}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -244,3 +290,16 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
+
+{{if $NETWORK_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "policy-creation"
+{{end}}

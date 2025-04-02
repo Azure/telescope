@@ -1,0 +1,102 @@
+trigger: none
+schedules:
+- cron: "0 */8 * * *"
+  displayName: "Every 8 Hours Daily"
+  branches:
+    include:
+      - network-policy-churn
+  always: true
+
+parameters:
+  - name: node_count
+    type: number
+    default: 240
+  - name: node_per_step
+    type: number
+    default: 240
+  - name: pods_per_node
+    type: number
+    default: 40
+  - name: repeats
+    type: number
+    default: 1
+  - name: scale_timeout
+    type: string
+    default: "15m"
+  - name: no_of_namespaces
+    type: number
+    default: 10
+  - name: total_nework_policies
+    type: number
+    default: 4800
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: network-policy-churn
+  SCENARIO_VERSION: main
+  OWNER: aks
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/agrawaliti/clusterloader2:latest"
+          topology: network-churn
+          matrix:
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: ${{ parameters.node_count }}
+              node_per_step: ${{ parameters.node_per_step }}
+              max_pods: ${{ parameters.pods_per_node }}
+              repeats: ${{ parameters.repeats }}
+              scale_timeout: ${{ parameters.scale_timeout }}
+              no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              total_network_policies: ${{ parameters.total_nework_policies }}
+              cilium_enabled: True
+              network_policy: cilium
+              network_dataplane: cilium
+              service_test: False
+              network_test: True
+              cl2_config_file: load-config.yaml
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_npm_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/agrawaliti/clusterloader2:latest"
+          topology: network-churn
+          matrix:
+            azure_cni:
+              cpu_per_node: 4
+              node_count: ${{ parameters.node_count }}
+              node_per_step: ${{ parameters.node_per_step }}
+              max_pods: ${{ parameters.pods_per_node }}
+              repeats: ${{ parameters.repeats }}
+              scale_timeout: ${{ parameters.scale_timeout }}
+              no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              total_network_policies: ${{ parameters.total_nework_policies }}
+              cilium_enabled: False
+              service_test: False
+              network_test: True
+              cl2_config_file: load-config.yaml
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          use_secondary_cluster: true

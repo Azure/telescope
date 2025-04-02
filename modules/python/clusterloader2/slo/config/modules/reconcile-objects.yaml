@@ -14,6 +14,13 @@
 {{$smallDeploymentSize := .smallDeploymentSize}}
 {{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
 
+{{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
+{{$ENABLE_NETWORKPOLICIES := DefaultParam .CL2_NETWORK_TEST false}} 
+{{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
+{{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY "net-pol-test"}}
+{{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE "enforcement-latency"}}
+{{$NET_POLICY_SERVER_EVERY_NTH_POD := DefaultParam .CL2_NET_POLICY_SERVER_EVERY_NTH_POD 3}}
+
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
 
@@ -35,6 +42,7 @@ steps:
 
 - name: {{$actionName}}
   phases:
+{{if not $NETWORK_TEST}}
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
@@ -48,6 +56,7 @@ steps:
         SvcName: big-service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
+{{end}}
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
@@ -58,6 +67,10 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
+        EnableNetworkPolicyEnforcementLatencyTest: {{$NETWORK_TEST}}
+        TargetLabelKey: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
+        TargetLabelValue: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
+        NetPolServerOnEveryNthPod: {{$NET_POLICY_SERVER_EVERY_NTH_POD}}
   {{if or $cnp_test $ccnp_test}}
         cnp_test: {{$cnp_test}}
         ccnp_test: {{$ccnp_test}}
