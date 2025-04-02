@@ -21,6 +21,7 @@ class KubernetesClient:
         config.load_kube_config(kubeconfig)
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
+
         self.storage = client.StorageV1Api()
 
     def get_app_client(self):
@@ -114,3 +115,13 @@ class KubernetesClient:
 
     def delete_namespace(self, namespace):
         return self.api.delete_namespace(namespace)
+
+    def create_daemonset(self, daemonset_object, namespace):
+        """
+        Create a DaemonSet in the specified namespace.
+        """
+        try:
+            self.app.create_namespaced_daemon_set(namespace, daemonset_object)
+            print(f"DaemonSet '{daemonset_object.metadata.name}' created in namespace '{namespace}'.")
+        except client.rest.ApiException as e:
+            print(f"Error creating DaemonSet: {e}")
