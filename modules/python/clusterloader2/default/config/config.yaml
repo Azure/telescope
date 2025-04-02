@@ -1,5 +1,6 @@
 name: job-scheduling
-{{$job_count := DefaultParam .CL2_JOB_COUNT 2000}}
+{{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
+{{$qps := DefaultParam .CL2_QPS 200}}
 
 namespace:
   number: 1
@@ -11,7 +12,7 @@ namespace:
 tuningSets:
 - name: Uniform1qps
   qpsLoad:
-    qps: 20
+    qps: {{$qps}}
 
 steps:
   - name: Start measurements

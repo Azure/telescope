@@ -58,7 +58,10 @@ def configure_clusterloader2(
     num_cnps,
     num_ccnps,
     dualstack,
-    override_file):
+    override_file,
+    kwok_nodes,
+    qps,
+    job_count):
 
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
@@ -78,6 +81,9 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
+        file.write(f"CL2_KWOK_NODES: {kwok_nodes}\n")
+        file.write(f"CL2_QPS: {qps}\n")
+        file.write(f"CL2_JOB_COUNT: {job_count}\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -139,6 +145,9 @@ def collect_clusterloader2(
     cnp_test,
     ccnp_test,
     result_file,
+    kwok_nodes,
+    qps,
+    job_count,
     test_type="default_config",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -212,6 +221,9 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
+    parser_configure.add_argument("kwok_nodes", type=int, help="number of virtual nodes")
+    parser_configure.add_argument("qps", type=int, help="number of request send per seconds")
+    parser_configure.add_argument("job_count", type=int, help="number of jobs")
     parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
@@ -249,6 +261,9 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
+    parser_configure.add_argument("kwok_nodes", type=int, help="number of virtual nodes")
+    parser_configure.add_argument("qps", type=int, help="number of request send per seconds")
+    parser_configure.add_argument("job_count", type=int, help="number of jobs")
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
@@ -275,7 +290,8 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
-                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, 
+                                 args.cl2_override_file, args.kwok_nodes, args.qps, args.job_count)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
@@ -284,7 +300,8 @@ def main():
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test, args.result_file, args.test_type)
+                               args.service_test, args.cnp_test, args.ccnp_test, args.result_file, args.kwok_nodes, args.qps, args.job_count, 
+                               args.test_type)
 
 if __name__ == "__main__":
     main()

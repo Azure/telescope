@@ -6,45 +6,14 @@ variables:
   SCENARIO_VERSION: main
 
 stages:
-  # - stage: azure_eastus2
-  #   dependsOn: []
-  #   jobs:
-  #     - template: /jobs/competitive-test.yml
-  #       parameters:
-  #         cloud: azure
-  #         regions:
-  #           - eastus2
-  #         engine: clusterloader2
-  #         engine_input:
-  #           image: "ghcr.io/azure/clusterloader2:v20241022"
-  #         topology: kwok
-  #         matrix:
-  #           default:
-  #             cpu_per_node: 1
-  #             node_count: 20
-  #             node_per_step: 5
-  #             cilium_enabled: false
-  #             max_pods: 50
-  #             repeats: 1
-  #             scale_timeout: "15m"
-  #             service_test: true
-  #             cl2_config_file: config.yaml
-  #             job_count: 20000
-  #             qps: 200
-  #             kwok_nodes: 2000
-  #         max_parallel: 1
-  #         timeout_in_minutes: 360
-  #         credential_type: service_connection
-  #         ssh_key_enabled: false
-
-  - stage: aws_eastus2
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
-          cloud: aws
+          cloud: azure
           regions:
-            - us-east-2
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
@@ -60,8 +29,39 @@ stages:
               scale_timeout: "15m"
               service_test: true
               cl2_config_file: config.yaml
-              kwok_nodes: 2000
+              kwok_nodes: 20
+              qps: 50
+              job_count: 1000
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
+
+  # - stage: aws_eastus2
+  #   dependsOn: []
+  #   jobs:
+  #     - template: /jobs/competitive-test.yml
+  #       parameters:
+  #         cloud: aws
+  #         regions:
+  #           - us-east-2
+  #         engine: clusterloader2
+  #         engine_input:
+  #           image: "ghcr.io/azure/clusterloader2:v20241022"
+  #         topology: kwok
+  #         matrix:
+  #           default:
+  #             cpu_per_node: 1
+  #             node_count: 20
+  #             node_per_step: 5
+  #             cilium_enabled: false
+  #             max_pods: 50
+  #             repeats: 1
+  #             scale_timeout: "15m"
+  #             service_test: true
+  #             cl2_config_file: config.yaml
+  #             kwok_nodes: 2000
+  #         max_parallel: 1
+  #         timeout_in_minutes: 360
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
