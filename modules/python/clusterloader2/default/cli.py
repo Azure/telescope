@@ -217,7 +217,8 @@ def collect_clusterloader2(
 
 def main():
     parser = argparse.ArgumentParser(description="CLI Kubernetes resources.")
-    print(parser.parse_args())
+   
+    
     subparsers = parser.add_subparsers(dest="command")
 
 
@@ -289,6 +290,8 @@ def main():
                                 help="Description of test type")
 
     args = parser.parse_args()
+    print(vars(args))  
+    
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
