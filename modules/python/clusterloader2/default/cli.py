@@ -2,6 +2,7 @@ import json
 import os
 import argparse
 import time
+import sys
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
@@ -216,6 +217,7 @@ def collect_clusterloader2(
         file.write(content)
 
 def main():
+    print("Raw command-line arguments:", sys.argv)
     parser = argparse.ArgumentParser(description="CLI Kubernetes resources.")
    
     
@@ -247,7 +249,7 @@ def main():
     parser_configure.add_argument("dualstack", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
-
+    
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
@@ -290,8 +292,7 @@ def main():
                                 help="Description of test type")
 
     args = parser.parse_args()
-    print(vars(args))  
-    
+
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
