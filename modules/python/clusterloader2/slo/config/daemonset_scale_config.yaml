@@ -66,6 +66,7 @@ steps:
       path: /modules/measurements.yaml
       params:
         action: start
+        threshold: {{$podStartupLatencyThreshold}}
         group: {{$groupName}}
 
 {{if $SCRAPE_CONTAINERD}}

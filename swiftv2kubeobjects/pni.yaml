@@ -1,0 +1,12 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetworkInstance
+metadata:
+  finalizers:
+  - finalizers.acn.azure.com/dnc-operations
+  name: pni100
+  namespace: default
+spec:
+  podNetworkConfigs:
+    - podNetwork: pn100
+      podIPReservationSize: 60
+    
