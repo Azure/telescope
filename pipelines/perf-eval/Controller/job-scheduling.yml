@@ -20,6 +20,9 @@ stages:
           topology: kwok
           matrix:
             default:
+              kwok_nodes: 20
+              qps: 50
+              job_count: 1000
               cpu_per_node: 1
               node_count: 20
               node_per_step: 5
@@ -28,10 +31,7 @@ stages:
               repeats: 1
               scale_timeout: "15m"
               service_test: true
-              cl2_config_file: config.yaml
-              kwok_nodes: 20
-              qps: 50
-              job_count: 1000
+              cl2_config_file: config.yaml              
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
