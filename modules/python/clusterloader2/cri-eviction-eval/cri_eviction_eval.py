@@ -6,9 +6,8 @@ from datetime import datetime, timezone
 
 from utils import parse_xml_to_json, run_cl2_command, get_measurement
 from kubernetes_client import KubernetesClient, client as k8s_client
-from data_type import NodeResourceConfigurator
-from kubelet_configurator import KubeletConfig
-from eviction_eval_configurator import EvictionEval
+from cluster_controller import ClusterController, KubeletConfig
+from cl2_configurator import  CL2Configurator
 
 def verify_measurement(node_label):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -40,19 +39,48 @@ def verify_measurement(node_label):
             print(f"Error fetching metrics: {e}")
 
 
-def override_config_clusterloader2(client, node_label, node_count, max_pods, operation_timeout_seconds, load_type,  provider, override_file):
-    node_config = NodeResourceConfigurator(node_label, node_count)
-    node_config.validate(client)
-    node_config.populate_node_resources(client)
+def override_config_clusterloader2(cluster_controller, node_count, max_pods, operation_timeout_seconds, load_type,  provider, override_file):
+    cluster_controller.validate(node_count)
+    node_resource_config = cluster_controller.populate_node_resources()
 
-    # node_count: int, max_pods : int, kubelet_config: KubeletConfig, timeout_seconds:int, provider:str
-    eviction_eval = EvictionEval( max_pods, operation_timeout_seconds, provider)
-    eviction_eval.generate_cl2_override(node_config, load_type)
-    eviction_eval.export_cl2_override(node_config, override_file)
+    # max_pods : int, kubelet_config: KubeletConfig, timeout_seconds:int, provider:str
+    eviction_eval = CL2Configurator( max_pods, operation_timeout_seconds, provider)
+    eviction_eval.generate_cl2_override(node_resource_config, load_type)
+    export_cl2_override(node_count, eviction_eval, override_file)
+
+def export_cl2_override(node_count: int, eviction_eval: CL2Configurator, override_file):
+    print(f"write override file to {override_file}")
+
+    with open(override_file, 'w', encoding='utf-8') as file:
+        node_config = eviction_eval.node_config
+        workload_config = eviction_eval.workload_config
+
+        file.write(f"CL2_NODE_COUNT: {node_count}\n")
+        file.write(f"CL2_OPERATION_TIMEOUT: {eviction_eval.timeout_seconds}\n")
+        file.write(f"CL2_PROVIDER: {eviction_eval.provider}\n")
+        file.write(f"CL2_DEPLOYMENT_SIZE: {eviction_eval.pods_per_node}\n")
+
+        file.write(f"CL2_NODE_LABEL: {node_config.node_label}\n")
+        file.write(f"CL2_NODE_SELECTOR: {node_config.node_selector}\n")
+
+        file.write(f"CL2_LOAD_TYPE: {workload_config.load_type}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {workload_config.pod_request_resource.memory_ki}Ki\n")
+        file.write(f"CL2_RESOURCE_CONSUME_CPU: {workload_config.pod_request_resource.cpu_milli}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {workload_config.load_resource.memory_ki // 1024}\n") # Convert Ki to Mi
+        file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {workload_config.load_duration_seconds}\n")
+
+        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+
+    file.close()
 
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig: str, provider: str):
+def execute_clusterloader2(cluster_controller, kubelet_config: KubeletConfig, cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig: str, provider: str):
     print(f"CL2 image: {cl2_image}, config dir: {cl2_config_dir}, report dir: {cl2_report_dir}, kubeconfig: {kubeconfig}, provider: {provider}")
+    cluster_controller.reconfigure_kubelet(kubelet_config)
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
                     tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False)
 
@@ -146,6 +174,7 @@ def main():
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute resource consume operation")
+    parser_override.add_argument("node_label", type=str, help="Node label selector")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
     parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
@@ -168,6 +197,8 @@ def main():
 
     args = parser.parse_args()
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    cluster_controller = ClusterController(client, args.node_label)
+
     if args.command == "override":
         # validate operation_timeout if value is not null
         timeout_seconds = 0
@@ -178,16 +209,14 @@ def main():
                 timeout_seconds = int(args.operation_timeout[:-1])
             else:
                 raise Exception(f"Unexpected format of operation_timeout property, should end with m (min) or s (second): {args.operation_timeout}")
-        override_config_clusterloader2(client, args.node_label, args.node_count, args.max_pods, timeout_seconds, args.load_type,  args.provider, args.cl2_override_file)
+        override_config_clusterloader2(cluster_controller, args.node_count, args.max_pods, timeout_seconds, args.load_type,  args.provider, args.cl2_override_file)
 
     elif args.command == "execute":
         kubelet_config = KubeletConfig(args.eviction_hard_memory)
-        kubelet_config.reconfigure_kubelet(client, args.node_label)
-
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(cluster_controller, kubelet_config, args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
             collect_clusterloader2(args.node_label, args.node_count, args.max_pods, args.load_type, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
-    KubeletConfig.default_config = KubeletConfig("100Mi")
+    KubeletConfig.set_default_config("100Mi")
     main()
