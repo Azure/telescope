@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from eviction_eval import EvictionEval, NodeConfig, WorkloadConfig
+from eviction_eval import EvictionEval, NodeResourceConfigurator, WorkloadConfig
 
 class TestEvictionEval(unittest.TestCase):
 
@@ -12,7 +12,7 @@ class TestEvictionEval(unittest.TestCase):
 
         mock_client.get_nodes.return_value =  [MagicMock(metadata=MagicMock(name="node1"), status=MagicMock(allocatable=MagicMock(cpu="1000m", memory="1000000Ki")))]
         mock_client.get_pods_by_namespace.return_value = [MagicMock(metadata=MagicMock(name="pod1"))]
-        node_config = NodeConfig(node_label="test-label", node_count=1)
+        node_config = NodeResourceConfigurator(node_label="test-label", node_count=1)
         node_config.validate(mock_client)
         node_config.populate_node_resources(mock_client)
 
@@ -24,7 +24,7 @@ class TestEvictionEval(unittest.TestCase):
 
     @patch('eviction_eval.open', new_callable=unittest.mock.mock_open)
     def test_export_cl2_override(self, mock_open):
-        node_config = NodeConfig(node_label="test-label", node_count=1)
+        node_config = NodeResourceConfigurator(node_label="test-label", node_count=1)
         workload_config = WorkloadConfig(load_type="memory")
         workload_config.load_duration_seconds = 300
         workload_config.pod_request_resource = MagicMock(memory_ki=1024, cpu_milli=500)
