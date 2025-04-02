@@ -272,10 +272,10 @@ def main():
                                   help="Whether to scrape containerd metrics. Must be either True or False")
     parser_configure.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
-    parser_configure.add_argument("network_test", type=eval, choices=[True, False], default=False,
+    parser_configure.add_argument("network_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether network test is running. Must be either True or False")
-    parser_configure.add_argument("no_of_namespaces", type=int, default=1, help="Number of namespaces to create")
-    parser_configure.add_argument("total_network_policies", type=int, default=0, help="Total number of network policies to create")
+    parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
+    parser_configure.add_argument("total_network_policies", type=int, nargs='?', default=0, help="Total number of network policies to create")
     parser_configure.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cnp test is running. Must be either True or False")
     parser_configure.add_argument("ccnp_test", type=eval, choices=[True, False], nargs='?', default=False,
@@ -314,7 +314,7 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=eval, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
-    parser_collect.add_argument("network_test", type=eval, choices=[True, False], default=False,
+    parser_collect.add_argument("network_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether network test is running. Must be either True or False")
     parser_collect.add_argument("cnp_test", type=eval, choices=[True, False], nargs='?', default=False,
                                   help="Whether cnp test is running. Must be either True or False")
