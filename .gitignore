@@ -60,3 +60,4 @@ modules/python/clusterloader2/*/results
 # OSX
 .DS_Store
 .idea
+/modules/python/clusterloader2/*/config/overrides.yaml
