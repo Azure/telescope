@@ -37,26 +37,29 @@ steps:
     echo "Cloud:                $CLOUD"
     echo "Kubeconfig:           ${HOME}/.kube/config"
   
-    echo "Generating clusterloader2 override config"
+    echo "Collecting clusterloader2 benchmark results"
     echo "Node count:           $NODE_COUNT"
     echo "Max pods:             $MAX_PODS"
-    echo "Operation timeout:    $OPERATION_TIMEOUT"
     echo "Load type:            $LOAD_TYPE"
+    echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
     
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" collect \
-      "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD ${HOME}/.kube/config" \
+      "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
       "$NODE_COUNT" "$MAX_PODS" "$LOAD_TYPE" "$EVICTION_THRESHOLD_MEM" "$RUN_ID" "$RUN_URL" "$TEST_RESULTS_FILE"
   workingDirectory: modules/python/clusterloader2
   env:
+    NODE_LABEL: ${{ parameters.topology }}
+    CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/config
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/results
     ${{ if eq(parameters.cloud, 'azure') }}:
       CLOUD: aks
     ${{ else }}:
       CLOUD: ${{ parameters.cloud }}
-    RUN_URL: $(RUN_URL)
     NODE_COUNT: ${{ parameters.node_count }}
-    EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
     MAX_PODS: ${{ parameters.max_pods }}
     LOAD_TYPE: ${{ parameters.load_type }}
+    EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
+    RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/cri_eviction_eval.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/results
+
   displayName: "Collect Eviction Eval Results"
