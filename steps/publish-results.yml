@@ -29,7 +29,7 @@ steps:
     credential_type: ${{ parameters.credential_type }}
     regions: ${{ parameters.regions }}
 
-- template: /steps/collect-terraform-operation-data.yml
+- template: /steps/collect-terraform-operation-metadata.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     credential_type: ${{ parameters.credential_type }}
