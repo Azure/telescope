@@ -230,7 +230,7 @@ def collect_virtual_clusterloader2(
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "provider": {provider},
+        "provider": provider,
         "kwok_nodes": kwok_nodes,
         "qps": qps,
         "job_count": job_count,
@@ -242,9 +242,9 @@ def collect_virtual_clusterloader2(
         "run_id": run_id,
         "run_url": run_url,
         "test_type": test_type,
-        "service_test": {service_test},
-        "cnp_test": {cnp_test},
-        "ccnp_test": {ccnp_test},
+        "service_test": service_test,
+        "cnp_test": cnp_test,
+        "ccnp_test": ccnp_test,
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -269,7 +269,6 @@ def collect_virtual_clusterloader2(
                     result["group"] = group_name
                     result["measurement"] = measurement
                     result["result"] = item
-                    print(item)
                     content += json.dumps(result) + "\n"
             else:
                 result = template.copy()
