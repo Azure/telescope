@@ -69,6 +69,7 @@ if __name__ == "__main__":
     apply_result = process_terraform_logs(log_dir, "apply")
     destroy_result = process_terraform_logs(log_dir, "destroy")
     merged_result = apply_result + destroy_result
+    print(merged_result)
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w', encoding='utf-8') as file:
         file.write(merged_result)
