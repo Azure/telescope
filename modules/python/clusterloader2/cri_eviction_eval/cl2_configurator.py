@@ -1,5 +1,5 @@
 
-from .data_type import NodeResourceConfig, ResourceConfig
+from data_type import NodeResourceConfig, ResourceConfig
 from typing import Optional
 
 DAEMONSETS_PER_NODE_MAP = {

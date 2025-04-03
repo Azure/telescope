@@ -1,12 +1,11 @@
-
 import os
 import argparse
 
 from utils import  run_cl2_command
 from kubernetes_client import KubernetesClient
-from .cluster_controller import ClusterController, KubeletConfig
-from .cl2_configurator import  CL2Configurator
-from .cl2_file_handler import CL2FileHandler, KubeletMetrics
+from cluster_controller import ClusterController, KubeletConfig
+from cl2_configurator import  CL2Configurator
+from cl2_file_handler import CL2FileHandler, KubeletMetrics
 
 def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler,
                                    node_count, max_pods, operation_timeout_seconds, load_type, provider):

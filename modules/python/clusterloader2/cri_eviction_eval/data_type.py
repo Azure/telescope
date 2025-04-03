@@ -1,5 +1,3 @@
-
-
 class ResourceConfig:
     def __init__(self, memory, cpu):
         self.memory_ki = memory

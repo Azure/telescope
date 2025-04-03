@@ -1,5 +1,5 @@
 from kubernetes_client import KubernetesClient
-from .data_type import ResourceConfig, NodeResourceConfig
+from data_type import ResourceConfig, NodeResourceConfig
 
 class KubeletConfig:
     def __init__(self, eviction_hard_memory: str, busybox_image: str = "ghcr.io/containerd/busybox:1.36"):
