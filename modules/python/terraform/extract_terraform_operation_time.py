@@ -3,12 +3,12 @@ import json
 import sys
 import os
 
-def process_terraform_logs(log_file, action_type):
+def process_terraform_logs(log_dir, action_type):
     # Regex pattern to extract module, action type, and time taken
     pattern = re.compile(r"(module\.[\w\-\.]+\[.*?\]): (?:Destruction|Creation) complete after (\d+m\d+s|\d+s)")
 
     content = ""
-
+    log_file = os.path.join(log_dir, f"terraform_{action_type}.log")
     # Read and process the Terraform log file
     with open(log_file, "r", encoding='utf-8') as f:
         for line in f:
@@ -63,11 +63,11 @@ def process_terraform_logs(log_file, action_type):
 
 if __name__ == "__main__":
     # Get log file and action type (apply/destroy) from arguments
-    log_file = sys.argv[1]
+    log_dir = sys.argv[1]
     result_file = sys.argv[2]
 
-    apply_result = process_terraform_logs(log_file, "apply")
-    destroy_result = process_terraform_logs(log_file, "destroy")
+    apply_result = process_terraform_logs(log_dir, "apply")
+    destroy_result = process_terraform_logs(log_dir, "destroy")
     merged_result = apply_result + destroy_result
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w', encoding='utf-8') as file:

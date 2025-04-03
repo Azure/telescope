@@ -29,6 +29,10 @@ steps:
     credential_type: ${{ parameters.credential_type }}
     regions: ${{ parameters.regions }}
 
+- template: /steps/collect-terraform-operation-data.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    credential_type: ${{ parameters.credential_type }}
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
     credential_type: ${{ parameters.credential_type }}
