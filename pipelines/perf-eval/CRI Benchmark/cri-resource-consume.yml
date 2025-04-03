@@ -4,7 +4,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-eviction-eval
 stages:
-  - stage: azure_swedencentral-memory-standard
+  - stage: azure_swedencentral_evict_memory_100
     dependsOn: []
     jobs:
       - template: /jobs/cri-kubeconfig-eval.yml
@@ -34,7 +34,7 @@ stages:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
               node_count: 5
-  - stage: azure_swedencentral-memory-oversubscribed
+  - stage: azure_swedencentral_evict_memory_750
     dependsOn: []
     jobs:
       - template: /jobs/cri-kubeconfig-eval.yml
@@ -50,7 +50,7 @@ stages:
             type: memory
             usage: oversubscribed
           evictionConfig:
-            memory: 100Mi
+            memory: 750Mi
           matrix:
             n5-p150-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
