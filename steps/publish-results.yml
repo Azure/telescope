@@ -35,7 +35,6 @@ steps:
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
     load_type: ${{ parameters.load_type }}
-    load: ${{ parameters.load }}
     eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
 
 - template: /steps/collect-telescope-metadata.yml
