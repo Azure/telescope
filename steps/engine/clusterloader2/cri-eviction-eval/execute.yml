@@ -24,11 +24,26 @@ steps:
   - script: |
       set -eo pipefail
       echo "Running eviction benchmark"
-      echo "Running $PYTHON_SCRIPT_FILE with config $CL2_CONFIG_DIR. " 
+      
+      echo "Python script file:   $PYTHON_SCRIPT_FILE"
+      echo "Node label:           $NODE_LABEL"
+      echo "CL2 config dir:       $CL2_CONFIG_DIR"
+      echo "CL2 report dir:       $CL2_REPORT_DIR"
+      echo "Cloud:                $CLOUD"
+      echo "Kubeconfig:           ${HOME}/.kube/config"
+      
+      echo "Generating clusterloader2 override config"
+      echo "Node count:           $NODE_COUNT"
+      echo "Max pods:             $MAX_PODS"
+      echo "Operation timeout:    $OPERATION_TIMEOUT"
+      echo "Load type:            $LOAD_TYPE"
       
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
       $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \ 
       $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT $LOAD_TYPE 
+
+      echo "CL2 image:            $CL2_IMAGE"
+      echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
       $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \ 
@@ -39,7 +54,6 @@ steps:
         CLOUD: aks
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
-      REGION: ${{ parameters.region }}
       NODE_COUNT: ${{ parameters.node_count }}
       NODE_LABEL: ${{ parameters.topology }}
       EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
