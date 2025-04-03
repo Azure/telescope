@@ -11,7 +11,7 @@ from cl2_file_handler import CL2FileHandler, KubeletMetrics
 
 def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler,
                                    node_count, max_pods, operation_timeout_seconds, load_type, provider):
-    cluster_controller.validate(node_count)
+    cluster_controller.populate_nodes(node_count)
     node_resource_config = cluster_controller.populate_node_resources()
 
     eviction_eval = CL2Configurator(max_pods, operation_timeout_seconds, provider)
@@ -20,14 +20,15 @@ def override_clusterloader2_config(cluster_controller: ClusterController, file_h
 
 def execute_clusterloader2(cluster_controller: ClusterController, file_handler: CL2FileHandler, kubelet_config: KubeletConfig,
                            cl2_image, kubeconfig: str, provider: str):
-    print(f"CL2 image: {cl2_image}, kubeconfig: {kubeconfig}, provider: {provider}")
     cluster_controller.reconfigure_kubelet(kubelet_config)
+    print(f"CL2 image: {cl2_image}, kubeconfig: {kubeconfig}, provider: {provider}")
+    print(f"Using config directory : {file_handler.cl2_config_dir}, result directory : {file_handler.cl2_report_dir}")
     run_cl2_command(kubeconfig, cl2_image, file_handler.cl2_config_dir, file_handler.cl2_report_dir, provider,
                     overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False)
 
 def collect_clusterloader2(cluster_controller: ClusterController,file_handler: CL2FileHandler,
                            node_count, max_pods, load_type, cloud_info, run_id, run_url, output_test_file):
-    cluster_controller.verify_measurement()
+    cluster_controller.verify_measurement(node_count)
     print(f"Run ID: {run_id}, Run URL: {run_url} - Storing results to file {output_test_file}")
     print(f"Parsing test result for {node_count} nodes with {max_pods} pods of type {load_type} on {cloud_info}")
 
@@ -82,6 +83,7 @@ def main():
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
+
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the write the result file for uploading")
@@ -104,10 +106,10 @@ def main():
         override_clusterloader2_config(cluster_controller, file_handler, args.node_count, args.max_pods, timeout_seconds, args.load_type, args.provider)
 
     elif args.command == "execute":
-        kubelet_config = KubeletConfig(args.eviction_hard_memory)
+        kubelet_config = KubeletConfig(args.eviction_threshold_mem)
         execute_clusterloader2(cluster_controller, file_handler, kubelet_config, args.cl2_image, args.kubeconfig, args.provider)
     elif args.command == "collect":
-            collect_clusterloader2(cluster_controller, file_handler, args.node_count, args.max_pods, args.load_type, args.cloud_info, args.run_id, args.run_url, args.result_file)
+            collect_clusterloader2(cluster_controller, file_handler, args.node_count, args.max_pods, args.load_type, args.provider, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     KubeletConfig.set_default_config("100Mi")

@@ -39,7 +39,7 @@ class ClusterController:
         self.nodes = None
         self.node_count = 0
 
-    def validate(self, node_count: int):
+    def populate_nodes(self, node_count: int):
         nodes = self.client.get_nodes(label_selector=self.node_selector)
         if len(nodes) == 0:
             raise Exception(f"Invalid node selector: {self.node_selector}")
@@ -49,9 +49,13 @@ class ClusterController:
         self.node_count = len(nodes)
         self.nodes = nodes
 
+
+
     def reconfigure_kubelet(self, kubelet_config: KubeletConfig):
         if KubeletConfig.get_default_config().needs_override(kubelet_config):
-            self.client.create_daemonset("kube-system", self.generate_kubelet_reconfig_daemonset(kubelet_config))
+            print(f"Reconfiguring {kubelet_config}")
+            daemonset_yaml = self.generate_kubelet_reconfig_daemonset(kubelet_config)
+            self.client.create_daemonset(daemonset_yaml)
         else:
             print(f"using default kubelet configuration. Skip reconfiguring kubelet.")
 
@@ -72,7 +76,16 @@ spec:
     spec:
       hostPID: true
       nodeSelector:
-        {node_label}: true
+        {node_label}: "true"
+      tolerations:
+      - key: {node_label}
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: {node_label}
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
       containers:
       - name: kubelet-config-updater
         image: mcr.microsoft.com/cbl-mariner/busybox:2.0
@@ -120,12 +133,11 @@ spec:
         return  ResourceConfig(memory_request * 1024, cpu_request)
 
     def get_node_available_resource(self) -> ResourceConfig:
-        node_allocatable_cpu = int(self.nodes[0].status.allocatable.cpu.replace("m", ""))
-
+        node_allocatable_cpu = int(self.nodes[0].status.allocatable["cpu"].replace("m", ""))
         # Bottlerocket OS SKU on EKS has allocatable_memory property in Mi. AKS and Amazon Linux (default SKUs)
         # user Ki. Handling the Mi case here and converting Mi to Ki, if needed.
         #int(nodes[0].status.allocatable["memory"].replace("Ki", ""))
-        node_allocatable_memory_str = self.nodes[0].status.allocatable.memory
+        node_allocatable_memory_str = self.nodes[0].status.allocatable["memory"]
         if "Mi" in node_allocatable_memory_str:
             node_allocatable_memory_ki = int(node_allocatable_memory_str.replace("Mi", "")) * 1024
         elif "Ki" in node_allocatable_memory_str:
@@ -143,11 +155,11 @@ spec:
 
         return NodeResourceConfig(self.node_label, self.node_selector, system_allocated,node_available,remaining )
 
-    def verify_measurement(self):
+    def verify_measurement(self, node_count: int):
+        self.populate_nodes(node_count)
         user_pool = [node.metadata.name for node in self.nodes]
         print(f"User pool: {user_pool}")
-        # Create an API client
         for node_name in user_pool:
             metrics = self.client.get_node_metrics(node_name)
-            print(metrics)
+            # print(metrics)
 

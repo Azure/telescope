@@ -4,6 +4,7 @@ import json
 
 import os
 from datetime import datetime, timezone
+from typing import List
 
 class KubeletMetrics:
     def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, status):
@@ -15,6 +16,7 @@ class KubeletMetrics:
         self.churn_rate = churn_rate
         self.load_type = load_type
         self.status = status
+
 
     def create_metric(self, measurement, group, percentile, data) :
         # create a copy of current KubeletMetrics object
@@ -36,13 +38,30 @@ class KubeletMetrics:
         new_metric.data = data
         return new_metric
 
+    def to_dict(self):
+        return {
+            "node_count": self.node_count,
+            "max_pods": self.max_pods,
+            "cloud_info": self.cloud_info,
+            "run_id": self.run_id,
+            "run_url": self.run_url,
+            "churn_rate": self.churn_rate,
+            "load_type": self.load_type,
+            "status": self.status,
+            "timestamp": self.timestamp,
+            "measurement": self.measurement,
+            "group": self.group,
+            "percentile": self.percentile,
+            "data": self.data
+        }
+
     # return array of KubeletMetrics
-    def parse_metrics(self, file_name: str, data):
+    def parse_metrics(self, file_name: str, data) -> List:
         measurement, group_name = self.parse_file_format(file_name)
         if not measurement:
-            return ""
+            return []
         print(measurement, group_name)
-        metrics_lines = []
+        metrics_lines : List[KubeletMetrics] = []
 
         if measurement == "ResourceUsageSummary":
             for percentile, items in data.items():
@@ -55,7 +74,7 @@ class KubeletMetrics:
             if not items:
                 print(f"No data items found in {file_name}")
                 print(f"Data:\n{data}")
-                return ""
+                return []
 
             for item in items:
                 metrics_lines.append(self.create_metric(measurement, group_name, "dataItems",item))
@@ -63,6 +82,7 @@ class KubeletMetrics:
             return metrics_lines
 
         print(f"Unknown measure {measurement} or unexpected data format in {file_name}")
+        return []
 
 
     POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
@@ -111,6 +131,7 @@ class CL2FileHandler:
             file.write(f"CL2_PROVIDER: {eviction_eval.provider}\n")
             file.write(f"CL2_DEPLOYMENT_SIZE: {eviction_eval.pods_per_node}\n")
 
+            file.write(f"CL2_DEPLOYMENT_LABEL: {node_config.node_label}\n")
             file.write(f"CL2_NODE_LABEL: {node_config.node_label}\n")
             file.write(f"CL2_NODE_SELECTOR: {node_config.node_selector}\n")
 
@@ -139,10 +160,14 @@ class CL2FileHandler:
             raise Exception(f"No testsuites found in the report! Raw data: {junit_json}")
 
     def parse_test_result(self, metric_template: KubeletMetrics, formatter: str = "json"):
-        all_metrics = []
+
+        all_metrics : List[KubeletMetrics] = []
         for f in os.listdir(self.cl2_report_dir):
+            if not f.endswith(".json"):
+                continue
             file_path = os.path.join(self.cl2_report_dir, f)
             with open(file_path, 'r', encoding='utf-8') as file:
+                print("Parsing file: ", file_path)
                 metric_data = json.loads(file.read())
                 file_name = os.path.basename(file_path)
                 metrics_lines = metric_template.parse_metrics(file_name, metric_data)
@@ -153,12 +178,12 @@ class CL2FileHandler:
 
         if formatter == "json":
             for metric_line in all_metrics:
-                metric_line_json = json.dumps(metric_line)
+                metric_line_json = json.dumps(metric_line.to_dict())
                 metrics_formatted.append(metric_line_json)
         else:
             print(f"unsupported format {formatter}")
 
-        return all_metrics
+        return metrics_formatted
 
 
 
