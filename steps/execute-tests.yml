@@ -7,7 +7,6 @@ parameters:
   type: string
 - name: engine_input
   type: object
-  default: {}
 - name: regions
   type: object
   default: {}

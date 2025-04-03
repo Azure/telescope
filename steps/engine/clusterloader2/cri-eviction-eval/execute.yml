@@ -3,7 +3,7 @@ parameters:
     type: string
     default: ""
   - name: engine_input
-    type: string
+    type: object
   - name: region
     type: string
   - name: topology
