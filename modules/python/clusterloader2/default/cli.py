@@ -466,7 +466,7 @@ def main():
             configure_virtual_clusterloader2(args.kwok_nodes, args.qps, args.job_count, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, 
                                  args.cl2_override_file, )
-        else:
+        elif args.mode == "actual":
             configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider, args.cilium_enabled,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, 
@@ -482,7 +482,7 @@ def main():
                                 args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                 args.service_test, args.cnp_test, args.ccnp_test, args.result_file,  
                                 args.test_type)
-        else:
+        elif args.mode == "actual":
             collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                 args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                 args.service_test, args.cnp_test, args.ccnp_test, args.result_file, args.kwok_nodes, args.qps, args.job_count, 
