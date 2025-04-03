@@ -1,5 +1,6 @@
 # TODO: Move this file to a separate folder called 'clients'
 from kubernetes import client, config
+from typing import Optional
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
@@ -21,6 +22,7 @@ class KubernetesClient:
         config.load_kube_config(kubeconfig)
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
+        self.api_client = client.ApiClient()
 
         self.storage = client.StorageV1Api()
 
@@ -125,3 +127,28 @@ class KubernetesClient:
             print(f"DaemonSet '{daemonset_object.metadata.name}' created in namespace '{namespace}'.")
         except client.rest.ApiException as e:
             print(f"Error creating DaemonSet: {e}")
+
+    def get_node_metrics(self, node_name: str)-> Optional[str]:
+        url = f"/api/v1/nodes/{node_name}/proxy/metrics"
+
+        try:
+            response = self.api_client.call_api(
+                resource_path = url,
+                method = "GET",
+                auth_settings=['BearerToken'],
+                response_type="str",
+                _preload_content=True)
+
+            metrics = response[0]  # The first item contains the response data
+            filtered_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
+            )
+
+            #return the printed line in 1 line
+            return f"##[section]Metrics for node: {node_name}\n{filtered_metrics}\n"
+
+        except client.ApiException as e:
+            print(f"Error fetching metrics: {e}")
+
+
+

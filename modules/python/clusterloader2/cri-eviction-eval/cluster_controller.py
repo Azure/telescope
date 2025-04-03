@@ -142,3 +142,12 @@ spec:
         remaining = node_available.minus(system_allocated)
 
         return NodeResourceConfig(self.node_label, self.node_selector, system_allocated,node_available,remaining )
+
+    def verify_measurement(self):
+        user_pool = [node.metadata.name for node in self.nodes]
+        print(f"User pool: {user_pool}")
+        # Create an API client
+        for node_name in user_pool:
+            metrics = self.client.get_node_metrics(node_name)
+            print(metrics)
+
