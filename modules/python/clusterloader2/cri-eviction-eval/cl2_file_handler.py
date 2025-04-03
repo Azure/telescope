@@ -5,7 +5,6 @@ import json
 import os
 from datetime import datetime, timezone
 
-
 class KubeletMetrics:
     def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, status):
         self.node_count = node_count
@@ -15,9 +14,6 @@ class KubeletMetrics:
         self.run_url = run_url
         self.churn_rate = churn_rate
         self.load_type = load_type
-        self.status = status
-
-    def set_status(self, status):
         self.status = status
 
     def create_metric(self, measurement, group, percentile, data) :
@@ -41,7 +37,7 @@ class KubeletMetrics:
         return new_metric
 
     # return array of KubeletMetrics
-    def get_metrics_measurement(self, file_name: str, data):
+    def parse_metrics(self, file_name: str, data):
         measurement, group_name = self.parse_file_format(file_name)
         if not measurement:
             return ""
@@ -103,8 +99,6 @@ class CL2FileHandler:
         self.cl2_report_dir = cl2_report_dir
         self.override_file = f'{cl2_config_dir}/overrides.yaml'
 
-        self.parsed_metrics = []
-
     def export_cl2_override(self, node_count: int, eviction_eval: CL2Configurator):
         print(f"write override file to {self.override_file}")
 
@@ -134,37 +128,37 @@ class CL2FileHandler:
 
         file.close()
 
-    def parse_test_result(self, metrics_template: KubeletMetrics):
-        # Placeholder for parsing logic
-        details = parse_xml_to_json(os.path.join(self.cl2_report_dir, "junit.xml"), indent = 2)
-        json_data = json.loads(details)
-        testsuites = json_data["testsuites"]
+    def load_junit_result(self):
+        junit_json = parse_xml_to_json(os.path.join(self.cl2_report_dir, "junit.xml"), indent = 2)
+        test_suites = json.loads(junit_json)["testsuites"]
 
-        if testsuites:
-            status = "success" if testsuites[0]["failures"] == 0 else "failure"
-            metrics_template.set_status(status)
+        if test_suites:
+            status = "success" if test_suites[0]["failures"] == 0 else "failure"
+            return status
         else:
-            raise Exception(f"No testsuites found in the report! Raw data: {details}")
+            raise Exception(f"No testsuites found in the report! Raw data: {junit_json}")
 
-        total_metrics_lines = []
+    def parse_test_result(self, metric_template: KubeletMetrics, formatter: str = "json"):
+        all_metrics = []
         for f in os.listdir(self.cl2_report_dir):
             file_path = os.path.join(self.cl2_report_dir, f)
             with open(file_path, 'r', encoding='utf-8') as file:
-                data = json.loads(file.read())
+                metric_data = json.loads(file.read())
                 file_name = os.path.basename(file_path)
-                metrics_lines = metrics_template.get_metrics_measurement(file_name, data)
-                total_metrics_lines.extend(metrics_lines)
+                metrics_lines = metric_template.parse_metrics(file_name, metric_data)
+                all_metrics.extend(metrics_lines)
 
-        self.parsed_metrics = total_metrics_lines
+        # only use json for now
+        metrics_formatted = []
 
-    def export_metrics_as_json(self, results_file: str):
-        total_metrics_lines_formatted = []
-        for metrics_line in self.parsed_metrics:
-            metrics_line_json = json.dumps(metrics_line)
-            total_metrics_lines_formatted.append(metrics_line_json)
+        if formatter == "json":
+            for metric_line in all_metrics:
+                metric_line_json = json.dumps(metric_line)
+                metrics_formatted.append(metric_line_json)
+        else:
+            print(f"unsupported format {formatter}")
 
-        result_content =  "\n".join(total_metrics_lines_formatted)
-        os.makedirs(os.path.dirname(self.cl2_report_dir), exist_ok=True)
-        with open(results_file, 'w', encoding='utf-8') as file:
-            file.write(result_content)
+        return all_metrics
+
+
 
