@@ -41,13 +41,18 @@ steps:
       echo "Load type:            $LOAD_TYPE"
       
       # do not break line, does not work with multiline
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT $LOAD_TYPE 
-
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
+        $NODE_LABEL $CL2_CONFIG_DIR/overrides.yaml $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \
+        $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT $LOAD_TYPE 
+      
       echo "Running clusterloader2 benchmark"
       echo "CL2 image:            $CL2_IMAGE"
       echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
+      
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \
+        $CL2_IMAGE $EVICTION_THRESHOLD_MEM
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config $CL2_IMAGE $EVICTION_THRESHOLD_MEM
     workingDirectory: modules/python/clusterloader2
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
