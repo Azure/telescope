@@ -95,6 +95,9 @@ def main():
     cluster_controller = ClusterController(client, args.node_label)
     file_handler = CL2FileHandler(args.cl2_config_dir, args.cl2_report_dir)
 
+    # print the arguments for debugging
+    print(f"Arguments: {args}")
+
     if args.command == "override":
         # validate operation_timeout if value is not null
         timeout_seconds = 0
