@@ -256,6 +256,7 @@ def collect_virtual_clusterloader2(
                 continue
             print(measurement, group_name)
             data = json.loads(f.read())
+            print(data)
 
             if "dataItems" in data:
                 items = data["dataItems"]
