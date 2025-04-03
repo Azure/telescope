@@ -233,6 +233,10 @@ def collect_virtual_clusterloader2(
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "provider": {provider},
+        "kwok_nodes": kwok_nodes,
+        "qps": qps,
+        "job_count": job_count,
         "status": status,
         "group": None,
         "measurement": None,
@@ -241,9 +245,9 @@ def collect_virtual_clusterloader2(
         "run_id": run_id,
         "run_url": run_url,
         "test_type": test_type,
-        "kwok_nodes": kwok_nodes,
-        "qps": qps,
-        "job_count": job_count,
+        "service_test": {service_test},
+        "cnp_test": {cnp_test},
+        "ccnp_test": {ccnp_test},
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -715,7 +719,7 @@ def main():
                 args.num_cnps,
                 args.num_ccnps,
                 args.dualstack,
-                args.cl2_override_file
+                args.cl2_override_file,
             )
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
