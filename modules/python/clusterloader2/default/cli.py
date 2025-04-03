@@ -268,6 +268,7 @@ def collect_virtual_clusterloader2(
                     result["group"] = group_name
                     result["measurement"] = measurement
                     result["result"] = item
+                    print(item)
                     content += json.dumps(result) + "\n"
             else:
                 result = template.copy()
