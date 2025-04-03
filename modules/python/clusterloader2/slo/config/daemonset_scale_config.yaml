@@ -93,6 +93,7 @@ steps:
         Params:
           duration: 20s
 
+# start repeat
   - name: Starting measurement for Create Daemonset
     measurements:
     - Identifier: WaitForRunningDaemonSets
@@ -178,3 +179,5 @@ steps:
         kind: DaemonSet
         action: gather
         refreshInterval: 15s
+
+# end repeat
