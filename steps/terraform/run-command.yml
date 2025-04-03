@@ -93,7 +93,7 @@ steps:
       ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
 - ${{ if or( eq(parameters.command, 'apply'),  eq(parameters.command, 'destroy')) }}:
   - script: |
-      set -eux
+      set -eo pipefail
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE $TERRAFORM_WORKING_DIRECTORY/terraform_$COMMAND.log $COMMAND
 
     displayName: "Collect Terraform ${{parameters.command}} Operation Time"
