@@ -27,7 +27,7 @@ def execute_clusterloader2(cluster_controller: ClusterController, file_handler: 
                     overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False)
 
 def collect_clusterloader2(cluster_controller: ClusterController,file_handler: CL2FileHandler,
-                           node_count, max_pods, load_type, cloud_info, run_id, run_url, output_test_file):
+                           node_count, max_pods, load_type, kubelet_config: KubeletConfig, cloud_info, run_id, run_url, output_test_file):
     cluster_controller.verify_measurement(node_count)
     print(f"Run ID: {run_id}, Run URL: {run_url} - Storing results to file {output_test_file}")
     print(f"Parsing test result for {node_count} nodes with {max_pods} pods of type {load_type} on {cloud_info}")
@@ -42,6 +42,7 @@ def collect_clusterloader2(cluster_controller: ClusterController,file_handler: C
         run_id = run_id,
         run_url = run_url,
         load_type = load_type,
+        eviction_memory=kubelet_config.eviction_hard_memory,
         status = status
     )
 
@@ -83,6 +84,7 @@ def main():
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
+    parser_collect.add_argument("eviction_threshold_mem", type=str, default="100Mi", help="Eviction threshold to evaluate")
 
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
@@ -109,7 +111,8 @@ def main():
         kubelet_config = KubeletConfig(args.eviction_threshold_mem)
         execute_clusterloader2(cluster_controller, file_handler, kubelet_config, args.cl2_image, args.kubeconfig, args.provider)
     elif args.command == "collect":
-            collect_clusterloader2(cluster_controller, file_handler, args.node_count, args.max_pods, args.load_type, args.provider, args.run_id, args.run_url, args.result_file)
+        kubelet_config = KubeletConfig(args.eviction_threshold_mem)
+        collect_clusterloader2(cluster_controller, file_handler, args.node_count, args.max_pods, args.load_type, kubelet_config,  args.provider, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     KubeletConfig.set_default_config("100Mi")

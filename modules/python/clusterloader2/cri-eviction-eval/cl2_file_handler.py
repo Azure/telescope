@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import List
 
 class KubeletMetrics:
-    def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, status):
+    def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, eviction_memory, status):
         self.node_count = node_count
         self.max_pods = max_pods
         self.cloud_info = cloud_info
@@ -15,6 +15,7 @@ class KubeletMetrics:
         self.run_url = run_url
         self.churn_rate = churn_rate
         self.load_type = load_type
+        self.eviction_memory = eviction_memory
         self.status = status
 
 
@@ -28,6 +29,7 @@ class KubeletMetrics:
             self.run_url,
             self.churn_rate,
             self.load_type,
+            self.eviction_memory,
             self.status
         )
 
@@ -47,6 +49,7 @@ class KubeletMetrics:
             "run_url": self.run_url,
             "churn_rate": self.churn_rate,
             "load_type": self.load_type,
+            "eviction_memory": self.eviction_memory,
             "status": self.status,
             "timestamp": self.timestamp,
             "measurement": self.measurement,
