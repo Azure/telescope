@@ -132,6 +132,7 @@ def configure_virtual_clusterloader2(
 
     with open(override_file, "w", encoding="utf-8") as file:
 
+        file.write(f"PROVIDER: {provider}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
@@ -228,11 +229,6 @@ def collect_virtual_clusterloader2(
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
-
-    _, _, pods_per_node, _ = calculate_config(
-        cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test
-    )
-    pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
     template = {
@@ -719,10 +715,7 @@ def main():
                 args.num_cnps,
                 args.num_ccnps,
                 args.dualstack,
-                args.cl2_override_file,
-                args.kwok_nodes,
-                args.qps,
-                args.job_count,
+                args.cl2_override_file
             )
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
@@ -765,9 +758,6 @@ def main():
                 args.cnp_test,
                 args.ccnp_test,
                 args.result_file,
-                args.kwok_nodes,
-                args.qps,
-                args.job_count,
                 args.test_type,
             )
 
