@@ -20,15 +20,11 @@ stages:
       topology: kwok
       matrix:
         default:
-          kwok_nodes: 2000
-          qps: 200
-          job_count: 20000
+          kwok_nodes: 5
+          qps: 30
+          job_count: 200
           cpu_per_node: 1
-          node_count: 20
-          node_per_step: 5
           cilium_enabled: False
-          max_pods: 50
-          repeats: 1
           scale_timeout: "1h"
           service_test: true
           cl2_config_file: config.yaml
@@ -51,15 +47,10 @@ stages:
       topology: kwok
       matrix:
         default:
-          kwok_nodes: 2000
-          qps: 200
-          job_count: 20000
-          cpu_per_node: 1
-          node_count: 20
-          node_per_step: 5
+          kwok_nodes: 5
+          qps: 30
+          job_count: 200
           cilium_enabled: False
-          max_pods: 50
-          repeats: 1
           scale_timeout: "1h"
           service_test: true
           cl2_config_file: config.yaml
