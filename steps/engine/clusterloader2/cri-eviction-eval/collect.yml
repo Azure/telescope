@@ -43,9 +43,9 @@ steps:
     echo "Operation timeout:    $OPERATION_TIMEOUT"
     echo "Load type:            $LOAD_TYPE"
     
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \
-      $NODE_COUNT $MAX_PODS $LOAD_TYPE $EVICTION_THRESHOLD_MEM $RUN_ID $RUN_URL $TEST_RESULTS_FILE
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" collect \
+      "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD ${HOME}/.kube/config" \
+      "$NODE_COUNT" "$MAX_PODS" "$LOAD_TYPE" "$EVICTION_THRESHOLD_MEM" "$RUN_ID" "$RUN_URL" "$TEST_RESULTS_FILE"
   workingDirectory: modules/python/clusterloader2
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:
@@ -57,6 +57,6 @@ steps:
     EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
     MAX_PODS: ${{ parameters.max_pods }}
     LOAD_TYPE: ${{ parameters.load_type }}
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/eviction-eval.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/results
-  displayName: "Collect Results"
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/cri_eviction_eval.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/results
+  displayName: "Collect Eviction Eval Results"

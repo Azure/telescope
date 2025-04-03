@@ -1,9 +1,10 @@
 from kubernetes_client import KubernetesClient
-from data_type import ResourceConfig, NodeResourceConfig
+from .data_type import ResourceConfig, NodeResourceConfig
 
 class KubeletConfig:
-    def __init__(self, eviction_hard_memory: str):
+    def __init__(self, eviction_hard_memory: str, busybox_image: str = "ghcr.io/containerd/busybox:1.36"):
         self.eviction_hard_memory = eviction_hard_memory
+        self.busybox_image = busybox_image
 
     default_kubelet_config = None  # Default value, can be overridden
 
@@ -49,8 +50,6 @@ class ClusterController:
         self.node_count = len(nodes)
         self.nodes = nodes
 
-
-
     def reconfigure_kubelet(self, kubelet_config: KubeletConfig):
         if KubeletConfig.get_default_config().needs_override(kubelet_config):
             print(f"Reconfiguring {kubelet_config}")
@@ -88,7 +87,7 @@ spec:
         effect: "NoExecute"
       containers:
       - name: kubelet-config-updater
-        image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+        image: {busybox_image}
         securityContext:
           privileged: true
         command:
@@ -117,7 +116,10 @@ spec:
       restartPolicy: Always
         """
         # rewrite using string template
-        return kubelet_daemonset.format(node_label = self.node_label, default_eviction_memory=KubeletConfig.get_default_config().eviction_hard_memory, desired_eviction_memory= kubelet_config.eviction_hard_memory)
+        return kubelet_daemonset.format(node_label = self.node_label,
+                                        busybox_image=kubelet_config.busybox_image,
+                                        default_eviction_memory=KubeletConfig.get_default_config().eviction_hard_memory,
+                                        desired_eviction_memory= kubelet_config.eviction_hard_memory)
 
     def get_system_pods_allocated_resources(self) -> ResourceConfig:
         pods = self.client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={self.nodes[0].metadata.name}")

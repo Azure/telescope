@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from cluster_controller import KubeletConfig, ClusterController
+from .cluster_controller import KubeletConfig, ClusterController
 
 class TestKubeletConfig(unittest.TestCase):
     @patch('cluster_controller.KubernetesClient')
@@ -19,6 +19,17 @@ class TestKubeletConfig(unittest.TestCase):
         self.mock_client = mock_client
 
 # test clustercontroller class to reconfigure kubelet when the kubelet config is different from the default config
+
+    @patch('cluster_controller.KubernetesClient')
+    def test_validate(self, MockKubernetesClient):
+        mock_client = MockKubernetesClient.return_value
+        mock_client.get_nodes.return_value = [MagicMock(metadata=MagicMock(name="node1"))]
+
+        cluster_controller = ClusterController(mock_client, node_label="test-label")
+        cluster_controller.populate_nodes(node_count=1)
+
+        self.assertEqual(cluster_controller.node_count, 1)
+        self.assertEqual(len(cluster_controller.nodes), 1)
 
     def test_reconfigure_kubelet(self):
         cluster_controller = ClusterController(self.mock_client, node_label="test-label")

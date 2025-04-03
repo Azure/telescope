@@ -41,17 +41,17 @@ steps:
       echo "Load type:            $LOAD_TYPE"
       
       # do not break line, does not work with multiline
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-        $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \
-        $NODE_COUNT $MAX_PODS $OPERATION_TIMEOUT $LOAD_TYPE 
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" override \
+        "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
+        "$NODE_COUNT" "$MAX_PODS" "$OPERATION_TIMEOUT" "$LOAD_TYPE" 
       
       echo "Running clusterloader2 benchmark"
       echo "CL2 image:            $CL2_IMAGE"
       echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
       
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \
-        $CL2_IMAGE $EVICTION_THRESHOLD_MEM
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" execute \
+        "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
+        "$CL2_IMAGE" "$EVICTION_THRESHOLD_MEM"
 
     workingDirectory: modules/python/clusterloader2
     env:
@@ -65,8 +65,8 @@ steps:
       MAX_PODS: ${{ parameters.max_pods }}
       LOAD_TYPE: ${{ parameters.load_type }}
       OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/cri_eviction_eval.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/cri_eviction_eval.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/config
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/results
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/results
     displayName: "Run Eviction threshold (Hard) Benchmark"

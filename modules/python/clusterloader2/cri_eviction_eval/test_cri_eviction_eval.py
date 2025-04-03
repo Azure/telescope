@@ -1,21 +1,11 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from cluster_controller import ClusterController, KubeletConfig
-from cl2_configurator import WorkloadConfig, CL2Configurator
-from data_type import NodeResourceConfig
+from .cluster_controller import ClusterController, KubeletConfig
+from .cl2_configurator import WorkloadConfig, CL2Configurator
+from .data_type import NodeResourceConfig
 
 class TestClusterController(unittest.TestCase):
 
-    @patch('cri_eviction_eval.KubernetesClient')
-    def test_validate(self, MockKubernetesClient):
-        mock_client = MockKubernetesClient.return_value
-        mock_client.get_nodes.return_value = [MagicMock(metadata=MagicMock(name="node1"))]
-
-        cluster_controller = ClusterController(mock_client, node_label="test-label")
-        cluster_controller.validate(node_count=1)
-
-        self.assertEqual(cluster_controller.node_count, 1)
-        self.assertEqual(len(cluster_controller.nodes), 1)
 
     @patch('cri_eviction_eval.KubernetesClient')
     def test_reconfigure_kubelet(self, MockKubernetesClient):
