@@ -21,6 +21,10 @@ parameters:
 - name: load
   type: object
   default: {}
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
+
 steps:
 - template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml@self
   parameters:
@@ -32,6 +36,7 @@ steps:
     max_pods: ${{ parameters.max_pods }}
     load_type: ${{ parameters.load_type }}
     load: ${{ parameters.load }}
+    eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
 
 - template: /steps/collect-telescope-metadata.yml
   parameters:

@@ -16,6 +16,9 @@ parameters:
   type: string
 - name: load_type
   type: string
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
 
 steps:
 - template: /steps/engine/clusterloader2/cri-eviction-eval/collect.yml
@@ -27,4 +30,5 @@ steps:
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
     load_type: ${{ parameters.load_type }}
+    eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
     

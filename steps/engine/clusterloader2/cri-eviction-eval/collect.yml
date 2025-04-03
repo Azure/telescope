@@ -15,6 +15,9 @@ parameters:
   type: string
 - name: load_type
   type: string
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
 
 
 steps:
@@ -26,7 +29,7 @@ steps:
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
     $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \ 
-    $NODE_COUNT $MAX_PODS $LOAD_TYPE $RUN_ID $RUN_URL $TEST_RESULTS_FILE
+    $NODE_COUNT $MAX_PODS $LOAD_TYPE $EVICTION_THRESHOLD_MEM $RUN_ID $RUN_URL $TEST_RESULTS_FILE
   workingDirectory: modules/python/clusterloader2
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:
@@ -35,6 +38,7 @@ steps:
       CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
     NODE_COUNT: ${{ parameters.node_count }}
+    EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
     MAX_PODS: ${{ parameters.max_pods }}
     LOAD_TYPE: ${{ parameters.load_type }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri-eviction-eval/eviction-eval.py
