@@ -91,7 +91,7 @@ steps:
       ARM_USE_MSI: true
       ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
       ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
-- ${{ if or( eq(parameters.command, 'apply'),  q(parameters.command, 'destroy')) }}:
+- ${{ if or( eq(parameters.command, 'apply'),  eq(parameters.command, 'destroy')) }}:
   - script: |
       set -eux
       cd $TERRAFORM_WORKING_DIRECTORY
