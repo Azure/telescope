@@ -26,7 +26,7 @@ stages:
           cpu_per_node: 1
           cilium_enabled: False
           scale_timeout: "1h"
-          service_test: true
+          service_test: True
           cl2_config_file: config.yaml
       max_parallel: 1
       timeout_in_minutes: 360
@@ -52,7 +52,7 @@ stages:
           job_count: 200
           cilium_enabled: False
           scale_timeout: "1h"
-          service_test: true
+          service_test: True
           cl2_config_file: config.yaml
       max_parallel: 1
       timeout_in_minutes: 360

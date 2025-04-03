@@ -1,12 +1,12 @@
+import argparse
 import json
 import os
-import argparse
-import time
 import sys
-
+import time
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement
+
 from kubernetes_client import KubernetesClient
+from utils import get_measurement, parse_xml_to_json, run_cl2_command
 
 DEFAULT_PODS_PER_NODE = 40
 LOAD_PODS_PER_NODE = 20
@@ -57,7 +57,6 @@ def configure_clusterloader2(
     dualstack,
     override_file,
 ):
-
     steps = node_count // node_per_step
     throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
         cpu_per_node,
@@ -129,9 +128,7 @@ def configure_virtual_clusterloader2(
     dualstack,
     override_file,
 ):
-
     with open(override_file, "w", encoding="utf-8") as file:
-
         file.write(f"PROVIDER: {provider}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
@@ -251,7 +248,6 @@ def collect_virtual_clusterloader2(
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
-
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, "r", encoding="utf-8") as f:
             print(f"Processing {file_path}")
@@ -334,7 +330,6 @@ def collect_clusterloader2(
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
-
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, "r", encoding="utf-8") as f:
             print(f"Processing {file_path}")

@@ -12,9 +12,8 @@ steps:
   - script: |
       set -eo pipefail
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" configure \
-        "$KWOK_NODES" "$QPS" "$JOB_COUNT" "$CPU_PER_NODE" "$NODE_COUNT" "$NODE_PER_STEP" "${MAX_PODS:-0}" \
-        "$REPEATS" "$SCALE_TIMEOUT" "$CLOUD" "$CILIUM_ENABLED" \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" configure virtual \
+        "$KWOK_NODES" "$QPS" "$JOB_COUNT" "$SCALE_TIMEOUT" "$CLOUD" "$CILIUM_ENABLED" \
         "$SERVICE_TEST" "${CNP_TEST:-False}" "${CCNP_TEST:-False}" "${NUM_CNPS:-0}" "${NUM_CCNPS:-0}" "${DUALSTACK:-False}" "${CL2_CONFIG_DIR}/overrides.yaml"
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
