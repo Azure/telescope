@@ -25,11 +25,14 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      ${{ parameters.topology }} $NODE_COUNT $MAX_PODS $LOAD_TYPE \
-      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE 
+    $NODE_LABEL $CL2_CONFIG_DIR $CL2_REPORT_DIR $CLOUD ${HOME}/.kube/config \ 
+    $NODE_COUNT $MAX_PODS $LOAD_TYPE $RUN_ID $RUN_URL $TEST_RESULTS_FILE
   workingDirectory: modules/python/clusterloader2
   env:
-    CLOUD: ${{ parameters.cloud }}
+    ${{ if eq(parameters.cloud, 'azure') }}:
+      CLOUD: aks
+    ${{ else }}:
+      CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
     NODE_COUNT: ${{ parameters.node_count }}
     MAX_PODS: ${{ parameters.max_pods }}

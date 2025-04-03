@@ -5,6 +5,7 @@ name: eviction-eval
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 {{$stressDuration := DefaultParam .CL2_RESOURCE_CONSUME_DURATION_SEC 100}}
 
+
 {{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
 {{$totalNodes := DefaultParam .CL2_NODE_COUNT 5}}
@@ -41,7 +42,6 @@ steps:
           labelSelector: {{$nodeSelector}}
           timeout: 1m
           refreshInterval: 5s
-
   - name: Start measurements
     measurements:
       - Identifier: ResourceUsageSummary
@@ -86,40 +86,17 @@ steps:
           Provider: {{$provider}}
           NodeLabel: {{$nodeLabel}}
 
-  - name: Waiting for pods to be running
-    measurements:
-      - Identifier: WaitForControlledPodsRunning
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: start
-          labelSelector: group = {{$deploymentLabel}}
-          apiVersion: apps/v1
-          kind: Deployment
-          checkIfPodsAreUpdated: true
-          operationTimeout: {{$operationTimeout}}
-
   - name: Wait for resource consumption
     measurements:
       - Identifier: Sleep
         Method: Sleep
         Params:
-          duration: {{$operationTimeout}}
+          duration: {{$operationTimeout}}s
+
   - module:
       path: /kubelet-measurement.yaml
       params:
         action: gather
-
-  # - name: Deleting deployments 
-  #   phases:
-  #     - namespaceRange:
-  #         min: 1
-  #         max: 1
-  #       replicasPerNamespace: 0
-  #       tuningSet: Uniform1qps
-  #       objectBundle:
-  #         - basename: eviction-eval
-  #           objectTemplatePath: deployment_template.yaml
-
 
   - name: Collect measurements
     measurements:

@@ -3,12 +3,11 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-eviction-eval
-
 stages:
-  - stage: azure_swedencentral
+  - stage: azure_swedencentral-memory-standard
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /jobs/cri-kubeconfig-eval.yml
         parameters:
           cloud: azure
           regions:
@@ -17,64 +16,51 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: cri-eviction-eval
+          loadConfig:
+            type: memory
+            usage: oversubscribed
+          evictionConfig:
+            memory: 100Mi
           matrix:
             n5-p150-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 30
               node_count: 5
-              load_type: memory
-              operation_timeout: 15m
-              eviction_hard_memory: 100Mi
             n5-p350-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 70
               node_count: 5
-              load_type: memory
-              operation_timeout: 15m
-              eviction_hard_memory: 100Mi
             n5-p550-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
               node_count: 5
-              load_type: memory
-              operation_timeout: 15m
-              eviction_hard_memory: 100Mi
-          max_parallel: 3
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
-  # - stage: azure_swedencentral_d16
-  #   dependsOn: []
-  #   jobs:
-  #     - template: /jobs/competitive-test.yml
-  #       parameters:
-  #         cloud: azure
-  #         regions:
-  #           - swedencentral
-  #         engine: clusterloader2
-  #         engine_input:
-  #           image: "ghcr.io/azure/clusterloader2:v20241016"
-  #         topology: cri-eviction-eval
-  #         matrix:
-  #           n5-p150-memory-d16:
-  #             max_pods: 30
-  #             operation_timeout: 3m
-  #             k8s_machine_type: Standard_D16ds_v4a
-  #             node_count: 5
-  #             load_type: memory
-  #           n5-p350-memory-d16:
-  #             max_pods: 70
-  #             node_count: 5
-  #             load_type: memory
-  #             operation_timeout: 7m
-  #             k8s_machine_type: Standard_D16ds_v4
-  #           n5-p550-memory-d16:
-  #             max_pods: 110
-  #             node_count: 5
-  #             load_type: memory
-  #             operation_timeout: 11m
-  #             k8s_machine_type: Standard_D16ds_v4
-  #         max_parallel: 3
-  #         timeout_in_minutes: 60
-  #         credential_type: service_connection
-  #         ssh_key_enabled: false
+  - stage: azure_swedencentral-memory-oversubscribed
+    dependsOn: []
+    jobs:
+      - template: /jobs/cri-kubeconfig-eval.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: cri-eviction-eval
+          loadConfig:
+            type: memory
+            usage: oversubscribed
+          evictionConfig:
+            memory: 100Mi
+          matrix:
+            n5-p150-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 30
+              node_count: 5
+            n5-p350-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 70
+              node_count: 5
+            n5-p550-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 110
+              node_count: 5

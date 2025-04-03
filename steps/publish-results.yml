@@ -18,7 +18,9 @@ parameters:
   type: string
 - name: load_type
   type: string
-
+- name: load
+  type: object
+  default: {}
 steps:
 - template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml@self
   parameters:
@@ -29,6 +31,7 @@ steps:
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
     load_type: ${{ parameters.load_type }}
+    load: ${{ parameters.load }}
 
 - template: /steps/collect-telescope-metadata.yml
   parameters:

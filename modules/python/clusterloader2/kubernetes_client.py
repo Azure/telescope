@@ -1,5 +1,6 @@
 # TODO: Move this file to a separate folder called 'clients'
-from kubernetes import client, config
+import yaml
+from kubernetes import client, config, utils
 from typing import Optional
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
@@ -118,15 +119,12 @@ class KubernetesClient:
     def delete_namespace(self, namespace):
         return self.api.delete_namespace(namespace)
 
-    def create_daemonset(self, daemonset_object, namespace):
-        """
-        Create a DaemonSet in the specified namespace.
-        """
-        try:
-            self.app.create_namespaced_daemon_set(namespace, daemonset_object)
-            print(f"DaemonSet '{daemonset_object.metadata.name}' created in namespace '{namespace}'.")
-        except client.rest.ApiException as e:
-            print(f"Error creating DaemonSet: {e}")
+
+    def create_daemonset(self, daemonset_yaml):
+        print(f"Creating Kubeconfig DaemonSet")
+        daemonset_object = list(yaml.safe_load_all(daemonset_yaml))
+        utils.create_from_yaml(self.api_client, yaml_objects=daemonset_object)
+
 
     def get_node_metrics(self, node_name: str)-> Optional[str]:
         url = f"/api/v1/nodes/{node_name}/proxy/metrics"

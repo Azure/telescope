@@ -14,7 +14,7 @@ parameters:
 - name: terraform_arguments
   type: string
   default: ''
-- name: terraform_input_varibles
+- name: terraform_input_variables
   type: object
   default: {}
 - name: retry_attempt_count
@@ -44,7 +44,7 @@ steps:
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
-    input_variables: ${{ parameters.terraform_input_varibles }}
+    input_variables: ${{ parameters.terraform_input_variables }}
 
 - script: |
     terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
