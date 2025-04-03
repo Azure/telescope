@@ -17,7 +17,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: cilium-datapath
+          topology: cilium-test-framework
           matrix:
             azure_cilium:
               cpu_per_node: 4
