@@ -71,7 +71,7 @@ az aks create -n ${CLUSTER} -g ${RG} \
         --pod-subnet-id ${podSubnetID} \
         --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
         --vm-set-type VirtualMachineScaleSets \
-        --tags run_id=${RG} role=ces \
+        --tags run_id=${RG} role=slo \
         --load-balancer-backend-pool-type nodeIP \
         --outbound-type userAssignedNATGateway \
         --no-ssh-key \
