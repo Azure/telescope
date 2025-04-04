@@ -1,3 +1,5 @@
+from enum import Enum
+
 class ResourceConfig:
     def __init__(self, memory: int, cpu: int):
         self.memory_ki = memory
@@ -14,17 +16,22 @@ class ResourceConfig:
     def __str__(self):
         return f"memory: {self.memory_ki}Ki, cpu: {self.cpu_milli}milli"
 
+class LoadDuration(Enum):
+    BURST = "burst"
+    NORMAL = "normal"
+    LONG = "long"
+
 class ResourceStressor:
-    def __init__(self, load_type: str, load_factor: float, load_duration: str):
+    def __init__(self, load_type: str, load_factor: float, load_duration: LoadDuration = LoadDuration.NORMAL):
         self.load_type = load_type
         self.load_factor = load_factor
 
         # kubelet default watch is 10 seconds, try to get the pod to consume memory in [5, 10, 15] seconds
-        if load_duration == "burst":
+        if load_duration == LoadDuration.BURST:
             self.load_duration = 5
-        elif load_duration == "normal":
+        elif load_duration == LoadDuration.NORMAL:
             self.load_duration = 10
-        elif load_duration == "long":
+        elif load_duration == LoadDuration.LONG:
             self.load_duration = 15
 
 # define struct to hold node resource information
