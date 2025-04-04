@@ -1,5 +1,5 @@
 class ResourceConfig:
-    def __init__(self, memory, cpu):
+    def __init__(self, memory: int, cpu: int):
         self.memory_ki = memory
         self.cpu_milli = cpu
 
@@ -9,10 +9,23 @@ class ResourceConfig:
     def divide(self, parts):
         return ResourceConfig(self.memory_ki // parts, self.cpu_milli // parts)
 
-    def multiply(self, factor):
+    def multiply(self, factor: float):
         return ResourceConfig(int(self.memory_ki * factor), int(self.cpu_milli * factor))
     def __str__(self):
         return f"memory: {self.memory_ki}Ki, cpu: {self.cpu_milli}milli"
+
+class ResourceStressor:
+    def __init__(self, load_type: str, load_factor: float, load_duration: str):
+        self.load_type = load_type
+        self.load_factor = load_factor
+
+        # kubelet default watch is 10 seconds, try to get the pod to consume memory in [5, 10, 15] seconds
+        if load_duration == "burst":
+            self.load_duration = 5
+        elif load_duration == "normal":
+            self.load_duration = 10
+        elif load_duration == "long":
+            self.load_duration = 15
 
 # define struct to hold node resource information
 # NodeResourceConfig has system_allocated_resources, node_allocatable_resources and remaining_resources

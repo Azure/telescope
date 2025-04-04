@@ -26,6 +26,9 @@ spec:
           requests:
             memory: {{.MemoryRequest}}
             cpu: {{.CPURequest}}
+          limits:
+            memory: {{.MemoryLimit}}
+            cpu: {{.CPURequest}}
 {{if eq .LoadType "memory"}}
         command: ["sh", "-c", "stress -m 1 --vm-bytes {{.Memory}}M --vm-hang 0 -t {{.Duration}}"]
 {{end}}

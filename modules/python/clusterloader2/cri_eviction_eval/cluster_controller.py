@@ -1,6 +1,8 @@
 from kubernetes_client import KubernetesClient
 from data_type import ResourceConfig, NodeResourceConfig
 
+MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
+
 class KubeletConfig:
     def __init__(self, eviction_hard_memory: str, busybox_image: str = "ghcr.io/containerd/busybox:1.36"):
         self.eviction_hard_memory = eviction_hard_memory
@@ -153,7 +155,7 @@ spec:
         # Get the first node to get the allocatable resources
         system_allocated = self.get_system_pods_allocated_resources()
         node_available = self.get_node_available_resource()
-        remaining = node_available.minus(system_allocated)
+        remaining = node_available.minus(system_allocated).multiply(MEMORY_SCALE_FACTOR)
 
         return NodeResourceConfig(self.node_label, self.node_selector, system_allocated,node_available,remaining )
 

@@ -138,11 +138,12 @@ class CL2FileHandler:
             file.write(f"CL2_NODE_LABEL: {node_config.node_label}\n")
             file.write(f"CL2_NODE_SELECTOR: {node_config.node_selector}\n")
 
-            file.write(f"CL2_LOAD_TYPE: {workload_config.load_type}\n")
-            file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {workload_config.pod_request_resource.memory_ki}Ki\n")
-            file.write(f"CL2_RESOURCE_CONSUME_CPU: {workload_config.pod_request_resource.cpu_milli}\n")
-            file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {workload_config.load_resource.memory_ki // 1024}\n") # Convert Ki to Mi
-            file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {workload_config.load_duration_seconds}\n")
+            file.write(f"CL2_LOAD_TYPE: {workload_config.stress_config.load_type}\n")
+            file.write(f"CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI: {workload_config.resource_request.memory_ki}Ki\n")
+            file.write(f"CL2_RESOURCE_CONSUME_MEMORY_LIMIT_KI: {workload_config.resource_request.memory_ki}Ki\n")
+            file.write(f"CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI: {workload_config.resource_usage.memory_ki // 1024}\n") # Convert Ki to Mi
+            file.write(f"CL2_RESOURCE_CONSUME_CPU: {workload_config.resource_request.cpu_milli}\n")
+            file.write(f"CL2_RESOURCE_CONSUME_DURATION_SEC: {workload_config.stress_config.load_duration}\n")
 
             file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
             file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")

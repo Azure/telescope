@@ -6,14 +6,16 @@ from kubernetes_client import KubernetesClient
 from cluster_controller import ClusterController, KubeletConfig
 from cl2_configurator import  CL2Configurator
 from cl2_file_handler import CL2FileHandler, KubeletMetrics
+from data_type import ResourceStressor
 
 def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler,
-                                   node_count, max_pods, operation_timeout_seconds, load_type, provider):
+                                   node_count, max_pods, operation_timeout_seconds, load_type, load_factor, provider):
     cluster_controller.populate_nodes(node_count)
     node_resource_config = cluster_controller.populate_node_resources()
 
-    eviction_eval = CL2Configurator(max_pods, operation_timeout_seconds, provider)
-    eviction_eval.generate_cl2_override(node_resource_config, load_type)
+    resource_stressor = ResourceStressor(load_type, load_factor, operation_timeout_seconds)
+    eviction_eval = CL2Configurator(max_pods, resource_stressor, operation_timeout_seconds, provider)
+    eviction_eval.generate_cl2_override(node_resource_config)
     file_handler.export_cl2_override(node_count, eviction_eval)
 
 def execute_clusterloader2(cluster_controller: ClusterController, file_handler: CL2FileHandler, kubelet_config: KubeletConfig,
@@ -70,6 +72,7 @@ def main():
     parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_override.add_argument("operation_timeout", type=str, default="5m", help="Operation timeout")
     parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"], default="memory", help="Type of load to generate")
+    parser_override.add_argument("load_factor", type=float, help="resource trying to consume, with 1 being all node resource. >1 being more than resource request")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", parents=[common_parser],help="Execute resource consume operation")
@@ -106,7 +109,7 @@ def main():
                 timeout_seconds = int(args.operation_timeout[:-1])
             else:
                 raise Exception(f"Unexpected format of operation_timeout property, should end with m (min) or s (second): {args.operation_timeout}")
-        override_clusterloader2_config(cluster_controller, file_handler, args.node_count, args.max_pods, timeout_seconds, args.load_type, args.provider)
+        override_clusterloader2_config(cluster_controller, file_handler, args.node_count, args.max_pods, timeout_seconds, args.load_type, args.load_factor, args.provider)
 
     elif args.command == "execute":
         kubelet_config = KubeletConfig(args.eviction_threshold_mem)

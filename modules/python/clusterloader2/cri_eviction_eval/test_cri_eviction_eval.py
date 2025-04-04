@@ -2,7 +2,8 @@ import unittest
 from unittest.mock import patch, MagicMock
 from .cluster_controller import ClusterController, KubeletConfig
 from .cl2_configurator import WorkloadConfig, CL2Configurator
-from .data_type import NodeResourceConfig
+from .data_type import NodeResourceConfig, ResourceStressor
+
 
 class TestClusterController(unittest.TestCase):
 
@@ -67,9 +68,12 @@ class TestClusterController(unittest.TestCase):
 
     @patch('cri_eviction_eval.open', new_callable=unittest.mock.mock_open)
     def test_export_cl2_override(self,  mock_open):
-        eviction_eval = CL2Configurator(max_pods=10, timeout_seconds=300, provider="aws")
+        resource_stresser = ResourceStressor("memory", 1.1, "burst")
+        eviction_eval = CL2Configurator(max_pods=10, stress_config=resource_stresser, timeout_seconds=300, provider="aws")
 
-        workload_config = WorkloadConfig(load_type="memory", load_duration_seconds = 300, pod_request_resource = MagicMock(memory_ki=1024, cpu_milli=500), load_resource = MagicMock(memory_ki=2048, cpu_milli=1000))
+        workload_config = WorkloadConfig(resource_stresser, resource_request= MagicMock(memory_ki=1024, cpu_milli=500),
+                                          resource_usage= MagicMock(memory_ki=2048, cpu_milli=1000),
+                                         resource_limit=MagicMock(memory_ki=3024, cpu_milli=1000))
         eviction_eval.workload_config = workload_config
 
         # mock_open.assert_called_once_with("override_file.yaml", 'w', encoding='utf-8')

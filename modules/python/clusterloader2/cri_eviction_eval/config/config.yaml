@@ -2,9 +2,9 @@ name: eviction-eval
 
 {{$memoryConsume := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI "100"}}
 {{$memoryRequest := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI "1000Ki"}}
+{{$memoryLimit := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_LIMIT_KI "1000Ki"}}
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 {{$stressDuration := DefaultParam .CL2_RESOURCE_CONSUME_DURATION_SEC 100}}
-
 
 {{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
@@ -79,6 +79,7 @@ steps:
           Group: {{$deploymentLabel}}
           Memory: {{$memoryConsume}}
           CPU: --millicores={{$cpu}}
+          MemoryLimit: {{$memoryLimit}}
           MemoryRequest: {{$memoryRequest}}
           Duration: {{$stressDuration}}
           CPURequest: {{$cpu}}m

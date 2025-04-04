@@ -1,5 +1,5 @@
 
-from data_type import NodeResourceConfig, ResourceConfig
+from data_type import NodeResourceConfig, ResourceConfig, ResourceStressor
 from typing import Optional
 
 DAEMONSETS_PER_NODE_MAP = {
@@ -7,53 +7,50 @@ DAEMONSETS_PER_NODE_MAP = {
     "aks": 6
 }
 
-MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
-
 class WorkloadConfig:
-    def __init__(self,load_type: str,  load_duration_seconds: int, pod_request_resource: ResourceConfig, load_resource: ResourceConfig):
-        self.load_type = load_type
-        self.load_duration_seconds = load_duration_seconds
+    def __init__(self, stress_config: ResourceStressor,  resource_request: ResourceConfig,
+                 resource_limit: ResourceConfig, resource_usage: ResourceConfig):
+        self.stress_config = stress_config
 
-        self.load_resource =  load_resource
-        self.pod_request_resource = pod_request_resource
+        self.resource_usage =  resource_usage
+        self.resource_limit = resource_limit
+        self.resource_request = resource_request
 
     def debug_stress_info(self):
         stress_pod_info_template = """stressPod: 
-  timeout: {timeout}
+  loadDuration: {load_duration}
   loadType: {load_type}
   resource:
     request: {pod_request}
+    limit: {pod_limit}
     consume: {pod_consume}  
     """
         print(stress_pod_info_template.format(
-            timeout=self.load_duration_seconds,
-            load_type=self.load_type,
-            pod_request=self.pod_request_resource,
-            pod_consume=self.load_resource))
+            load_duration=self.stress_config.load_duration,
+            load_type=self.stress_config.load_type,
+            pod_request=self.resource_request,
+            pod_consume=self.resource_usage,
+            pod_limit=self.resource_limit))
 
 class CL2Configurator:
-    def __init__(self, max_pods : int,  timeout_seconds:int, provider:str):
+    def __init__(self, max_pods : int, stress_config: ResourceStressor, timeout_seconds:int, provider:str):
         self.provider = provider
         self.timeout_seconds = timeout_seconds
+        self.stress_config = stress_config
         self.pods_per_node = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
 
         self.node_config: Optional[NodeResourceConfig] = None
         self.workload_config: Optional[WorkloadConfig] = None
 
-    def generate_cl2_override(self, node_config: NodeResourceConfig, load_type: str):
-        # kubelet default watch is 10 seconds, try to get the pod to consume memory in 10 seconds (and spread over pods)
-        resource_stress_duration = 10 * self.pods_per_node
-        # Limit the resource-consume runtime to clusterloader timeout seconds
-        if resource_stress_duration > self.timeout_seconds:
-            resource_stress_duration =  self.timeout_seconds
+    def generate_cl2_override(self, node_config: NodeResourceConfig):
 
         # calculate the pod request resource, currently try to allocate MEMORY_SCALE_FACTOR available on the node
         # other strategy can be static memory allocation
-        pod_request_resource = node_config.remaining_resources.multiply(MEMORY_SCALE_FACTOR).divide(self.pods_per_node)
-
+        resource_limit = node_config.remaining_resources.divide(self.pods_per_node)
+        resource_request = ResourceConfig(300000, 100) #300Mi memory limit
         # greedy behave workload consume as much memory as possible from the node, and a bit more
-        load_resource =  node_config.remaining_resources.divide(self.pods_per_node).multiply(1.1)
+        resource_load =  resource_limit.multiply(self.stress_config.load_factor)
 
-        self.workload_config = WorkloadConfig(load_type, resource_stress_duration, pod_request_resource, load_resource)
+        self.workload_config = WorkloadConfig(self.stress_config, resource_request, resource_limit, resource_load)
         self.node_config = node_config
 
