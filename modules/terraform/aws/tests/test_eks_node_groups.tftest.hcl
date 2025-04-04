@@ -55,14 +55,21 @@ variables {
     eks_name    = "eks_name"
     vpc_name    = "nap-vpc"
     policy_arns = ["AmazonEKS_CNI_Policy"]
-    eks_managed_node_groups = [
-      {
-        name           = "my_scenario-ng"
-        ami_type       = "AL2_x86_64"
-        instance_types = ["m4.large"]
-        min_size       = 5
-        max_size       = 5
-        desired_size   = 5
+    eks_managed_node_groups = [{
+      name           = "my_scenario-ng"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.large"]
+      min_size       = 5
+      max_size       = 5
+      desired_size   = 5
+      }, {
+      name           = "my_scenario-ng-2"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.large"]
+      min_size       = 5
+      max_size       = 5
+      desired_size   = 5
+      ena_express    = true
     }]
     eks_addons = []
   }]
@@ -92,6 +99,72 @@ run "valid_launch_template_name" {
   assert {
     condition     = strcontains(module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].name, var.json_input.run_id)
     error_message = "Error. Launch tempalte name must be unique (expected to contain run id: ${var.json_input.run_id})"
+  }
+
+  expect_failures = [check.deletion_due_time]
+}
+
+run "valid_launch_template_ena_express" {
+
+  command = plan
+
+  # ena express disabled
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == false
+    error_message = "Error. Expected ena_srd_enabled false in the launch template ena srd specification"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == false
+    error_message = "Error. Expected ena_srd_udp_enabled false in the launch template ena srd specification"
+  }
+
+  # ena express enabled
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
+    error_message = "Error. Expected ena_srd_enabled true in the launch template ena srd specification"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
+    error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
+  }
+
+  expect_failures = [check.deletion_due_time]
+}
+
+run "valid_launch_template_ena_express_override" {
+
+  command = plan
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "us-east-1",
+      "creation_time" : "2024-11-12T16:39:54Z"
+      "ena_express" : true
+    }
+  }
+
+  # ena express enabled
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
+    error_message = "Error. Expected ena_srd_enabled true in the launch template ena srd specification"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
+    error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
+    error_message = "Error. Expected ena_srd_enabled true in the launch template ena srd specification"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
+    error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
   }
 
   expect_failures = [check.deletion_due_time]
