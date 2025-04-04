@@ -26,6 +26,12 @@ variable "k8s_machine_type" {
   default     = null
 }
 
+variable "ena_express" {
+  description = "Whether to enable ENA Express. This replaces the value under eks_managed_node_groups"
+  type        = bool
+  default     = null
+}
+
 variable "eks_config" {
   type = object({
     role                      = string

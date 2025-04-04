@@ -186,9 +186,9 @@ resource "aws_launch_template" "launch_template" {
 
   network_interfaces {
     ena_srd_specification {
-      ena_srd_enabled = each.value.ena_express
+      ena_srd_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
       ena_srd_udp_specification {
-        ena_srd_udp_enabled = each.value.ena_express
+        ena_srd_udp_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
       }
     }
   }
