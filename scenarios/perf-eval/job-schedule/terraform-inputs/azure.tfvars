@@ -1,12 +1,12 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-vn100pod3k"
+scenario_name  = "job-schedule"
 deletion_delay = "20h"
 owner          = "aks"
 
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "job-scheduling"
+    aks_name    = "job-schedule"
     dns_prefix  = "job-sch"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
