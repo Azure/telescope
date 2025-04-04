@@ -8,5 +8,5 @@ metadata:
 spec:
   podNetworkConfigs:
     - podNetwork: pn100
-      podIPReservationSize: 60
+      podIPReservationSize: 1000
     
