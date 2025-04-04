@@ -125,6 +125,11 @@ run "valid_launch_template_ena_express" {
     error_message = "Error. Expected ena_srd_enabled true in the launch template ena srd specification"
   }
 
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
+    error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
+  }
+
   expect_failures = [check.deletion_due_time]
 }
 
@@ -141,7 +146,7 @@ run "valid_launch_template_ena_express_override" {
     }
   }
 
-  # ena express disabled
+  # ena express enabled
   assert {
     condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
     error_message = "Error. Expected ena_srd_enabled true in the launch template ena srd specification"
@@ -152,10 +157,14 @@ run "valid_launch_template_ena_express_override" {
     error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
   }
 
-  # ena express enabled
   assert {
     condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
     error_message = "Error. Expected ena_srd_enabled true in the launch template ena srd specification"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
+    error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
   }
 
   expect_failures = [check.deletion_due_time]
