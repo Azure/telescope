@@ -4,7 +4,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-eviction-eval
 stages:
-  - stage: azure_swedencentral_evict_memory_100
+  - stage: azure_swedencentral_evict_memory_100mi
     dependsOn: []
     jobs:
       - template: /jobs/cri-kubeconfig-eval.yml
@@ -16,25 +16,26 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: cri-eviction-eval
-          loadConfig:
+          load:
             type: memory
-            usage: oversubscribed
+            factor: 1
+            duration: burst
           evictionConfig:
             memory: 100Mi
           matrix:
             n5-p150-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 30
-              node_count: 5
+              node_count: 3
             n5-p350-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 70
-              node_count: 5
+              node_count: 3
             n5-p550-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
-              node_count: 5
-  - stage: azure_swedencentral_evict_memory_750
+              node_count: 3
+  - stage: azure_swedencentral_evict_memory_750mi
     dependsOn: []
     jobs:
       - template: /jobs/cri-kubeconfig-eval.yml
@@ -46,21 +47,53 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: cri-eviction-eval
-          loadConfig:
+          load:
             type: memory
-            usage: oversubscribed
+            factor: 1
+            duration: burst
           evictionConfig:
             memory: 750Mi
           matrix:
             n5-p150-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 30
-              node_count: 5
+              node_count: 3
             n5-p350-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 70
-              node_count: 5
+              node_count: 3
             n5-p550-100mi-d8:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
-              node_count: 5
+              node_count: 3
+  - stage: azure_swedencentral_evict_memory_100mi_lower
+    dependsOn: []
+    jobs:
+      - template: /jobs/cri-kubeconfig-eval.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: cri-eviction-eval
+          load:
+            type: memory
+            factor: 0.8
+            duration: burst
+          evictionConfig:
+            memory: 100Mi
+          matrix:
+            n5-p150-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 30
+              node_count: 3
+            n5-p350-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 70
+              node_count: 3
+            n5-p550-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 110
+              node_count: 3

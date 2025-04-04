@@ -13,6 +13,8 @@ parameters:
   type: string
 - name: max_pods
   type: string
+- name: load
+  type: object
 - name: load_type
   type: string
 - name: operation_timeout
@@ -29,6 +31,6 @@ steps:
     topology: ${{ parameters.topology }}
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
-    load_type: ${{ parameters.load_type }}
+    load: ${{ parameters.load }}
     operation_timeout: ${{ parameters.operation_timeout }}
     eviction_hard_memory: ${{ parameters.eviction_hard_memory }}

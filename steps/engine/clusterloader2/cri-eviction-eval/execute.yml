@@ -12,8 +12,8 @@ parameters:
     type: string
   - name: max_pods
     type: string
-  - name: load_type
-    type: string
+  - name: load
+    type: object
   - name: operation_timeout
     type: string
   - name: eviction_hard_memory
@@ -39,11 +39,13 @@ steps:
       echo "Max pods:             $MAX_PODS"
       echo "Operation timeout:    $OPERATION_TIMEOUT"
       echo "Load type:            $LOAD_TYPE"
+      echo "Load factor:          $LOAD_FACTOR"
+      echo "Load duration:        $LOAD_DURATION"
       
       # do not break line, does not work with multiline
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" override \
         "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
-        "$NODE_COUNT" "$MAX_PODS" "$OPERATION_TIMEOUT" "$LOAD_TYPE" 
+        "$NODE_COUNT" "$MAX_PODS" "$OPERATION_TIMEOUT" "$LOAD_TYPE" "$LOAD_FACTOR" "$LOAD_DURATION" 
       
       echo "Running clusterloader2 benchmark"
       echo "CL2 image:            $CL2_IMAGE"
@@ -63,7 +65,9 @@ steps:
       NODE_LABEL: ${{ parameters.topology }}
       EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
       MAX_PODS: ${{ parameters.max_pods }}
-      LOAD_TYPE: ${{ parameters.load_type }}
+      LOAD_TYPE: ${{ parameters.load.type }}
+      LOAD_FACTOR: ${{ parameters.load.factor }}
+      LOAD_DURATION: ${{ parameters.load.duration }}
       OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/cri_eviction_eval.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}

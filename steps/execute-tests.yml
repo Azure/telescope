@@ -16,6 +16,8 @@ parameters:
   type: string
 - name: load_type
   type: string
+- name: load
+  type: object
 - name: operation_timeout
   type: string
 - name: eviction_hard_memory
@@ -33,6 +35,7 @@ steps:
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
     load_type: ${{ parameters.load_type }}
+    load: ${{ parameters.load }}
     operation_timeout: ${{ parameters.operation_timeout }}
     eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
 
