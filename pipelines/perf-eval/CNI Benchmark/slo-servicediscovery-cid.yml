@@ -10,7 +10,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: slo-servicediscovery-ces
+  SCENARIO_NAME: slo-servicediscovery-cid
   OWNER: aks
 
 stages:
