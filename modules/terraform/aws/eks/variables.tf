@@ -44,6 +44,7 @@ variable "eks_config" {
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
       subnet_names   = optional(list(string), null)
+      ena_express    = optional(bool, false)
       taints = optional(list(object({
         key    = string
         value  = string
