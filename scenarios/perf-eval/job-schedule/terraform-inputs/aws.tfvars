@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "job-scheduling"
+scenario_name  = "job-schedule"
 deletion_delay = "20h"
 owner          = "aks"
 
@@ -57,7 +57,7 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "job-scheduling"
+  eks_name    = "job-schedule"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
