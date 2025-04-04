@@ -27,7 +27,7 @@ stages:
               repeats: 10
               scale_timeout: "30m"
               cilium_enabled: False
-              scrape_containerd: False
+              scrape_containerd: True
               service_test: False
               ds_test: True
               cl2_config_file: daemonset_scale_config.yaml
