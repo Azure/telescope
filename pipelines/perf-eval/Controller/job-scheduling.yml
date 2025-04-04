@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: job-scheduling
+  SCENARIO_NAME: job-schedule
   SCENARIO_VERSION: main
 
 stages:
