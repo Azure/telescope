@@ -79,19 +79,19 @@ az aks create -n ${CLUSTER} -g ${RG} \
 
 # create nodepools
 for i in $(seq 1 ${NODEPOOLS}); do
-        az aks nodepool add --cluster-name ${CLUSTER} --name "nodepool0${i}" --resource-group ${RG} -c 10 --max-pods 110 -s Standard_D4_v3 --os-sku Ubuntu --vm-set-type VirtualMachineScaleSets --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
+        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c 10 --max-pods 110 -s Standard_D4_v3 --os-sku Ubuntu --vm-set-type VirtualMachineScaleSets --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
         sleep 60
 done
 
 # scale nodepools
 for i in $(seq 1 ${NODEPOOLS}); do
-        az aks nodepool scale --cluster-name ${CLUSTER} --name "nodepool0${i}" --resource-group ${RG} -c ${NODEPOOL_SIZE}
+        az aks nodepool scale --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c ${NODEPOOL_SIZE}
         sleep 300
 done
 
 # uncomment if using for 'cluster churn' scenario
 for i in $(seq 1 ${NODEPOOLS}); do
-        az aks nodepool update --cluster-name ${CLUSTER} --name "nodepool0${i}" --resource-group ${RG} --enable-cluster-autoscaler --min-count 0 --max-count 500
+        az aks nodepool update --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} --enable-cluster-autoscaler --min-count 0 --max-count 500
 done
 
 # add prometheus nodepool
