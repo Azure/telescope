@@ -14,8 +14,8 @@ parameters:
   type: string
 - name: max_pods
   type: string
-- name: load_type
-  type: string
+- name: load
+  type: object
 - name: eviction_hard_memory
   type: string
   default: "100Mi"
@@ -29,6 +29,7 @@ steps:
     topology: ${{ parameters.topology }}
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
-    load_type: ${{ parameters.load_type }}
+    load_type: ${{ parameters.load.type }}
+    pod_qos: ${{ parameters.load_type }}
     eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
     

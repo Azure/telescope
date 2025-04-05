@@ -26,11 +26,11 @@ def execute_clusterloader2(cluster_controller: ClusterController, file_handler: 
     run_cl2_command(kubeconfig, cl2_image, file_handler.cl2_config_dir, file_handler.cl2_report_dir, provider,
                     overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False)
 
-def collect_clusterloader2(cluster_controller: ClusterController,file_handler: CL2FileHandler,
-                           node_count, max_pods, load_type, kubelet_config: KubeletConfig, cloud_info, run_id, run_url, output_test_file):
+def collect_clusterloader2(cluster_controller: ClusterController,file_handler: CL2FileHandler, resource_stressor: ResourceStressor,
+                           node_count, max_pods, kubelet_config: KubeletConfig, cloud_info, run_id, run_url, output_test_file):
     cluster_controller.verify_measurement(node_count)
     print(f"Run ID: {run_id}, Run URL: {run_url} - Storing results to file {output_test_file}")
-    print(f"Parsing test result for {node_count} nodes with {max_pods} pods of type {load_type} on {cloud_info}")
+    print(f"Parsing test result for {node_count} nodes with {max_pods} pods of type {resource_stressor.load_type} on {cloud_info}")
 
     status = file_handler.load_junit_result()
 
@@ -41,7 +41,7 @@ def collect_clusterloader2(cluster_controller: ClusterController,file_handler: C
         churn_rate=1,
         run_id = run_id,
         run_url = run_url,
-        load_type = load_type,
+        load_type = resource_stressor.load_type,
         eviction_memory=kubelet_config.eviction_hard_memory,
         status = status
     )

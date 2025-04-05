@@ -23,7 +23,6 @@ parameters:
   default: {}
 - name: eviction_hard_memory
   type: string
-  default: "100Mi"
 
 steps:
 - template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml@self
