@@ -18,8 +18,8 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: guaranteed
-            duration: burst
+            factor: best_effort
+            duration: spike
           evictionConfig:
             memory: 100Mi
           matrix:
@@ -49,8 +49,8 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: guaranteed
-            duration: spike
+            factor: burstable
+            duration: normal
           evictionConfig:
             memory: 750Mi
           matrix:
@@ -80,8 +80,8 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: 0.8
-            duration: burst
+            factor: guaranteed
+            duration: long
           evictionConfig:
             memory: 100Mi
           matrix:
