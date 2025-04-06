@@ -18,7 +18,7 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: 1
+            factor: guaranteed
             duration: burst
           evictionConfig:
             memory: 100Mi
