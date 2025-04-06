@@ -49,6 +49,7 @@ class CL2Configurator:
 
         resource_request = ResourceConfig(100000, 100) #100Mi memory request
         # greedy behave workload consume as much memory as possible from the node, and a bit more
+
         resource_load =  resource_limit.multiply(self.overload_factor)
 
         self.node_config = node_config

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import List
 
 class KubeletMetrics:
-    def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, eviction_memory, status):
+    def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, pod_qos, stress_pattern, eviction_memory, status):
         self.node_count = node_count
         self.max_pods = max_pods
         self.cloud_info = cloud_info
@@ -15,9 +15,16 @@ class KubeletMetrics:
         self.run_url = run_url
         self.churn_rate = churn_rate
         self.load_type = load_type
+        self.pod_qos = pod_qos
+        self.stress_pattern = stress_pattern
         self.eviction_memory = eviction_memory
         self.status = status
 
+        self.timestamp = None
+        self.measurement = None
+        self.group = None
+        self.percentile = None
+        self.data = None
 
     def create_metric(self, measurement, group, percentile, data) :
         # create a copy of current KubeletMetrics object
@@ -29,6 +36,8 @@ class KubeletMetrics:
             self.run_url,
             self.churn_rate,
             self.load_type,
+            self.pod_qos,
+            self.stress_pattern,
             self.eviction_memory,
             self.status
         )
@@ -139,7 +148,7 @@ class CL2FileHandler:
             file.write(f"CL2_NODE_SELECTOR: {node_config.node_selector}\n")
 
             file.write(f"CL2_LOAD_TYPE: {workload_config.stress_config.load_type}\n")
-            file.write(f"CL2_RESOURCE_STRESS_DURATION_SEC: {workload_config.stress_config.load_duration}\n")
+            file.write(f"CL2_RESOURCE_STRESS_DURATION_SEC: {workload_config.stress_config.get_stress_duration_seconds()}\n")
             file.write(f"CL2_RESOURCE_STRESS_MEMORY_MI: {workload_config.resource_usage.memory_ki // 1024}\n") # Convert Ki to Mi
 
             # check whether workload_config.resource_request is not none

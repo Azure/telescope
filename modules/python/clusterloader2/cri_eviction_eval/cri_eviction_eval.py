@@ -9,12 +9,11 @@ from cluster_controller import ClusterController, KubeletConfig
 from cl2_file_handler import CL2FileHandler, KubeletMetrics
 
 
-def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler,
-                                   node_count, max_pods, operation_timeout_seconds, load_type, load_factor, load_duration, provider):
+def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler, resource_stressor: ResourceStressor,
+                                   node_count, max_pods, operation_timeout_seconds, provider):
     cluster_controller.populate_nodes(node_count)
     node_resource_config = cluster_controller.populate_node_resources()
 
-    resource_stressor = ResourceStressor(load_type, load_factor, load_duration)
     eviction_eval = CL2Configurator(max_pods, resource_stressor, operation_timeout_seconds, provider)
     eviction_eval.generate_cl2_override(node_resource_config)
     file_handler.export_cl2_override(node_count, eviction_eval)
@@ -43,9 +42,9 @@ def collect_clusterloader2(cluster_controller: ClusterController,file_handler: C
         run_id = run_id,
         run_url = run_url,
         load_type = resource_stressor.load_type,
-        load_factor = resource_stressor.load_factor,
+        pod_qos = resource_stressor.load_factor.name,
+        stress_pattern=resource_stressor.load_duration.name,
         eviction_memory=kubelet_config.eviction_hard_memory,
-
         status = status
     )
 
@@ -89,8 +88,11 @@ def main():
     parser_collect = subparsers.add_parser("collect", parents=[common_parser], help="Collect resource consume data")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
-    parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
-                                 default="memory", help="Type of load to generate")
+    parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"], default="memory", help="Type of load to generate")
+    parser_collect.add_argument("load_factor", type=str, choices=["best_effort", "burstable", "guaranteed"],
+                                 help="best_effort, burstable, guaranteed")
+    parser_collect.add_argument("load_duration", type=str, choices=["spike", "normal", "long"],
+                                 default="burst", help="time to run stressor")
     parser_collect.add_argument("eviction_threshold_mem", type=str, default="100Mi", help="Eviction threshold to evaluate")
 
     parser_collect.add_argument("run_id", type=str, help="Run ID")
@@ -115,14 +117,17 @@ def main():
                 timeout_seconds = int(args.operation_timeout[:-1])
             else:
                 raise Exception(f"Unexpected format of operation_timeout property, should end with m (min) or s (second): {args.operation_timeout}")
-        override_clusterloader2_config(cluster_controller, file_handler, args.node_count, args.max_pods, timeout_seconds, args.load_type, args.load_factor,args.load_duration, args.provider)
+        resource_stressor = ResourceStressor(args.load_type, args.load_factor, args.load_duration)
+        override_clusterloader2_config(cluster_controller, file_handler, resource_stressor, args.node_count, args.max_pods, timeout_seconds, args.provider)
 
     elif args.command == "execute":
         kubelet_config = KubeletConfig(args.eviction_threshold_mem)
         execute_clusterloader2(cluster_controller, file_handler, kubelet_config, args.cl2_image, args.kubeconfig, args.provider)
     elif args.command == "collect":
+
         kubelet_config = KubeletConfig(args.eviction_threshold_mem)
-        collect_clusterloader2(cluster_controller, file_handler, args.node_count, args.max_pods, args.load_type, kubelet_config,  args.provider, args.run_id, args.run_url, args.result_file)
+        resource_stressor = ResourceStressor(args.load_type, args.load_factor, args.load_duration)
+        collect_clusterloader2(cluster_controller, file_handler, resource_stressor, args.node_count, args.max_pods, kubelet_config,  args.provider, args.run_id, args.run_url, args.result_file)
 
 if __name__ == "__main__":
     KubeletConfig.set_default_config("100Mi")
