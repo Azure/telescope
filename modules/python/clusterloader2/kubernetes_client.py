@@ -125,7 +125,6 @@ class KubernetesClient:
         daemonset_object = list(yaml.safe_load_all(daemonset_yaml))
         utils.create_from_yaml(self.api_client, yaml_objects=daemonset_object)
 
-
     def get_node_metrics(self, node_name: str)-> Optional[str]:
         url = f"/api/v1/nodes/{node_name}/proxy/metrics"
 

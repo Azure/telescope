@@ -1,3 +1,5 @@
+from kubernetes.utils import FailToCreateError
+
 from kubernetes_client import KubernetesClient
 from data_type import ResourceConfig, NodeResourceConfig
 
@@ -56,7 +58,10 @@ class ClusterController:
         if KubeletConfig.get_default_config().needs_override(kubelet_config):
             print(f"Reconfiguring {kubelet_config}")
             daemonset_yaml = self.generate_kubelet_reconfig_daemonset(kubelet_config)
-            self.client.create_daemonset(daemonset_yaml)
+            try:
+                self.client.create_daemonset(daemonset_yaml)
+            except FailToCreateError as e:
+                print(f"Error creating ds: it might already exist: {e}")
         else:
             print(f"using default kubelet configuration. Skip reconfiguring kubelet.")
 
