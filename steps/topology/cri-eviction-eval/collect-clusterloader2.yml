@@ -2,7 +2,7 @@ parameters:
 - name: cloud
   type: string
   default: ''
-- name: engine_input
+- name: engine
   type: object
   default: {}
 - name: regions
@@ -11,9 +11,9 @@ parameters:
 - name: topology
   type: string
 - name: node_count
-  type: string
+  type: number
 - name: max_pods
-  type: string
+  type: number
 - name: load
   type: object
 - name: eviction_hard_memory
@@ -24,12 +24,11 @@ steps:
 - template: /steps/engine/clusterloader2/cri-eviction-eval/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
-    engine_input: ${{ parameters.engine_input }}
-    region: ${{ parameters.regions[0] }}
     topology: ${{ parameters.topology }}
+    engine: ${{ parameters.engine }}
+    region: ${{ parameters.regions[0] }}
+    load: ${{ parameters.load }}
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
-    load_type: ${{ parameters.load.type }}
-    pod_qos: ${{ parameters.load_type }}
     eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
     

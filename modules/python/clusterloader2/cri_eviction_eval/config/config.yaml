@@ -1,22 +1,26 @@
 name: eviction-eval
 
-{{$memoryConsume := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_CONSUME_MI "100"}}
+{{$totalNodes := DefaultParam .CL2_NODE_COUNT 5}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
+{{$provider := DefaultParam .CL2_PROVIDER "aks"}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
+
+{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
+{{$nodeLabel := DefaultParam .CL2_NODE_LABEL "cri-eviction-eval"}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR "cri-eviction-eval=true"}}
+  
+{{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
+{{$stressDuration := DefaultParam .CL2_RESOURCE_STRESS_DURATION_SEC 100}}
+{{$stressMemory := DefaultParam .CL2_RESOURCE_STRESS_MEMORY_MI "100"}}
+  
+{{$hasResourceRequest := DefaultParam .CL2_HAS_RESOURCE_REQUEST false}}
+{{$hasResourceLimit := DefaultParam .CL2_HAS_RESOURCE_LIMIT false}}
+
 {{$memoryRequest := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI "1000Ki"}}
 {{$memoryLimit := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_LIMIT_KI "1000Ki"}}
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
-{{$stressDuration := DefaultParam .CL2_RESOURCE_CONSUME_DURATION_SEC 100}}
 
-{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
-{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
-{{$totalNodes := DefaultParam .CL2_NODE_COUNT 5}}
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
-
-{{$nodeLabel := DefaultParam .CL2_NODE_LABEL "cri-eviction-eval"}}
-{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR "cri-eviction-eval=true"}}
-
-{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
-{{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
-{{$provider := DefaultParam .CL2_PROVIDER "aks"}}
 
 namespace:
   number: 1
@@ -77,12 +81,19 @@ steps:
         templateFillMap:
           Replicas: {{$replicas}}
           Group: {{$deploymentLabel}}
-          Memory: {{$memoryConsume}}
-          CPU: --millicores={{$cpu}}
-          MemoryLimit: {{$memoryLimit}}
+          HasResourceRequest: {{$hasResourceRequest}}
+          HasResourceLimit: {{$hasResourceLimit}}
+          {{if $hasResourceRequest}}
           MemoryRequest: {{$memoryRequest}}
-          Duration: {{$stressDuration}}
           CPURequest: {{$cpu}}m
+          {{end}}
+          {{if $hasResourceLimit}}
+          MemoryLimit: {{$memoryLimit}}
+          CPULimit: {{$cpu}}m
+          {{end}}
+          Memory: {{$stressMemory}}
+          Duration: {{$stressDuration}}
+          CPU: --millicores={{$cpu}}
           LoadType: {{$loadType}}
           Provider: {{$provider}}
           NodeLabel: {{$nodeLabel}}

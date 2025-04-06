@@ -2,7 +2,7 @@ parameters:
   - name: cloud
     type: string
     default: ""
-  - name: engine_input
+  - name: engine
     type: object
   - name: region
     type: string
@@ -70,7 +70,7 @@ steps:
       LOAD_DURATION: ${{ parameters.load.duration }}
       OPERATION_TIMEOUT: ${{ parameters.operation_timeout }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/cri_eviction_eval.py
-      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_IMAGE: ${{ parameters.engine.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri_eviction_eval/results
     displayName: "Run Eviction threshold (Hard) Benchmark"

@@ -1,3 +1,6 @@
+{{$hasResourceRequest := DefaultParam .HasResourceRequest false}}
+{{$hasResourceLimit := DefaultParam .HasResourceLimit false}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,12 +26,16 @@ spec:
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
         imagePullPolicy: IfNotPresent
         resources:
+  {{if $hasResourceRequest}}
           requests:
             memory: {{.MemoryRequest}}
             cpu: {{.CPURequest}}
+  {{end}}
+  {{if $hasResourceLimit}}
           limits:
             memory: {{.MemoryLimit}}
-            cpu: {{.CPURequest}}
+            cpu: {{.CPULimit}}
+  {{end}}
 {{if eq .LoadType "memory"}}
         command: ["sh", "-c", "stress -m 1 --vm-bytes {{.Memory}}M --vm-hang 0 -t {{.Duration}}"]
 {{end}}
