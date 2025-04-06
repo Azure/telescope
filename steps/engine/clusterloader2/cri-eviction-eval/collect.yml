@@ -41,6 +41,8 @@ steps:
     echo "Node count:           $NODE_COUNT"
     echo "Max pods:             $MAX_PODS"
     echo "Load type:            $LOAD_TYPE"
+    echo "Load factor:          $LOAD_FACTOR"
+    echo "Load duration:        $LOAD_DURATION"
     echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
     
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" collect \
