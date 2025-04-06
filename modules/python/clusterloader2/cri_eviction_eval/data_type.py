@@ -17,22 +17,32 @@ class ResourceConfig:
         return f"memory: {self.memory_ki}Ki, cpu: {self.cpu_milli}milli"
 
 class LoadDuration(Enum):
-    BURST = "burst"
+    SPIKE = "spike"
     NORMAL = "normal"
     LONG = "long"
 
+class LoadQoS(Enum):
+    BEST_EFFORT = "best_effort"
+    BURSTABLE = "burstable"
+    GUARANTEED = "guaranteed"
+
 class ResourceStressor:
-    def __init__(self, load_type: str, load_factor: float, load_duration: LoadDuration = LoadDuration.NORMAL):
+    def __init__(self, load_type: str,  load_factor:str =  "best_effort", load_duration_str: str = "normal"):
+
         self.load_type = load_type
-        self.load_factor = load_factor
+        self.load_factor =  LoadQoS(load_factor)
+        load_duration = LoadDuration(load_duration_str)
 
         # kubelet default watch is 10 seconds, try to get the pod to consume memory in [5, 10, 15] seconds
-        if load_duration == LoadDuration.BURST:
+        if load_duration == LoadDuration.SPIKE:
             self.load_duration = 5
         elif load_duration == LoadDuration.NORMAL:
             self.load_duration = 10
         elif load_duration == LoadDuration.LONG:
             self.load_duration = 15
+
+    def __str__(self):
+        return f"load_type: {self.load_type}, load_factor: {self.load_factor}, load_duration: {self.load_duration}"
 
 # define struct to hold node resource information
 # NodeResourceConfig has system_allocated_resources, node_allocatable_resources and remaining_resources

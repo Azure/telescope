@@ -131,6 +131,10 @@ spec:
         for pod in pods:
             for container in pod.spec.containers:
                 print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                # check whether the container has resources requests
+                if container.resources.requests is None:
+                    print(f"Container {container.name} does not have resources requests.")
+                    continue
                 cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
                 memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
 

@@ -1,12 +1,13 @@
 import os
 import argparse
 
+from data_type import ResourceStressor
+from cl2_configurator import CL2Configurator
 from utils import  run_cl2_command
 from kubernetes_client import KubernetesClient
 from cluster_controller import ClusterController, KubeletConfig
-from cl2_configurator import  CL2Configurator
 from cl2_file_handler import CL2FileHandler, KubeletMetrics
-from data_type import ResourceStressor
+
 
 def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler,
                                    node_count, max_pods, operation_timeout_seconds, load_type, load_factor, load_duration, provider):
@@ -42,7 +43,9 @@ def collect_clusterloader2(cluster_controller: ClusterController,file_handler: C
         run_id = run_id,
         run_url = run_url,
         load_type = resource_stressor.load_type,
+        load_factor = resource_stressor.load_factor,
         eviction_memory=kubelet_config.eviction_hard_memory,
+
         status = status
     )
 
@@ -72,9 +75,9 @@ def main():
     parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_override.add_argument("operation_timeout", type=str, default="5m", help="Operation timeout")
     parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"], default="memory", help="Type of load to generate")
-    parser_override.add_argument("load_factor", type=float,
-                                 help="resource trying to consume, with 1 being all node resource. > 1 being more than resource request")
-    parser_override.add_argument("load_duration", type=str, choices=["burst", "normal", "long"],
+    parser_override.add_argument("load_factor", type=str, choices=["best_effort", "burstable", "guaranteed"],
+                                 help="best_effort, burstable, guaranteed")
+    parser_override.add_argument("load_duration", type=str, choices=["spike", "normal", "long"],
                                  default="burst", help="time to run stressor")
 
     # Sub-command for execute_clusterloader2
