@@ -12,9 +12,9 @@ parameters:
 - name: load
   type: object
 - name: node_count
-  type: number
+  type: string
 - name: max_pods
-  type: number
+  type: string
 - name: eviction_hard_memory
   type: string
   default: "100Mi"
