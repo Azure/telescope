@@ -17,12 +17,13 @@ steps:
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/terraform/extract_terraform_operation_metadata.py
 
-- template: /steps/cloud/azure/upload-storage-account.yml
-  parameters:
-    source_file_name: $(TERRAFORM_OPERATION_METADATA_FILE)
-    destination_file_name: $(RUN_ID).json
-    subfolder: terraform-metadata/test
-    container_name: system
-    credential_type: ${{ parameters.credential_type }}
-    cloud: ${{ parameters.cloud }}
-    upload_type: "Terraform Operation Metadata"
+- ${{ if eq(variables['Build.SourceBranchName'], 'collect-terraform-resources-creation-deletion') }}:
+  - template: /steps/cloud/azure/upload-storage-account.yml
+    parameters:
+      source_file_name: $(TERRAFORM_OPERATION_METADATA_FILE)
+      destination_file_name: $(RUN_ID).json
+      subfolder: terraform-metadata/main
+      container_name: system
+      credential_type: ${{ parameters.credential_type }}
+      cloud: ${{ parameters.cloud }}
+      upload_type: "Terraform Operation Metadata"
