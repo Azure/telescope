@@ -1,11 +1,12 @@
 trigger: none
-schedules:
-  - cron: "0 6,18 * * *"
-    displayName: "6:00 AM & PM Daily"
-    branches:
-      include:
-        - main
-    always: true
+# TODO: schedule runs once terraform is configured and the acnpublic image is replaced
+# schedules:
+#   - cron: "0 6,18 * * *"
+#     displayName: "6:00 AM & PM Daily"
+#     branches:
+#       include:
+#         - main
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -14,11 +15,6 @@ variables:
 
 stages:
   - stage: azure_westus2
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM & PM Daily'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -44,7 +40,7 @@ stages:
               fortio_namespaces: 1
               fortio_deployments_per_namespace: 1
               apply_fqdn_cnp: True
-          max_parallel: 2
+          max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
