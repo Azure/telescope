@@ -19,7 +19,7 @@ stages:
           load:
             type: memory
             factor: guaranteed
-            duration: long
+            duration: spike
           evictionConfig:
             memory: 100Mi
           matrix:
