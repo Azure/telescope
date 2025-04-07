@@ -12,7 +12,7 @@ parameters:
 - name: load
   type: object
 - name: node_count
-  type: string
+  type: number
 - name: max_pods
   type: string
 - name: operation_timeout
