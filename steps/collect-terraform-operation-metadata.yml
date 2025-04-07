@@ -17,7 +17,7 @@ steps:
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/terraform/extract_terraform_operation_metadata.py
 
-- ${{ if eq(variables['Build.SourceBranchName'], 'collect-terraform-resources-creation-deletion') }}:
+- ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(TERRAFORM_OPERATION_METADATA_FILE)
