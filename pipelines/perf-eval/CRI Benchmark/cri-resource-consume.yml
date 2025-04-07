@@ -151,6 +151,16 @@ stages:
               k8s_machine_type: Standard_D16ds_v4
               k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
+            n10-p2500-memory-1-31:
+              node_count: 10
+              max_pods: 250
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D32ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
