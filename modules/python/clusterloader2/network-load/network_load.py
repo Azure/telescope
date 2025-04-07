@@ -3,7 +3,7 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement
+from utils import str2bool, parse_xml_to_json, run_cl2_command, get_measurement
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
@@ -195,7 +195,7 @@ def main():
     parser_configure.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_configure.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_configure.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
-    parser_configure.add_argument("--apply-fqdn-cnp", type=eval, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
+    parser_configure.add_argument("--apply-fqdn-cnp", type=str2bool, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -223,7 +223,7 @@ def main():
     parser_collect.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_collect.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_collect.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
-    parser_collect.add_argument("--apply-fqdn-cnp", type=eval, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
+    parser_collect.add_argument("--apply-fqdn-cnp", type=str2bool, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
 
     args = parser.parse_args()
 
