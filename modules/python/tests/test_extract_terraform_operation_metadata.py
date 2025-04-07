@@ -43,7 +43,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
 
         results = process_terraform_logs(
           log_path="/fake/path",
-          action_type="apply",
+          _command_type="apply",
           _scenario_type="test_scenario_type",
           _scenario_name="test_scenario_name",
         )
@@ -55,7 +55,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         self.assertEqual(results[0]["resource_name"], "aks")
         self.assertEqual(results[0]["action"], "apply")
         self.assertEqual(results[0]["time_taken_seconds"], 150)
-        mock_open_file.assert_called_once_with("/fake/path")
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 
     @patch("os.path.isfile", return_value=True)
@@ -65,7 +65,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
 
         results = process_terraform_logs(
           log_path="/fake/path",
-          action_type="destroy",
+          _command_type="destroy",
           _scenario_type="test_scenario_type",
           _scenario_name="test_scenario_name",
         )
@@ -77,7 +77,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         self.assertEqual(results[0]["resource_name"], "resource")
         self.assertEqual(results[0]["action"], "destroy")
         self.assertEqual(results[0]["time_taken_seconds"], 45)
-        mock_open_file.assert_called_once_with("/fake/path")
+        mock_open_file.assert_called_once_with('/fake/path/terraform_destroy.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_destroy.log")
 
     @patch("os.path.isfile", return_value=True)
@@ -87,7 +87,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
 
         results = process_terraform_logs(
           log_path="/fake/path",
-          action_type="apply",
+          _command_type="apply",
           _scenario_type="perf-eval",
           _scenario_name="test_scenario_name",
         )
@@ -111,7 +111,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         self.assertEqual(results[1]["time_taken_seconds"], 30)
         self.assertEqual(results[1]["scenario_type"], "perf-eval")
         self.assertEqual(results[1]["scenario_name"], "test_scenario_name")
-        mock_open_file.assert_called_once_with("/fake/path")
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 
     @patch("os.path.isfile", return_value=True)
@@ -121,20 +121,20 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
 
         results = process_terraform_logs(
           log_path="/fake/path",
-          action_type="apply",
+          _command_type="apply",
           _scenario_type="test_scenario_type",
           _scenario_name="test_scenario_name",
         )
 
         self.assertEqual(len(results), 0)
-        mock_open_file.assert_called_once_with("/fake/path")
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
 
     @patch("os.path.isfile", return_value=False)
     def test_process_terraform_logs_with_missing_file(self, mock_isfile):
         results = process_terraform_logs(
           log_path="/fake/path",
-          action_type="apply",
+          _command_type="apply",
           _scenario_type="test_scenario_type",
           _scenario_name="test_scenario_name",
         )
@@ -146,12 +146,12 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
     def test_process_terraform_logs_with_invalid_log_line(self, mock_open_file, mock_isfile):
         results = process_terraform_logs(
           log_path="/fake/path",
-          action_type="apply",
+          _command_type="apply",
           _scenario_type="test_scenario_type",
           _scenario_name="test_scenario_name",
         )
         self.assertEqual(results, [])
-        mock_open_file.assert_called_once_with("/fake/path")
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 
 if __name__ == "__main__":

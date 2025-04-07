@@ -29,8 +29,8 @@ def parse_module_path(full_path):
 
     return module_name, submodule_path, resource_name
 
-def process_terraform_logs(log_path, action_type, _scenario_type, _scenario_name):
-    log_file = os.path.join(log_path, f"terraform_{action_type}.log")
+def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_name):
+    log_file = os.path.join(log_path, f"terraform_{_command_type}.log")
     run_id = os.getenv("RUN_ID", "")
     results = []
 
@@ -55,7 +55,7 @@ def process_terraform_logs(log_path, action_type, _scenario_type, _scenario_name
                         "module_name": module,
                         "submodule_name": submodule,
                         "resource_name": resource,
-                        "action": action_type,
+                        "action": _command_type,
                         "time_taken_seconds": seconds
                     })
     except Exception as e:
