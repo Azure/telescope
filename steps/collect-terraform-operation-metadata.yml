@@ -1,0 +1,28 @@
+parameters:
+- name: cloud
+  type: string
+- name: credential_type
+  type: string
+steps:
+- script: |
+    set -eo pipefail
+
+    export RUN_ID=$RUN_ID
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
+    $TERRAFORM_WORKING_DIRECTORY "$TEST_RESULTS_DIR/terraform_operation_metadata.json" "$SCENARIO_TYPE" "$SCENARIO_NAME"
+    echo "##vso[task.setvariable variable=TERRAFORM_OPERATION_METADATA_FILE]$TEST_RESULTS_DIR/terraform_operation_metadata.json"
+  displayName: "Collect Terraform Operation Metadata"
+  condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+  workingDirectory: modules/python/terraform
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/terraform/extract_terraform_operation_metadata.py
+
+- template: /steps/cloud/azure/upload-storage-account.yml
+  parameters:
+    source_file_name: $(TERRAFORM_OPERATION_METADATA_FILE)
+    destination_file_name: $(RUN_ID).json
+    subfolder: terraform-metadata/test
+    container_name: system
+    credential_type: ${{ parameters.credential_type }}
+    cloud: ${{ parameters.cloud }}
+    upload_type: "Terraform Operation Metadata"

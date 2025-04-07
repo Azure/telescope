@@ -91,14 +91,8 @@ steps:
       ARM_USE_MSI: true
       ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
       ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
-- ${{ if eq(parameters.command, 'apply') or eq(parameters.command, 'destroy') }}:
-  - script: |
-      set -eux
-      cd $TERRAFORM_WORKING_DIRECTORY
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE terraform_$COMMAND.log $COMMAND
-
-    displayName: "Collect Terraform ${{parameters.command}} Operation Time"
-    condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'false')
-    env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/terraform/extract_terraform_operation_time.py
-      COMMAND: ${{ parameters.command }}
+- ${{ if eq(parameters.command, 'destroy') }}:
+  - template: /steps/collect-terraform-operation-metadata.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      credential_type: ${{ parameters.credential_type }}
