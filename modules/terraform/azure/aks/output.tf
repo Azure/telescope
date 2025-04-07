@@ -5,7 +5,7 @@ output "aks_cluster_oidc_issuer" {
 
 output "aks_cluster_kubeconfig_path" {
   description = "Path to the kubeconfig file for the AKS cluster"
-  value       = local_file.save_kube_config.file_name
+  value       = local_file.save_kube_config.filename
 }
 
 output "aks_cluster" {
