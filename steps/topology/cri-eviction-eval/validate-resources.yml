@@ -5,6 +5,8 @@ parameters:
   type: string
 - name: regions
   type: object
+- name: node_count
+  type: string
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -13,4 +15,4 @@ steps:
     region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/slo/validate.yml
   parameters:
-    desired_nodes: 7
+    node_count: ${{ parameters.node_count }}

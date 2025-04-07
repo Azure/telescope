@@ -85,6 +85,7 @@ jobs:
       regions: ${{ parameters.regions }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
+      node_count: $(node_count)
   - template: /steps/execute-tests.yml
     parameters:
       cloud: ${{ parameters.cloud }}

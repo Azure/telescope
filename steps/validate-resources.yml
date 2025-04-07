@@ -7,6 +7,8 @@ parameters:
   type: string
 - name: engine
   type: string
+- name: node_count
+  type: string
 
 steps:
 - script: |
@@ -22,3 +24,4 @@ steps:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
     engine: ${{ parameters.engine }}
+    node_count: ${{ parameters.node_count }}
