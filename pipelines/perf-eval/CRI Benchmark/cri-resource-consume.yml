@@ -49,7 +49,7 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: guarantee
+            factor: guaranteed
             duration: long
           evictionConfig:
             memory: 750Mi
