@@ -53,7 +53,7 @@ aks_config_list = [
       },
       {
         name                 = "userpool0"
-        node_count           = 5
+        node_count           = 3
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v3"
         os_disk_type         = "Ephemeral"

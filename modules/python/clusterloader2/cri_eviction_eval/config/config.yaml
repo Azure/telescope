@@ -44,7 +44,7 @@ steps:
           minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: {{$nodeSelector}}
-          timeout: 1m
+          timeout: 3m
           refreshInterval: 5s
   - name: Start measurements
     measurements:

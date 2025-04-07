@@ -18,8 +18,8 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: best_effort
-            duration: spike
+            factor: guaranteed
+            duration: long
           evictionConfig:
             memory: 100Mi
           matrix:
@@ -49,8 +49,8 @@ stages:
           topology: cri-eviction-eval
           load:
             type: memory
-            factor: burstable
-            duration: normal
+            factor: guarantee
+            duration: long
           evictionConfig:
             memory: 750Mi
           matrix:
@@ -66,34 +66,34 @@ stages:
               k8s_machine_type: Standard_D8ds_v4
               max_pods: 110
               node_count: 3
-  - stage: azure_swedencentral_evict_memory_100mi_lower
-    dependsOn: []
-    jobs:
-      - template: /jobs/cri-kubeconfig-eval.yml
-        parameters:
-          cloud: azure
-          regions:
-            - swedencentral
-          engine:
-            name: "clusterloader2"
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: cri-eviction-eval
-          load:
-            type: memory
-            factor: guaranteed
-            duration: long
-          evictionConfig:
-            memory: 100Mi
-          matrix:
-            n5-p150-100mi-d8:
-              k8s_machine_type: Standard_D8ds_v4
-              max_pods: 30
-              node_count: 3
-            n5-p350-100mi-d8:
-              k8s_machine_type: Standard_D8ds_v4
-              max_pods: 70
-              node_count: 3
-            n5-p550-100mi-d8:
-              k8s_machine_type: Standard_D8ds_v4
-              max_pods: 110
-              node_count: 3
+#  - stage: azure_swedencentral_evict_memory_100mi_lower
+#    dependsOn: []
+#    jobs:
+#      - template: /jobs/cri-kubeconfig-eval.yml
+#        parameters:
+#          cloud: azure
+#          regions:
+#            - swedencentral
+#          engine:
+#            name: "clusterloader2"
+#            image: "ghcr.io/azure/clusterloader2:v20250311"
+#          topology: cri-eviction-eval
+#          load:
+#            type: memory
+#            factor: guaranteed
+#            duration: long
+#          evictionConfig:
+#            memory: 100Mi
+#          matrix:
+#            n5-p150-100mi-d8:
+#              k8s_machine_type: Standard_D8ds_v4
+#              max_pods: 30
+#              node_count: 3
+#            n5-p350-100mi-d8:
+#              k8s_machine_type: Standard_D8ds_v4
+#              max_pods: 70
+#              node_count: 3
+#            n5-p550-100mi-d8:
+#              k8s_machine_type: Standard_D8ds_v4
+#              max_pods: 110
+#              node_count: 3
