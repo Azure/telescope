@@ -11,7 +11,7 @@ parameters:
   type: object
   default: {}
 - name: node_count
-  type: number
+  type: string
 - name: max_pods
   type: string
 - name: load_type

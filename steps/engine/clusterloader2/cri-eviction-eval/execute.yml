@@ -9,7 +9,7 @@ parameters:
   - name: topology
     type: string
   - name: node_count
-    type: number
+    type: string
   - name: max_pods
     type: string
   - name: load
