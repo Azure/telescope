@@ -18,10 +18,8 @@ def time_to_seconds(time_str):
         return 0
 
 def parse_module_path(full_path):
-    print(f"Parsing module path: {full_path}")
     path = full_path.replace("module.", "")
     parts = path.split(".")
-    print(parts)
 
     module_name = parts[0] if parts else ""
     resource_name = parts[-1] if len(parts) > 1 else ""
