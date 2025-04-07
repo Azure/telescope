@@ -1,0 +1,118 @@
+name: netpol-scale-test
+
+# cluster config
+{{$CILIUM_ENABLED := DefaultParam .CL2_CILIUM_ENABLED false}}
+{{$CILIUM_ENVOY_ENABLED := DefaultParam .CL2_CILIUM_ENVOY_ENABLED false}}
+
+# test setup config
+{{$NUMBER_OF_SERVERS_PER_Group := DefaultParam .CL2_NUMBER_OF_SERVERS_PER_GROUP 2}}
+{{$NUMBER_OF_CLIENTS_PER_Group := DefaultParam .CL2_NUMBER_OF_CLIENTS_PER_GROUP 1}}
+{{$NUMBER_OF_GROUPS := DefaultParam .CL2_NUMBER_OF_GROUPS 2}}
+{{$TARGET_PORT := DefaultParam .CL2_TARGET_PORT 8080}}
+{{$WORKERS_PER_CLIENT := DefaultParam .CL2_WORKERS_PER_CLIENT 5}}
+{{$DURATION := DefaultParam .CL2_DURATION 600}}
+{{$Network_Policy_Type := DefaultParam .CL2_NETWORK_POLICY_TYPE "k8s"}}
+{{$Netwrok_POlicy_L7_Enabled := DefaultParam .CL2_NETWORK_POLICY_L7_ENABLED false}}
+{{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
+{{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
+namespace:
+  number: {{$NUMBER_OF_GROUPS}}
+  prefix: slo
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+steps:
+# 1. If cilium enabled
+#    * start cilium agent metrics 
+#    * start cilium envoy metrics 
+# 2. start network performance measurement (setup and run)
+# 3. gather network performance measurement (wait and gather results)
+# 4. gather cilium envoy metrics
+# 5. gather cilium agent metrics
+# 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: "service-discovery"
+{{if $CILIUM_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+
+  {{if $CILIUM_ENVOY_ENABLED}}
+  - module:
+      path: /modules/cilium-envoy-measurements.yaml
+      params:
+        action: start
+  {{end}}
+{{end}}
+{{if $CLIENT_METRICS_GATHERING}}
+  - module:
+      path: /modules/network-policy-client-metrics.yaml
+      params:
+        action: start
+{{end}}
+  # start network performance measurement
+  - name: Network Policy Soak Test - Start
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: start
+        targetLabelKey: app
+        targetLabelValue: target
+        clientLabelKey: app
+        clientLabelValue: client
+        targetReplicasPerNs: {{$NUMBER_OF_SERVERS_PER_Group}}
+        clientReplicasPerDep: {{$NUMBER_OF_CLIENTS_PER_Group}}
+        targetPort: {{$TARGET_PORT}}
+        targetPath: /
+        testDuration: "{{$DURATION}}"
+        workerPerClient: {{$WORKERS_PER_CLIENT}}
+        npType: {{$Network_Policy_Type}}
+        resourceGatheringEnabled: true
+        ingressEgressMode: egress # ingress, egress, both, none
+{{if $CLIENT_METRICS_GATHERING}}
+        clientMetricsGatheringEnabled: true
+{{end}}
+  # 5. gather network performance measurement (wait and gather results)
+  - name: Network Policy Soak Test - Gather Results
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: gather #gather will wait for the soak test to finish    
+{{if $CLIENT_METRICS_GATHERING}}
+  - module:
+      path: /modules/network-policy-client-metrics.yaml
+      params:
+        action: gather
+{{end}}
+{{if $CILIUM_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+
+  {{if $CILIUM_ENVOY_ENABLED}}
+  - module:
+      path: /modules/cilium-envoy-measurements.yaml
+      params:
+        action: gather
+  {{end}}
+{{end}}
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: "service-discovery"
+# 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
+  - name: Sleep
+    measurements:
+    - Identifier: Sleep
+      Method: Sleep
+      Params:
+        duration: 5m

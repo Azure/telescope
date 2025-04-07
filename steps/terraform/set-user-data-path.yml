@@ -11,7 +11,13 @@ steps:
       terraform_user_data_path=$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
     fi
     echo $terraform_user_data_path
-    echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$terraform_user_data_path"
+
+    if [ -d "$terraform_user_data_path" ]; then
+      echo "Terraform user data path exists: $terraform_user_data_path"
+      echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$terraform_user_data_path"
+    else
+      echo "Terraform user data path does not exist: $terraform_user_data_path"
+    fi
 
   displayName: 'Set Terraform User Data Path'
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')

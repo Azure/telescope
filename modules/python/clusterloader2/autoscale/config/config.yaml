@@ -12,6 +12,7 @@
 {{$refreshInterval := DefaultParam .CL2_REFRESH_INTERVAL "5s"}}
 {{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
 {{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "30s"}}
+{{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
 
 name: autoscale
 namespace:
@@ -52,15 +53,18 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesUp {{$i}}
+{{range $value := $percentilesList}}
+{{$PercentileNodeCount := MultiplyInt $minNodeCount (StructuralData $value) }}
+  - Identifier: WaitForNodesUpPerc{{ MultiplyInt 100 (StructuralData $value) }} {{$i}}
     Method: WaitForNodes
     Params:
       action: start
-      minDesiredNodeCount: {{$minNodeCount}}
-      maxDesiredNodeCount: {{$maxNodeCount}}
+      minDesiredNodeCount: {{ $PercentileNodeCount }}
+      maxDesiredNodeCount: {{$minNodeCount}}
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
+{{- end }}            
 - name: WaitBeforeDelete
   measurements:
   - Identifier: WaitBeforeDelete
@@ -91,15 +95,18 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
-  - Identifier: WaitForNodesDown {{$i}}
+{{range $value := $percentilesList}}
+{{$PercentileNodeCount := SubtractInt  $minNodeCount (MultiplyInt $minNodeCount (StructuralData $value)) }}
+  - Identifier: WaitForNodesDownPerc{{ MultiplyInt 100 (StructuralData $value) }} {{$i}}
     Method: WaitForNodes
     Params:
       action: start
       minDesiredNodeCount: {{$desiredNodeCount}}
-      maxDesiredNodeCount: {{$desiredNodeCount}}
+      maxDesiredNodeCount: {{if eq $PercentileNodeCount 0}}{{$desiredNodeCount}}{{else}}{{$PercentileNodeCount}}{{end}} 
       labelSelector: {{$nodeLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
+{{- end }}
 - name: WaitBeforeCreate
   measurements:
   - Identifier: WaitBeforeCreate

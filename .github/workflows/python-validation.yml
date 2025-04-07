@@ -27,6 +27,21 @@ jobs:
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: pip install -r requirements.txt
 
+      - name: Fetch all branches
+        run: git fetch --prune --unshallow
+
+      - name: Run Pylint on changed files
+        id: changed-files
+        run: |
+          # Get list of changed files
+          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
+          echo "Files changed: $file_changes"
+          if [ -z "$file_changes" ]; then
+            echo "No Python files were changed."
+          else
+            pylint $file_changes
+          fi
+
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: python -m unittest discover
