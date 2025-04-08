@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-datapath-feature
+  SCENARIO_NAME: cilium-test-framework
   OWNER: aks
 
 stages:
