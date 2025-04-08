@@ -108,15 +108,10 @@ run "valid_launch_template_ena_express" {
 
   command = plan
 
-  # ena express disabled
+  # ena express null
   assert {
-    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == false
+    condition     = length(module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification) == 0
     error_message = "Error. Expected ena_srd_enabled false in the launch template ena srd specification"
-  }
-
-  assert {
-    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == false
-    error_message = "Error. Expected ena_srd_udp_enabled false in the launch template ena srd specification"
   }
 
   # ena express enabled
