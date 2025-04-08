@@ -9,6 +9,12 @@ from terraform.extract_terraform_operation_metadata import (
 )
 
 class TestExtractTerraformOperationMetadata(unittest.TestCase):
+    def test_time_to_seconds_with_hours_minutes_and_seconds(self):
+        self.assertEqual(time_to_seconds("1h2m30s"), 3750)
+
+    def test_time_to_seconds_with_hours_and_seconds(self):
+        self.assertEqual(time_to_seconds("1h30s"), 3630)
+
     def test_time_to_seconds_with_minutes_and_seconds(self):
         self.assertEqual(time_to_seconds("2m30s"), 150)
 
@@ -37,7 +43,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         self.assertEqual(resource, "")
 
     @patch("os.path.isfile", return_value=True)
-    @patch("builtins.open", new_callable=mock_open, read_data="module.aks[\"cas\"].azurerm_kubernetes_cluster.aks: Creation complete after 2m30s\n")
+    @patch("builtins.open", new_callable=mock_open, read_data="module.aks[\"cas\"].azurerm_kubernetes_cluster.aks: Creation complete after 1h2m30s\n")
     def test_process_terraform_logs_with_valid_log_line(self, mock_open_file, mock_isfile):
         os.environ["RUN_ID"] = "123456789"
 
@@ -54,7 +60,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         self.assertEqual(results[0]["submodule_name"], "azurerm_kubernetes_cluster")
         self.assertEqual(results[0]["resource_name"], "aks")
         self.assertEqual(results[0]["action"], "apply")
-        self.assertEqual(results[0]["time_taken_seconds"], 150)
+        self.assertEqual(results[0]["time_taken_seconds"], 3750)
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 
@@ -81,7 +87,7 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         mock_isfile.assert_called_once_with("/fake/path/terraform_destroy.log")
 
     @patch("os.path.isfile", return_value=True)
-    @patch("builtins.open", new_callable=mock_open, read_data="module.network.subnet: Creation complete after 1m15s\nmodule.storage.bucket: Creation complete after 30s\n")
+    @patch("builtins.open", new_callable=mock_open, read_data="module.network.vnet: Creation complete after 1h5m15s\nmodule.network.subnet: Creation complete after 1m15s\nmodule.storage.bucket: Creation complete after 30s\n")
     def test_process_terraform_logs_with_multiple_log_lines(self, mock_open_file, mock_isfile):
         os.environ["RUN_ID"] = "1122334455"
 
@@ -92,25 +98,34 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
           _scenario_name="test_scenario_name",
         )
 
-        self.assertEqual(len(results), 2)
+        self.assertEqual(len(results), 3)
 
         self.assertEqual(results[0]["run_id"], "1122334455")
         self.assertEqual(results[0]["module_name"], "network")
         self.assertEqual(results[0]["submodule_name"], "")
-        self.assertEqual(results[0]["resource_name"], "subnet")
+        self.assertEqual(results[0]["resource_name"], "vnet")
         self.assertEqual(results[0]["action"], "apply")
-        self.assertEqual(results[0]["time_taken_seconds"], 75)
+        self.assertEqual(results[0]["time_taken_seconds"], 3915)
+        self.assertEqual(results[0]["scenario_type"], "perf-eval")
+        self.assertEqual(results[0]["scenario_name"], "test_scenario_name")
+
+        self.assertEqual(results[1]["run_id"], "1122334455")
+        self.assertEqual(results[1]["module_name"], "network")
+        self.assertEqual(results[1]["submodule_name"], "")
+        self.assertEqual(results[1]["resource_name"], "subnet")
+        self.assertEqual(results[1]["action"], "apply")
+        self.assertEqual(results[1]["time_taken_seconds"], 75)
         self.assertEqual(results[1]["scenario_type"], "perf-eval")
         self.assertEqual(results[1]["scenario_name"], "test_scenario_name")
 
-        self.assertEqual(results[1]["run_id"], "1122334455")
-        self.assertEqual(results[1]["module_name"], "storage")
-        self.assertEqual(results[1]["submodule_name"], "")
-        self.assertEqual(results[1]["resource_name"], "bucket")
-        self.assertEqual(results[1]["action"], "apply")
-        self.assertEqual(results[1]["time_taken_seconds"], 30)
-        self.assertEqual(results[1]["scenario_type"], "perf-eval")
-        self.assertEqual(results[1]["scenario_name"], "test_scenario_name")
+        self.assertEqual(results[2]["run_id"], "1122334455")
+        self.assertEqual(results[2]["module_name"], "storage")
+        self.assertEqual(results[2]["submodule_name"], "")
+        self.assertEqual(results[2]["resource_name"], "bucket")
+        self.assertEqual(results[2]["action"], "apply")
+        self.assertEqual(results[2]["time_taken_seconds"], 30)
+        self.assertEqual(results[2]["scenario_type"], "perf-eval")
+        self.assertEqual(results[2]["scenario_name"], "test_scenario_name")
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 

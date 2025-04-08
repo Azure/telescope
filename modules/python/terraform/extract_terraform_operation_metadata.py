@@ -5,14 +5,20 @@ import os
 import datetime
 
 # Regex to extract: full module path and time
-PATTERN = re.compile(r"(module\.[^:]+): (?:Creation|Destruction) complete after (\d+m\d+s|\d+s)")
+PATTERN = re.compile(r"(module\.[^:]+): (?:Creation|Destruction) complete after (\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)")
 
 def time_to_seconds(time_str):
     try:
-        if 'm' in time_str:
-            minutes, seconds = time_str[:-1].split('m')
-            return int(minutes) * 60 + int(seconds)
-        return int(time_str[:-1])
+        time_parts = re.findall(r'(\d+)([hms])', time_str)
+        time_in_seconds = 0
+        for value, unit in time_parts:
+            if unit == 'h':
+                time_in_seconds += int(value) * 3600
+            elif unit == 'm':
+                time_in_seconds += int(value) * 60
+            elif unit == 's':
+                time_in_seconds += int(value)
+        return time_in_seconds
     except (ValueError, AttributeError) as e:
         print(f"Failed to convert time '{time_str}' to seconds: {e}")
         return 0
