@@ -31,7 +31,7 @@ steps:
     RUN_ID: ${{ parameters.run_id }}
 
 - script: |
-    run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
+    run_url="$(System.TeamFoundationCollectionUri)$(Sysptem.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
     echo "Run URL: $run_url"
     echo "##vso[task.setvariable variable=RUN_URL]$run_url"
 
