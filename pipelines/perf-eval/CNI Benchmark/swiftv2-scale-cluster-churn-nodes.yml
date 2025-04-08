@@ -21,7 +21,7 @@ stages:
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 10
+              node_count: 50
               node_per_step: 50
               max_pods: 1
               repeats: 10
