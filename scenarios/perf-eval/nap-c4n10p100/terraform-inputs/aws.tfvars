@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap-c4n10p100"
-deletion_delay = "72h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
