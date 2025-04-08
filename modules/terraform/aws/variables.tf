@@ -6,7 +6,6 @@ variable "json_input" {
     creation_time    = string
     user_data_path   = optional(string, "")
     k8s_machine_type = optional(string, null)
-    ena_express      = optional(bool, null)
   })
 
   validation {
@@ -119,7 +118,6 @@ variable "eks_config_list" {
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
       subnet_names   = optional(list(string), null)
-      ena_express    = optional(bool, false)
       taints = optional(list(object({
         key    = string
         value  = string
