@@ -82,7 +82,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   edge_zone                 = var.aks_config.edge_zone
 }
 
-resource "azurerm_kubernetes_cluster_node_pool" "pools" {
+resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {
   for_each = local.extra_pool_map
 
   name                  = each.value.name
@@ -110,7 +110,7 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
-resource "local_file" "kube_config" {
+resource "local_file" "save_kube_config" {
   filename = "/tmp/${azurerm_kubernetes_cluster.aks.fqdn}"
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
 }

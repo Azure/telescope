@@ -15,9 +15,6 @@
     },
     "user_data_path": {
       "type": "string"
-    },
-    "ena_express" : {
-      "type": "boolean"
     }
   },
   "required": [

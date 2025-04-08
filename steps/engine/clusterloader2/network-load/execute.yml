@@ -1,0 +1,48 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --cl2-override-file ${CL2_CONFIG_DIR}/overrides.yaml \
+        --operation-timeout $SCALE_TIMEOUT \
+        --provider $CLOUD \
+        --deployment-recreation-count $DEPLOYMENT_RECREATION_COUNT \
+        --cpu-per-node $CPU_PER_NODE \
+        --node-count $NODE_COUNT \
+        --fortio-servers-per-node $FORTIO_SERVERS_PER_NODE \
+        --fortio-clients-per-node $FORTIO_CLIENTS_PER_NODE \
+        --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
+        --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
+        --fortio-namespaces $FORTIO_NAMESPACES \
+        --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+        --apply-fqdn-cnp $APPLY_FQDN_CNP
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        --cl2-image ${CL2_IMAGE} \
+        --cl2-config-dir ${CL2_CONFIG_DIR} \
+        --cl2-report-dir $CL2_REPORT_DIR \
+        --cl2-config-file $CL2_CONFIG_FILE \
+        --kubeconfig ${HOME}/.kube/config \
+        --provider $CLOUD
+    workingDirectory: modules/python/clusterloader2
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/network_load.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/results
+      displayName: "Run Benchmark"
