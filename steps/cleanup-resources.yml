@@ -31,3 +31,9 @@ steps:
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+
+- ${{ if ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true') }}:
+  - template: /steps/collect-terraform-operation-metadata.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      credential_type: ${{ parameters.credential_type }}

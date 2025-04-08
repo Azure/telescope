@@ -91,8 +91,3 @@ steps:
       ARM_USE_MSI: true
       ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
       ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
-- ${{ if and(eq(parameters.command, 'destroy'), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')) }}:
-  - template: /steps/collect-terraform-operation-metadata.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      credential_type: ${{ parameters.credential_type }}
