@@ -30,7 +30,6 @@ steps:
           labelSelector: group=job-scheduling
           threshold: 4h
 
-
 {{range $i := Loop $job_count}}
   - name: Create job {{$i}}
     phases:
