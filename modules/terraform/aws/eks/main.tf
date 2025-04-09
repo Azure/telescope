@@ -184,6 +184,18 @@ resource "aws_launch_template" "launch_template" {
 
   user_data = var.user_data_path != "" ? filebase64("${var.user_data_path}/${local.role}-userdata.sh") : null
 
+  network_interfaces {
+    dynamic "ena_srd_specification" {
+      for_each = var.ena_express != null || each.value.ena_express != null ? { "ena_express" : each.value.ena_express } : {}
+      content {
+        ena_srd_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
+        ena_srd_udp_specification {
+          ena_srd_udp_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
+        }
+      }
+    }
+  }
+
   tags = var.tags
 }
 
