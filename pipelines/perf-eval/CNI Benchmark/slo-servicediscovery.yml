@@ -28,57 +28,114 @@ variables:
   service_test: True
   cl2_config_file: load-config.yaml
   max_parallel: 3 #1 for aws/2 for azure (it were separate stages)
-  ${{ if eq(parameters.scenario, 'slo-servicediscovery') }}:
-    paramA: valueA
-  ${{ if eq(parameters.scenario, 'scenario2') }}:
-    paramB: valueB
-
+  #
+  # consider templating parameters.
+  # Possible to template variables??
+  # ${{ if eq(parameters.scenario, 'slo-servicediscovery') }}:
+  #   paramA: valueA
+  # ${{ if eq(parameters.scenario, 'scenario2') }}:
+  #   paramB: valueB
+  #
 parameters:
-- name: clusterConfigs
-  type: object
-  default:
-    # aws_vpc_cni:
-    #   cilium_enabled: False
-    #   cloud: aws
-    #   regions:
-    #     - us-east-1
-    azure_cni:
-      variables:
-        cilium_enabled: False
-        scrape_containerd: True
-      parameters:
-        cloud: azure
-        regions:
-          - westeurope
-    azure_cilium:
-      variables:
-        cilium_enabled: True
-        network_policy: cilium
-        network_dataplane: cilium
-        scrape_containerd: True
-      parameters:
-        cloud: azure
-        regions:
-          - westeurope
-          - eastus1
-  values:
-  - |
-      azure_cni:
-        variables:
-          testing: A
-  - |
-      cilium:
-        variables:
-          testing: B
-- name: scenario
-  type: string
-  default: slo-servicediscovery
-  values: 
-  - slo-servicediscovery
-  - scenario2
+  - name: clusterConfig
+    displayName: Cluster Configuration
+    type: string
+    default: azure_cni,azure_cilium,aws_vpc_cni
+  - name: cpu_per_node
+    type: number
+    default: 4
+  - name: node_count
+    type: number
+    default: 1000
+  - name: node_per_step
+    type: number
+    default: 1000
+  - name: max_pods
+    type: number
+    default: 20
+  - name: repeats
+    type: number
+    default: 10
+  - name: scale_timeout
+    type: string
+    default: "15m"
+  - name: cl2_config_file
+    type: string
+    default: load-config.yaml
+  - name: max_parallel
+    type: number
+    default: 3
+  - name: scenario
+    type: string
+    default: slo-servicediscovery
+  - name: no_of_namespaces
+    type: number
+    default: 0
+  - name: total_network_policies
+    type: number
+    default: 0
+  - name: scraipe_containerd
+    type: boolean
+    default: False
+  - name: service_test
+    type: boolean
+    default: True
+  - name: network_test
+    type: boolean
+    default: False
+  - name: cnp_test
+    type: boolean
+    default: False
+  - name: ccnp_test
+    type: boolean
+    default: False
+  - name: num_cnps
+    type: number
+    default: 0
+  - name: num_ccnps
+    type: number
+    default: 0
+  - name: dual_stack
+    type: boolean
+    default: False
+  # max_parallel: 3 #1 for aws/2 for azure (it were separate stages)
+# - name: clusterConfigs
+#   type: object
+#   default:
+#     # aws_vpc_cni:
+#     #   cilium_enabled: False
+#     #   cloud: aws
+#     #   regions:
+#     #     - us-east-1
+#     azure_cni:
+#       variables:
+#         cilium_enabled: False
+#         scrape_containerd: True
+#       parameters:
+#         cloud: azure
+#         regions:
+#           - westeurope
+#     azure_cilium:
+#       variables:
+#         cilium_enabled: True
+#         network_policy: cilium
+#         network_dataplane: cilium
+#         scrape_containerd: True
+#       parameters:
+#         cloud: azure
+#         regions:
+#           - westeurope
+#           - eastus1
+# - name: scenario
+#   type: string
+#   default: slo-servicediscovery
+#   values: 
+#   - slo-servicediscovery
+#   - scenario2
 
 stages:
-- ${{ each cc in parameters.clusterConfigs }}:
+# - ${{ each cc in parameters.clusterConfigs }}:
+- ${{ each cc in split(parameters.clusterConfig, ',') }}:
   - stage: ${{ cc.Key }}
     dependsOn: []
     jobs:
