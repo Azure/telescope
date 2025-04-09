@@ -24,7 +24,7 @@ To use the EKS module, follow these steps:
       max_size       = 3
       desired_size   = 2
       capacity_type = "ON_DEMAND" # Optional input
-      ena_express    = true # Optional (default: false)
+      ena_express    = true # Optional (default: null)
       labels         = { terraform = "true", k8s = "true", role = "perf-eval" } # Optional input
       taints         = [{
         key = "dedicated"
