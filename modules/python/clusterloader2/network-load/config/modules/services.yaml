@@ -1,0 +1,17 @@
+## Services module provides a module for creating / deleting services.
+
+## Input params
+{{$actionName := .actionName}}
+{{$namespaces := .namespaces}}
+
+steps:
+- name: "{{$actionName}} k8s services"
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 1
+    tuningSet: Sequence
+    objectBundle:
+    - basename: fortio-server-service
+      objectTemplatePath: service_template.yaml
