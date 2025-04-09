@@ -20,7 +20,7 @@ name: daemonset_scale_config
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "20s"}}
 
-{{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD true}}
+{{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
