@@ -22,7 +22,6 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
     spec:
-      hostNetwork: true
       nodeSelector:
         cri-resource-consume: "true"
       containers:

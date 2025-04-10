@@ -10,83 +10,89 @@ steps:
         metricName: KubeletPodStartupSLIDuration
         metricVersion: v1
         unit: s
+        enableViolations: true
         dimensions:
           - node
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, kubelet_pod_start_sli_duration_seconds_bucket)
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[10m])) by (node, le))
-          threshold: 5
+          query: histogram_quantile(0.99, kubelet_pod_start_sli_duration_seconds_bucket)
+          threshold: 5.0
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[10m])) by (node, le))
+          query: histogram_quantile(0.9, kubelet_pod_start_sli_duration_seconds_bucket)
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_sli_duration_seconds_bucket[10m])) by (node, le))
-    - Identifier: KubeletPodStartupDuration
+          query: histogram_quantile(0.5, kubelet_pod_start_sli_duration_seconds_bucket)
+        - name: Sum
+          query: kubelet_pod_start_sli_duration_seconds_sum
+        - name: Count
+          query: kubelet_pod_start_sli_duration_seconds_count
+  - name: {{$action}} Containerd Measurements
+    measurements:
+    - Identifier: ContainerdCriSandboxCreateNetwork
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: KubeletPodStartupDuration
+        metricName: ContainerdCriSandboxCreateNetwork
         metricVersion: v1
         unit: s
         dimensions:
           - node
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_duration_seconds_bucket[10m])) by (node, le))
+          query: histogram_quantile(0.99, containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_duration_seconds_bucket[10m])) by (node, le))
+          query: histogram_quantile(0.9, containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_duration_seconds_bucket[10m])) by (node, le))
-    - Identifier: KubeletPodStartupTotalDuration
+          query: histogram_quantile(0.5, containerd_cri_sandbox_create_network_seconds_bucket{nodepool=~"userpool.*"})
+        - name: Sum
+          query: containerd_cri_sandbox_create_network_seconds_sum{nodepool=~"userpool.*"}
+        - name: Count
+          query: containerd_cri_sandbox_create_network_seconds_count{nodepool=~"userpool.*"}
+    - Identifier: ContainerdCriSandboxDeleteNetwork
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: KubeletPodStartupTotalDuration
+        metricName: ContainerdCriSandboxDeleteNetwork
         metricVersion: v1
         unit: s
         dimensions:
           - node
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, containerd_cri_sandbox_delete_network_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[10m])) by (node, le))
+          query: histogram_quantile(0.99, containerd_cri_sandbox_delete_network_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[10m])) by (node, le))
+          query: histogram_quantile(0.9, containerd_cri_sandbox_delete_network_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_pod_start_total_duration_seconds_bucket[10m])) by (node, le))
-    - Identifier: KubeletRuntimeOperationDurationWithoutPullImage
+          query: histogram_quantile(0.5, containerd_cri_sandbox_delete_network_seconds_bucket{nodepool=~"userpool.*"})
+        - name: Sum
+          query: containerd_cri_sandbox_delete_network_seconds_sum{nodepool=~"userpool.*"}
+        - name: Count
+          query: containerd_cri_sandbox_delete_network_seconds_count{nodepool=~"userpool.*"}
+    - Identifier: ContainerdCriNetworkPluginOperations
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: KubeletRuntimeOperationDurationWithoutPullImage
+        metricName: ContainerdCriNetworkPluginOperations
         metricVersion: v1
         unit: s
         dimensions:
           - node
           - operation_type
         queries:
+        - name: Perc100
+          query: histogram_quantile(1, containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
+          query: histogram_quantile(0.99, containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
+          query: histogram_quantile(0.9, containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"})
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
+          query: histogram_quantile(0.5, containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket{nodepool=~"userpool.*"})
         - name: Sum
-          query: kubelet_runtime_operations_duration_seconds_sum{operation_type!="pull_image"}
-    - Identifier: KubeletRuntimeOperationDurationWithPullImage
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: KubeletRuntimeOperationDurationWithPullImage
-        metricVersion: v1
-        unit: s
-        dimensions:
-          - node
-          - operation_type
-        queries:
-        - name: Perc99
-          query: histogram_quantile(0.99, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
-        - name: Perc90
-          query: histogram_quantile(0.90, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
-        - name: Perc50
-          query: histogram_quantile(0.50, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
-        - name: Sum
-          query: kubelet_runtime_operations_duration_seconds_sum{operation_type="pull_image"}
+          query: containerd_cri_network_plugin_operations_duration_seconds_seconds_sum{nodepool=~"userpool.*"}
+        - name: Count
+          query: containerd_cri_network_plugin_operations_duration_seconds_seconds_count{nodepool=~"userpool.*"}
