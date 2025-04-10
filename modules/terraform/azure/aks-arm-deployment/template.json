@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "owner": {
+      "type": "String",
+      "metadata": {
+        "description": "Owner of the resource."
+      }
+    },
+    "scenario": {
+      "type": "String",
+      "metadata": {
+        "description": "Scenario of the resource."
+      }
+    },
+    "deletion_due_time": {
+      "type": "String",
+      "metadata": {
+        "description": "Time when the resource should be deleted."
+      }
+    },
+    "run_id": {
+      "type": "String",
+      "metadata": {
+        "description": "Run ID for the resource."
+      }
+    },
+    "aks_cluster_name": {
+      "type": "String"
+    },
+    "location": {
+      "type": "String",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "network_plugin": {
+      "type": "String",
+      "defaultValue": "azure",
+      "metadata": {
+        "description": "The network plugin to use for the AKS cluster."
+      }
+    },
+    "network_plugin_mode": {
+      "type": "String",
+      "defaultValue": "overlay",
+      "metadata": {
+        "description": "The network plugin mode to use for the AKS cluster."
+      }
+    },
+    "encodedCustomConfiguration": {
+      "type": "String"
+    },
+    "agentpool": {
+      "type": "array",
+      "metadata": {
+        "description": "Configuration for the agent pool."
+      }
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2023-11-02-preview",
+      "name": "[parameters('aks_cluster_name')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "owner": "[parameters('owner')]",
+        "scenario": "[parameters('scenario')]",
+        "deletion_due_time": "[parameters('deletion_due_time')]",
+        "run_id": "[parameters('run_id')]"
+      },
+      "sku": {
+        "name": "Base",
+        "tier": "Standard"
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "kubernetesVersion": "1.31",
+        "dnsPrefix": "[concat(parameters('aks_cluster_name'), '-dns')]",
+        "encodedCustomConfiguration": "[parameters('encodedCustomConfiguration')]",
+        "servicePrincipalProfile": {
+          "clientId": "msi"
+        },
+        "networkProfile": {
+          "networkPlugin": "[parameters('network_plugin')]",
+          "networkPluginMode": "[parameters('network_plugin_mode')]"
+        },
+        "agentPoolProfiles": "[parameters('agentpool')]"
+      }
+    }
+  ]
+}

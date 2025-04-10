@@ -1,0 +1,39 @@
+{
+  "owner": { "value": "${owner}" },
+  "scenario": { "value": "${scenario}" },
+  "deletion_due_time": { "value": "${deletion_due_time}" },
+  "run_id": { "value": "${run_id}" },
+  "location": { "value": "${location}" },
+  "aks_cluster_name": { "value": "vn100-p10k-streaming" },
+  "network_plugin": { "value": "azure" },
+  "network_plugin_mode": { "value": "overlay" },
+  "encodedCustomConfiguration": { "value": "${encodedCustomConfiguration}" },
+  "agentpool": {
+    "value": [
+      {
+        "name": "default",
+        "count": 2,
+        "vmSize": "Standard_D2s_v3",
+        "osType": "Linux",
+        "osDiskType": "Managed",
+        "mode": "System"
+      },
+      {
+        "name": "virtualnodes",
+        "count": 5,
+        "vmSize": "Standard_D8s_v3",
+        "osType": "Linux",
+        "osDiskType": "Managed",
+        "mode": "User"
+      },
+      {
+        "name": "runner",
+        "count": 3,
+        "vmSize": "Standard_D16s_v3",
+        "osType": "Linux",
+        "osDiskType": "Managed",
+        "mode": "User"
+      }
+    ]
+  }
+}

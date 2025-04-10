@@ -26,6 +26,12 @@ steps:
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
+      if [ -z "$(ENCODED_CUSTOM_CONFIG)" ]; then
+        ENCODED_CUSTOM_CONFIG=''
+      else
+        ENCODED_CUSTOM_CONFIG=$(ENCODED_CUSTOM_CONFIG)
+      fi
+
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
@@ -33,24 +39,28 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
+                --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
                 --arg aks_sku_tier "$SKU_TIER" \
                 --arg aks_kubernetes_version "$KUBERNETES_VERSION" \
                 --arg aks_network_policy "$NETWORK_POLICY" \
                 --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
                 --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
                 --arg k8s_os_disk_type "$K8S_OS_DISK_TYPE" \
+                --arg encoded_custom_configuration "$ENCODED_CUSTOM_CONFIG" \
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
                 '{
                   run_id: $run_id,
                   region: $region,
+                  user_data_path: $user_data_path,
                   aks_sku_tier: $aks_sku_tier,
                   aks_kubernetes_version: $aks_kubernetes_version,
                   aks_network_policy: $aks_network_policy,
                   aks_network_dataplane: $aks_network_dataplane,
                   k8s_machine_type: $k8s_machine_type,
                   k8s_os_disk_type: $k8s_os_disk_type,
+                  encoded_custom_configuration: $encoded_custom_configuration,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool
