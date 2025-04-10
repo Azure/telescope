@@ -3,19 +3,19 @@ from kubernetes import client, config
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
-# TODO: add kwok nodes to this to validate
 
 builtin_taints_keys = [
-	"node.kubernetes.io/not-ready",
-	"node.kubernetes.io/unreachable",
-	"node.kubernetes.io/pid-pressure",
-	"node.kubernetes.io/out-of-disk",
-	"node.kubernetes.io/memory-pressure",
-	"node.kubernetes.io/disk-pressure",
-	"node.kubernetes.io/network-unavailable",
-	"node.kubernetes.io/unschedulable",
-	"node.cloudprovider.kubernetes.io/uninitialized",
-	"node.cloudprovider.kubernetes.io/shutdown",
+    "node.kubernetes.io/not-ready",
+    "node.kubernetes.io/unreachable",
+    "node.kubernetes.io/pid-pressure",
+    "node.kubernetes.io/out-of-disk",
+    "node.kubernetes.io/memory-pressure",
+    "node.kubernetes.io/disk-pressure",
+    "node.kubernetes.io/network-unavailable",
+    "node.kubernetes.io/unschedulable",
+    "node.cloudprovider.kubernetes.io/uninitialized",
+    "node.cloudprovider.kubernetes.io/shutdown",
+    "kwok.x-k8s.io/kwok",
 ]
 
 class KubernetesClient:
