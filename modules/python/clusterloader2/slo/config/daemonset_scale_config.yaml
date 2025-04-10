@@ -39,7 +39,7 @@ namespace:
   number: 1
   prefix: slo
   deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
+  deleteAutomanagedNamespaces: false
   enableExistingNamespaces: false
 
 tuningSets:
@@ -86,12 +86,12 @@ steps:
       - basename: pod-network-instance
         objectTemplatePath: pni_template.yaml
 
-  - name: Wait for PNI to be created
+  - name: Wait for PNI to be created and nodes to be registered
     measurements:
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 20s
+          duration: 120s
 
 # start repeat
   - name: Starting measurement for Create Daemonset
@@ -147,37 +147,37 @@ steps:
         action: gather
         # group: {{$groupName}}
 
-  - name: Starting measurement for Delete Daemonset
-    measurements:
-    - Identifier: WaitForDeletedDaemonSets
-      Method: WaitForControlledPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: DaemonSet
-        action: start
-        checkIfPodsAreUpdated: true
-        labelSelector: group = {{$groupName}}
-        operationTimeout: {{$operationTimeout}}
+  # - name: Starting measurement for Delete Daemonset
+  #   measurements:
+  #   - Identifier: WaitForDeletedDaemonSets
+  #     Method: WaitForControlledPodsRunning
+  #     Params:
+  #       apiVersion: apps/v1
+  #       kind: DaemonSet
+  #       action: start
+  #       checkIfPodsAreUpdated: true
+  #       labelSelector: group = {{$groupName}}
+  #       operationTimeout: {{$operationTimeout}}
 
-  - name: Delete Daemonset
-    phases:
-    - namespaceRange:
-        min: 1
-        max: 1
-      replicasPerNamespace: 0
-      tuningSet: Sequence
-      objectBundle:
-      - basename: daemonset
-        objectTemplatePath: daemonset_template.yaml
+  # - name: Delete Daemonset
+  #   phases:
+  #   - namespaceRange:
+  #       min: 1
+  #       max: 1
+  #     replicasPerNamespace: 0
+  #     tuningSet: Sequence
+  #     objectBundle:
+  #     - basename: daemonset
+  #       objectTemplatePath: daemonset_template.yaml
 
-  - name: Waiting for Delete Daemonset to be completed
-    measurements:
-    - Identifier: WaitForDeletedDaemonSets
-      Method: WaitForControlledPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: DaemonSet
-        action: gather
-        refreshInterval: 15s
+  # - name: Waiting for Delete Daemonset to be completed
+  #   measurements:
+  #   - Identifier: WaitForDeletedDaemonSets
+  #     Method: WaitForControlledPodsRunning
+  #     Params:
+  #       apiVersion: apps/v1
+  #       kind: DaemonSet
+  #       action: gather
+  #       refreshInterval: 15s
 
 # end repeat
