@@ -9,7 +9,7 @@ github_config = {
 azure_config = {
   service_connection_name        = "Azure-for-Telescope"
   service_connection_description = "Managed by Terraform"
-  subscription_id                = null
+  subscription_id                = "9b8218f9-902a-4d20-a65c-e98acec5362f"
   resource_group = {
     location = "eastus"
   }
