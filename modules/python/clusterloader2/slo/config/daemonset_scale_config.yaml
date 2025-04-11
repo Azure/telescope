@@ -94,7 +94,7 @@ steps:
   #       action: start
   #       group: {{$groupName}}
 {{range $i := Loop $repeats}}
-  - Identifier: PodStartupLatency {{i}}
+  - Identifier: PodStartupLatency {{$i}}
     Method: PodStartupLatency
     Params:
       action: start
