@@ -62,12 +62,12 @@ steps:
         action: start
         duration: 1ms
 
-{{if $SCRAPE_CONTAINERD}}
-  - module:
-      path: /modules/containerd-measurements.yaml
-      params:
-        action: start
-{{end}}
+# {{if $SCRAPE_CONTAINERD}}
+#   - module:
+#       path: /modules/containerd-measurements.yaml
+#       params:
+#         action: start
+# {{end}}
 
   - name: "Create PNI"
     phases:
@@ -89,20 +89,20 @@ steps:
 
 # start repeat
 
-# {{range $i := Loop $repeats}}
-#   - module:
-#       path: /modules/measurements.yaml
-#       params:
-#         action: start
-#         group: {{$groupName}}
-  - name: Starting Pod Startup Latency Measurements {{$i}}
-    measurements:
-    - Identifier: PodStartupLatency {{$i}}
-      Method: PodStartupLatency
-      Params:
+{{range $i := Loop $repeats}}
+  - module:
+      path: /modules/measurements.yaml
+      params:
         action: start
-        labelSelector: group = {{$groupName}}
-        threshold: {{$podStartupLatencyThreshold}}
+        group: {{$groupName}}
+  # - name: Starting Pod Startup Latency Measurements {{$i}}
+  #   measurements:
+  #   - Identifier: PodStartupLatency {{$i}}
+  #     Method: PodStartupLatency
+  #     Params:
+  #       action: start
+  #       labelSelector: group = {{$groupName}}
+  #       threshold: {{$podStartupLatencyThreshold}}
   - name: Starting measurement for Create Daemonset {{$i}}
     measurements:
     - Identifier: WaitForRunningDaemonSets
@@ -136,27 +136,27 @@ steps:
         action: gather
         refreshInterval: 15s
 
-{{if $SCRAPE_CONTAINERD}}
-  - name: Wait for last scrape
-    measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          duration: 10m
-{{end}}
+# {{if $SCRAPE_CONTAINERD}}
+#   - name: Wait for last scrape
+#     measurements:
+#       - Identifier: Sleep
+#         Method: Sleep
+#         Params:
+#           duration: 10m
+# {{end}}
 
-  - name: Ending Pod Startup Latency Measurements {{$i}}
-    measurements:
-    - Identifier: PodStartupLatency {{$i}}
-      Method: PodStartupLatency
-      Params:
-        action: gather
-        labelSelector: group = {{$groupName}}
-  # - module:
-  #     path: /modules/measurements.yaml
-  #     params:
+  # - name: Ending Pod Startup Latency Measurements {{$i}}
+  #   measurements:
+  #   - Identifier: PodStartupLatency {{$i}}
+  #     Method: PodStartupLatency
+  #     Params:
   #       action: gather
-        # group: {{$groupName}}
+  #       labelSelector: group = {{$groupName}}
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
 
   - name: Starting measurement for Delete Daemonset
     measurements:
