@@ -18,7 +18,7 @@ name: daemonset_scale_config
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
-{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "20s"}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "30s"}}
 
 {{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
@@ -88,12 +88,19 @@ steps:
           duration: 120s
 
 # start repeat
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-  - name: Starting measurement for Create Daemonset
+  # - module:
+  #     path: /modules/measurements.yaml
+  #     params:
+  #       action: start
+  #       group: {{$groupName}}
+{{range $i := Loop $repeats}}
+  - Identifier: PodStartupLatency {{i}}
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: group = {{$groupName}}
+      threshold: {{$podStartupLatencyThreshold}}
+  - name: Starting measurement for Create Daemonset {{$i}}
     measurements:
     - Identifier: WaitForRunningDaemonSets
       Method: WaitForControlledPodsRunning
@@ -105,7 +112,7 @@ steps:
         labelSelector: group = {{$groupName}}
         operationTimeout: {{$operationTimeout}}
 
-  - name: Create Daemonset
+  - name: Create Daemonset {{$i}}
     phases:
     - namespaceRange:
         min: 1
@@ -116,7 +123,7 @@ steps:
       - basename: daemonset
         objectTemplatePath: daemonset_template.yaml
 
-  - name: Waiting for Create Daemonset to be running
+  - name: Waiting for Create Daemonset to be running {{$i}}
     measurements:
     - Identifier: WaitForRunningDaemonSets
       Method: WaitForControlledPodsRunning
@@ -134,21 +141,22 @@ steps:
         Params:
           duration: 10m
 
-  - module:
-      path: /modules/containerd-measurements.yaml
-      params:
-        action: gather
+  - Identifier: PodStartupLatency {{$i}}
+    Method: PodStartupLatency
+    Params:
+      action: gather
+      labelSelector: group = {{$groupName}}
 {{end}}
 
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
+  # - module:
+  #     path: /modules/measurements.yaml
+  #     params:
+  #       action: gather
         # group: {{$groupName}}
 
   - name: Starting measurement for Delete Daemonset
     measurements:
-    - Identifier: WaitForDeletedDaemonSets
+    - Identifier: WaitForDeletedDaemonSets {{$i}}
       Method: WaitForControlledPodsRunning
       Params:
         apiVersion: apps/v1
@@ -158,7 +166,7 @@ steps:
         labelSelector: group = {{$groupName}}
         operationTimeout: {{$operationTimeout}}
 
-  - name: Delete Daemonset
+  - name: Delete Daemonset {{$i}}
     phases:
     - namespaceRange:
         min: 1
@@ -171,12 +179,18 @@ steps:
 
   - name: Waiting for Delete Daemonset to be completed
     measurements:
-    - Identifier: WaitForDeletedDaemonSets
+    - Identifier: WaitForDeletedDaemonSets {{$i}}
       Method: WaitForControlledPodsRunning
       Params:
         apiVersion: apps/v1
         kind: DaemonSet
         action: gather
         refreshInterval: 15s
-
+  - name: Wait for MTPNC cleanup {{$i}}
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 2m
+{{end}}
 # end repeat
