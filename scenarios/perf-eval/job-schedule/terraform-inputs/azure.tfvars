@@ -27,6 +27,7 @@ aks_config_list = [
     dns_prefix  = "slo"
     subnet_name = "slo-subnet-1"
     sku_tier    = "Standard"
+
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
@@ -34,6 +35,7 @@ aks_config_list = [
       service_cidr        = "192.168.0.0/16"
       dns_service_ip      = "192.168.0.10"
     }
+
     default_node_pool = {
       name                         = "default"
       node_count                   = 5
@@ -42,14 +44,16 @@ aks_config_list = [
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = false
       temporary_name_for_rotation  = "defaulttmp"
+      max_pods                     = 200
     }
+
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D64_v3"
-        max_pods             = 110
+        max_pods             = 200
         node_labels          = { "prometheus" = "true" }
       },
       {
@@ -59,7 +63,7 @@ aks_config_list = [
         max_count            = 500
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
-        max_pods             = 110
+        max_pods             = 200
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
       },
@@ -70,11 +74,34 @@ aks_config_list = [
         max_count            = 500
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
-        max_pods             = 110
+        max_pods             = 200
+        node_taints          = ["slo=true:NoSchedule"]
+        node_labels          = { "slo" = "true" }
+      },
+      {
+        name                 = "userpool2"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 500
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D4_v3"
+        max_pods             = 200
+        node_taints          = ["slo=true:NoSchedule"]
+        node_labels          = { "slo" = "true" }
+      },
+      {
+        name                 = "userpool3"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 500
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D4_v3"
+        max_pods             = 200
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
       }
     ]
+
     kubernetes_version = "1.32"
   }
 ]

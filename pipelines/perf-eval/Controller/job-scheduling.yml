@@ -48,12 +48,12 @@ stages:
       topology: slo
       matrix:
         default:
-          cpu_per_node: 4
+          cpu_per_node: 8
           node_count: 2000
           node_per_step: 200
           max_pods: 110
           repeats: 1
-          scale_timeout: "30m"
+          scale_timeout: "60m"
           cilium_enabled: False
           cl2_config_file: config.yaml
           service_test: False

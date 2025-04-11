@@ -1,7 +1,7 @@
 scenario_type  = "perf-eval"
 scenario_name  = "job-schedule"
 deletion_delay = "12h"
-owner          = "aks"
+owner          = "aws"
 
 network_config_list = [
   {
@@ -72,7 +72,15 @@ eks_config_list = [{
   eks_name         = "slo"
   enable_karpenter = true
   vpc_name         = "slo-vpc"
-  policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
+  policy_arns      = [
+    "AmazonEKSClusterPolicy",
+    "AmazonEKSVPCResourceController",
+    "AmazonEKSWorkerNodePolicy",
+    "AmazonEKS_CNI_Policy",
+    "AmazonEC2ContainerRegistryReadOnly"
+  ]
+
+  # Reserved infrastructure node groups
   eks_managed_node_groups = [
     {
       name           = "default"
@@ -92,6 +100,49 @@ eks_config_list = [{
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels         = { "prometheus" = "true" }
+    }
+  ]
+
+  karpenter_provisioners = [
+    {
+      name             = "karp-userpool-0"
+      instance_types   = ["m5.2xlarge"]
+      capacity_type    = "ON_DEMAND"
+      max_nodes        = 500
+      subnets          = ["slo-subnet-1", "slo-subnet-2", "slo-subnet-3"]
+      labels           = { "slo" = "true", "karpenter" = "userpool-0" }
+      taints           = [{ key = "slo", value = "true", effect = "NoSchedule" }]
+      max_pods         = 200
+    },
+    {
+      name             = "karp-userpool-1"
+      instance_types   = ["m5.2xlarge"]
+      capacity_type    = "ON_DEMAND"
+      max_nodes        = 500
+      subnets          = ["slo-subnet-1", "slo-subnet-2", "slo-subnet-3"]
+      labels           = { "slo" = "true", "karpenter" = "userpool-1" }
+      taints           = [{ key = "slo", value = "true", effect = "NoSchedule" }]
+      max_pods         = 200
+    },
+    {
+      name             = "karp-userpool-2"
+      instance_types   = ["m5.2xlarge"]
+      capacity_type    = "ON_DEMAND"
+      max_nodes        = 500
+      subnets          = ["slo-subnet-1", "slo-subnet-2", "slo-subnet-3"]
+      labels           = { "slo" = "true", "karpenter" = "userpool-2" }
+      taints           = [{ key = "slo", value = "true", effect = "NoSchedule" }]
+      max_pods         = 200
+    },
+    {
+      name             = "karp-userpool-3"
+      instance_types   = ["m5.2xlarge"]
+      capacity_type    = "ON_DEMAND"
+      max_nodes        = 500
+      subnets          = ["slo-subnet-1", "slo-subnet-2", "slo-subnet-3"]
+      labels           = { "slo" = "true", "karpenter" = "userpool-3" }
+      taints           = [{ key = "slo", value = "true", effect = "NoSchedule" }]
+      max_pods         = 200
     }
   ]
 
