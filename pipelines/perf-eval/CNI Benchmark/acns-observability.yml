@@ -1,0 +1,34 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: acns-azurecni-overlay
+
+stages:
+  - stage: ACNS_Infra_Test
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: observability
+          matrix:
+            acns:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 1000
+              max_pods: 20
+              repeats: 10
+              scale_timeout: "15m"
+              cilium_enabled: False
+              service_test: True
+              cl2_config_file: load-config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

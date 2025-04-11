@@ -1,0 +1,19 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- script: echo "Collecting clusterloader2 data"
+  displayName: 'Collect clusterloader2 data'
+# - template: /steps/engine/clusterloader2/slo/collect.yml
+#   parameters:
+#     cloud: ${{ parameters.cloud }}
+#     engine_input: ${{ parameters.engine_input }}
+#     region: ${{ parameters.regions[0] }}
