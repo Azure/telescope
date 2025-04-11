@@ -88,12 +88,13 @@ steps:
           duration: 120s
 
 # start repeat
-  # - module:
-  #     path: /modules/measurements.yaml
-  #     params:
-  #       action: start
-  #       group: {{$groupName}}
-{{range $i := Loop $repeats}}
+
+# {{range $i := Loop $repeats}}
+#   - module:
+#       path: /modules/measurements.yaml
+#       params:
+#         action: start
+#         group: {{$groupName}}
   - name: Starting Pod Startup Latency Measurements {{$i}}
     measurements:
     - Identifier: PodStartupLatency {{$i}}
@@ -142,6 +143,8 @@ steps:
         Method: Sleep
         Params:
           duration: 10m
+{{end}}
+
   - name: Ending Pod Startup Latency Measurements {{$i}}
     measurements:
     - Identifier: PodStartupLatency {{$i}}
@@ -149,8 +152,6 @@ steps:
       Params:
         action: gather
         labelSelector: group = {{$groupName}}
-{{end}}
-
   # - module:
   #     path: /modules/measurements.yaml
   #     params:
