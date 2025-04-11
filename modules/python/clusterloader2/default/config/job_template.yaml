@@ -26,7 +26,7 @@ spec:
       containers:
       - image: busybox
         name: {{.Name}}
-        command: ["sh", "-c", "echo Job is running; sleep 5; echo Job done!"]
+        command: ["sh", "-c", "echo Job is running; sleep 1; echo Job done!"]
 
      
 
