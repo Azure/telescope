@@ -6,7 +6,7 @@ parameters:
   - name: regions
     type: object
   - name: node_count
-    type: number
+    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
