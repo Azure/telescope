@@ -24,8 +24,10 @@ stages:
           topology: kperf
           matrix:
             podsize-20k:
-              disable_warmup: "true"
               flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            podsize-20k-exempt:
+              flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.2.0
