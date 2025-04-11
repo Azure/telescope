@@ -1,0 +1,46 @@
+trigger: none
+schedules:
+  - cron: "0 20 */2 * *"
+    displayName: "Every other day at 8:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: nap-c2n2kp2k
+
+stages:
+  - stage: azure_australiaeast_2k
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every other day at 8:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: karpenter
+          matrix:
+            c2-n200-p200:
+              cpu_per_node: 2
+              node_count: 2000
+              pod_count: 2000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
