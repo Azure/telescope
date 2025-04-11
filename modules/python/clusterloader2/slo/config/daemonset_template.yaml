@@ -99,10 +99,10 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{.basename}}
+  name: {{.Name}}
   namespace: slo-1
   labels:
-    group: {{.group}}
+    group: {{.Group}}
     kubernetes.azure.com/pod-network: pn100
     kubernetes.azure.com/pod-network-instance: pod-network-instance-0
 spec:
@@ -110,12 +110,12 @@ spec:
     type: OnDelete
   selector:
     matchLabels:
-      name: {{.basename}}
+      name: {{.Name}}
   template:
     metadata:
       labels:
-        group: {{.group}}
-        name: {{.basename}}
+        group: {{.Group}}
+        name: {{.Name}}
         kubernetes.azure.com/pod-network: pn100
         kubernetes.azure.com/pod-network-instance: pod-network-instance-0
     spec:
