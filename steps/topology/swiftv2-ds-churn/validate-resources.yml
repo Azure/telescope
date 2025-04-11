@@ -8,6 +8,9 @@ parameters:
   - name: node_count
     type: string
 
+variables:
+  node_count: ${{ int(parameters.node_count) }}
+
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
@@ -17,9 +20,9 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: $[int(${{ parameters.node_count }})
+      nodes_per_nodepool: ${{ variables.node_count }}
       enable_autoscale: "false"
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: $[ int(${{ parameters.node_count }}) + 6 ]
+      desired_nodes: $[ ${{ variables.node_count }} + 6 ]
