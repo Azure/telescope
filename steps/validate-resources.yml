@@ -24,4 +24,4 @@ steps:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
     engine: ${{ parameters.engine }}
-    engine: ${{ parameters.node_count }}
+    node_count: ${{ parameters.node_count }}
