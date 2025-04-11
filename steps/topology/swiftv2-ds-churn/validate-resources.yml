@@ -17,9 +17,9 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: ${{ parameters.node_count }}
+      nodes_per_nodepool: $[int(${{ parameters.node_count }})
       enable_autoscale: "false"
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: $[ ${{ parameters.cloud }} + 6 ]
+      desired_nodes: $[ int(${{ parameters.node_count }}) + 6 ]
