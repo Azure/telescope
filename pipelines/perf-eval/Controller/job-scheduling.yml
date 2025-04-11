@@ -41,7 +41,7 @@ stages:
     parameters:
       cloud: aws
       regions:
-      - us-east-2
+      - us-east-1
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20241022"
