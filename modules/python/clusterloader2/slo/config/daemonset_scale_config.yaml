@@ -80,12 +80,12 @@ steps:
   #     - basename: pod-network-instance
   #       objectTemplatePath: pni_template.yaml
 
-  # - name: Wait for PNI to be created and nodes to be registered
-  #   measurements:
-  #     - Identifier: Dummy
-  #       Method: Sleep
-  #       Params:
-  #         duration: 120s
+  - name: Wait for PNI to be created and nodes to be registered
+    measurements:
+      - Identifier: Dummy
+        Method: Sleep
+        Params:
+          duration: 360s
 
 # start repeat
 
