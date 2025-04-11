@@ -21,9 +21,8 @@ stages:
       matrix:
         default:
           kwok_nodes: 2000
-          qps: 10
+          qps: 200
           job_count: 20000
-          cpu_per_node: 1
           cilium_enabled: False
           scale_timeout: "1h"
           service_test: True
@@ -48,7 +47,7 @@ stages:
       matrix:
         default:
           kwok_nodes: 2000
-          qps: 60
+          qps: 200
           job_count: 20000
           cilium_enabled: False
           scale_timeout: "1h"
