@@ -21,14 +21,16 @@ steps:
         Method: JobLifecycleLatency
         Params:
           action: start
+          timeout: 3h
           labelSelector: group=job-scheduling
-          timeout: 2h
+          
       - Identifier: WaitForFinishedJobs
         Method: WaitForFinishedJobs
         Params:
           action: start
+          timeout: 3h
           labelSelector: group=job-scheduling
-          timeout: 2h
+          
 
 {{range $i := Loop $job_count}}
   - name: Create job {{$i}}
@@ -51,10 +53,11 @@ steps:
       Method: WaitForFinishedJobs
       Params:
         action: gather
-        timeout: 2h
+        timeout: 3h
   - name: Collect measurements
     measurements:
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
-          action: gather                                  
+          action: gather  
+          timeout: 3h                                
