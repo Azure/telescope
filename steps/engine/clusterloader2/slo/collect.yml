@@ -15,6 +15,7 @@ steps:
 - script: |
     set -eo pipefail
 
+    echo $PYTHON_SCRIPT_FILE
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
       $CPU_PER_NODE $NODE_COUNT ${MAX_PODS:-0} \
       $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST ${CNP_TEST:-False} \
