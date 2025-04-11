@@ -19,7 +19,13 @@ steps:
       region: ${{ parameters.regions[0] }}
       nodes_per_nodepool: ${{ parameters.node_count }}
       enable_autoscale: "false"
+  - script: |
+      node_count=${{ parameters.node_count }}
+      additional_nodes=6 
+      total_nodes=$((node_count + additional_nodes))
+      echo "##vso[task.setvariable variable=total_nodes;]$total_nodes"
+    displayName: 'Calculate Total Nodes'
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: $[ ${{ parameters.node_count }} + 6 ]
+      desired_nodes: $(total_nodes)
