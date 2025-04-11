@@ -363,322 +363,116 @@ def collect_clusterloader2(
     with open(result_file, "w", encoding="utf-8") as file:
         file.write(content)
 
+def set_default_args():
+
+    """
+    if the user did not explicitly specify a sub-subcommand like 'virtual' or 'actual'.
+    Define 'actual' as the default mode
+    """
+    known_modes = ["virtual", "actual"]
+    # Check if the third argument is a known mode
+    if len(sys.argv) < 3 or sys.argv[2] not in known_modes:
+        sys.argv.insert(2, "actual")
+
 
 def main():
-    print("Raw command-line arguments:", sys.argv)
+    set_default_args()
     parser = argparse.ArgumentParser(description="CLI Kubernetes resources.")
 
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2
-    parser_configure = subparsers.add_parser(
-        "configure", help="Override CL2 config file"
-    )
+    parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
     configure_subparsers = parser_configure.add_subparsers(dest="mode")
+    configure_subparsers.required = False  # Make 'mode' optional
+    parser_configure.set_defaults(mode="actual")  # Default to 'actual' if no subcommand given
+
     # virtual sub-subcommand
-    parser_configure_virtual = configure_subparsers.add_parser(
-        "virtual", help="running in virtual or actual nodes"
-    )
-    parser_configure_virtual.add_argument(
-        "kwok_nodes", type=int, help="number of virtual nodes"
-    )
-    parser_configure_virtual.add_argument(
-        "qps", type=int, help="number of request send per seconds"
-    )
+    parser_configure_virtual = configure_subparsers.add_parser("virtual", help="running in virtual or actual nodes")
+    parser_configure_virtual.add_argument("kwok_nodes", type=int, help="number of virtual nodes")
+    parser_configure_virtual.add_argument("qps", type=int, help="number of request send per seconds")
     parser_configure_virtual.add_argument("job_count", type=int, help="number of jobs")
-    parser_configure_virtual.add_argument(
-        "operation_timeout", type=str, help="Timeout before failing the scale up test"
-    )
-    parser_configure_virtual.add_argument(
-        "provider", type=str, help="Cloud provider name"
-    )
-    parser_configure_virtual.add_argument(
-        "cilium_enabled",
-        type=eval,
-        choices=[True, False],
-        default=False,
-        help="Whether cilium is enabled. Must be either True or False",
-    )
-    parser_configure_virtual.add_argument(
-        "service_test",
-        type=eval,
-        choices=[True, False],
-        default=False,
-        help="Whether service test is running. Must be either True or False",
-    )
-    parser_configure_virtual.add_argument(
-        "cnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cnp test is running. Must be either True or False",
-    )
-    parser_configure_virtual.add_argument(
-        "ccnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether ccnp test is running. Must be either True or False",
-    )
-    parser_configure_virtual.add_argument(
-        "num_cnps", type=int, nargs="?", default=0, help="Number of cnps"
-    )
-    parser_configure_virtual.add_argument(
-        "num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps"
-    )
-    parser_configure_virtual.add_argument(
-        "dualstack",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cluster is dualstack. Must be either True or False",
-    )
-    parser_configure_virtual.add_argument(
-        "cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
-    )
+    parser_configure_virtual.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
+    parser_configure_virtual.add_argument("provider", type=str, help="Cloud provider name")
+    parser_configure_virtual.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False, help="Whether cilium is enabled. Must be either True or False")
+    parser_configure_virtual.add_argument("service_test", type=eval, choices=[True, False], default=False, help="Whether service test is running. Must be either True or False")
+    parser_configure_virtual.add_argument("cnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cnp test is running. Must be either True or False")
+    parser_configure_virtual.add_argument("ccnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether ccnp test is running. Must be either True or False")
+    parser_configure_virtual.add_argument("num_cnps", type=int, nargs="?", default=0, help="Number of cnps")
+    parser_configure_virtual.add_argument("num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps")
+    parser_configure_virtual.add_argument("dualstack", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cluster is dualstack. Must be either True or False")
+    parser_configure_virtual.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
-    parser_configure_actual = configure_subparsers.add_parser(
-        "actual", help="running in virtual or actual nodes"
-    )
-
+    parser_configure_actual = configure_subparsers.add_parser("actual", help="running in virtual or actual nodes")
     parser_configure_actual.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure_actual.add_argument("node_count", type=int, help="Number of nodes")
-    parser_configure_actual.add_argument(
-        "node_per_step", type=int, help="Number of nodes per scaling step"
-    )
-    parser_configure_actual.add_argument(
-        "max_pods",
-        type=int,
-        nargs="?",
-        default=0,
-        help="Maximum number of pods per node",
-    )
-    parser_configure_actual.add_argument(
-        "repeats", type=int, help="Number of times to repeat the deployment churn"
-    )
-    parser_configure_actual.add_argument(
-        "operation_timeout", type=str, help="Timeout before failing the scale up test"
-    )
-    parser_configure_actual.add_argument(
-        "provider", type=str, help="Cloud provider name"
-    )
-    parser_configure_actual.add_argument(
-        "cilium_enabled",
-        type=eval,
-        choices=[True, False],
-        default=False,
-        help="Whether cilium is enabled. Must be either True or False",
-    )
-    parser_configure_actual.add_argument(
-        "service_test",
-        type=eval,
-        choices=[True, False],
-        default=False,
-        help="Whether service test is running. Must be either True or False",
-    )
-    parser_configure_actual.add_argument(
-        "cnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cnp test is running. Must be either True or False",
-    )
-    parser_configure_actual.add_argument(
-        "ccnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether ccnp test is running. Must be either True or False",
-    )
-    parser_configure_actual.add_argument(
-        "num_cnps", type=int, nargs="?", default=0, help="Number of cnps"
-    )
-    parser_configure_actual.add_argument(
-        "num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps"
-    )
-    parser_configure_actual.add_argument(
-        "dualstack",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cluster is dualstack. Must be either True or False",
-    )
-    parser_configure_actual.add_argument(
-        "cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
-    )
+    parser_configure_actual.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
+    parser_configure_actual.add_argument("max_pods", type=int, nargs="?", default=0, help="Maximum number of pods per node")
+    parser_configure_actual.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_configure_actual.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
+    parser_configure_actual.add_argument("provider", type=str, help="Cloud provider name")
+    parser_configure_actual.add_argument("cilium_enabled", type=eval, choices=[True, False], default=False, help="Whether cilium is enabled. Must be either True or False")
+    parser_configure_actual.add_argument("service_test", type=eval, choices=[True, False], default=False, help="Whether service test is running. Must be either True or False")
+    parser_configure_actual.add_argument("cnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cnp test is running. Must be either True or False")
+    parser_configure_actual.add_argument("ccnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether ccnp test is running. Must be either True or False")
+    parser_configure_actual.add_argument("num_cnps", type=int, nargs="?", default=0, help="Number of cnps")
+    parser_configure_actual.add_argument("num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps")
+    parser_configure_actual.add_argument("dualstack", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cluster is dualstack. Must be either True or False")
+    parser_configure_actual.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
-    parser_validate.add_argument(
-        "operation_timeout",
-        type=int,
-        default=600,
-        help="Operation timeout to wait for nodes to be ready",
-    )
+    parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
-    parser_execute.add_argument(
-        "cl2_config_dir", type=str, help="Path to the CL2 config directory"
-    )
-    parser_execute.add_argument(
-        "cl2_report_dir", type=str, help="Path to the CL2 report directory"
-    )
-    parser_execute.add_argument(
-        "cl2_config_file", type=str, help="Path to the CL2 config file"
-    )
-    parser_execute.add_argument(
-        "kubeconfig", type=str, help="Path to the kubeconfig file"
-    )
+    parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
+    parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_execute.add_argument("cl2_config_file", type=str, help="Path to the CL2 config file")
+    parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     collect_subparsers = parser_collect.add_subparsers(dest="mode")
+
     # virtual sub-subcommand
-    parser_collect_virtual = collect_subparsers.add_parser(
-        "virtual", help="running in virtual or actual nodes"
-    )
-    parser_collect_virtual.add_argument(
-        "kwok_nodes", type=int, help="number of virtual nodes"
-    )
-    parser_collect_virtual.add_argument(
-        "qps", type=int, help="number of request send per seconds"
-    )
+    parser_collect_virtual = collect_subparsers.add_parser("virtual", help="running in virtual or actual nodes")
+    parser_collect_virtual.add_argument("kwok_nodes", type=int, help="number of virtual nodes")
+    parser_collect_virtual.add_argument("qps", type=int, help="number of request send per seconds")
     parser_collect_virtual.add_argument("job_count", type=int, help="number of jobs")
-    parser_collect_virtual.add_argument(
-        "cl2_report_dir", type=str, help="Path to the CL2 report directory"
-    )
-    parser_collect_virtual.add_argument(
-        "cloud_info", type=str, help="Cloud information"
-    )
+    parser_collect_virtual.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_collect_virtual.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect_virtual.add_argument("run_id", type=str, help="Run ID")
     parser_collect_virtual.add_argument("run_url", type=str, help="Run URL")
-    parser_collect_virtual.add_argument(
-        "service_test",
-        type=eval,
-        choices=[True, False],
-        default=False,
-        help="Whether service test is running. Must be either True or False",
-    )
-    parser_collect_virtual.add_argument(
-        "cnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cnp test is running. Must be either True or False",
-    )
-    parser_collect_virtual.add_argument(
-        "ccnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether ccnp test is running. Must be either True or False",
-    )
-    parser_collect_virtual.add_argument(
-        "num_cnps", type=int, nargs="?", default=0, help="Number of cnps"
-    )
-    parser_collect_virtual.add_argument(
-        "num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps"
-    )
-    parser_collect_virtual.add_argument(
-        "dualstack",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cluster is dualstack. Must be either True or False",
-    )
-    parser_collect_virtual.add_argument(
-        "result_file", type=str, help="Path to the result file"
-    )
-    parser_collect_virtual.add_argument(
-        "test_type",
-        type=str,
-        nargs="?",
-        default="default-config",
-        help="Description of test type",
-    )
+    parser_collect_virtual.add_argument("service_test", type=eval, choices=[True, False], default=False, help="Whether service test is running. Must be either True or False")
+    parser_collect_virtual.add_argument("cnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cnp test is running. Must be either True or False")
+    parser_collect_virtual.add_argument("ccnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether ccnp test is running. Must be either True or False")
+    parser_collect_virtual.add_argument("num_cnps", type=int, nargs="?", default=0, help="Number of cnps")
+    parser_collect_virtual.add_argument("num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps")
+    parser_collect_virtual.add_argument("dualstack", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cluster is dualstack. Must be either True or False")
+    parser_collect_virtual.add_argument("result_file", type=str, help="Path to the result file")
 
-    parser_collect_actual = collect_subparsers.add_parser(
-        "actual", help="running in virtual or actual nodes"
-    )
 
+    parser_collect_actual = collect_subparsers.add_parser("actual", help="running actual nodes")
     parser_collect_actual.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect_actual.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect_actual.add_argument(
-        "max_pods",
-        type=int,
-        nargs="?",
-        default=0,
-        help="Maximum number of pods per node",
-    )
-    parser_collect_actual.add_argument(
-        "repeats", type=int, help="Number of times to repeat the deployment churn"
-    )
-    parser_collect_actual.add_argument(
-        "cl2_report_dir", type=str, help="Path to the CL2 report directory"
-    )
+    parser_collect_actual.add_argument("max_pods", type=int, nargs="?", default=0, help="Maximum number of pods per node")
+    parser_collect_actual.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_collect_actual.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect_actual.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect_actual.add_argument("run_id", type=str, help="Run ID")
     parser_collect_actual.add_argument("run_url", type=str, help="Run URL")
-    parser_collect_actual.add_argument(
-        "service_test",
-        type=eval,
-        choices=[True, False],
-        default=False,
-        help="Whether service test is running. Must be either True or False",
-    )
-    parser_collect_actual.add_argument(
-        "cnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cnp test is running. Must be either True or False",
-    )
-    parser_collect_actual.add_argument(
-        "ccnp_test",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether ccnp test is running. Must be either True or False",
-    )
-    parser_collect_actual.add_argument(
-        "num_cnps", type=int, nargs="?", default=0, help="Number of cnps"
-    )
-    parser_collect_actual.add_argument(
-        "num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps"
-    )
-    parser_collect_actual.add_argument(
-        "dualstack",
-        type=eval,
-        choices=[True, False],
-        nargs="?",
-        default=False,
-        help="Whether cluster is dualstack. Must be either True or False",
-    )
-    parser_collect_actual.add_argument(
-        "result_file", type=str, help="Path to the result file"
-    )
-    parser_collect_actual.add_argument(
-        "test_type",
-        type=str,
-        nargs="?",
-        default="default-config",
-        help="Description of test type",
-    )
+    parser_collect_actual.add_argument("service_test", type=eval, choices=[True, False], default=False, help="Whether service test is running. Must be either True or False")
+    parser_collect_actual.add_argument("cnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cnp test is running. Must be either True or False")
+    parser_collect_actual.add_argument("ccnp_test", type=eval, choices=[True, False], nargs="?", default=False, help="Whether ccnp test is running. Must be either True or False")
+    parser_collect_actual.add_argument("num_cnps", type=int, nargs="?", default=0, help="Number of cnps")
+    parser_collect_actual.add_argument("num_ccnps", type=int, nargs="?", default=0, help="Number of ccnps")
+    parser_collect_actual.add_argument("dualstack", type=eval, choices=[True, False], nargs="?", default=False, help="Whether cluster is dualstack. Must be either True or False")
+    parser_collect_actual.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect_actual.add_argument("test_type", type=str, nargs="?", default="default-config", help="Description of test type")
 
     args = parser.parse_args()
 
@@ -760,7 +554,6 @@ def main():
                 args.result_file,
                 args.test_type,
             )
-
 
 if __name__ == "__main__":
     main()
