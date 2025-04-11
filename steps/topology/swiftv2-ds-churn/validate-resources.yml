@@ -5,19 +5,21 @@ parameters:
     type: string
   - name: regions
     type: object
+  - name: node_count
+    type: number
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-  # - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
-  #   parameters:
-  #     role: slo
-  #     region: ${{ parameters.regions[0] }}
-  #     nodes_per_nodepool: 10
-  #     enable_autoscale: "false"
+  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
+      nodes_per_nodepool: ${{ parameters.node_count }}
+      enable_autoscale: "false"
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: 16
+      desired_nodes: $[ ${{ parameters.cloud }} + 6 ]

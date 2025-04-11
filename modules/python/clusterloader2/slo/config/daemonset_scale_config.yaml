@@ -39,7 +39,7 @@ namespace:
   number: 1
   prefix: slo
   deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
+  deleteAutomanagedNamespaces: false
   enableExistingNamespaces: true
 
 tuningSets:
@@ -69,23 +69,23 @@ steps:
 #         action: start
 # {{end}}
 
-  - name: "Create PNI"
-    phases:
-    - namespaceRange:
-        min: 1
-        max: 1
-      replicasPerNamespace: 1
-      tuningSet: DeploymentCreatePNIQps
-      objectBundle:
-      - basename: pod-network-instance
-        objectTemplatePath: pni_template.yaml
+  # - name: "Create PNI"
+  #   phases:
+  #   - namespaceRange:
+  #       min: 1
+  #       max: 1
+  #     replicasPerNamespace: 1
+  #     tuningSet: DeploymentCreatePNIQps
+  #     objectBundle:
+  #     - basename: pod-network-instance
+  #       objectTemplatePath: pni_template.yaml
 
-  - name: Wait for PNI to be created and nodes to be registered
-    measurements:
-      - Identifier: Dummy
-        Method: Sleep
-        Params:
-          duration: 120s
+  # - name: Wait for PNI to be created and nodes to be registered
+  #   measurements:
+  #     - Identifier: Dummy
+  #       Method: Sleep
+  #       Params:
+  #         duration: 120s
 
 # start repeat
 
@@ -192,11 +192,11 @@ steps:
         kind: DaemonSet
         action: gather
         refreshInterval: 15s
-  - name: Wait for MTPNC cleanup {{$i}}
-    measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          duration: 2m
+  # - name: Wait for MTPNC cleanup {{$i}}
+  #   measurements:
+  #     - Identifier: Sleep
+  #       Method: Sleep
+  #       Params:
+  #         duration: 2m
 {{end}}
 # end repeat
