@@ -28,7 +28,7 @@ steps:
         Params:
           action: start
           labelSelector: group=job-scheduling
-          threshold: 4h
+          timeout: 4h
 
 {{range $i := Loop $job_count}}
   - name: Create job {{$i}}
@@ -51,6 +51,7 @@ steps:
       Method: WaitForFinishedJobs
       Params:
         action: gather
+        timeout: 1h
   - name: Collect measurements
     measurements:
       - Identifier: JobLifecycleLatency
