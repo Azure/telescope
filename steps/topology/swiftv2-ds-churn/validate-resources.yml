@@ -28,4 +28,4 @@ steps:
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: $(total_nodes)
+      desired_nodes: $[int(variables['total_nodes'])]
