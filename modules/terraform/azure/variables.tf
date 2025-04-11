@@ -1,17 +1,16 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id                       = string
-    region                       = string
-    user_data_path               = optional(string, null)
-    aks_sku_tier                 = optional(string, null)
-    aks_kubernetes_version       = optional(string, null)
-    aks_network_policy           = optional(string, null)
-    aks_network_dataplane        = optional(string, null)
-    aks_custom_headers           = optional(list(string), [])
-    k8s_machine_type             = optional(string, null)
-    k8s_os_disk_type             = optional(string, null)
-    encoded_custom_configuration = optional(string, null)
+    run_id                 = string
+    region                 = string
+    user_data_path         = optional(string, null)
+    aks_sku_tier           = optional(string, null)
+    aks_kubernetes_version = optional(string, null)
+    aks_network_policy     = optional(string, null)
+    aks_network_dataplane  = optional(string, null)
+    aks_custom_headers     = optional(list(string), [])
+    k8s_machine_type       = optional(string, null)
+    k8s_os_disk_type       = optional(string, null)
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -251,4 +250,5 @@ variable "aks_arm_deployment_config_list" {
     name            = string
     parameters_path = string
   }))
+  default = []
 }

@@ -2,6 +2,12 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "role": {
+      "type": "String",
+      "metadata": {
+        "description": "Role of the resource."
+      }
+    },
     "owner": {
       "type": "String",
       "metadata": {
@@ -49,9 +55,6 @@
         "description": "The network plugin mode to use for the AKS cluster."
       }
     },
-    "encodedCustomConfiguration": {
-      "type": "String"
-    },
     "agentpool": {
       "type": "array",
       "metadata": {
@@ -70,7 +73,8 @@
         "owner": "[parameters('owner')]",
         "scenario": "[parameters('scenario')]",
         "deletion_due_time": "[parameters('deletion_due_time')]",
-        "run_id": "[parameters('run_id')]"
+        "run_id": "[parameters('run_id')]",
+        "role": "[parameters('role')]"
       },
       "sku": {
         "name": "Base",
@@ -82,7 +86,7 @@
       "properties": {
         "kubernetesVersion": "1.31",
         "dnsPrefix": "[concat(parameters('aks_cluster_name'), '-dns')]",
-        "encodedCustomConfiguration": "[parameters('encodedCustomConfiguration')]",
+        ${CUSTOM_CONFIG}
         "servicePrincipalProfile": {
           "clientId": "msi"
         },

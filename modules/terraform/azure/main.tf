@@ -1,17 +1,16 @@
 locals {
-  region                       = lookup(var.json_input, "region", "East US")
-  run_id                       = lookup(var.json_input, "run_id", "123456")
-  aks_sku_tier                 = lookup(var.json_input, "aks_sku_tier", null)
-  aks_kubernetes_version       = lookup(var.json_input, "aks_kubernetes_version", null)
-  aks_network_policy           = lookup(var.json_input, "aks_network_policy", null)
-  aks_network_dataplane        = lookup(var.json_input, "aks_network_dataplane", null)
-  aks_cli_system_node_pool     = lookup(var.json_input, "aks_cli_system_node_pool", null)
-  aks_cli_user_node_pool       = lookup(var.json_input, "aks_cli_user_node_pool", null)
-  aks_custom_headers           = lookup(var.json_input, "aks_custom_headers", [])
-  k8s_machine_type             = lookup(var.json_input, "k8s_machine_type", null)
-  k8s_os_disk_type             = lookup(var.json_input, "k8s_os_disk_type", null)
-  user_data_path               = lookup(var.json_input, "user_data_path", null)
-  encoded_custom_configuration = lookup(var.json_input, "encoded_custom_configuration", null)
+  region                   = lookup(var.json_input, "region", "East US")
+  run_id                   = lookup(var.json_input, "run_id", "123456")
+  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
+  aks_kubernetes_version   = lookup(var.json_input, "aks_kubernetes_version", null)
+  aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
+  aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
+  aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
+  aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
+  aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
+  k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
+  k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
+  user_data_path           = lookup(var.json_input, "user_data_path", null)
 
   tags = {
     "owner"             = var.owner
@@ -110,10 +109,9 @@ module "aks-arm-deployment" {
   for_each = local.aks_arm_deployment_config_map
   source   = "./aks-arm-deployment"
 
-  deployment_name              = each.value.name
-  location                     = local.region
-  resource_group_name          = local.run_id
-  tags                         = local.tags
-  encoded_custom_configuration = local.encoded_custom_configuration
-  parameters_path              = local.user_data_path != null ? "${local.user_data_path}/${each.value.parameters_path}" : null
+  deployment_name     = each.value.name
+  location            = local.region
+  resource_group_name = local.run_id
+  tags                = local.tags
+  parameters_path     = local.user_data_path != null ? "${local.user_data_path}/${each.value.parameters_path}" : null
 }

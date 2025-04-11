@@ -5,7 +5,7 @@ owner          = "aks"
 
 aks_arm_deployment_config_list = [
   {
-    name            = "vn10pod100-custom-image"
+    name            = "vn10pod10k-streaming-encoding"
     parameters_path = "parameters.json"
   }
 ]

@@ -24,8 +24,3 @@ variable "tags" {
   }
 }
 
-variable "encoded_custom_configuration" {
-  description = "Encoded custom configuration for the API server"
-  type        = string
-}
-

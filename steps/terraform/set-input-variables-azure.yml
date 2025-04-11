@@ -26,11 +26,14 @@ steps:
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
+      # Edit the ARM template to set the custom config
+      arm_template_path=$TERRAFORM_WORKING_DIRECTORY/aks-arm-deployment/template.json
       if [ -z "$(ENCODED_CUSTOM_CONFIG)" ]; then
         ENCODED_CUSTOM_CONFIG=''
       else
         ENCODED_CUSTOM_CONFIG=$(ENCODED_CUSTOM_CONFIG)
       fi
+      sed -i "s|\${CUSTOM_CONFIG}|$(echo $ENCODED_CUSTOM_CONFIG | base64 --decode)|" $arm_template_path
 
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -46,7 +49,6 @@ steps:
                 --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
                 --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
                 --arg k8s_os_disk_type "$K8S_OS_DISK_TYPE" \
-                --arg encoded_custom_configuration "$ENCODED_CUSTOM_CONFIG" \
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
@@ -60,7 +62,6 @@ steps:
                   aks_network_dataplane: $aks_network_dataplane,
                   k8s_machine_type: $k8s_machine_type,
                   k8s_os_disk_type: $k8s_os_disk_type,
-                  encoded_custom_configuration: $encoded_custom_configuration,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool

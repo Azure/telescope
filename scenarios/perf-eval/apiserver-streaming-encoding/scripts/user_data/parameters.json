@@ -1,5 +1,6 @@
 {
   "owner": { "value": "${owner}" },
+  "role": { "value": "client" },
   "scenario": { "value": "${scenario}" },
   "deletion_due_time": { "value": "${deletion_due_time}" },
   "run_id": { "value": "${run_id}" },
@@ -7,7 +8,6 @@
   "aks_cluster_name": { "value": "vn100-p10k-streaming" },
   "network_plugin": { "value": "azure" },
   "network_plugin_mode": { "value": "overlay" },
-  "encodedCustomConfiguration": { "value": "${encodedCustomConfiguration}" },
   "agentpool": {
     "value": [
       {
