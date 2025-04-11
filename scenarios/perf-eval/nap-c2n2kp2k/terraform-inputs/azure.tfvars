@@ -33,7 +33,11 @@ aks_cli_config_list = [
       {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
-      }
+      },
+      {
+        name  = "pod-cidr"
+        value = "10.240.0.0/12"
+      },
     ]
   }
 ]
