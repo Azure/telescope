@@ -3,7 +3,7 @@ kind: PodNetworkInstance
 metadata:
   finalizers:
   - finalizers.acn.azure.com/dnc-operations
-  name: pod-network-instance-0
+  name: {{.basename}}
   namespace: slo-1
 spec:
   podNetworkConfigs:

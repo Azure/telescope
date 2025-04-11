@@ -123,7 +123,7 @@ steps:
       replicasPerNamespace: 1
       tuningSet: Sequence
       objectBundle:
-      - basename: daemonset
+      - basename: daemonset-{{$i}}
         objectTemplatePath: daemonset_template.yaml
 
   - name: Waiting for Create Daemonset to be running {{$i}}
@@ -178,7 +178,7 @@ steps:
       replicasPerNamespace: 0
       tuningSet: Sequence
       objectBundle:
-      - basename: daemonset
+      - basename: daemonset-{{$i}}
         objectTemplatePath: daemonset_template.yaml
 
   - name: Waiting for Delete Daemonset to be completed
