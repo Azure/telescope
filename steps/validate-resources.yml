@@ -8,7 +8,7 @@ parameters:
 - name: engine
   type: string
 - name: node_count
-  type: string
+  type: number
 
 steps:
 - script: |
