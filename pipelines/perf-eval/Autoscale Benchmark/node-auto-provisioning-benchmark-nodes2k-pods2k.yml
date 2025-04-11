@@ -12,7 +12,7 @@ variables:
   SCENARIO_NAME: nap-c2n2kp2k
 
 stages:
-  - stage: azure_australiaeast_2k
+  - stage: azure_australiaeast_on_demand
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every other day at 8:00 PM'),
@@ -44,7 +44,7 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_2k
+  - stage: azure_eastus2_spot
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every other day at 8:00 PM'),
