@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - image: busybox
+        name: {{.Name}}
+        command: ["sh", "-c", "echo Job is running; sleep 1; echo Job done!"]
+
+     

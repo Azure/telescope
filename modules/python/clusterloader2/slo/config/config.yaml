@@ -1,0 +1,59 @@
+name: job-scheduling
+{{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
+{{$qps := DefaultParam .CL2_QPS 200}}
+
+namespace:
+  number: 1
+  prefix: job-scheduling
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: {{$qps}}
+
+steps:
+  - name: Start measurements
+    measurements:
+      - Identifier: JobLifecycleLatency
+        Method: JobLifecycleLatency
+        Params:
+          action: start
+          labelSelector: group=job-scheduling
+          threshold: 4h
+      - Identifier: WaitForFinishedJobs
+        Method: WaitForFinishedJobs
+        Params:
+          action: start
+          labelSelector: group=job-scheduling
+          threshold: 4h
+
+{{range $i := Loop $job_count}}
+  - name: Create job {{$i}}
+    phases:
+    - namespaceRange:
+          min: 1
+          max: 1
+      replicasPerNamespace: 1
+      tuningSet: Uniform1qps
+      objectBundle:
+      - basename: test-job-{{$i}}
+        objectTemplatePath: job_template.yaml
+        templateFillMap:
+          Group: job-scheduling
+{{end}}
+       
+  - name: Waiting for jobs to be finished
+    measurements:
+    - Identifier: WaitForFinishedJobs
+      Method: WaitForFinishedJobs
+      Params:
+        action: gather
+  - name: Collect measurements
+    measurements:
+      - Identifier: JobLifecycleLatency
+        Method: JobLifecycleLatency
+        Params:
+          action: gather                                  
