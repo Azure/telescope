@@ -33,7 +33,10 @@ steps:
       else
         ENCODED_CUSTOM_CONFIG=$(ENCODED_CUSTOM_CONFIG)
       fi
-      sed -i "s|\${CUSTOM_CONFIG}|$(echo $ENCODED_CUSTOM_CONFIG | base64 --decode)|" $arm_template_path
+
+      if [ -f "$arm_template_path" ]; then
+        sed -i "s|\${CUSTOM_CONFIG}|$(echo $ENCODED_CUSTOM_CONFIG | base64 --decode)|" $arm_template_path
+      fi
 
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
