@@ -32,10 +32,10 @@ stages:
           matrix:
             c2-n2k-p2k:
               cpu_per_node: 2
-              node_count: 200
-              pod_count: 200
-              scale_up_timeout: "20m"
-              scale_down_timeout: "20m"
+              node_count: 2000
+              pod_count: 2000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
@@ -64,10 +64,10 @@ stages:
           matrix:
             c2-n2k-p2k:
               cpu_per_node: 2
-              node_count: 200
-              pod_count: 200
-              scale_up_timeout: "20m"
-              scale_down_timeout: "20m"
+              node_count: 2000
+              pod_count: 2000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 1
