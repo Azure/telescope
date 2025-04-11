@@ -25,6 +25,7 @@ KUBERNETES_VERSION=1.31
 NETWORK_POLICY=cilium
 NETWORK_DATAPLANE=cilium
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
+TERRAFORM_USER_DATA_PATH=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
 TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
 SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
 USER_NODE_POOL=${USER_NODE_POOL:-null}
@@ -63,6 +64,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
   --arg run_id $RUN_ID \
   --arg region $REGION \
   --arg aks_sku_tier "$SKU_TIER" \
+  --arg user_data_path $TERRAFORM_USER_DATA_PATH \
   --arg aks_kubernetes_version "$KUBERNETES_VERSION" \
   --arg aks_network_policy "$NETWORK_POLICY" \
   --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
@@ -74,6 +76,7 @@ Set `INPUT_JSON` variable. This variable is not exhaustive and may vary dependin
     run_id: $run_id,
     region: $region,
     aks_sku_tier: $aks_sku_tier,
+    user_data_path: $user_data_path,
     aks_kubernetes_version: $aks_kubernetes_version,
     aks_network_policy: $aks_network_policy,
     aks_network_dataplane: $aks_network_dataplane,

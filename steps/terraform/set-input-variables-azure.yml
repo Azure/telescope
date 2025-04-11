@@ -26,6 +26,18 @@ steps:
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
+      # Edit the ARM template to set the custom config
+      arm_template_path=$TERRAFORM_WORKING_DIRECTORY/aks-arm-deployment/template.json
+      if [ -z "$(ENCODED_CUSTOM_CONFIG)" ]; then
+        ENCODED_CUSTOM_CONFIG=''
+      else
+        ENCODED_CUSTOM_CONFIG=$(ENCODED_CUSTOM_CONFIG)
+      fi
+
+      if [ -f "$arm_template_path" ]; then
+        sed -i "s|\${CUSTOM_CONFIG}|$(echo $ENCODED_CUSTOM_CONFIG | base64 --decode)|" $arm_template_path
+      fi
+
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
@@ -33,6 +45,7 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
+                --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
                 --arg aks_sku_tier "$SKU_TIER" \
                 --arg aks_kubernetes_version "$KUBERNETES_VERSION" \
                 --arg aks_network_policy "$NETWORK_POLICY" \
@@ -45,6 +58,7 @@ steps:
                 '{
                   run_id: $run_id,
                   region: $region,
+                  user_data_path: $user_data_path,
                   aks_sku_tier: $aks_sku_tier,
                   aks_kubernetes_version: $aks_kubernetes_version,
                   aks_network_policy: $aks_network_policy,
