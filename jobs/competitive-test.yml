@@ -50,6 +50,7 @@ parameters:
   default: true
 - name: node_count
   type: string
+  default: 10
 
 jobs:
 - job: ${{ parameters.cloud }}
