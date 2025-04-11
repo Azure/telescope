@@ -192,11 +192,11 @@ steps:
         kind: DaemonSet
         action: gather
         refreshInterval: 15s
-  # - name: Wait for MTPNC cleanup {{$i}}
-  #   measurements:
-  #     - Identifier: Sleep
-  #       Method: Sleep
-  #       Params:
-  #         duration: 2m
+  - name: Wait for MTPNC cleanup {{$i}}
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 2m
 {{end}}
 # end repeat

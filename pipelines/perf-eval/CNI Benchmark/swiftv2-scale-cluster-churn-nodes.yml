@@ -25,7 +25,7 @@ stages:
               node_count: $(nodecount)
               node_per_step: 50
               max_pods: 1
-              repeats: 2
+              repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
               scrape_containerd: False
