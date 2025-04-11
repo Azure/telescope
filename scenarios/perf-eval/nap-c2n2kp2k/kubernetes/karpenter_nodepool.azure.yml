@@ -39,9 +39,9 @@ spec:
       - key: karpenter.azure.com/sku-family
         operator: In
         values: [D]
-      - key: karpenter.azure.com/sku-cpu
-        operator: Lt
-        values: ["3"]
+      - key: karpenter.azure.com/sku-name
+        operator: In
+        values: [Standard_D2s_v4]
 
 # Spot NodePool
 ---
@@ -73,6 +73,6 @@ spec:
       - key: karpenter.azure.com/sku-family
         operator: In
         values: [D]
-      - key: karpenter.azure.com/sku-cpu
-        operator: Lt
-        values: ["3"]
+      - key: karpenter.azure.com/sku-name
+        operator: In
+        values: [Standard_D2s_v4]
