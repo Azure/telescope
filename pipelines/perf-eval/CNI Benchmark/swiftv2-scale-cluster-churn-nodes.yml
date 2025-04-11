@@ -2,8 +2,8 @@ trigger: none
 
 parameters:
 - name: nodecount
-  type: number
-  default: $(NODECOUNT)
+  type: number
+  default: $(NODECOUNT)
 
 variables:
   SCENARIO_TYPE: perf-eval
