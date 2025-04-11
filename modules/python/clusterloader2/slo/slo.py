@@ -268,8 +268,8 @@ def main():
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
-    parser_validate.add_argument("additional_nodes", type=int, help="Number of additional nodes")
     parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
+    parser_validate.add_argument("additional_nodes", type=int, help="Number of additional nodes")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
