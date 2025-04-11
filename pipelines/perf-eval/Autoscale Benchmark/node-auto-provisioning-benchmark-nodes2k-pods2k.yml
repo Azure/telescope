@@ -30,7 +30,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: karpenter
           matrix:
-            c2-n200-p200:
+            c2-n2k-p2k:
               cpu_per_node: 2
               node_count: 2000
               pod_count: 2000
