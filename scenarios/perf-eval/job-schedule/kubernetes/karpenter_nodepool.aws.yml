@@ -3,6 +3,8 @@ kind: NodePool
 metadata:
   name: userpool0
 spec:
+  limits:
+    cpu: 4000
   disruption:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 1s
@@ -28,27 +30,21 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
-          operator: In
-          values: ["m"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
-        - key: karpenter.k8s.aws/instance-type
+        - key: node.kubernetes.io/instance-type
           operator: In
           values: ["m5.2xlarge"]
       taints:
         - key: slo
           value: "true"
           effect: NoSchedule
-  limits:
-    cpu: 4000
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: userpool1
 spec:
+  limits:
+    cpu: 4000
   disruption:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 1s
@@ -74,27 +70,21 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
-          operator: In
-          values: ["m"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
-        - key: karpenter.k8s.aws/instance-type
+        - key: node.kubernetes.io/instance-type
           operator: In
           values: ["m5.2xlarge"]
       taints:
         - key: slo
           value: "true"
           effect: NoSchedule
-  limits:
-    cpu: 4000
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: userpool2
 spec:
+  limits:
+    cpu: 4000
   disruption:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 1s
@@ -120,27 +110,21 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
-          operator: In
-          values: ["m"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
-        - key: karpenter.k8s.aws/instance-type
+        - key: node.kubernetes.io/instance-type
           operator: In
           values: ["m5.2xlarge"]
       taints:
         - key: slo
           value: "true"
           effect: NoSchedule
-  limits:
-    cpu: 4000
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: userpool3
 spec:
+  limits:
+    cpu: 4000
   disruption:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 1s
@@ -166,18 +150,10 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
-          operator: In
-          values: ["m"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["2"]
-        - key: karpenter.k8s.aws/instance-type
+        - key: node.kubernetes.io/instance-type
           operator: In
           values: ["m5.2xlarge"]
       taints:
         - key: slo
           value: "true"
           effect: NoSchedule
-  limits:
-    cpu: 4000
