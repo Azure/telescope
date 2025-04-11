@@ -94,12 +94,14 @@ steps:
   #       action: start
   #       group: {{$groupName}}
 {{range $i := Loop $repeats}}
-  - Identifier: PodStartupLatency {{$i}}
-    Method: PodStartupLatency
-    Params:
-      action: start
-      labelSelector: group = {{$groupName}}
-      threshold: {{$podStartupLatencyThreshold}}
+  - name: Starting Pod Startup Latency Measurements {{$i}}
+    measurements:
+    - Identifier: PodStartupLatency {{$i}}
+      Method: PodStartupLatency
+      Params:
+        action: start
+        labelSelector: group = {{$groupName}}
+        threshold: {{$podStartupLatencyThreshold}}
   - name: Starting measurement for Create Daemonset {{$i}}
     measurements:
     - Identifier: WaitForRunningDaemonSets
@@ -140,12 +142,13 @@ steps:
         Method: Sleep
         Params:
           duration: 10m
-
-  - Identifier: PodStartupLatency {{$i}}
-    Method: PodStartupLatency
-    Params:
-      action: gather
-      labelSelector: group = {{$groupName}}
+  - name: Ending Pod Startup Latency Measurements {{$i}}
+    measurements:
+    - Identifier: PodStartupLatency {{$i}}
+      Method: PodStartupLatency
+      Params:
+        action: gather
+        labelSelector: group = {{$groupName}}
 {{end}}
 
   # - module:
