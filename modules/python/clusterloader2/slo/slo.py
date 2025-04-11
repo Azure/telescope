@@ -123,20 +123,21 @@ def configure_clusterloader2(
 
     file.close()
 
-def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
+def validate_clusterloader2(node_count, operation_timeout_in_minutes=10, additional_nodes=0):
     kube_client = KubernetesClient()
     ready_node_count = 0
+    expected_node_count = node_count + additional_nodes
     timeout = time.time() + (operation_timeout_in_minutes * 60)
     while time.time() < timeout:
         ready_nodes = kube_client.get_ready_nodes()
         ready_node_count = len(ready_nodes)
         print(f"Currently {ready_node_count} nodes are ready.")
-        if ready_node_count == node_count:
+        if ready_node_count == expected_node_count:
             break
-        print(f"Waiting for {node_count} nodes to be ready.")
+        print(f"Waiting for {expected_node_count} nodes to be ready.")
         time.sleep(10)
-    if ready_node_count != node_count:
-        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+    if ready_node_count != expected_node_count:
+        raise Exception(f"Only {ready_node_count} nodes are ready, expected {expected_node_count} nodes!")
 
 def execute_clusterloader2(
     cl2_image,
@@ -267,6 +268,7 @@ def main():
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
+    parser_validate.add_argument("additional_nodes", type=int, help="Number of additional nodes")
     parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
 
     # Sub-command for execute_clusterloader2
@@ -311,7 +313,7 @@ def main():
                                  args.cilium_enabled, args.scrape_containerd,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.ds_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
     elif args.command == "validate":
-        validate_clusterloader2(args.node_count, args.operation_timeout)
+        validate_clusterloader2(args.node_count, args.operation_timeout, args.additional_nodes)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
