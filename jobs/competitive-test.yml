@@ -52,6 +52,7 @@ parameters:
   type: string
 - name: node_label
   type: string
+  default: ""
 
 jobs:
 - job: ${{ parameters.cloud }}
