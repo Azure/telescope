@@ -12,5 +12,3 @@ spec:
       - image: busybox
         name: {{.Name}}
         command: ["sh", "-c", "echo Job is running; sleep 1; echo Job done!"]
-
-     

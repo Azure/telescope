@@ -1,6 +1,6 @@
 name: job-scheduling
-{{$job_count := DefaultParam .CL2_JOB_COUNT 10000}}
-{{$qps := DefaultParam .CL2_QPS 500}}
+{{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
+{{$qps := DefaultParam .CL2_QPS 800}}
 
 namespace:
   number: 1
