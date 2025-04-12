@@ -1,11 +1,12 @@
 #!/bin/bash
 
 set -ex
+LOCATION=eastus2euap
 #RG="$USER-swiftv2-$RANDOM-$(date +"%Y%m%d%H%M%S")"
-RG=chlochen-swiftv2-8895-20250323200552
+# RG=chlochen-swiftv2-8895-20250323200552 #Eastus2
+RG=chlochen-swiftv2-scale-$LOCATION
 CLUSTER="large"
 SUBSCRIPTION="TODO"
-LOCATION=eastus2
 K8S_VER=1.30
 NODEPOOLS=1 # Per 500 nodes
 NODEPOOL_SIZE=0
@@ -13,7 +14,7 @@ NODEPOOL_SIZE=0
 # az login
 # create RG
 echo "Create RG"
-az group create --location $LOCATION --name $RG
+az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=2032-12-31 skipGC="swift v2 perf" gc_skip="true"
 
 # create user assigned NAT gateway
 echo "create public ips"
@@ -22,14 +23,14 @@ for i in {1..5}; do
        az network public-ip create -n ${pipName} -g ${RG} -l ${LOCATION} --sku Standard
 done
 
-echo "create user assigned NAT gateway"
-res=$(az network public-ip list -g ${RG} -o json | jq -r '.[].ipAddress')
-ips=""
-for ip in ${res}; do
-       ips="${ips}${ip} "
-done
-ips="pip1 pip2 pip3 pip4 pip5"
-az network nat gateway create -n nat -g ${RG} -l ${LOCATION} --public-ip-addresses ${ips}
+# echo "create user assigned NAT gateway"
+# res=$(az network public-ip list -g ${RG} -o json | jq -r '.[].ipAddress')
+# ips=""
+# for ip in ${res}; do
+#        ips="${ips}${ip} "
+# done
+# ips="pip1 pip2 pip3 pip4 pip5"
+# az network nat gateway create -n nat -g ${RG} -l ${LOCATION} --public-ip-addresses ${ips}
 
 NAT_GW_NAME=$CLUSTER-ng
 az network public-ip create -g $RG -n $CLUSTER-ip -l $LOCATION --sku standard
@@ -75,13 +76,17 @@ az aks create -n ${CLUSTER} -g ${RG} \
         --load-balancer-backend-pool-type nodeIP \
         --outbound-type userAssignedNATGateway \
         --no-ssh-key \
+        --node-resource-group MC_sv2perf-$CLUSTER \
         --yes
+        
+SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$CLUSTER -o tsv --query id)
+az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=2032-12-31 skipGC="swift v2 perf" gc_skip="true"
 
 # create nodepools
 for i in $(seq 1 ${NODEPOOLS}); do
-        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c 10 --max-pods 110 -s Standard_D4_v3 --os-sku Ubuntu --vm-set-type VirtualMachineScaleSets --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
+        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c 10 --max-pods 110 -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
         sleep 60
-done
+done 
 
 # scale nodepools
 for i in $(seq 1 ${NODEPOOLS}); do
