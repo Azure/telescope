@@ -7,6 +7,8 @@ parameters:
     type: object
   - name: node_count
     type: string
+  - name: node_label
+    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -23,4 +25,5 @@ steps:
     parameters:
       validation_timeout_in_minutes: 10
       desired_nodes: ${{ parameters.node_count }}
-      additional_nodes: 6
+      additional_nodes: 0
+      node_label: ${{ parameters.node_label }}
