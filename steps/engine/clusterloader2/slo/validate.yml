@@ -7,18 +7,21 @@ parameters:
   - name: validation_timeout_in_minutes
     type: number
     default: 10
+  - name: node_label
+    type: string
 
 steps:
   - script: |
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
-        $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES $ADDITIONAL_NODES
+        $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES $ADDITIONAL_NODES $NODE_LABEL
     workingDirectory: modules/python/clusterloader2
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
     displayName: "Validate node count"
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       ADDITIONAL_NODES: ${{ parameters.additional_nodes }}
+      NODE_LABEL: ${{ parameters.node_label }}
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.validation_timeout_in_minutes }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
