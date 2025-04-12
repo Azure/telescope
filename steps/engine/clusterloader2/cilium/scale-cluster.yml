@@ -28,7 +28,7 @@ steps:
     az aks get-credentials -n $aks_name -g $aks_rg
 
     nodepools=$(az aks nodepool list --cluster-name $aks_name --resource-group $aks_rg -o json)
-    usernodepools=$(echo $nodepools | jq -r '.[] | select(.mode == "User" and .name != "promnodepool" .name != "devtest") | .name')
+    usernodepools=$(echo $nodepools | jq -r '.[] | select(.mode == "User" and .name != "promnodepool" and (.name | contains("devtest") | not)) | .name')
 
     for np in $usernodepools; do
       currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
