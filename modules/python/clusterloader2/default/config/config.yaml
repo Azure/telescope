@@ -1,6 +1,6 @@
 name: job-scheduling
 {{$job_count := DefaultParam .CL2_JOB_COUNT 20000}}
-{{$qps := DefaultParam .CL2_QPS 200}}
+{{$qps := DefaultParam .CL2_QPS 800}}
 
 namespace:
   number: 1
@@ -22,13 +22,13 @@ steps:
         Params:
           action: start
           labelSelector: group=job-scheduling
-          threshold: 4h
+          timeout: 3h
       - Identifier: WaitForFinishedJobs
         Method: WaitForFinishedJobs
         Params:
           action: start
           labelSelector: group=job-scheduling
-          threshold: 4h
+          timeout: 3h
 
 {{range $i := Loop $job_count}}
   - name: Create job {{$i}}
@@ -51,9 +51,11 @@ steps:
       Method: WaitForFinishedJobs
       Params:
         action: gather
+        timeout: 3h
   - name: Collect measurements
     measurements:
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
-          action: gather                                  
+          action: gather
+          timeout: 3h                            
