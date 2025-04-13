@@ -1,0 +1,17 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }}
+  - template: /steps/topology/kwok/start-kwok.yml
+  - template: /steps/engine/clusterloader2/default/validate.yml
+    parameters:
+      desired_nodes: 5

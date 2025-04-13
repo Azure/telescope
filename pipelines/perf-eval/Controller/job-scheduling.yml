@@ -1,0 +1,59 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: job-schedule
+  SCENARIO_VERSION: main
+
+stages:
+- stage: azure_eastus2
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20241022"
+      topology: kwok
+      matrix:
+        default:
+          kwok_nodes: 2000
+          qps: 800
+          job_count: 20000
+          cilium_enabled: False
+          scale_timeout: "1h"
+          service_test: True
+          cl2_config_file: config.yaml
+      max_parallel: 1
+      timeout_in_minutes: 360
+      credential_type: service_connection
+      ssh_key_enabled: false
+
+- stage: aws_eastus2
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: aws
+      regions:
+      - us-east-2
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20241022"
+      topology: kwok
+      matrix:
+        default:
+          kwok_nodes: 2000
+          qps: 800
+          job_count: 20000
+          cilium_enabled: False
+          scale_timeout: "1h"
+          service_test: True
+          cl2_config_file: config.yaml
+      max_parallel: 1
+      timeout_in_minutes: 360
+      credential_type: service_connection
+      ssh_key_enabled: false
