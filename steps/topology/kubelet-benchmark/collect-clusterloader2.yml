@@ -31,4 +31,3 @@ steps:
     node_count: ${{ parameters.node_count }}
     max_pods: ${{ parameters.max_pods }}
     eviction_hard_memory: ${{ parameters.eviction_hard_memory }}
-    

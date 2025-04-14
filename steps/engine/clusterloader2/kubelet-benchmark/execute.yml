@@ -24,16 +24,16 @@ steps:
   - script: |
       set -eo pipefail
       set -x
-      
+
       echo "Running kubelet eviction benchmark"
-      
+
       echo "Python script file:   $PYTHON_SCRIPT_FILE"
       echo "Node label:           $NODE_LABEL"
       echo "CL2 config dir:       $CL2_CONFIG_DIR"
       echo "CL2 report dir:       $CL2_REPORT_DIR"
       echo "Cloud:                $CLOUD"
       echo "Kubeconfig:           ${HOME}/.kube/config"
-      
+
       echo "Generating clusterloader2 override config"
       echo "Node count:           $NODE_COUNT"
       echo "Max pods:             $MAX_PODS"
@@ -41,16 +41,16 @@ steps:
       echo "Load type:            $LOAD_TYPE"
       echo "Load factor:          $LOAD_FACTOR"
       echo "Load duration:        $LOAD_DURATION"
-      
+
       # do not break line, does not work with multiline
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" override \
         "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
         "$NODE_COUNT" "$MAX_PODS" "$OPERATION_TIMEOUT" "$LOAD_TYPE" "$LOAD_FACTOR" "$LOAD_DURATION" 
-      
+
       echo "Running clusterloader2 benchmark"
       echo "CL2 image:            $CL2_IMAGE"
       echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
-      
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" execute \
         "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
         "$CL2_IMAGE" "$EVICTION_THRESHOLD_MEM"
