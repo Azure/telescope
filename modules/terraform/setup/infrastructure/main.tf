@@ -51,7 +51,7 @@ resource "azuredevops_serviceendpoint_github" "github_service_connection" {
   service_endpoint_name = var.github_config.service_connection_name
   description           = var.github_config.service_connection_description
   auth_personal {
-    personal_access_token = "49wKqh9Il7UZt8nZCaSxrnl1OcDFtNbKqkzVzNDwNR3fRytqewxDJQQJ99BDACAAAAAAArohAAASAZDO1BkV"
+    personal_access_token = null
   }
 }
 
