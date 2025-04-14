@@ -11,10 +11,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 class TestKubeletBenchmark(unittest.TestCase):
 
-    @patch('clusterloader2.kubelet_benchmark.kubelet_benchmark.run_cl2_command', autospec=True)
     @patch('clusterloader2.kubelet_benchmark.cluster_controller.ClusterController', autospec=True)
     @patch('clusterloader2.kubelet_benchmark.cl2_file_handler.CL2FileHandler', autospec=True)
-    def test_override_clusterloader2_config_defaults(self, mock_file_handler, mock_cluster_controller, mock_run_cl2_command):
+    def test_override_clusterloader2_config_defaults(self, mock_file_handler, mock_cluster_controller):
         mock_cluster_controller = mock_cluster_controller.return_value
         mock_file_handler = mock_file_handler.return_value
         mock_file_handler.cl2_config_dir = "configs"
@@ -35,7 +34,6 @@ class TestKubeletBenchmark(unittest.TestCase):
         mock_cluster_controller.populate_nodes.assert_called_once_with(10)
         mock_cluster_controller.populate_node_resources.assert_called_once()
         mock_file_handler.export_cl2_override.assert_called_once()
-        # mock_run_cl2_command.assert_called_once()
 
     @patch('clusterloader2.kubelet_benchmark.kubelet_benchmark.run_cl2_command', autospec=True)
     @patch('clusterloader2.kubelet_benchmark.cluster_controller.ClusterController', autospec=True)
@@ -83,10 +81,9 @@ class TestKubeletBenchmark(unittest.TestCase):
         mock_cluster_controller.reconfigure_kubelet.assert_called_once_with(kubelet_config)
         mock_run_cl2_command.assert_called_once()
 
-    @patch('clusterloader2.kubelet_benchmark.kubelet_benchmark.run_cl2_command', autospec=True)
     @patch('clusterloader2.kubelet_benchmark.cluster_controller.ClusterController', autospec=True)
     @patch('clusterloader2.kubelet_benchmark.cl2_file_handler.CL2FileHandler', autospec=True)
-    def test_collect_clusterloader2_defaults(self, mock_file_handler, mock_cluster_controller, mock_run_cl2_command):
+    def test_collect_clusterloader2_defaults(self, mock_file_handler, mock_cluster_controller):
         mock_cluster_controller = mock_cluster_controller.return_value
         mock_file_handler = mock_file_handler.return_value
         mock_file_handler.cl2_config_dir = "configs"
@@ -111,8 +108,6 @@ class TestKubeletBenchmark(unittest.TestCase):
         mock_cluster_controller.verify_measurement.assert_called_once_with(10)
         mock_file_handler.load_junit_result.assert_called_once()
         mock_file_handler.parse_test_result.assert_called_once()
-        # mock_run_cl2_command.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()
