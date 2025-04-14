@@ -7,15 +7,13 @@ parameters:
     type: object
 
 steps:
-- script: echo "Validating clusterloader2 data"
-  displayName: 'Validate clusterloader2 data'
-  # - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-  #   parameters:
-  #     role: slo
-  #     region: ${{ parameters.regions[0] }}
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
   # - template: /steps/engine/clusterloader2/slo/validate.yml
   #   parameters:
-  #     desired_nodes: 6
+  #     desired_nodes: $(node_count)
   # - ${{ if eq(parameters.cloud, 'aws') }}:
   #     - script: kubectl apply -f $KARPENTER_NODEPOOL_FILE
   #       env:

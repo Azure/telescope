@@ -1,0 +1,61 @@
+name: scale-test
+
+# generic config
+{{$groupName := DefaultParam .CL2_GROUP_NAME "scale-test"}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 100}}
+
+# topology config
+{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 10}}
+{{$replicasPerNamespace := DefaultParam .CL2_REPLICAS_PER_NAMESPACE 5}}
+
+
+namespace:
+  number: {{$namespaces}}
+  prefix: scale-test
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+  # - name: DeploymentDeleteQps
+  #   qpsLoad:
+  #     qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  - name: Log 
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+  # deployment creation
+  - module:
+      path: /modules/kapinger.yaml
+      params:
+        namespaces: {{$namespaces}}
+        tuningSet: DeploymentCreateQps
+        deployments: {{$deploymentsPerNamespace}}
+        podReplicas: {{$replicasPerNamespace}}
+
+  # FIXME: is this needed?
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}

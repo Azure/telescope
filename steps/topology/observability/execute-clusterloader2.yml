@@ -10,12 +10,8 @@ parameters:
   default: {}
 
 steps:
-- script: echo "Executing clusterloader2 data"
-  displayName: 'Execute clusterloader2 data'
-- script: sleep 600
-  displayName: 'Wait for 10 minutes'
-# - template: /steps/engine/clusterloader2/slo/execute.yml
-#   parameters:
-#     cloud: ${{ parameters.cloud }}
-#     engine_input: ${{ parameters.engine_input }}
-#     region: ${{ parameters.regions[0] }}
+- template: /steps/engine/clusterloader2/scale/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}

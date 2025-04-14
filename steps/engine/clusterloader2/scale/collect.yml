@@ -1,0 +1,29 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+- script: |
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+      ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${MAX_PODS:-0} \
+      ${REPEATS:-0} ${CL2_REPORT_DIR:-0} "${CLOUD_INFO:-""}" $RUN_ID $RUN_URL ${SERVICE_TEST:-False} ${CNP_TEST:-False} \
+      ${CCNP_TEST:-False} $TEST_RESULTS_FILE \
+      $TEST_TYPE $SLO_START_TIME
+  workingDirectory: modules/python/clusterloader2
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RUN_URL: $(RUN_URL)
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/scale.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
+  displayName: "Collect Results"
