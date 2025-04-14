@@ -1,5 +1,5 @@
-from .data_type import NodeResourceConfig, ResourceConfig, ResourceStressor,LoadQoS
 from typing import Optional
+from .data_type import NodeResourceConfig, ResourceConfig, ResourceStressor,LoadQoS
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,
@@ -16,7 +16,7 @@ class WorkloadConfig:
         self.resource_request = resource_request
 
     def debug_stress_info(self):
-        stress_pod_info_template = """stressPod: 
+        stress_pod_info_template = """stressPod:
   stressor: {stress_config}
   resource:
     consume: {pod_consume}  
@@ -65,5 +65,3 @@ class CL2Configurator:
             self.workload_config = WorkloadConfig(self.stress_config, resource_load, resource_limit, resource_limit)
         else:
             raise ValueError(f"Unknown load factor: {self.stress_config.load_factor}")
-
-

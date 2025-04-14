@@ -4,7 +4,7 @@ from clusterloader2.kubernetes_client import KubernetesClient
 from .data_type import ResourceConfig, NodeResourceConfig
 
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
-
+# pylint: disable=anomalous-backslash-in-string
 class KubeletConfig:
     def __init__(self, eviction_hard_memory: str, busybox_image: str = "ghcr.io/containerd/busybox:1.36"):
         self.eviction_hard_memory = eviction_hard_memory
@@ -63,7 +63,7 @@ class ClusterController:
             except FailToCreateError as e:
                 print(f"Error creating ds: it might already exist: {e}")
         else:
-            print(f"using default kubelet configuration. Skip reconfiguring kubelet.")
+            print("using default kubelet configuration. Skip reconfiguring kubelet.")
 
     def generate_kubelet_reconfig_daemonset(self, kubelet_config: KubeletConfig) -> str:
         kubelet_daemonset = """apiVersion: apps/v1
@@ -173,6 +173,5 @@ spec:
         user_pool = [node.metadata.name for node in self.nodes]
         print(f"User pool: {user_pool}")
         for node_name in user_pool:
-            metrics = self.client.get_node_metrics(node_name)
+            self.client.get_node_metrics(node_name)
             # print(metrics)
-

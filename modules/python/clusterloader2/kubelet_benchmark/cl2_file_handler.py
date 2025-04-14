@@ -1,10 +1,10 @@
-from .cl2_configurator import CL2Configurator
-from clusterloader2.utils import parse_xml_to_json
 import json
-
 import os
 from datetime import datetime, timezone
 from typing import List
+from clusterloader2.utils import parse_xml_to_json
+
+from .cl2_configurator import CL2Configurator
 
 class KubeletMetrics:
     def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, pod_qos, stress_pattern, eviction_memory, status):
@@ -153,16 +153,16 @@ class CL2FileHandler:
 
             # check whether workload_config.resource_request is not none
             if workload_config.resource_request is None:
-                file.write(f"CL2_HAS_RESOURCE_REQUEST: false\n")
+                file.write("CL2_HAS_RESOURCE_REQUEST: false\n")
             else:
-                file.write(f"CL2_HAS_RESOURCE_REQUEST: true\n")
+                file.write("CL2_HAS_RESOURCE_REQUEST: true\n")
                 file.write(f"CL2_RESOURCE_MEMORY_REQUEST_KI: {workload_config.resource_request.memory_ki}Ki\n")
                 file.write(f"CL2_RESOURCE_CPU_REQUEST: {workload_config.resource_request.cpu_milli}\n")
 
             if workload_config.resource_limit is None:
-                file.write(f"CL2_HAS_RESOURCE_LIMIT: false\n")
+                file.write("CL2_HAS_RESOURCE_LIMIT: false\n")
             else:
-                file.write(f"CL2_HAS_RESOURCE_LIMIT: true\n")
+                file.write("CL2_HAS_RESOURCE_LIMIT: true\n")
                 file.write(f"CL2_RESOURCE_MEMORY_LIMIT_KI: {workload_config.resource_limit.memory_ki}Ki\n")
                 file.write(f"CL2_RESOURCE_CPU_LIMIT: {workload_config.resource_limit.cpu_milli}\n")
 
@@ -181,8 +181,7 @@ class CL2FileHandler:
         if test_suites:
             status = "success" if test_suites[0]["failures"] == 0 else "failure"
             return status
-        else:
-            raise Exception(f"No testsuites found in the report! Raw data: {junit_json}")
+        raise Exception(f"No testsuites found in the report! Raw data: {junit_json}")
 
     def parse_test_result(self, metric_template: KubeletMetrics, formatter: str = "json"):
 
@@ -209,6 +208,3 @@ class CL2FileHandler:
             print(f"unsupported format {formatter}")
 
         return metrics_formatted
-
-
-

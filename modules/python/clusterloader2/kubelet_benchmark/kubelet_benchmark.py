@@ -1,10 +1,10 @@
 import os
 import argparse
 
-from .data_type import ResourceStressor
-from .cl2_configurator import CL2Configurator
 from clusterloader2.utils import  run_cl2_command
 from clusterloader2.kubernetes_client import KubernetesClient
+from .data_type import ResourceStressor
+from .cl2_configurator import CL2Configurator
 from .cluster_controller import ClusterController, KubeletConfig
 from .cl2_file_handler import CL2FileHandler, KubeletMetrics
 

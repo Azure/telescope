@@ -65,4 +65,4 @@ class NodeResourceConfig:
     allocated: {allocated}
     testRunActual: {actual}
     """
-        print(resource_info_template.format(allocatable=self.node_allocatable_resources, allocated=self.system_allocated_resources, actual=self.remaining_resources))
+        return resource_info_template.format(allocatable=self.node_allocatable_resources, allocated=self.system_allocated_resources, actual=self.remaining_resources)
