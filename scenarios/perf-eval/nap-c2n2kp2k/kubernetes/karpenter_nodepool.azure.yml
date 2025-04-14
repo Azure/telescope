@@ -19,9 +19,10 @@ metadata:
     kubernetes.io/description: "General purpose On-Demand NodePool"
 spec:
   disruption:
-    consolidateAfter: 0s
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 1s
     budgets:
-    - nodes: 30%
+      - nodes: "100%"
   template:
     spec:
       nodeClassRef:
@@ -53,9 +54,10 @@ metadata:
     kubernetes.io/description: "Spot NodePool for burstable cost-efficient workloads"
 spec:
   disruption:
-    consolidateAfter: 0s
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 1s
     budgets:
-    - nodes: 30%
+      - nodes: "100%"
   template:
     spec:
       nodeClassRef:
