@@ -1,15 +1,13 @@
+from unittest.mock import MagicMock, patch
 import sys
 import os
 import unittest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
-
-from unittest.mock import MagicMock, patch
 from clusterloader2.kubelet_benchmark.kubelet_benchmark import override_clusterloader2_config, execute_clusterloader2, collect_clusterloader2
 from clusterloader2.kubelet_benchmark.data_type import ResourceStressor
-from clusterloader2.kubelet_benchmark.cluster_controller import ClusterController, KubeletConfig
-from clusterloader2.kubelet_benchmark.cl2_file_handler import CL2FileHandler
+from clusterloader2.kubelet_benchmark.cluster_controller import KubeletConfig
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
 class TestKubeletBenchmark(unittest.TestCase):
 
@@ -61,7 +59,7 @@ class TestKubeletBenchmark(unittest.TestCase):
         mock_run_cl2_command.assert_called_once()
 
     @patch('clusterloader2.kubelet_benchmark.kubelet_benchmark.run_cl2_command', autospec=True)
-    def test_execute_clusterloader2_with_750Mi_kubelet_config(self, mock_run_cl2_command):
+    def test_execute_clusterloader2_with_750mi_kubelet_config(self, mock_run_cl2_command):
         kubelet_config = KubeletConfig("750Mi")
 
         execute_clusterloader2(
@@ -72,7 +70,7 @@ class TestKubeletBenchmark(unittest.TestCase):
             kubeconfig="~/.kube/config",
             provider="aws"
         )
-
+        mock_run_cl2_command.assert_called_once()
         self.mock_cluster_controller.reconfigure_kubelet.assert_called_once_with(kubelet_config)
 
     def test_collect_clusterloader2_defaults(self):
