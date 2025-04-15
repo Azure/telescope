@@ -7,7 +7,7 @@ from clusterloader2.kubelet_benchmark.kubelet_benchmark import override_clusterl
 from clusterloader2.kubelet_benchmark.data_type import ResourceStressor
 from clusterloader2.kubelet_benchmark.cluster_controller import KubeletConfig
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../clusterloade2/kubelet_benchmark')))
 
 class TestKubeletBenchmark(unittest.TestCase):
 
