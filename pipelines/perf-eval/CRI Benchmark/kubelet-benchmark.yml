@@ -1,0 +1,70 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: kubelet-benchmark
+stages:
+  - stage: azure_swedencentral_evict_memory_100mi
+    dependsOn: []
+    jobs:
+      - job: SetKubeletVariables
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=POD_QOS]guaranteed"
+              echo "##vso[task.setvariable variable=STRESS_DURATION]spike"
+              echo "##vso[task.setvariable variable=EVICTION_MEMORY]100Mi"
+            displayName: 'Set benchmark configurations'
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine:
+            name: "clusterloader2"
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: cri-resource-consume
+          matrix:
+            n5-p150-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 30
+              node_count: 3
+            n5-p350-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 70
+              node_count: 3
+            n5-p550-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 110
+              node_count: 3
+  - stage: azure_swedencentral_evict_memory_750mi
+    dependsOn: []
+    jobs:
+      - job: SetKubeletVariables
+    steps:
+      - script: |
+          echo "##vso[task.setvariable variable=POD_QOS]guaranteed"
+          echo "##vso[task.setvariable variable=STRESS_DURATION]long"
+          echo "##vso[task.setvariable variable=EVICTION_MEMORY]750Mi"
+        displayName: 'Set benchmark configurations'
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n5-p150-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 30
+              node_count: 3
+            n5-p350-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 70
+              node_count: 3
+            n5-p550-100mi-d8:
+              k8s_machine_type: Standard_D8ds_v4
+              max_pods: 110
+              node_count: 3

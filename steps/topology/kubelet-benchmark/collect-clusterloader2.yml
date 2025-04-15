@@ -1,0 +1,33 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+- name: topology
+  type: string
+- name: node_count
+  type: string
+- name: max_pods
+  type: string
+- name: load
+  type: object
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
+
+steps:
+- template: /steps/engine/clusterloader2/kubelet-benchmark/collect.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    topology: ${{ parameters.topology }}
+    engine: ${{ parameters.engine }}
+    region: ${{ parameters.regions[0] }}
+    load: ${{ parameters.load }}
+    node_count: ${{ parameters.node_count }}
+    max_pods: ${{ parameters.max_pods }}
+    eviction_hard_memory: ${{ parameters.eviction_hard_memory }}

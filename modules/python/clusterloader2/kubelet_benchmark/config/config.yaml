@@ -1,0 +1,134 @@
+name: eviction-eval
+
+{{$totalNodes := DefaultParam .CL2_NODE_COUNT 5}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
+{{$provider := DefaultParam .CL2_PROVIDER "aks"}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
+
+{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
+{{$nodeLabel := DefaultParam .CL2_NODE_LABEL "cri-eviction-eval"}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR "cri-eviction-eval=true"}}
+  
+{{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
+{{$stressDuration := DefaultParam .CL2_RESOURCE_STRESS_DURATION_SEC 100}}
+{{$stressMemory := DefaultParam .CL2_RESOURCE_STRESS_MEMORY_MI "100"}}
+  
+{{$hasResourceRequest := DefaultParam .CL2_HAS_RESOURCE_REQUEST false}}
+{{$hasResourceLimit := DefaultParam .CL2_HAS_RESOURCE_LIMIT false}}
+
+{{$memoryRequest := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI "1000Ki"}}
+{{$memoryLimit := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_LIMIT_KI "1000Ki"}}
+{{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
+
+{{$replicas := MultiplyInt $deploymentSize $totalNodes}}
+{{$operationDuration := AddInt $stressDuration 60}}
+
+namespace:
+  number: 1
+  prefix: kubeconfig-eval
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+
+steps:
+  - name: Wait for nodes to be ready
+    measurements:
+      - Identifier: ConfirmNodeCount
+        Method: WaitForNodes
+        Params:
+          action: start
+          minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
+          maxDesiredNodeCount: {{$totalNodes}}
+          labelSelector: {{$nodeSelector}}
+          timeout: 1m
+          refreshInterval: 5s
+  - name: Start measurements
+    measurements:
+      - Identifier: ResourceUsageSummary
+        Method: ResourceUsageSummary
+        Params:
+          action: start
+          labelSelector: group = {{$deploymentLabel}}
+          interval: 10s
+      - Identifier: ClusterOOMsTracker
+        Method: ClusterOOMsTracker
+        Params:
+          action: start
+          clusterOOMsTrackerEnabled: true
+      - Identifier: MetricsForE2E
+        Method: MetricsForE2E
+        Params:
+          action: start
+          gatherKubeletsMetrics: true
+  - module:
+      path: /modules/kubelet-measurement.yaml
+      params:
+        action: start
+  - module:
+      path: /modules/containerd-measurement.yaml
+      params:
+        action: start
+  - name: Create deployment
+    phases:
+    - namespaceRange:
+          min: 1
+          max: 1
+      replicasPerNamespace: 1
+      tuningSet: Uniform1qps
+      objectBundle:
+      - basename: eviction-eval
+        objectTemplatePath: deployment_template.yaml
+        templateFillMap:
+          Replicas: {{$replicas}}
+          Group: {{$deploymentLabel}}
+          HasResourceRequest: {{$hasResourceRequest}}
+          HasResourceLimit: {{$hasResourceLimit}}
+          {{if $hasResourceRequest}}
+          MemoryRequest: {{$memoryRequest}}
+          CPURequest: {{$cpu}}m
+          {{end}}
+          {{if $hasResourceLimit}}
+          MemoryLimit: {{$memoryLimit}}
+          CPULimit: {{$cpu}}m
+          {{end}}
+          Memory: {{$stressMemory}}
+          Duration: {{$stressDuration}}
+          CPU: --millicores={{$cpu}}
+          LoadType: {{$loadType}}
+          Provider: {{$provider}}
+          NodeLabel: {{$nodeLabel}}
+
+  - name: Wait for resource consumption
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: {{$operationDuration}}s
+
+  - module:
+      path: /modules/kubelet-measurement.yaml
+      params:
+        action: gather
+  - module:
+      path: /modules/containerd-measurement.yaml
+      params:
+        action: gather
+  - name: Collect measurements
+    measurements:
+      - Identifier: ResourceUsageSummary
+        Method: ResourceUsageSummary
+        Params:
+          action: gather
+      - Identifier: ClusterOOMsTracker
+        Method: ClusterOOMsTracker
+        Params:
+          action: gather
+      - Identifier: MetricsForE2E
+        Method: MetricsForE2E
+        Params:
+          action: gather

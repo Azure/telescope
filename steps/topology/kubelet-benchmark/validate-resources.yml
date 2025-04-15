@@ -1,0 +1,19 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+- name: node_count
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
+- template: /steps/engine/clusterloader2/slo/validate.yml
+  parameters:
+    desired_nodes: ${{ parameters.node_count }}
+    validation_timeout_in_minutes: 5
