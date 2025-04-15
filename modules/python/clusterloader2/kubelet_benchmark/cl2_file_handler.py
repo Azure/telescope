@@ -2,9 +2,9 @@ import json
 import os
 from datetime import datetime, timezone
 from typing import List
-from clusterloader2.utils import parse_xml_to_json
+from clusterloader2.kubelet_benchmark.cl2_configurator import CL2Configurator
 
-from .cl2_configurator import CL2Configurator
+from clusterloader2.utils import parse_xml_to_json
 
 class KubeletMetrics:
     def __init__(self, node_count, max_pods, cloud_info, run_id, run_url, churn_rate, load_type, pod_qos, stress_pattern, eviction_memory, status):

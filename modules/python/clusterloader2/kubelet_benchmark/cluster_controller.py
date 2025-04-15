@@ -1,7 +1,11 @@
-from kubernetes.utils import FailToCreateError
+from typing import Optional
+import yaml
 
+from kubernetes import utils, client
+
+from clusterloader2.kubelet_benchmark.data_type import ResourceConfig, NodeResourceConfig
 from clusterloader2.kubernetes_client import KubernetesClient
-from .data_type import ResourceConfig, NodeResourceConfig
+
 
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
 # pylint: disable=anomalous-backslash-in-string
@@ -35,8 +39,9 @@ class KubeletConfig:
 
 
 class ClusterController:
-    def __init__(self,  client: KubernetesClient, node_label:str):
-        self.client = client
+    def __init__(self,  k8s_client: KubernetesClient, node_label:str):
+        self.client = k8s_client
+        self.api_client = k8s_client.api_client
 
         self.node_label = node_label
         self.node_selector = f"{self.node_label}=true"
@@ -58,9 +63,10 @@ class ClusterController:
         if KubeletConfig.get_default_config().needs_override(kubelet_config):
             print(f"Reconfiguring {kubelet_config}")
             daemonset_yaml = self.generate_kubelet_reconfig_daemonset(kubelet_config)
+            daemonset_object = list(yaml.safe_load_all(daemonset_yaml))
             try:
-                self.client.create_daemonset(daemonset_yaml)
-            except FailToCreateError as e:
+                self.client.create_daemonset(daemonset_object)
+            except utils.FailToCreateError as e:
                 print(f"Error creating ds: it might already exist: {e}")
         else:
             print("using default kubelet configuration. Skip reconfiguring kubelet.")
@@ -173,5 +179,26 @@ spec:
         user_pool = [node.metadata.name for node in self.nodes]
         print(f"User pool: {user_pool}")
         for node_name in user_pool:
-            self.client.get_node_metrics(node_name)
+            self.get_node_metrics(node_name)
             # print(metrics)
+
+    def get_node_metrics(self, node_name: str)-> Optional[str]:
+        url = f"/api/v1/nodes/{node_name}/proxy/metrics"
+
+        try:
+            response = self.api_client.call_api(
+                resource_path = url,
+                method = "GET",
+                auth_settings=['BearerToken'],
+                response_type="str",
+                _preload_content=True)
+
+            metrics = response[0]  # The first item contains the response data
+            filtered_metrics = "\n".join(
+                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
+            )
+
+            #return the printed line in 1 line
+            return f"##[section]Metrics for node: {node_name}\n{filtered_metrics}\n"
+        except client.ApiException as e:
+            return f"##[section]Error fetching Metrics for node: {node_name}\n{e}\n"

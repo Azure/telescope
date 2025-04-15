@@ -1,5 +1,5 @@
 from typing import Optional
-from .data_type import NodeResourceConfig, ResourceConfig, ResourceStressor,LoadQoS
+from clusterloader2.kubelet_benchmark.data_type import NodeResourceConfig, ResourceConfig, ResourceStressor,LoadQoS
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,

@@ -1,13 +1,13 @@
 import os
 import argparse
 
+from clusterloader2.kubelet_benchmark.data_type import ResourceStressor
+from clusterloader2.kubelet_benchmark.cl2_configurator import CL2Configurator
+from clusterloader2.kubelet_benchmark.cluster_controller import ClusterController, KubeletConfig
+from clusterloader2.kubelet_benchmark.cl2_file_handler import CL2FileHandler, KubeletMetrics
+
 from clusterloader2.utils import  run_cl2_command
 from clusterloader2.kubernetes_client import KubernetesClient
-from .data_type import ResourceStressor
-from .cl2_configurator import CL2Configurator
-from .cluster_controller import ClusterController, KubeletConfig
-from .cl2_file_handler import CL2FileHandler, KubeletMetrics
-
 
 def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler, resource_stressor: ResourceStressor,
                                    node_count, max_pods, operation_timeout_seconds, provider):
