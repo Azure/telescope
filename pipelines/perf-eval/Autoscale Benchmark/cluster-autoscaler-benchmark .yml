@@ -14,15 +14,15 @@ schedules:
         - main
     always: true
 
-  - cron: "0 16 * * 1,5"
-    displayName: "4:00 PM on Monday and Friday"
+  - cron: "0 16 * * 1"
+    displayName: "4:00 PM on Monday"
     branches:
       include:
         - main
     always: true
 
-  - cron: "0 4 * * 1,5"
-    displayName: "4:00 AM on Monday and Friday"
+  - cron: "0 4 * * 1"
+    displayName: "4:00 AM on Monday"
     branches:
       include:
         - main
@@ -106,7 +106,7 @@ stages:
   - stage: aws_eastus2_200nodes_200pods
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM on Monday and Friday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM on Monday'),
         eq(variables['Build.Reason'], 'Manual')
       )
     dependsOn: []
@@ -140,7 +140,7 @@ stages:
   - stage: aws_apsoutheast2_500nodes_500pods
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Monday and Friday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Monday'),
         eq(variables['Build.Reason'], 'Manual')
       )
     dependsOn: []
