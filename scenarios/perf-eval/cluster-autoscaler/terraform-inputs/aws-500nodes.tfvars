@@ -88,7 +88,7 @@ eks_config_list = [{
       ami_type       = "AL2_x86_64"
       instance_types = ["m5.large"]
       min_size       = 1
-      max_size       = 450
+      max_size       = 250
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels         = { "cas" = "dedicated" }
@@ -99,7 +99,7 @@ eks_config_list = [{
       ami_type       = "AL2_x86_64"
       instance_types = ["m5.large"]
       min_size       = 0
-      max_size       = 51
+      max_size       = 251
       desired_size   = 0
       capacity_type  = "ON_DEMAND"
       labels         = { "cas" = "dedicated" }
