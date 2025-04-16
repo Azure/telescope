@@ -3,7 +3,7 @@
 set -ex
 LOCATION=eastus2
 #RG="$USER-swiftv2-$RANDOM-$(date +"%Y%m%d%H%M%S")"
-RG=chlochen-swiftv2-test#Eastus2
+RG=chlochen-swiftv2-test #Eastus2
 #RG=chlochen-swiftv2-scale-$LOCATION
 CLUSTER="large"
 SUBSCRIPTION="TODO"
