@@ -11,6 +11,7 @@ K8S_VER=1.30
 NODEPOOLS=1 # Per 500 nodes
 NODEPOOL_SIZE=0
 
+python3 --version
 #az login
 # create RG
 echo "Create RG"
