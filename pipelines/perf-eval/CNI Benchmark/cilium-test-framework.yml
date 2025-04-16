@@ -17,7 +17,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: cilium-test-framework
+          topology: cilium-usercluster
           matrix:
             azure_cilium:
               cpu_per_node: 4
@@ -36,6 +36,7 @@ stages:
               num_cnps: $(CNPS_NUM)
               num_ccnps: $(CCNPS_NUM)
               dualstack: $(DUAL)
+              churn_endpoints: $(CHURN_ENDPOINTS)
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
