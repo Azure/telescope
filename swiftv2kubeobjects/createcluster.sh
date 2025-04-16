@@ -6,12 +6,11 @@ LOCATION=eastus2
 RG=chlochen-swiftv2-test #Eastus2
 #RG=chlochen-swiftv2-scale-$LOCATION
 CLUSTER="large"
-SUBSCRIPTION=9b8218f9-902a-4d20-a65c-e98acec5362f
+SUBSCRIPTION="TODO"
 K8S_VER=1.30
 NODEPOOLS=1 # Per 500 nodes
 NODEPOOL_SIZE=0
 
-python3 --version
 #az login
 # create RG
 echo "Create RG"
@@ -54,7 +53,7 @@ natGatewayID=$(az network nat gateway list -g ${RG} | jq -r '.[].id')
 az network vnet subnet create -n ${vnetSubnetNameNodes} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetNodesCIDR} --nat-gateway ${natGatewayID} -g ${RG}
 az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetPodsCIDR} --nat-gateway $NAT_GW_NAME -g ${RG}
 
-az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'sh -c "curl -v -X  PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename"'
+az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command "curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename"
 
 # create customer vnet
 custVnetName="custvnet"
@@ -62,7 +61,7 @@ az network vnet create --resource-group $RG --name $custVnetName --location $LOC
 custSubnetName="delgpod"
 az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $vnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
 
-az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'sh -c "curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName"'
+az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command "curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName"
 # create cluster
 echo "create cluster"
 vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
