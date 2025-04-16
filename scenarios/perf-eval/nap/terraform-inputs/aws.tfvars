@@ -5,25 +5,26 @@ owner          = "aks"
 
 network_config_list = [
   {
-    role           = "nap"
-    vpc_name       = "nap-vpc"
-    vpc_cidr_block = "10.0.0.0/16"
+    role                       = "nap"
+    vpc_name                   = "nap-vpc"
+    vpc_cidr_block             = "10.0.0.0/16"
+    secondary_ipv4_cidr_blocks = ["10.1.0.0/16"]
     subnet = [
       {
-        name                    = "nap-subnet"
-        cidr_block              = "10.0.32.0/19"
+        name                    = "nap-subnet-1"
+        cidr_block              = "10.0.0.0/16"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "nap-subnet-2"
-        cidr_block              = "10.0.64.0/19"
+        cidr_block              = "10.1.0.0/17"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       },
       {
         name                    = "nap-subnet-3"
-        cidr_block              = "10.0.96.0/19"
+        cidr_block              = "10.1.128.0/17"
         zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
@@ -38,7 +39,7 @@ network_config_list = [
     route_table_associations = [
       {
         name             = "nap-subnet-rt-assoc"
-        subnet_name      = "nap-subnet"
+        subnet_name      = "nap-subnet-1"
         route_table_name = "internet-rt"
       },
       {

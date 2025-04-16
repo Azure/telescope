@@ -1,0 +1,174 @@
+trigger: none
+schedules:
+  - cron: "0 22 * * *"
+    displayName: "Every day at 10:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+
+  - cron: "0 10 * * *"
+    displayName: "Every day at 10:00 AM"
+    branches:
+      include:
+        - main
+    always: true
+
+  - cron: "0 16 * * 1,5"
+    displayName: "4:00 PM on Monday and Friday"
+    branches:
+      include:
+        - main
+    always: true
+
+  - cron: "0 4 * * 1,5"
+    displayName: "4:00 AM on Monday and Friday"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cluster-autoscaler
+
+stages:
+  - stage: azure_eastus2_200nodes_200pods
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 10:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            c2-n200-p200-on-demand:
+              cpu_per_node: 2
+              node_count: 201
+              pod_count: 201
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_australiaeast_500nodes_500pods
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 10:00 AM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-500nodes.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            c2-n500-p500-on-demand:
+              cpu_per_node: 2
+              node_count: 501
+              pod_count: 501
+              scale_up_timeout: "50m"
+              scale_down_timeout: "50m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_eastus2_200nodes_200pods
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM on Monday and Friday'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            c2-n200-p200-on-demand:
+              cpu_per_node: 2
+              node_count: 201
+              pod_count: 201
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_apsoutheast2_500nodes_500pods
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Monday and Friday'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - ap-southeast-2
+          terraform_input_file_mapping:
+            - ap-southeast-2: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/aws-500nodes.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            c2-n500-p500-on-demand:
+              cpu_per_node: 2
+              node_count: 501
+              pod_count: 501
+              scale_up_timeout: "50m"
+              scale_down_timeout: "50m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
