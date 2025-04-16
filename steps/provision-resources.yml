@@ -97,7 +97,7 @@ steps:
   displayName: "Setup AKS MT Cluster"
   condition: eq(variables['SWIFTV2'], 'true')
   inputs:
-    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+    azureSubscription: $(AZURE_SUBSCRIPTION_ID)
     scriptType: "bash"
     scriptLocation: "inlineScript"
     inlineScript: |
