@@ -92,3 +92,13 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
+- task: AzureCLI@2
+  name: SetupAKSMTCluster
+  displayName: "Setup AKS MT Cluster"
+  condition: eq(variables['SWIFTV2'], 'true')
+  inputs:
+    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+    scriptType: "bash"
+    scriptLocation: "inlineScript"
+    inlineScript: |
+      bash swiftv2kubeobjects/createcluster.sh
