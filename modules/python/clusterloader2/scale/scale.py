@@ -174,15 +174,15 @@ def collect_clusterloader2(
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        "cpu_per_node": cpu_per_node,
-        "node_count": node_count,
+        # "cpu_per_node": cpu_per_node,
+        # "node_count": node_count,
         "pod_count": pod_count,
-        "churn_rate": repeats,
+        # "churn_rate": repeats,
         "status": status,
         "group": None,
         "measurement": None,
         "result": None,
-        # "test_details": details,
+        "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
@@ -270,24 +270,24 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
-    parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
-    parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
-    parser_collect.add_argument("run_id", type=str, help="Run ID")
-    parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
+    parser_collect.add_argument("--cpu_per_node", type=int, help="CPU per node")
+    parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("--max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
+    parser_collect.add_argument("--repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
+    parser_collect.add_argument("--run_id", type=str, help="Run ID")
+    parser_collect.add_argument("--run_url", type=str, help="Run URL")
+    parser_collect.add_argument("--service_test", type=str2bool, choices=[True, False], default=False, nargs='?',
                                   help="Whether service test is running. Must be either True or False")
-    parser_collect.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
+    parser_collect.add_argument("--cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
                                   help="Whether cnp test is running. Must be either True or False")
-    parser_collect.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
+    parser_collect.add_argument("--ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
                                   help="Whether ccnp test is running. Must be either True or False")
-    parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
+    parser_collect.add_argument("--result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("--test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
-    parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
+    parser_collect.add_argument("--start_timestamp", type=str, help="Test start timestamp")
 
     args = parser.parse_args()
 

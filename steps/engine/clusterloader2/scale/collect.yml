@@ -13,13 +13,24 @@ steps:
   parameters:
     region: ${{ parameters.region }}
 - script: |
+    set -x
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${MAX_PODS:-0} \
-      ${REPEATS:-0} ${CL2_REPORT_DIR:-0} "${CLOUD_INFO:-""}" $RUN_ID $RUN_URL ${SERVICE_TEST:-False} ${CNP_TEST:-False} \
-      ${CCNP_TEST:-False} $TEST_RESULTS_FILE \
-      $TEST_TYPE $SLO_START_TIME
+    --cpu_per_node ${CPU_PER_NODE:-0} \
+    --node_count ${NODE_COUNT:-0} \
+    --max_pods ${MAX_PODS:-0} \
+    --repeats ${REPEATS:-0} \
+    --cl2_report_dir ${CL2_REPORT_DIR:-0} \
+    --cloud_info "${CLOUD_INFO:-""}" \
+    --run_id $RUN_ID \
+    --run_url $RUN_URL \
+    --service_test ${SERVICE_TEST:-False} \
+    --cnp_test ${CNP_TEST:-False} \
+    --ccnp_test ${CCNP_TEST:-False} \
+    --result_file $TEST_RESULTS_FILE \
+    --start_timestamp $START_TIME
+    # --test_type ${TEST_TYPE:-False} \
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}

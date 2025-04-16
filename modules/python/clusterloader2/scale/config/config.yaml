@@ -44,6 +44,12 @@ steps:
         action: start
         group: {{$groupName}}
 
+  - module:
+      path: /modules/pods-measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
   # deployment creation
   - module:
       path: /modules/kapinger.yaml
@@ -56,6 +62,12 @@ steps:
   # FIXME: is this needed?
   - module:
       path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
+
+  - module:
+      path: /modules/pods-measurements.yaml
       params:
         action: gather
         group: {{$groupName}}
