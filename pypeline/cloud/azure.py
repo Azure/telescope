@@ -86,3 +86,16 @@ class Azure(Cloud):
                     },
                 ),
             ]
+    def get_cloud_type(self) -> str:
+        return "azure"
+    def get_region(self) -> str:
+        return self.region
+    def get_credential_type(self) -> str:
+        return self.credential_type.value
+    # TODO: Add collect cloud info, update kubeconfig, and upload storage-account 
+
+
+
+
+
+    

@@ -1,19 +1,20 @@
+from dataclasses import dataclass
 from textwrap import dedent
+
 from benchmark import Resource
 from pipeline import Script, Step
-from dataclasses import dataclass
 
-set_run_id = lambda run_id: Script(
+set_run_id = lambda run_id: Script(  # noqa: E731
     display_name="Set run id",
     script=dedent(
         """
         if [ -n "$RUN_ID" ]; then
-        run_id=$RUN_ID
+            run_id=$RUN_ID
         else
-        run_id=$(Build.BuildId)-$(System.JobId)
+            run_id=$(Build.BuildId)-$(System.JobId)
         fi
-        echo "Run ID: $run_id"
-        echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+            echo "Run ID: $run_id"
+            echo "##vso[task.setvariable variable=RUN_ID]$run_id"
         """.strip(
             "\n"
         )
@@ -57,7 +58,7 @@ set_test_results_directory = Script(
     ),
 )
 
-set_script_module_directory = lambda test_modules_dir: Script(
+set_script_module_directory = lambda test_modules_dir: Script(  # noqa: E731
     display_name="Set Script Module Directory",
     script=dedent(
         """

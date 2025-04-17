@@ -19,40 +19,50 @@ class Resource(ABC):
     def tear_down(self) -> list[Step]:
         pass
 
-
 class Engine(Resource):
     @abstractmethod
     def run(self) -> list[Step]:
         pass
-
 
 class Cloud(ABC):
     @abstractmethod
     def login(self) -> list[Step]:
         pass
 
+    @abstractmethod
+    def get_cloud_type(self) -> str:
+        pass
 
+    @abstractmethod
+    def get_region(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_credential_type(self) -> str:
+        pass
 @dataclass
 class Layout:
     display_name: str
     setup: Resource
     cloud: Cloud
-    resouces: list[Resource]
+    resources: list[Resource]
     engine: Engine
 
     def get_jobs(self) -> list[Job]:
+   
         setup = Job(
             job="setup",
             display_name="Setup resources",
             steps=self.setup.setup()
             + self.cloud.login()
-            + [step for r in self.resouces for step in r.setup()]
-            + self.engine.setup(),
+            + [step for r in self.resources for step in r.setup()]
+            + self.engine.setup()
         )
+
         validate = Job(
             job="validate",
             display_name="Validate resources",
-            steps=[step for r in self.resouces for step in r.validate()]
+            steps=[step for r in self.resources for step in r.validate()]
             + self.engine.validate(),
             depends_on=[setup.job],
         )
@@ -67,7 +77,7 @@ class Layout:
             display_name="Tear down resources",
             # Tears down in reverse order of setup.
             steps=self.engine.tear_down()
-            + [step for r in self.resouces[::-1] for step in r.tear_down()],
+            + [step for r in self.resources[::-1] for step in r.tear_down()],
             depends_on=[run.job],
         )
         return [
