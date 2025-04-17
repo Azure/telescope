@@ -116,7 +116,7 @@ az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-gro
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
-envsubst < pn.yaml | kubectl apply -f -
+envsubst < swiftv2kubeobjects/pn.yaml | kubectl apply -f -
 
 sleep 60
 
