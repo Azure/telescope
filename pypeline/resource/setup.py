@@ -8,9 +8,9 @@ set_run_id = lambda run_id: Script(
     script=dedent(
         """
         if [ -n "$RUN_ID" ]; then
-        run_id=$RUN_ID
+            run_id=$RUN_ID
         else
-        run_id=$(Build.BuildId)-$(System.JobId)
+            run_id=$(Build.BuildId)-$(System.JobId)
         fi
         echo "Run ID: $run_id"
         echo "##vso[task.setvariable variable=RUN_ID]$run_id"
