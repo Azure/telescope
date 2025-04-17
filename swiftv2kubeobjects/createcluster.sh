@@ -3,7 +3,7 @@
 set -ex
 LOCATION=eastus2
 #RG="$USER-swiftv2-$RANDOM-$(date +"%Y%m%d%H%M%S")"
-RG=chlochen-swiftv2-test #Eastus2
+RG=chlochen-swiftv2-$(Build.BuildId) #Eastus2
 #RG=chlochen-swiftv2-scale-$LOCATION
 CLUSTER="large"
 SUBSCRIPTION="TODO"
@@ -112,6 +112,17 @@ export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $RG
 export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
 export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/delgpod?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
+while true; do
+STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv)
+
+    if [[ $STATUS == "Succeeded" ]]; then
+        echo "Cluster is ready"
+        break
+    else
+        sleep 30
+    fi
+done
+
 az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-group ${RG} -c 1 -s Standard_D64_v3 --os-sku Ubuntu --labels prometheus=true --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID}
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
@@ -121,7 +132,7 @@ envsubst < swiftv2kubeobjects/pn.yaml | kubectl apply -f -
 sleep 60
 
 if kubectl get pn pn100 -o yaml | grep 'status: Ready' > /dev/null; then
-    return 0
+    echo "PN is ready"
 else
     exit 1
 fi
