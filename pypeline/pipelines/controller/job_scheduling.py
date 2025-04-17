@@ -7,7 +7,6 @@ from cloud.azure import Azure
 from engine.clusterloader2 import ClusterLoader2
 from resource.terraform.terraform import Terraform
 
-
 def main():
     cloud_az_eastus2 = Azure(region="eastus2")
     azure_east_us2 = Layout(

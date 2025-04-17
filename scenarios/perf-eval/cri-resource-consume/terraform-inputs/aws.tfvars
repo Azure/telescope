@@ -93,6 +93,11 @@ eks_config_list = [{
           key    = "cri-resource-consume"
           value  = "true"
           effect = "NO_SCHEDULE"
+        },
+        {
+          key    = "cri-resource-consume"
+          value  = "true"
+          effect = "NO_EXECUTE"
         }
       ]
       labels = {
@@ -105,6 +110,13 @@ eks_config_list = [{
   eks_addons = [
     {
       name = "coredns"
+    },
+    {
+      name = "vpc-cni"
+    },
+    {
+      name = "kube-proxy"
     }
   ]
+  kubernetes_version = "1.31"
 }]

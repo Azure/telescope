@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn100pod10k
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus2
@@ -24,12 +23,6 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
@@ -37,7 +30,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
@@ -57,27 +50,52 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
+              disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
             podsize-20k-exempt:
+              disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_l7_json
+  - stage: azure_eastus2_lower_max_inflight
+    dependsOn: []
+    variables:
+      - group: API-Server-L4-Config-MI50
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            podsize-20k:
+              disable_warmup: "true"
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            podsize-20k-exempt:
+              disable_warmup: "true"
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.2.0
+            benchmark_subcmd: node100_pod10k
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
+          max_parallel: 2
+          timeout_in_minutes: 760
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2_l7
     dependsOn: []
     variables:
       - group: API-Server-L7-Config
@@ -90,63 +108,26 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
             podsize-20k:
+              disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
             podsize-20k-exempt:
+              disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
-            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type json"
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_l7_protobuf
+  - stage: azure_eastus2_l4_high_resources
     dependsOn: []
     variables:
-      - group: API-Server-L7-Config
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - eastus2
-          engine: kperf
-          topology: kperf
-          matrix:
-            podsize-10k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-10k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=6114"
-            podsize-20k:
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
-            podsize-20k-exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
-          engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
-            benchmark_subcmd: node100_pod10k
-            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192 --content-type protobuf"
-          max_parallel: 2
-          timeout_in_minutes: 760
-          credential_type: service_connection
-          ssh_key_enabled: false
-  - stage: azure_eastus2_l7_custom_json
-    dependsOn: []
-    variables:
-      - group: API-Server-L7-Custom-Config
+      - group: API-Server-L4-Config-C32
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -159,8 +140,10 @@ stages:
             podsize-20k:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              disable_warmup: "false"
+              warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.8
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 1

@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "0 */4 * * *"
+  - cron: "0 2-23/4 * * *"
     displayName: "Every 4 Hour"
     branches:
       include:
@@ -10,62 +10,202 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-resource-consume
-  SCENARIO_VERSION: main
 
 stages:
-  - stage: azure_westeurope
+  - stage: azure_swedencentral
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - westeurope
+            - swedencentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
           topology: cri-resource-consume
           matrix:
-            n10-p300-memory:
+            n10-p300-memory-1-30:
               node_count: 10
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-            n10-p700-memory:
+              kubernetes_version: "1.30"
+              scrape_kubelets: True
+            n10-p700-memory-1-30:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: memory
-            n10-p1100-memory:
+              kubernetes_version: "1.30"
+              scrape_kubelets: True
+            n10-p1100-memory-1-30:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-            n10-p300-cpu:
+              kubernetes_version: "1.30"
+              scrape_kubelets: True
+            n10-p300-memory-1-31:
               node_count: 10
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
-              load_type: cpu
-            n10-p700-cpu:
+              load_type: memory
+              kubernetes_version: "1.31"
+              scrape_kubelets: True
+            n10-p700-memory-1-31:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
-              load_type: cpu
-            n10-p1100-cpu:
+              load_type: memory
+              kubernetes_version: "1.31"
+              scrape_kubelets: True
+            n10-p1100-memory-1-31:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
-              load_type: cpu
+              load_type: memory
+              kubernetes_version: "1.31"
+              scrape_kubelets: True
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+
+  - stage: azure_swedencentral_ephemeral
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory-1-30:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.30"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p700-memory-1-30:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              kubernetes_version: "1.30"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p1100-memory-1-30:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.30"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p300-memory-1-31:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p700-memory-1-31:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p1100-memory-1-31:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+          max_parallel: 3
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_swedencentral_disabled_parallel_pull
+    dependsOn: []
+    variables:
+      - group: Parallel-Pull-Disabled
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory-1-31:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p700-memory-1-31:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+            n10-p1100-memory-1-31:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
+              scrape_kubelets: True
+          max_parallel: 3
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: aws_westeurope
     dependsOn: []
     jobs:
@@ -85,36 +225,21 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
+              scrape_kubelets: True
             n10-p700-memory:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: memory
+              scrape_kubelets: True
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-            n10-p300-cpu:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: cpu
-            n10-p700-cpu:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: cpu
-            n10-p1100-cpu:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: cpu
+              scrape_kubelets: True
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection

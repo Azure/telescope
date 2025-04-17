@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn100pod3k
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus2
@@ -31,14 +30,14 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.5
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_job1_pod3k
             benchmark_subcmd_args: "--total 36000"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2
+  - stage: azure_eastus2_default
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -52,11 +51,42 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.5
+            runner_image: ghcr.io/azure/kperf:0.2.0
+            benchmark_subcmd: node100_job1_pod3k
+            benchmark_subcmd_args: "--total 36000"
+          max_parallel: 2
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_eastus2_lower_max_inflight
+    dependsOn: []
+    variables:
+      - group: API-Server-L4-Config-MI50
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
+            exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node100_job1_pod3k
             benchmark_subcmd_args: "--total 36000"
           max_parallel: 2

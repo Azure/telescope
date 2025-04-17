@@ -10,7 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100-EZ
-  SCENARIO_VERSION: main
   AZURE_SUBSCRIPTION_ID: 1d85fdce-f71c-4ecd-a06d-ea46effcccd0
 
 stages:
@@ -28,11 +27,13 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: "true"
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
+              disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.6
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 1

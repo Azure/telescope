@@ -1,7 +1,13 @@
 trigger: none
 schedules:
   - cron: "0 */12 * * *"
-    displayName: "Every 12 Hour"
+    displayName: "12:00 AM & PM Daily"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 12 * * 1"
+    displayName: "12:00 AM on Mondays"
     branches:
       include:
         - main
@@ -10,10 +16,14 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cilium-cluster-churn-n1000p50k
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus1
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '12:00 AM on Mondays'),
+        and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -41,6 +51,11 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_eastus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '12:00 AM & PM Daily'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml

@@ -86,6 +86,7 @@ class Azure(Cloud):
                     },
                 ),
             ]
+<<<<<<< HEAD
     def get_cloud_type(self) -> str:
         return "azure"
     def get_region(self) -> str:
@@ -99,3 +100,5 @@ class Azure(Cloud):
 
 
     
+=======
+>>>>>>> pypeline

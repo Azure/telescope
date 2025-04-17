@@ -10,17 +10,16 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: azurelinux-resource-consume
-  SCENARIO_VERSION: main
 
 stages:
-  - stage: azurelinux_v3_westeurope
+  - stage: azurelinux_v3_swedencentral
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - westeurope
+            - swedencentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"

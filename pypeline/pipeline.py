@@ -100,5 +100,8 @@ def customize_yaml():
     yaml.add_representer(Strategy, custom_name_representer)
     yaml.add_representer(Task, custom_name_representer)
     yaml.add_representer(Script, custom_name_representer)
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> pypeline

@@ -55,14 +55,13 @@ class Layout:
             display_name="Setup resources",
             steps=self.setup.setup()
             + self.cloud.login()
-            + [step for r in self.resources for step in r.setup()]
-            + self.engine.setup()
+            + [step for r in self.resouces for step in r.setup()]
+            + self.engine.setup(),
         )
-
         validate = Job(
             job="validate",
             display_name="Validate resources",
-            steps=[step for r in self.resources for step in r.validate()]
+            steps=[step for r in self.resouces for step in r.validate()]
             + self.engine.validate(),
             depends_on=[setup.job],
         )

@@ -1,10 +1,9 @@
-from dataclasses import dataclass
 from textwrap import dedent
-
 from benchmark import Resource
 from pipeline import Script, Step
+from dataclasses import dataclass
 
-set_run_id = lambda run_id: Script(  # noqa: E731
+set_run_id = lambda run_id: Script(
     display_name="Set run id",
     script=dedent(
         """
@@ -58,7 +57,7 @@ set_test_results_directory = Script(
     ),
 )
 
-set_script_module_directory = lambda test_modules_dir: Script(  # noqa: E731
+set_script_module_directory = lambda test_modules_dir: Script(
     display_name="Set Script Module Directory",
     script=dedent(
         """
