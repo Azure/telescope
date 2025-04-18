@@ -13,11 +13,11 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: quantile(0.99, avg_over_time(rate(container_cpu_usage_seconds_total[1m])[%v:]))
+          query: quantile(0.99, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
         - name: Perc90
-          query: quantile(0.90, avg_over_time(rate(container_cpu_usage_seconds_total[1m])[%v:]))
+          query: quantile(0.90, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
         - name: Perc50
-          query: quantile(0.50, avg_over_time(rate(container_cpu_usage_seconds_total[1m])[%v:]))
+          query: quantile(0.50, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
     - Identifier: PodMaxCPUUsage
       Method: GenericPrometheusQuery
       Params:
@@ -28,11 +28,11 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: quantile(0.99, max_over_time(rate(container_cpu_usage_seconds_total[1m])[%v:]))
+          query: quantile(0.99, max_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
         - name: Perc90
-          query: quantile(0.90, max_over_time(rate(container_cpu_usage_seconds_total[1m])[%v:]))
+          query: quantile(0.90, max_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
         - name: Perc50
-          query: quantile(0.50, max_over_time(rate(container_cpu_usage_seconds_total[1m])[%v:]))
+          query: quantile(0.50, max_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
     - Identifier: PodAvgMemUsage
       Method: GenericPrometheusQuery
       Params:
@@ -43,11 +43,11 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: quantile(0.99, avg_over_time(container_memory_usage_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.99, avg_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
         - name: Perc90
-          query: quantile(0.90, avg_over_time(container_memory_usage_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.90, avg_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
         - name: Perc50
-          query: quantile(0.5, avg_over_time(container_memory_usage_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.5, avg_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
     - Identifier: PodMaxMemUsage
       Method: GenericPrometheusQuery
       Params:
@@ -58,11 +58,11 @@ steps:
         enableViolations: true
         queries:
         - name: Perc99
-          query: quantile(0.99, max_over_time(container_memory_usage_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.99, max_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
         - name: Perc90
-          query: quantile(0.90, max_over_time(container_memory_usage_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.90, max_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
         - name: Perc50
-          query: quantile(0.5, max_over_time(container_memory_usage_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.5, max_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
     # - Identifier: PodOperatorAvgCPUUsage
     #   Method: GenericPrometheusQuery
     #   Params:
@@ -103,11 +103,11 @@ steps:
     #     enableViolations: true
     #     queries:
     #     - name: Perc99
-    #       query: quantile(0.99, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    #       query: quantile(0.99, max_over_time(cilium_operator_process_resident_memory_bytes{container="retina"}[%v:]) / 1024 / 1024)
     #     - name: Perc90
-    #       query: quantile(0.90, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    #       query: quantile(0.90, max_over_time(cilium_operator_process_resident_memory_bytes{container="retina"}[%v:]) / 1024 / 1024)
     #     - name: Perc50
-    #       query: quantile(0.5, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    #       query: quantile(0.5, max_over_time(cilium_operator_process_resident_memory_bytes{container="retina"}[%v:]) / 1024 / 1024)
     # - Identifier: PodOperatorAvgMemUsage
     #   Method: GenericPrometheusQuery
     #   Params:
@@ -118,11 +118,11 @@ steps:
     #     enableViolations: true
     #     queries:
     #     - name: Perc99
-    #       query: quantile(0.99, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    #       query: quantile(0.99, avg_over_time(cilium_operator_process_resident_memory_bytes{container="retina"}[%v:]) / 1024 / 1024)
     #     - name: Perc90
-    #       query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    #       query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes{container="retina"}[%v:]) / 1024 / 1024)
     #     - name: Perc50
-    #       query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+    #       query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes{container="retina"}[%v:]) / 1024 / 1024)
     # - Identifier: PodHubbleMetricCardinality
     #   Method: GenericPrometheusQuery
     #   Params:
