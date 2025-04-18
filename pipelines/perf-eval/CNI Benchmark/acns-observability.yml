@@ -2,8 +2,35 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: acns-azurecni-overlay
+  SCENARIO_NAME: ${{ parameters.scenario_name }}
   OWNER: aks
+
+parameters:
+- name: scenario_name
+  displayName: Scenario Name (cluster with 1000 nodes and tool to be tested)
+  type: string
+  default: acns-azurecni-overlay
+  values:
+  # - byo-k8s
+  - acns-azurecni-overlay
+  - acns-cilium
+  # - retina-oss-standard-basic
+  # - retina-oss-standard-advanced-local-context
+  # - retina-oss-standard-advanced-remote-context
+  # - retina-oss-hubble
+  # - retina-oss-enterprise-hubble
+- name: traffic_deployment_count
+  displayName: Number of Traffic Deployments
+  type: number
+  default: 10
+- name: traffic_replica_count
+  displayName: Number of Traffic Replicas
+  type: number
+  default: 10
+- name: network_policy_count
+  displayName: Number of Network Policies
+  type: number
+  default: 10
 
 stages:
   - stage: ACNS_Infra_Test
@@ -20,14 +47,9 @@ stages:
           topology: observability
           matrix:
             acns:
-              # cpu_per_node: 4
-              node_count: 10
-              # node_per_step: 1000
-              # max_pods: 20
-              # repeats: 10
-              # scale_timeout: "15m"
-              # cilium_enabled: False
-              # service_test: True
+              traffic_deployment_count: ${{ parameters.traffic_deployment_count }}
+              traffic_replica_count: ${{ parameters.traffic_replica_count }}
+              network_policy_count: ${{ parameters.network_policy_count }}
               cl2_config_file: config.yaml
           max_parallel: 1
           timeout_in_minutes: 720
