@@ -1,7 +1,6 @@
 # #!/bin/bash
 
 set -ex
-LOCATION=eastus2
 #RG="$USER-swiftv2-$RANDOM-$(date +"%Y%m%d%H%M%S")"
 RG=$RUN_ID #Eastus2
 #RG=chlochen-swiftv2-scale-$LOCATION
