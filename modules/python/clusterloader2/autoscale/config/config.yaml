@@ -13,6 +13,7 @@
 {{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
 {{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "30s"}}
 {{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
+{{$desiredPodCount := MultiplyInt deploymentSize 0.99}}
 
 name: autoscale
 namespace:
@@ -49,7 +50,7 @@ steps:
     Method: WaitForRunningPods
     Params:
       action: start
-      desiredPodCount: {{$deploymentSize}}
+      desiredPodCount: {{$desiredPodCount}}
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
