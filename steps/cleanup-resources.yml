@@ -25,12 +25,12 @@ steps:
     credential_type: ${{ parameters.credential_type }}
 - script: |
     set -eu
-    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2Fchlochen-swiftv2-$(Build.BuildId)%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fdelgpod'" /dev/null
+    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RUN_ID%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fdelgpod'" /dev/null
   displayName: "Delete SAL"
   condition: and(${{ eq(variables['SWIFTV2'], 'true') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
 - script: |
     set -eu
-    echo "Delete resource group chlochen-swiftv2-$(Build.BuildId)"
-    az group delete --name chlochen-swiftv2-$(Build.BuildId) --yes
+    echo "Delete resource group $RUN_ID"
+    az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
