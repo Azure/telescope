@@ -27,7 +27,6 @@ stages:
               node_per_step: 50
               max_pods: 1
               repeats: $(LOOPS)
-              reservationSize: $(PNI_RESERVATION_SIZE)
               scale_timeout: "30m"
               cilium_enabled: False
               scrape_containerd: False
