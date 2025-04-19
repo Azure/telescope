@@ -21,12 +21,13 @@ stages:
           node_label: $(nodelabel)
           topology: swiftv2-ds-churn
           matrix:
-            azure_cni:
+            azure_swiftv2:
               cpu_per_node: 4
               node_count: $(nodecount)
               node_per_step: 50
               max_pods: 1
               repeats: $(LOOPS)
+              reservationSize: $(PNI_RESERVATION_SIZE)
               scale_timeout: "30m"
               cilium_enabled: False
               scrape_containerd: False

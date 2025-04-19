@@ -21,6 +21,7 @@ name: daemonset_scale_config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "30s"}}
 
 {{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
+{{$reservationSize := DefaultParam .CL2_RESERVATION_SIZE 1000}}
 
 # Service test
 {{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
@@ -79,6 +80,8 @@ steps:
       objectBundle:
       - basename: pod-network-instance
         objectTemplatePath: pni_template.yaml
+        templateFillMap:
+              ReservationSize: {{$reservationSize}}
 
   - name: Wait for PNI to be created and nodes to be registered
     measurements:
