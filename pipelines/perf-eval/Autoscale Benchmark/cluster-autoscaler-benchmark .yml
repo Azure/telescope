@@ -33,7 +33,7 @@ variables:
   SCENARIO_NAME: cluster-autoscaler
 
 stages:
-  - stage: azure_eastus2_200nodes_200pods
+  - stage: azure_eastus2_small_scale
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 10:00 PM'),
@@ -51,15 +51,15 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c2-n200-p200-on-demand:
+            small-scale-on-demand:
               cpu_per_node: 2
-              node_count: 201
-              pod_count: 201
-              scale_up_timeout: "30m"
-              scale_down_timeout: "30m"
+              node_count: 11
+              pod_count: 11
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
-              loop_count: 1
+              loop_count: 5
               warmup_deployment: false
               capacity_type: on-demand
           max_parallel: 1
@@ -67,7 +67,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_australiaeast_500nodes_500pods
+  - stage: azure_australiaeast_medium_scale
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 10:00 AM'),
@@ -87,12 +87,12 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c2-n500-p500-on-demand:
+            medium-scale-on-demand:
               cpu_per_node: 2
               node_count: 501
               pod_count: 501
-              scale_up_timeout: "50m"
-              scale_down_timeout: "50m"
+              scale_up_timeout: "40m"
+              scale_down_timeout: "40m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 1
@@ -103,7 +103,43 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: aws_eastus2_200nodes_200pods
+  - stage: azure_australiaeast_large_scale
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 10:00 AM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-1000nodes.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241002"
+          topology: cluster-autoscaler
+          matrix:
+            large-scale-demand:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_eastus2_small_scale
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM on Monday'),
@@ -121,7 +157,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c2-n200-p200-on-demand:
+            small-scale-on-demand:
               cpu_per_node: 2
               node_count: 201
               pod_count: 201
@@ -157,7 +193,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20241002"
           topology: cluster-autoscaler
           matrix:
-            c2-n500-p500-on-demand:
+            medium-scale-on-demand:
               cpu_per_node: 2
               node_count: 501
               pod_count: 501
