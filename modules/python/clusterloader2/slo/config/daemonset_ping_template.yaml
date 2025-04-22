@@ -1,0 +1,171 @@
+# apiVersion: apps/v1
+# kind: DaemonSet
+# metadata:
+#   labels:
+#     group: load
+#     kubernetes.azure.com/pod-network: pn100
+#     kubernetes.azure.com/pod-network-instance: pod-network-instance-0
+#   name: daemonset
+#   namespace: slo-1
+# spec:
+#   updateStrategy:
+#     type: OnDelete
+#   selector:
+#     matchLabels:
+#       name: daemonset
+#   template:
+#     metadata:
+#       labels:
+#         group: load
+#         name: daemonset
+#         kubernetes.azure.com/pod-network: pn100
+#         kubernetes.azure.com/pod-network-instance: pod-network-instance-0
+#     spec:
+#       containers:
+#       - image: nicolaka/netshoot:latest
+#         imagePullPolicy: Always
+#         name: daemonset
+#         command: ["/bin/bash"]
+#         args: ["-c", "while true; do ping localhost; sleep 60;done"]  
+#         securityContext:
+#           privileged: true
+#         ports:
+#         - containerPort: 80
+#           protocol: TCP
+#         resources: {}
+#         terminationMessagePath: /dev/termination-log
+#         terminationMessagePolicy: File
+#         volumeMounts:
+#         - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+#           name: kube-api-access-qs4bb
+#           readOnly: true
+#       dnsPolicy: ClusterFirst
+#       enableServiceLinks: true
+#       nodeSelector:   
+#         slo: "true"
+#       preemptionPolicy: PreemptLowerPriority
+#       priority: 0
+#       restartPolicy: Always
+#       schedulerName: default-scheduler
+#       securityContext: {}
+#       serviceAccount: default
+#       serviceAccountName: default
+#       terminationGracePeriodSeconds: 30
+#       tolerations:
+#       - key: "slo"
+#         operator: "Equal"
+#         value: "true"
+#         effect: "NoSchedule"
+#       - key: "DeletionCandidateOfClusterAutoscaler"
+#         operator: "Exists"
+#         effect: "PreferNoSchedule"
+#       - effect: NoExecute
+#         key: node.kubernetes.io/not-ready
+#         operator: Exists
+#         tolerationSeconds: 300
+#       - effect: NoExecute
+#         key: node.kubernetes.io/unreachable
+#         operator: Exists
+#         tolerationSeconds: 300
+#       volumes:
+#       - name: kube-api-access-qs4bb
+#         projected:
+#           defaultMode: 420
+#           sources:
+#           - serviceAccountToken:
+#               expirationSeconds: 3607
+#               path: token
+#           - configMap:
+#               items:
+#               - key: ca.crt
+#                 path: ca.crt
+#               name: kube-root-ca.crt
+#           - downwardAPI:
+#               items:
+#               - fieldRef:
+#                   apiVersion: v1
+#                   fieldPath: metadata.namespace
+#                 path: namespace
+
+# {{$HostNetworkMode := DefaultParam .CL2_USE_HOST_NETWORK_PODS false}}
+# {{$Image := DefaultParam .Image "registry.k8s.io/pause:3.9"}}
+# {{$Env := DefaultParam .Env ""}}
+# {{$DaemonSetSurge := DefaultParam .CL2_DS_SURGE (MaxInt 10 (DivideInt .Nodes 20))}} # 5% of nodes, but not less than 10
+# {{$RUN_ON_ARM_NODES := DefaultParam .CL2_RUN_ON_ARM_NODES false}}
+
+# {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
+# {{$NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE "net-policy-client"}}
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{.Name}}
+  namespace: slo-1
+  labels:
+    group: {{.Group}}
+    kubernetes.azure.com/pod-network: pn100
+    kubernetes.azure.com/pod-network-instance: pod-network-instance-0
+spec:
+  updateStrategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  template:
+    metadata:
+      labels:
+        group: {{.Group}}
+        name: {{.Name}}
+        kubernetes.azure.com/pod-network: pn100
+        kubernetes.azure.com/pod-network-instance: pod-network-instance-0
+    spec:
+      hostNetwork: false #{{$HostNetworkMode}}
+      initContainers:
+      - name: connectivity-check
+        image: busybox
+        command: ["/bin/sh", "-c"]
+        args: ["ping -c 3 172.25.0.11 && exit 0 || exit 1"] # Replace <target_endpoint>
+        # Add other configurations for the init container if needed    
+      containers:
+      - name: daemonset
+        image: "mcr.microsoft.com/azurelinux/base/nginx:1.25" #{{$Image}}
+        env:
+          - name: TEST_ENV
+            value: "" # {{$Env}}
+        resources:
+          # Keep the CpuRequest/MemoryRequest request equal percentage of 1-core, 4GB node.
+          # For now we're setting it to 0.5%.
+          requests:
+            cpu: 5m
+            memory: "20M"
+      terminationGracePeriodSeconds: 1
+      nodeSelector:   
+        slo: "true"
+      tolerations:
+      - key: "slo"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "DeletionCandidateOfClusterAutoscaler"
+        operator: "Exists"
+        effect: "PreferNoSchedule"
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+        tolerationSeconds: 300
+      - effect: NoExecute
+        key: node.kubernetes.io/unreachable
+        operator: Exists
+        tolerationSeconds: 300
+      # {{if $RUN_ON_ARM_NODES}}
+      # - key: "kubernetes.io/arch"
+      #   operator: Equal
+      #   value: arm64
+      #   effect: NoSchedule
+      # {{end}}
+      # {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+      # - key: test-np
+      #   operator: Equal
+      #   value: {{$NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE}}
+      #   effect: NoSchedule
+      # {{end}}
