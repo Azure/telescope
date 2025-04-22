@@ -99,6 +99,6 @@ steps:
   name: SetupAKSMTCluster
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
-  displayName: "SetupAKSMTCluster"
+  displayName: "SetupAKSMTClusterpING"
   condition: eq(variables['SWIFTV2PING'], 'true')
   name: SetupAKSMTCluster
