@@ -7,7 +7,7 @@ parameters:
     default: {}
   - name: region
     type: string
-  - name: install_retina
+  - name: install
     type: boolean
     default: false
   - name: repository
@@ -28,7 +28,7 @@ steps:
       echo "##vso[task.setvariable variable=START_TIME]$startTimestamp"
     displayName: set up timestamp variable
 
-  - ${{ if parameters.install_retina }}:
+  - ${{ if parameters.install }}:
     - script: |
         git clone http://github.com/microsoft/retina.git
         git checkout ${{ parameters.ref }}
@@ -63,7 +63,9 @@ steps:
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
     displayName: "Run Benchmark"
-  - script: |
-      make uninstall
-    displayName: Uninstall Helm Chart
+
+  - ${{ if parameters.install }}:
+    - script: |
+        make uninstall
+      displayName: Uninstall Helm Chart
 

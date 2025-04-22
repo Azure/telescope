@@ -3,25 +3,31 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ${{ parameters.scenario_name }}
-  OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
   OWNER: aks
   REF: ${{ parameters.ref }}
+  ${{ if not(contains(parameters.scenario_name,'non-acns')) }}:
+    INSTALL: false
+    OBSERVABILITY_TOOL: acns
   ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-basic')) }}:
     INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-with-operator"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
   ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-advanced-local-context')) }}:
     INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-advanced-local-context"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
   ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-advanced-remote-context')) }}:
     INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-advanced-remote-context"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
   ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-hubble')) }}:
     INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-hubble"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
 
 
 parameters:
@@ -77,7 +83,7 @@ stages:
             repository: ${{ variables.REPOSITORY }}
             makeargs: ${{ variables.MAKEARGS }}
             ref: ${{ parameters.ref }}
-            install_retina: ${{ variables.INSTALL_RETINA }}
+            install: ${{ variables.INSTALL_RETINA }}
           topology: observability
           matrix:
             acns:
