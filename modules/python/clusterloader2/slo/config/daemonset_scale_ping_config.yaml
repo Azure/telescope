@@ -1,0 +1,217 @@
+name: daemonset_scale_config
+
+# Config options for test parameters
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
+{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
+{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
+{{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$groupName := DefaultParam .CL2_GROUP_NAME "load"}}
+
+{{$nodes := DefaultParam .CL2_NODES 1000}}
+
+{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$totalPods := MultiplyInt $nodes $podsPerNode}}
+{{$podsPerNamespace := $totalPods}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
+
+{{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
+{{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "30s"}}
+
+{{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
+
+# Service test
+{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
+{{$SMALL_GROUP_SIZE := DefaultParam .SMALL_GROUP_SIZE 20}}
+
+# TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250)
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
+{{if (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
+{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
+{{end}}
+
+{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
+{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
+
+namespace:
+  number: 1
+  prefix: slo
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: true
+
+tuningSets:
+  - name: DeploymentCreatePNIQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+  - name: DeploymentDeleteQps
+    qpsLoad:
+      qps: {{$deploymentQPS}}
+
+steps:
+  - name: Log - namespaces=1, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
+# {{if $SCRAPE_CONTAINERD}}
+#   - module:
+#       path: /modules/containerd-measurements.yaml
+#       params:
+#         action: start
+# {{end}}
+
+  - name: "Create PNI"
+    phases:
+    - namespaceRange:
+        min: 1
+        max: 1
+      replicasPerNamespace: 1
+      tuningSet: DeploymentCreatePNIQps
+      objectBundle:
+      - basename: pod-network-instance
+        objectTemplatePath: pni_template.yaml
+        templateFillMap:
+              ReservationSize: {{$nodes}}
+
+  - name: Wait for PNI to be created and nodes to be registered
+    measurements:
+      - Identifier: Dummy
+        Method: Sleep
+        Params:
+          duration: 360s
+
+# start repeat
+
+{{range $i := Loop $repeats}}
+  # - module:
+  #     path: /modules/measurements.yaml
+  #     params:
+  #       action: start
+  #       group: {{$groupName}}
+  - name: Starting Pod Startup Latency Measurements {{$i}}
+    measurements:
+    - Identifier: PodStartupLatency_{{$i}}
+      Method: PodStartupLatency
+      Params:
+        action: start
+        labelSelector: group = {{$groupName}}
+        threshold: {{$podStartupLatencyThreshold}}
+  - name: Starting measurement for Create Daemonset {{$i}}
+    measurements:
+    - Identifier: WaitForRunningDaemonSets
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: DaemonSet
+        action: start
+        checkIfPodsAreUpdated: false
+        labelSelector: group = {{$groupName}}
+        operationTimeout: {{$operationTimeout}}
+
+  - name: Create Daemonset {{$i}}
+    phases:
+    - namespaceRange:
+        min: 1
+        max: 1
+      replicasPerNamespace: 1
+      tuningSet: DeploymentCreateQps
+      objectBundle:
+      - basename: daemonset-{{$i}}
+        objectTemplatePath: daemonset_template.yaml
+        templateFillMap:
+              Group: {{$groupName}}
+
+  - name: Waiting for Create Daemonset to be running {{$i}}
+    measurements:
+    - Identifier: WaitForRunningDaemonSets
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: DaemonSet
+        action: gather
+        refreshInterval: 15s
+
+# {{if $SCRAPE_CONTAINERD}}
+#   - name: Wait for last scrape
+#     measurements:
+#       - Identifier: Sleep
+#         Method: Sleep
+#         Params:
+#           duration: 10m
+# {{end}}
+
+  - name: Ending Pod Startup Latency Measurements {{$i}}
+    measurements:
+    - Identifier: PodStartupLatency_{{$i}}
+      Method: PodStartupLatency
+      Params:
+        action: gather
+        labelSelector: group = {{$groupName}}
+  # - module:
+  #     path: /modules/measurements.yaml
+  #     params:
+  #       action: gather
+  #       group: {{$groupName}}
+
+  - Identifier: PodPeriodicCommand
+    Method: PodPeriodicCommand
+    Params:
+      action: start # start/gather 
+      labelSelector: group = {{$groupName}}
+      interval: 5m
+      container: daemonset
+      limit: 3 # randomly picks up to 3 pods that match labelSelector
+      commands:
+      - name: CustPodPing
+        command: ping -c 3 172.25.0.11
+        timeout: 5s
+
+  - name: Starting measurement for Delete Daemonset
+    measurements:
+    - Identifier: WaitForDeletedDaemonSets {{$i}}
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: DaemonSet
+        action: start
+        checkIfPodsAreUpdated: true
+        labelSelector: group = {{$groupName}}
+        operationTimeout: {{$operationTimeout}}
+
+  - name: Delete Daemonset {{$i}}
+    phases:
+    - namespaceRange:
+        min: 1
+        max: 1
+      replicasPerNamespace: 0
+      tuningSet: DeploymentDeleteQps
+      objectBundle:
+      - basename: daemonset-{{$i}}
+        objectTemplatePath: daemonset_template.yaml
+
+  - name: Waiting for Delete Daemonset to be completed
+    measurements:
+    - Identifier: WaitForDeletedDaemonSets {{$i}}
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: DaemonSet
+        action: gather
+        refreshInterval: 15s
+  - name: Wait for MTPNC cleanup {{$i}}
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 2m
+{{end}}
+# end repeat

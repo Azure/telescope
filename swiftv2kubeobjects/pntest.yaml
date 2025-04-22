@@ -1,0 +1,12 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetwork
+metadata:
+   name: pn100
+   finalizers: 
+   - finalizers.acn.azure.com/dnc-operations
+   labels:
+      kubernetes.azure.com/override-subnet-token: 1c03b0e4-049f-4ea4-aacc-b0235737c984
+spec:
+    deviceType: acn.azure.com/vnet-nic
+    networkID: a2edd479-156e-4a75-b3f6-c862a04ed51e
+    subnetResourceID: /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/swiftv2-runners-eastus2/providers/Microsoft.Network/virtualNetworks/swiftvnet-eastus2/subnets/podsubnet
