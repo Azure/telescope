@@ -4,6 +4,24 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ${{ parameters.scenario_name }}
   OWNER: aks
+  REF: ${{ parameters.ref }}
+  ${{ if eq(parameters.scenario_name, 'retina-oss-standard-basic') }}:
+    INSTALL_RETINA: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-with-operator"
+  ${{ if eq(parameters.scenario_name, 'retina-oss-standard-advanced-local-context') }}:
+    INSTALL_RETINA: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-advanced-local-context"
+  ${{ if eq(parameters.scenario_name, 'retina-oss-standard-advanced-remote-context') }}:
+    INSTALL_RETINA: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-advanced-remote-context"
+  ${{ if eq(parameters.scenario_name, 'retina-oss-hubble') }}:
+    INSTALL_RETINA: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-hubble"
+
 
 parameters:
 - name: scenario_name
@@ -14,11 +32,15 @@ parameters:
   # - byo-k8s
   - acns-azurecni-overlay
   - acns-cilium
-  # - retina-oss-standard-basic
-  # - retina-oss-standard-advanced-local-context
-  # - retina-oss-standard-advanced-remote-context
-  # - retina-oss-hubble
+  - retina-oss-standard-basic
+  - retina-oss-standard-advanced-local-context
+  - retina-oss-standard-advanced-remote-context
+  - retina-oss-hubble
   # - retina-oss-enterprise-hubble
+- name: ref
+  displayName: Ref (branch/tag/SHA) to checkout [only used when retina-oss or retina-enterpries scenarios are selected]
+  type: string
+  default: main
 - name: traffic_deployment_count
   displayName: Number of Traffic Deployments
   type: number
@@ -33,6 +55,13 @@ parameters:
   default: 10
 
 stages:
+# - stage: ACNS_Infra_Setup
+#   jobs:
+#   - job: test
+#     steps:
+#     - script: |
+#         echo $REPOSITORY
+#         echo ${{ variables.REPOSITORY }}
   - stage: ACNS_Infra_Test
     dependsOn: []
     jobs:
@@ -44,6 +73,10 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
+            repository: ${{ variables.REPOSITORY }}
+            makeargs: ${{ variables.MAKEARGS }}
+            ref: ${{ parameters.ref }}
+            install_retina: ${{ variables.INSTALL_RETINA }}
           topology: observability
           matrix:
             acns:

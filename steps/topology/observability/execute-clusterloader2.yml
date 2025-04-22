@@ -15,3 +15,8 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
+    install_retina: ${{ parameters.engine_input.install_retina }}
+    repository: ${{ parameters.engine_input.repository }}
+    makeargs: ${{ parameters.engine_input.makeargs }}
+    ${{ if not(eq(parameters.engine_input.ref, '')) }}:
+      ref: ${{ parameters.engine_input.ref }}

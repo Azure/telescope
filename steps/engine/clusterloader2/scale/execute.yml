@@ -7,6 +7,18 @@ parameters:
     default: {}
   - name: region
     type: string
+  - name: install_retina
+    type: boolean
+    default: false
+  - name: repository
+    type: string
+    default: ""
+  - name: makeargs
+    type: string
+    default: ""
+  - name: ref
+    type: string
+    default: "main"
 
 steps:
   - script: |
@@ -15,6 +27,19 @@ steps:
       echo "Start: $startTimestamp"
       echo "##vso[task.setvariable variable=START_TIME]$startTimestamp"
     displayName: set up timestamp variable
+
+  - ${{ if parameters.install_retina }}:
+    - script: |
+        git clone http://github.com/microsoft/retina.git
+        git checkout ${{ parameters.ref }}
+      displayName: Clone Retina OSS Repo
+
+    - script: |
+        cd retina
+        ls
+        echo "Install Retina OSS Standard Basic"
+        make ${{ parameters.makeargs }}
+      displayName: Install Retina OSS Standard Basic
 
   - script: |
       set -eo pipefail
@@ -38,3 +63,7 @@ steps:
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
     displayName: "Run Benchmark"
+  - script: |
+      make uninstall
+    displayName: Uninstall Helm Chart
+

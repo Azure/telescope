@@ -4,6 +4,8 @@ metadata:
   name: {{.Name}}
   labels:
     is-real: "true"
+  annotations:
+    retina.sh: "observe"
 spec:
   replicas: {{.Replicas}}
   selector:
@@ -15,6 +17,8 @@ spec:
         app: kapinger
         is-real: "true"
         unique-dep-label: "{{.Index}}"
+      annotations:
+        retina.sh: "observe"
     spec:
       nodeSelector:
         kubernetes.io/os: linux
