@@ -92,6 +92,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {
   vnet_subnet_id        = try(local.subnets[each.value.subnet_name], null)
   os_sku                = each.value.os_sku
   os_disk_type          = coalesce(var.k8s_os_disk_type, each.value.os_disk_type)
+  os_disk_size_gb       = each.value.os_disk_size_gb
   max_pods              = each.value.max_pods
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])

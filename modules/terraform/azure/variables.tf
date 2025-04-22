@@ -170,6 +170,7 @@ variable "aks_config_list" {
       vm_size              = string
       os_sku               = optional(string)
       os_disk_type         = optional(string)
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])
