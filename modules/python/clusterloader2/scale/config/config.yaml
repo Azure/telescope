@@ -45,7 +45,13 @@ steps:
         group: {{$groupName}}
 
   - module:
-      path: /modules/pods-measurements.yaml
+      path: /modules/retina-measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+  - module:
+      path: /modules/cilium-measurements.yaml
       params:
         action: start
         group: {{$groupName}}
@@ -67,7 +73,13 @@ steps:
         group: {{$groupName}}
 
   - module:
-      path: /modules/pods-measurements.yaml
+      path: /modules/retina-measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
+
+  - module:
+      path: /modules/cilium-measurements.yaml
       params:
         action: gather
         group: {{$groupName}}
