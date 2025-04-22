@@ -50,7 +50,12 @@ aks_cli_config_list = [
         node_count = 1
         auto_scaling_enabled = false
         vm_size    = "Standard_D64_v3"
-        node_labels          = { "prometheus" = "true" }
+        optional_parameters = [
+          {
+            name  = "labels"
+            value = "prometheus=true"
+          }
+        ]
       },
       {
         name       = "traffic"
@@ -58,8 +63,12 @@ aks_cli_config_list = [
         auto_scaling_enabled = false
         max_pods   = 110
         vm_size    = "Standard_D4_v3"
-        node_taints          = ["slo=true:NoSchedule"]
-        node_labels          = { "slo" = "true", "scale-test" = "true" }
+        optional_parameters = [
+          {
+            name  = "labels"
+            value = "slo=true,scale-test=true"
+          }
+        ]
       }
     ]
   }
