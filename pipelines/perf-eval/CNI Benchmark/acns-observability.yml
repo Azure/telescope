@@ -3,42 +3,50 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: ${{ parameters.scenario_name }}
+  OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
   OWNER: aks
   REF: ${{ parameters.ref }}
-  ${{ if eq(parameters.scenario_name, 'retina-oss-standard-basic') }}:
-    INSTALL_RETINA: true
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-basic')) }}:
+    INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-with-operator"
-  ${{ if eq(parameters.scenario_name, 'retina-oss-standard-advanced-local-context') }}:
-    INSTALL_RETINA: true
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-advanced-local-context')) }}:
+    INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-advanced-local-context"
-  ${{ if eq(parameters.scenario_name, 'retina-oss-standard-advanced-remote-context') }}:
-    INSTALL_RETINA: true
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-advanced-remote-context')) }}:
+    INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-advanced-remote-context"
-  ${{ if eq(parameters.scenario_name, 'retina-oss-hubble') }}:
-    INSTALL_RETINA: true
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-hubble')) }}:
+    INSTALL: true
     REPOSITORY: http://github.com/microsoft/retina.git
     MAKEARGS: "helm-install-hubble"
 
 
 parameters:
 - name: scenario_name
-  displayName: Scenario Name (cluster with 1000 nodes and tool to be tested)
+  displayName: Scenario Name (cluster infra with 1000 nodes)
   type: string
   default: acns-azurecni-overlay
   values:
-  # - byo-k8s
   - acns-azurecni-overlay
   - acns-cilium
+  - non-acns-azurecni-overlay
+  - non-acns-cilium
+- name: observability_tool
+  displayName: Observability tool to be installed [only used on non-acns scenarios]
+  type: string
+  default: acns
+  values:
+  - acns
   - retina-oss-standard-basic
   - retina-oss-standard-advanced-local-context
   - retina-oss-standard-advanced-remote-context
   - retina-oss-hubble
-  # - retina-oss-enterprise-hubble
+  # - retina-enterprise-hubble
 - name: ref
-  displayName: Ref (branch/tag/SHA) to checkout [only used when retina-oss or retina-enterpries scenarios are selected]
+  displayName: Ref (branch/tag/SHA) to checkout [only used on non-acns scenarios]
   type: string
   default: main
 - name: traffic_deployment_count
@@ -55,13 +63,6 @@ parameters:
   default: 10
 
 stages:
-# - stage: ACNS_Infra_Setup
-#   jobs:
-#   - job: test
-#     steps:
-#     - script: |
-#         echo $REPOSITORY
-#         echo ${{ variables.REPOSITORY }}
   - stage: ACNS_Infra_Test
     dependsOn: []
     jobs:
