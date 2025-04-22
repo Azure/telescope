@@ -70,7 +70,7 @@ az rest --method get --url /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/r
 az aks create -n ${CLUSTER} -g ${RG} \
         -s Standard_D8_v3 -c 5 \
         --os-sku Ubuntu \
-        -l ${LOCATION} --max-pods 110 \
+        -l ${LOCATION} \
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
         --network-plugin azure \
         --tier standard \
@@ -91,7 +91,7 @@ az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags Sk
 
 # create nodepools
 for i in $(seq 1 ${NODEPOOLS}); do
-        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c 10 --max-pods 110 -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
+        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
         sleep 60
 done 
 
