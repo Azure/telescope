@@ -54,23 +54,29 @@ az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} -
 
 script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename'" /dev/null
 
-# create customer vnet
-custVnetName="custvnet"
-az network vnet create --resource-group $RG --name $custVnetName --location $LOCATION --address-prefix $vnetAddressSpaceCIDR
-custSubnetName="delgpod"
-az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $vnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
+# # create customer vnet
+# custVnetName="custvnet"
+# az network vnet create --resource-group $RG --name $custVnetName --location $LOCATION --address-prefix $vnetAddressSpaceCIDR
+# custSubnetName="delgpod"
+# az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $vnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
+RUNNERRG=swiftv2-runners-$RUNNERLOCATION
+custVnetName=swiftvnet-$RUNNERLOCATION
+custSubnetName="scaledel"
+custVnetSubnetPodsCIDR="172.26.0.0/16"
+az network vnet subnet create --resource-group $TESTRG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $custVnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
+script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$TESTRG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null
 
-script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null
+# script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null
 # create cluster
 echo "create cluster"
 vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
 nodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNameNodes}']" | jq -r '.[].id')
 podSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNamePods}']" | jq -r '.[].id')
-az rest --method get --url /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01
+az rest --method get --url /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$TESTRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01
 az aks create -n ${CLUSTER} -g ${RG} \
         -s Standard_D8_v3 -c 5 \
         --os-sku Ubuntu \
-        -l ${LOCATION} --max-pods 110 \
+        -l ${LOCATION} \
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
         --network-plugin azure \
         --tier standard \
@@ -91,7 +97,7 @@ az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags Sk
 
 # create nodepools
 for i in $(seq 1 ${NODEPOOLS}); do
-        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c 10 --max-pods 110 -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
+        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true
         sleep 60
 done 
 
@@ -106,10 +112,14 @@ done
 #         az aks nodepool update --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} --enable-cluster-autoscaler --min-count 0 --max-count 500
 # done
 
-# add prometheus nodepool
-export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $RG --query resourceGuid --output tsv)
-export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
-export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/delgpod?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+# # add prometheus nodepool
+# export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $RG --query resourceGuid --output tsv)
+# export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
+# export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/delgpod?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+
+export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $TESTRG --query resourceGuid --output tsv)
+export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $TESTRG --query id --output tsv)
+export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$TESTRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 while true; do
 STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv)
@@ -118,7 +128,7 @@ STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningS
         echo "Cluster is ready"
         break
     else
-        sleep 60
+        sleep 30
     fi
 done
 
@@ -126,7 +136,7 @@ az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-gro
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
-envsubst < swiftv2kubeobjects/pntest.yaml | kubectl apply -f -
+envsubst < swiftv2kubeobjects/pn.yaml | kubectl apply -f -
 
 sleep 60
 
