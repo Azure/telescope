@@ -125,6 +125,16 @@ variable "eks_config_list" {
         value  = string
         effect = string
       })), [])
+      block_device_mappings = optional(list(object({
+        device_name = string
+        ebs = object({
+          delete_on_termination = optional(bool, true)
+          iops                  = optional(number, null)
+          throughput            = optional(number, null)
+          volume_size           = optional(number, null)
+          volume_type           = optional(string, null)
+        })
+      })), [])
     }))
     eks_addons = list(object({
       name            = string
