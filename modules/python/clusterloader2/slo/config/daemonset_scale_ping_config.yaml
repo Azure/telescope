@@ -162,16 +162,16 @@ steps:
   #       action: gather
   #       group: {{$groupName}}
 
-  - name: Starting measurement Pod Ping Command
+  - name: Starting measurement Pod Ping Command {{$i}}
     measurements:
-    - Identifier: PodPeriodicCommand
+    - Identifier: PodPeriodicCommand_{{$i}}
       Method: PodPeriodicCommand
       Params:
         action: start # start/gather 
         labelSelector: group = {{$groupName}}
         interval: 5m
         container: daemonset
-        limit: 3 # randomly picks up to 3 pods that match labelSelector
+        limit: {{$nodes}} # randomly picks up to 3 pods that match labelSelector
         failOnCommandError: true
         failOnExecError: true
         failOnTimeout: true
@@ -180,9 +180,9 @@ steps:
           command: ["/bin/sh", "-c", "ping -c 3 172.25.0.11"]
           timeout: 5s
 
-  - name: Ending measurement Pod Ping Command
+  - name: Ending measurement Pod Ping Command {{$i}}
     measurements:
-    - Identifier: PodPeriodicCommand
+    - Identifier: PodPeriodicCommand_{{$i}}
       Method: PodPeriodicCommand
       Params:
         action: gather # start/gather 
