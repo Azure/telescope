@@ -1,11 +1,11 @@
 trigger: none
-schedules:
-- cron: "0 */8 * * *"
-  displayName: "Every 8 Hours Daily"
-  branches:
-    include:
-      - camrynl/scheduled-feature
-  always: true
+#schedules:
+#- cron: "0 */8 * * *"
+#  displayName: "Every 8 Hours Daily"
+#  branches:
+#    include:
+#      - camrynl/scheduled-feature
+#  always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
