@@ -21,7 +21,7 @@ stages:
           node_label: $(nodelabel)
           topology: swiftv2-ds-churn
           matrix:
-            azure_swiftv2:
+            azure_swiftv2_withping:
               cpu_per_node: 4
               node_count: $(nodecount)
               node_per_step: 50
