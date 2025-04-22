@@ -172,6 +172,9 @@ steps:
         interval: 5m
         container: daemonset
         limit: 3 # randomly picks up to 3 pods that match labelSelector
+        failOnCommandError: true
+        failOnExecError: true
+        failonTimeout: true
         commands:
         - name: CustPodPing
           command: ping -c 3 172.25.0.11
