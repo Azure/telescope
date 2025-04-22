@@ -162,18 +162,28 @@ steps:
   #       action: gather
   #       group: {{$groupName}}
 
-  - Identifier: PodPeriodicCommand
-    Method: PodPeriodicCommand
-    Params:
-      action: start # start/gather 
-      labelSelector: group = {{$groupName}}
-      interval: 5m
-      container: daemonset
-      limit: 3 # randomly picks up to 3 pods that match labelSelector
-      commands:
-      - name: CustPodPing
-        command: ping -c 3 172.25.0.11
-        timeout: 5s
+  - name: Starting measurement Pod Ping Command
+    measurements:
+    - Identifier: PodPeriodicCommand
+      Method: PodPeriodicCommand
+      Params:
+        action: start # start/gather 
+        labelSelector: group = {{$groupName}}
+        interval: 5m
+        container: daemonset
+        limit: 3 # randomly picks up to 3 pods that match labelSelector
+        commands:
+        - name: CustPodPing
+          command: ping -c 3 172.25.0.11
+          timeout: 5s
+
+  - name: Ending measurement Pod Ping Command
+    measurements:
+    - Identifier: PodPeriodicCommand
+      Method: PodPeriodicCommand
+      Params:
+        action: gather # start/gather 
+        labelSelector: group = {{$groupName}}
 
   - name: Starting measurement for Delete Daemonset
     measurements:
