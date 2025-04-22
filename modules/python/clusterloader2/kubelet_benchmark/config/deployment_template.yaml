@@ -20,7 +20,7 @@ spec:
     spec:
       hostNetwork: true
       nodeSelector:
-        cri-eviction-eval: "true"
+        kubelet-benchmark: "true"
       containers:
       - name: resource-consumer
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
@@ -36,8 +36,14 @@ spec:
             memory: {{.MemoryLimit}}
             cpu: {{.CPULimit}}
   {{end}}
-{{if eq .LoadType "memory"}}
-        command: ["sh", "-c", "stress -m 1 --vm-bytes {{.Memory}}M --vm-hang 0 -t {{.Duration}}"]
+{{if eq .LoadType "multiworker"}}
+        command: ["sh", "-c", "counter=1; while [ $counter -le 30 ]; do echo \"Running memory stress iteration $counter/30\"; stress -m 4 --vm-bytes $(({{.Memory}}/4))M --vm-hang 0 -t {{.Duration}}; echo \"Completed iteration $counter/30\"; sleep $(shuf -i 1-10 -n 1); counter=$((counter+1)); done"]
+{{end}}
+{{if eq .LoadType "rampup"}}
+        command: ["/bin/sh", "-c", "for i in $(seq 1 10); do percentage=$((i * 10)); allocation=$(( {{.Memory}} * percentage / 100 )); echo \"Allocating ${allocation}M (${percentage}% of limit)\"; stress -m 1 --vm-bytes ${allocation}M --vm-hang 0 -t 30; sleep 5; done"]
+{{end}}
+{{if eq .LoadType "seesaw"}}
+        command: ["/bin/sh", "-c", "counter=1; while [ $counter -le 10 ]; do echo \"Memory stress cycle $counter/10\"; stress -m 1 --vm-bytes $(({{.Memory}} * 80 / 100))M --vm-hang 0 -t 30; sleep 5; stress -m 1 --vm-bytes $(({{.Memory}} * 95 / 100))M --vm-hang 0 -t 10; sleep 10; counter=$((counter+1)); done"]
 {{end}}
 {{if eq .LoadType "cpu"}}
       - name: resource-consumer-client

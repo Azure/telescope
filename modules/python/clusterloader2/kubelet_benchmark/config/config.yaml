@@ -1,13 +1,13 @@
-name: eviction-eval
+name: kubelet-benchmark
 
 {{$totalNodes := DefaultParam .CL2_NODE_COUNT 5}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
 {{$provider := DefaultParam .CL2_PROVIDER "aks"}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 30}}
 
-{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "eviction-eval"}}
-{{$nodeLabel := DefaultParam .CL2_NODE_LABEL "cri-eviction-eval"}}
-{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR "cri-eviction-eval=true"}}
+{{$deploymentLabel :=  DefaultParam .CL2_DEPLOYMENT_LABEL "kubelet-benchmark"}}
+{{$nodeLabel := DefaultParam .CL2_NODE_LABEL "kubelet-benchmark"}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR "kubelet-benchmark=true"}}
   
 {{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
 {{$stressDuration := DefaultParam .CL2_RESOURCE_STRESS_DURATION_SEC 100}}
@@ -16,16 +16,16 @@ name: eviction-eval
 {{$hasResourceRequest := DefaultParam .CL2_HAS_RESOURCE_REQUEST false}}
 {{$hasResourceLimit := DefaultParam .CL2_HAS_RESOURCE_LIMIT false}}
 
-{{$memoryRequest := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_REQUEST_KI "1000Ki"}}
-{{$memoryLimit := DefaultParam .CL2_RESOURCE_CONSUME_MEMORY_LIMIT_KI "1000Ki"}}
+{{$memoryRequest := DefaultParam .CL2_RESOURCE_MEMORY_REQUEST_KI "1000Ki"}}
+{{$memoryLimit := DefaultParam .CL2_RESOURCE_MEMORY_LIMIT_KI "1000Ki"}}
 {{$cpu := DefaultParam .CL2_RESOURCE_CONSUME_CPU 100}}
 
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
-{{$operationDuration := AddInt $stressDuration 60}}
+{{$operationDuration := AddInt $stressDuration 360}}
 
 namespace:
   number: 1
-  prefix: kubeconfig-eval
+  prefix: kubelet-benchmark
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
@@ -46,7 +46,7 @@ steps:
           maxDesiredNodeCount: {{$totalNodes}}
           labelSelector: {{$nodeSelector}}
           timeout: 1m
-          refreshInterval: 5s
+          refreshInterval: 15s
   - name: Start measurements
     measurements:
       - Identifier: ResourceUsageSummary
@@ -81,7 +81,7 @@ steps:
       replicasPerNamespace: 1
       tuningSet: Uniform1qps
       objectBundle:
-      - basename: eviction-eval
+      - basename: kubelet-benchmark
         objectTemplatePath: deployment_template.yaml
         templateFillMap:
           Replicas: {{$replicas}}

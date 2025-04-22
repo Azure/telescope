@@ -147,7 +147,7 @@ class CL2FileHandler:
             file.write(f"CL2_NODE_LABEL: {node_config.node_label}\n")
             file.write(f"CL2_NODE_SELECTOR: {node_config.node_selector}\n")
 
-            file.write(f"CL2_LOAD_TYPE: {workload_config.stress_config.load_type}\n")
+            file.write(f"CL2_LOAD_TYPE: {workload_config.stress_config.load_type.value}\n")
             file.write(f"CL2_RESOURCE_STRESS_DURATION_SEC: {workload_config.stress_config.get_stress_duration_seconds()}\n")
             file.write(f"CL2_RESOURCE_STRESS_MEMORY_MI: {workload_config.resource_usage.memory_ki // 1024}\n") # Convert Ki to Mi
 

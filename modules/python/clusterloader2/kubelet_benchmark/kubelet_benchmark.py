@@ -12,14 +12,16 @@ from clusterloader2.kubernetes_client import KubernetesClient
 def override_clusterloader2_config(cluster_controller: ClusterController, file_handler: CL2FileHandler, resource_stressor: ResourceStressor,
                                    node_count, max_pods, operation_timeout_seconds, provider):
     # Wrap load_type, load_factor, and load_duration into resource_stressor
-    resource_stressor.load_type = resource_stressor.load_type or "memory"
+    resource_stressor.load_type = resource_stressor.load_type or "multiworker"
     resource_stressor.load_factor = resource_stressor.load_factor or "best_effort"
     resource_stressor.load_duration = resource_stressor.load_duration or "spike"
 
     cluster_controller.populate_nodes(node_count)
     node_resource_config = cluster_controller.populate_node_resources()
-
-    eviction_eval = CL2Configurator(max_pods, resource_stressor, operation_timeout_seconds, provider)
+    print(f"Node resource config: {node_resource_config}")
+    # make sure pods_per_node is at least 1
+    pods_per_node = max( max_pods - node_resource_config.system_pods, 1)
+    eviction_eval = CL2Configurator(pods_per_node, resource_stressor, operation_timeout_seconds, provider)
     eviction_eval.generate_cl2_override(node_resource_config)
     file_handler.export_cl2_override(node_count, eviction_eval)
 
@@ -83,7 +85,7 @@ def main():
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
     parser_override.add_argument("operation_timeout", type=str, default="5m", help="Operation timeout")
-    parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"], default="memory", help="Type of load to generate")
+    parser_override.add_argument("load_type", type=str, choices=["multiworker", "seesaw", "rampup"], default="multiworker", help="Type of load to generate")
     parser_override.add_argument("load_factor", type=str, choices=["best_effort", "burstable", "guaranteed"], default="best_effort", help="QoS level of the load")
     parser_override.add_argument("load_duration", type=str, choices=["spike", "normal", "long"], default="spike", help="Duration of the load")
 
@@ -97,7 +99,7 @@ def main():
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     # TODO this should be read from the override file geneated by the override command
     parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
-    parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"], default="memory", help="Type of load to generate")
+    parser_collect.add_argument("load_type", type=str, choices=["multiworker", "seesaw", "rampup"], default="multiworker", help="Type of load to generate")
     parser_collect.add_argument("load_factor", type=str, choices=["best_effort", "burstable", "guaranteed"], default="best_effort", help="QoS level of the load")
     parser_collect.add_argument("load_duration", type=str, choices=["spike", "normal", "long"], default="spike", help="Duration of the load")
     parser_collect.add_argument("eviction_threshold_mem", type=str, default="100Mi", help="Eviction threshold to evaluate")

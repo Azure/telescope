@@ -26,10 +26,15 @@ class LoadQoS(Enum):
     BURSTABLE = "burstable"
     GUARANTEED = "guaranteed"
 
+class LoadPattern(Enum):
+    MULTIWORKER = "multiworker"
+    RAMPUP = "rampup"
+    SEESAW = "seesaw"
 class ResourceStressor:
     def __init__(self, load_type: str,  load_factor:str =  "best_effort", load_duration: str = "normal"):
+        # create enum memoryType for load_type, with values multiworker, rampup, and seesaw
 
-        self.load_type = load_type
+        self.load_type = LoadPattern(load_type)
         self.load_factor =  LoadQoS(load_factor)
         self.load_duration = LoadDuration(load_duration)
 
@@ -40,11 +45,11 @@ class ResourceStressor:
         # kubelet default watch is 10 seconds, try to get the pod to consume memory in [5, 10, 15] seconds
         stress_duration = 10
         if self.load_duration == LoadDuration.SPIKE:
-            stress_duration = 5
-        elif self.load_duration == LoadDuration.NORMAL:
             stress_duration = 10
+        elif self.load_duration == LoadDuration.NORMAL:
+            stress_duration = 20
         elif self.load_duration == LoadDuration.LONG:
-            stress_duration = 15
+            stress_duration = 30
         else:
             raise ValueError(f"Unknown load duration: {self.load_duration}")
         return stress_duration
@@ -52,7 +57,8 @@ class ResourceStressor:
 # define struct to hold node resource information
 # NodeResourceConfig has system_allocated_resources, node_allocatable_resources and remaining_resources
 class NodeResourceConfig:
-    def __init__(self, node_label: str, node_selector: str, system_allocated_resources: ResourceConfig, node_allocatable_resources: ResourceConfig, remaining_resources: ResourceConfig):
+    def __init__(self, system_pods: int, node_label: str, node_selector: str, system_allocated_resources: ResourceConfig, node_allocatable_resources: ResourceConfig, remaining_resources: ResourceConfig):
+        self.system_pods = system_pods
         self.node_label = node_label
         self.node_selector = node_selector
         self.system_allocated_resources = system_allocated_resources

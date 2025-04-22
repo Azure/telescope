@@ -52,7 +52,7 @@ class ClusterController:
     def populate_nodes(self, node_count: int):
         nodes = self.client.get_nodes(label_selector=self.node_selector)
         if len(nodes) == 0:
-            raise Exception(f"Invalid node selector: {self.node_selector}")
+            raise Exception(f"Could not find nodes with selector: {self.node_selector}")
         if len(nodes) < node_count:
             print(f"expected nodes available for the given node selector: {self.node_selector}. Found {len(nodes)}, expected {self.node_count}")
 
@@ -134,22 +134,31 @@ spec:
                                         default_eviction_memory=KubeletConfig.get_default_config().eviction_hard_memory,
                                         desired_eviction_memory= kubelet_config.eviction_hard_memory)
 
-    def get_system_pods_allocated_resources(self) -> ResourceConfig:
-        pods = self.client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={self.nodes[0].metadata.name}")
-
+    def get_system_pods_allocated_resources(self) -> tuple[ResourceConfig, int]:
+        # iterate over all namespaces used by aks
         cpu_request = 0
         memory_request = 0
-        for pod in pods:
-            for container in pod.spec.containers:
-                print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-                # check whether the container has resources requests
-                if container.resources.requests is None:
-                    print(f"Container {container.name} does not have resources requests.")
-                    continue
-                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
-
-        return  ResourceConfig(memory_request * 1024, cpu_request)
+        pod_counts = 0
+        
+        known_namespaces = ["kube-system", "kube-public", "kube-node-lease", "gatekeeper-system", "gatekeeper-audit"]
+        for namespace in known_namespaces:
+            pods = self.client.get_pods_by_namespace(namespace, field_selector=f"spec.nodeName={self.nodes[0].metadata.name}")
+            if len(pods) == 0:
+                print(f"No pods in {namespace} namespace")
+                continue
+        
+            for pod in pods:
+                for container in pod.spec.containers:
+                    print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                    # check whether the container has resources requests
+                    if container.resources.requests is None:
+                        print(f"Container {container.name} does not have resources requests.")
+                        continue
+                    cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                    memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+            pod_counts += len(pods)
+            print(f"{namespace} has {len(pods)} pods, consumes memory {memory_request}Mi and cpu {cpu_request}")
+        return  ResourceConfig(memory_request * 1024, cpu_request), pod_counts
 
     def get_node_available_resource(self) -> ResourceConfig:
         node_allocatable_cpu = int(self.nodes[0].status.allocatable["cpu"].replace("m", ""))
@@ -168,11 +177,12 @@ spec:
 
     def populate_node_resources(self) -> NodeResourceConfig:
         # Get the first node to get the allocatable resources
-        system_allocated = self.get_system_pods_allocated_resources()
+        system_allocated, pods = self.get_system_pods_allocated_resources()
         node_available = self.get_node_available_resource()
-        remaining = node_available.minus(system_allocated).multiply(MEMORY_SCALE_FACTOR)
 
-        return NodeResourceConfig(self.node_label, self.node_selector, system_allocated,node_available,remaining )
+        remaining = node_available.minus(system_allocated)
+
+        return NodeResourceConfig(pods, self.node_label, self.node_selector, system_allocated,node_available,remaining )
 
     def verify_measurement(self, node_count: int):
         self.populate_nodes(node_count)
