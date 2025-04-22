@@ -40,7 +40,7 @@ namespace:
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: true
+  enableExistingNamespaces: false
 
 tuningSets:
   - name: DeploymentCreatePNIQps
@@ -87,7 +87,7 @@ steps:
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 360s
+          duration: 30s
 
 # start repeat
 
@@ -174,10 +174,10 @@ steps:
         limit: 3 # randomly picks up to 3 pods that match labelSelector
         failOnCommandError: true
         failOnExecError: true
-        failonTimeout: true
+        failOnTimeout: true
         commands:
         - name: CustPodPing
-          command: ping -c 3 172.25.0.11
+          command: ["/bin/sh", "-c", "ping -c 3 172.25.0.11"]
           timeout: 5s
 
   - name: Ending measurement Pod Ping Command
@@ -209,7 +209,7 @@ steps:
       tuningSet: DeploymentDeleteQps
       objectBundle:
       - basename: daemonset-{{$i}}
-        objectTemplatePath: daemonset_template.yaml
+        objectTemplatePath: daemonset_ping_template.yaml
 
   - name: Waiting for Delete Daemonset to be completed
     measurements:

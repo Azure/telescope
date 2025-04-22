@@ -40,7 +40,7 @@ namespace:
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: true
+  enableExistingNamespaces: false
 
 tuningSets:
   - name: DeploymentCreatePNIQps
@@ -126,7 +126,7 @@ steps:
       tuningSet: DeploymentCreateQps
       objectBundle:
       - basename: daemonset-{{$i}}
-        objectTemplatePath: daemonset_ping_template.yaml
+        objectTemplatePath: daemonset_template.yaml
         templateFillMap:
               Group: {{$groupName}}
 
