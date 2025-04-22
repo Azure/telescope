@@ -5,7 +5,7 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role               = "acns"
+    role               = "slo"
     aks_name           = "telescope-acns-scale-test"
     sku_tier           = "standard"
     kubernetes_version = "1.32"
@@ -59,7 +59,7 @@ aks_cli_config_list = [
         max_pods   = 110
         vm_size    = "Standard_D4_v3"
         node_taints          = ["slo=true:NoSchedule"]
-        node_labels          = { "slo" = "true" }
+        node_labels          = { "slo" = "true", "scale-test" = "true" }
       }
     ]
   }
