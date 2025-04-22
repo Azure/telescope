@@ -118,7 +118,7 @@ STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningS
         echo "Cluster is ready"
         break
     else
-        sleep 30
+        sleep 60
     fi
 done
 
