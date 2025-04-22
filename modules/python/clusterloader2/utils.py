@@ -139,5 +139,4 @@ def str2bool(val):
         return True
     if val.lower() in ("false", "no", "0"):
         return False
-    print("val is ", str(val))
     raise argparse.ArgumentTypeError("Boolean value expected.")

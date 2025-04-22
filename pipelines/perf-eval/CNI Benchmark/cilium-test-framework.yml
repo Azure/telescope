@@ -36,7 +36,7 @@ stages:
               num_cnps: $(CNPS_NUM)
               num_ccnps: $(CCNPS_NUM)
               dualstack: $(DUAL)
-              churn_endpoints: $(CHURN_ENDPOINTS)
+              churn_identities: $(CHURN_IDENTITIES_ENABLED)
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection

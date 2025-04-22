@@ -7,4 +7,13 @@ parameters:
     type: object
 
 steps:
-
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: ces
+      region: ${{ parameters.regions[0] }}
+  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+    parameters:
+      role: ces
+      region: ${{ parameters.regions[0] }}
+      nodes_per_nodepool: 0
+      enable_autoscale: "true"
