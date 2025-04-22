@@ -59,7 +59,7 @@ script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j
 # az network vnet create --resource-group $RG --name $custVnetName --location $LOCATION --address-prefix $vnetAddressSpaceCIDR
 # custSubnetName="delgpod"
 # az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $vnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
-RUNNERRG=swiftv2-runners-$RUNNERLOCATION
+TESTRG=swiftv2-runners-$RUNNERLOCATION
 custVnetName=swiftvnet-$RUNNERLOCATION
 custSubnetName="scaledel"
 custVnetSubnetPodsCIDR="172.26.0.0/16"
