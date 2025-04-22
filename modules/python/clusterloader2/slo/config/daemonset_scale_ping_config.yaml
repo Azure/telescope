@@ -87,7 +87,7 @@ steps:
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 30s
+          duration: 360s
 
 # start repeat
 
@@ -126,7 +126,7 @@ steps:
       tuningSet: DeploymentCreateQps
       objectBundle:
       - basename: daemonset-{{$i}}
-        objectTemplatePath: daemonset_template.yaml
+        objectTemplatePath: daemonset_ping_template.yaml
         templateFillMap:
               Group: {{$groupName}}
 
