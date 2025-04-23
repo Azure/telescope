@@ -95,12 +95,13 @@ az aks create -n ${CLUSTER} -g ${RG} \
 SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --query id)
 az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=2032-12-31 skipGC="swift v2 perf" gc_skip="true"
 
-# create usernodepool
-for attempt in $(seq 1 5); do
-    echo "creating usernodepools: $attempt/15"
-az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-group ${RG} -c 1 -s Standard_D64_v3 --os-sku Ubuntu --labels prometheus=true --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} && break || echo "usernodepool creation attemped failed"
-    sleep 60
-done
+for i in $(seq 1 ${NODEPOOLS}); do
+    for attempt in $(seq 1 5); do
+        echo "creating usernodepools: $attempt/15"
+        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
+        sleep 60
+    done
+done 
 
 # scale nodepools
 # for i in $(seq 1 ${NODEPOOLS}); do
