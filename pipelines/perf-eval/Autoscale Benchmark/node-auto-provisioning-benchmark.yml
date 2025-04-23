@@ -1,34 +1,35 @@
 trigger: none
 schedules:
-  - cron: "0 18 * * *"
-    displayName: "Every day at 6:00 PM"
+  # Azure Small Scale(10) Schedule
+  - cron: "0 3 * * *"
+    displayName: "3:00 AM Daily"
     branches:
       include:
         - main
     always: true
-
+  # Aws Small Scale(10) Schedule
+  - cron: "0 0 * * 2,6"
+    displayName: "12:00 AM on Tuesday and Saturday"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Medium Scale(500) Schedule
   - cron: "0 6 * * *"
     displayName: "Every day at 6:00 AM"
     branches:
       include:
         - main
     always: true
-
+  # Azure Large Scale(1000) Schedule
   - cron: "0 0 * * *"
     displayName: "Every day at 12:00 AM"
     branches:
       include:
         - main
     always: true
-
-  - cron: "0 0 * * 1,5"
-    displayName: "12:00 AM on Monday"
-    branches:
-      include:
-        - main
-    always: true
-
-  - cron: "0 12 * * 1,5"
+  # Aws Medium Scale(500) Schedule
+  - cron: "0 12 * * 1"
     displayName: "12:00 PM on Monday"
     branches:
       include:
@@ -43,7 +44,7 @@ stages:
   - stage: azure_eastus2_small_scale
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 6:00 PM'),
+          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -55,32 +56,32 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241002"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             small-scale-on-demand:
-              cpu_per_node: 2
+              cpu_per_node: 4
               node_count: 10
-              pod_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 5
               warmup_deployment: true
-              vm_size: Standard_D2_v5
+              vm_size: Standard_D4_v5
               capacity_type: on-demand
             small-scale-spot:
-              cpu_per_node: 2
+              cpu_per_node: 4
               node_count: 10
-              pod_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 5
               warmup_deployment: true
-              vm_size: Standard_D2_v5
+              vm_size: Standard_D4_v5
               capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 360
@@ -102,7 +103,7 @@ stages:
             - australiaeast
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241002"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             medium-scale-on-demand:
@@ -149,7 +150,7 @@ stages:
             - australiaeast
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241002"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             large-scale-on-demand:
@@ -184,7 +185,7 @@ stages:
   - stage: aws_eastus2_small_scale
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '12:00 AM on Monday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '12:00 AM on Tuesday and Saturday'),
         eq(variables['Build.Reason'], 'Manual')
       )
     dependsOn: []
@@ -196,32 +197,32 @@ stages:
             - us-east-2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241002"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             small-scale-on-demand:
-              cpu_per_node: 2
+              cpu_per_node: 4
               node_count: 10
-              pod_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 5
               warmup_deployment: true
-              vm_size: m6i.large
+              vm_size: m5.xlarge
               capacity_type: on-demand
             small-scale-spot:
-              cpu_per_node: 2
+              cpu_per_node: 4
               node_count: 10
-              pod_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 5
               warmup_deployment: true
-              vm_size: m6i.large
+              vm_size: m5.xlarge
               capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 360
@@ -243,7 +244,7 @@ stages:
             - ap-southeast-2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241002"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             medium-scale-on-demand:
