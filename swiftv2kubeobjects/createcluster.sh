@@ -128,7 +128,7 @@ STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningS
 done
 
 for attempt in $(seq 1 5); do
-    echo "creating usernodepools: $attempt/15"
+    echo "creating prom nodepool: $attempt/15"
 az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-group ${RG} -c 1 -s Standard_D64_v3 --os-sku Ubuntu --labels prometheus=true --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} && break || echo "usernodepool creation attemped failed"
     sleep 60
 done
