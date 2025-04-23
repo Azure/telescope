@@ -29,7 +29,8 @@ steps:
     --cnp_test ${CNP_TEST:-False} \
     --ccnp_test ${CCNP_TEST:-False} \
     --result_file $TEST_RESULTS_FILE \
-    --start_timestamp $START_TIME
+    --start_timestamp $START_TIME \
+    --observability_tool ${OBSERVABILITY_TOOL:-""} \
     # --test_type ${TEST_TYPE:-False} \
   workingDirectory: modules/python/clusterloader2
   env:

@@ -159,6 +159,7 @@ def collect_clusterloader2(
     result_file,
     test_type,
     start_timestamp,
+    observability_tool,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -184,6 +185,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
+        "observability_tool": observability_tool,
         "test_details": details,
         "cloud_info": cloud_info,
         "run_id": run_id,
@@ -290,6 +292,7 @@ def main():
     parser_collect.add_argument("--test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
     parser_collect.add_argument("--start_timestamp", type=str, help="Test start timestamp")
+    parser_collect.add_argument("--observability_tool", type=str, help="Observability tool evaluated in the test")
 
     args = parser.parse_args()
 
@@ -307,7 +310,8 @@ def main():
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test,
-                               args.result_file, args.test_type, args.start_timestamp)
+                               args.result_file, args.test_type, args.start_timestamp,
+                               observability_tool=args.observability_tool)
 
 if __name__ == "__main__":
     main()

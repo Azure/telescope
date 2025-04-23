@@ -30,16 +30,15 @@ steps:
 
   - ${{ if parameters.install }}:
     - script: |
-        git clone http://github.com/microsoft/retina.git
+        git clone http://github.com/microsoft/retina.git --depth 1 retina
+        cd retina
         git checkout ${{ parameters.ref }}
       displayName: Clone Retina OSS Repo
 
     - script: |
         cd retina
-        ls
-        echo "Install Retina OSS Standard Basic"
         make ${{ parameters.makeargs }}
-      displayName: Install Retina OSS Standard Basic
+      displayName: Install Retina
 
   - script: |
       set -eo pipefail
@@ -69,6 +68,8 @@ steps:
 
   - ${{ if parameters.install }}:
     - script: |
-        make uninstall
+        cd retina
+        make helm-uninstall
+      condition: always()
       displayName: Uninstall Helm Chart
 
