@@ -103,6 +103,9 @@ for i in $(seq 1 ${NODEPOOLS}); do
     done
 done 
 
+for i in $(seq 1 ${NODEPOOLS}); do
+    az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool${i}"
+done
 # scale nodepools
 # for i in $(seq 1 ${NODEPOOLS}); do
 #         az aks nodepool scale --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c ${NODEPOOL_SIZE}
@@ -136,9 +139,11 @@ done
 
 for attempt in $(seq 1 5); do
     echo "creating prom nodepool: $attempt/15"
-az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-group ${RG} -c 1 -s Standard_D64_v3 --os-sku Ubuntu --labels prometheus=true --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} && break || echo "usernodepool creation attemped failed"
+    az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-group ${RG} -c 1 -s Standard_D64_v3 --os-sku Ubuntu --labels prometheus=true --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} && break || echo "usernodepool creation attemped failed"
     sleep 60
 done
+
+az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name promnodepool
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
