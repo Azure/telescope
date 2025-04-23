@@ -149,7 +149,7 @@ run "valid_aks_os_disk_type_no_override" {
   }
 }
 
-run valid_aks_os_disk_size_gb {
+run "valid_aks_os_disk_size_gb" {
   command = plan
 
   assert {
