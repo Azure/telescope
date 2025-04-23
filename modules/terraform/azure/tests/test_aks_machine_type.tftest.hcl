@@ -28,6 +28,7 @@ variables {
         node_count                   = 1
         vm_size                      = "Standard_D32s_v3"
         os_disk_type                 = "Managed"
+        os_disk_size_gb              = 512
         only_critical_addons_enabled = false
         temporary_name_for_rotation  = "defaulttmp"
       }
@@ -40,11 +41,12 @@ variables {
           zones        = ["1"]
         },
         {
-          name         = "client"
-          node_count   = 1
-          os_disk_type = "Managed"
-          vm_size      = "Standard_L8s_v3"
-          zones        = ["1"]
+          name            = "client"
+          node_count      = 1
+          os_disk_type    = "Managed"
+          os_disk_size_gb = 1024
+          vm_size         = "Standard_L8s_v3"
+          zones           = ["1"]
         }
       ]
     }
@@ -144,5 +146,19 @@ run "valid_aks_os_disk_type_no_override" {
   assert {
     condition     = module.aks["test"].aks_cluster_nood_pools["client"].os_disk_type == var.aks_config_list[0].extra_node_pool[1].os_disk_type
     error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[1].os_disk_type} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].os_disk_type}"
+  }
+}
+
+run valid_aks_os_disk_size_gb {
+  command = plan
+
+  assert {
+    condition     = module.aks["test"].aks_cluster.default_node_pool[0].os_disk_size_gb == var.aks_config_list[0].default_node_pool.os_disk_size_gb
+    error_message = "Expected: ${var.aks_config_list[0].default_node_pool.os_disk_size_gb} \n Actual: ${module.aks["test"].aks_cluster.default_node_pool[0].os_disk_size_gb}"
+  }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["client"].os_disk_size_gb == var.aks_config_list[0].extra_node_pool[1].os_disk_size_gb
+    error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[1].os_disk_size_gb} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].os_disk_size_gb}"
   }
 }
