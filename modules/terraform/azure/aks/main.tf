@@ -25,6 +25,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     vnet_subnet_id               = try(local.subnets[var.aks_config.default_node_pool.subnet_name], try(var.subnet_id, null))
     os_sku                       = var.aks_config.default_node_pool.os_sku
     os_disk_type                 = coalesce(var.k8s_os_disk_type, var.aks_config.default_node_pool.os_disk_type)
+    os_disk_size_gb              = var.aks_config.default_node_pool.os_disk_size_gb
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
