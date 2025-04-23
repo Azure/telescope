@@ -70,7 +70,7 @@ aks_cli_config_list = [
         optional_parameters = [
           {
             name  = "labels"
-            value = "slo=true,scale-test=true"
+            value = "slo=true scale-test=true"
           }
         ]
       }

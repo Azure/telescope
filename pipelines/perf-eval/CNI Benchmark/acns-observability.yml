@@ -83,7 +83,7 @@ stages:
             repository: ${{ variables.REPOSITORY }}
             makeargs: ${{ variables.MAKEARGS }}
             ref: ${{ parameters.ref }}
-            install: ${{ variables.INSTALL_RETINA }}
+            install: ${{ variables.INSTALL }}
           topology: observability
           matrix:
             acns:

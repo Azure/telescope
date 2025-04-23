@@ -32,10 +32,6 @@ aks_cli_config_list = [
         name  = "pod-cidr"
         value = "100.64.0.0/10"
       },
-      {
-        name  = "enable-acns"
-        value = ""
-      }
     ]
 
     default_node_pool = {
