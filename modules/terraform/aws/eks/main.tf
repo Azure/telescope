@@ -196,6 +196,26 @@ resource "aws_launch_template" "launch_template" {
     }
   }
 
+  dynamic "block_device_mappings" {
+    for_each = each.value.block_device_mappings
+
+    content {
+      device_name = try(block_device_mappings.value.device_name, null)
+
+      dynamic "ebs" {
+        for_each = try([block_device_mappings.value.ebs], [])
+
+        content {
+          delete_on_termination = try(ebs.value.delete_on_termination, null)
+          iops                  = try(ebs.value.iops, null)
+          throughput            = try(ebs.value.throughput, null)
+          volume_size           = try(ebs.value.volume_size, null)
+          volume_type           = try(ebs.value.volume_type, null)
+        }
+      }
+    }
+  }
+
   tags = var.tags
 }
 
