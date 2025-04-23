@@ -44,6 +44,9 @@ steps:
   - script: |
       set -eo pipefail
 
+      # Always get Cilium metrics
+      CILIUM_ENABLED=True
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${NODE_PER_STEP:-0} ${MAX_PODS:-0} \
         ${REPEATS:-0} ${SCALE_TIMEOUT:-0} ${CLOUD:-0} ${CILIUM_ENABLED:-False} ${SCRAPE_CONTAINERD:-False} \
