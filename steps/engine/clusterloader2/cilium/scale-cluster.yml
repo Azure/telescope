@@ -48,10 +48,10 @@ steps:
          az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 500
       fi
 
-      if [ "${{ parameters.nodes_per_nodepool }}" != "0" ]; then
-        az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
-        sleep 300
-      fi
+      # if [ "${{ parameters.nodes_per_nodepool }}" != "0" ]; then
+      #   az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
+      #   sleep 300
+      # fi
     done
   env:
     ROLE: ${{ parameters.role }}
