@@ -30,7 +30,7 @@ aks_config_list = [
         min_count            = 1
         max_count            = 11
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2_v5"
+        vm_size              = "Standard_D4_v5"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       }
