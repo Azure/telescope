@@ -80,6 +80,17 @@ steps:
         action: start
         duration: 1ms
 
+  - name: pprof
+    measurements:
+    - Identifier: pprof
+      Method: Pprof
+      Params:
+        action: start
+        group: {{$groupName}}
+        cpuProfile: true
+        memProfile: true
+        latencyThreshold: {{$podStartupLatencyThreshold}}
+
   - module:
       path: /modules/measurements.yaml
       params:
@@ -238,106 +249,105 @@ steps:
         action: gather
         dataName: "create"
 {{end}}
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: start
-        dataName: "deletecreate"
-{{end}}
-  - name: Sleeping for {{$shorterWaitTime}}
-    measurements:
-    - Identifier: Sleep until {{$shorterWaitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$shorterWaitTime}}
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete {{$PODS}} pods"
-        namespaces: {{$namespaces}}
-        tuningSet: BurstLoad
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$PODS}}
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: 0
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: delete
-        Group: {{$groupName}}
-        waitForPods: false
+# {{if $CILIUM_METRICS_ENABLED}}
+#   - module:
+#       path: /modules/cilium-measurements.yaml
+#       params:
+#         action: start
+#         dataName: "deletecreate"
+# {{end}}
+#   - name: Sleeping for {{$shorterWaitTime}}
+#     measurements:
+#     - Identifier: Sleep until {{$shorterWaitTime}}
+#       Method: Sleep
+#       Params:
+#         action: start
+#         duration: {{$shorterWaitTime}}
+#   - module:
+#       path: /modules/reconcile-objects.yaml
+#       params:
+#         actionName: "delete {{$PODS}} pods"
+#         namespaces: {{$namespaces}}
+#         tuningSet: BurstLoad
+#         operationTimeout: {{$operationTimeout}}
+#         bigDeploymentSize: {{$PODS}}
+#         bigDeploymentsPerNamespace: 0
+#         smallDeploymentSize: 0
+#         smallDeploymentsPerNamespace: 0
+#         deploymentLabel: delete
+#         Group: {{$groupName}}
+#         waitForPods: false
         
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "recreate {{$PODS}} pods"
-        namespaces: {{$namespaces}}
-        tuningSet: BurstLoad
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$PODS}}
-        bigDeploymentsPerNamespace: 1
-        smallDeploymentSize: 0
-        smallDeploymentsPerNamespace: 0
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        deploymentLabel: restart
+#   - module:
+#       path: /modules/reconcile-objects.yaml
+#       params:
+#         actionName: "recreate {{$PODS}} pods"
+#         namespaces: {{$namespaces}}
+#         tuningSet: BurstLoad
+#         operationTimeout: {{$operationTimeout}}
+#         bigDeploymentSize: {{$PODS}}
+#         bigDeploymentsPerNamespace: 1
+#         smallDeploymentSize: 0
+#         smallDeploymentsPerNamespace: 0
+#         CpuRequest: {{$latencyPodCpu}}m
+#         MemoryRequest: {{$latencyPodMemory}}M
+#         Group: {{$groupName}}
+#         deploymentLabel: restart
 
-  - name: Sleeping for {{$waitTime}}
-    measurements:
-    - Identifier: Sleep until {{$waitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$waitTime}}
+#   - name: Sleeping for {{$waitTime}}
+#     measurements:
+#     - Identifier: Sleep until {{$waitTime}}
+#       Method: Sleep
+#       Params:
+#         action: start
+#         duration: {{$waitTime}}
 
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: gather
-        dataName: "deletecreate"
-{{end}}
+# {{if $CILIUM_METRICS_ENABLED}}
+#   - module:
+#       path: /modules/cilium-measurements.yaml
+#       params:
+#         action: gather
+#         dataName: "deletecreate"
+# {{end}}
 
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: start
-        dataName: "delete"
-{{end}}
-  - name: Sleeping for {{$shorterWaitTime}}
-    measurements:
-    - Identifier: Sleep until {{$shorterWaitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$shorterWaitTime}}
+# {{if $CILIUM_METRICS_ENABLED}}
+#   - module:
+#       path: /modules/cilium-measurements.yaml
+#       params:
+#         action: start
+#         dataName: "delete"
+# {{end}}
+#   - name: Sleeping for {{$shorterWaitTime}}
+#     measurements:
+#     - Identifier: Sleep until {{$shorterWaitTime}}
+#       Method: Sleep
+#       Params:
+#         action: start
+#         duration: {{$shorterWaitTime}}
 
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete {{$PODS}} pods"
-        namespaces: {{$namespaces}}
-        tuningSet: BurstLoad
-        operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: 0
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: delete
-        Group: {{$groupName}}
+#   - module:
+#       path: /modules/reconcile-objects.yaml
+#       params:
+#         actionName: "delete {{$PODS}} pods"
+#         namespaces: {{$namespaces}}
+#         tuningSet: BurstLoad
+#         operationTimeout: {{$operationTimeout}}
+#         bigDeploymentSize: 0
+#         bigDeploymentsPerNamespace: 0
+#         smallDeploymentSize: 0
+#         smallDeploymentsPerNamespace: 0
+#         deploymentLabel: delete
+#         Group: {{$groupName}}
 
-  - name: Sleeping for {{$waitTime}}
-    measurements:
-    - Identifier: Sleep until {{$waitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$waitTime}}
-{{end}}
+#   - name: Sleeping for {{$waitTime}}
+#     measurements:
+#     - Identifier: Sleep until {{$waitTime}}
+#       Method: Sleep
+#       Params:
+#         action: start
+#         duration: {{$waitTime}}
+# {{end}}
 
-# Mugesh - Added conditional statement to delete services (Previously not there)
 {{if $SERVICE_TEST}}
   - module:
       path: /modules/services.yaml
