@@ -210,13 +210,13 @@ steps:
 
 {{if $API_RATE_LIMITING_TEST}}
 
-  - name: Sleeping for {{$shorterWaitTime}}
-    measurements:
-    - Identifier: Sleep until {{$shorterWaitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$shorterWaitTime}}
+  # - name: Sleeping for {{$shorterWaitTime}}
+  #   measurements:
+  #   - Identifier: Sleep until {{$shorterWaitTime}}
+  #     Method: Sleep
+  #     Params:
+  #       action: start
+  #       duration: {{$shorterWaitTime}}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -234,13 +234,13 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: start
 
-  - name: Sleeping for {{$waitTime}}
-    measurements:
-    - Identifier: Sleep until {{$waitTime}}
-      Method: Sleep
-      Params:
-        action: start
-        duration: {{$waitTime}}
+  # - name: Sleeping for {{$waitTime}}
+  #   measurements:
+  #   - Identifier: Sleep until {{$waitTime}}
+  #     Method: Sleep
+  #     Params:
+  #       action: start
+  #       duration: {{$waitTime}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
