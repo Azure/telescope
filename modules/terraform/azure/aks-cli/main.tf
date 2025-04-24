@@ -72,6 +72,7 @@ resource "azurerm_role_assignment" "network_contributor" {
 resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 
+  # Todo - Update aks-preview extension for newer features
   provisioner "local-exec" {
     command = join(" ", [
       "az",
