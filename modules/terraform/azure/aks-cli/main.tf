@@ -79,6 +79,8 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
       "add",
       "-n",
       "aks-preview",
+      "--version",
+      "14.0.0b2",
     ])
   }
 
