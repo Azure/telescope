@@ -4,7 +4,7 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement
+from utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
 from kubernetes_client import KubernetesClient, client as k8s_client
 
 DAEMONSETS_PER_NODE_MAP = {
@@ -211,11 +211,11 @@ def main():
     parser_override.add_argument("operation_timeout", type=str, default="2m", help="Operation timeout")
     parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"],
                                  default="memory", help="Type of load to generate")
-    parser_override.add_argument("scale_enabled", type=eval, choices=[True, False], default=False,
+    parser_override.add_argument("scale_enabled", type=str2bool, choices=[True, False], default=False,
                                  help="Whether scale operation is enabled. Must be either True or False")
     parser_override.add_argument("pod_startup_latency_threshold", type=str, default="15s", help="Pod startup latency threshold")
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
-    parser_override.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+    parser_override.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
@@ -226,7 +226,7 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+    parser_execute.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
 
     # Sub-command for collect_clusterloader2
@@ -241,7 +241,7 @@ def main():
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("scrape_kubelets", type=eval, choices=[True, False], default=False,
+    parser_collect.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
 
     args = parser.parse_args()

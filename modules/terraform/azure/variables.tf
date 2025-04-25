@@ -3,6 +3,7 @@ variable "json_input" {
   type = object({
     run_id                 = string
     region                 = string
+    user_data_path         = optional(string, null)
     aks_sku_tier           = optional(string, null)
     aks_kubernetes_version = optional(string, null)
     aks_network_policy     = optional(string, null)
@@ -154,6 +155,7 @@ variable "aks_config_list" {
       vm_size                      = string
       os_sku                       = optional(string)
       os_disk_type                 = optional(string)
+      os_disk_size_gb              = optional(number, null)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
@@ -169,6 +171,7 @@ variable "aks_config_list" {
       vm_size              = string
       os_sku               = optional(string)
       os_disk_type         = optional(string)
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])
@@ -239,6 +242,15 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
+  }))
+  default = []
+}
+
+variable "aks_arm_deployment_config_list" {
+  description = "AKS ARM deployment configuration"
+  type = list(object({
+    name            = string
+    parameters_path = string
   }))
   default = []
 }

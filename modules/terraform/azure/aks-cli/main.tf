@@ -69,7 +69,7 @@ resource "azurerm_role_assignment" "network_contributor" {
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
-resource "terraform_data" "aks_cli_preview" {
+resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 
   # Todo - Update aks-preview extension for newer features
@@ -99,7 +99,7 @@ resource "terraform_data" "aks_cli_preview" {
 
 resource "terraform_data" "aks_cli" {
   depends_on = [
-    terraform_data.aks_cli_preview,
+    terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor
   ]
 

@@ -78,6 +78,7 @@ variable "aks_config" {
       vm_size                      = string
       os_sku                       = optional(string, "Ubuntu")
       os_disk_type                 = optional(string, "Managed")
+      os_disk_size_gb              = optional(number, null)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number, null)
@@ -93,6 +94,7 @@ variable "aks_config" {
       vm_size              = string
       os_sku               = optional(string, "Ubuntu")
       os_disk_type         = optional(string, "Managed")
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number, null)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])

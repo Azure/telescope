@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="645.977">
+      <testcase name="netpol-scale-test overall (/root/perf-tests/clusterloader2/config/netpol-scale-config.yaml)" classname="ClusterLoaderV2" time="645.966152256"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [00] - CESQueueingDelay" classname="ClusterLoaderV2" time="0.121853043"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [01] - CiliumEndpointPropagationDelay" classname="ClusterLoaderV2" time="0.149612193"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [02] - CiliumServiceImplementationDelay" classname="ClusterLoaderV2" time="0.121912243"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [03] - CiliumPolicyImplementationDelay" classname="ClusterLoaderV2" time="0.121816743"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [04] - CiliumAvgCPUUsage" classname="ClusterLoaderV2" time="0.122057942"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [05] - CiliumMaxCPUUsage" classname="ClusterLoaderV2" time="0.149654893"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [06] - CiliumAvgMemUsage" classname="ClusterLoaderV2" time="0.149660093"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [07] - CiliumMaxMemUsage" classname="ClusterLoaderV2" time="0.121859043"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [08] - CiliumOperatorAvgCPUUsage" classname="ClusterLoaderV2" time="0.121821543"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [09] - CiliumOperatorMaxCPUUsage" classname="ClusterLoaderV2" time="0.149643593"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [10] - CiliumOperatorMaxMemUsage" classname="ClusterLoaderV2" time="0.149604993"></testcase>
+      <testcase name="netpol-scale-test: [step: 01] start Additional Measurements [11] - CiliumOperatorAvgMemUsage" classname="ClusterLoaderV2" time="0.121811943"></testcase>
+      <testcase name="netpol-scale-test: [step: 02] start Cilium L7 measurements [00] - CiliumL7Metrics" classname="ClusterLoaderV2" time="0.032495125"></testcase>
+      <testcase name="netpol-scale-test: [step: 02] start Cilium L7 measurements [01] - CiliumEnvoyHTTPMetrics" classname="ClusterLoaderV2" time="0.032481525"></testcase>
+      <testcase name="netpol-scale-test: [step: 02] start Cilium L7 measurements [02] - CiliumEnvoyMemoryMetrics" classname="ClusterLoaderV2" time="0.032473825"></testcase>
+      <testcase name="netpol-scale-test: [step: 03] Network Policy Soak Test - Start [00] - NetworkPolicySoakMeasurement" classname="ClusterLoaderV2" time="29.32912145"></testcase>
+      <testcase name="netpol-scale-test: [step: 04] Network Policy Soak Test - Gather Results [00] - NetworkPolicySoakMeasurement" classname="ClusterLoaderV2" time="599.877555735"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [00] - CESQueueingDelay" classname="ClusterLoaderV2" time="0.43250047"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [01] - CiliumEndpointPropagationDelay" classname="ClusterLoaderV2" time="0.402232819"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [02] - CiliumServiceImplementationDelay" classname="ClusterLoaderV2" time="0.431801774"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [03] - CiliumPolicyImplementationDelay" classname="ClusterLoaderV2" time="0.434044263"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [04] - CiliumAvgCPUUsage" classname="ClusterLoaderV2" time="0.431839174"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [05] - CiliumMaxCPUUsage" classname="ClusterLoaderV2" time="0.431827974"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [06] - CiliumAvgMemUsage" classname="ClusterLoaderV2" time="0.414036161"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [07] - CiliumMaxMemUsage" classname="ClusterLoaderV2" time="0.431853774"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [08] - CiliumOperatorAvgCPUUsage" classname="ClusterLoaderV2" time="0.434851559"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [09] - CiliumOperatorMaxCPUUsage" classname="ClusterLoaderV2" time="0.414005761"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [10] - CiliumOperatorMaxMemUsage" classname="ClusterLoaderV2" time="0.38995978"></testcase>
+      <testcase name="netpol-scale-test: [step: 05] gather Additional Measurements [11] - CiliumOperatorAvgMemUsage" classname="ClusterLoaderV2" time="0.384894105"></testcase>
+      <testcase name="netpol-scale-test: [step: 06] gather Cilium L7 measurements [00] - CiliumL7Metrics" classname="ClusterLoaderV2" time="0.159903613"></testcase>
+      <testcase name="netpol-scale-test: [step: 06] gather Cilium L7 measurements [01] - CiliumEnvoyHTTPMetrics" classname="ClusterLoaderV2" time="0.265247294"></testcase>
+      <testcase name="netpol-scale-test: [step: 06] gather Cilium L7 measurements [02] - CiliumEnvoyMemoryMetrics" classname="ClusterLoaderV2" time="0.115929929"></testcase>
+  </testsuite>

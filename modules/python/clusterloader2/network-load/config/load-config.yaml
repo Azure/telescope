@@ -1,0 +1,155 @@
+name: load-config
+
+# generic config
+{{$groupName := DefaultParam .CL2_GROUP_NAME "network-load"}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 100}}
+
+# repetition config
+{{$deploymentRecreationCount := DefaultParam .CL2_DEPLOYMENT_RECREATION_COUNT 1}}
+
+{{$roundsToCreateOrRecreate := AddInt 1 $deploymentRecreationCount}}
+
+# scale logistics
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "3m"}}
+
+# topology config
+{{$nodes := DefaultParam .CL2_NODES 10}}
+{{$fortioServersPerNode := DefaultParam .CL2_FORTIO_SERVERS_PER_NODE 10}}
+{{$fortioClientsPerNode := DefaultParam .CL2_FORTIO_CLIENTS_PER_NODE 10}}
+{{$fortioClientQueriesPerSecond := DefaultParam .CL2_FORTIO_CLIENT_QUERIES_PER_SECOND 1000}}
+{{$fortioClientConnections := DefaultParam .CL2_FORTIO_CLIENT_CONNECTIONS 10}}
+{{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
+{{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
+{{$fortioPodCPU := DefaultParam .CL2_FORTIO_POD_CPU 10}}
+{{$fortioPodMemory := DefaultParam .CL2_FORTIO_POD_MEMORY 50}}
+
+# be weary of integer division resulting in less pods than expected
+{{$fortioServerClientDeployments := MultiplyInt $fortioDeploymentsPerNamespace $fortioNamespaces}}
+{{$fortioServerReplicas := DivideInt (DivideInt (MultiplyInt $fortioServersPerNode $nodes) $fortioServerClientDeployments) $fortioNamespaces}}
+{{$fortioClientReplicas := DivideInt (DivideInt (MultiplyInt $fortioClientsPerNode $nodes) $fortioServerClientDeployments) $fortioNamespaces}}
+{{$totalServerPods := MultiplyInt $fortioClientReplicas $fortioNamespaces}}
+{{$totalClientPods := MultiplyInt $fortioClientReplicas $fortioNamespaces}}
+{{$totalDeployments := MultiplyInt 2 $fortioServerClientDeployments}}
+
+# other test toggles
+{{$applyFqdnCnp := DefaultParam .CL2_APPLY_FQDN_CNP true}}
+
+# prometheus config
+{{$ciliumMetricsEnabled := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+
+namespace:
+  number: {{$fortioNamespaces}}
+  prefix: network-load
+  deleteAutomanagedNamespaces: false
+  enableExistingNamespaces: false
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+  - name: DeploymentDeleteQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+{{if $ciliumMetricsEnabled}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
+
+# create resources that won't change
+  - module:
+      path: /modules/services.yaml
+      params:
+        actionName: "Creating"
+        namespaces: {{$fortioNamespaces}}
+
+  {{if $applyFqdnCnp}}
+  - module:
+      path: /modules/ciliumnetworkpolicy.yaml
+      params:
+        actionName: "Creating"
+        namespaces: {{$fortioNamespaces}}
+        Group: {{$groupName}}
+        cnpsPerNamespace: 1
+  {{end}}
+
+# deployment creation
+{{range $i := Loop $roundsToCreateOrRecreate}}
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "create"
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+        Group: {{$groupName}}
+        namespaces: {{$fortioNamespaces}}
+        fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
+        fortioServerReplicas: {{$fortioServerReplicas}}
+        fortioClientReplicas: {{$fortioClientReplicas}}
+        fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+        fortioClientConnections: {{$fortioClientConnections}}
+        CpuRequest: {{$fortioPodCPU}}m
+        MemoryRequest: {{$fortioPodMemory}}M
+        deploymentLabel: start
+
+# FIXME sleep intervals
+  - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1m30s
+
+#   - module:
+#       path: /modules/reconcile-objects.yaml
+#       params:
+#         actionName: "delete"
+#         tuningSet: DeploymentDeleteQps
+#         operationTimeout: {{$operationTimeout}}
+#         Group: {{$groupName}}
+#         namespaces: {{$fortioNamespaces}}
+#         fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
+#         fortioServerReplicas: {{$fortioServerReplicas}}
+#         fortioClientReplicas: {{$fortioClientReplicas}}
+#         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+#         fortioClientConnections: {{$fortioClientConnections}}
+#         CpuRequest: {{$fortioPodCPU}}m
+#         MemoryRequest: {{$fortioPodMemory}}M
+#         deploymentLabel: start
+{{end}}
+
+{{if $ciliumMetricsEnabled}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+# FIXME: is this needed?
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
