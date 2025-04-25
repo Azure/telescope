@@ -78,9 +78,9 @@ steps:
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
       - basename: pod-network-instance
-        objectTemplatePath: pni_template.yaml
-        templateFillMap:
-              ReservationSize: {{$nodes}}
+        objectTemplatePath: pni_dynamic_template.yaml
+        # templateFillMap:
+        #       ReservationSize: {{$nodes}}
 
   - name: Wait for PNI to be created and nodes to be registered
     measurements:
@@ -126,7 +126,7 @@ steps:
       tuningSet: DeploymentCreateQps
       objectBundle:
       - basename: daemonset-{{$i}}
-        objectTemplatePath: daemonset_ping_template.yaml
+        objectTemplatePath: daemonset_datapath_template.yaml
         templateFillMap:
               Group: {{$groupName}}
 
@@ -209,7 +209,7 @@ steps:
       tuningSet: DeploymentDeleteQps
       objectBundle:
       - basename: daemonset-{{$i}}
-        objectTemplatePath: daemonset_ping_template.yaml
+        objectTemplatePath: daemonset_datapath_template.yaml
 
   - name: Waiting for Delete Daemonset to be completed
     measurements:

@@ -1,0 +1,39 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: swiftv2-cluster-churn-feature
+  OWNER: aks
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          node_count: $(nodecount)
+          node_label: $(nodelabel)
+          topology: swiftv2-ds-churn
+          matrix:
+            azure_swiftv2_datapath:
+              cpu_per_node: 4
+              node_count: $(nodecount)
+              node_per_step: 50
+              max_pods: 1
+              repeats: $(LOOPS)
+              scale_timeout: "30m"
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

@@ -32,7 +32,7 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              cl2_config_file: daemonset_scale_ping_config.yaml
+              cl2_config_file: daemonset_scale_dynamic_res_config.yaml
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
