@@ -31,6 +31,12 @@ steps:
     --result_file $TEST_RESULTS_FILE \
     --start_timestamp $START_TIME \
     --observability_tool ${OBSERVABILITY_TOOL:-""} \
+    --fortio-servers-per-deployment $FORTIO_SERVERS_PER_DEPLOYMENT \
+    --fortio-clients-per-deployment $FORTIO_CLIENTS_PER_DEPLOYMENT \
+    --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
+    --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
+    --fortio-namespaces $FORTIO_NAMESPACES \
+    --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
     # --test_type ${TEST_TYPE:-False} \
   workingDirectory: modules/python/clusterloader2
   env:

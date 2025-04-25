@@ -1,0 +1,95 @@
+## Node Exporter module creates Node Exporter components
+
+# Tuning set
+{{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
+# interval
+{{$interval := DefaultParam .interval "15s"}}
+
+steps:
+  - name: Start measurements
+    measurements:
+      - Identifier: WaitForControlledPodsRunning
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: DaemonSet
+          labelSelector: app.kubernetes.io/name = node-exporter
+          operationTimeout: 120s
+  - name: Create Node Exporter Service Monitor
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/servicemonitor.yaml"
+            basename: node-exporter
+            interval: 15s
+  - name: Create Node Exporter Service Account
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/serviceaccount.yaml"
+            basename: node-exporter
+  - name: Create Node Exporter Cluster Role
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/clusterrole.yaml"
+            basename: node-exporter
+  - name: Create Node Exporter Cluster Role Binding
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/clusterrolebinding.yaml"
+            basename: node-exporter
+  - name: Create Node Exporter Daemonset
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/daemonset.yaml"
+            basename: node-exporter
+  - name: Create Node Exporter Network Policy
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/networkpolicy.yaml"
+            basename: node-exporter
+  - name: Create Node Exporter Services
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/service.yaml"
+            basename: node-exporter
+  - name: Wait for pods to be running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+  # - name: Wait for resource consumption
+  #   measurements:
+  #     - Identifier: Sleep
+  #       Method: Sleep
+  #       Params:
+  #         duration: 1m
+  #

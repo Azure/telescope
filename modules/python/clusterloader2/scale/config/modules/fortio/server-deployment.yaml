@@ -1,0 +1,70 @@
+{{$CpuRequest := DefaultParam .CpuRequest "5m"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "20Mi"}}
+{{$Image := DefaultParam .Image "fortio/fortio"}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+    app: fortio
+    role: server
+{{if .SvcName}}
+    svc: {{.SvcName}}-{{.Index}}
+{{end}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+      app: fortio
+      role: server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 20%
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+        app: fortio
+        role: server
+{{if .SvcName}}
+        svc: {{.SvcName}}-0
+{{end}}
+        restart: {{.deploymentLabel}}
+    spec:
+      nodeSelector:
+        scale-test: "true"
+      containers:
+      - name: fortio
+        image: {{$Image}}
+        imagePullPolicy: IfNotPresent
+        args: ["server", "-http-port", "0.0.0.0:8080"]
+        ports:
+          - containerPort: 8078 # tcp echo
+          - containerPort: 8079 # grpc echo
+          - containerPort: 8080 # main serving port
+          - containerPort: 8081 # redirection to https port
+        resources:
+          requests:
+            cpu: 10m # {{$CpuRequest}}
+            memory: 50Mi # {{$MemoryRequest}}
+      # Add not-ready/unreachable tolerations for 15 minutes so that node
+      # failure doesn't trigger pod deletion.
+      tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "scale-test"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"

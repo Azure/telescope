@@ -2,13 +2,21 @@ name: scale-test
 
 # generic config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "scale-test"}}
-{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
 {{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 100}}
 
 # topology config
 {{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
 {{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 10}}
 {{$replicasPerNamespace := DefaultParam .CL2_REPLICAS_PER_NAMESPACE 5}}
+
+# topology config
+{{$fortioServerReplicas := DefaultParam .CL2_FORTIO_SERVERS_PER_DEPLOYMENT 10}}
+{{$fortioClientReplicas := DefaultParam .CL2_FORTIO_CLIENTS_PER_DEPLOYMENT 10}}
+{{$fortioClientQueriesPerSecond := DefaultParam .CL2_FORTIO_CLIENT_QUERIES_PER_SECOND 1000}}
+{{$fortioClientConnections := DefaultParam .CL2_FORTIO_CLIENT_CONNECTIONS 10}}
+{{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
+{{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 
 
 namespace:
@@ -39,6 +47,12 @@ steps:
         duration: 1ms
 
   - module:
+      path: /modules/node-exporter.yaml
+      params:
+        actionName: "create"
+        tuningSet: DeploymentCreateQps
+
+  - module:
       path: /modules/measurements.yaml
       params:
         action: start
@@ -57,13 +71,28 @@ steps:
         group: {{$groupName}}
 
   # deployment creation
+  # - module:
+  #     path: /modules/kapinger.yaml
+  #     params:
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: DeploymentCreateQps
+  #       deployments: {{$deploymentsPerNamespace}}
+  #       podReplicas: {{$replicasPerNamespace}}
+
   - module:
-      path: /modules/kapinger.yaml
+      path: /modules/reconcile-objects.yaml
       params:
-        namespaces: {{$namespaces}}
+        actionName: "create"
         tuningSet: DeploymentCreateQps
-        deployments: {{$deploymentsPerNamespace}}
-        podReplicas: {{$replicasPerNamespace}}
+        operationTimeout: {{$operationTimeout}}
+        Group: {{$groupName}}
+        namespaces: {{$fortioNamespaces}}
+        fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
+        fortioServerReplicas: {{$fortioServerReplicas}}
+        fortioClientReplicas: {{$fortioClientReplicas}}
+        fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+        fortioClientConnections: {{$fortioClientConnections}}
+        deploymentLabel: start
 
   # FIXME: is this needed?
   - module:

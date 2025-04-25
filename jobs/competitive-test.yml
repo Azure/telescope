@@ -89,18 +89,18 @@ jobs:
       engine: ${{ parameters.engine }}
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
-  - template: /steps/publish-results.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-      credential_type: ${{ parameters.credential_type }}
-  - template: /steps/cleanup-resources.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      regions: ${{ parameters.regions }}
-      terraform_arguments: ${{ parameters.terraform_arguments }}
-      retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
+  # - template: /steps/publish-results.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     topology: ${{ parameters.topology }}
+  #     engine: ${{ parameters.engine }}
+  #     regions: ${{ parameters.regions }}
+  #     engine_input: ${{ parameters.engine_input }}
+  #     credential_type: ${{ parameters.credential_type }}
+  # - template: /steps/cleanup-resources.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     regions: ${{ parameters.regions }}
+  #     terraform_arguments: ${{ parameters.terraform_arguments }}
+  #     retry_attempt_count: ${{ parameters.retry_attempt_count }}
+  #     credential_type: ${{ parameters.credential_type }}

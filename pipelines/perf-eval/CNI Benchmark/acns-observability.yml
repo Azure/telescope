@@ -60,7 +60,7 @@ parameters:
   type: number
   default: 10
 - name: traffic_replica_count
-  displayName: Number of Traffic Replicas
+  displayName: Number of Traffic Replicas (per deployment)
   type: number
   default: 10
 - name: network_policy_count
@@ -91,6 +91,13 @@ stages:
               traffic_replica_count: ${{ parameters.traffic_replica_count }}
               network_policy_count: ${{ parameters.network_policy_count }}
               cl2_config_file: config.yaml
+              # fortio parameters
+              fortio_servers_per_deployment: ${{ parameters.traffic_replica_count }}
+              fortio_clients_per_deployment: ${{ parameters.traffic_replica_count }}
+              fortio_client_queries_per_second: 6300
+              fortio_client_connections: 6300
+              fortio_namespaces: 1
+              fortio_deployments_per_namespace: ${{ parameters.traffic_deployment_count }}
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection

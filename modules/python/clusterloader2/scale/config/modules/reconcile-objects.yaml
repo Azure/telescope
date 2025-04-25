@@ -1,0 +1,98 @@
+## Input params
+# Valid actions: "create", "delete"
+{{$actionName := printf "%s objects" .actionName}}
+{{$tuningSet := .tuningSet}}
+{{$operationTimeout := .operationTimeout}}
+{{$Group := .Group}}
+{{$namespaces := .namespaces}}
+{{$deploymentLabel := .deploymentLabel}}
+{{$fortioDeploymentsPerNamespace := .fortioDeploymentsPerNamespace}}
+{{$fortioServerReplicas := .fortioServerReplicas}}
+{{$fortioClientReplicas := .fortioClientReplicas}}
+{{$fortioClientQueriesPerSecond := .fortioClientQueriesPerSecond}}
+{{$fortioClientConnections := .fortioClientConnections}}
+{{$CpuRequest := .CpuRequest}}
+{{$MemoryRequest := .MemoryRequest}}
+
+steps:
+- name: Starting measurement for '{{$actionName}}'
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      checkIfPodsAreUpdated: true
+      labelSelector: group = {{.Group}}
+      operationTimeout: {{$operationTimeout}}
+      apiVersion: apps/v1
+
+- name: "{{$actionName}} k8s services"
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 1
+    tuningSet: Sequence
+    objectBundle:
+    - basename: fortio-server-service
+      objectTemplatePath: modules/fortio/service.yaml
+
+- name: '{{$actionName}} servers'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-server
+        objectTemplatePath: modules/fortio/server-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioServerReplicas}}
+          SvcName: fortio-server-service
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+
+- name: Waiting for '{{$actionName}} servers' to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+      refreshInterval: 15s
+
+# Create clients after the servers have been created because we want all servers to be backend pods for their service
+- name: '{{$actionName}} clients'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-client
+        objectTemplatePath: modules/fortio/client-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioClientReplicas}}
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+          FortioClientConnections: {{$fortioClientConnections}}
+          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+
+- name: Waiting for '{{$actionName}} clients' to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+      refreshInterval: 15s

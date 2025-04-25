@@ -47,9 +47,28 @@ steps:
       CILIUM_ENABLED=True
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-        ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${NODE_PER_STEP:-0} ${MAX_PODS:-0} \
-        ${REPEATS:-0} ${SCALE_TIMEOUT:-0} ${CLOUD:-0} ${CILIUM_ENABLED:-False} ${SCRAPE_CONTAINERD:-False} \
-        ${SERVICE_TEST:-False} ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
+        --fortio-servers-per-deployment $FORTIO_SERVERS_PER_DEPLOYMENT \
+        --fortio-clients-per-deployment $FORTIO_CLIENTS_PER_DEPLOYMENT \
+        --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
+        --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
+        --fortio-namespaces $FORTIO_NAMESPACES \
+        --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+        --cpu_per_node ${CPU_PER_NODE:-0} \
+        --node_count ${NODE_COUNT:-0} \
+        --node_per_step ${NODE_PER_STEP:-0} \
+        --max_pods ${MAX_PODS:-0} \
+        --repeats ${REPEATS:-0} \
+        --operation_timeout ${SCALE_TIMEOUT:-"15m"} \
+        --provider ${CLOUD:-0} \
+        --cilium_enabled ${CILIUM_ENABLED:-False} \
+        --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
+        --service_test ${SERVICE_TEST:-False} \
+        --cnp_test ${CNP_TEST:-False} \
+        --ccnp_test ${CCNP_TEST:-False} \
+        --num_cnps ${NUM_CNPS:-0} \
+        --num_ccnps ${NUM_CCNPS:-0} \
+        --dualstack ${DUALSTACK:-False} \
+        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
         ${HOME}/.kube/config $CLOUD ${SCRAPE_CONTAINERD:-False}
