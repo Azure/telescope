@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fio
+  labels:
+    test: fio
+spec:
+  replicas: {{REPLICAS}}
+  selector:
+    matchLabels:
+      test: fio
+  template:
+    metadata:
+      labels:
+        test: fio
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        agentpool: user
+      tolerations:
+        - key: "fio-dedicated"
+          operator: "Equal"
+          value: "true"
+          effect: "NoExecute"
+        - key: "fio-dedicated"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+        - name: fio
+          image: telescope.azurecr.io/perf-eval/fio:v1.3.11
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - |
+              tdnf install -y util-linux;
+              fio --version;
+              lsblk;
+              sleep infinity
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  fio --version;
+                  lsblk;
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: data
+              mountPath: /mnt/data
+      volumes:
+        - name: data
+          emptyDir: {}
