@@ -32,8 +32,9 @@ steps:
   displayName: "Destroy Resource Group"
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
 
-- ${{ if and(ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq(variables['Build.SourceBranchName'], 'main')) }}:
+- ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/collect-terraform-operation-metadata.yml
     parameters:
       cloud: ${{ parameters.cloud }}
       credential_type: ${{ parameters.credential_type }}
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
