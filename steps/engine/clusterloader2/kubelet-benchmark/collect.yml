@@ -1,0 +1,67 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: topology
+  type: string
+- name: engine
+  type: object
+  default: {}
+- name: region
+  type: string
+- name: load
+  type: object
+- name: node_count
+  type: string
+- name: max_pods
+  type: string
+- name: eviction_hard_memory
+  type: string
+  default: "100Mi"
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+- script: |
+    set -eo pipefail
+    set -x
+
+    echo "Collecting eviction benchmark"
+    echo "Python script file:   $PYTHON_SCRIPT_FILE"
+    echo "Node label:           $NODE_LABEL"
+    echo "CL2 config dir:       $CL2_CONFIG_DIR"
+    echo "CL2 report dir:       $CL2_REPORT_DIR"
+    echo "Cloud:                $CLOUD"
+    echo "Kubeconfig:           ${HOME}/.kube/config"
+
+    echo "Collecting clusterloader2 benchmark results"
+    echo "Node count:           $NODE_COUNT"
+    echo "Max pods:             $MAX_PODS"
+    echo "Load type:            $LOAD_TYPE"
+    echo "Load factor:          $LOAD_FACTOR"
+    echo "Load duration:        $LOAD_DURATION"
+    echo "Eviction hard memory: $EVICTION_THRESHOLD_MEM"
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" collect \
+      "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
+      "$NODE_COUNT" "$MAX_PODS" "$LOAD_TYPE" "$LOAD_FACTOR" "$LOAD_DURATION" "$EVICTION_THRESHOLD_MEM" "$RUN_ID" "$RUN_URL" "$TEST_RESULTS_FILE"
+  workingDirectory: modules/python/clusterloader2
+  env:
+    NODE_LABEL: ${{ parameters.topology }}
+    CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kubelet_benchmark/config
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kubelet_benchmark/results
+    ${{ if eq(parameters.cloud, 'azure') }}:
+      CLOUD: aks
+    ${{ else }}:
+      CLOUD: ${{ parameters.cloud }}
+    NODE_COUNT: ${{ parameters.node_count }}
+    MAX_PODS: ${{ parameters.max_pods }}
+    LOAD_TYPE: ${{ parameters.load.type }}
+    LOAD_FACTOR: ${{ parameters.load.factor }}
+    LOAD_DURATION: ${{ parameters.load.duration }}
+    EVICTION_THRESHOLD_MEM: ${{ parameters.eviction_hard_memory }}
+    RUN_URL: $(RUN_URL)
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kubelet_benchmark/kubelet_benchmark.py
+
+  displayName: "Collect Eviction Eval Results"

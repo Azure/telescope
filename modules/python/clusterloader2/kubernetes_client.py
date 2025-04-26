@@ -1,5 +1,5 @@
 # TODO: Move this file to a separate folder called 'clients'
-from kubernetes import client, config
+from kubernetes import client, config, utils
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
@@ -21,6 +21,7 @@ class KubernetesClient:
         config.load_kube_config(kubeconfig)
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
+        self.api_client = client.ApiClient()
         self.storage = client.StorageV1Api()
 
     def get_app_client(self):
@@ -114,3 +115,6 @@ class KubernetesClient:
 
     def delete_namespace(self, namespace):
         return self.api.delete_namespace(namespace)
+
+    def create_daemonset(self, daemonset_object):
+        utils.create_from_yaml(self.api_client, yaml_objects=daemonset_object)
