@@ -15,7 +15,6 @@ k taint node <node-name> ${NODE_LABEL}=true:NoSchedule
 k taint node <node-name> ${NODE_LABEL}=true:NoExecute
 # label nodes to run prometheus
 k label node <another-node-name> prometheus=true
-export NODE_COUNT=3 # adjust to your own cluster size, matching those labeled by kubelet-benchmark=true
 
 ```
 
@@ -23,15 +22,20 @@ To run the test,
 
 Ensure Python 3.x is installed on your system. Following the [execute.yaml](../../../../steps/engine/clusterloader2/kubelet-benchmark/execute.yml). Use `clusterloader2` as the root directory.
 
+
 ```bash
-export REPO_ROOT=$(git rev-parse --show-toplevel)
+# setup python 
+pip install -r ${REPO_ROOT}/modules/python/requirements.txt
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
+export REPO_ROOT=$(git rev-parse --show-toplevel)
+export NODE_LABEL=kubelet-benchmark #usually the scenario name
+export NODE_COUNT=3 # adjust to your own cluster size, matching those labeled by kubelet-benchmark=true
+
 # use full path
-pip install -r ${REPO_ROOT}/modules/python/requirements.txt
+
 export PYTHONPATH=$PYTHONPATH:$(pwd):${REPO_ROOT}/modules/python
-export PYTHON_SCRIPT_FILE=${REPO_ROOT}/modules/python/clusterloader2/
-kubelet_benchmark/kubelet_benchmark.py
+export PYTHON_SCRIPT_FILE=${REPO_ROOT}/modules/python/clusterloader2/kubelet_benchmark/kubelet_benchmark.py
 export CL2_CONFIG_DIR=${REPO_ROOT}/modules/python/clusterloader2/kubelet_benchmark/config
 export CL2_REPORT_DIR=${REPO_ROOT}/modules/python/clusterloader2/kubelet_benchmark/results
 export TEST_RESULTS_FILE=${REPO_ROOT}/modules/python/clusterloader2/kubelet_benchmark/results/results.json
@@ -81,8 +85,20 @@ python3 "$PYTHON_SCRIPT_FILE" execute \
 "$NODE_LABEL" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$CLOUD" "${HOME}/.kube/config" \
 "$CL2_IMAGE" "$EVICTION_THRESHOLD_MEM"
 ```
+To view metrics using embedded prometheus / grafana
 
-Results are stored as `junit.xml` and its stauts should be `success`. Measuremetns are collected as `json` files.
+```bash
+# prometheus
+kubectl  port-forward svc/prometheus-k8s 9090:9090 -n monitoring
+
+# grafana
+kubectl  port-forward svc/grafana 3000:3000 -n monitoring
+```
+Use [`local_run.sh`](./local_run.sh) to continuously run the test and collect metrics. This is useful for long-running tests.
+
+
+
+Results are stored as `junit.xml` and its status should be `success`. Measurements are collected as `json` files.
 
 To verify the collect step, choose a `RUN_ID` and `RUN_URL`
 
