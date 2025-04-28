@@ -1,4 +1,3 @@
-# TODO: Move this file to a separate folder called 'clients'
 from kubernetes import client, config
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions

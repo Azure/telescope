@@ -4,8 +4,8 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
-from kubernetes_client import KubernetesClient, client as k8s_client
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
+from clients.kubernetes_client import KubernetesClient, client as k8s_client
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,

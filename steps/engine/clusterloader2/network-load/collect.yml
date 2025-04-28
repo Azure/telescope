@@ -31,7 +31,7 @@ steps:
       --fortio-namespaces $FORTIO_NAMESPACES \
       --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
       --apply-fqdn-cnp $APPLY_FQDN_CNP
-  workingDirectory: modules/python/clusterloader2
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)

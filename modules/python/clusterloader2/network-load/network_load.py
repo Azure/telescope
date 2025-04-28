@@ -3,7 +3,7 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from utils import str2bool, parse_xml_to_json, run_cl2_command, get_measurement
+from clusterloader2.utils import str2bool, parse_xml_to_json, run_cl2_command, get_measurement
 
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1

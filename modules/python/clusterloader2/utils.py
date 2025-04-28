@@ -1,12 +1,9 @@
-try:
-    from docker_client import DockerClient
-except ImportError:
-    from clusterloader2.docker_client import DockerClient
 from xml.dom import minidom
 import json
 import os
 import argparse
 import docker
+from clients.docker_client import DockerClient
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "PodStartupLatency_PodStartupLatency_": "PodStartupLatency_PodStartupLatency",
