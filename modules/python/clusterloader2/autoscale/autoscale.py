@@ -6,7 +6,7 @@ import subprocess
 import time
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command
 from clients.kubernetes_client import KubernetesClient
 
 def warmup_deployment_for_karpeneter():
