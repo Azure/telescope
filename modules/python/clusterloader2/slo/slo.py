@@ -108,8 +108,8 @@ def configure_clusterloader2(
             file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
         if identity_test:
-            file.write(f"CL2_BIG_GROUP_SIZE: {small_group_size}\n")
-            file.write(f"CL2_SMALL_GROUP_SIZE: {big_group_size}\n")
+            file.write(f"CL2_BIG_GROUP_SIZE: {big_group_size}\n")
+            file.write(f"CL2_SMALL_GROUP_SIZE: {small_group_size}\n")
             file.write(f"CL2_PROPORTION_IN_BIG: {proportion_in_big}\n")
 
     with open(override_file, 'r') as file:
