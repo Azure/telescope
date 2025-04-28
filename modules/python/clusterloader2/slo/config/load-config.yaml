@@ -90,6 +90,14 @@ steps:
         path: /modules/network-policy/net-policy-metrics.yaml
         params:
           action: start
+
+  - module:
+        path: /modules/network-policy/npm-pod-monitor.yaml
+
+  - module:
+        path: /modules/network-policy/npm-metrics.yaml
+        params:
+          action: start
 {{end}}
 
 {{range $i := Loop $repeats}}
@@ -201,6 +209,12 @@ steps:
         group: {{$groupName}}
 
 {{if $NETWORK_TEST}}
+
+  - module:
+        path: /modules/network-policy/npm-metrics.yaml
+        params:
+          action: gather
+
   - module:
       path: modules/network-policy/net-policy-metrics.yaml
       params:

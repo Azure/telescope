@@ -1,0 +1,20 @@
+prometheusManifests:
+  - name: "azure-npm-pod-monitor"
+    content: |
+      apiVersion: monitoring.coreos.com/v1
+      kind: PodMonitor
+      metadata:
+        name: azure-npm-pod-monitor
+        namespace: monitoring
+      spec:
+        jobLabel: k8s-app
+        selector:
+          matchLabels:
+            k8s-app: azure-npm
+        namespaceSelector:
+          matchNames:
+            - kube-system
+        podMetricsEndpoints:
+          - port: prometheus
+            path: /node-metrics
+            interval: 15s
