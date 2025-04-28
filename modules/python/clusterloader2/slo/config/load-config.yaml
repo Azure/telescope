@@ -186,6 +186,7 @@ steps:
         deploymentLabel: restart
         Group: {{$groupName}}
 
+{{if $SERVICE_TEST}}
   - module:
       path: /modules/services.yaml
       params:
@@ -193,6 +194,8 @@ steps:
         namespaces: {{$namespaces}}
         smallServicesPerNamespace: 0
         bigServicesPerNamespace: 0
+{{end}}
+
 {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}
@@ -207,6 +210,14 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
+
+  - name: sleep 
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 600s
 
 {{if $NETWORK_TEST}}
 
