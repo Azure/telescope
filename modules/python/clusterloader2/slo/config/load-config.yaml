@@ -211,14 +211,6 @@ steps:
         action: gather
         group: {{$groupName}}
 
-  - name: sleep 
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 1200s
-
 {{if $NETWORK_TEST}}
 
   - module:
