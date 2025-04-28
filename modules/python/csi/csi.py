@@ -4,7 +4,7 @@ import os
 import json
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from clusterloader2.kubernetes_client import KubernetesClient, client
+from clients.kubernetes import KubernetesClient, client
 
 KUBERNETERS_CLIENT=KubernetesClient()
 
