@@ -217,7 +217,7 @@ steps:
       Method: Sleep
       Params:
         action: start
-        duration: 600s
+        duration: 1200s
 
 {{if $NETWORK_TEST}}
 
