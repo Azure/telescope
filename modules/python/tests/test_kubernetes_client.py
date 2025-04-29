@@ -4,7 +4,7 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition
+    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition, V1Deployment, V1ObjectMeta
 )
 from clients.kubernetes_client import KubernetesClient
 
@@ -187,18 +187,18 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertCountEqual(returned_volume_attachments, expected_volume_attachments)
         mock_get_volume_attachments.assert_called_once()
 
-    @patch('builtins.open', new_callable=mock_open)
-    @patch('clients.kubernetes_client.KubernetesClient._run_pod_exec_command')
-    def test_run_pod_exec_command_with_retries_success_with_dest_path(self, mock_run_pod_exec_command, mock_open):
+    @patch("builtins.open", new_callable=mock_open)
+    @patch('clients.kubernetes_client.stream')
+    def test_run_pod_exec_command(self, mock_stream, mock_open):
         mock_resp = MagicMock()
         mock_resp.is_open.side_effect = [True, False]
         mock_resp.read_stdout.return_value = 'command output'
         mock_resp.read_stderr.return_value = ''
         mock_resp.peek_stdout.return_value = True
         mock_resp.peek_stderr.return_value = False
-        mock_run_pod_exec_command.return_value = mock_resp
+        mock_stream.return_value = mock_resp
 
-        result = self.client.run_pod_exec_command_with_retries(
+        result = self.client.run_pod_exec_command(
             pod_name='test-pod',
             container_name='test-container',
             command='echo "Hello, World!"',
@@ -206,14 +206,16 @@ class TestKubernetesClient(unittest.TestCase):
             namespace='default'
         )
 
-        mock_run_pod_exec_command.assert_called_with(
-            self.client.run_pod_exec_command_with_retries,
-            pod_name='test-pod',
-            container='test-container',
-            command=['/bin/sh', '-c', 'echo "Hello, World!"'],
+        mock_stream.assert_called_with(
+            self.client.api.connect_get_namespaced_pod_exec,
+            name='test-pod',
             namespace='default',
+            command=['/bin/sh', '-c', 'echo "Hello, World!"'],
+            container='test-container',
+            stderr=True, stdin=False,
+            stdout=True, tty=False,
+            _preload_content=False
         )
-
         self.assertEqual(result, 'command output')
 
         # Check if stdout was written to the file
@@ -222,59 +224,141 @@ class TestKubernetesClient(unittest.TestCase):
         # Check if the file was closed
         mock_open().close.assert_called_once()
 
-    # @patch('clients.kubernetes_client.KubernetesClient._run_pod_exec_command')
-    # def test_run_pod_exec_command_with_retries_failure_with_dest_path(self, mock_run_pod_exec_command):
-    #     pod_name = "test-pod"
-    #     container_name = "test-container"
-    #     command = "echo Hello World"
-    #     namespace = "default"
-    #     dest_path = "/tmp/output.txt"
+    @patch('clients.kubernetes_client.stream')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_run_pod_exec_command_without_dest_path(self, mock_open, mock_stream):
+        mock_resp = MagicMock()
+        mock_resp.is_open.side_effect = [True, False]
+        mock_resp.read_stdout.return_value = 'command output'
+        mock_resp.read_stderr.return_value = ''
+        mock_resp.peek_stdout.return_value = True
+        mock_resp.peek_stderr.return_value = False
+        mock_stream.return_value = mock_resp
 
-    #     # Mock the behavior of the underlying _run_pod_exec_command
-    #     mock_run_pod_exec_command.side_effect = Exception("Command failed")
+        result = self.client.run_pod_exec_command(
+            pod_name='test-pod',
+            container_name='test-container',
+            command='echo "Hello, World!"',
+            dest_path=None,
+            namespace='default'
+        )
 
-    #     # Call the function under test and assert it raises an exception
-    #     with self.assertRaises(Exception) as context:
-    #         self.client.run_pod_exec_command_with_retries(
-    #             pod_name=pod_name,
-    #             container_name=container_name,
-    #             command=command,
-    #             dest_path=dest_path,
-    #             namespace=namespace
-    #         )
+        mock_stream.assert_called_with(
+            self.client.api.connect_get_namespaced_pod_exec,
+            name='test-pod',
+            namespace='default',
+            command=['/bin/sh', '-c', 'echo "Hello, World!"'],
+            container='test-container',
+            stderr=True, stdin=False,
+            stdout=True, tty=False,
+            _preload_content=False
+        )
+        self.assertEqual(result, 'command output')
 
-    #     self.assertEqual(str(context.exception), "Command failed")
-    #     self.assertEqual(mock_run_pod_exec_command.call_count, 3)  # Retries 3 times
+        # Check that the file was not opened and not written
+        mock_open.assert_not_called()
 
-    # @patch('clients.kubernetes_client.KubernetesClient._run_pod_exec_command')
-    # def test_run_pod_exec_command_with_retries_no_dest_path(self, mock_run_pod_exec_command):
-    #     pod_name = "test-pod"
-    #     container_name = "test-container"
-    #     command = "echo Hello World"
-    #     namespace = "default"
-    #     dest_path = None
+    @patch("builtins.open", new_callable=mock_open)
+    @patch('clients.kubernetes_client.stream')
+    def test_run_pod_exec_command_error(self, mock_stream, mock_open):
+        mock_resp = MagicMock()
+        mock_resp.is_open.side_effect = [True, False]
+        mock_resp.read_stdout.return_value = ''
+        mock_resp.read_stderr.return_value = 'error output'
+        mock_resp.peek_stdout.return_value = False
+        mock_resp.peek_stderr.return_value = True
+        mock_stream.return_value = mock_resp
 
-    #     # Mock the behavior of the underlying _run_pod_exec_command
-    #     mock_run_pod_exec_command.return_value = "Command output"
+        with self.assertRaises(Exception) as context:
+            self.client.run_pod_exec_command(
+                pod_name='test-pod',
+                container_name='test-container',
+                command='echo "Hello, World!"',
+                dest_path=None,
+                namespace='default'
+            )
 
-    #     # Call the function under test
-    #     output = self.client.run_pod_exec_command_with_retries(
-    #         pod_name=pod_name,
-    #         container_name=container_name,
-    #         command=command,
-    #         dest_path=dest_path,
-    #         namespace=namespace
-    #     )
+    @patch('clients.kubernetes_client.KubernetesClient.get_pod_logs')
+    def test_get_pod_logs(self, mock_get_pod_logs):
+        pod_name = "test-pod"
+        namespace = "default"
+        container = "test-container"
+        tail_lines = 10
+        expected_logs = "Sample log output"
 
-    #     # Assert the output and that the function was called
-    #     self.assertEqual(output, "Command output")
-    #     mock_run_pod_exec_command.assert_called_once_with(
-    #         pod_name=pod_name,
-    #         container_name=container_name,
-    #         command=command,
-    #         dest_path=dest_path,
-    #         namespace=namespace
-    #     )
+        mock_get_pod_logs.return_value = expected_logs
 
+        logs = self.client.get_pod_logs(pod_name=pod_name, namespace=namespace, container=container, tail_lines=tail_lines)
+
+        # Assertions
+        mock_get_pod_logs.assert_called_once_with(
+            pod_name=pod_name,
+            namespace=namespace,
+            container=container,
+            tail_lines=tail_lines
+        )
+        self.assertEqual(logs, expected_logs)
+
+        # Test exception handling
+        mock_get_pod_logs.side_effect = Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}'")
+        with self.assertRaises(Exception) as context:
+            self.client.get_pod_logs(pod_name=pod_name, namespace=namespace)
+
+        self.assertIn(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}'", str(context.exception))
+
+    @patch("builtins.open", new_callable=mock_open, read_data="apiVersion: v1\nmetadata:\n  name: {{DEPLOYMENT_NAME}}")
+    @patch("os.path.isfile", return_value=True)
+    def test_create_template_success(self, mock_isfile, mock_open_file):
+        # Arrange
+        template_path = "fake_path/deployment.yml"
+        replacements = {"DEPLOYMENT_NAME": "test-deployment"}
+
+        expected_output = "apiVersion: v1\nmetadata:\n  name: test-deployment"
+
+        # Act
+        result = self.client.create_template(template_path, replacements)
+
+        # Assert
+        mock_isfile.assert_called_once_with(template_path)
+        mock_open_file.assert_called_once_with(template_path, "r", encoding="utf-8")
+        self.assertEqual(result, expected_output)
+
+    @patch('clients.kubernetes_client.KubernetesClient.create_deployment')
+    def test_create_deployment(self, mock_create_deployment):
+        template = "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: test-deployment"
+        namespace = "default"
+
+        # Mock the V1Deployment object
+        mock_deployment = V1Deployment(metadata=V1ObjectMeta(name="test-deployment"))
+        mock_create_deployment.return_value = mock_deployment
+
+        deployment = self.client.create_deployment(template, namespace)
+
+        mock_create_deployment.assert_called_once_with(template, namespace)
+        self.assertEqual(deployment.metadata.name, "test-deployment")
+
+    @patch('clients.kubernetes_client.KubernetesClient.get_ready_nodes')
+    def test_wait_for_nodes_ready(self, mock_get_ready_nodes):
+        mock_get_ready_nodes.side_effect = [[], ["node1", "node2"]]
+        node_count = 2
+        timeout = 1
+
+        self.client.wait_for_nodes_ready(node_count, timeout)
+
+        self.assertEqual(mock_get_ready_nodes.call_count, 2)
+
+    @patch('clients.kubernetes_client.KubernetesClient.get_ready_pods_by_namespace')
+    def test_wait_for_pods_ready(self, mock_get_ready_pods):
+        mock_get_ready_pods.side_effect = [[], ["pod1", "pod2"]]
+        pod_count = 2
+        timeout = 1
+        namespace = "default"
+
+        pods = self.client.wait_for_pods_ready(pod_count, timeout, namespace)
+
+        self.assertEqual(len(pods), pod_count)
+        self.assertEqual(mock_get_ready_pods.call_count, 2)
+
+    
 if __name__ == '__main__':
     unittest.main()

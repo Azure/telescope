@@ -12,8 +12,8 @@ steps:
         method=${fio_params[2]}
 
         PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-          $VM_SIZE $block_size $iodepth $method \
-          $RESULT_DIR $RUN_URL $CLOUD_INFO
+          $K8S_MACHINE_TYPE $block_size $iodepth $method \
+          $RESULT_DIR $RUN_URL "$CLOUD_INFO"
       workingDirectory: modules/python
       displayName: "Collect fio ${{ property }}"
       env:
