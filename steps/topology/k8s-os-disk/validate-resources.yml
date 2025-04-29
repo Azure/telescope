@@ -1,10 +1,10 @@
 parameters:
-  - name: cloud
-    type: string
-  - name: engine
-    type: string
-  - name: regions
-    type: object
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -13,6 +13,5 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/${{ parameters.engine }}/validate.yml
     parameters:
-      node_label: "fio-dedicated=true"
-      desired_nodes: $(NODE_NUMBER)
+      desired_nodes: 3
       operation_timeout_in_minutes: 10
