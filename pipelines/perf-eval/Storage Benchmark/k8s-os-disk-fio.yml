@@ -1,11 +1,17 @@
 trigger: none
-# schedules:
-#   - cron: 0 */2 * * *
-#     displayName: "Daily every 2 hours"
-#     branches:
-#       include:
-#         - main
-#     always: true
+schedules:
+  - cron: "0 10 */2 * *"
+    displayName: "Every Even Day at 10 AM"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 10 * * 1"
+    displayName: "Every Week on Monday at 10 AM"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -13,6 +19,11 @@ variables:
 
 stages:
   - stage: azure_eastus2_managed
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every Even Day at 10 AM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -43,6 +54,11 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_ephemeral
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every Even Day at 10 AM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -75,6 +91,11 @@ stages:
           ssh_key_enabled: false
 
   - stage: aws_eastus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every Week on Monday at 10 AM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
