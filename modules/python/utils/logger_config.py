@@ -4,8 +4,8 @@ class AzureDevOpsFormatter(logging.Formatter):
     VSO_FORMATS = {
         'ERROR': '##vso[task.logissue type=error;]',
         'WARNING': '##vso[task.logissue type=warning;]',
-        'INFO': '##vso[task.logissue type=info;]',
-        'DEBUG': '##vso[task.logissue type=debug;]'
+        'INFO': '',
+        'DEBUG': '##[debug]'
     }
 
     def format(self, record):

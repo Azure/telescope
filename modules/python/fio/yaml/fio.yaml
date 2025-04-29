@@ -33,18 +33,13 @@ spec:
           args:
             - "-c"
             - |
-              tdnf install -y util-linux;
+              tdnf install -y util-linux > /dev/null;
               fio --version;
               lsblk;
               sleep infinity
           readinessProbe:
             exec:
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  fio --version;
-                  lsblk;
+              command: ["/bin/sh", "-c", "lsblk"]
             initialDelaySeconds: 5
             periodSeconds: 5
           securityContext:
