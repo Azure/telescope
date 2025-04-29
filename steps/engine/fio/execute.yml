@@ -17,5 +17,6 @@ steps:
     displayName: "Execute fio ${{ property }}"
     env:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
+      RESULT_DIR: $(TEST_RESULTS_DIR)
       YAML_PATH: $(Pipeline.Workspace)/s/modules/python/fio/yaml/fio.yaml
       FIO_PROPERTY: ${{ property }}

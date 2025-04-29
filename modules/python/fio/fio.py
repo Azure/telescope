@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
+from utils.retries import execute_with_retries
 
 setup_logging()
 logger = get_logger(__name__)
@@ -44,18 +45,20 @@ def execute(block_size, iodepth, method, runtime, result_dir):
     result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
     setup_command = f"{base_command} --create_only=1"
     logger.info(f"Run setup command: {setup_command}")
-    KUBERNETES_CLIENT.run_pod_exec_command_with_retries(
+    execute_with_retries(
+        KUBERNETES_CLIENT.run_pod_exec_command,
         pod_name=pod_name,
         container_name="fio",
         command=setup_command,
     )
-    sleep_time = 5
+    sleep_time = 30
     logger.info(f"Wait for {sleep_time} seconds to clean any potential throttle/cache")
     time.sleep(sleep_time)
 
     logger.info(f"Run fio command: {base_command}")
     start_time = time.time()
-    KUBERNETES_CLIENT.run_pod_exec_command_with_retries(
+    execute_with_retries(
+        KUBERNETES_CLIENT.run_pod_exec_command,
         pod_name=pod_name,
         container_name="fio",
         command=base_command,

@@ -4,7 +4,6 @@ import yaml
 from kubernetes import client, config
 from kubernetes.stream import stream
 from utils.logger_config import get_logger, setup_logging
-from utils.retries import execute_with_retries
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
@@ -245,7 +244,7 @@ class KubernetesClient:
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}")
 
-    def _run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = None, namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = None, namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
@@ -289,29 +288,3 @@ class KubernetesClient:
             if file is not None:
                 file.close()
         return ''.join(res)
-    
-    def run_pod_exec_command_with_retries(self, pod_name: str, container_name: str, command: str, dest_path: str = None, namespace: str = "default") -> str:
-        """
-        Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
-        Retries the command execution if it fails.
-
-        Args:
-            pod_name (str): The name of the pod where the command will be executed.
-            container_name (str): The name of the container within the pod where the command will be executed.
-            command (str): The command to be executed in the container.
-            dest_path (str, optional): The file path where the command output will be saved. Defaults to None.
-            namespace (str, optional): The Kubernetes namespace where the pod is located. Defaults to "default".
-            retries (int, optional): The number of retry attempts. Defaults to 3.
-        Returns:
-            str: The combined standard output of the executed command.
-        Raises:
-            Exception: If an error occurs while executing the command in the pod.
-        """
-        return execute_with_retries(
-            func=self._run_pod_exec_command,
-            pod_name=pod_name,
-            container_name=container_name,
-            command=command,
-            dest_path=dest_path,
-            namespace=namespace,
-        )

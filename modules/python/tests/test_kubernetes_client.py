@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open, MagicMock
 from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
@@ -186,6 +186,95 @@ class TestKubernetesClient(unittest.TestCase):
         returned_volume_attachments = self.client.get_attached_volume_attachments()
         self.assertCountEqual(returned_volume_attachments, expected_volume_attachments)
         mock_get_volume_attachments.assert_called_once()
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('clients.kubernetes_client.KubernetesClient._run_pod_exec_command')
+    def test_run_pod_exec_command_with_retries_success_with_dest_path(self, mock_run_pod_exec_command, mock_open):
+        mock_resp = MagicMock()
+        mock_resp.is_open.side_effect = [True, False]
+        mock_resp.read_stdout.return_value = 'command output'
+        mock_resp.read_stderr.return_value = ''
+        mock_resp.peek_stdout.return_value = True
+        mock_resp.peek_stderr.return_value = False
+        mock_run_pod_exec_command.return_value = mock_resp
+
+        result = self.client.run_pod_exec_command_with_retries(
+            pod_name='test-pod',
+            container_name='test-container',
+            command='echo "Hello, World!"',
+            dest_path='/tmp/result.txt',
+            namespace='default'
+        )
+
+        mock_run_pod_exec_command.assert_called_with(
+            self.client.run_pod_exec_command_with_retries,
+            pod_name='test-pod',
+            container='test-container',
+            command=['/bin/sh', '-c', 'echo "Hello, World!"'],
+            namespace='default',
+        )
+
+        self.assertEqual(result, 'command output')
+
+        # Check if stdout was written to the file
+        mock_open.assert_called_with('/tmp/result.txt', 'wb')
+        mock_open().write.assert_any_call(b'command output')
+        # Check if the file was closed
+        mock_open().close.assert_called_once()
+
+    # @patch('clients.kubernetes_client.KubernetesClient._run_pod_exec_command')
+    # def test_run_pod_exec_command_with_retries_failure_with_dest_path(self, mock_run_pod_exec_command):
+    #     pod_name = "test-pod"
+    #     container_name = "test-container"
+    #     command = "echo Hello World"
+    #     namespace = "default"
+    #     dest_path = "/tmp/output.txt"
+
+    #     # Mock the behavior of the underlying _run_pod_exec_command
+    #     mock_run_pod_exec_command.side_effect = Exception("Command failed")
+
+    #     # Call the function under test and assert it raises an exception
+    #     with self.assertRaises(Exception) as context:
+    #         self.client.run_pod_exec_command_with_retries(
+    #             pod_name=pod_name,
+    #             container_name=container_name,
+    #             command=command,
+    #             dest_path=dest_path,
+    #             namespace=namespace
+    #         )
+
+    #     self.assertEqual(str(context.exception), "Command failed")
+    #     self.assertEqual(mock_run_pod_exec_command.call_count, 3)  # Retries 3 times
+
+    # @patch('clients.kubernetes_client.KubernetesClient._run_pod_exec_command')
+    # def test_run_pod_exec_command_with_retries_no_dest_path(self, mock_run_pod_exec_command):
+    #     pod_name = "test-pod"
+    #     container_name = "test-container"
+    #     command = "echo Hello World"
+    #     namespace = "default"
+    #     dest_path = None
+
+    #     # Mock the behavior of the underlying _run_pod_exec_command
+    #     mock_run_pod_exec_command.return_value = "Command output"
+
+    #     # Call the function under test
+    #     output = self.client.run_pod_exec_command_with_retries(
+    #         pod_name=pod_name,
+    #         container_name=container_name,
+    #         command=command,
+    #         dest_path=dest_path,
+    #         namespace=namespace
+    #     )
+
+    #     # Assert the output and that the function was called
+    #     self.assertEqual(output, "Command output")
+    #     mock_run_pod_exec_command.assert_called_once_with(
+    #         pod_name=pod_name,
+    #         container_name=container_name,
+    #         command=command,
+    #         dest_path=dest_path,
+    #         namespace=namespace
+    #     )
 
 if __name__ == '__main__':
     unittest.main()
