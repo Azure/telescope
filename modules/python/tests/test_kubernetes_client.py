@@ -6,7 +6,7 @@ from kubernetes.client.models import (
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
     V1PodStatus, V1Pod, V1PodSpec, V1Namespace
 )
-from clusterloader2.kubernetes_client import KubernetesClient
+from clients.kubernetes_client import KubernetesClient
 
 class TestKubernetesClient(unittest.TestCase):
 
@@ -25,7 +25,7 @@ class TestKubernetesClient(unittest.TestCase):
             spec=V1NodeSpec(unschedulable=unschedulable, taints=taints)
         )
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_nodes')
+    @patch('clients.kubernetes_client.KubernetesClient.get_nodes')
     def test_get_ready_nodes_with_network_unavailable(self, mock_get_nodes):
         # Mock nodes
         # Nodes ready to be scheduled
@@ -95,8 +95,8 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(namespace.metadata.name, mock_read_namespace.return_value.metadata.name)
         mock_create_namespace.assert_not_called()
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.create_namespace')
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.delete_namespace')
+    @patch('clients.kubernetes_client.KubernetesClient.create_namespace')
+    @patch('clients.kubernetes_client.KubernetesClient.delete_namespace')
     def test_create_delete_namespace(self, mock_delete_namespace, mock_create_namespace):
         name = "test-namespace"
         mock_namespace = self._create_namespace(name)
@@ -112,7 +112,7 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(mock_delete_namespace.return_value, namespace)
         mock_delete_namespace.assert_called_once_with(name)
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_pods_by_namespace')
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     def test_get_running_pods_by_namespace(self, mock_get_pods_by_namespace):
         namespace = "test-namespace"
         running_pods = 10
@@ -138,7 +138,7 @@ class TestKubernetesClient(unittest.TestCase):
         mock_get_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="app=nginx", field_selector=None)
         self.assertCountEqual(returned_pods, expected_pods)
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
+    @patch('clients.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
     def test_get_bound_persistent_volume_claims_by_namespace(self, mock_get_persistent_volume_claims_by_namespace):
         namespace = "test-namespace"
         bound_claims = 10
@@ -156,7 +156,7 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertCountEqual(returned_claims, expected_claims)
         mock_get_persistent_volume_claims_by_namespace.assert_called_once_with(namespace=namespace)
 
-    @patch('clusterloader2.kubernetes_client.KubernetesClient.get_volume_attachments')
+    @patch('clients.kubernetes_client.KubernetesClient.get_volume_attachments')
     def test_get_attached_volume_attachments(self, mock_get_volume_attachments):
         attached_attachments = 10
         detached_attachments = 5
