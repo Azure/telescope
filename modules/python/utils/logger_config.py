@@ -19,7 +19,7 @@ def setup_logging():
     root_logger = logging.getLogger()
     # Clear any existing handlers
     root_logger.handlers = []
-    
+
     formatter = AzureDevOpsFormatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"

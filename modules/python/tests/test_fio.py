@@ -7,7 +7,7 @@ from kubernetes.client import V1Pod, V1ObjectMeta, V1PodStatus, V1PodCondition
 
 with patch("clients.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
     mock_load_kube_config.return_value = None
-    
+
     from fio.fio import (
         configure, execute, collect, FILE_SIZE
     )
@@ -40,14 +40,14 @@ class TestFio(unittest.TestCase):
                 )
             )
             mock_pods.append(mock_pod)
-        
+
         mock_kubernetes_client.create_template.return_value = "mock_template"
         mock_kubernetes_client.create_deployment.return_value = "test-deployment"
         mock_kubernetes_client.wait_for_pods_ready.return_value = mock_pods
         mock_kubernetes_client.get_pod_logs.return_value = "test logs"
-        
+
         configure(yaml_path, replicas, timeout)
-        
+
         mock_kubernetes_client.create_template.assert_called_once_with(
             yaml_path, {"REPLICAS": replicas}
         )
@@ -57,29 +57,29 @@ class TestFio(unittest.TestCase):
             pod_count=replicas,
             operation_timeout_in_minutes=timeout
         )
-        
+
         # Verify that get_pod_logs was called for each pod
         expected_get_logs_calls = [call(f"test-pod-{i}") for i in range(replicas)]
         mock_kubernetes_client.get_pod_logs.assert_has_calls(expected_get_logs_calls)
         self.assertEqual(mock_kubernetes_client.get_pod_logs.call_count, replicas)
-        
+
         # Verify logging calls for each pod
         expected_log_calls = [
-            call(f"Deployment test-deployment created successfully!")
+            call("Deployment test-deployment created successfully!")
         ] + [
-            call(f"Checking logs for pod test-pod-{i}:\ntest logs") 
+            call(f"Checking logs for pod test-pod-{i}:\ntest logs")
             for i in range(replicas)
         ]
         mock_logger.info.assert_has_calls(expected_log_calls)
 
     @patch('fio.fio.KUBERNETES_CLIENT')
     @patch('fio.fio.logger')
-    def test_configure_failure_wrong_replicas(self, mock_logger, mock_kubernetes_client):
+    def test_configure_failure_wrong_replicas(self, _mock_logger, mock_kubernetes_client):
         # Test parameters
         yaml_path = "test.yaml"
         replicas = 2
         timeout = 10
-        
+
         # Create a single ready pod to simulate partial success
         mock_pod = V1Pod(
             metadata=V1ObjectMeta(name="test-pod-1"),
@@ -93,24 +93,24 @@ class TestFio(unittest.TestCase):
                 ]
             )
         )
-        
+
         # Mock kubernetes client
         mock_kubernetes_client.create_template.return_value = "mock_template"
         mock_kubernetes_client.create_deployment.return_value = "test-deployment"
-        
+
         # Simulate the timeout behavior where only one pod becomes ready
-        def mock_get_pods(*args, **kwargs):
+        def mock_get_pods(*_args, **_kwargs):
             return [mock_pod]  # Always return just one pod
-            
+
         mock_kubernetes_client.get_ready_pods_by_namespace.side_effect = mock_get_pods
         mock_kubernetes_client.wait_for_pods_ready.side_effect = Exception("Only 1 pods are ready, expected 2 pods!")
-        
+
         # Execute test and verify it raises an exception
         with self.assertRaises(Exception) as context:
             configure(yaml_path, replicas, timeout)
-            
+
         self.assertEqual(str(context.exception), "Only 1 pods are ready, expected 2 pods!")
-        
+
         # Verify the calls were made in order
         mock_kubernetes_client.create_template.assert_called_once_with(
             yaml_path, {"REPLICAS": replicas}
@@ -121,7 +121,7 @@ class TestFio(unittest.TestCase):
             pod_count=replicas,
             operation_timeout_in_minutes=timeout
         )
-        
+
         # Verify no logs were checked since we failed before that point
         mock_kubernetes_client.get_pod_logs.assert_not_called()
 
@@ -133,7 +133,7 @@ class TestFio(unittest.TestCase):
     @patch('fio.fio.os.path.join')
     @patch('fio.fio.KUBERNETES_CLIENT')
     @patch('fio.fio.logger')
-    def test_execute_success(self, mock_logger, mock_kubernetes_client,
+    def test_execute_success(self, _mock_logger, mock_kubernetes_client,
                            mock_path_join, mock_makedirs, mock_execute_with_retries,
                            mock_time, mock_sleep, mock_open_file):
         # Test parameters
@@ -142,13 +142,13 @@ class TestFio(unittest.TestCase):
         method = "read"
         runtime = 60
         result_dir = "/tmp/results"
-        
+
         # Mock time operations
         mock_time.side_effect = [100, 200]  # start_time, end_time
-        
+
         # Mock path operations
         mock_path_join.side_effect = lambda *args: "/".join(args)
-        
+
         # Mock pod setup
         mock_pod = MagicMock()
         mock_pod.metadata.name = "test-pod"
@@ -162,7 +162,7 @@ class TestFio(unittest.TestCase):
 
         # Verify directory creation
         mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
-        
+
         # Verify pod retrieval
         mock_kubernetes_client.get_pods_by_namespace.assert_called_once_with(
             namespace="default", label_selector="test=fio"
@@ -208,15 +208,15 @@ class TestFio(unittest.TestCase):
             "start_time": 100,
             "end_time": 200
         }
-        
+
         metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
-        mock_open_file.assert_called_once_with(metadata_path, "w")
+        mock_open_file.assert_called_once_with(metadata_path, "w", encoding="utf-8")
         mock_open_file().write.assert_called_once_with(json.dumps(expected_metadata))
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('fio.fio.datetime')
     @patch('fio.fio.logger')
-    def test_collect_success(self, mock_logger, mock_datetime, mock_open):
+    def test_collect_success(self, mock_logger, mock_datetime, mock_open_file):
         # Test parameters
         vm_size = "Standard_D8s_v3"
         block_size = "4k"
@@ -271,7 +271,7 @@ class TestFio(unittest.TestCase):
         }
 
         # Setup mock file reads
-        mock_open.return_value.__enter__.return_value.read.side_effect = [
+        mock_open_file.return_value.__enter__.return_value.read.side_effect = [
             json.dumps(mock_raw_result),
             json.dumps(mock_metadata)
         ]
@@ -280,9 +280,9 @@ class TestFio(unittest.TestCase):
         collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info)
 
         # Verify file operations
-        mock_open.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json", "r")
-        mock_open.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json", "r")
-        mock_open.assert_any_call(f"{result_dir}/results.json", "w")
+        mock_open_file.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json", "r", encoding="utf-8")
+        mock_open_file.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json", "r", encoding="utf-8")
+        mock_open_file.assert_any_call(f"{result_dir}/results.json", "a", encoding="utf-8")
 
         # Verify written content
         expected_result = {
@@ -306,7 +306,7 @@ class TestFio(unittest.TestCase):
             'run_url': run_url
         }
 
-        written_content = mock_open().write.call_args[0][0]
+        written_content = mock_open_file().write.call_args[0][0]
         self.assertEqual(json.loads(written_content), expected_result)
 
         # Verify logging

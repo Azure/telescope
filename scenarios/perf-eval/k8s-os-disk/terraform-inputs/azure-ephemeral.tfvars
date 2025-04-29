@@ -22,13 +22,13 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name            = "user"
-        node_count      = 1
-        vm_size         = "Standard_D16s_v3"
-        os_disk_type    = "Ephemeral"
-        node_labels     = { fio-dedicated = "true" }
-        node_taints     = ["fio-dedicated=true:NoExecute", "fio-dedicated=true:NoSchedule"]
-        zones           = ["3"]
+        name         = "user"
+        node_count   = 1
+        vm_size      = "Standard_D16s_v3"
+        os_disk_type = "Ephemeral"
+        node_labels  = { fio-dedicated = "true" }
+        node_taints  = ["fio-dedicated=true:NoExecute", "fio-dedicated=true:NoSchedule"]
+        zones        = ["3"]
       }
     ]
     kubernetes_version = "1.31"

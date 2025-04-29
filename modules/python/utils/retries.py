@@ -6,7 +6,7 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-def execute_with_retries(func, max_retries:int=2, backoff_time:int=10, *args, **kwargs):
+def execute_with_retries(func, *args, max_retries:int=2, backoff_time:int=10, **kwargs):
     retry_count = 0
     while retry_count <= max_retries:
         try:
@@ -21,3 +21,4 @@ def execute_with_retries(func, max_retries:int=2, backoff_time:int=10, *args, **
                 time.sleep(sleep_time)
             else:
                 raise
+    return None

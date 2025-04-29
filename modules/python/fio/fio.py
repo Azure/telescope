@@ -76,19 +76,19 @@ def execute(block_size, iodepth, method, runtime, result_dir):
         "start_time": start_time,
         "end_time": end_time,
     }
-    with open(metadata_path, "w") as f:
+    with open(metadata_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(metadata))
     logger.info(f"Metadata saved to {metadata_path}:\n{metadata}")
 
 
 def collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info):
     raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
-    with open(raw_result_path, "r") as f:
+    with open(raw_result_path, "r", encoding="utf-8") as f:
         raw_result = json.load(f)
     metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
-    with open(metadata_path, "r") as f:
+    with open(metadata_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
-    
+
     job_results = raw_result['jobs'][0]
     result = {
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -100,19 +100,19 @@ def collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_inf
         'write_iops_avg': job_results['write']['iops_mean'],
         'write_bw_avg': job_results['write']['bw_mean'],
         'write_lat_avg': job_results['write']['clat_ns']['mean'],
-        'read_lat_p50': job_results['read']['clat_ns']['percentile']['50.000000'],
-        'read_lat_p99': job_results['read']['clat_ns']['percentile']['99.000000'],
-        'read_lat_p999': job_results['read']['clat_ns']['percentile']['99.900000'],
-        'write_lat_p50': job_results['write']['clat_ns']['percentile']['50.000000'],
-        'write_lat_p99': job_results['write']['clat_ns']['percentile']['99.000000'],
-        'write_lat_p999': job_results['write']['clat_ns']['percentile']['99.900000'],
+        'read_lat_p50': job_results.get('read', {}).get('clat_ns', {}).get('percentile', {}).get('50.000000', 0.0),
+        'read_lat_p99': job_results.get('read', {}).get('clat_ns', {}).get('percentile', {}).get('99.000000', 0.0),
+        'read_lat_p999': job_results.get('read', {}).get('clat_ns', {}).get('percentile', {}).get('99.900000', 0.0),
+        'write_lat_p50': job_results.get('write', {}).get('clat_ns', {}).get('percentile', {}).get('50.000000', 0.0),
+        'write_lat_p99': job_results.get('write', {}).get('clat_ns', {}).get('percentile', {}).get('99.000000', 0.0),
+        'write_lat_p999': job_results.get('write', {}).get('clat_ns', {}).get('percentile', {}).get('99.900000', 0.0),
         'metadata': metadata,
         'raw_result': raw_result,
         'run_url': run_url,
     }
     result_path = f"{result_dir}/results.json"
-    with open(result_path, "w") as f:
-        f.write(json.dumps(result))
+    with open(result_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(result) + "\n")
     logger.info(f"Results collected and saved to {result_path}:\n{json.dumps(result, indent=2)}")
 
 def main():

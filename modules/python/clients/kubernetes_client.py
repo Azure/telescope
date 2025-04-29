@@ -76,7 +76,7 @@ class KubernetesClient:
                 return False
 
         return True
-    
+
     def _is_ready_pod(self, pod):
         if pod.status.phase != "Running":
             return False
@@ -154,7 +154,7 @@ class KubernetesClient:
 
             return template
         except Exception as e:
-            raise Exception(f"Error processing template file {template_path}: {str(e)}")
+            raise Exception(f"Error processing template file {template_path}: {str(e)}") from e
 
     def create_deployment(self, template, namespace="default"):
         """
@@ -172,9 +172,9 @@ class KubernetesClient:
             )
             return response.metadata.name
         except yaml.YAMLError as e:
-            raise Exception(f"Error parsing deployment template: {str(e)}")
+            raise Exception(f"Error parsing deployment template: {str(e)}") from e
         except Exception as e:
-            raise Exception(f"Error creating deployment {template}: {str(e)}")
+            raise Exception(f"Error creating deployment {template}: {str(e)}") from e
 
     def wait_for_nodes_ready(self, node_count, operation_timeout_in_minutes, label_selector=None):
         """
@@ -223,6 +223,7 @@ class KubernetesClient:
             time.sleep(10)
         if len(pods) != pod_count:
             raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
+        return pods
 
     def get_pod_logs(self, pod_name, namespace="default", container=None, tail_lines=None):
         """
@@ -242,7 +243,7 @@ class KubernetesClient:
                 tail_lines=tail_lines
             )
         except client.rest.ApiException as e:
-            raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}")
+            raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
     def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = None, namespace: str = "default") -> str:
         """
@@ -267,9 +268,9 @@ class KubernetesClient:
                       stderr=True, stdin=False,
                       stdout=True, tty=False,
                       _preload_content=False)
-        
+
         res = []
-        file = open(dest_path, 'wb') if dest_path else None
+        file = open(dest_path, 'wb') if dest_path else None # pylint: disable=consider-using-with
         try:
             while resp.is_open():
                 resp.update(timeout=1)

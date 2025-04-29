@@ -4,7 +4,7 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition, V1Deployment, V1ObjectMeta
+    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition, V1Deployment
 )
 from clients.kubernetes_client import KubernetesClient
 
@@ -68,7 +68,7 @@ class TestKubernetesClient(unittest.TestCase):
                 phase=phase,
                 conditions=[
                     V1PodCondition(
-                        type="Ready", 
+                        type="Ready",
                         status="True" if phase == "Running" else "False"
                     ),
                 ]
@@ -189,7 +189,7 @@ class TestKubernetesClient(unittest.TestCase):
 
     @patch("builtins.open", new_callable=mock_open)
     @patch('clients.kubernetes_client.stream')
-    def test_run_pod_exec_command(self, mock_stream, mock_open):
+    def test_run_pod_exec_command(self, mock_stream, mock_open_file):
         mock_resp = MagicMock()
         mock_resp.is_open.side_effect = [True, False]
         mock_resp.read_stdout.return_value = 'command output'
@@ -219,14 +219,14 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(result, 'command output')
 
         # Check if stdout was written to the file
-        mock_open.assert_called_with('/tmp/result.txt', 'wb')
-        mock_open().write.assert_any_call(b'command output')
+        mock_open_file.assert_called_with('/tmp/result.txt', 'wb')
+        mock_open_file().write.assert_any_call(b'command output')
         # Check if the file was closed
-        mock_open().close.assert_called_once()
+        mock_open_file().close.assert_called_once()
 
     @patch('clients.kubernetes_client.stream')
     @patch('builtins.open', new_callable=mock_open)
-    def test_run_pod_exec_command_without_dest_path(self, mock_open, mock_stream):
+    def test_run_pod_exec_command_without_dest_path(self, mock_open_file, mock_stream):
         mock_resp = MagicMock()
         mock_resp.is_open.side_effect = [True, False]
         mock_resp.read_stdout.return_value = 'command output'
@@ -256,11 +256,11 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(result, 'command output')
 
         # Check that the file was not opened and not written
-        mock_open.assert_not_called()
+        mock_open_file.assert_not_called()
 
     @patch("builtins.open", new_callable=mock_open)
     @patch('clients.kubernetes_client.stream')
-    def test_run_pod_exec_command_error(self, mock_stream, mock_open):
+    def test_run_pod_exec_command_error(self, mock_stream, _mock_open_file):
         mock_resp = MagicMock()
         mock_resp.is_open.side_effect = [True, False]
         mock_resp.read_stdout.return_value = ''
@@ -269,7 +269,7 @@ class TestKubernetesClient(unittest.TestCase):
         mock_resp.peek_stderr.return_value = True
         mock_stream.return_value = mock_resp
 
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(Exception) as _context:
             self.client.run_pod_exec_command(
                 pod_name='test-pod',
                 container_name='test-container',
@@ -359,6 +359,6 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(len(pods), pod_count)
         self.assertEqual(mock_get_ready_pods.call_count, 2)
 
-    
+
 if __name__ == '__main__':
     unittest.main()
