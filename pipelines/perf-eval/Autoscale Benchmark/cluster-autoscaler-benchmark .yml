@@ -142,6 +142,7 @@ stages:
               loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
+              kubernetes_version: "1.29"
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
