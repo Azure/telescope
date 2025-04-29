@@ -7,13 +7,24 @@ schedules:
         - main
     always: true
 
+  - cron: "0 13 * * 2,4,6"
+    displayName: "1:00 PM on Tuesday, Thursday, and Saturday"
+    branches:
+      include:
+        - main
+    always: true
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cas-c4n10p100
-  SCENARIO_VERSION: main
 
 stages:
   - stage: aws_eastus1
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 PM on Tuesday, Thursday, and Saturday'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -28,10 +39,10 @@ stages:
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
-              node_count: 10
-              pod_count: 100
+              node_count: 11
+              pod_count: 110
               scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
+              scale_down_timeout: "35m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 5
@@ -39,14 +50,19 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus
+  - stage: azure_eastus2
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM & PM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241002"
@@ -54,10 +70,10 @@ stages:
           matrix:
             c4-n10-p100:
               cpu_per_node: 4
-              node_count: 10
-              pod_count: 100
+              node_count: 11
+              pod_count: 110
               scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
+              scale_down_timeout: "35m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 5

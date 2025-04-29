@@ -7,6 +7,7 @@ parameters:
   default: {}
 - name: regions
   type: object
+
   default: {}
 
 steps:
@@ -15,5 +16,3 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
-- ${{ if eq(parameters.cloud, 'aws') }}:
-  - template: /steps/engine/clusterloader2/default/cleanup.yml

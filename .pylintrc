@@ -1,0 +1,27 @@
+[FORMAT]
+max-line-length=120
+
+[BASIC]
+good-names=e,ex,_,id  # Allow short variable names
+
+[MESSAGES CONTROL]
+disable=
+    missing-docstring,  # Allow missing docstrings
+    too-many-arguments, # Allow too many arguments
+    too-many-statements, # Allow too many statements
+    too-many-return-statements, # Allow too many return statements
+    too-many-locals, # Allow too many locals
+    too-few-public-methods, # Allow too few public methods
+    too-many-positional-arguments, # Allow too many positional arguments
+    too-many-instance-attributes, # Allow too many instance attributes
+    # TODO: Need to enable this rule in the future
+    line-too-long, # Allow long lines
+    broad-exception-caught, # Allow broad exceptions
+    broad-exception-raised, # Allow broad exceptions
+    R0801,  # Allow duplicate code
+    fixme,  # Allow fixme comments
+    relative-beyond-top-level,  # Allow relative imports
+    unnecessary-lambda,  # Allow unnecessary lambda
+    import-error,  # Allow import errors
+    no-name-in-module,  # Allow no name in module
+    

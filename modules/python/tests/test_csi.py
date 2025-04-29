@@ -16,7 +16,7 @@ from kubernetes.client.models import (
     V1ResourceRequirements
 )
 
-with patch("clusterloader2.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
+with patch("clients.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
     # Mock the load_kube_config function to do nothing
     mock_load_kube_config.return_value = None
 
@@ -40,7 +40,7 @@ class TestCSI(unittest.TestCase):
             self.assertEqual(p90, expected_percentiles[disk_number][1])
             self.assertEqual(p99, expected_percentiles[disk_number][2])
             self.assertEqual(p100, expected_percentiles[disk_number][3])
-    
+
     @patch("builtins.open", new_callable=mock_open)
     @patch("csi.csi.datetime")
     def test_log_duration_success(self, mock_datetime, mock_open_file):
@@ -58,14 +58,14 @@ class TestCSI(unittest.TestCase):
         log_duration(description, mock_start_time, log_file)
 
         # Verify file write
-        mock_open_file.assert_called_once_with(log_file, "a")
+        mock_open_file.assert_called_once_with(log_file, "a", encoding='utf-8')
         mock_open_file().write.assert_called_once_with(f"{description}: {duration}\n")
 
         # Verify print output
         with patch("builtins.print") as mock_print:
             log_duration(description, mock_start_time, log_file)
             mock_print.assert_called_with(f"{description}: {duration}s")
-    
+
     def test_log_duration_failure(self):
         # Test that an exception is raised when the description contains ":"
         start_time = datetime.now()
@@ -111,12 +111,12 @@ class TestCSI(unittest.TestCase):
         self.assertEqual(result, 5)
         self.assertEqual(check_function.call_count, 3)
 
-    @patch("clusterloader2.kubernetes_client.KubernetesClient.get_app_client")
+    @patch("clients.kubernetes_client.KubernetesClient.get_app_client")
     def test_create_statefulset_success(self, mock_get_app_client):
         namespace = "test"
         replicas = 10
         storage_class = "default"
-        stateful_set = V1StatefulSet(
+        expected_statefulset = V1StatefulSet(
             api_version="apps/v1",
             kind="StatefulSet",
             metadata=V1ObjectMeta(name="statefulset-local"),
@@ -164,15 +164,15 @@ class TestCSI(unittest.TestCase):
 
         mock_app_client = MagicMock()
         mock_get_app_client.return_value = mock_app_client
-        mock_app_client.create_namespaced_stateful_set.return_value = stateful_set
+        mock_app_client.create_namespaced_stateful_set.return_value = expected_statefulset
 
-        ss = create_statefulset(namespace, replicas, storage_class)
+        actual_statefulset = create_statefulset(namespace, replicas, storage_class)
 
         mock_get_app_client.assert_called_once()
         mock_app_client.create_namespaced_stateful_set.assert_called_once_with(
-            namespace, stateful_set
+            namespace, expected_statefulset
         )
-        self.assertEqual(ss, stateful_set)
+        self.assertEqual(actual_statefulset, expected_statefulset)
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.makedirs")
@@ -226,7 +226,7 @@ PV detachment p100: 412
 
         mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
 
-        mock_open_file.assert_any_call(raw_result_file, "r")
+        mock_open_file.assert_any_call(raw_result_file, 'r', encoding='utf-8')
         mock_open_file().read.assert_called_once()
 
         expected_metrics = {
@@ -244,7 +244,7 @@ PV detachment p100: 412
             "PV_detachment_p100": "412",
         }
 
-        mock_open_file.assert_any_call(result_file, "w")
+        mock_open_file.assert_any_call(result_file, 'w', encoding='utf-8')
         written_content = mock_open_file().write.call_args[0][0]
         written_json = json.loads(written_content)
 
@@ -260,7 +260,7 @@ PV detachment p100: 412
             "run_url": run_url,
         }
 
-        self.maxDiff = None
+        self.maxDiff = None # pylint: disable=invalid-name
         self.assertEqual(written_json, expected_content)
 
 if __name__ == '__main__':

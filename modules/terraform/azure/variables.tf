@@ -3,12 +3,14 @@ variable "json_input" {
   type = object({
     run_id                 = string
     region                 = string
+    user_data_path         = optional(string, null)
     aks_sku_tier           = optional(string, null)
     aks_kubernetes_version = optional(string, null)
     aks_network_policy     = optional(string, null)
     aks_network_dataplane  = optional(string, null)
     aks_custom_headers     = optional(list(string), [])
     k8s_machine_type       = optional(string, null)
+    k8s_os_disk_type       = optional(string, null)
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -21,6 +23,10 @@ variable "json_input" {
         node_count  = number
         vm_size     = string
         vm_set_type = string
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
       }))
     )
   })
@@ -114,8 +120,8 @@ variable "network_config_list" {
     }))
     nat_gateway_associations = optional(list(object({
       nat_gateway_name = string
-      public_ip_name   = string
-      subnet_name      = string
+      public_ip_names  = list(string)
+      subnet_names     = list(string)
     })))
   }))
   default = []
@@ -149,6 +155,7 @@ variable "aks_config_list" {
       vm_size                      = string
       os_sku                       = optional(string)
       os_disk_type                 = optional(string)
+      os_disk_size_gb              = optional(number, null)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
@@ -164,6 +171,7 @@ variable "aks_config_list" {
       vm_size              = string
       os_sku               = optional(string)
       os_disk_type         = optional(string)
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])
@@ -207,6 +215,7 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
+    managed_identity_name         = optional(string, null)
     subnet_name                   = optional(string, null)
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
@@ -224,11 +233,24 @@ variable "aks_cli_config_list" {
         node_count  = number
         vm_size     = string
         vm_set_type = optional(string, "VirtualMachineScaleSets")
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
     })), [])
     optional_parameters = optional(list(object({
       name  = string
       value = string
     })), [])
+  }))
+  default = []
+}
+
+variable "aks_arm_deployment_config_list" {
+  description = "AKS ARM deployment configuration"
+  type = list(object({
+    name            = string
+    parameters_path = string
   }))
   default = []
 }

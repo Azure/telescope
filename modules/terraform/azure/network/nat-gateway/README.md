@@ -19,15 +19,15 @@ This module provisions a NAT gateway in Azure. It allows you to create and confi
 - **Description:** Name of the NAT gateway.
 - **Type:** String
 
-### `subnet_id`
+### `subnet_names`
 
-- **Description:** ID of the subnet where the NAT gateway will be deployed.
-- **Type:** String
+- **Description:** List of Names of the subnets where the NAT gateway will be deployed.
+- **Type:** list of strings
 
-### `public_ip_address_id`
+### `public_ip_names`
 
-- **Description:** ID of the public IP address associated with the NAT gateway.
-- **Type:** String
+- **Description:** List of public IP addresses that are associated with the NAT gateway.
+- **Type:** list of strings
 
 ### `tags`
 
@@ -42,8 +42,8 @@ module "nat_gateway" {
   resource_group_name      = "my-rg"
   location                 = "eastus"
   nat_gateway_name         = "my-nat-gateway"
-  subnet_id                = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/my-subnet"
-  public_ip_address_id     = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg/providers/Microsoft.Network/publicIPAddresses/my-public-ip"
+  subnet_names             = ["my-subnet"]
+  public_ip_names          = ["my-public-ip"]
 
   tags = {
     environment = "production"

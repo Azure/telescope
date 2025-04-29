@@ -1,8 +1,10 @@
 locals {
   region           = lookup(var.json_input, "region", "us-east-1")
   run_id           = lookup(var.json_input, "run_id", "123456")
+  user_data_path   = lookup(var.json_input, "user_data_path", "")
   creation_time    = var.json_input["creation_time"]
   k8s_machine_type = lookup(var.json_input, "k8s_machine_type", null)
+  ena_express      = lookup(var.json_input, "ena_express", null)
 
   non_computed_tags = {
     # Note: Define only non computed values (i.e. values that do not change for each resource). This is required due to a limitation at "aws" provider default_tags.
@@ -55,5 +57,7 @@ module "eks" {
   eks_config       = each.value
   tags             = local.tags
   k8s_machine_type = local.k8s_machine_type
+  ena_express      = local.ena_express
+  user_data_path   = local.user_data_path
   depends_on       = [module.virtual_network]
 }

@@ -37,18 +37,42 @@ locals {
     ])
   )
 
-  subnet_id_paramter = (var.subnet_id == null ?
+  subnet_id_parameter = (var.subnet_id == null ?
     "" :
     format(
       "%s %s",
       "--vnet-subnet-id", var.subnet_id,
     )
   )
+
+  managed_identity_parameter = (var.aks_cli_config.managed_identity_name == null ?
+    "--enable-managed-identity" :
+    format(
+      "%s %s",
+      "--assign-identity", azurerm_user_assigned_identity.userassignedidentity[0].id,
+    )
+  )
 }
 
-resource "terraform_data" "aks_cli_preview" {
+resource "azurerm_user_assigned_identity" "userassignedidentity" {
+  count               = var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  location            = var.location
+  name                = var.aks_cli_config.managed_identity_name
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
+resource "azurerm_role_assignment" "network_contributor" {
+  count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  role_definition_name = "Network Contributor"
+  scope                = var.subnet_id
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
+
+resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 
+  # Todo - Update aks-preview extension for newer features
   provisioner "local-exec" {
     command = join(" ", [
       "az",
@@ -56,6 +80,8 @@ resource "terraform_data" "aks_cli_preview" {
       "add",
       "-n",
       "aks-preview",
+      "--version",
+      "14.0.0b2",
     ])
   }
 
@@ -73,7 +99,8 @@ resource "terraform_data" "aks_cli_preview" {
 
 resource "terraform_data" "aks_cli" {
   depends_on = [
-    terraform_data.aks_cli_preview
+    terraform_data.enable_aks_cli_preview_extension,
+    azurerm_role_assignment.network_contributor
   ]
 
   input = {
@@ -93,14 +120,14 @@ resource "terraform_data" "aks_cli" {
       "--tags", join(" ", local.tags_list),
       local.aks_custom_headers_flags,
       "--no-ssh-key",
-      "--enable-managed-identity",
       local.kubernetes_version,
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
       local.optional_parameters,
-      local.subnet_id_paramter,
+      local.subnet_id_parameter,
+      local.managed_identity_parameter,
     ])
   }
 
@@ -136,6 +163,13 @@ resource "terraform_data" "aks_nodepool_cli" {
       "--node-count", each.value.node_count,
       "--node-vm-size", each.value.vm_size,
       "--vm-set-type", each.value.vm_set_type,
+      local.aks_custom_headers_flags,
+      length(each.value.optional_parameters) == 0 ?
+      "" :
+      join(" ", [
+        for param in each.value.optional_parameters :
+        format("--%s %s", param.name, param.value)
+      ]),
     ])
   }
 }

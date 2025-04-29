@@ -33,11 +33,3 @@ steps:
   parameters:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
-
-# TODO: Remove after migration
-- template: /steps/cloud/azure/upload-storage-account.yml
-  parameters:
-    storage_account_name: $(AZURE_STORAGE_ACCOUNT_NAME)
-    credential_type: ${{ parameters.credential_type }}
-    cloud: ${{ parameters.cloud }}
-    subfolder: $(SCENARIO_NAME)/$(SCENARIO_VERSION)

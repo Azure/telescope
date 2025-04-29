@@ -3,14 +3,16 @@ parameters:
     type: number
   - name: operation_timeout_in_minutes
     type: number
-    default: 10
+    default: 20
 
 steps:
   - script: |
       set -eo pipefail
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate $DESIRED_NODES $VALIDATION_TIMEOUT
-    workingDirectory: modules/python/clusterloader2
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
+      --node_count $DESIRED_NODES \
+      --operation_timeout_in_minutes $VALIDATION_TIMEOUT
+    workingDirectory: modules/python
     timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
     displayName: "Validate node count"
     env:

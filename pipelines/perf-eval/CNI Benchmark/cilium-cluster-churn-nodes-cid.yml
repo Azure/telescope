@@ -1,0 +1,45 @@
+trigger: none
+
+schedules:
+  - cron: "0 */12 * * *"
+    displayName: "Every 12 Hour"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cilium-cluster-churn-cid
+  OWNER: aks
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cilium-usercluster-autoscale
+          matrix:
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 100
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "30m"
+              cilium_enabled: True
+              network_policy: cilium
+              network_dataplane: cilium
+              cl2_config_file: cluster-scale-config.yaml
+              service_test: False
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

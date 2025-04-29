@@ -36,6 +36,12 @@ variable "k8s_machine_type" {
   default     = null
 }
 
+variable "k8s_os_disk_type" {
+  description = "Value to replace AKS nodes os_disk_type"
+  type        = string
+  default     = null
+}
+
 variable "network_policy" {
   description = "Value to replace the AKS network_policy. If network_policy is 'azure' or 'cilium', network_dataplane must match or be null."
   type        = string
@@ -72,6 +78,7 @@ variable "aks_config" {
       vm_size                      = string
       os_sku                       = optional(string, "Ubuntu")
       os_disk_type                 = optional(string, "Managed")
+      os_disk_size_gb              = optional(number, null)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number, null)
@@ -87,6 +94,7 @@ variable "aks_config" {
       vm_size              = string
       os_sku               = optional(string, "Ubuntu")
       os_disk_type         = optional(string, "Managed")
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number, null)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])

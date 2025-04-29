@@ -13,16 +13,27 @@ steps:
   parameters:
     region: ${{ parameters.region }}
 - script: |
+    echo "Collecting results -- "
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CPU_PER_NODE $NODE_COUNT ${MAX_PODS:-0} \
-      $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} $TEST_RESULTS_FILE \
-      $TEST_TYPE
-  workingDirectory: modules/python/clusterloader2
+      --node_count $NODE_COUNT \
+      --job_throughput $JOB_THROUGHPUT \
+      --job_count $JOB_COUNT \
+      --cl2_report_dir $CL2_REPORT_DIR \
+      --cloud_info "$CLOUD_INFO" \
+      --run_id $RUN_ID \
+      --run_url $RUN_URL \
+      --service_test $SERVICE_TEST \
+      --cnp_test ${CNP_TEST:-False} \
+      --ccnp_test ${CCNP_TEST:-False} \
+      --result_file $TEST_RESULTS_FILE \
+      --test_type $TEST_TYPE \
+      --workload_type $WORKLOAD_TYPE \
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/default/cli.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/default/results
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduler/results
   displayName: "Collect Results"

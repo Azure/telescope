@@ -3,7 +3,6 @@
 # Default configuration: https://yamllint.readthedocs.io/en/stable/configuration.html#default-configuration
 
 extends: default
-
 rules:
   document-start: disable
   document-end: disable
@@ -20,3 +19,4 @@ rules:
 ignore: |
   modules/python/clusterloader2/**/*.yaml
   modules/python/clusterloader2/**/*.yml
+  scenarios/perf-eval/job-scheduler/**/*.yaml

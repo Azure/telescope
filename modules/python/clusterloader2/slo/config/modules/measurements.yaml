@@ -12,6 +12,7 @@
 
 # Probe measurements shared parameter
 {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT := DefaultParam .CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT "15m"}}
+{{$ENABLE_TERMINATED_WATCHES_MEASUREMENT := DefaultParam .CL2_ENABLE_TERMINATED_WATCHES_MEASUREMENT true}}
 
 steps:
   - name: {{$action}} Additional Measurements
@@ -45,6 +46,20 @@ steps:
           replicasPerProbe: {{AddInt 2 (DivideInt .Nodes 100)}}
           pingSleepDuration: {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION}}
           threshold: {{$NETWORK_LATENCY_THRESHOLD}}
+    {{end}}
+    {{if $ENABLE_TERMINATED_WATCHES_MEASUREMENT}}
+      - Identifier: TerminatedWatchesMetrics
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Terminated Watches
+          metricVersion: v1
+          unit: count
+          dimensions:
+          - resource
+          queries:
+          - name: Terminated watches
+            query: sum(increase(apiserver_terminated_watchers_total[%v:])) by (resource)
     {{end}}
       - Identifier: ApiserverAvgCPUUsage
         Method: GenericPrometheusQuery
@@ -80,7 +95,7 @@ steps:
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Max Memory Usage
+          metricName: Apiserver Avg Memory Usage
           metricVersion: v1
           unit: MB
           enableViolations: true

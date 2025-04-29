@@ -19,6 +19,7 @@ steps:
       az config set defaults.location="$REGION"
       az account show
     displayName: "Azure Login"
+    condition: always()
     env:
       AZURE_MI_ID: $(AZURE_MI_CLIENT_ID)
       AZURE_MI_SUBSCRIPTION_ID: ${{ parameters.subscription }}
@@ -36,6 +37,7 @@ steps:
         echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
       addSpnToEnvironment: true
     displayName: 'Get login credentials'
+    condition: always()
   - bash: |
       set -eu
 
@@ -45,6 +47,7 @@ steps:
       az config set defaults.location="$REGION"
       az account show
     displayName: "Azure Login"
+    condition: always()
     env:
       AZURE_SP_SUBSCRIPTION_ID: ${{ parameters.subscription }}
       REGION: ${{ parameters.region }}

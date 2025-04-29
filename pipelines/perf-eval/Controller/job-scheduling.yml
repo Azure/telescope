@@ -1,32 +1,66 @@
 trigger: none
-
+schedules:
+  - cron: "30 1 */2 * *" # Every 2 days at 1:30 AM
+    displayName: "1:30 AM every 2 days"
+    branches:
+      include:
+        - main
+        - vitto/kwok-cl2 # to be removed after the PR is merged
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: job-scheduling
+  SCENARIO_NAME: job-scheduler
   SCENARIO_VERSION: main
-
-jobs:
-- template: /jobs/competitive-test.yml
-  parameters:
-    cloud: azure
-    regions:
-      - eastus
-    topology: kwok
-    engine: clusterloader2
-    engine_input:
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-            config_dir: $(Pipeline.Workspace)/s/scenarios/job-scheduling/cl2-config
-            config_file: config.yml
-            report_dir: $(Pipeline.Workspace)/s/scenarios/job-scheduling/results
-    matrix:
-      default:
-        kwok_nodes: 1
-        node_count: 1
-        max_pods: 1
-        repeats: 1
-        operation_timeout: 11m
-        load_type: cpu
-  
-    max_parallel: 1
-    credential_type: service_connection
-  
+          topology: kwok
+          matrix:
+            default:
+              node_count: 2000 # 2k kwok nodes
+              job_throughput: 800 # qps
+              job_count: 20000
+              cilium_enabled: False
+              scale_timeout: "1h"
+              service_test: False
+              workload_type: "job"
+              cl2_config_file: config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: aws_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: kwok
+          matrix:
+            default:
+              node_count: 2000
+              job_throughput: 800
+              job_count: 20000
+              cilium_enabled: False
+              scale_timeout: "1h"
+              service_test: False
+              workload_type: "job"
+              cl2_config_file: config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false

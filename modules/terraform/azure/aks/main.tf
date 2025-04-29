@@ -24,7 +24,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     vm_size                      = coalesce(var.k8s_machine_type, var.aks_config.default_node_pool.vm_size)
     vnet_subnet_id               = try(local.subnets[var.aks_config.default_node_pool.subnet_name], try(var.subnet_id, null))
     os_sku                       = var.aks_config.default_node_pool.os_sku
-    os_disk_type                 = var.aks_config.default_node_pool.os_disk_type
+    os_disk_type                 = coalesce(var.k8s_os_disk_type, var.aks_config.default_node_pool.os_disk_type)
+    os_disk_size_gb              = var.aks_config.default_node_pool.os_disk_size_gb
     only_critical_addons_enabled = var.aks_config.default_node_pool.only_critical_addons_enabled
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
@@ -82,7 +83,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   edge_zone                 = var.aks_config.edge_zone
 }
 
-resource "azurerm_kubernetes_cluster_node_pool" "pools" {
+resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {
   for_each = local.extra_pool_map
 
   name                  = each.value.name
@@ -91,7 +92,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "pools" {
   vm_size               = coalesce(var.k8s_machine_type, each.value.vm_size)
   vnet_subnet_id        = try(local.subnets[each.value.subnet_name], null)
   os_sku                = each.value.os_sku
-  os_disk_type          = each.value.os_disk_type
+  os_disk_type          = coalesce(var.k8s_os_disk_type, each.value.os_disk_type)
+  os_disk_size_gb       = each.value.os_disk_size_gb
   max_pods              = each.value.max_pods
   ultra_ssd_enabled     = try(each.value.ultra_ssd_enabled, false)
   zones                 = try(each.value.zones, [])
@@ -110,7 +112,7 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
-resource "local_file" "kube_config" {
+resource "local_file" "save_kube_config" {
   filename = "/tmp/${azurerm_kubernetes_cluster.aks.fqdn}"
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
 }

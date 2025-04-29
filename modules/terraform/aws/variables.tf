@@ -4,7 +4,9 @@ variable "json_input" {
     run_id           = string
     region           = string
     creation_time    = string
+    user_data_path   = optional(string, "")
     k8s_machine_type = optional(string, null)
+    ena_express      = optional(bool, null)
   })
 
   validation {
@@ -42,6 +44,11 @@ variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
   default     = "2h"
+
+  validation {
+    condition     = timecmp(timeadd(plantimestamp(), var.deletion_delay), timeadd(plantimestamp(), "+72h")) <= 0
+    error_message = "The deletion_delay must not be more than 3 days (72h)"
+  }
 }
 
 variable "network_config_list" {
@@ -112,10 +119,21 @@ variable "eks_config_list" {
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
       subnet_names   = optional(list(string), null)
+      ena_express    = optional(bool, null)
       taints = optional(list(object({
         key    = string
         value  = string
         effect = string
+      })), [])
+      block_device_mappings = optional(list(object({
+        device_name = string
+        ebs = object({
+          delete_on_termination = optional(bool, true)
+          iops                  = optional(number, null)
+          throughput            = optional(number, null)
+          volume_size           = optional(number, null)
+          volume_type           = optional(string, null)
+        })
       })), [])
     }))
     eks_addons = list(object({

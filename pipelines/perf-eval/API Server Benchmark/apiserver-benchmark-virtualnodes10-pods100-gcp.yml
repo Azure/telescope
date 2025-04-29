@@ -3,7 +3,6 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-vn10pod100
-  SCENARIO_VERSION: main
 
 stages:
   - stage: gcp_eastus1
@@ -22,7 +21,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.1.9
+            runner_image: ghcr.io/azure/kperf:0.2.0
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
