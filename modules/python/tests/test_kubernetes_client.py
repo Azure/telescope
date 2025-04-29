@@ -4,7 +4,7 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace
+    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition
 )
 from clients.kubernetes_client import KubernetesClient
 
@@ -64,7 +64,15 @@ class TestKubernetesClient(unittest.TestCase):
     def _create_pod(self, namespace, name, phase, labels=None):
         return V1Pod(
             metadata=V1ObjectMeta(name=name, namespace=namespace, labels=labels),
-            status=V1PodStatus(phase=phase),
+            status=V1PodStatus(
+                phase=phase,
+                conditions=[
+                    V1PodCondition(
+                        type="Ready", 
+                        status="True" if phase == "Running" else "False"
+                    ),
+                ]
+            ),
             spec=V1PodSpec(containers=[])
         )
 
@@ -113,7 +121,7 @@ class TestKubernetesClient(unittest.TestCase):
         mock_delete_namespace.assert_called_once_with(name)
 
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
-    def test_get_running_pods_by_namespace(self, mock_get_pods_by_namespace):
+    def test_get_ready_pods_by_namespace(self, mock_get_pods_by_namespace):
         namespace = "test-namespace"
         running_pods = 10
         pending_pods = 5
@@ -129,11 +137,13 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(len(mock_get_pods_by_namespace.return_value), running_pods + pending_pods)
 
         expected_pods = [pod for pod in mock_get_pods_by_namespace.return_value if pod.status.phase == "Running"]
-        returned_pods = self.client.get_running_pods_by_namespace(namespace=namespace, label_selector="app=nginx")
+        returned_pods = self.client.get_ready_pods_by_namespace(namespace=namespace, label_selector="app=nginx")
 
         for pod in returned_pods:
             self.assertEqual(pod.metadata.labels, labels)
             self.assertEqual(pod.status.phase, "Running")
+            self.assertEqual(pod.status.conditions[0].type, "Ready")
+            self.assertEqual(pod.status.conditions[0].status, "True")
 
         mock_get_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="app=nginx", field_selector=None)
         self.assertCountEqual(returned_pods, expected_pods)
