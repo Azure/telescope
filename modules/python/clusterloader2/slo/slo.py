@@ -73,7 +73,7 @@ def configure_clusterloader2(
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
-        file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n") #TODO: itia: check if its passed right
+        file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_NODES: {node_count}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
@@ -119,7 +119,6 @@ def configure_clusterloader2(
             file.write("CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE: false\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY: net-pol-test\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE: enforcement-latency\n")
-            #file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY: test\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE: net-policy-client\n")
             file.write("CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS: 100\n")
             file.write(f"CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT: {total_network_policies}\n")

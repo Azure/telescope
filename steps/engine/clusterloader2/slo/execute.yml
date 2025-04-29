@@ -7,15 +7,6 @@ parameters:
     default: {}
   - name: region
     type: string
-  - name: no_of_namespaces
-    type: number
-    default: 1
-  - name: total_network_policies
-    type: number
-    default: 0
-  - name: network_test
-    type: boolean
-    default: false
 
 steps:
   - script: |
@@ -31,7 +22,7 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP ${MAX_PODS:-0} \
         $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED ${SCRAPE_CONTAINERD:-False} \
-        $SERVICE_TEST $NETWORK_TEST $NO_OF_NAMESPACES $TOTAL_NETWORK_POLICIES \
+        $SERVICE_TEST ${NETWORK_TEST:-False} ${NO_OF_NAMESPACES:-1} ${TOTAL_NETWORK_POLICIES:-0} \
         ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
@@ -47,8 +38,4 @@ steps:
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
-      CL2_CONFIG_FILE: load-config.yaml
-      NO_OF_NAMESPACES: ${{ parameters.no_of_namespaces }}
-      TOTAL_NETWORK_POLICIES: ${{ parameters.total_network_policies }}
-      NETWORK_TEST: ${{ parameters.network_test }} #TODO: itia: Remove these 3 param and use default ${NETWORK_TEST:-False} ${NO_OF_NAMESPACES:-1} ${TOTAL_NETWORK_POLICIES:-0}
     displayName: "Run Benchmark"
