@@ -65,6 +65,7 @@ def configure_clusterloader2(
     fortio_client_connections,
     fortio_namespaces,
     fortio_deployments_per_namespace,
+    generate_retina_network_flow_logs,
     override_file):
 
     # steps = node_count // node_per_step
@@ -99,6 +100,7 @@ def configure_clusterloader2(
         file.write(f"CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {fortio_deployments_per_namespace}\n")
         file.write("CL2_FORTIO_POD_CPU: 10m\n")
         file.write("CL2_FORTIO_POD_MEMORY: 50Mi\n")
+        file.write(f"CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS: {generate_retina_network_flow_logs}\n")
 
         # if scrape_containerd:
         #     file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
@@ -182,6 +184,7 @@ def collect_clusterloader2(
     fortio_client_connections,
     fortio_namespaces,
     fortio_deployments_per_namespace,
+    generate_retina_network_flow_logs=False,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -193,22 +196,27 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
-    pod_count = node_count * pods_per_node
+    # _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
+    # pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         # "cpu_per_node": cpu_per_node,
         # "node_count": node_count,
-        "pod_count": pod_count,
+        # "pod_count": pod_count,
         # "churn_rate": repeats,
         "status": status,
         "group": None,
         "measurement": None,
         "result": None,
         "observability_tool": observability_tool,
-        "test_details": details,
+        "test_details": {
+            # add more details here about tests (e.g. features tested)
+            "traffic_generator": "fortio",
+            "traffic_pods": fortio_namespaces * fortio_deployments_per_namespace * (fortio_clients_per_deployment + fortio_servers_per_deployment),
+            "generate_retina_network_flow_logs": generate_retina_network_flow_logs,
+        },
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
@@ -289,6 +297,7 @@ def main():
     parser_configure.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_configure.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_configure.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
+    parser_configure.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
     parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -334,6 +343,7 @@ def main():
     parser_collect.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_collect.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_collect.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
+    parser_collect.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
 
     args = parser.parse_args()
 
@@ -348,6 +358,7 @@ def main():
                                  args.fortio_client_connections,
                                  args.fortio_namespaces,
                                  args.fortio_deployments_per_namespace,
+                                 args.generate_retina_network_flow_logs,
                                  args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
@@ -366,6 +377,7 @@ def main():
                                args.fortio_client_connections,
                                args.fortio_namespaces,
                                args.fortio_deployments_per_namespace,
+                               args.generate_retina_network_flow_logs,
                                )
 
 if __name__ == "__main__":

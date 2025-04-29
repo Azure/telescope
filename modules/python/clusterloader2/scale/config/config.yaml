@@ -18,6 +18,9 @@ name: scale-test
 {{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
 {{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 
+# Retina Network Flow Log config
+{{$generateRetinaNetworkFlowLogs := DefaultParam .CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS false}}
+
 
 namespace:
   number: {{$namespaces}}
@@ -70,6 +73,12 @@ steps:
         action: start
         group: {{$groupName}}
 
+  - module:
+      path: /modules/node-disk-measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
   # deployment creation
   # - module:
   #     path: /modules/kapinger.yaml
@@ -78,6 +87,7 @@ steps:
   #       tuningSet: DeploymentCreateQps
   #       deployments: {{$deploymentsPerNamespace}}
   #       podReplicas: {{$replicasPerNamespace}}
+  #
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -92,6 +102,7 @@ steps:
         fortioClientReplicas: {{$fortioClientReplicas}}
         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
         fortioClientConnections: {{$fortioClientConnections}}
+        generateRetinaNetworkFlowLogs: {{$generateRetinaNetworkFlowLogs}}
         deploymentLabel: start
 
   # FIXME: is this needed?
@@ -112,3 +123,10 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
+
+  - module:
+      path: /modules/node-disk-measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
+

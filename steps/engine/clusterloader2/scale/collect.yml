@@ -37,6 +37,7 @@ steps:
     --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
     --fortio-namespaces $FORTIO_NAMESPACES \
     --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+    --generate-retina-network-flow-logs ${GENERATE_RETINA_NETWORK_FLOW_LOGS:-False} \
     # --test_type ${TEST_TYPE:-False} \
   workingDirectory: modules/python/clusterloader2
   env:

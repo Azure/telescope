@@ -13,8 +13,24 @@
 {{$fortioClientConnections := .fortioClientConnections}}
 {{$CpuRequest := .CpuRequest}}
 {{$MemoryRequest := .MemoryRequest}}
+{{$generateRetinaNetworkFlowLogs := .generateRetinaNetworkFlowLogs}}
 
 steps:
+{{if $generateRetinaNetworkFlowLogs}}
+- name: Create Retina Network Flow Log
+  phases:
+  - namespaceList:
+    - ""
+    replicasPerNamespace: 1
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: retina-network-flow-log
+      objectTemplatePath: modules/pfl/retinanetworkflowlog.yaml
+      templateFillMap:
+        Group: {{.Group}}
+        namespaces: {{$namespaces}}
+{{end}}
+
 - name: Starting measurement for '{{$actionName}}'
   measurements:
   - Method: WaitForControlledPodsRunning
@@ -68,6 +84,21 @@ steps:
       action: gather
       refreshInterval: 15s
 
+- name: Starting measurement for '{{$actionName}}'
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      checkIfPodsAreUpdated: true
+      labelSelector: group = {{.Group}}
+      operationTimeout: {{$operationTimeout}}
+      apiVersion: apps/v1
+
 # Create clients after the servers have been created because we want all servers to be backend pods for their service
 - name: '{{$actionName}} clients'
   phases:
@@ -96,3 +127,11 @@ steps:
     Params:
       action: gather
       refreshInterval: 15s
+
+- name: Wait to get metrics
+  measurements:
+  - Identifier: Dummy
+    Method: Sleep
+    Params:
+      action: start
+      duration: 10m

@@ -27,6 +27,8 @@ spec:
       maxSurge: 20%
   template:
     metadata:
+      annotations:
+        retina.sh: observe
       labels:
         name: {{.Name}}
         group: {{.Group}}
