@@ -1,5 +1,5 @@
 parameters:
-  - name: pod_count
+  - name: replica_count
     type: string
   - name: desired_nodes
     type: string
@@ -13,7 +13,7 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
           $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-          $YAML_PATH $POD_COUNT $VALIDATION_TIMEOUT_IN_MINUTES
+          $YAML_PATH $REPLICA_COUNT $VALIDATION_TIMEOUT_IN_MINUTES
     workingDirectory: modules/python
     timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
     displayName: "Validate nodes and apply kubernetes setup"
@@ -22,4 +22,4 @@ steps:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.operation_timeout_in_minutes }}
       YAML_PATH: $(Pipeline.Workspace)/s/modules/python/fio/yaml/fio.yaml
-      POD_COUNT: ${{ parameters.pod_count }}
+      REPLICA_COUNT: ${{ parameters.replica_count }}

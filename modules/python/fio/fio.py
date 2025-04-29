@@ -78,7 +78,7 @@ def execute(block_size, iodepth, method, runtime, result_dir):
     logger.info(f"Metadata saved to {metadata_path}:\n{metadata}")
 
 
-def collect(case_name, vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info):
+def collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info):
     raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
     with open(raw_result_path, "r") as f:
         raw_result = json.load(f)
@@ -91,7 +91,6 @@ def collect(case_name, vm_size, block_size, iodepth, method, result_dir, run_url
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'vm_size': vm_size,
         'cloud_info': cloud_info,
-        'case_name': case_name,
         'read_iops_avg': job_results['read']['iops_mean'],
         'read_bw_avg': job_results['read']['bw_mean'],
         'read_lat_avg': job_results['read']['clat_ns']['mean'],
@@ -138,7 +137,6 @@ def main():
 
     # Sub-command for collect_attach_detach
     parser_collect = subparsers.add_parser("collect", help="Collect attach detach test results")
-    parser_collect.add_argument("case_name", type=str, help="Case name")
     parser_collect.add_argument("vm_size", type=str, help="VM size")
     parser_collect.add_argument("block_size", type=str, help="Block size")
     parser_collect.add_argument("iodepth", type=int, help="IO depth")
@@ -155,7 +153,7 @@ def main():
     elif args.command == "execute":
         execute(args.block_size, args.iodepth, args.method, args.runtime, args.result_dir)
     elif args.command == "collect":
-        collect(args.case_name, args.vm_size, args.block_size, args.iodepth, args.method,
+        collect(args.vm_size, args.block_size, args.iodepth, args.method,
                 args.result_dir, args.run_url, args.cloud_info)
 
 if __name__ == "__main__":

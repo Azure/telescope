@@ -3,22 +3,21 @@ parameters:
 
 steps:
   - ${{ each property in parameters.fio_properties }}:
-      - script: |
-          set -eo pipefail
+    - script: |
+        set -eo pipefail
 
-          fio_params=(${FIO_PROPERTY//|/ })
-          block_size=${fio_params[0]}
-          iodepth=${fio_params[1]}
-          method=${fio_params[2]}
+        fio_params=(${FIO_PROPERTY//|/ })
+        block_size=${fio_params[0]}
+        iodepth=${fio_params[1]}
+        method=${fio_params[2]}
 
-          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-            $CASE_NAME $VM_SIZE $block_size $iodepth $method \
-            $RESULT_DIR $RUN_URL $CLOUD_INFO
-        workingDirectory: modules/python
-        timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
-        displayName: "Collect fio ${{ property }}"
-        env:
-          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
-          RESULT_DIR: $(TEST_RESULTS_DIR)
-          RUN_URL: $(RUN_URL)
-          FIO_PROPERTY: ${{ property }}
+        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+          $VM_SIZE $block_size $iodepth $method \
+          $RESULT_DIR $RUN_URL $CLOUD_INFO
+      workingDirectory: modules/python
+      displayName: "Collect fio ${{ property }}"
+      env:
+        PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
+        RESULT_DIR: $(TEST_RESULTS_DIR)
+        RUN_URL: $(RUN_URL)
+        FIO_PROPERTY: ${{ property }}

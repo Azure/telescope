@@ -15,4 +15,4 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/fio/collect.yml
     parameters:
-      fio_properties: ${{ parameters.engine_input.fio_properties }}
+      fio_properties: ${{ parameters.engine_input.fio_command_array }}

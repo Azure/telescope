@@ -12,4 +12,4 @@ parameters:
 steps:
   - template: /steps/engine/fio/execute.yml
     parameters:
-      fio_properties: ${{ parameters.engine_input.fio_properties }}
+      fio_properties: ${{ parameters.engine_input.fio_command_array }}
