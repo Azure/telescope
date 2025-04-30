@@ -216,6 +216,7 @@ def collect_clusterloader2(
             "traffic_generator": "fortio",
             "traffic_pods": fortio_namespaces * fortio_deployments_per_namespace * (fortio_clients_per_deployment + fortio_servers_per_deployment),
             "generate_retina_network_flow_logs": generate_retina_network_flow_logs,
+            "requests_per_second": fortio_client_queries_per_second,
         },
         "cloud_info": cloud_info,
         "run_id": run_id,
