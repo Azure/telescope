@@ -1,11 +1,11 @@
 trigger: none
 schedules:
-- cron: "0 */4 * * *"
-  displayName: "Every 4 Hours Daily"
-  branches:
-    include:
-      - itia/network-churn
-  always: true
+  - cron: "0 */6 * * *"
+    displayName: "Every 6 Hours Daily"
+    branches:
+      include:
+        - itia/network-churn
+    always: true
 
 parameters:
   - name: node_count
