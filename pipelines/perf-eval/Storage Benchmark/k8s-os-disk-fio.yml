@@ -18,7 +18,7 @@ variables:
   SCENARIO_NAME: k8s-os-disk
 
 stages:
-  - stage: azure_eastus2_managed
+  - stage: azure_westus3_managed
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], 'Every Even Day at 10 AM'),
@@ -53,7 +53,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_ephemeral
+  - stage: azure_westus3_ephemeral
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], 'Every Even Day at 10 AM'),
@@ -65,9 +65,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus3
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/k8s-os-disk/terraform-inputs/azure-ephemeral.tfvars"
+            - westus3: "scenarios/perf-eval/k8s-os-disk/terraform-inputs/azure-ephemeral.tfvars"
           topology: k8s-os-disk
           engine: fio
           engine_input:
@@ -90,7 +90,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: aws_eastus2
+  - stage: aws_westus2
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], 'Every Week on Monday at 10 AM'),
@@ -102,7 +102,7 @@ stages:
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            - us-west-2
           topology: k8s-os-disk
           engine: fio
           engine_input:
