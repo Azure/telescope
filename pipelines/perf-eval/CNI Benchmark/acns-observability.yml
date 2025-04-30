@@ -36,9 +36,9 @@ parameters:
   default: acns-azurecni-overlay
   values:
   - acns-azurecni-overlay
-  - acns-cilium
+  - acns-azurecni-overlay-cilium
   - non-acns-azurecni-overlay
-  - non-acns-cilium
+  - non-acns-azurecni-overlay-cilium
 - name: observability_tool
   displayName: Observability tool to be installed [only used on non-acns scenarios]
   type: string
