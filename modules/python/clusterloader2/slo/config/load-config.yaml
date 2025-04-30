@@ -28,6 +28,7 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+{{$SCRAPE_KUBELETS := DefaultParam .CL2_SCRAPE_KUBELETS false}}
 {{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
 # Service test
@@ -102,6 +103,13 @@ steps:
         path: /modules/network-policy/net-policy-metrics.yaml
         params:
           action: start
+
+{{if $SCRAPE_KUBELETS}}
+  - module:
+         path: /modules/npm-measurements.yaml
+         params:
+           action: start
+{{end}}
 {{end}}
 
 {{if $SCRAPE_CONTAINERD}}
@@ -295,6 +303,13 @@ steps:
       path: modules/network-policy/net-policy-metrics.yaml
       params:
         action: gather
+
+{{if $SCRAPE_KUBELETS}}
+  - module:
+      path: /modules/npm-measurements.yaml
+      params:
+        action: gather
+{{end}}}
 
   - module:
       path: modules/network-policy/net-policy-enforcement-latency.yaml

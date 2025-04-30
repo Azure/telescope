@@ -55,6 +55,7 @@ def configure_clusterloader2(
     operation_timeout,
     provider,
     cilium_enabled,
+    scrape_kubelets,
     scrape_containerd,
     service_test,
     network_test,
@@ -93,6 +94,9 @@ def configure_clusterloader2(
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
+
+        if scrape_kubelets:
+            file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -164,11 +168,12 @@ def execute_clusterloader2(
     cl2_config_file,
     kubeconfig,
     provider,
+    scrape_kubelets,
     scrape_containerd
 ):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
-                    scrape_containerd=scrape_containerd)
+                    scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
 def collect_clusterloader2(
     cpu_per_node,
@@ -267,6 +272,8 @@ def main():
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=str2bool, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
+    parser_configure.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
+                                  help="Whether to scrape kubelet metrics. Must be either True or False")
     parser_configure.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
     parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
@@ -298,6 +305,8 @@ def main():
     parser_execute.add_argument("cl2_config_file", type=str, help="Path to the CL2 config file")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
+    parser_execute.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
+                                help="Whether to scrape kubelet metrics. Must be either True or False")
     parser_execute.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape containerd metrics. Must be either True or False")
 
@@ -329,14 +338,14 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider,
-                                 args.cilium_enabled, args.scrape_containerd,
+                                 args.cilium_enabled, args.scrape_kubelets, args.scrape_containerd,
                                  args.service_test, args.network_test, args.no_of_namespaces, args.total_network_policies,
                                  args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
-                               args.kubeconfig, args.provider, args.scrape_containerd)
+                               args.kubeconfig, args.provider, args.scrape_kubelets, args.scrape_containerd)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
