@@ -100,5 +100,5 @@ steps:
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
   displayName: "SetupAKSMTClusterPING"
-  condition: and(eq(variables['SWIFTV2PING'], ne(variables['run_id'], ''))
+  condition: and(eq(variables['SWIFTV2PING'], 'true'), ne(variables['run_id'], ''))
   name: SetupAKSMTClusterPING
