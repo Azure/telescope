@@ -309,7 +309,7 @@ steps:
       path: /modules/npm-measurements.yaml
       params:
         action: gather
-{{end}}}
+{{end}}
 
   - module:
       path: modules/network-policy/net-policy-enforcement-latency.yaml
