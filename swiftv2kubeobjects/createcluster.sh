@@ -32,7 +32,7 @@ az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=2032-1
 # az network nat gateway create -n nat -g ${RG} -l ${LOCATION} --public-ip-addresses ${ips}
 
 NAT_GW_NAME=$CLUSTER-ng
-az network public-ip create -g $RG -n $CLUSTER-ip -l $LOCATION --sku standard
+az network public-ip create -g $RG -n $CLUSTER-ip --allocation-method Static --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' --tier Regional --version IPv4 -l $LOCATION --sku standard
 az network nat gateway create -g $RG -n $NAT_GW_NAME -l $LOCATION --public-ip-addresses $CLUSTER-ip
 
 # create vnetsubnets for overlay
