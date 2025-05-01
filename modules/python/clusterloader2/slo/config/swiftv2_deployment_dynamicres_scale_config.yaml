@@ -164,9 +164,8 @@ steps:
       Params:
         action: gather # start/gather 
         labelSelector: group = {{$groupName}}
-  {{range $j := Loop $steps}}
 
-  - name: Starting measurement for Delete Deployment
+    - name: Starting measurement for Delete Deployment
     measurements:
     - Identifier: WaitForDeletedDeployment-{{$j}}
       Method: WaitForControlledPodsRunning
@@ -177,6 +176,10 @@ steps:
         checkIfPodsAreUpdated: true
         labelSelector: group = {{$groupName}}
         operationTimeout: {{$operationTimeout}}
+  
+  {{range $j := Loop $steps}}
+
+
   - name: Deleting Deployments {{$j}}
     phases:
       - namespaceRange:
@@ -187,15 +190,7 @@ steps:
         objectBundle:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
-  - name: Ending measurement for Delete Deployment
-    measurements:
-    - Identifier: WaitForDeletedDeployment-{{$j}}
-      Method: WaitForControlledPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: Deployment
-        action: gather
-        refreshInterval: 15s
+
   # - name: Waiting for latency pods to be deleted
   #   measurements:
   #     - Identifier: WaitForRunningLatencyDeployments
@@ -204,6 +199,17 @@ steps:
   #         action: gather
   #         refreshInterval: 15s
   {{end}}
+
+    - name: Ending measurement for Delete Deployment
+    measurements:
+    - Identifier: WaitForDeletedDeployment-{{$j}}
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+        action: gather
+        refreshInterval: 15s
+        
 {{end}}
 
   - name: Ending Pod Startup Latency Measurements
