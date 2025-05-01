@@ -47,8 +47,8 @@ aks_config_list = [
       },
       {
         name                 = "userpool3"
-        node_count           = 1
-        min_count            = 1
+        node_count           = 0
+        min_count            = 0
         max_count            = 250
         auto_scaling_enabled = true
         vm_size              = "Standard_D2ds_v4"
