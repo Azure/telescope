@@ -17,14 +17,14 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-          node_count: $(nodecount)
+          node_count: $(NODE_COUNT)
           node_label: $(nodelabel)
           topology: swiftv2-ds-churn
           matrix:
             azure_swiftv2:
               cpu_per_node: 4
-              node_count: $(nodecount)
-              node_per_step: 50
+              node_count: $(NODE_COUNT)
+              node_per_step: $(PODS_PER_STEP)
               max_pods: 1
               repeats: $(LOOPS)
               scale_timeout: "30m"
@@ -32,7 +32,7 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              cl2_config_file: daemonset_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection

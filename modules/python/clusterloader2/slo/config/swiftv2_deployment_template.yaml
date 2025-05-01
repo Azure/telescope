@@ -1,0 +1,63 @@
+{{$CpuRequest := DefaultParam .CpuRequest "5m"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
+{{$cnp_test:= .cnp_test}}
+{{$ccnp_test:= .ccnp_test}}
+
+{{$Image := DefaultParam .Image "mcr.microsoft.com/azurelinux/base/nginx:1.25"}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+    kubernetes.azure.com/pod-network: pn100
+    kubernetes.azure.com/pod-network-instance: {{.pniName}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 20%
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+        kubernetes.azure.com/pod-network: pn100
+        kubernetes.azure.com/pod-network-instance: {{.pniName}}
+        restart: {{.deploymentLabel}}
+    spec:
+      nodeSelector:
+        slo: "true"
+      containers:
+      - image: {{$Image}}
+        imagePullPolicy: IfNotPresent
+        name: {{.Name}}
+        ports:
+        resources:
+          requests:
+            cpu: {{$CpuRequest}}
+            memory: {{$MemoryRequest}}
+            acn.azure.com/vnet-nic: "1"
+          limits:
+            acn.azure.com/vnet-nic: "1"
+      # Add not-ready/unreachable tolerations for 15 minutes so that node
+      # failure doesn't trigger pod deletion.
+      tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "slo"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
