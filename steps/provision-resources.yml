@@ -95,10 +95,10 @@ steps:
 - script: |
     bash swiftv2kubeobjects/createcluster.sh
   displayName: "SetupAKSMTCluster"
-  condition: and(eq(variables['SWIFTV2'], 'true'), ne(variables['run_id'], null))
+  condition: and(eq(variables['SWIFTV2'], 'true'), ne(variables['run_id'], ""))
   name: SetupAKSMTCluster
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
   displayName: "SetupAKSMTClusterPING"
-  condition: and(eq(variables['SWIFTV2PING'], 'true'), ne(variables['run_id'], null))
+  condition: and(eq(variables['SWIFTV2PING'], 'true'), ne(variables['run_id'], ""))
   name: SetupAKSMTClusterPING
