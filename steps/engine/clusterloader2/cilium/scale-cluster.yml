@@ -49,5 +49,5 @@ steps:
   env:
     ROLE: ${{ parameters.role }}
   displayName: "Scale Cluster"
-  condition: or(ne(variables['SWIFTV2PING'], 'false')]), ne(variables['SWIFTV2'], 'false')]))
+  condition: or(ne(variables['SWIFTV2PING'], 'false'), ne(variables['SWIFTV2'], 'false'))
 
