@@ -133,6 +133,7 @@ class KubernetesClient:
     def delete_namespace(self, namespace):
         return self.api.delete_namespace(namespace)
 
+    # TODO: Explore https://kustomize.io for templating
     def create_template(self, template_path: str, replacements: dict) -> str:
         """
         Generate a Kubernetes resource template by replacing placeholders with actual values.
@@ -189,7 +190,6 @@ class KubernetesClient:
         ready_node_count = 0
         timeout = time.time() + (operation_timeout_in_minutes * 60)
         logger.info(f"Validating {node_count} nodes with label {label_selector} are ready.")
-        timeout = time.time() + (operation_timeout_in_minutes * 60)
         while time.time() < timeout:
             ready_nodes = self.get_ready_nodes(label_selector=label_selector)
             ready_node_count = len(ready_nodes)
