@@ -37,4 +37,4 @@ steps:
     parameters:
       cloud: ${{ parameters.cloud }}
       credential_type: ${{ parameters.credential_type }}
-      condition: ${{ ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true') }}
+    condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')

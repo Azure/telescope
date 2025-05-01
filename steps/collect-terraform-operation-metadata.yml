@@ -3,11 +3,8 @@ parameters:
   type: string
 - name: credential_type
   type: string
-- name: condition
-  type: boolean
-  default: true
+
 steps:
-- ${{ if eq(parameters.condition, true) }}:
   - script: |
       set -eo pipefail
 
