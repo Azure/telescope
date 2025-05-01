@@ -10,9 +10,7 @@ metadata:
     group: {{.Group}}
     app: fortio
     role: server
-{{if .SvcName}}
-    svc: {{.SvcName}}-{{.Index}}
-{{end}}
+    svc: {{.Name}}
 spec:
   replicas: {{.Replicas}}
   selector:
@@ -34,9 +32,7 @@ spec:
         group: {{.Group}}
         app: fortio
         role: server
-{{if .SvcName}}
-        svc: {{.SvcName}}-0
-{{end}}
+        svc: {{.Name}}
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
