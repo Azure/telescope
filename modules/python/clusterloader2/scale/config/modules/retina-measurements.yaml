@@ -123,3 +123,63 @@ steps:
           query: quantile(0.90, avg_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+    - Identifier: RetinaContainerFsAvgWrittenBytes
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Average Written Bytes
+        metricVersion: v1
+        unit: bytes
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+    - Identifier: RetinaContainerFsMaxWrittenBytes
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Max Written Bytes
+        metricVersion: v1
+        unit: bytes
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+    - Identifier: RetinaContainerFsAvgWriteLatency
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Average Write Latency
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+    - Identifier: RetinaContainerFsMaxWriteLatency
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Max Write Latency
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))

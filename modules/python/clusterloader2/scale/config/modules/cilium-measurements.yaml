@@ -141,3 +141,63 @@ steps:
           query: count(hubble_dns_queries_total)
         - name: DNSResponses
           query: count(hubble_dns_responses_total)
+    - Identifier: CiliumContainerFsAvgWrittenBytes
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Container FS Average Written Bytes
+        metricVersion: v1
+        unit: bytes
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
+    - Identifier: CiliumContainerFsMaxWrittenBytes
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Container FS Max Written Bytes
+        metricVersion: v1
+        unit: bytes
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
+    - Identifier: CiliumContainerFsAvgWriteLatency
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Container FS Average Write Latency
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
+    - Identifier: CiliumContainerFsMaxWriteLatency
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Container FS Max Write Latency
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
