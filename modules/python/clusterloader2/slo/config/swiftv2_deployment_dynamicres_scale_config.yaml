@@ -167,7 +167,7 @@ steps:
 
     - name: Starting measurement for Delete Deployment
     measurements:
-    - Identifier: WaitForDeletedDeployment-{{$j}}
+    - Identifier: WaitForDeletedDeployment
       Method: WaitForControlledPodsRunning
       Params:
         apiVersion: apps/v1
@@ -202,14 +202,14 @@ steps:
 
     - name: Ending measurement for Delete Deployment
     measurements:
-    - Identifier: WaitForDeletedDeployment-{{$j}}
+    - Identifier: WaitForDeletedDeployment
       Method: WaitForControlledPodsRunning
       Params:
         apiVersion: apps/v1
         kind: Deployment
         action: gather
         refreshInterval: 15s
-        
+
 {{end}}
 
   - name: Ending Pod Startup Latency Measurements
