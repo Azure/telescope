@@ -19,7 +19,7 @@ steps:
     workingDirectory: modules/python/clusterloader2
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
     displayName: "Validate node count"
-    condition: or(ne(variables['SWIFTV2PING], 'false')]), ne(variables['SWIFTV2], 'false')]))
+    condition: or(ne(variables['SWIFTV2PING'], 'false')]), ne(variables['SWIFTV2'], 'false')]))
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       ADDITIONAL_NODES: ${{ parameters.additional_nodes }}
