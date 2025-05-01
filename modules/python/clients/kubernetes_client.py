@@ -8,25 +8,34 @@ from utils.logger_config import get_logger, setup_logging
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
 builtin_taints_keys = [
-	"node.kubernetes.io/not-ready",
-	"node.kubernetes.io/unreachable",
-	"node.kubernetes.io/pid-pressure",
-	"node.kubernetes.io/out-of-disk",
-	"node.kubernetes.io/memory-pressure",
-	"node.kubernetes.io/disk-pressure",
-	"node.kubernetes.io/network-unavailable",
-	"node.kubernetes.io/unschedulable",
-	"node.cloudprovider.kubernetes.io/uninitialized",
-	"node.cloudprovider.kubernetes.io/shutdown",
+    "node.kubernetes.io/not-ready",
+    "node.kubernetes.io/unreachable",
+    "node.kubernetes.io/pid-pressure",
+    "node.kubernetes.io/out-of-disk",
+    "node.kubernetes.io/memory-pressure",
+    "node.kubernetes.io/disk-pressure",
+    "node.kubernetes.io/network-unavailable",
+    "node.kubernetes.io/unschedulable",
+    "node.cloudprovider.kubernetes.io/uninitialized",
+    "node.cloudprovider.kubernetes.io/shutdown",
 ]
 
 # Configure logging
 setup_logging()
 logger = get_logger(__name__)
 
+
 class KubernetesClient:
-    def __init__(self, kubeconfig=None):
-        config.load_kube_config(kubeconfig)
+    def __init__(self, config_file=None):
+        self.config_file = config_file
+        self.config = config.load_kube_config(config_file=config_file)
+        self._setup_clients()
+
+    def _setup_clients(self):
+        """
+        Initialize or reinitialize all Kubernetes API clients.
+        This method is used by both __init__ and set_context to create client instances.
+        """
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
         self.storage = client.StorageV1Api()
@@ -48,21 +57,24 @@ class KubernetesClient:
         - Spec unschedulable is False
         - Spec taints do not have any of the builtin taints keys with effect 'NoSchedule' or 'NoExecute'
         """
-        nodes = self.get_nodes(label_selector=label_selector, field_selector=field_selector)
+        nodes = self.get_nodes(label_selector=label_selector,
+                               field_selector=field_selector)
         return [
             node for node in nodes
             if self._is_node_schedulable(node) and self._is_node_untainted(node)
         ]
 
     def _is_node_schedulable(self, node):
-        status_conditions = {cond.type: cond.status for cond in node.status.conditions}
+        status_conditions = {
+            cond.type: cond.status for cond in node.status.conditions}
         is_schedulable = (
             status_conditions.get("Ready") == "True"
             and status_conditions.get("NetworkUnavailable") != "True"
             and node.spec.unschedulable is not True
         )
         if not is_schedulable:
-            logger.info(f"Node NOT Ready: '{node.metadata.name}' is not schedulable. status_conditions: {status_conditions}. unschedulable: {node.spec.unschedulable}")
+            logger.info(
+                f"Node NOT Ready: '{node.metadata.name}' is not schedulable. status_conditions: {status_conditions}. unschedulable: {node.spec.unschedulable}")
 
         return is_schedulable
 
@@ -72,7 +84,8 @@ class KubernetesClient:
 
         for taint in node.spec.taints:
             if taint.key in builtin_taints_keys and taint.effect in ("NoSchedule", "NoExecute"):
-                logger.info(f"Node NOT Ready: '{node.metadata.name}' has taint '{taint.key}' with effect '{taint.effect}'")
+                logger.info(
+                    f"Node NOT Ready: '{node.metadata.name}' has taint '{taint.key}' with effect '{taint.effect}'")
                 return False
 
         return True
@@ -91,21 +104,25 @@ class KubernetesClient:
         return self.api.list_namespaced_pod(namespace=namespace, label_selector=label_selector, field_selector=field_selector).items
 
     def get_ready_pods_by_namespace(self, namespace=None, label_selector=None, field_selector=None):
-        pods = self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector, field_selector=field_selector)
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector, field_selector=field_selector)
         return [pod for pod in pods if pod.status.phase == "Running" and self._is_ready_pod(pod)]
 
     def get_persistent_volume_claims_by_namespace(self, namespace):
         return self.api.list_namespaced_persistent_volume_claim(namespace=namespace).items
 
     def get_bound_persistent_volume_claims_by_namespace(self, namespace):
-        claims = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
+        claims = self.get_persistent_volume_claims_by_namespace(
+            namespace=namespace)
         return [claim for claim in claims if claim.status.phase == "Bound"]
 
     def delete_persistent_volume_claim_by_namespace(self, namespace):
-        pvcs = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
+        pvcs = self.get_persistent_volume_claims_by_namespace(
+            namespace=namespace)
         for pvc in pvcs:
             try:
-                self.api.delete_namespaced_persistent_volume_claim(pvc.metadata.name, namespace, body=client.V1DeleteOptions())
+                self.api.delete_namespaced_persistent_volume_claim(
+                    pvc.metadata.name, namespace, body=client.V1DeleteOptions())
             except client.rest.ApiException as e:
                 logger.error(f"Error deleting PVC '{pvc.metadata.name}': {e}")
 
@@ -122,11 +139,13 @@ class KubernetesClient:
         """
         try:
             namespace = self.api.read_namespace(namespace)
-            logger.info(f"Namespace '{namespace.metadata.name}' already exists.")
+            logger.info(
+                f"Namespace '{namespace.metadata.name}' already exists.")
             return namespace
         except client.rest.ApiException as e:
             if e.status == 404:
-                body = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
+                body = client.V1Namespace(
+                    metadata=client.V1ObjectMeta(name=namespace))
                 return self.api.create_namespace(body)
             raise e
 
@@ -143,7 +162,8 @@ class KubernetesClient:
         :return: Processed YAML content as a string.
         """
         if not os.path.isfile(template_path):
-            raise FileNotFoundError(f"Template file not found: {template_path}")
+            raise FileNotFoundError(
+                f"Template file not found: {template_path}")
 
         try:
             with open(template_path, "r", encoding="utf-8") as file:
@@ -155,7 +175,8 @@ class KubernetesClient:
 
             return template
         except Exception as e:
-            raise Exception(f"Error processing template file {template_path}: {str(e)}") from e
+            raise Exception(
+                f"Error processing template file {template_path}: {str(e)}") from e
 
     def create_deployment(self, template, namespace="default"):
         """
@@ -173,9 +194,11 @@ class KubernetesClient:
             )
             return response.metadata.name
         except yaml.YAMLError as e:
-            raise Exception(f"Error parsing deployment template: {str(e)}") from e
+            raise Exception(
+                f"Error parsing deployment template: {str(e)}") from e
         except Exception as e:
-            raise Exception(f"Error creating deployment {template}: {str(e)}") from e
+            raise Exception(
+                f"Error creating deployment {template}: {str(e)}") from e
 
     def wait_for_nodes_ready(self, node_count, operation_timeout_in_minutes, label_selector=None):
         """
@@ -190,7 +213,8 @@ class KubernetesClient:
         ready_nodes = []
         ready_node_count = 0
         timeout = time.time() + (operation_timeout_in_minutes * 60)
-        logger.info(f"Validating {node_count} nodes with label {label_selector} are ready.")
+        logger.info(
+            f"Validating {node_count} nodes with label {label_selector} are ready.")
         while time.time() < timeout:
             ready_nodes = self.get_ready_nodes(label_selector=label_selector)
             ready_node_count = len(ready_nodes)
@@ -200,7 +224,8 @@ class KubernetesClient:
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
         if ready_node_count != node_count:
-            raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+            raise Exception(
+                f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
         return ready_nodes
 
     def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
@@ -216,15 +241,18 @@ class KubernetesClient:
         """
         pods = []
         timeout = time.time() + (operation_timeout_in_minutes * 60)
-        logger.info(f"Validating {pod_count} pods with label {label_selector} are ready.")
+        logger.info(
+            f"Validating {pod_count} pods with label {label_selector} are ready.")
         while time.time() < timeout:
-            pods = self.get_ready_pods_by_namespace(namespace=namespace, label_selector=label_selector)
+            pods = self.get_ready_pods_by_namespace(
+                namespace=namespace, label_selector=label_selector)
             if len(pods) == pod_count:
                 return pods
             logger.info(f"Waiting for {pod_count} pods to be ready.")
             time.sleep(10)
         if len(pods) != pod_count:
-            raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
+            raise Exception(
+                f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
         return pods
 
     def get_pod_logs(self, pod_name, namespace="default", container=None, tail_lines=None):
@@ -245,16 +273,17 @@ class KubernetesClient:
                 tail_lines=tail_lines
             )
         except client.rest.ApiException as e:
-            raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
+            raise Exception(
+                f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
-    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = None, namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = "", namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
             pod_name (str): The name of the pod where the command will be executed.
             container_name (str): The name of the container within the pod where the command will be executed.
             command (str): The command to be executed in the container.
-            dest_path (str, optional): The file path where the command output will be saved. Defaults to None.
+            dest_path (str, optional): The file path where the command output will be saved. Defaults to "".
             namespace (str, optional): The Kubernetes namespace where the pod is located. Defaults to "default".
         Returns:
             str: The combined standard output of the executed command.
@@ -272,7 +301,8 @@ class KubernetesClient:
                       _preload_content=False)
 
         res = []
-        file = open(dest_path, 'wb') if dest_path else None # pylint: disable=consider-using-with
+        file = open(
+            dest_path, 'wb') if dest_path != "" else None  # pylint: disable=consider-using-with
         try:
             while resp.is_open():
                 resp.update(timeout=1)
@@ -285,7 +315,8 @@ class KubernetesClient:
                         logger.info(f"Saved response to file: {dest_path}")
                 if resp.peek_stderr():
                     error_msg = resp.read_stderr()
-                    raise Exception(f"Error occurred while executing command in pod: {error_msg}")
+                    raise Exception(
+                        f"Error occurred while executing command in pod: {error_msg}")
         finally:
             resp.close()
             if file is not None:
@@ -302,3 +333,58 @@ class KubernetesClient:
                 cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
                 memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
         return cpu_request, memory_request * 1024 # Convert to KiB
+
+    def set_context(self, context_name):
+        """
+        Switch to the specified Kubernetes context and reinitialize all API clients.
+        Args:
+            context_name (str): Name of the Kubernetes context to switch to
+        Returns:
+            None
+        Raises:
+            Exception: If the context switch fails
+        """
+        try:
+            self.config = config.load_kube_config(
+                config_file=self.config_file, context=context_name)
+            self._setup_clients()
+            logger.info(f"Successfully switched to context: {context_name}")
+        except Exception as e:
+            raise Exception(f"Failed to switch to context {context_name}: {e}")
+
+    def get_pods_name_and_ip(self, label_selector="", namespace="default"):
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector)
+        return [{"name": pod.metadata.name, "ip": pod.status.pod_ip, "node_ip": pod.status.host_ip} for pod in pods]
+
+    def get_pod_name_and_ip(self, label_selector="", namespace="default"):
+        """
+        Retrieve the name and IP address of the first pod matching the given label selector and namespace.
+
+        Args:
+            label_selector (str, optional): The label selector to filter pods. Defaults to an empty string.
+            namespace (str, optional): The namespace to search for pods. Defaults to "default".
+
+        Returns:
+            tuple: A tuple containing the name and IP address of the first matching pod.
+
+        Raises:
+            Exception: If no pods are found matching the given label selector and namespace.
+        """
+        pods = self.get_pods_name_and_ip(
+            namespace=namespace, label_selector=label_selector)
+        logger.info(pods)
+        if not pods:
+            raise Exception(
+                f"No pod found with label: {label_selector} and namespace: {namespace}")
+        return pods[0]
+
+    def get_service_external_ip(self, service_name, namespace="default"):
+        """
+        Get the external IP address of a service.
+        """
+        service = self.api.read_namespaced_service(service_name, namespace)
+        if service.status.load_balancer.ingress:
+            return service.status.load_balancer.ingress[0].ip
+        else:
+            return None
