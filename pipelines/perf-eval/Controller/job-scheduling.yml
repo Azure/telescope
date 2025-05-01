@@ -48,7 +48,7 @@ stages:
             - us-east-2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: kwok
           matrix:
             default:
