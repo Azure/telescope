@@ -14,10 +14,7 @@ from clusterloader2.default.cli import (
 class TestConfigureClusterLoader2(unittest.TestCase):
     def test_configure_clusterloader2(self):
         # Create a temporary file for the override file
-        with tempfile.NamedTemporaryFile(
-            delete=False, mode="w+", encoding="utf-8"
-        ) as tmp:
-            tmp_path = tmp.name
+        fd, tmp_path = tempfile.mkstemp()
 
         try:
             # Call the function with test data
@@ -61,7 +58,7 @@ class TestConfigureClusterLoader2(unittest.TestCase):
             self.assertIn("CL2_LOAD_TEST_THROUGHPUT: 1000", content)
             self.assertIn("CL2_SERVICE_TEST: true", content)
         finally:
-            os.remove(tmp_path)
+            os.close(fd)
 
 
 class TestValidateClusterLoader2(unittest.TestCase):
@@ -116,7 +113,7 @@ class TestCollectClusterLoader2(unittest.TestCase):
             os.path.dirname(__file__), "mock_data", "default", "report"
         )
         # Create a temporary file for result output
-        result_file = tempfile.mktemp()
+        fd, result_file = tempfile.mkstemp()
 
         try:
             # Call the function with test data
@@ -179,8 +176,7 @@ class TestCollectClusterLoader2(unittest.TestCase):
             else:
                 self.fail("Result file does not exist or is empty.")
         finally:
-            if os.path.exists(result_file):
-                os.remove(result_file)
+            os.close(fd)
 
 
 if __name__ == "__main__":
