@@ -74,6 +74,12 @@ steps:
         group: {{$groupName}}
 
   - module:
+      path: /modules/ama-logs-measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+  - module:
       path: /modules/node-disk-measurements.yaml
       params:
         action: start
@@ -120,6 +126,12 @@ steps:
 
   - module:
       path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}
+
+  - module:
+      path: /modules/ama-logs-measurements.yaml
       params:
         action: gather
         group: {{$groupName}}
