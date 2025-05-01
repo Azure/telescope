@@ -29,8 +29,8 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, identity_test
     pods_per_node = max_pods
 
     nodes_per_namespace = node_count # TODO: Does this break churn test?
-    if identity_test:
-        nodes_per_namespace = min(nodes_per_namespace, IDENTITY_CHURN_NODES_PER_NAMESPACE)
+    # if identity_test:
+    #     nodes_per_namespace = min(nodes_per_namespace, IDENTITY_CHURN_NODES_PER_NAMESPACE)
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
