@@ -26,7 +26,7 @@ name: deployment-churn
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 namespace:
-  number: {{$namespaces}}
+  number: 1
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
@@ -131,16 +131,54 @@ steps:
   #         timeout: {{$operationTimeout}}
   #         refreshInterval: 1m
 
-  # - name: Waiting for latency pods to be running
-  #   measurements:
-  #     - Identifier: WaitForRunningLatencyDeployments
-  #       Method: WaitForControlledPodsRunning
-  #       Params:
-  #         action: gather
-  #         refreshInterval: 15s
+
   {{end}}
+  - name: Waiting for latency pods to be running
+    measurements:
+      - Identifier: WaitForRunningLatencyDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          refreshInterval: 15s
 
   {{range $j := Loop $steps}}
+  - name: Starting measurement Pod Curl Command
+    measurements:
+    - Identifier: PodPeriodicCommand
+      Method: PodPeriodicCommand
+      Params:
+        action: start # start/gather 
+        labelSelector: group = {{$groupName}}
+        interval: 5m
+        container: deployment-churn-{{$j}}-0
+        limit: {{$nodes}} # randomly picks up to 3 pods that match labelSelector
+        failOnCommandError: true
+        failOnExecError: true
+        failOnTimeout: true
+        commands:
+        - name: CustPodCurl
+          command: ["/bin/sh", "-c", "curl -c 3 172.25.0.12"] # ["/bin/sh", "-c", "ping -c 3 172.25.0.11"]
+          timeout: 5s
+
+  - name: Ending measurement Pod Curl Command
+    measurements:
+    - Identifier: PodPeriodicCommand
+      Method: PodPeriodicCommand
+      Params:
+        action: gather # start/gather 
+        labelSelector: group = {{$groupName}}
+        
+  - name: Starting measurement for Delete Deployment
+    measurements:
+    - Identifier: WaitForDeletedDeployment-{{$j}}
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+        action: start
+        checkIfPodsAreUpdated: true
+        labelSelector: group = {{$groupName}}
+        operationTimeout: {{$operationTimeout}}
   - name: Deleting Deployments {{$j}}
     phases:
       - namespaceRange:
@@ -151,7 +189,15 @@ steps:
         objectBundle:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: deployment_template.yaml
-
+  - name: Ending measurement for Delete Deployment
+    measurements:
+    - Identifier: WaitForDeletedDeployment-{{$j}}
+      Method: WaitForControlledPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+        action: gather
+        refreshInterval: 15s
   # - name: Waiting for latency pods to be deleted
   #   measurements:
   #     - Identifier: WaitForRunningLatencyDeployments
