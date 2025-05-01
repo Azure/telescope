@@ -49,3 +49,5 @@ steps:
   env:
     ROLE: ${{ parameters.role }}
   displayName: "Scale Cluster"
+  condition: eq(variables['SCALENODES'], 'true'))
+

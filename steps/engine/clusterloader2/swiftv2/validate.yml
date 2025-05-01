@@ -19,6 +19,7 @@ steps:
     workingDirectory: modules/python/clusterloader2
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
     displayName: "Validate node count"
+    condition: eq(variables['SCALENODES'], 'true'))
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       ADDITIONAL_NODES: ${{ parameters.additional_nodes }}

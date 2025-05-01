@@ -15,13 +15,13 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+  - template: /steps/engine/clusterloader2/swiftv2/scale-cluster.yml
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
       nodes_per_nodepool: ${{ parameters.node_count }}
       enable_autoscale: "false"
-  - template: /steps/engine/clusterloader2/slo/validate.yml
+  - template: /steps/engine/clusterloader2/swiftv2/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
       desired_nodes: ${{ parameters.node_count }}

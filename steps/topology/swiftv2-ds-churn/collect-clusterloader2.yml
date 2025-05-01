@@ -15,7 +15,7 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
-- template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+- template: /steps/engine/clusterloader2/swiftv2/scale-cluster.yml
   parameters:
     role: slo
     region: ${{ parameters.regions[0] }}
