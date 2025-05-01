@@ -1,13 +1,13 @@
 scenario_type  = "perf-eval"
-scenario_name  = "job-scheduler"
+scenario_name  = "job-scheduling"
 deletion_delay = "3h"
 owner          = "aks"
 
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "job-schedule"
-    dns_prefix  = "job-sch"
+    aks_name    = "job-scheduling"
+    dns_prefix  = "job-scheduling"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
     network_profile = {

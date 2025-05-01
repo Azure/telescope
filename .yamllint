@@ -19,4 +19,4 @@ rules:
 ignore: |
   modules/python/clusterloader2/**/*.yaml
   modules/python/clusterloader2/**/*.yml
-  scenarios/perf-eval/job-scheduler/**/*.yaml
+  scenarios/perf-eval/job-scheduling/**/*.yaml

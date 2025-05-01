@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="ClusterLoaderV2" tests="1" failures="0" errors="0" time="0.123">
+    <testcase name="JobLifecycleLatency" classname="JobScheduling" time="0.123">
+    </testcase>
+  </testsuite>
+</testsuites>

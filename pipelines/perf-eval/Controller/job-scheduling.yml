@@ -9,7 +9,7 @@ schedules:
     always: true
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: job-scheduler
+  SCENARIO_NAME: job-scheduling
   SCENARIO_VERSION: main
 stages:
   - stage: azure_eastus2

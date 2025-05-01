@@ -44,7 +44,7 @@ steps:
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/default/cli.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduler/config
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/config
       CL2_CONFIG_FILE: ${CL2_CONFIG_DIR}/config.yaml
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduler/results
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/results
     displayName: "Run Benchmark"

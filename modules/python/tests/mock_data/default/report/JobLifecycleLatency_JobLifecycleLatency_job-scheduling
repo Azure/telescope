@@ -1,0 +1,11 @@
+{
+    "data": {
+        "Perc50": 78000,
+        "Perc90": 141000,
+        "Perc99": 155000
+    },
+    "unit": "ms",
+    "labels": {
+        "Metric": "create_to_start"
+    }
+}

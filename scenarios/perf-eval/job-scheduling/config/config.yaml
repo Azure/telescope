@@ -11,7 +11,7 @@ namespace:
   enableExistingNamespaces: false
 
 tuningSets:
-- name: Uniform1qps
+- name: Uniform{{$qps}}qps
   qpsLoad:
     qps: {{$qps}}
 
@@ -38,7 +38,7 @@ steps:
           min: 1
           max: 1
       replicasPerNamespace: 1
-      tuningSet: Uniform1qps
+      tuningSet: Uniform{{$qps}}qps
       objectBundle:
       - basename: test-job-{{$i}}
         objectTemplatePath: job_template.yaml

@@ -35,5 +35,5 @@ steps:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/default/cli.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduler/results
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/results
   displayName: "Collect Results"
