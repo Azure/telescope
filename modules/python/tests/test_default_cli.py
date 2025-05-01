@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from clusterloader2.default.cli import (
     collect_clusterloader2,
