@@ -28,4 +28,3 @@ steps:
       desired_nodes: ${{ parameters.node_count }}
       additional_nodes: 0
       node_label: ${{ parameters.node_label }}
-    condition: or(eq(variables['SWIFTV2PING], 'true')]), eq(variables['SWIFTV2], 'true')]))

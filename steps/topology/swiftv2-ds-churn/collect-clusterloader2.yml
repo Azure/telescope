@@ -21,7 +21,6 @@ steps:
     region: ${{ parameters.regions[0] }}
     nodes_per_nodepool: 0
     enable_autoscale: "false"
-    condition: or(eq(variables['SWIFTV2PING], 'true')]), eq(variables['SWIFTV2], 'true')]))
 - script: |
     run_id=$(Build.BuildId)-$(System.JobId)
     echo "Run ID: $run_id"
