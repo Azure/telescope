@@ -165,7 +165,7 @@ steps:
         action: gather # start/gather 
         labelSelector: group = {{$groupName}}
 
-    - name: Starting measurement for Delete Deployment
+  - name: Starting measurement for Delete Deployment
     measurements:
     - Identifier: WaitForDeletedDeployment
       Method: WaitForControlledPodsRunning
@@ -200,7 +200,7 @@ steps:
   #         refreshInterval: 15s
   {{end}}
 
-    - name: Ending measurement for Delete Deployment
+  - name: Ending measurement for Delete Deployment
     measurements:
     - Identifier: WaitForDeletedDeployment
       Method: WaitForControlledPodsRunning
