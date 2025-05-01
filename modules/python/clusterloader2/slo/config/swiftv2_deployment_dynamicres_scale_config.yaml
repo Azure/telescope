@@ -74,7 +74,7 @@ steps:
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 10s
+          duration: 120s
 
 # start repeat
 
@@ -87,9 +87,12 @@ steps:
         labelSelector: group = {{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
 
-  - name: Start measurements
+
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
+  - name: Start measurements {{$j}}
     measurements:
-      - Identifier: WaitForRunningLatencyDeployments
+      - Identifier: WaitForRunningLatencyDeployments_{{$j}}
         Method: WaitForControlledPodsRunning
         Params:
           action: start
@@ -98,9 +101,6 @@ steps:
           kind: Deployment
           labelSelector: group = deployment-churn
           operationTimeout: {{$operationTimeout}}
-
-{{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
   - name: Creating Deployments {{$j}}
     phases:
       - namespaceRange:
@@ -131,17 +131,14 @@ steps:
   #         timeout: {{$operationTimeout}}
   #         refreshInterval: 1m
 
-
-  {{end}}
-  - name: Waiting for latency pods to be running
+  - name: Waiting for latency pods to be running {{$j}}
     measurements:
-      - Identifier: WaitForRunningLatencyDeployments
+      - Identifier: WaitForRunningLatencyDeployments_{{$j}}
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
           refreshInterval: 15s
-
-  {{range $j := Loop $steps}}
+  {{end}}
   - name: Starting measurement Pod Curl Command
     measurements:
     - Identifier: PodPeriodicCommand
@@ -150,7 +147,7 @@ steps:
         action: start # start/gather 
         labelSelector: group = {{$groupName}}
         interval: 5m
-        container: deployment-churn-{{$j}}-0
+        container: deployment-churn
         limit: {{$nodes}} # randomly picks up to 3 pods that match labelSelector
         failOnCommandError: true
         failOnExecError: true
@@ -167,7 +164,8 @@ steps:
       Params:
         action: gather # start/gather 
         labelSelector: group = {{$groupName}}
-        
+  {{range $j := Loop $steps}}
+
   - name: Starting measurement for Delete Deployment
     measurements:
     - Identifier: WaitForDeletedDeployment-{{$j}}

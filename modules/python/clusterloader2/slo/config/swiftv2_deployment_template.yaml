@@ -37,7 +37,7 @@ spec:
       containers:
       - image: {{$Image}}
         imagePullPolicy: IfNotPresent
-        name: {{.Name}}
+        name: deployment-churn
         ports:
         resources:
           requests:
