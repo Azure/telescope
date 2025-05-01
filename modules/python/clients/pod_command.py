@@ -125,3 +125,17 @@ class PodRoleCommand:
             role="client", command=self.validate_command or "", result_file="")
         self.run_command_for_role(
             role="server", command=self.validate_command or "", result_file="")
+
+    def collect(self, result_dir: str):
+        self.k8s_client.set_context(self.cluster_cli_context)
+        self.k8s_client.collect_pod_and_node_info(
+            namespace=self.namespace,
+            label_selector=self.client_label_selector,
+            result_dir=result_dir,
+        )
+        self.k8s_client.set_context(self.cluster_srv_context)
+        self.k8s_client.collect_pod_and_node_info(
+            namespace=self.namespace,
+            label_selector=self.server_label_selector,
+            result_dir=result_dir,
+        )

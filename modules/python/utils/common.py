@@ -1,4 +1,6 @@
 import re
+import os
+import json
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
@@ -26,3 +28,21 @@ def extract_parameter(command: str, parameter_name: str, prefix: str = "--", has
         logger.info(f"Parameter '{parameter_name}' value is: '{value}'")
         return value
     return None
+
+
+def save_info_to_file(info, file_path):
+    """
+    Save information to a JSON file.
+    """
+    if not info:
+        logger.error(f"No data to save for {file_path}. Skipping file creation.")
+        return
+
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        raise Exception(
+            f"Directory does not exist: {directory}. Please ensure it is created before running the script.")
+
+    logger.info(f"Writing data to {file_path}")
+    with open(file_path, "w") as f:
+        json.dump(info, f, indent=2)

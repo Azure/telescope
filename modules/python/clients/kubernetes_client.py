@@ -4,20 +4,21 @@ import yaml
 from kubernetes import client, config
 from kubernetes.stream import stream
 from utils.logger_config import get_logger, setup_logging
+from utils.common import save_info_to_file
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
 builtin_taints_keys = [
-    "node.kubernetes.io/not-ready",
-    "node.kubernetes.io/unreachable",
-    "node.kubernetes.io/pid-pressure",
-    "node.kubernetes.io/out-of-disk",
-    "node.kubernetes.io/memory-pressure",
-    "node.kubernetes.io/disk-pressure",
-    "node.kubernetes.io/network-unavailable",
-    "node.kubernetes.io/unschedulable",
-    "node.cloudprovider.kubernetes.io/uninitialized",
-    "node.cloudprovider.kubernetes.io/shutdown",
+	"node.kubernetes.io/not-ready",
+	"node.kubernetes.io/unreachable",
+	"node.kubernetes.io/pid-pressure",
+	"node.kubernetes.io/out-of-disk",
+	"node.kubernetes.io/memory-pressure",
+	"node.kubernetes.io/disk-pressure",
+	"node.kubernetes.io/network-unavailable",
+	"node.kubernetes.io/unschedulable",
+	"node.cloudprovider.kubernetes.io/uninitialized",
+	"node.cloudprovider.kubernetes.io/shutdown",
 ]
 
 # Configure logging
@@ -57,24 +58,21 @@ class KubernetesClient:
         - Spec unschedulable is False
         - Spec taints do not have any of the builtin taints keys with effect 'NoSchedule' or 'NoExecute'
         """
-        nodes = self.get_nodes(label_selector=label_selector,
-                               field_selector=field_selector)
+        nodes = self.get_nodes(label_selector=label_selector, field_selector=field_selector)
         return [
             node for node in nodes
             if self._is_node_schedulable(node) and self._is_node_untainted(node)
         ]
 
     def _is_node_schedulable(self, node):
-        status_conditions = {
-            cond.type: cond.status for cond in node.status.conditions}
+        status_conditions = {cond.type: cond.status for cond in node.status.conditions}
         is_schedulable = (
             status_conditions.get("Ready") == "True"
             and status_conditions.get("NetworkUnavailable") != "True"
             and node.spec.unschedulable is not True
         )
         if not is_schedulable:
-            logger.info(
-                f"Node NOT Ready: '{node.metadata.name}' is not schedulable. status_conditions: {status_conditions}. unschedulable: {node.spec.unschedulable}")
+            logger.info(f"Node NOT Ready: '{node.metadata.name}' is not schedulable. status_conditions: {status_conditions}. unschedulable: {node.spec.unschedulable}")
 
         return is_schedulable
 
@@ -84,8 +82,7 @@ class KubernetesClient:
 
         for taint in node.spec.taints:
             if taint.key in builtin_taints_keys and taint.effect in ("NoSchedule", "NoExecute"):
-                logger.info(
-                    f"Node NOT Ready: '{node.metadata.name}' has taint '{taint.key}' with effect '{taint.effect}'")
+                logger.info(f"Node NOT Ready: '{node.metadata.name}' has taint '{taint.key}' with effect '{taint.effect}'")
                 return False
 
         return True
@@ -104,25 +101,21 @@ class KubernetesClient:
         return self.api.list_namespaced_pod(namespace=namespace, label_selector=label_selector, field_selector=field_selector).items
 
     def get_ready_pods_by_namespace(self, namespace=None, label_selector=None, field_selector=None):
-        pods = self.get_pods_by_namespace(
-            namespace=namespace, label_selector=label_selector, field_selector=field_selector)
+        pods = self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector, field_selector=field_selector)
         return [pod for pod in pods if pod.status.phase == "Running" and self._is_ready_pod(pod)]
 
     def get_persistent_volume_claims_by_namespace(self, namespace):
         return self.api.list_namespaced_persistent_volume_claim(namespace=namespace).items
 
     def get_bound_persistent_volume_claims_by_namespace(self, namespace):
-        claims = self.get_persistent_volume_claims_by_namespace(
-            namespace=namespace)
+        claims = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
         return [claim for claim in claims if claim.status.phase == "Bound"]
 
     def delete_persistent_volume_claim_by_namespace(self, namespace):
-        pvcs = self.get_persistent_volume_claims_by_namespace(
-            namespace=namespace)
+        pvcs = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
         for pvc in pvcs:
             try:
-                self.api.delete_namespaced_persistent_volume_claim(
-                    pvc.metadata.name, namespace, body=client.V1DeleteOptions())
+                self.api.delete_namespaced_persistent_volume_claim(pvc.metadata.name, namespace, body=client.V1DeleteOptions())
             except client.rest.ApiException as e:
                 logger.error(f"Error deleting PVC '{pvc.metadata.name}': {e}")
 
@@ -139,13 +132,11 @@ class KubernetesClient:
         """
         try:
             namespace = self.api.read_namespace(namespace)
-            logger.info(
-                f"Namespace '{namespace.metadata.name}' already exists.")
+            logger.info(f"Namespace '{namespace.metadata.name}' already exists.")
             return namespace
         except client.rest.ApiException as e:
             if e.status == 404:
-                body = client.V1Namespace(
-                    metadata=client.V1ObjectMeta(name=namespace))
+                body = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
                 return self.api.create_namespace(body)
             raise e
 
@@ -162,8 +153,7 @@ class KubernetesClient:
         :return: Processed YAML content as a string.
         """
         if not os.path.isfile(template_path):
-            raise FileNotFoundError(
-                f"Template file not found: {template_path}")
+            raise FileNotFoundError(f"Template file not found: {template_path}")
 
         try:
             with open(template_path, "r", encoding="utf-8") as file:
@@ -175,8 +165,7 @@ class KubernetesClient:
 
             return template
         except Exception as e:
-            raise Exception(
-                f"Error processing template file {template_path}: {str(e)}") from e
+            raise Exception(f"Error processing template file {template_path}: {str(e)}") from e
 
     def create_deployment(self, template, namespace="default"):
         """
@@ -194,11 +183,9 @@ class KubernetesClient:
             )
             return response.metadata.name
         except yaml.YAMLError as e:
-            raise Exception(
-                f"Error parsing deployment template: {str(e)}") from e
+            raise Exception(f"Error parsing deployment template: {str(e)}") from e
         except Exception as e:
-            raise Exception(
-                f"Error creating deployment {template}: {str(e)}") from e
+            raise Exception(f"Error creating deployment {template}: {str(e)}") from e
 
     def wait_for_nodes_ready(self, node_count, operation_timeout_in_minutes, label_selector=None):
         """
@@ -213,8 +200,7 @@ class KubernetesClient:
         ready_nodes = []
         ready_node_count = 0
         timeout = time.time() + (operation_timeout_in_minutes * 60)
-        logger.info(
-            f"Validating {node_count} nodes with label {label_selector} are ready.")
+        logger.info(f"Validating {node_count} nodes with label {label_selector} are ready.")
         while time.time() < timeout:
             ready_nodes = self.get_ready_nodes(label_selector=label_selector)
             ready_node_count = len(ready_nodes)
@@ -224,8 +210,7 @@ class KubernetesClient:
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
         if ready_node_count != node_count:
-            raise Exception(
-                f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+            raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
         return ready_nodes
 
     def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
@@ -241,18 +226,15 @@ class KubernetesClient:
         """
         pods = []
         timeout = time.time() + (operation_timeout_in_minutes * 60)
-        logger.info(
-            f"Validating {pod_count} pods with label {label_selector} are ready.")
+        logger.info(f"Validating {pod_count} pods with label {label_selector} are ready.")
         while time.time() < timeout:
-            pods = self.get_ready_pods_by_namespace(
-                namespace=namespace, label_selector=label_selector)
+            pods = self.get_ready_pods_by_namespace(namespace=namespace, label_selector=label_selector)
             if len(pods) == pod_count:
                 return pods
             logger.info(f"Waiting for {pod_count} pods to be ready.")
             time.sleep(10)
         if len(pods) != pod_count:
-            raise Exception(
-                f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
+            raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
         return pods
 
     def get_pod_logs(self, pod_name, namespace="default", container=None, tail_lines=None):
@@ -273,8 +255,7 @@ class KubernetesClient:
                 tail_lines=tail_lines
             )
         except client.rest.ApiException as e:
-            raise Exception(
-                f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
+            raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
     def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = "", namespace: str = "default") -> str:
         """
@@ -301,8 +282,7 @@ class KubernetesClient:
                       _preload_content=False)
 
         res = []
-        file = open(
-            dest_path, 'wb') if dest_path != "" else None  # pylint: disable=consider-using-with
+        file = open(dest_path, 'wb') if dest_path != "" else None  # pylint: disable=consider-using-with
         try:
             while resp.is_open():
                 resp.update(timeout=1)
@@ -315,8 +295,7 @@ class KubernetesClient:
                         logger.info(f"Saved response to file: {dest_path}")
                 if resp.peek_stderr():
                     error_msg = resp.read_stderr()
-                    raise Exception(
-                        f"Error occurred while executing command in pod: {error_msg}")
+                    raise Exception(f"Error occurred while executing command in pod: {error_msg}")
         finally:
             resp.close()
             if file is not None:
@@ -388,3 +367,95 @@ class KubernetesClient:
             return service.status.load_balancer.ingress[0].ip
         else:
             return None
+
+    def get_pod_details(self, namespace="default", label_selector=""):
+        """
+        Get detailed info about pods in a namespace
+        """
+        
+        pods = self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector)
+
+        pod_details = []
+        for pod in pods:
+            
+            pod_details.append({
+                "name": pod.metadata.name,
+                "labels": pod.metadata.labels,
+                "node_name": pod.spec.node_name,
+                "ip": pod.status.pod_ip,
+                "status": pod.status.phase,
+                "spec": pod.spec.to_dict(),
+            })
+
+        return pod_details
+
+    def get_node_details(self, node_name):
+        """
+        Get detailed info about a node
+        """
+        node = self.api.read_node(node_name)
+        if not node:
+            raise Exception(f"Node '{node_name}' not found.")
+        labels = node.metadata.labels
+
+        node_details = {
+            "name": node.metadata.name,
+            "labels": labels,
+            "region": labels.get("topology.kubernetes.io/region", "Unknown"),
+            "zone": labels.get("topology.kubernetes.io/zone", "Unknown"),
+            "instance_type": labels.get("node.kubernetes.io/instance-type", "Unknown"),
+            "allocatable": node.status.allocatable,
+            "capacity": node.status.capacity,
+            "node_info": node.status.node_info.to_dict(),
+        }
+        return node_details
+
+    def collect_pod_and_node_info(self, namespace="default", label_selector="", result_dir=""):
+        """
+        Collect information about all pods and their respective nodes, separating server and client pods.
+        """
+        pods = self.get_pod_details(namespace=namespace, label_selector=label_selector)
+
+        logger.info(f"Inside collect_pod_and_node_info, The pods details are: {pods}")
+
+        node_cache = {}
+        client_pods = []
+        server_pods = []
+
+        for pod in pods:
+            node_name = pod["node_name"]
+            logger.info(f"Inside collect_pod_and_node_info, The node_name details are: {node_name}")
+
+            if node_name not in node_cache:
+                node_cache[node_name] = self.get_node_details(node_name=node_name)
+            node_info = node_cache[node_name]
+
+            logger.info(f"Inside collect_pod_and_node_info, The node_info details are: {node_info}")
+
+
+            pod_and_node_info = {
+                **pod,
+                **node_info
+            }
+
+            logger.info(f"Inside collect_pod_and_node_info, The pod_and_node_info details are: {pod_and_node_info}")
+
+            # Classify as server or client pod
+            pod_labels = pod["labels"]
+            
+            logger.info(f"Inside collect_pod_and_node_info, The pod_labels details are: {pod_labels}")
+
+            if pod_labels.get("app") == "iperf3-server":
+                server_pods.append(pod_and_node_info)
+            elif pod_labels.get("app") == "iperf3":
+                client_pods.append(pod_and_node_info)
+
+        # Save results
+        client_file = os.path.join(result_dir, "client_pod_node_info.json")
+        server_file = os.path.join(result_dir, "server_pod_node_info.json")
+
+        logger.info(f"Inside collect_pod_and_node_info, The client_file details are: {client_file}")
+        logger.info(f"Inside collect_pod_and_node_info, The server_file details are: {server_file}")
+
+        save_info_to_file(client_pods, client_file)
+        save_info_to_file(server_pods, server_file)
