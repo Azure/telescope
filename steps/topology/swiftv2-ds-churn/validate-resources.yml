@@ -21,7 +21,6 @@ steps:
       region: ${{ parameters.regions[0] }}
       nodes_per_nodepool: ${{ parameters.node_count }}
       enable_autoscale: "false"
-    condition: or(eq(variables['SWIFTV2PING], 'true')]), eq(variables['SWIFTV2], 'true')]))
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
