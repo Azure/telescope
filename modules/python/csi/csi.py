@@ -156,7 +156,7 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
             executor.submit(
                 monitor_thresholds,
                 "PV attachment",
-                lambda: KUBERNETERS_CLIENT.get_running_pods_by_namespace(namespace),
+                lambda: KUBERNETERS_CLIENT.get_ready_pods_by_namespace(namespace),
                 attach_thresholds,
                 "gte",
                 creation_start_time,
