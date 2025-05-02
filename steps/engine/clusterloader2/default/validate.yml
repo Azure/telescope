@@ -4,7 +4,6 @@ parameters:
   - name: operation_timeout_in_minutes
     type: number
     default: 20
-
 steps:
   - script: |
       set -eo pipefail

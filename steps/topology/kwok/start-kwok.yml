@@ -5,7 +5,6 @@ parameters:
   - name: kwok_release
     type: string
     default: "v0.6.1"
-
 steps:
   - script: |
       kubectl apply -f "https://github.com/${KWOK_REPO}/releases/download/${KWOK_RELEASE}/kwok.yaml"
