@@ -38,7 +38,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     timeout = 600  # 10 minutes
     interval = 30  # 30 seconds
     elapsed = 0
-
+    nodes = []
     try:
         while elapsed < timeout:
             nodes = client.get_ready_nodes(label_selector=node_label_selector)
@@ -116,8 +116,8 @@ def collect_clusterloader2(
     result_file
 ):
     index_pattern = re.compile(r'(\d+)$')
-
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
     summary = {}
