@@ -6,13 +6,13 @@ metadata:
 spec:
   includefilters: # List of filters
     {{range $i := Loop $namespaces}}
-    - name: filter-{{$i}} # Filter name
+    - name: filter-{{ AddInt $i 1 }} # Filter name
       from:
         namespacedPod:
-          - scale-test-{{$i}}/fortio-client-
+          - scale-test-{{ AddInt $i 1 }}/fortio-client-
       to:
         namespacedPod:
-          - scale-test-{{$i}}/fortio-server-
+          - scale-test-{{ AddInt $i 1 }}/fortio-server-
       protocol:
         - tcp
         - dns
