@@ -56,6 +56,12 @@ steps:
         tuningSet: DeploymentCreateQps
 
   - module:
+      path: /modules/kube-state-metrics.yaml
+      params:
+        actionName: "create"
+        tuningSet: DeploymentCreateQps
+
+  - module:
       path: /modules/measurements.yaml
       params:
         action: start
