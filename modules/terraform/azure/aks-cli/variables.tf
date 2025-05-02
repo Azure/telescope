@@ -55,3 +55,9 @@ variable "aks_cli_config" {
     })), [])
   })
 }
+
+variable "private_build" {
+  description = "Whether to install private build of aks cli extension"
+  type        = string
+  default     = false
+}

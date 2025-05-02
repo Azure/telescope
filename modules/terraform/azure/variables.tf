@@ -246,6 +246,12 @@ variable "aks_cli_config_list" {
   default = []
 }
 
+variable "aks_cli_private_build" {
+  description = "Whether to install private build of aks cli extension"
+  type        = bool
+  default     = false
+}
+
 variable "aks_arm_deployment_config_list" {
   description = "AKS ARM deployment configuration"
   type = list(object({
