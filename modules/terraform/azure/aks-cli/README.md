@@ -34,6 +34,7 @@ configuration, like `--aks-custom-headers" flags. It also supports to use aks-pr
   - `kubernetes_version`: The kubernetes version of the AKS cluster
   - `aks_custom_headers`: Custom headers for AKS.
   - `use_aks_preview_cli_extension`: using aks-preview cli extension
+  - `use_aks_preview_private_build`: using aks-preview private build
   - `default_node_pool`: Configuration for the default node pool
   - `extra_node_pool`: Additional node pools for the AKS cluster
     - `name`: Name of the node pool
@@ -63,6 +64,7 @@ module "aks" {
     kubernetes_version = "1.31"
 
     use_aks_preview_cli_extension = true
+    use_aks_preview_private_build = true
 
     aks_custom_headers = [
       "WindowsContainerRuntime=containerd",

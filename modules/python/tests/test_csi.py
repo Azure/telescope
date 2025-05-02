@@ -16,7 +16,7 @@ from kubernetes.client.models import (
     V1ResourceRequirements
 )
 
-with patch("clusterloader2.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
+with patch("clients.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
     # Mock the load_kube_config function to do nothing
     mock_load_kube_config.return_value = None
 
@@ -111,7 +111,7 @@ class TestCSI(unittest.TestCase):
         self.assertEqual(result, 5)
         self.assertEqual(check_function.call_count, 3)
 
-    @patch("clusterloader2.kubernetes_client.KubernetesClient.get_app_client")
+    @patch("clients.kubernetes_client.KubernetesClient.get_app_client")
     def test_create_statefulset_success(self, mock_get_app_client):
         namespace = "test"
         replicas = 10

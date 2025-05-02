@@ -1,5 +1,4 @@
 import docker
-import docker.errors
 
 class DockerClient:
     def __init__(self):
