@@ -123,3 +123,18 @@ steps:
           query: quantile(0.90, max_over_time((rate(container_fs_write_seconds_total{container="ama-logs"}[1m]) / rate(container_fs_write_seconds_total{container="ama-logs"}[1m]))[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time((rate(container_fs_write_seconds_total{container="ama-logs"}[1m]) / rate(container_fs_write_seconds_total{container="ama-logs"}[1m]))[%v:]))
+    - Identifier: AMALogsContainerRestarts
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: AMALogs Container Restarts
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, sum_over_time(rate(kube_pod_container_status_restarts_total{container="ama-logs"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, sum_over_time(rate(kube_pod_container_status_restarts_total{container="ama-logs"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, sum_over_time(rate(kube_pod_container_status_restarts_total{container="ama-logs"}[1m])[%v:]))
