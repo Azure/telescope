@@ -1,0 +1,95 @@
+## KubeStateMetrics module creates KubeStateMetrics components
+
+# Tuning set
+{{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
+# interval
+{{$interval := DefaultParam .interval "15s"}}
+
+steps:
+  - name: Start measurements
+    measurements:
+      - Identifier: WaitForControlledPodsRunning
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: DaemonSet
+          labelSelector: app.kubernetes.io/name = kube-state-metrics
+          operationTimeout: 120s
+  - name: Create KubeStateMetrics Service Monitor
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/servicemonitor.yaml"
+            basename: kube-state-metrics
+            interval: 15s
+  - name: Create KubeStateMetrics Service Account
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/serviceaccount.yaml"
+            basename: kube-state-metrics
+  - name: Create KubeStateMetrics Cluster Role
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/clusterrole.yaml"
+            basename: kube-state-metrics
+  - name: Create KubeStateMetrics Cluster Role Binding
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/clusterrolebinding.yaml"
+            basename: kube-state-metrics
+  - name: Create KubeStateMetrics Daemonset
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/daemonset.yaml"
+            basename: kube-state-metrics
+  - name: Create KubeStateMetrics Network Policy
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/networkpolicy.yaml"
+            basename: kube-state-metrics
+  - name: Create KubeStateMetrics Services
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: 1
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/kube-state-metrics/service.yaml"
+            basename: kube-state-metrics
+  - name: Wait for pods to be running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+  # - name: Wait for resource consumption
+  #   measurements:
+  #     - Identifier: Sleep
+  #       Method: Sleep
+  #       Params:
+  #         duration: 1m
+  #
