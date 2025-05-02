@@ -136,3 +136,19 @@ steps:
     Params:
       action: start
       duration: 10m
+
+{{if $generateRetinaNetworkFlowLogs}}
+# Delete retina network flow log
+- name: Delete Retina Network Flow Log
+  phases:
+  - namespaceList:
+    - ""
+    replicasPerNamespace: 0
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: retina-network-flow-log
+      objectTemplatePath: modules/pfl/retinanetworkflowlog.yaml
+      templateFillMap:
+        Group: {{.Group}}
+        namespaces: {{$namespaces}}
+{{end}}
