@@ -17,7 +17,7 @@ spec:
                 operator: In
                 values:
                 - kwok
-      # A taints was added to an automatically created Node.
+      # A taint was added to an automatically created Node.
       # You can remove taints of Node or add this tolerations.
       tolerations:
       - key: "kwok.x-k8s.io/node"
