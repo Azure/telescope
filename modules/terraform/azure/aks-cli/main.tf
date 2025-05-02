@@ -80,7 +80,7 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 			az extension add --source ./aks_preview-14.0.0b6-py2.py3-none-any.whl -y
 			az version
     EOT
-    ) : (
+      ) : (
       <<EOT
       az extension add -n aks-preview --version 14.0.0b2
       az version
