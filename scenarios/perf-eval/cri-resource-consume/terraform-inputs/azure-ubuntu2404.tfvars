@@ -7,10 +7,11 @@ aks_config_list = []
 
 aks_cli_config_list = [
   {
-    role               = "client"
-    aks_name           = "cri-resource-consume"
-    sku_tier           = "standard"
-    kubernetes_version = "1.32"
+    role                          = "client"
+    aks_name                      = "cri-resource-consume"
+    sku_tier                      = "standard"
+    kubernetes_version            = "1.32"
+    use_aks_preview_private_build = true
     default_node_pool = {
       name       = "default"
       node_count = 3
@@ -21,13 +22,35 @@ aks_cli_config_list = [
         name       = "prompool",
         node_count = 1,
         vm_size    = "Standard_D16_v5",
+        optional_parameters = [
+          {
+            name  = "labels"
+            value = "prometheus=true"
+          }
+        ]
       },
       {
-        name             = "userpool0",
-        node_count       = 10,
-        vm_size          = "Standard_D16ds_v5",
-        node_osdisk_type = "Ephemeral",
-        os_sku           = "Ubuntu2404",
+        name       = "userpool0",
+        node_count = 10,
+        vm_size    = "Standard_D16ds_v5",
+        optional_parameters = [
+          {
+            name  = "node-osdisk-type"
+            value = "Ephemeral"
+          },
+          {
+            name  = "os-sku"
+            value = "Ubuntu2404"
+          },
+          {
+            name  = "node-taints"
+            value = "cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute"
+          },
+          {
+            name  = "labels"
+            value = "cri-resource-consume=true"
+          }
+        ]
       }
     ]
     optional_parameters = [
@@ -58,5 +81,3 @@ aks_cli_config_list = [
     ]
   }
 ]
-
-aks_cli_private_build = true

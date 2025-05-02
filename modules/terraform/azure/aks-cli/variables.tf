@@ -32,6 +32,7 @@ variable "aks_cli_config" {
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
+    use_aks_preview_private_build = optional(bool, false)
     default_node_pool = object({
       name        = string
       node_count  = number
@@ -54,10 +55,4 @@ variable "aks_cli_config" {
       value = string
     })), [])
   })
-}
-
-variable "private_build" {
-  description = "Whether to install private build of aks cli extension"
-  type        = string
-  default     = false
 }

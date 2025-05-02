@@ -103,7 +103,6 @@ module "aks-cli" {
   location            = local.region
   aks_cli_config      = each.value
   tags                = local.tags
-  private_build       = var.aks_cli_private_build
 }
 
 module "aks-arm-deployment" {

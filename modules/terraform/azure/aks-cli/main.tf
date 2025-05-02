@@ -74,10 +74,10 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 
   # Todo - Update aks-preview extension for newer features
   provisioner "local-exec" {
-    command = var.private_build == true ? (
+    command = var.aks_cli_config.use_aks_preview_private_build == true ? (
       <<EOT
 			wget https://telescopetools.z13.web.core.windows.net/packages/az-cli/aks_preview-14.0.0b6-py2.py3-none-any.whl
-			az extension add --source ./aks_preview-14.0.0b1-py2.py3-none-any.whl -y
+			az extension add --source ./aks_preview-14.0.0b6-py2.py3-none-any.whl -y
 			az version
     EOT
     ) : (
