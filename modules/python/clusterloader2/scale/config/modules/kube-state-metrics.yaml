@@ -69,15 +69,6 @@ steps:
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/daemonset.yaml"
             basename: kube-state-metrics
-  - name: {{.actionName}} KubeStateMetrics Network Policy
-    phases:
-      - namespaceList:
-        - "monitoring"
-        replicasPerNamespace: {{$replicasPerNamespace}}
-        tuningSet: {{$tuningSet}}
-        objectBundle:
-          - objectTemplatePath: "modules/kube-state-metrics/networkpolicy.yaml"
-            basename: kube-state-metrics
   - name: {{.actionName}} KubeStateMetrics Services
     phases:
       - namespaceList:
