@@ -148,3 +148,14 @@ steps:
         action: gather
         group: {{$groupName}}
 
+  - module:
+      path: /modules/node-exporter.yaml
+      params:
+        actionName: "delete"
+        tuningSet: DeploymentCreateQps
+
+  - module:
+      path: /modules/kube-state-metrics.yaml
+      params:
+        actionName: "delete"
+        tuningSet: DeploymentCreateQps

@@ -4,6 +4,13 @@
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
 # interval
 {{$interval := DefaultParam .interval "15s"}}
+{{$replicasPerNamespace := 1}}
+
+{{if eq .actionName "create"}}
+  {{ $replicasPerNamespace = 1 }}
+{{else}}
+  {{ $replicasPerNamespace = 0 }}
+{{end}} 
 
 steps:
   - name: Start measurements
@@ -16,66 +23,66 @@ steps:
           kind: DaemonSet
           labelSelector: app.kubernetes.io/name = kube-state-metrics
           operationTimeout: 120s
-  - name: Create KubeStateMetrics Service Monitor
+  - name: {{.actionName}} KubeStateMetrics Service Monitor
     phases:
       - namespaceList:
         - "monitoring"
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/servicemonitor.yaml"
             basename: kube-state-metrics
             interval: 15s
-  - name: Create KubeStateMetrics Service Account
+  - name: {{.actionName}} KubeStateMetrics Service Account
     phases:
       - namespaceList:
         - "monitoring"
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/serviceaccount.yaml"
             basename: kube-state-metrics
-  - name: Create KubeStateMetrics Cluster Role
+  - name: {{.actionName}} KubeStateMetrics Cluster Role
     phases:
       - namespaceList:
         - ""
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/clusterrole.yaml"
             basename: kube-state-metrics
-  - name: Create KubeStateMetrics Cluster Role Binding
+  - name: {{.actionName}} KubeStateMetrics Cluster Role Binding
     phases:
       - namespaceList:
         - ""
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/clusterrolebinding.yaml"
             basename: kube-state-metrics
-  - name: Create KubeStateMetrics Daemonset
+  - name: {{.actionName}} KubeStateMetrics Daemonset
     phases:
       - namespaceList:
         - "monitoring"
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/daemonset.yaml"
             basename: kube-state-metrics
-  - name: Create KubeStateMetrics Network Policy
+  - name: {{.actionName}} KubeStateMetrics Network Policy
     phases:
       - namespaceList:
         - "monitoring"
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/networkpolicy.yaml"
             basename: kube-state-metrics
-  - name: Create KubeStateMetrics Services
+  - name: {{.actionName}} KubeStateMetrics Services
     phases:
       - namespaceList:
         - "monitoring"
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
           - objectTemplatePath: "modules/kube-state-metrics/service.yaml"
