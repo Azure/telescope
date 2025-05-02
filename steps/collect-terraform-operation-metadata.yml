@@ -4,7 +4,6 @@ parameters:
 - name: credential_type
   type: string
 steps:
-
 - script: |
     set -eo pipefail
 
