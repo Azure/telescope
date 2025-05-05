@@ -201,7 +201,6 @@ class KubernetesClient:
             time.sleep(10)
         if ready_node_count != node_count:
             raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
-        return ready_nodes
 
     def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
         """

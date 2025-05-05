@@ -343,9 +343,19 @@ class TestKubernetesClient(unittest.TestCase):
         node_count = 2
         timeout = 1
 
-        self.client.wait_for_nodes_ready(node_count, timeout)
+        nodes = self.client.wait_for_nodes_ready(node_count, timeout)
 
         self.assertEqual(mock_get_ready_nodes.call_count, 2)
+        self.assertEqual(len(nodes), node_count)
+
+    @patch('clients.kubernetes_client.KubernetesClient.get_ready_nodes')
+    def test_wait_for_nodes_ready_exception(self, mock_get_ready_nodes):
+        mock_get_ready_nodes.return_value = ["node1"]
+        node_count = 2
+        timeout = 1
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_nodes_ready(node_count, timeout)
+        self.assertIn("Only 1 nodes are ready, expected 2 nodes!", str(context.exception))
 
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_pods_by_namespace')
     def test_wait_for_pods_ready(self, mock_get_ready_pods):
