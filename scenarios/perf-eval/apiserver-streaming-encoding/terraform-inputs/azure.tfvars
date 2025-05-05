@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-streaming"
+scenario_name  = "apiserver-streaming-encoding"
 deletion_delay = "3h"
 owner          = "aks"
 
