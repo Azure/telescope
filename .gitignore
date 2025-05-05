@@ -57,6 +57,7 @@ __pycache__/
 env/
 venv/
 modules/python/clusterloader2/*/results
+modules/python/clusterloader2/*/config/overrides.yaml
 
 # OSX
 .DS_Store

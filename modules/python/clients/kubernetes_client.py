@@ -187,6 +187,7 @@ class KubernetesClient:
         :param operation_timeout_in_minutes: The timeout in minutes to wait for the nodes to be ready.
         :return: None
         """
+        ready_nodes = []
         ready_node_count = 0
         timeout = time.time() + (operation_timeout_in_minutes * 60)
         logger.info(f"Validating {node_count} nodes with label {label_selector} are ready.")
@@ -195,11 +196,12 @@ class KubernetesClient:
             ready_node_count = len(ready_nodes)
             logger.info(f"Currently {ready_node_count} nodes are ready.")
             if ready_node_count == node_count:
-                break
+                return ready_nodes
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
         if ready_node_count != node_count:
             raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+        return ready_nodes
 
     def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
         """
@@ -289,3 +291,14 @@ class KubernetesClient:
             if file is not None:
                 file.close()
         return ''.join(res)
+
+    def get_daemonsets_pods_allocated_resources(self, namespace, node_name):
+        pods = self.get_pods_by_namespace(namespace=namespace, field_selector=f"spec.nodeName={node_name}")
+        cpu_request = 0
+        memory_request = 0
+        for pod in pods:
+            for container in pod.spec.containers:
+                logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+        return cpu_request, memory_request * 1024 # Convert to KiB
