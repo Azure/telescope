@@ -11,16 +11,36 @@ name: netpol-scale-test
 {{$TARGET_PORT := DefaultParam .CL2_TARGET_PORT 8080}}
 {{$WORKERS_PER_CLIENT := DefaultParam .CL2_WORKERS_PER_CLIENT 5}}
 {{$DURATION := DefaultParam .CL2_DURATION 600}}
+{{$REPEATS := DefaultParam .CL2_REPEATS 1}}
 {{$Network_Policy_Type := DefaultParam .CL2_NETWORK_POLICY_TYPE "k8s"}}
-{{$Netwrok_POlicy_L7_Enabled := DefaultParam .CL2_NETWORK_POLICY_L7_ENABLED false}}
+{{$NET_POLICY_L7_ENABLED := DefaultParam .CL2_NET_POLICY_L7_ENABLED false}}
+{{$CLIENT_POD_MONITOR := DefaultParam .CL2_CLIENT_POD_MONITOR false}}
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
+{{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
+{{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE := DefaultParam .CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE false}}
+{{$NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS 1000}}
+{{$NET_POLICY_ENFORCEMENT_LOAD_COUNT := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT 0}}
+{{$NET_POLICY_ENFORCEMENT_LOAD_QPS := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS 0}}
+{{$NET_POLICY_ENFORCEMENT_LOAD_TARGET_NAME := DefaultParam .CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME "small-deployment"}}
+{{$CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD := DefaultParam .CL2_CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD 0}}
+{{$CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD := DefaultParam .CL2_CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD 0.01}}
+{{$NET_POLICY_L3_L4_ENABLED := DefaultParam .CL2_NET_POLICY_L3_L4_ENABLED false}}
+{{$TARGET_GROUP := DefaultParam .CL2_TARGET_GROUP "service-discovery"}}
+{{$RESTART_DELETION_ENABLED := DefaultParam .CL2_RESTART_DELETION_ENABLED false}}
+{{$RESOURCEGATHERING_ENABLED := DefaultParam .CL2_RESOURCEGATHERING_ENABLED true}}
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+{{end}}
 
 steps:
 # 1. If cilium enabled
@@ -55,6 +75,101 @@ steps:
       params:
         action: start
 {{end}}
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+  - module:
+      path: /modules/netpol-enforcement-latency-measurements.yaml
+      params:
+        action: start
+{{end}}
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+  - name: "Setup network policy enforcement latency measurement"
+    measurements:
+    - Identifier: NetworkPolicyEnforcement
+      Method: NetworkPolicyEnforcement
+      Params:
+        action: setup
+        targetLabelKey: net-pol-test
+        targetLabelValue: enforcement-latency
+        testClientNodeSelectorKey: test
+        testClientNodeSelectorValue: net-policy-client
+        networkPolicyType: {{$Network_Policy_Type}}
+        l7Enabled: {{$NET_POLICY_L7_ENABLED}}
+        l3l4port: {{$NET_POLICY_L3_L4_ENABLED}}
+        targetPort: 80
+        baseline: {{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE}}
+  # Start target deployments
+  - name: "Start target deployments"
+    measurements:
+    - Method: WaitForControlledPodsRunning
+      Instances:
+      - Identifier: WaitForControlledPodsRunning
+        Params:
+          apiVersion: apps/v1
+          kind: Deployment
+      Params:
+        action: start
+        checkIfPodsAreUpdated: true
+        labelSelector: group={{$TARGET_GROUP}}
+        operationTimeout: 20m
+        apiVersion: apps/v1
+  - name: "Create target deployments"
+    phases:      
+    - namespaceRange:
+        min: 1
+        max: {{$NUMBER_OF_GROUPS}}
+      replicasPerNamespace: 1
+      tuningSet: Uniform1qps
+      objectBundle:
+      - basename: target-deployment
+        objectTemplatePath: target_deployment.yaml
+        templateFillMap:
+          Replicas: {{$NUMBER_OF_SERVERS_PER_Group}}
+          TargetLabelKey: net-pol-test
+          TargetLabelValue: enforcement-latency
+          SvcName: small-service
+          Group: {{$TARGET_GROUP}}
+          deploymentLabel: start
+  # Wait for target deployments to be ready
+  - name: "Wait for target deployments to be ready"
+    measurements:
+    - Identifier: WaitForControlledPodsRunning 
+      Method: WaitForControlledPodsRunning
+      Params:
+        action: gather
+        refreshInterval: 15s
+  # Run network policy enforcement latency measurement test-type 'policy-creation'
+  - name: "Run network policy enforcement latency measurement test-type 'policy-creation'"
+    measurements:
+    - Identifier: NetworkPolicyEnforcement
+      Method: NetworkPolicyEnforcement
+      Params:
+        action: run
+        testType: policy-creation
+        targetPort: 80
+        networkPolicyType: cilium
+        l7Enabled: {{$NET_POLICY_L7_ENABLED}}
+        l3l4port: {{$NET_POLICY_L3_L4_ENABLED}}
+        maxTargets: {{$NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS}}
+        policyLoadCount: {{$NET_POLICY_ENFORCEMENT_LOAD_COUNT}}
+        policyLoadQPS: {{$NET_POLICY_ENFORCEMENT_LOAD_QPS}}
+        policyLoadTargetBaseName: {{$NET_POLICY_ENFORCEMENT_LOAD_TARGET_NAME}}
+  - name: Sleep
+    measurements:
+    - Identifier: sleep
+      Method: Sleep
+      Params:
+        duration: 60s
+  # Gather policy enforcement latency metrics
+  - name: "Gather policy enforcement latency metrics"
+    measurements:
+    - Identifier: PolicyEnforcementLatencyMetrics
+      Method: GenericPrometheusQuery
+      Params:
+        action: gather
+        enableViolations: true
+{{end}}
+{{if $SOAK_TEST}}
+  {{range $i := Loop $REPEATS}}
   # start network performance measurement
   - name: Network Policy Soak Test - Start
     measurements:
@@ -69,22 +184,49 @@ steps:
         targetReplicasPerNs: {{$NUMBER_OF_SERVERS_PER_Group}}
         clientReplicasPerDep: {{$NUMBER_OF_CLIENTS_PER_Group}}
         targetPort: {{$TARGET_PORT}}
+        targetPort2: 9090
+        l7Enabled: {{$NET_POLICY_L7_ENABLED}}
+        l3l4port: {{$NET_POLICY_L3_L4_ENABLED}}
+        resourceGatheringEnabled: {{$RESOURCEGATHERING_ENABLED}}
         targetPath: /
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
         npType: {{$Network_Policy_Type}}
-        resourceGatheringEnabled: true
-        ingressEgressMode: egress # ingress, egress, both, none
+  {{if $RESTART_DELETION_ENABLED}}
+  - name: Network Policy Soak Test - RestartPods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: restart
+  - name: Network Policy Soak Test - Delete Pods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-pods
+  - name: Network Policy Soak Test - Delete CNPS
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-ccnps-cnps
+  {{end}}
+  {{end}}
+  {{end}}
+
 {{if $CLIENT_METRICS_GATHERING}}
         clientMetricsGatheringEnabled: true
 {{end}}
-  # 5. gather network performance measurement (wait and gather results)
+{{if $SOAK_TEST}}
+  # gather network performance measurement (wait and gather results)
   - name: Network Policy Soak Test - Gather Results
     measurements:
     - Identifier: NetworkPolicySoakMeasurement
       Method: NetworkPolicySoakMeasurement
       Params:
-        action: gather #gather will wait for the soak test to finish    
+        action: gather #gather will wait for the soak test to finish  
+{{end}}  
 {{if $CLIENT_METRICS_GATHERING}}
   - module:
       path: /modules/network-policy-client-metrics.yaml
@@ -104,12 +246,32 @@ steps:
         action: gather
   {{end}}
 {{end}}
+  - name: Sleep Before Gathering Measurements
+    measurements:
+    - Identifier: Sleep
+      Method: Sleep
+      Params:
+        duration: 5m # Adjust the duration as needed
   - module:
       path: /modules/measurements.yaml
       params:
         action: gather
         group: "service-discovery"
-# 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+  - module:
+      path: /modules/netpol-enforcement-latency-measurements.yaml
+      params:
+        action: gather
+  # Complete policy enforcement latency measurement
+  - name: "Complete pod creation network policy enforcement latency measurement"
+    measurements:
+    - Identifier: NetworkPolicyEnforcement
+      Method: NetworkPolicyEnforcement
+      Params:
+        action: complete
+        testType: policy-creation
+{{end}}
+# sleep for 5 minutes before deleting the namespaces, to not overload apiserver
   - name: Sleep
     measurements:
     - Identifier: Sleep
