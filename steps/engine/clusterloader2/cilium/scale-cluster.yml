@@ -43,7 +43,7 @@ steps:
       if [ "true" =  "${{ parameters.enable_autoscale }}" ]; then
          az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --enable-cluster-autoscaler --min-count 0 --max-count 500
       fi
-      az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true
+      az aks nodepool update --cluster-name $aks_name --name $np --resource-group $aks_rg --node-taints "slo=true:NoSchedule" --labels slo=true node=client
       sleep 300
     done
   env:
