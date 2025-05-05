@@ -3,7 +3,6 @@ variable "json_input" {
   type = object({
     run_id                 = string
     region                 = string
-    user_data_path         = optional(string, null)
     aks_sku_tier           = optional(string, null)
     aks_kubernetes_version = optional(string, null)
     aks_network_policy     = optional(string, null)

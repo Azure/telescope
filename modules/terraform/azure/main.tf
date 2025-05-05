@@ -10,7 +10,6 @@ locals {
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
-  user_data_path           = lookup(var.json_input, "user_data_path", null)
 
   tags = {
     "owner"             = var.owner

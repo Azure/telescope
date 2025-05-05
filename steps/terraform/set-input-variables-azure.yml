@@ -33,7 +33,6 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
-                --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
                 --arg aks_sku_tier "$SKU_TIER" \
                 --arg aks_kubernetes_version "$KUBERNETES_VERSION" \
                 --arg aks_network_policy "$NETWORK_POLICY" \
@@ -46,7 +45,6 @@ steps:
                 '{
                   run_id: $run_id,
                   region: $region,
-                  user_data_path: $user_data_path,
                   aks_sku_tier: $aks_sku_tier,
                   aks_kubernetes_version: $aks_kubernetes_version,
                   aks_network_policy: $aks_network_policy,
