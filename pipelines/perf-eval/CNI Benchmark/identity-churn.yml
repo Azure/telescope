@@ -43,7 +43,8 @@ stages:
               scrape_node_exporter: true
               small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
               big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
-              proportion_in_big: $(PROPORTION_IN_BIG_DEPLOYMENTS)
+              proportion_in_big_num: $(PROPORTION_IN_BIG_DEPLOYMENTS)
+              proportion_in_big_denom: $(PROPORTION_IN_BIG_DEPLOYMENTS_DENOM)
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
@@ -78,7 +79,7 @@ stages:
               scrape_node_exporter: true
               small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
               big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
-              proportion_in_big: $(PROPORTION_IN_BIG_DEPLOYMENTS)
+              proportion_in_big_num: $(PROPORTION_IN_BIG_DEPLOYMENTS)
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
