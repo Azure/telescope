@@ -8,27 +8,31 @@ import time
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command
 from clients.kubernetes_client import KubernetesClient
+from utils.logger_config import get_logger, setup_logging
+
+setup_logging()
+logger = get_logger(__name__)
 
 def warmup_deployment_for_karpeneter(cl2_config_dir):
-    print("WarmUp Deployment Started")
+    logger.info("WarmUp Deployment Started")
     deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
 def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir):
     deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
-    print("WarmUp Deployment Deleted")
+    logger.info("WarmUp Deployment Deleted")
     try:
         subprocess.run(["kubectl", "delete", "nodeclaims", "--all"], check=True)
     except Exception as e:
-        print(f"Error while deleting node: {e}")
+        logger.error(f"Error while deleting node: {e}")
 
 def _get_daemonsets_pods_allocated_resources(client, node_name):
     pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
     cpu_request = 0
     for pod in pods:
         for container in pod.spec.containers:
-            print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+            logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
             if container.resources.requests is not None:
                 cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
     return cpu_request
@@ -44,24 +48,22 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
             nodes = client.get_ready_nodes(label_selector=node_label_selector)
             if len(nodes) > 0:
                 break
-            print(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
+            logger.warning(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
             time.sleep(interval)
             elapsed += interval
     except Exception as e:
-        print(f"Error while getting nodes: {e}")
-        print(f"Retrying in {interval} seconds...")
-        time.sleep(interval)
+        logger.error(f"Error while getting nodes: {e}")
 
     if len(nodes) == 0:
         raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
 
     node = nodes[0]
     allocatable_cpu = node.status.allocatable["cpu"]
-    print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
+    logger.info(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
 
     cpu_value = int(allocatable_cpu.replace("m", ""))
     allocated_cpu = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
-    print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
+    logger.info(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
 
     cpu_value -= allocated_cpu
     # Remove warmup deployment cpu request from the total cpu value
@@ -75,7 +77,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     return cpu_request
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir):
-    print(f"CPU per node: {cpu_per_node}")
+    logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter(cl2_config_dir)
@@ -83,8 +85,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 
     cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir)
 
-    print(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
-    print(f"CPU request for each pod: {cpu_request}m")
+    logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
+    logger.info(f"CPU request for each pod: {cpu_request}m")
 
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w', encoding='utf-8') as file:

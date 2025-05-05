@@ -1,6 +1,7 @@
 import os
 import json
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch, MagicMock
 from clusterloader2.autoscale.autoscale import (
@@ -11,19 +12,13 @@ from clusterloader2.autoscale.autoscale import (
     override_config_clusterloader2,
     execute_clusterloader2,
     collect_clusterloader2,
+    main
 )
 from kubernetes.client.models import (
-    V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace
+    V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Pod, V1PodSpec
 )
-from clients.kubernetes_client import KubernetesClient
 
 class TestClusterLoaderFunctions(unittest.TestCase):
-    @patch('kubernetes.config.load_kube_config')
-    def setUp(self, mock_load_kube_config):  # pylint: disable=unused-argument, arguments-differ
-        self.client = KubernetesClient()
-        return super().setUp()
-
     def _create_node(self, name, ready_status, cpu_allocatable="1000m", labels=None, unschedulable=False):
         conditions = [V1NodeCondition(type="Ready", status=ready_status)]
         allocatable = {"cpu": cpu_allocatable}
@@ -59,44 +54,30 @@ class TestClusterLoaderFunctions(unittest.TestCase):
 
     @patch('clients.kubernetes_client.KubernetesClient')
     def test_get_daemonsets_pods_allocated_resources(self, mock_client):
-        # Create a mock client
-        mock_client = MagicMock()
-        
-        # Create two mock pods with different CPU requests
-        mock_pod1 = MagicMock()
-        mock_pod1.metadata.name = "test-pod-1"
-        mock_container1 = MagicMock()
-        mock_container1.name = "test-container-1"
-        mock_container1.resources.requests = {"cpu": "200m"}
-        mock_pod1.spec.containers = [mock_container1]
-
-        mock_pod2 = MagicMock()
-        mock_pod2.metadata.name = "test-pod-2"
-        mock_container2 = MagicMock()
-        mock_container2.name = "test-container-2"
-        mock_container2.resources.requests = {"cpu": "300m"}
-        mock_pod2.spec.containers = [mock_container2]
+        # Create a mock pods
+        mock_pod1 = self._create_pod(name="test-pod-1", namespace="default", node_name="node-1", container_name="test-container-1", cpu_request="200m")
+        mock_pod2 = self._create_pod(name="test-pod-2", namespace="default", node_name="node-1", container_name="test-container-2", cpu_request="300m")
 
         # Set the return value of the mock client
         mock_client.get_pods_by_namespace.return_value = [mock_pod1, mock_pod2]
 
         # Call the function under test
-        cpu_request = _get_daemonsets_pods_allocated_resources(mock_client, "node1")
+        cpu_request = _get_daemonsets_pods_allocated_resources(mock_client, "node-1")
 
         # Assert the expected CPU request is sum of both
         self.assertEqual(cpu_request, 500)
 
-    @patch('clients.kubernetes_client.KubernetesClient.get_nodes')
+    @patch('clusterloader2.autoscale.autoscale.KubernetesClient')
     @patch('clusterloader2.autoscale.autoscale._get_daemonsets_pods_allocated_resources')
     @patch('clusterloader2.autoscale.autoscale.cleanup_warmup_deployment_for_karpeneter')
-    @patch('time.sleep')
-    def test_calculate_cpu_request_with_warmup_success(self, mock_sleep, mock_cleanup, mock_get_allocated_resources, mock_get_nodes):
+    def test_calculate_cpu_request_with_warmup_success(self, mock_cleanup, mock_get_allocated_resources, mock_kubernetes_client):
         # Mock nodes
-        node_not_ready = self._create_node(name="node-1", ready_status="False")
-        node_ready_one = self._create_node(name="node-2", ready_status="True", cpu_allocatable="2000m", labels={"autoscaler": "true"})
-        node_ready_two = self._create_node(name="node-3", ready_status="True", cpu_allocatable="2000m", labels={"autoscaler": "false"})
-        mock_get_nodes.return_value = [node_not_ready, node_ready_one, node_ready_two]
-        
+        node_ready = self._create_node(name="node-1", ready_status="True", cpu_allocatable="2000m", labels={"autoscaler": "true"})
+        mock_kubernetes_instance = MagicMock()
+        mock_kubernetes_instance.get_ready_nodes.return_value = [node_ready]
+
+        mock_kubernetes_client.return_value = mock_kubernetes_instance
+
         # Mock the allocated CPU resources
         mock_get_allocated_resources.return_value = 100
 
@@ -104,49 +85,45 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         with_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
 
         without_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'false', '/mock/path')
-        
+
         # Assert the CPU request calculation
         self.assertEqual(with_warmup_cpu_request, 1800)  # 2000m - 100m (allocated) - 100m (warmup)
         self.assertEqual(without_warmup_cpu_request, 1900) # 2000m - 100m (allocated)
 
         # Assert cleanup is called
         mock_cleanup.assert_called_once_with('/mock/path')
-    @patch('clients.kubernetes_client.KubernetesClient.get_nodes')
+
+    @patch('clusterloader2.autoscale.autoscale.KubernetesClient')
     @patch('clusterloader2.autoscale.autoscale._get_daemonsets_pods_allocated_resources')
-    @patch('clusterloader2.autoscale.autoscale.cleanup_warmup_deployment_for_karpeneter')
-    @patch('time.sleep')
-    @patch('builtins.print')
-    def test_calculate_cpu_request_with_warmup_failure(self, mock_print, mock_sleep, mock_cleanup, mock_get_allocated_resources, mock_get_nodes):
-        # Mock nodes
-        node_not_ready = self._create_node(name="node-1", ready_status="False")
-        node_ready_one = self._create_node(name="node-2", ready_status="False", cpu_allocatable="2000m", labels={"autoscaler": "false"})
-        mock_get_nodes.return_value = [node_not_ready, node_ready_one]
-        
+    @patch('clusterloader2.autoscale.autoscale.time.sleep')
+    def test_calculate_cpu_request_with_warmup_failure(self, mock_sleep, mock_get_allocated_resources, mock_kubernetes_client):
+        mock_kubernetes_instance = MagicMock()
+        mock_kubernetes_instance.get_ready_nodes.return_value = []
+        mock_kubernetes_client.return_value = mock_kubernetes_instance
+
         # Mock the allocated CPU resources
         mock_get_allocated_resources.return_value = 100
         with self.assertRaises(Exception) as context:
-          calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
+            calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
 
+        mock_sleep.assert_called_with(30)
+        self.assertEqual(mock_sleep.call_count, 20)
         self.assertIn("No nodes found with the label", str(context.exception))
 
-        mock_get_nodes.side_effect = Exception("API failure")
+        mock_kubernetes_instance.get_ready_nodes.side_effect = Exception("API failure")
+        mock_kubernetes_client.return_value = mock_kubernetes_instance
 
         # Expect the function to eventually raise after the fallback logic
         with self.assertRaises(Exception) as context:
             calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
 
-        # Assert error print was called
-        mock_print.assert_any_call("Error while getting nodes: API failure")
-        mock_print.assert_any_call("Retrying in 30 seconds...")
-
         self.assertIn("No nodes found with the label", str(context.exception))
 
     @patch('clusterloader2.autoscale.autoscale.calculate_cpu_request_for_clusterloader2')
     @patch('clusterloader2.autoscale.autoscale.warmup_deployment_for_karpeneter')
-    @patch('time.sleep')
-    @patch('builtins.print')
-    @patch('builtins.open', new_callable=unittest.mock.mock_open)    
-    def test_override_config_clusterloader2(self, mock_open, mock_print, mock_sleep, mock_warmup ,mock_calculate_cpu_request):
+    @patch('clusterloader2.autoscale.autoscale.logger')
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    def test_override_config_clusterloader2(self, mock_open, mock_logger, mock_warmup, mock_calculate_cpu_request):
         # Mock the CPU request calculation
         mock_calculate_cpu_request.return_value = 1900
 
@@ -164,7 +141,11 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_NODE_LABEL_SELECTOR: autoscaler = true\n')
         handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
 
-        # Test with warmup
+        mock_logger.info.assert_any_call("CPU per node: 2")
+        mock_logger.info.assert_any_call("Total number of nodes: 100, total number of pods: 1000")
+        mock_logger.info.assert_any_call("CPU request for each pod: 1900m")
+
+        # Test with warmup deployment true
         mock_warmup.retun_value = None
         override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
@@ -179,18 +160,29 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_LOOP_COUNT: 1\n')
         handle.write.assert_any_call('CL2_NODE_LABEL_SELECTOR: autoscaler = true\n')
         handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
-    
-    @patch('clusterloader2.utils.parse_xml_to_json')
-    def test_collect_clusterloader2_success(self, mock_parse_xml_to_json):
-      # Mock the XML parsing
 
+    @patch('clusterloader2.autoscale.autoscale.run_cl2_command')
+    def test_execute_clusterloader2(self, mock_run_cl2_command):
+        # Call the function under test
+        execute_clusterloader2(
+            cl2_image="mock-image",
+            cl2_config_dir="/mock/config",
+            cl2_report_dir="/mock/report",
+            kubeconfig="/mock/kubeconfig",
+            provider="aks"
+        )
+
+        # Verify the command execution
+        mock_run_cl2_command.assert_called_once_with(
+            "/mock/kubeconfig", "mock-image", "/mock/config", "/mock/report", "aks",
+            overrides=True)
+    def test_collect_clusterloader2_success(self):
         cl2_report_dir = os.path.join(
               os.path.dirname(__file__), "mock_data", "autoscale", "report"
           )
         # Create a temporary file for result output
         result_file = tempfile.mktemp()
 
-        # Call the function under test
         collect_clusterloader2(
           cpu_per_node=2,
           capacity_type="on-demand",
@@ -202,7 +194,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
           run_url="http://mock-run-url",
           result_file=result_file
         )
-        
+
         self.assertTrue(os.path.exists(result_file))
         with open(result_file, "r", encoding="utf-8") as f:
             content = f.read()
@@ -212,7 +204,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         self.assertIn('"autoscale_result": "success"', content)
 
     @patch('clusterloader2.autoscale.autoscale.parse_xml_to_json')
-    @patch('os.path.join')
+    @patch('os.path.join', autospec=True)
     def test_collect_clusterloader2_no_testsuites(self, mock_path_join, mock_parse_xml_to_json):
         # Mock the XML parsing to return no testsuites
         mock_parse_xml_to_json.return_value = json.dumps({"testsuites": []})
@@ -235,6 +227,47 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             )
 
         self.assertIn("No testsuites found in the report", str(context.exception))
+
+    @patch('clusterloader2.autoscale.autoscale.override_config_clusterloader2')
+    def test_override_command(self, mock_override):
+        test_args = [
+            'prog', 'override', '4', '3', '200', '10m', '5m', '2',
+            'nodepool=default', 'env=prod', 'override.yaml',
+            'warmup-deploy', 'config-dir'
+        ]
+        with patch.object(sys, 'argv', test_args):
+            main()
+            mock_override.assert_called_once_with(
+                4, 3, 200, '10m', '5m', 2,
+                'nodepool=default', 'env=prod',
+                'override.yaml', 'warmup-deploy', 'config-dir'
+            )
+
+    @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
+    def test_execute_command(self, mock_execute):
+        test_args = [
+            'prog', 'execute', 'cl2-image', 'config-dir',
+            'report-dir', 'kubeconfig.yaml', 'aws'
+        ]
+        with patch.object(sys, 'argv', test_args):
+            main()
+            mock_execute.assert_called_once_with(
+                'cl2-image', 'config-dir', 'report-dir',
+                'kubeconfig.yaml', 'aws'
+            )
+
+    @patch('clusterloader2.autoscale.autoscale.collect_clusterloader2')
+    def test_collect_command(self, mock_collect):
+        test_args = [
+            'prog', 'collect', '4', 'on-demand', '3', '200',
+            'report-dir', 'aws-info', 'run-123', 'http://run.url', 'results.json'
+        ]
+        with patch.object(sys, 'argv', test_args):
+            main()
+            mock_collect.assert_called_once_with(
+                4, 'on-demand', 3, 200, 'report-dir',
+                'aws-info', 'run-123', 'http://run.url', 'results.json'
+            )
 
 if __name__ == '__main__':
     unittest.main()
