@@ -22,7 +22,6 @@ CPU_CAPACITY = {
 def configure_clusterloader2(
     override_file,
     operation_timeout,
-    provider,
     deployment_recreation_count,
     node_count,
     fortio_server_deployments,
@@ -106,7 +105,6 @@ def collect_clusterloader2(
     fortio_client_queries_per_second,
     fortio_client_connections,
     fortio_namespaces,
-    fortio_deployments_per_namespace,
     apply_fqdn_cnp,
     test_type="default_config"
 ):
@@ -140,7 +138,6 @@ def collect_clusterloader2(
         "fortio_client_queries_per_second": fortio_client_queries_per_second,
         "fortio_client_connections": fortio_client_connections,
         "fortio_namespaces": fortio_namespaces,
-        "fortio_deployments_per_namespace": fortio_deployments_per_namespace,
         "apply_fqdn_cnp": apply_fqdn_cnp,
     }
     content = ""
@@ -237,9 +234,7 @@ def main():
         configure_clusterloader2(
             args.cl2_override_file,
             args.operation_timeout,
-            args.provider,
             args.deployment_recreation_count,
-            args.cpu_per_node,
             args.node_count,
             args.fortio_server_deployments,
             args.fortio_client_deployments,
@@ -247,7 +242,6 @@ def main():
             args.fortio_server_replicas_per_deployment,
             args.fortio_client_queries_per_second,
             args.fortio_namespaces,
-            args.fortio_deployments_per_namespace,
             args.apply_fqdn_cnp
         )
     elif args.command == "execute":
@@ -265,7 +259,6 @@ def main():
             args.fortio_server_replicas_per_deployment,
             args.fortio_client_queries_per_second,
             args.fortio_namespaces,
-            args.fortio_deployments_per_namespace,
             args.apply_fqdn_cnp,
             test_type=args.test_type,
         )

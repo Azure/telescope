@@ -22,10 +22,9 @@ steps:
         --fortio-server-deployments $FORTIO_SERVER_DEPLOYMENTS \
         --fortio-client-deployments $FORTIO_CLIENT_DEPLOYMENTS \
         --fortio-server-replicas-per-deployment $FORTIO_SERVER_REPLICAS_PER_DEPLOYMENT \
-        --fortio-server-replicas-per-deployment $FORTIO_CLIENT_REPLICAS_PER_DEPLOYMENT \
-        --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
+        --fortio-client-replicas-per-deployment $FORTIO_CLIENT_REPLICAS_PER_DEPLOYMENT \
+        --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
         --fortio-namespaces $FORTIO_NAMESPACES \
-        --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
         --apply-fqdn-cnp $APPLY_FQDN_CNP
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \

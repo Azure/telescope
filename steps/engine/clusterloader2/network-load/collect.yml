@@ -28,7 +28,7 @@ steps:
         --fortio-server-deployments $FORTIO_SERVER_DEPLOYMENTS \
         --fortio-client-deployments $FORTIO_CLIENT_DEPLOYMENTS \
         --fortio-server-replicas-per-deployment $FORTIO_SERVER_REPLICAS_PER_DEPLOYMENT \
-        --fortio-server-replicas-per-deployment $FORTIO_CLIENT_REPLICAS_PER_DEPLOYMENT \
+        --fortio-client-replicas-per-deployment $FORTIO_CLIENT_REPLICAS_PER_DEPLOYMENT \
         --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
         --apply-fqdn-cnp $APPLY_FQDN_CNP
     workingDirectory: modules/python

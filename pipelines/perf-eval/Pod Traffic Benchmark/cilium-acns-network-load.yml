@@ -31,14 +31,13 @@ stages:
               cl2_config_file: load-config.yaml
               scale_timeout: "15m"
               deployment_recreation_count: 0
-              cpu_per_node: 4
-              node_count: 10
-              fortio_servers_per_node: 20
-              fortio_clients_per_node: 20
+              node_count: 1500
+              fortio_server_deployments: 175
+              fortio_client_deployments: 175
+              fortio_server_replicas_per_deployment: 150
+              fortio_client_replicas_per_deployment: 150
               fortio_client_queries_per_second: 6300
-              fortio_client_connections: 6300
               fortio_namespaces: 1
-              fortio_deployments_per_namespace: 1
               apply_fqdn_cnp: True
           max_parallel: 1
           timeout_in_minutes: 720
