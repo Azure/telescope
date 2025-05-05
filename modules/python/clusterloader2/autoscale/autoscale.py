@@ -3,7 +3,6 @@ import os
 import argparse
 import re
 import subprocess
-import time
 
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command
@@ -27,42 +26,24 @@ def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir):
     except Exception as e:
         logger.error(f"Error while deleting node: {e}")
 
-def _get_daemonsets_pods_allocated_resources(client, node_name):
-    pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
-    cpu_request = 0
-    for pod in pods:
-        for container in pod.spec.containers:
-            logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-            if container.resources.requests is not None:
-                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-    return cpu_request
-
 def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
-    timeout = 600  # 10 minutes
-    interval = 30  # 30 seconds
-    elapsed = 0
+    timeout = 10  # 10 minutes
     nodes = []
-    try:
-        while elapsed < timeout:
-            nodes = client.get_ready_nodes(label_selector=node_label_selector)
-            if len(nodes) > 0:
-                break
-            logger.warning(f"No nodes found with the label {node_label_selector}. Retrying in {interval} seconds...")
-            time.sleep(interval)
-            elapsed += interval
-    except Exception as e:
-        logger.error(f"Error while getting nodes: {e}")
 
-    if len(nodes) == 0:
-        raise Exception(f"No nodes found with the label {node_label_selector} after {timeout} seconds")
+    try:
+        nodes = client.wait_for_nodes_ready(1, timeout, label_selector=node_label_selector)
+        if len(nodes) == 0:
+            raise Exception(f"No nodes found with label selector: {node_label_selector}")
+    except Exception as e:
+        raise Exception(f"Error while getting nodes: {e}") from e
 
     node = nodes[0]
     allocatable_cpu = node.status.allocatable["cpu"]
     logger.info(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
 
     cpu_value = int(allocatable_cpu.replace("m", ""))
-    allocated_cpu = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
+    allocated_cpu, _ = client.get_daemonsets_pods_allocated_resources("kube-system", node.metadata.name)
     logger.info(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
 
     cpu_value -= allocated_cpu

@@ -7,7 +7,6 @@ from unittest.mock import patch, MagicMock
 from clusterloader2.autoscale.autoscale import (
     warmup_deployment_for_karpeneter,
     cleanup_warmup_deployment_for_karpeneter,
-    _get_daemonsets_pods_allocated_resources,
     calculate_cpu_request_for_clusterloader2,
     override_config_clusterloader2,
     execute_clusterloader2,
@@ -52,34 +51,15 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         mock_run.assert_any_call(["kubectl", "delete", "-f", f"{cl2_config_dir}/warmup_deployment.yaml"], check=True)
         mock_run.assert_any_call(["kubectl", "delete", "nodeclaims", "--all"], check=True)
 
-    @patch('clients.kubernetes_client.KubernetesClient')
-    def test_get_daemonsets_pods_allocated_resources(self, mock_client):
-        # Create a mock pods
-        mock_pod1 = self._create_pod(name="test-pod-1", namespace="default", node_name="node-1", container_name="test-container-1", cpu_request="200m")
-        mock_pod2 = self._create_pod(name="test-pod-2", namespace="default", node_name="node-1", container_name="test-container-2", cpu_request="300m")
-
-        # Set the return value of the mock client
-        mock_client.get_pods_by_namespace.return_value = [mock_pod1, mock_pod2]
-
-        # Call the function under test
-        cpu_request = _get_daemonsets_pods_allocated_resources(mock_client, "node-1")
-
-        # Assert the expected CPU request is sum of both
-        self.assertEqual(cpu_request, 500)
-
     @patch('clusterloader2.autoscale.autoscale.KubernetesClient')
-    @patch('clusterloader2.autoscale.autoscale._get_daemonsets_pods_allocated_resources')
     @patch('clusterloader2.autoscale.autoscale.cleanup_warmup_deployment_for_karpeneter')
-    def test_calculate_cpu_request_with_warmup_success(self, mock_cleanup, mock_get_allocated_resources, mock_kubernetes_client):
+    def test_calculate_cpu_request_with_warmup_success(self, mock_cleanup, mock_kubernetes_client):
         # Mock nodes
         node_ready = self._create_node(name="node-1", ready_status="True", cpu_allocatable="2000m", labels={"autoscaler": "true"})
         mock_kubernetes_instance = MagicMock()
-        mock_kubernetes_instance.get_ready_nodes.return_value = [node_ready]
-
+        mock_kubernetes_instance.wait_for_nodes_ready.return_value = [node_ready]
+        mock_kubernetes_instance.get_daemonsets_pods_allocated_resources.return_value = (100, 100000)
         mock_kubernetes_client.return_value = mock_kubernetes_instance
-
-        # Mock the allocated CPU resources
-        mock_get_allocated_resources.return_value = 100
 
         # Call the function under test
         with_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
@@ -94,30 +74,24 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         mock_cleanup.assert_called_once_with('/mock/path')
 
     @patch('clusterloader2.autoscale.autoscale.KubernetesClient')
-    @patch('clusterloader2.autoscale.autoscale._get_daemonsets_pods_allocated_resources')
-    @patch('clusterloader2.autoscale.autoscale.time.sleep')
-    def test_calculate_cpu_request_with_warmup_failure(self, mock_sleep, mock_get_allocated_resources, mock_kubernetes_client):
+    def test_calculate_cpu_request_with_warmup_failure(self, mock_kubernetes_client):
         mock_kubernetes_instance = MagicMock()
-        mock_kubernetes_instance.get_ready_nodes.return_value = []
+        mock_kubernetes_instance.wait_for_nodes_ready.return_value = []
         mock_kubernetes_client.return_value = mock_kubernetes_instance
 
-        # Mock the allocated CPU resources
-        mock_get_allocated_resources.return_value = 100
         with self.assertRaises(Exception) as context:
             calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
 
-        mock_sleep.assert_called_with(30)
-        self.assertEqual(mock_sleep.call_count, 20)
-        self.assertIn("No nodes found with the label", str(context.exception))
+        self.assertIn("Error while getting nodes:", str(context.exception))
 
-        mock_kubernetes_instance.get_ready_nodes.side_effect = Exception("API failure")
+        mock_kubernetes_instance.wait_for_nodes_ready.side_effect = Exception("API failure")
         mock_kubernetes_client.return_value = mock_kubernetes_instance
 
         # Expect the function to eventually raise after the fallback logic
         with self.assertRaises(Exception) as context:
             calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
 
-        self.assertIn("No nodes found with the label", str(context.exception))
+        self.assertIn("Error while getting nodes:", str(context.exception))
 
     @patch('clusterloader2.autoscale.autoscale.calculate_cpu_request_for_clusterloader2')
     @patch('clusterloader2.autoscale.autoscale.warmup_deployment_for_karpeneter')

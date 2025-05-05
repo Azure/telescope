@@ -61,7 +61,7 @@ class TestKubernetesClient(unittest.TestCase):
     def _create_namespace(self, name):
         return V1Namespace(metadata=V1ObjectMeta(name=name))
 
-    def _create_pod(self, namespace, name, phase, labels=None):
+    def _create_pod(self, namespace, name, phase, labels=None, node_name=None, container=None):
         return V1Pod(
             metadata=V1ObjectMeta(name=name, namespace=namespace, labels=labels),
             status=V1PodStatus(
@@ -73,7 +73,7 @@ class TestKubernetesClient(unittest.TestCase):
                     ),
                 ]
             ),
-            spec=V1PodSpec(containers=[])
+            spec=V1PodSpec(node_name=node_name, containers=[container])
         )
 
     def _create_pvc(self, name, namespace, phase):
@@ -359,6 +359,40 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(len(pods), pod_count)
         self.assertEqual(mock_get_ready_pods.call_count, 2)
 
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
+    def test_get_daemonsets_pods_allocated_resources(self, mock_get_pods_by_namespace):
+        # Create mock pods with containers and resource requests
+        container1 = MagicMock()
+        container1.name = "container-1"
+        container1.resources.requests = {"cpu": "200m", "memory": "512Mi"}
+
+        container2 = MagicMock()
+        container2.name = "container-2"
+        container2.resources.requests = {"cpu": "300m", "memory": "1024Mi"}
+
+        mock_pod1 = MagicMock()
+        mock_pod1.metadata.name = "test-pod-1"
+        mock_pod1.spec.containers = [container1]
+
+        mock_pod2 = MagicMock()
+        mock_pod2.metadata.name = "test-pod-2"
+        mock_pod2.spec.containers = [container2]
+
+        # Set the return value of the mock client
+        mock_get_pods_by_namespace.return_value = [mock_pod1, mock_pod2]
+
+        # Call the function under test
+        cpu_request, memory_request = self.client.get_daemonsets_pods_allocated_resources("default", "node-1")
+
+        # Assert the expected CPU and memory requests
+        self.assertEqual(cpu_request, 500)  # 200m + 300m
+        self.assertEqual(memory_request, 1536 * 1024)  # 512Mi + 1024Mi in KiB
+
+        # Verify the mock was called with the correct parameters
+        mock_get_pods_by_namespace.assert_called_once_with(
+          namespace='default',
+          field_selector="spec.nodeName=node-1"
+        )
 
 if __name__ == '__main__':
     unittest.main()
