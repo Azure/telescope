@@ -21,8 +21,6 @@ locals {
     "SkipAKSCluster"    = "1"
   }
 
-  aks_arm_deployment_config_map = { for arm in var.aks_arm_deployment_config_list : arm.name => arm }
-
   network_config_map = { for network in var.network_config_list : network.role => network }
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
@@ -103,15 +101,4 @@ module "aks-cli" {
   location            = local.region
   aks_cli_config      = each.value
   tags                = local.tags
-}
-
-module "aks-arm-deployment" {
-  for_each = local.aks_arm_deployment_config_map
-  source   = "./aks-arm-deployment"
-
-  deployment_name     = each.value.name
-  location            = local.region
-  resource_group_name = local.run_id
-  tags                = local.tags
-  parameters_path     = local.user_data_path != null ? "${local.user_data_path}/${each.value.parameters_path}" : null
 }

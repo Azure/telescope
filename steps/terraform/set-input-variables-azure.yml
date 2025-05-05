@@ -26,18 +26,6 @@ steps:
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
-      # Edit the ARM template to set the custom config
-      arm_template_path=$TERRAFORM_WORKING_DIRECTORY/aks-arm-deployment/template.json
-      if [ -z "$(ENCODED_CUSTOM_CONFIG)" ]; then
-        ENCODED_CUSTOM_CONFIG=''
-      else
-        ENCODED_CUSTOM_CONFIG=$(ENCODED_CUSTOM_CONFIG)
-      fi
-
-      if [ -f "$arm_template_path" ]; then
-        sed -i "s|\${CUSTOM_CONFIG}|$(echo $ENCODED_CUSTOM_CONFIG | base64 --decode)|" $arm_template_path
-      fi
-
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then

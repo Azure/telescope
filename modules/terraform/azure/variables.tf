@@ -246,12 +246,3 @@ variable "aks_cli_config_list" {
   }))
   default = []
 }
-
-variable "aks_arm_deployment_config_list" {
-  description = "AKS ARM deployment configuration"
-  type = list(object({
-    name            = string
-    parameters_path = string
-  }))
-  default = []
-}
