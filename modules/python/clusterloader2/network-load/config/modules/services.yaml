@@ -10,7 +10,7 @@ steps:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: 1
+    replicasPerNamespace: {{$fortioServiceReplicasPerNamespace}}
     tuningSet: Sequence
     objectBundle:
     - basename: fortio-server-service

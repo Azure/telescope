@@ -24,14 +24,13 @@ def configure_clusterloader2(
     operation_timeout,
     provider,
     deployment_recreation_count,
-    cpu_per_node,
     node_count,
-    fortio_servers_per_node,
-    fortio_clients_per_node,
+    fortio_server_deployments,
+    fortio_client_deployments,
+    fortio_client_replicas_per_deployment,
+    fortio_server_replicas_per_deployment,
     fortio_client_queries_per_second,
-    fortio_client_connections,
     fortio_namespaces,
-    fortio_deployments_per_namespace,
     apply_fqdn_cnp):
 
     # calculate CPU request per Pod based on pods/node and node CPU capacity
@@ -39,10 +38,10 @@ def configure_clusterloader2(
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
     # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
-    pods_per_node = fortio_servers_per_node + fortio_clients_per_node
-    capacity = CPU_CAPACITY[provider]
-    cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
-    cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
+    #pods_per_node = fortio_servers_per_node + fortio_clients_per_node
+    #capacity = CPU_CAPACITY[provider]
+    #cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
+    #cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
     with open(override_file, 'w', encoding='utf-8') as file:
         # generic config
@@ -59,14 +58,15 @@ def configure_clusterloader2(
 
         # topology config
         file.write(f"CL2_NODES: {node_count}\n")
-        file.write(f"CL2_FORTIO_SERVERS_PER_NODE: {fortio_servers_per_node}\n")
-        file.write(f"CL2_FORTIO_CLIENTS_PER_NODE: {fortio_clients_per_node}\n")
-        file.write(f"CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {fortio_client_queries_per_second}\n")
-        file.write(f"CL2_FORTIO_CLIENT_CONNECTIONS: {fortio_client_connections}\n")
         file.write(f"CL2_FORTIO_NAMESPACES: {fortio_namespaces}\n")
-        file.write(f"CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {fortio_deployments_per_namespace}\n")
-        file.write("CL2_FORTIO_POD_CPU: 10\n")
-        file.write("CL2_FORTIO_POD_MEMORY: 50\n")
+        file.write(f"CL2_FORTIO_SERVER_DEPLOYMENTS: {fortio_server_deployments}\n")
+        file.write(f"CL2_FORTIO_CLIENT_DEPLOYMENTS: {fortio_client_deployments}\n")
+
+        file.write(f"CL2_FORTIO_CLIENT_REPLICAS_PER_DEPLOYMENT: {fortio_client_replicas_per_deployment}\n")
+        file.write(f"CL2_FORTIO_SERVER_REPLICAS_PER_DEPLOYMENT: {fortio_server_replicas_per_deployment}\n")
+
+        file.write(f"CL2_FORTIO_CLIENT_QUERIES_PER_SECOND: {fortio_client_queries_per_second}\n")
+
 
         # other test toggles
         # creates Hubble DNS metrics
@@ -188,13 +188,19 @@ def main():
     parser_configure.add_argument("--provider", type=str, required=True, help="Cloud provider name")
     parser_configure.add_argument("--deployment-recreation-count", type=int, required=True, help="Number of times to recreate deployments")
     parser_configure.add_argument("--cpu-per-node", type=int, required=True, help="CPU per node")
+    
+    ## reference these in load-config.yaml
     parser_configure.add_argument("--node-count", type=int, required=True, help="Number of nodes")
-    parser_configure.add_argument("--fortio-servers-per-node", type=int, required=True, help="Number of Fortio servers per node")
-    parser_configure.add_argument("--fortio-clients-per-node", type=int, required=True, help="Number of Fortio clients per node")
-    parser_configure.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client pod. NOT queries per second per connection")
-    parser_configure.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_configure.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
-    parser_configure.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
+
+    parser_configure.add_argument("--fortio-server-deployments", type=int, required=True, help="Number of Fortio servers total")
+    parser_configure.add_argument("--fortio-client-deployments", type=int, required=True, help="Number of Fortio clients total")
+
+    parser_configure.add_argument("--fortio-server-replicas-per-deployment", type=int, required=True, help="Number of Fortio servers replicas per deployment")
+    parser_configure.add_argument("--fortio-client-replicas-per-deployment", type=int, required=True, help="Number of Fortio clients replicas per deployment")
+
+    parser_configure.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client pod. NOT queries per second per connection")
+    
     parser_configure.add_argument("--apply-fqdn-cnp", type=str2bool, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
 
     # Sub-command for execute_clusterloader2
@@ -235,10 +241,11 @@ def main():
             args.deployment_recreation_count,
             args.cpu_per_node,
             args.node_count,
-            args.fortio_servers_per_node,
-            args.fortio_clients_per_node,
+            args.fortio_server_deployments,
+            args.fortio_client_deployments,
+            args.fortio_client_replicas_per_deployment,
+            args.fortio_server_replicas_per_deployment,
             args.fortio_client_queries_per_second,
-            args.fortio_client_connections,
             args.fortio_namespaces,
             args.fortio_deployments_per_namespace,
             args.apply_fqdn_cnp
@@ -252,10 +259,11 @@ def main():
             args.deployment_recreation_count,
             args.cpu_per_node,
             args.node_count,
-            args.fortio_servers_per_node,
-            args.fortio_clients_per_node,
+            args.fortio_server_deployments,
+            args.fortio_client_deployments,
+            args.fortio_client_replicas_per_deployment,
+            args.fortio_server_replicas_per_deployment,
             args.fortio_client_queries_per_second,
-            args.fortio_client_connections,
             args.fortio_namespaces,
             args.fortio_deployments_per_namespace,
             args.apply_fqdn_cnp,

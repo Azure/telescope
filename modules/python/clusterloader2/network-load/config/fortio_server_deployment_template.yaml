@@ -49,10 +49,6 @@ spec:
           - containerPort: 8079 # grpc echo
           - containerPort: 8080 # main serving port
           - containerPort: 8081 # redirection to https port
-        resources:
-          requests:
-            cpu: {{$CpuRequest}}
-            memory: {{$MemoryRequest}}
       # Add not-ready/unreachable tolerations for 15 minutes so that node
       # failure doesn't trigger pod deletion.
       tolerations:
