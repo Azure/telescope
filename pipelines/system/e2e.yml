@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "0 2-23/4 * * *"
+  - cron: "0 */1 * * *"
     displayName: "Every 1 Hour"
     branches:
       include:
