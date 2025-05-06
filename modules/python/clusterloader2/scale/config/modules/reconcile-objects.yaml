@@ -135,7 +135,7 @@ steps:
     Method: Sleep
     Params:
       action: start
-      duration: 5m
+      duration: 15m
 
 {{if $generateRetinaNetworkFlowLogs}}
 # Delete retina network flow log
