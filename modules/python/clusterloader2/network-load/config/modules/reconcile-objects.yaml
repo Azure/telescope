@@ -6,13 +6,18 @@
 {{$Group := .Group}}
 {{$namespaces := .namespaces}}
 {{$deploymentLabel := .deploymentLabel}}
-{{$fortioDeploymentsPerNamespace := .fortioDeploymentsPerNamespace}}
-{{$fortioServerReplicas := .fortioServerReplicas}}
-{{$fortioClientReplicas := .fortioClientReplicas}}
+
+{{$fortioServerDeployments := .fortioServerDeployments}}
+{{$fortioClientDeployments := .fortioClientDeployments}}
+
+{{$fortioServerDeploymentReplicasPerNamespace := .fortioServerDeploymentReplicasPerNamespace}}
+{{$fortioClientDeploymentReplicasPerNamespace := .fortioClientDeploymentReplicasPerNamespace}}
+
+{{$fortioServerReplicasPerDeployment := .fortioServerReplicasPerDeployment}}
+{{$fortioClientReplicasPerDeployment := .fortioClientReplicasPerDeployment}}
+
 {{$fortioClientQueriesPerSecond := .fortioClientQueriesPerSecond}}
-{{$fortioClientConnections := .fortioClientConnections}}
-{{$CpuRequest := .CpuRequest}}
-{{$MemoryRequest := .MemoryRequest}}
+
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -35,18 +40,16 @@ steps:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    replicasPerNamespace: {{$fortioServerDeploymentReplicasPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
       - basename: fortio-server
         objectTemplatePath: fortio_server_deployment_template.yaml
         templateFillMap:
-          Replicas: {{$fortioServerReplicas}}
+          Replicas: {{$fortioServerReplicasPerDeployment}}
           SvcName: fortio-server-service
           Group: {{.Group}}
           deploymentLabel: {{.deploymentLabel}}
-          CpuRequest: {{$CpuRequest}}
-          MemoryRequest: {{$MemoryRequest}}
 
 - name: Waiting for '{{$actionName}} servers' to be completed
   measurements:
@@ -63,18 +66,15 @@ steps:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    replicasPerNamespace: {{$fortioClientDeploymentReplicasPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
       - basename: fortio-client
         objectTemplatePath: fortio_client_deployment_template.yaml
         templateFillMap:
-          Replicas: {{$fortioClientReplicas}}
+          Replicas: {{$fortioClientReplicasPerDeployment}}
           Group: {{.Group}}
           deploymentLabel: {{.deploymentLabel}}
-          CpuRequest: {{$CpuRequest}}
-          MemoryRequest: {{$MemoryRequest}}
-          FortioClientConnections: {{$fortioClientConnections}}
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
 
 - name: Waiting for '{{$actionName}} clients' to be completed

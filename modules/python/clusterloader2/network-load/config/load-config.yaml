@@ -115,13 +115,15 @@ steps:
         namespaces: {{$fortioNamespaces}}
         fortioServerDeployments: {{$fortioServerDeployments}}
         fortioClientDeployments: {{$fortioClientDeployments}}
+        fortioServerDeploymentReplicasPerNamespace: {{$fortioServerDeploymentReplicasPerNamespace}}
+        fortioClientDeploymentReplicasPerNamespace: {{$fortioClientDeploymentReplicasPerNamespace}}
         fortioServerReplicasPerDeployment: {{$fortioServerReplicasPerDeployment}}
         fortioClientReplicasPerDeployment: {{$fortioClientReplicasPerDeployment}}
         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
         deploymentLabel: start
 
 # FIXME sleep intervals
-  - name: Log - totalServerPods={{$totalServerPods}}, totalClientPods={{$totalClientPods}}, totalServices={{$fortioNamespaces}}, totalIdentities={{$totalDeployments}}
+  - name: Log - fortioNamespaces={{$fortioNamespaces}}, fortioServerDeployments={{$fortioServerDeployments}}, fortioClientDeployments={{$fortioClientDeployments}}, fortioServerReplicasPerDeployment={{$fortioServerReplicasPerDeployment}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
