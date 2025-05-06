@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from resource.setup import Setup
 
 import yaml
-
 from components import Cloud, Engine, Resource
 from pipeline import Job, Pipeline, Stage, customize_yaml
 from terraform.terraform import Terraform
