@@ -277,10 +277,7 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_large_scale_5k
-    condition: |
-        or(
-          eq(variables['Build.Reason'], 'Manual')
-        )
+    condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     variables:
       - name: AZURE_SUBSCRIPTION_ID
