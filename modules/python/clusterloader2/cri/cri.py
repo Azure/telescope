@@ -110,7 +110,7 @@ def verify_measurement():
             filtered_metrics = "\n".join(
                 line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
             )
-            logger.info("##[section]Metrics for node:", node_name)
+            logger.info("##[section]Metrics for node:", node_name) # pylint: disable=logging-too-many-args
             logger.info(filtered_metrics) # pylint: disable=logging-too-many-args
 
         except k8s_client.ApiException as e:
