@@ -23,13 +23,12 @@ def override_config_clusterloader2(
     scrape_kubelets, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
-    logger.info(nodes)
     if len(nodes) == 0:
         raise Exception("No nodes found with the label cri-resource-consume=true")
 
     node = nodes[0]
-    allocatable_cpu = node.status.allocatable["cpu"] #2000
-    allocatable_memory = node.status.allocatable["memory"] # 4096
+    allocatable_cpu = node.status.allocatable["cpu"]
+    allocatable_memory = node.status.allocatable["memory"]
     logger.info(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu} and allocatable memory of {allocatable_memory}")
 
     cpu_value = int(allocatable_cpu.replace("m", ""))
@@ -112,7 +111,7 @@ def verify_measurement():
                 line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
             )
             logger.info("##[section]Metrics for node:", node_name)
-            logger.info(filtered_metrics)
+            logger.info(filtered_metrics) # pylint: disable=logging-too-many-args
 
         except k8s_client.ApiException as e:
             logger.error(f"Error fetching metrics: {e}")
@@ -164,7 +163,7 @@ def collect_clusterloader2(
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
-            # logger.info(measurement, group_name)
+            logger.info(measurement, group_name)
             data = json.loads(file.read())
 
             if measurement == "ResourceUsageSummary":
