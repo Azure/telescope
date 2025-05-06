@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 from pipeline import Step
@@ -10,7 +10,6 @@ from pipeline import Step
 class CredentialType(Enum):
     MANAGED_IDENTITY = "managed_identity"
     SERVICE_CONNECTION = "service_connection"
-
 
 @dataclass
 class Resource(ABC):
@@ -40,7 +39,7 @@ class ResourceFactory:
     def create(self, resource_class, **kwargs):
         return resource_class(cloud=self.cloud, regions=self.regions, **kwargs)
 
-
+@dataclass
 class Engine(Resource):
     type: str
 
@@ -48,7 +47,7 @@ class Engine(Resource):
     def run(self) -> list[Step]:
         pass
 
-
+@dataclass
 class Cloud(ABC):
     cloud: str
     regions: list[str]

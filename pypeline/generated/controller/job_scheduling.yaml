@@ -19,9 +19,9 @@ stages:
         echo "##vso[task.setvariable variable=CODE_URL]$code_url"
     - displayName: Set Test Results Directory
       script: |-
-        test_results_directory=$(Pipeline.Workspace)/s/None
+        test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
         mkdir -p $test_results_directory
-        echo "Test Results directory: $test_results_directory
+        echo "Test Results directory: $test_results_directory"
 
         test_results_file=$test_results_directory/results.json
 
