@@ -48,6 +48,8 @@ terraform.*
 .terraform*
 darwin-amd64/
 linux-amd64/
+# Exception: Do not ignore terraform.py
+!terraform.py
 
 # python
 __pycache__/
