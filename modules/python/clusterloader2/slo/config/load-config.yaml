@@ -9,8 +9,8 @@ name: load-config
 
 # Config options for test parameters
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}} # 100
-{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
-{{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}} # 100
+{{$repeats := DefaultParam .CL2_REPEATS 1}} # 1
 
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
@@ -18,20 +18,20 @@ name: load-config
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
-{{$nodes := DefaultParam .CL2_NODES 1000}}
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
-{{$namespaces := DivideInt $nodes $nodesPerNamespace}}
+{{$nodes := DefaultParam .CL2_NODES 1000}} # 500
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}} # 500
+{{$namespaces := DivideInt $nodes $nodesPerNamespace}} # 1
 
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 5 * 100 * 100 = 50000
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 50000 / 5 = 10000
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 1 * 500 * 100 = 50,000
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 50000 / 1 = 50,000
 
-{{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}}
+{{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}} # 3
+{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}} # 4
 
-{{$NUM_OF_BIG_GROUPS := DefaultParam .CL2_NUM_OF_BIG_GROUPS 1 }}
-{{$bigDeploymentsPerNamespace := MultiplyInt $NUM_OF_BIG_GROUPS $BIG_GROUP_SIZE}} # 1/4 of Pods in Big Deployments
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $NUM_OF_BIG_GROUPS $BIG_GROUP_SIZE)}}
-{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
+{{$NUM_OF_BIG_GROUPS := DefaultParam .CL2_NUM_OF_BIG_GROUPS 1 }} # 10000
+{{$bigDeploymentsPerNamespace := $NUM_OF_BIG_GROUPS }} # 10000
+{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $NUM_OF_BIG_GROUPS $BIG_GROUP_SIZE)}} # 50000 - (10000 * 3) = 20000
+{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}} # 20000 / 4 = 5000
 {{$totalDeploymentsPerNamespace := AddInt $smallDeploymentsPerNamespace $bigDeploymentsPerNamespace}}
 {{$expectedIdentities := MultiplyInt 2 $namespaces $totalDeploymentsPerNamespace}}
 
