@@ -3,7 +3,6 @@ variable "json_input" {
   type = object({
     run_id                 = string
     region                 = string
-    user_data_path         = optional(string, null)
     aks_sku_tier           = optional(string, null)
     aks_kubernetes_version = optional(string, null)
     aks_network_policy     = optional(string, null)
@@ -220,6 +219,7 @@ variable "aks_cli_config_list" {
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
+    use_aks_preview_private_build = optional(bool, false)
 
     default_node_pool = object({
       name        = string
@@ -242,15 +242,6 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
-  }))
-  default = []
-}
-
-variable "aks_arm_deployment_config_list" {
-  description = "AKS ARM deployment configuration"
-  type = list(object({
-    name            = string
-    parameters_path = string
   }))
   default = []
 }

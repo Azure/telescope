@@ -37,9 +37,9 @@ aks_config_list = [
     ]
     kubernetes_version = "1.31"
     auto_scaler_profile = {
-      scale_down_delay_after_add     = "2m"
+      scale_down_delay_after_add     = "1m"
       scale_down_delay_after_failure = "1m"
-      scale_down_unneeded            = "3m"
+      scale_down_unneeded            = "1m"
       scale_down_unready             = "5m"
       scan_interval                  = "20s"
       max_unready_percentage         = 90

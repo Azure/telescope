@@ -24,4 +24,5 @@ disable=
     unnecessary-lambda,  # Allow unnecessary lambda
     import-error,  # Allow import errors
     no-name-in-module,  # Allow no name in module
+    logging-fstring-interpolation # Allow logging f-string interpolation
     

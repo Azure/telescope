@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="321.544">
+      <testcase name="autoscale overall (/root/perf-tests/clusterloader2/config/config.yaml)" classname="ClusterLoaderV2" time="321.53692899"></testcase>
+      <testcase name="autoscale: [step: 01] Create deployment 0" classname="ClusterLoaderV2" time="1.004244469"></testcase>
+      <testcase name="autoscale: [step: 02] Measure nodes and pods scale up 0 [00] - WaitForRunningPodsUp 0" classname="ClusterLoaderV2" time="161.036098942"></testcase>
+      <testcase name="autoscale: [step: 02] Measure nodes and pods scale up 0 [01] - WaitForNodesUpPerc50 0" classname="ClusterLoaderV2" time="95.842109033"></testcase>
+      <testcase name="autoscale: [step: 02] Measure nodes and pods scale up 0 [02] - WaitForNodesUpPerc70 0" classname="ClusterLoaderV2" time="101.058844436"></testcase>
+      <testcase name="autoscale: [step: 02] Measure nodes and pods scale up 0 [03] - WaitForNodesUpPerc90 0" classname="ClusterLoaderV2" time="100.842339576"></testcase>
+      <testcase name="autoscale: [step: 02] Measure nodes and pods scale up 0 [04] - WaitForNodesUpPerc99 0" classname="ClusterLoaderV2" time="100.842337876"></testcase>
+      <testcase name="autoscale: [step: 02] Measure nodes and pods scale up 0 [05] - WaitForNodesUpPerc100 0" classname="ClusterLoaderV2" time="110.845062152"></testcase>
+      <testcase name="autoscale: [step: 03] WaitBeforeDelete [00] - WaitBeforeDelete" classname="ClusterLoaderV2" time="30.632819516"></testcase>
+      <testcase name="autoscale: [step: 04] Delete deployment 0" classname="ClusterLoaderV2" time="1.001865246"></testcase>
+      <testcase name="autoscale: [step: 05] Measure nodes and pods scale down 0 [00] - WaitForRunningPodsDown 0" classname="ClusterLoaderV2" time="35.607986109"></testcase>
+      <testcase name="autoscale: [step: 05] Measure nodes and pods scale down 0 [01] - WaitForNodesDownPerc50 0" classname="ClusterLoaderV2" time="81.213778371"></testcase>
+      <testcase name="autoscale: [step: 05] Measure nodes and pods scale down 0 [02] - WaitForNodesDownPerc70 0" classname="ClusterLoaderV2" time="81.023562161"></testcase>
+      <testcase name="autoscale: [step: 05] Measure nodes and pods scale down 0 [03] - WaitForNodesDownPerc90 0" classname="ClusterLoaderV2" time="81.213789771"></testcase>
+      <testcase name="autoscale: [step: 05] Measure nodes and pods scale down 0 [04] - WaitForNodesDownPerc99 0" classname="ClusterLoaderV2" time="86.02474792"></testcase>
+      <testcase name="autoscale: [step: 05] Measure nodes and pods scale down 0 [05] - WaitForNodesDownPerc100 0" classname="ClusterLoaderV2" time="86.02473482"></testcase>
+      <testcase name="autoscale: [step: 06] WaitBeforeCreate [00] - WaitBeforeCreate" classname="ClusterLoaderV2" time="30.200515321"></testcase>
+  </testsuite>
