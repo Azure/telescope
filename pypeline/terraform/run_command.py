@@ -1,6 +1,5 @@
 from textwrap import dedent
 
-
 def generate_workspace_script() -> str:
     return dedent(
         """if terraform workspace list | grep -q "$region"; then
