@@ -1,0 +1,169 @@
+{
+  "options": [
+    {
+      "enabled": false,
+      "definition": {
+        "id": "5d58cc01-7c75-450c-be18-a388ddb129ec"
+      },
+      "inputs": {
+        "branchFilters": "[\"+refs/heads/*\"]",
+        "additionalFields": "{}"
+      }
+    },
+    {
+      "enabled": false,
+      "definition": {
+        "id": "a9db38f9-9fdc-478c-b0f9-464221e58316"
+      },
+      "inputs": {
+        "workItemType": "Issue",
+        "assignToRequestor": "true",
+        "additionalFields": "{}"
+      }
+    },
+    {
+      "enabled": false,
+      "definition": {
+        "id": "57578776-4c22-4526-aeb0-86b6da17ee9c"
+      },
+      "inputs": {}
+    }
+  ],
+  "triggers": [
+    {
+      "branchFilters": [],
+      "pathFilters": [],
+      "settingsSourceType": 2,
+      "batchChanges": false,
+      "maxConcurrentBuildsPerBranch": 1,
+      "triggerType": "continuousIntegration"
+    }
+  ],
+  "variables": {
+    "AWS_SERVICE_CONNECTION": {
+      "value": "AWS-for-Telescope-internal",
+      "allowOverride": true
+    },
+    "AZURE_SERVICE_CONNECTION": {
+      "value": "Azure-for-Telescope-internal",
+      "allowOverride": true
+    },
+    "AZURE_SUBSCRIPTION_ID": {
+      "value": "f6e2f77f-9959-42ad-87f0-c30a6abc0133",
+      "allowOverride": true
+    },
+    "AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME": {
+      "value": "telescopedata"
+    }
+  },
+  "properties": {},
+  "tags": [],
+  "_links": {
+    "self": {
+      "href": "https://dev.azure.com/akstelescope/cd54f17a-8bb5-44d3-8d24-54730a56c0d2/_apis/build/Definitions/67?revision=8"
+    },
+    "web": {
+      "href": "https://dev.azure.com/akstelescope/cd54f17a-8bb5-44d3-8d24-54730a56c0d2/_build/definition?definitionId=67"
+    },
+    "editor": {
+      "href": "https://dev.azure.com/akstelescope/cd54f17a-8bb5-44d3-8d24-54730a56c0d2/_build/designer?id=67&_a=edit-build-definition"
+    },
+    "badge": {
+      "href": "https://dev.azure.com/akstelescope/cd54f17a-8bb5-44d3-8d24-54730a56c0d2/_apis/build/status/67"
+    }
+  },
+  "jobAuthorizationScope": "projectCollection",
+  "jobCancelTimeoutInMinutes": 5,
+  "process": {
+    "yamlFilename": "pipelines/perf-eval/Autoscale Benchmark/node-auto-provisioning-benchmark.yml",
+    "type": 2
+  },
+  "repository": {
+    "properties": {
+      "apiUrl": "https://api.github.com/repos/Azure/telescope",
+      "branchesUrl": "https://api.github.com/repos/Azure/telescope/branches",
+      "cloneUrl": "https://github.com/Azure/telescope.git",
+      "connectedServiceId": "1fb7e4fa-a4b9-4d5a-80a8-e6f5c2972e52",
+      "defaultBranch": "main",
+      "fullName": "Azure/telescope",
+      "hasAdminPermissions": "False",
+      "isFork": "False",
+      "isPrivate": "False",
+      "lastUpdated": "04/23/2025 19:46:19",
+      "manageUrl": "https://github.com/Azure/telescope",
+      "nodeId": "R_kgDOKtE4pg",
+      "ownerId": "6844498",
+      "orgName": "Azure",
+      "refsUrl": "https://api.github.com/repos/Azure/telescope/git/refs",
+      "safeRepository": "Azure/telescope",
+      "shortName": "telescope",
+      "ownerAvatarUrl": "https://avatars.githubusercontent.com/u/6844498?v=4",
+      "archived": "False",
+      "externalId": "718354598",
+      "ownerIsAUser": "False",
+      "checkoutNestedSubmodules": "false",
+      "cleanOptions": "0",
+      "fetchDepth": "0",
+      "gitLfsSupport": "false",
+      "reportBuildStatus": "false",
+      "skipSyncSource": "false",
+      "fetchTags": "true",
+      "labelSourcesFormat": "$(build.buildNumber)",
+      "labelSources": "0"
+    },
+    "id": "Azure/telescope",
+    "type": "GitHub",
+    "name": "Azure/telescope",
+    "url": "https://github.com/Azure/telescope.git",
+    "defaultBranch": "refs/heads/main",
+    "clean": "true",
+    "checkoutSubmodules": false
+  },
+  "quality": "definition",
+  "authoredBy": {
+    "displayName": "Sumanth Reddy Chinna Pullaiah",
+    "url": "https://spsprodwus31.vssps.visualstudio.com/A8c41082b-ef78-4085-9b72-c8e4ab001373/_apis/Identities/4a44c495-41c5-6a82-97ed-018d7dc96f05",
+    "_links": {
+      "avatar": {
+        "href": "https://dev.azure.com/akstelescope/_apis/GraphProfile/MemberAvatars/aad.NGE0NGM0OTUtNDFjNS03YTgyLTk3ZWQtMDE4ZDdkYzk2ZjA1"
+      }
+    },
+    "id": "4a44c495-41c5-6a82-97ed-018d7dc96f05",
+    "uniqueName": "schinnapulla@microsoft.com",
+    "imageUrl": "https://dev.azure.com/akstelescope/_apis/GraphProfile/MemberAvatars/aad.NGE0NGM0OTUtNDFjNS03YTgyLTk3ZWQtMDE4ZDdkYzk2ZjA1",
+    "descriptor": "aad.NGE0NGM0OTUtNDFjNS03YTgyLTk3ZWQtMDE4ZDdkYzk2ZjA1"
+  },
+  "drafts": [],
+  "queue": {
+    "_links": {
+      "self": {
+        "href": "https://dev.azure.com/akstelescope/_apis/build/Queues/12"
+      }
+    },
+    "id": 12,
+    "name": "AKS-Telescope-Ubuntu-EastUS2",
+    "url": "https://dev.azure.com/akstelescope/_apis/build/Queues/12",
+    "pool": {
+      "id": 12,
+      "name": "AKS-Telescope-Ubuntu-EastUS2"
+    }
+  },
+  "id": 67,
+  "name": "Node Auto Provisioning  10 500 1000 Nodes On-demand Spot instances",
+  "url": "https://dev.azure.com/akstelescope/cd54f17a-8bb5-44d3-8d24-54730a56c0d2/_apis/build/Definitions/67?revision=8",
+  "uri": "vstfs:///Build/Definition/67",
+  "path": "\\AKS\\Telescope\\Perf Eval\\Autoscale Benchmark",
+  "type": "build",
+  "queueStatus": "enabled",
+  "revision": 8,
+  "createdDate": "2025-05-05T22:02:20.28Z",
+  "project": {
+    "id": "cd54f17a-8bb5-44d3-8d24-54730a56c0d2",
+    "name": "telescope",
+    "url": "https://dev.azure.com/akstelescope/_apis/projects/cd54f17a-8bb5-44d3-8d24-54730a56c0d2",
+    "state": "wellFormed",
+    "revision": 12,
+    "visibility": "organization",
+    "lastUpdateTime": "2024-10-07T19:00:46.637Z"
+  }
+}
