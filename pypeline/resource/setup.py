@@ -100,8 +100,8 @@ class Setup(Resource):
     def setup(self) -> list[Step]:
         return [
             set_run_id(self.run_id),
-            set_run_url_and_code_url(),
-            set_test_results_directory(),
+            set_run_url_and_code_url,
+            set_test_results_directory,
             set_script_module_directory(self.test_module_dir),
         ]
 
