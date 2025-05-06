@@ -61,93 +61,37 @@ steps:
         actionName: "create"
         tuningSet: DeploymentCreateQps
 
+  - name: Run Test without Creating Retina Network Flow Logs
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
   - module:
-      path: /modules/measurements.yaml
+      path: /modules/scale-test.yaml
       params:
         action: start
         group: {{$groupName}}
+        createRetinaNetworkFlowLogs: false
+
+    {{if $generateRetinaNetworkFlowLogs}}
+  - name: Wait 1m and run test Creating Retina Network Flow Logs
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 1m
 
   - module:
-      path: /modules/retina-measurements.yaml
+      path: /modules/scale-test.yaml
       params:
         action: start
         group: {{$groupName}}
-
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-
-  - module:
-      path: /modules/ama-logs-measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-
-  - module:
-      path: /modules/node-disk-measurements.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-
-  # deployment creation
-  # - module:
-  #     path: /modules/kapinger.yaml
-  #     params:
-  #       namespaces: {{$namespaces}}
-  #       tuningSet: DeploymentCreateQps
-  #       deployments: {{$deploymentsPerNamespace}}
-  #       podReplicas: {{$replicasPerNamespace}}
-  #
-
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "create"
-        tuningSet: DeploymentCreateQps
-        operationTimeout: {{$operationTimeout}}
-        Group: {{$groupName}}
-        namespaces: {{$fortioNamespaces}}
-        fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
-        fortioServerReplicas: {{$fortioServerReplicas}}
-        fortioClientReplicas: {{$fortioClientReplicas}}
-        fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
-        fortioClientConnections: {{$fortioClientConnections}}
-        generateRetinaNetworkFlowLogs: {{$generateRetinaNetworkFlowLogs}}
-        deploymentLabel: start
-
-  # FIXME: is this needed?
-  - module:
-      path: /modules/measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
-
-  - module:
-      path: /modules/retina-measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
-
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
-
-  - module:
-      path: /modules/ama-logs-measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
-
-  - module:
-      path: /modules/node-disk-measurements.yaml
-      params:
-        action: gather
-        group: {{$groupName}}
-
+        createRetinaNetworkFlowLogs: true
+    {{end}}
+      
   - module:
       path: /modules/node-exporter.yaml
       params:

@@ -69,9 +69,9 @@ parameters:
 - name: fortio_client_requests_per_second
   displayName: Fortio Client Requests Per Second
   type: number
-  default: 5000
+  default: 2000
 - name: generate_retina_network_flow_logs
-  displayName: Generate Retina Network Flow Logs
+  displayName: Add Test Run with Retina Network Flow Logs 
   type: boolean
   default: false
 

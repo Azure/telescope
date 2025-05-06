@@ -13,23 +13,25 @@
 # Probe measurements shared parameter
 {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT := DefaultParam .CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT "15m"}}
 
+{{$suffix := DefaultParam .suffix ""}}
+
 steps:
   - name: {{$action}} Additional Measurements
     measurements:
-      - Identifier: APIResponsivenessPrometheus
+      - Identifier: APIResponsivenessPrometheus{{$suffix}}
         Method: APIResponsivenessPrometheus
         Params:
           action: {{$action}}
           enableViolations: {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE}}
           useSimpleLatencyQuery: true
-      - Identifier: PodStartupLatency
+      - Identifier: PodStartupLatency{{$suffix}}
         Method: PodStartupLatency
         Params:
           action: {{$action}}
           labelSelector: group = {{.group}}
           threshold: {{$podStartupLatencyThreshold}}
     {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
-      - Identifier: NetworkProgrammingLatency
+      - Identifier: NetworkProgrammingLatency{{$suffix}}
         Method: NetworkProgrammingLatency
         Params:
           action: {{$action}}
@@ -37,7 +39,7 @@ steps:
           threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
     {{end}}
     {{if $ENABLE_IN_CLUSTER_NETWORK_LATENCY}}
-      - Identifier: InClusterNetworkLatency
+      - Identifier: InClusterNetworkLatency{{$suffix}}
         Method: InClusterNetworkLatency
         Params:
           action: {{$action}}
@@ -46,11 +48,11 @@ steps:
           pingSleepDuration: {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION}}
           threshold: {{$NETWORK_LATENCY_THRESHOLD}}
     {{end}}
-      - Identifier: ApiserverAvgCPUUsage
+      - Identifier: ApiserverAvgCPUUsage{{$suffix}}
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Average CPU Usage
+          metricName: Apiserver Average CPU Usage {{$suffix}}
           metricVersion: v1
           unit: cpu
           enableViolations: true
@@ -61,11 +63,11 @@ steps:
             query: quantile(0.90, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
           - name: Perc50
             query: quantile(0.50, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
-      - Identifier: ApiserverMaxCPUUsage
+      - Identifier: ApiserverMaxCPUUsage{{$suffix}}
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Max CPU Usage
+          metricName: Apiserver Max CPU Usage {{$suffix}}
           metricVersion: v1
           unit: cpu
           enableViolations: true
@@ -76,11 +78,11 @@ steps:
             query: quantile(0.90, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
           - name: Perc50
             query: quantile(0.50, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
-      - Identifier: ApiserverAvgMemUsage
+      - Identifier: ApiserverAvgMemUsage{{$suffix}}
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Average Memory Usage
+          metricName: Apiserver Average Memory Usage {{$suffix}}
           metricVersion: v1
           unit: MB
           enableViolations: true
@@ -91,11 +93,11 @@ steps:
             query: quantile(0.90, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
           - name: Perc50
             query: quantile(0.5, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-      - Identifier: ApiserverMaxMemUsage
+      - Identifier: ApiserverMaxMemUsage{{$suffix}}
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Max Memory Usage
+          metricName: Apiserver Max Memory Usage {{$suffix}}
           metricVersion: v1
           unit: MB
           enableViolations: true

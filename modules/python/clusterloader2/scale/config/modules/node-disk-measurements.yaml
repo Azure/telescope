@@ -1,13 +1,15 @@
 {{$action := .action}} # start, gather
 
+{{$suffix := DefaultParam .suffix ""}}
+
 steps:
   - name: {{$action}} Additional Node Disk Measurements
     measurements:
-    - Identifier: NodeDiskAvgWrittenBytes
+    - Identifier: NodeDiskAvgWrittenBytes{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Node Disk Average Written Bytes
+        metricName: Node Disk Average Written Bytes {{$suffix}}
         metricVersion: v1
         unit: bytes
         enableViolations: true
@@ -18,11 +20,11 @@ steps:
           query: quantile(0.90, avg_over_time(rate(node_disk_written_bytes_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(node_disk_written_bytes_total[1m])[%v:]))
-    - Identifier: NodeDiskMaxWrittenBytes
+    - Identifier: NodeDiskMaxWrittenBytes{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Node Disk Max Written Bytes
+        metricName: Node Disk Max Written Bytes {{$suffix}}
         metricVersion: v1
         unit: bytes
         enableViolations: true
@@ -33,11 +35,11 @@ steps:
           query: quantile(0.90, max_over_time(rate(node_disk_written_bytes_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(rate(node_disk_written_bytes_total[1m])[%v:]))
-    - Identifier: NodeDiskAvgWriteLatency
+    - Identifier: NodeDiskAvgWriteLatency{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Node Disk Average Write Latency
+        metricName: Node Disk Average Write Latency {{$suffix}}
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -48,11 +50,11 @@ steps:
           query: quantile(0.90, avg_over_time((rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]))[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time((rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]))[%v:]))
-    - Identifier: NodeDiskMaxWriteLatency
+    - Identifier: NodeDiskMaxWriteLatency{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Node Disk Max Write Latency
+        metricName: Node Disk Max Write Latency {{$suffix}}
         metricVersion: v1
         unit: s
         enableViolations: true

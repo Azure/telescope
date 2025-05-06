@@ -1,13 +1,15 @@
 {{$action := .action}} # start, gather
 
+{{$suffix := DefaultParam .suffix ""}}
+
 steps:
   - name: {{$action}} Additional Cilium Measurements
     measurements:
-    - Identifier: CiliumAvgCPUUsage
+    - Identifier: CiliumAvgCPUUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Average CPU Usage
+        metricName: Cilium Average CPU Usage {{$suffix}}
         metricVersion: v1
         unit: cpu
         enableViolations: true
@@ -18,11 +20,11 @@ steps:
           query: quantile(0.90, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
-    - Identifier: CiliumMaxCPUUsage
+    - Identifier: CiliumMaxCPUUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Max CPU Usage
+        metricName: Cilium Max CPU Usage {{$suffix}}
         metricVersion: v1
         unit: cpu
         enableViolations: true
@@ -33,11 +35,11 @@ steps:
           query: quantile(0.90, max_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(rate(cilium_process_cpu_seconds_total[1m])[%v:]))
-    - Identifier: CiliumAvgMemUsage
+    - Identifier: CiliumAvgMemUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Avg Memory Usage
+        metricName: Cilium Avg Memory Usage {{$suffix}}
         metricVersion: v1
         unit: MB
         enableViolations: true
@@ -48,11 +50,11 @@ steps:
           query: quantile(0.90, avg_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
-    - Identifier: CiliumMaxMemUsage
+    - Identifier: CiliumMaxMemUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Max Memory Usage
+        metricName: Cilium Max Memory Usage {{$suffix}}
         metricVersion: v1
         unit: MB
         enableViolations: true
@@ -63,11 +65,11 @@ steps:
           query: quantile(0.90, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, max_over_time(cilium_process_resident_memory_bytes[%v:]) / 1024 / 1024)
-    - Identifier: CiliumOperatorAvgCPUUsage
+    - Identifier: CiliumOperatorAvgCPUUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Operator Avg CPU Usage
+        metricName: Cilium Operator Avg CPU Usage {{$suffix}}
         metricVersion: v1
         unit: cpu
         enableViolations: true
@@ -78,11 +80,11 @@ steps:
           query: quantile(0.90, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
-    - Identifier: CiliumOperatorMaxCPUUsage
+    - Identifier: CiliumOperatorMaxCPUUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Operator Max CPU Usage
+        metricName: Cilium Operator Max CPU Usage {{$suffix}}
         metricVersion: v1
         unit: cpu
         enableViolations: true
@@ -93,11 +95,11 @@ steps:
           query: quantile(0.90, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
-    - Identifier: CiliumOperatorMaxMemUsage
+    - Identifier: CiliumOperatorMaxMemUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Operator Max Memory Usage
+        metricName: Cilium Operator Max Memory Usage {{$suffix}}
         metricVersion: v1
         unit: MB
         enableViolations: true
@@ -108,11 +110,11 @@ steps:
           query: quantile(0.90, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
-    - Identifier: CiliumOperatorAvgMemUsage
+    - Identifier: CiliumOperatorAvgMemUsage{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Operator Avg Memory Usage
+        metricName: Cilium Operator Avg Memory Usage {{$suffix}}
         metricVersion: v1
         unit: MB
         enableViolations: true
@@ -123,11 +125,11 @@ steps:
           query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
-    - Identifier: CiliumHubbleMetricCardinality
+    - Identifier: CiliumHubbleMetricCardinality{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Hubble Metric Cardinality
+        metricName: Cilium Hubble Metric Cardinality {{$suffix}}
         metricVersion: v1
         unit: count
         queries:
@@ -141,11 +143,11 @@ steps:
           query: count(hubble_dns_queries_total)
         - name: DNSResponses
           query: count(hubble_dns_responses_total)
-    - Identifier: CiliumContainerFsAvgWrittenBytes
+    - Identifier: CiliumContainerFsAvgWrittenBytes{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Container FS Average Written Bytes
+        metricName: Cilium Container FS Average Written Bytes {{$suffix}}
         metricVersion: v1
         unit: bytes
         enableViolations: true
@@ -156,11 +158,11 @@ steps:
           query: quantile(0.90, avg_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
-    - Identifier: CiliumContainerFsMaxWrittenBytes
+    - Identifier: CiliumContainerFsMaxWrittenBytes{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Container FS Max Written Bytes
+        metricName: Cilium Container FS Max Written Bytes {{$suffix}}
         metricVersion: v1
         unit: bytes
         enableViolations: true
@@ -171,11 +173,11 @@ steps:
           query: quantile(0.90, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
-    - Identifier: CiliumContainerFsAvgWriteLatency
+    - Identifier: CiliumContainerFsAvgWriteLatency{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Container FS Average Write Latency
+        metricName: Cilium Container FS Average Write Latency {{$suffix}}
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -186,11 +188,11 @@ steps:
           query: quantile(0.90, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
-    - Identifier: CiliumContainerFsMaxWriteLatency
+    - Identifier: CiliumContainerFsMaxWriteLatency{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Container FS Max Write Latency
+        metricName: Cilium Container FS Max Write Latency {{$suffix}}
         metricVersion: v1
         unit: s
         enableViolations: true
@@ -201,11 +203,11 @@ steps:
           query: quantile(0.90, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]))[%v:]))
-    - Identifier: CiliumContainerRestarts
+    - Identifier: CiliumContainerRestarts{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Container Restarts
+        metricName: Cilium Container Restarts {{$suffix}}
         metricVersion: v1
         unit: s
         enableViolations: true
