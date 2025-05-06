@@ -184,7 +184,6 @@ def main():
     parser_configure.add_argument("--operation-timeout", type=str, required=True, help="Timeout before failing the scale up test")
     parser_configure.add_argument("--provider", type=str, required=True, help="Cloud provider name")
     parser_configure.add_argument("--deployment-recreation-count", type=int, required=True, help="Number of times to recreate deployments")
-    parser_configure.add_argument("--cpu-per-node", type=int, required=True, help="CPU per node")
     
     ## reference these in load-config.yaml
     parser_configure.add_argument("--node-count", type=int, required=True, help="Number of nodes")
@@ -218,7 +217,6 @@ def main():
     parser_collect.add_argument("--result-file", type=str, required=True, help="Path to the result file")
     parser_collect.add_argument("--test-type", type=str, default="default-config", help="Description of test type")
     parser_collect.add_argument("--deployment-recreation-count", type=int, required=True, help="Number of times to recreate deployments")
-    parser_collect.add_argument("--cpu-per-node", type=int, required=True, help="CPU per node")
     parser_collect.add_argument("--node-count", type=int, required=True, help="Number of nodes")
     parser_collect.add_argument("--fortio-servers-per-node", type=int, required=True, help="Number of Fortio servers per node")
     parser_collect.add_argument("--fortio-clients-per-node", type=int, required=True, help="Number of Fortio clients per node")

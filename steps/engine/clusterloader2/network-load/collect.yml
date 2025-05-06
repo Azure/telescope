@@ -22,7 +22,6 @@ steps:
         --result-file $TEST_RESULTS_FILE \
         --test-type $TEST_TYPE \
         --deployment-recreation-count $DEPLOYMENT_RECREATION_COUNT \
-        --cpu-per-node $CPU_PER_NODE \
         --node-count $NODE_COUNT \
         --fortio-namespaces $FORTIO_NAMESPACES \
         --fortio-server-deployments $FORTIO_SERVER_DEPLOYMENTS \

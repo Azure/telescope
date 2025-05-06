@@ -17,7 +17,6 @@ steps:
         --operation-timeout $SCALE_TIMEOUT \
         --provider $CLOUD \
         --deployment-recreation-count $DEPLOYMENT_RECREATION_COUNT \
-        --cpu-per-node $CPU_PER_NODE \
         --node-count $NODE_COUNT \
         --fortio-server-deployments $FORTIO_SERVER_DEPLOYMENTS \
         --fortio-client-deployments $FORTIO_CLIENT_DEPLOYMENTS \
