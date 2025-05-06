@@ -7,3 +7,4 @@ class DockerClient:
 
     def run_container(self, image, command, volumes, detach):
         return self.client.containers.run(image, command, volumes=volumes, detach=detach)
+    
