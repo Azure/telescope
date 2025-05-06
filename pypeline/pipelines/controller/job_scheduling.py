@@ -1,26 +1,32 @@
-import os
 from resource.python3 import Python3
-from resource.setup import Setup
+from resource.ssh import SSH
 
 from benchmark import Benchmark, Layout
 from cloud.azure import Azure
+from components import ResourceFactory
 from engine.clusterloader2 import ClusterLoader2
-from resource.terraform.terraform import Terraform
 
 
 def main():
-    cloud_az_eastus2 = Azure(region="eastus2")
+    cloud_az_eastus2 = Azure(regions=["eastus2"])
+
+    # Resource Factory: to avoid repeatedly defining same attributes for every new resources
+    resource_factory = ResourceFactory(
+        cloud=cloud_az_eastus2.cloud, regions=cloud_az_eastus2.regions
+    )
+    # Define the resources
+    resources = [
+        resource_factory.create(Python3),
+        resource_factory.create(SSH),
+    ]
+    cl2_engine = resource_factory.create(ClusterLoader2)
+
+    # Define test layout
     azure_east_us2 = Layout(
         display_name="Job Scheduling",
-        setup=Setup(run_id=os.getenv("RUN_ID")),
         cloud=cloud_az_eastus2,
-        resources=[
-            Python3(),
-            Terraform(
-                cloud_obj=cloud_az_eastus2
-            ),  # Dynamically retrieve cloud from layout
-        ],
-        engine=ClusterLoader2(),
+        resources=resources,
+        engine=cl2_engine,
     )
 
     job_scheduling = Benchmark(

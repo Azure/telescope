@@ -3,6 +3,8 @@ from pipeline import Step
 
 
 class ClusterLoader2(Engine):
+    type: str = "clusterloader2"
+
     def setup(self) -> list[Step]:
         return []
 

@@ -13,27 +13,30 @@ from kubernetes.client.models import (
     V1VolumeMount,
     V1PersistentVolumeClaimTemplate,
     V1PersistentVolumeClaimSpec,
-    V1ResourceRequirements
+    V1ResourceRequirements,
 )
 
-with patch("clusterloader2.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
+with patch(
+    "clusterloader2.kubernetes_client.config.load_kube_config"
+) as mock_load_kube_config:
     # Mock the load_kube_config function to do nothing
     mock_load_kube_config.return_value = None
 
     # Now import the module where the global KUBERNETERS_CLIENT is defined
     from csi.csi import (
-        wait_for_condition, calculate_percentiles, log_duration,
-        create_statefulset, collect_attach_detach
+        wait_for_condition,
+        calculate_percentiles,
+        log_duration,
+        create_statefulset,
+        collect_attach_detach,
     )
+
 
 class TestCSI(unittest.TestCase):
 
     def test_calculate_percentiles(self):
         disk_numbers = [300, 1000]
-        expected_percentiles = {
-            300: [150, 270, 297, 300],
-            1000: [500, 900, 990, 1000]
-        }
+        expected_percentiles = {300: [150, 270, 297, 300], 1000: [500, 900, 990, 1000]}
         for disk_number in disk_numbers:
             p50, p90, p99, p100 = calculate_percentiles(disk_number)
             self.assertEqual(p50, expected_percentiles[disk_number][0])
@@ -58,7 +61,7 @@ class TestCSI(unittest.TestCase):
         log_duration(description, mock_start_time, log_file)
 
         # Verify file write
-        mock_open_file.assert_called_once_with(log_file, "a", encoding='utf-8')
+        mock_open_file.assert_called_once_with(log_file, "a", encoding="utf-8")
         mock_open_file().write.assert_called_once_with(f"{description}: {duration}\n")
 
         # Verify print output
@@ -92,11 +95,13 @@ class TestCSI(unittest.TestCase):
         check_function.assert_called_once()
 
     def test_wait_for_condition_met_after_iterations(self):
-        check_function = MagicMock(side_effect=[
-            [f"disk-{i}" for i in range(1)],
-            [f"disk-{i}" for i in range(2)],
-            [f"disk-{i}" for i in range(3)]
-        ])
+        check_function = MagicMock(
+            side_effect=[
+                [f"disk-{i}" for i in range(1)],
+                [f"disk-{i}" for i in range(2)],
+                [f"disk-{i}" for i in range(3)],
+            ]
+        )
         result = wait_for_condition(check_function, 3, "gte", 1)
         self.assertEqual(result, 3)
         self.assertEqual(check_function.call_count, 3)
@@ -105,7 +110,7 @@ class TestCSI(unittest.TestCase):
         check_function.side_effect = [
             [f"disk-{i}" for i in range(7)],
             [f"disk-{i}" for i in range(6)],
-            [f"disk-{i}" for i in range(5)]
+            [f"disk-{i}" for i in range(5)],
         ]
         result = wait_for_condition(check_function, 5, "lte", 1)
         self.assertEqual(result, 5)
@@ -140,7 +145,8 @@ class TestCSI(unittest.TestCase):
                                 ],
                                 volume_mounts=[
                                     V1VolumeMount(
-                                        name="persistent-storage", mount_path="/mnt/local"
+                                        name="persistent-storage",
+                                        mount_path="/mnt/local",
                                     )
                                 ],
                             )
@@ -151,11 +157,15 @@ class TestCSI(unittest.TestCase):
                     V1PersistentVolumeClaimTemplate(
                         metadata=V1ObjectMeta(
                             name="persistent-storage",
-                            annotations={"volume.beta.kubernetes.io/storage-class": storage_class},
+                            annotations={
+                                "volume.beta.kubernetes.io/storage-class": storage_class
+                            },
                         ),
                         spec=V1PersistentVolumeClaimSpec(
                             access_modes=["ReadWriteOnce"],
-                            resources=V1ResourceRequirements(requests={"storage": "1Gi"}),
+                            resources=V1ResourceRequirements(
+                                requests={"storage": "1Gi"}
+                            ),
                         ),
                     )
                 ],
@@ -164,7 +174,9 @@ class TestCSI(unittest.TestCase):
 
         mock_app_client = MagicMock()
         mock_get_app_client.return_value = mock_app_client
-        mock_app_client.create_namespaced_stateful_set.return_value = expected_statefulset
+        mock_app_client.create_namespaced_stateful_set.return_value = (
+            expected_statefulset
+        )
 
         actual_statefulset = create_statefulset(namespace, replicas, storage_class)
 
@@ -221,12 +233,12 @@ PV detachment p100: 412
             cloud_info,
             run_id,
             run_url,
-            result_dir
+            result_dir,
         )
 
         mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
 
-        mock_open_file.assert_any_call(raw_result_file, 'r', encoding='utf-8')
+        mock_open_file.assert_any_call(raw_result_file, "r", encoding="utf-8")
         mock_open_file().read.assert_called_once()
 
         expected_metrics = {
@@ -244,12 +256,12 @@ PV detachment p100: 412
             "PV_detachment_p100": "412",
         }
 
-        mock_open_file.assert_any_call(result_file, 'w', encoding='utf-8')
+        mock_open_file.assert_any_call(result_file, "w", encoding="utf-8")
         written_content = mock_open_file().write.call_args[0][0]
         written_json = json.loads(written_content)
 
         expected_content = {
-            "timestamp": mock_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "timestamp": mock_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "case_name": case_name,
             "node_number": node_number,
             "disk_number": disk_number,
@@ -260,8 +272,9 @@ PV detachment p100: 412
             "run_url": run_url,
         }
 
-        self.maxDiff = None # pylint: disable=invalid-name
+        self.maxDiff = None  # pylint: disable=invalid-name
         self.assertEqual(written_json, expected_content)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

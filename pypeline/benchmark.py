@@ -1,67 +1,61 @@
 import os
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from resource.setup import Setup
 
 import yaml
-from pipeline import Job, Pipeline, Stage, Step, customize_yaml
+
+from components import Cloud, Engine, Resource
+from pipeline import Job, Pipeline, Stage, customize_yaml
+from terraform.terraform import Terraform
 
 
-class Resource(ABC):
-    @abstractmethod
-    def setup(self) -> list[Step]:
-        pass
-
-    @abstractmethod
-    def validate(self) -> list[Step]:
-        pass
-
-    @abstractmethod
-    def tear_down(self) -> list[Step]:
-        pass
-
-class Engine(Resource):
-    @abstractmethod
-    def run(self) -> list[Step]:
-        pass
-
-class Cloud(ABC):
-    @abstractmethod
-    def login(self) -> list[Step]:
-        pass
-
-    @abstractmethod
-    def get_cloud_type(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_region(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_credential_type(self) -> str:
-        pass
 @dataclass
 class Layout:
     display_name: str
-    setup: Resource
     cloud: Cloud
     resources: list[Resource]
     engine: Engine
+    terraform: Terraform = None
+    setup: Resource = None
+
+    def __post_init__(self):
+        if self.terraform is None:
+            self.terraform = Terraform(
+                cloud=self.cloud.cloud,
+                regions=self.cloud.regions,
+                credential_type=self.cloud.credential_type,
+            )
+        if self.setup is None:
+            self.setup = Setup(
+                run_id=os.getenv("RUN_ID"),
+                cloud=self.cloud.cloud,
+                regions=self.cloud.regions,
+                engine=self.engine.type,
+            )
 
     def get_jobs(self) -> list[Job]:
-   
+
         setup = Job(
             job="setup",
             display_name="Setup resources",
             steps=self.setup.setup()
             + self.cloud.login()
             + [step for r in self.resources for step in r.setup()]
+            + self.terraform.setup()
+            + [
+                self.terraform.create_resource_group(),
+                self.terraform.run_command(command="version"),
+                self.terraform.run_command(command="init"),
+                self.terraform.run_command(command="apply"),
+            ]
             + self.engine.setup(),
         )
+
         validate = Job(
             job="validate",
             display_name="Validate resources",
-            steps=[step for r in self.resources for step in r.validate()]
+            steps=self.setup.validate()
+            + [step for r in self.resources for step in r.validate()]
             + self.engine.validate(),
             depends_on=[setup.job],
         )
@@ -125,5 +119,5 @@ class Benchmark:
         self.prepare_directory(yaml_file_path)
 
         customize_yaml()
-        with open(yaml_file_path, "w") as file:
+        with open(yaml_file_path, "w", encoding="utf-8") as file:
             yaml.dump(p, file, sort_keys=False)
