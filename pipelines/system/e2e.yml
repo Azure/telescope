@@ -1,0 +1,12 @@
+trigger: none
+schedules:
+  - cron: "0 2-23/4 * * *"
+    displayName: "Every 1 Hour"
+    branches:
+      include:
+        - skip-collect-terraform-step
+    always: true
+
+steps:
+  - script: echo Hello, World!
+    displayName: "Run a one-line script"
