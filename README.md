@@ -5,17 +5,21 @@
 Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies on Azure, AWS and GCP.
 
 The current supported Kubernetes test scenarios are:
-1. [API Server Benchmark](pipelines/perf-eval/API%20Server%20Benchmark)
-2. [Autoscale Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
-3. [Container Networking Benchmark](pipelines/perf-eval/CNI%20Benchmark)
-4. [Container Storage Benchmark](pipelines/perf-eval/CSI%20Benchmark/)
-5. [Container Runtime Benchmark](pipelines/perf-eval/CRI%20Benchmark/)
-6. KubeRay Benchmark (incoming)
+1. [API Server & ETCD Benchmark](pipelines/perf-eval/API%20Server%20Benchmark)
+2. [Scheduler & Controller Benchmark](pipelines/perf/Schedulear%20Benchmark)
+3. [Autoscaler/Karpenter Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
+4. [Container Network Benchmark](pipelines/perf-eval/CNI%20Benchmark)
+5. [Container Storage Benchmark](pipelines/perf-eval/CSI%20Benchmark/)
+6. [Container Runtime Benchmark](pipelines/perf-eval/CRI%20Benchmark/)
+7. [GPU Benchmark](incoming)
 
 The current integrated test tools are:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
-2. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
-3. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
+2. [kwok](https://github.com/kubernetes-sigs/kwok)
+3. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
+4. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
+5. [iperf](https://github.com/esnet/iperf)
+6. [fio](https://github.com/axboe/fio)
 
 ## Design
 ![design](./docs/imgs/design.jpeg)
