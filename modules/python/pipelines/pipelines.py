@@ -63,6 +63,7 @@ def main():
     org, project, pat = args.org, args.project, args.pat
     headers = get_headers(pat)
     excluded_ids = list(map(int, args.exclude_pipelines))
+    logger.info(f"Excluded pipeline IDs: {excluded_ids}")
 
     pipelines_to_disable = []
 
