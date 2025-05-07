@@ -217,4 +217,4 @@ steps:
         - name: Perc90
           query: quantile(0.90, max_over_time(increase(kube_pod_container_status_restarts_total{container="ama-logs"}[%v])[%v:]))
         - name: Perc50
-          query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="ama-logs"}[%v])[%v:])
+          query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="ama-logs"}[%v])[%v:]))
