@@ -24,7 +24,7 @@ jobs:
         displayName: "Run Pipleine Validation"
         workingDirectory: modules/python
         env:
-          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipelines/pipeline.py
+          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipelines/pipelines.py
           ORG: $(ORG_NAME)
           PROJECT: $(PROJECT)
           TOKEN: $(DEVOPS_ACCESS_TOKEN)
