@@ -13,7 +13,7 @@ steps:
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
-        ${KBENCH_IMAGE} $RESULTS_DIR ${HOME}/.kube/config
+        $KBENCH_TESTNAMES $RESULTS_DIR ${HOME}/.kube/config
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
@@ -21,7 +21,7 @@ steps:
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
+      KBENCH_TESTNAMES: ${{ parameters.engine_input.kbench_testnames }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kbench/execute.py
-      KBENCH_IMAGE: ${{ parameters.engine_input.image }}
       RESULTS_DIR: $(Pipeline.Workspace)/s/modules/python/kbench/results
     displayName: "Run Benchmark"

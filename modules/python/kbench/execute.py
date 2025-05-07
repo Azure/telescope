@@ -8,8 +8,8 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-def execute(kbench_image, results_dir, kubeconfig):
-    logger.info(f"Calling k-bench execute function with image: {kbench_image}, results_dir: {results_dir}, kubeconfig: {kubeconfig}")
+def execute(kbench_testnames, results_dir, kubeconfig):
+    logger.info(f"Calling k-bench execute function with kbench_testnames: {kbench_testnames}, results_dir: {results_dir}, kubeconfig: {kubeconfig}")
     logger.info("Installing golang")
     subprocess.run(["curl", "-OL", "https://go.dev/dl/go1.24.3.linux-amd64.tar.gz"], check=True)
     subprocess.run(["sudo", "tar", "-C", "/usr/local", "--strip-components=1", "-xzf", "go1.24.3.linux-amd64.tar.gz"], check=True)
@@ -30,20 +30,22 @@ def execute(kbench_image, results_dir, kubeconfig):
     logger.info("Successfully built k-bench")
     logger.info("Running k-bench through run.sh:")
     subprocess.run(["mkdir", "-p", results_dir], check=True)
-    subprocess.run(["./run.sh", "-r", "kbench-cri-cp-heavy-12client", "-t", "cp_heavy_12client", "-o", results_dir], check=True)
-    logger.info("Successfully ran k-bench")
+    for testname in kbench_testnames.split(","):
+        logger.info(f"Running k-bench test: {testname}")
+        subprocess.run(["./run.sh", "-r", f"kbench-cri-{testname}", "-t", testname, "-o", results_dir], check=True)
+    logger.info("Successfully ran all k-bench tests")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Execute k-bench based performance tests.")
 
-    parser.add_argument("kbench_image", type=str, help="Name of the kbench container image")
+    parser.add_argument("kbench_testnames", type=str, help="Comma-separated list of kbench test names")
     parser.add_argument("results_dir", type=str, help="Path to the kbench results directory")
     parser.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
 
     args = parser.parse_args()
 
-    execute(args.kbench_image, args.results_dir, args.kubeconfig)
+    execute(args.kbench_testnames, args.results_dir, args.kubeconfig)
 
 if __name__ == "__main__":
     main()

@@ -19,15 +19,8 @@ stages:
             - eastus2: "scenarios/perf-eval/kbench-cri/terraform-inputs/aks-ubuntu.tfvars"
           engine: kbench
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            kbench_testnames: variables['KBENCH_TESTNAMES']
           topology: kbench
-          matrix:
-            n3-p300-memory:
-              node_count: 3
-              max_pods: 9
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -46,15 +39,8 @@ stages:
             - eastus2: "scenarios/perf-eval/kbench-cri/terraform-inputs/aks-azure-linux3.tfvars"
           engine: kbench
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            kbench_testnames: variables['KBENCH_TESTNAMES']
           topology: kbench
-          matrix:
-            n3-p300-memory:
-              node_count: 3
-              max_pods: 9
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -73,15 +59,8 @@ stages:
             - us-east-1: "scenarios/perf-eval/kbench-cri/terraform-inputs/eks-amazon-linux2023.tfvars"
           engine: kbench
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            kbench_testnames: variables['KBENCH_TESTNAMES']
           topology: kbench
-          matrix:
-            n3-p300-memory:
-              node_count: 3
-              max_pods: 9
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -100,15 +79,8 @@ stages:
             - us-east-1: "scenarios/perf-eval/kbench-cri/terraform-inputs/eks-bottlerocket.tfvars"
           engine: kbench
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            kbench_testnames: variables['KBENCH_TESTNAMES']
           topology: kbench
-          matrix:
-            n3-p300-memory:
-              node_count: 3
-              max_pods: 9
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
