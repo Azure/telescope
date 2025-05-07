@@ -32,12 +32,12 @@ stages:
               scale_timeout: "15m"
               deployment_recreation_count: 0
               node_count: 1500
-              fortio_server_deployments: 35
-              fortio_client_deployments: 35
+              fortio_namespaces: 1
+              fortio_server_deployments: 5
+              fortio_client_deployments: 5
               fortio_server_replicas_per_deployment: 150
               fortio_client_replicas_per_deployment: 150
-              fortio_client_queries_per_second: 6300
-              fortio_namespaces: 1
+              fortio_client_queries_per_second: 1300
               apply_fqdn_cnp: True
           max_parallel: 1
           timeout_in_minutes: 720
