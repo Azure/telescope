@@ -189,8 +189,8 @@ def main():
     parser_configure.add_argument("--node-count", type=int, required=True, help="Number of nodes")
     parser_configure.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
 
-    parser_configure.add_argument("--fortio-server-deployments", type=int, required=True, help="Number of Fortio servers total")
-    parser_configure.add_argument("--fortio-client-deployments", type=int, required=True, help="Number of Fortio clients total")
+    parser_configure.add_argument("--fortio-server-deployments", type=int, required=True, help="Number of Fortio server deployments total")
+    parser_configure.add_argument("--fortio-client-deployments", type=int, required=True, help="Number of Fortio client deployments total")
 
     parser_configure.add_argument("--fortio-server-replicas-per-deployment", type=int, required=True, help="Number of Fortio servers replicas per deployment")
     parser_configure.add_argument("--fortio-client-replicas-per-deployment", type=int, required=True, help="Number of Fortio clients replicas per deployment")
@@ -217,13 +217,18 @@ def main():
     parser_collect.add_argument("--result-file", type=str, required=True, help="Path to the result file")
     parser_collect.add_argument("--test-type", type=str, default="default-config", help="Description of test type")
     parser_collect.add_argument("--deployment-recreation-count", type=int, required=True, help="Number of times to recreate deployments")
+
     parser_collect.add_argument("--node-count", type=int, required=True, help="Number of nodes")
-    parser_collect.add_argument("--fortio-servers-per-node", type=int, required=True, help="Number of Fortio servers per node")
-    parser_collect.add_argument("--fortio-clients-per-node", type=int, required=True, help="Number of Fortio clients per node")
-    parser_collect.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client pod. NOT queries per second per connection")
-    parser_collect.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_collect.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
-    parser_collect.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
+
+    parser_collect.add_argument("--fortio-server-deployments", type=int, required=True, help="Number of Fortio server deployments total")
+    parser_collect.add_argument("--fortio-client-deployments", type=int, required=True, help="Number of Fortio client deployments total")
+
+    parser_collect.add_argument("--fortio-server-replicas-per-deployment", type=int, required=True, help="Number of Fortio servers replicas per deployment")
+    parser_collect.add_argument("--fortio-client-replicas-per-deployment", type=int, required=True, help="Number of Fortio clients replicas per deployment")
+
+    parser_collect.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client pod. NOT queries per second per connection")
+
     parser_collect.add_argument("--apply-fqdn-cnp", type=str2bool, choices=[True, False], default=False, help="Apply CNP that will generate DNS metrics")
 
     args = parser.parse_args()
