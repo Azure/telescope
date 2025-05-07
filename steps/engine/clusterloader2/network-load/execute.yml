@@ -9,9 +9,8 @@ parameters:
     type: string
 
 steps:
-  - script: |
+  - bash: |
       set -eo pipefail
-
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --cl2-override-file ${CL2_CONFIG_DIR}/overrides.yaml \
         --operation-timeout $SCALE_TIMEOUT \
@@ -25,7 +24,22 @@ steps:
         --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
         --fortio-namespaces $FORTIO_NAMESPACES \
         --apply-fqdn-cnp $APPLY_FQDN_CNP
+    workingDirectory: modules/python
+    displayName: Python Configure Script
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/network_load.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-load/results
+      displayName: "Run Benchmark"
 
+  - bash: |
+      set -eo pipefail
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         --cl2-image ${CL2_IMAGE} \
         --cl2-config-dir ${CL2_CONFIG_DIR} \
@@ -34,6 +48,7 @@ steps:
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD
     workingDirectory: modules/python
+    displayName: Python Execute Script
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
         CLOUD: aks

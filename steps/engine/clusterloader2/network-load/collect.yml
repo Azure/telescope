@@ -12,7 +12,7 @@ steps:
   - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
     parameters:
       region: ${{ parameters.region }}
-  - script: |
+  - bash: |
       set -eo pipefail
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
         --cl2-report-dir $CL2_REPORT_DIR \
@@ -31,6 +31,7 @@ steps:
         --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
         --apply-fqdn-cnp $APPLY_FQDN_CNP
     workingDirectory: modules/python
+    displayName: Python Collect Script
     env:
       CLOUD: ${{ parameters.cloud }}
       RUN_URL: $(RUN_URL)
