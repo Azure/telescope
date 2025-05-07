@@ -10,7 +10,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-acns-network-load
+  SCENARIO_NAME: large-scale-network-load
   OWNER: aks
 
 stages:

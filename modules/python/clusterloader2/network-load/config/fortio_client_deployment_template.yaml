@@ -2,7 +2,6 @@
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
 {{$Image := DefaultParam .Image "acnpublic.azurecr.io/fortio:latest"}}
 {{$FortioClientQueriesPerSecond := .FortioClientQueriesPerSecond}}
-{{$FortioClientConnections := .FortioClientConnections}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -40,7 +39,7 @@ spec:
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
-        network-load: "true"
+        scenario: "highcount"
       containers:
       - name: fortio
         image: {{$Image}}
@@ -56,7 +55,7 @@ spec:
             "-timeout",
             "5s",
             "-c",
-            "{{$FortioClientConnections}}",
+            "{{$FortioClientQueriesPerSecond}}",
             "-qps",
             "{{$FortioClientQueriesPerSecond}}",
             "-t",
@@ -83,7 +82,3 @@ spec:
         operator: "Exists"
         effect: "NoExecute"
         tolerationSeconds: 900
-      - key: "network-load"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"

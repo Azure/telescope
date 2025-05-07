@@ -89,7 +89,7 @@ def configure_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=False, tear_down_prometheus=False)
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True, tear_down_prometheus=False)
 
 def collect_clusterloader2(
     cl2_report_dir,
