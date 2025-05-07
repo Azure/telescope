@@ -3,6 +3,7 @@
 {{$Image := DefaultParam .Image "acnpublic.azurecr.io/fortio"}}
 {{$FortioClientQueriesPerSecond := .FortioClientQueriesPerSecond}}
 {{$FortioClientConnections := .FortioClientConnections}}
+{{$uniqueLabel := DefaultParam .uniqueLabel ""}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -34,7 +35,7 @@ spec:
         app: fortio
         role: load
         restart: {{.deploymentLabel}}
-        uniqueLabelPerDeployment: "{{.uniqueLabel}}{{.Index}}"
+        uniqueLabelPerDeployment: "{{$uniqueLabel}}{{.Index}}"
     spec:
       nodeSelector:
         scale-test: "true"
