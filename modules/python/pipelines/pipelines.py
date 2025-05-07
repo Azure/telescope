@@ -1,9 +1,9 @@
 import argparse
 import base64
 import sys
-import requests
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
+import requests
 def get_headers(pat):
     return {
         "Content-Type": "application/json",
@@ -52,10 +52,13 @@ def main():
     parser.add_argument("--org", required=True, help="Azure DevOps organization name")
     parser.add_argument("--project", required=True, help="Azure DevOps project name")
     parser.add_argument("--pat", required=True, help="Personal Access Token (PAT)")
+    parser.add_argument("--exclude-pipelines",   nargs="+", default=[], help="List of pipeline IDs to exclude from disabling")
 
     args = parser.parse_args()
     org, project, pat = args.org, args.project, args.pat
     headers = get_headers(pat)
+    excluded_ids = list(map(int, args.exclude_pipelines))
+
 
     pipelines_to_disable = []
 
@@ -66,8 +69,13 @@ def main():
             if source_branch != "refs/heads/main":
                 pipeline_def = get_pipeline_definition(org, project, p['definition']['id'], headers)
                 if pipeline_def['queueStatus'] == "enabled":
-                    print(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
-                    pipelines_to_disable.append(pipeline_def)
+                    if pipeline_def['id'] not in excluded_ids:
+                        print(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
+                        pipelines_to_disable.append(pipeline_def)
+                    else:
+                        print(f"✅ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch but is excluded from disabling.")
+                else:
+                    print(f"✅ Pipeline '{p['definition']['path']} {p['definition']['name']}' is already disabled.")
     except Exception as e:
         print(f"❌ Failed: {e}")
         sys.exit(1)

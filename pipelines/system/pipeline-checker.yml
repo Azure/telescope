@@ -15,7 +15,7 @@ jobs:
         displayName: "Get ADO token"
       - script: |
           set -eo pipefail
-          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE --org $ORG --project $PROJECT --pat $TOKEN
+          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE --org $ORG --project $PROJECT --pat $TOKEN --exclude-pipelines $EXCLUDE_PIPELINES
 
         displayName: "Run Pipleine Validation"
         workingDirectory: modules/python
@@ -24,3 +24,4 @@ jobs:
           ORG: $(ORG_NAME)
           PROJECT: $(PROJECT_NAME)
           TOKEN: $(DEVOPS_ACCESS_TOKEN)
+          EXCLUDE_PIPELINES: $(EXCLUDE_PIPELINES)
