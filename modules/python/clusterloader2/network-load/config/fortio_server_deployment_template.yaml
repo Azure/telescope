@@ -1,6 +1,6 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
-{{$Image := DefaultParam .Image "fortio/fortio"}}
+{{$Image := DefaultParam .Image "acnpublic.azurecr.io/fortio:latest"}}
 
 apiVersion: apps/v1
 kind: Deployment
