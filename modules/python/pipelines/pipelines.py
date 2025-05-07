@@ -54,7 +54,7 @@ def main():
         scheduled_pipelines = get_scheduled_pipelines(org, project, headers)
         for p in scheduled_pipelines:
             source_branch = p["sourceBranch"]
-            if source_branch != "refs/heads/main" and p['definition']['id'] == 72:
+            if source_branch != "refs/heads/main":
                 pipeline_def = get_pipeline_definition(org, project, p['definition']['id'], headers)
                 if pipeline_def['queueStatus'] == "enabled":
                     print(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
