@@ -90,6 +90,7 @@ def configure_clusterloader2(
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
         file.write("PROMETHEUS_SCRAPE_KUBE_PROXY: false\n")
+        file.write("PROMETHEUS_SCRAPE_KUBELETS: false\n")
 
         # topology config
         file.write(f"CL2_FORTIO_SERVERS_PER_DEPLOYMENT: {fortio_servers_per_deployment}\n")
@@ -160,7 +161,7 @@ def execute_clusterloader2(
 ):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
-                    scrape_containerd=scrape_containerd, tear_down_prometheus=False, scrape_kubelets=True)
+                    scrape_containerd=scrape_containerd, tear_down_prometheus=False, scrape_kubelets=False)
 
 def collect_clusterloader2(
     cpu_per_node,
