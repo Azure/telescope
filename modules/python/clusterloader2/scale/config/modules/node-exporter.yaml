@@ -15,7 +15,7 @@
 steps:
   - name: Start measurements
     measurements:
-      - Identifier: WaitForControlledPodsRunning
+      - Identifier: WaitForNodeExporterPodsRunning
         Method: WaitForControlledPodsRunning
         Params:
           action: start
@@ -89,7 +89,7 @@ steps:
             basename: node-exporter
   - name: Wait for pods to be running
     measurements:
-      - Identifier: WaitForControlledPodsRunning
+      - Identifier: WaitForNodeExporterPodsRunning
         Method: WaitForControlledPodsRunning
         Params:
           action: gather

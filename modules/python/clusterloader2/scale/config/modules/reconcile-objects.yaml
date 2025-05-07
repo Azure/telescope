@@ -36,10 +36,11 @@ steps:
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForServerPodsRunning
       Params:
         apiVersion: apps/v1
         kind: Deployment
+        labelSelector: role = server
     Params:
       action: start
       checkIfPodsAreUpdated: true
@@ -80,7 +81,7 @@ steps:
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForServerPodsRunning
     Params:
       action: gather
       refreshInterval: 15s
@@ -89,10 +90,11 @@ steps:
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForClientPodsRunning
       Params:
         apiVersion: apps/v1
         kind: Deployment
+        labelSelector: role = client
     Params:
       action: start
       checkIfPodsAreUpdated: true
@@ -165,10 +167,26 @@ steps:
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForClientPodsRunning
     Params:
       action: gather
       refreshInterval: 15s
+
+- name: Starting measurement for '{{$actionName}}'
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForClientPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+        labelSelector: role = client
+    Params:
+      action: start
+      checkIfPodsAreUpdated: true
+      labelSelector: group = {{.Group}}
+      operationTimeout: {{$operationTimeout}}
+      apiVersion: apps/v1
 
 - name: 'remove label from client pods in deployment'
   phases:
@@ -223,7 +241,7 @@ steps:
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForClientPodsRunning
     Params:
       action: gather
       refreshInterval: 15s

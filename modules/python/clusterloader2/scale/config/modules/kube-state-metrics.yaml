@@ -15,7 +15,7 @@
 steps:
   - name: Start measurements
     measurements:
-      - Identifier: WaitForControlledPodsRunning
+      - Identifier: WaitForKubeStateMetricsPodsRunning
         Method: WaitForControlledPodsRunning
         Params:
           action: start
@@ -80,7 +80,7 @@ steps:
             basename: kube-state-metrics
   - name: Wait for pods to be running
     measurements:
-      - Identifier: WaitForControlledPodsRunning
+      - Identifier: WaitForKubeStateMetricsPodsRunning
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
