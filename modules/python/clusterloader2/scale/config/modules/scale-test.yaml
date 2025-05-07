@@ -18,6 +18,9 @@ name: scale-test
 {{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
 {{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 
+# Network Policies
+{{$networkPoliciesPerNamespace := DefaultParam .CL2_NETWORK_POLICIES_PER_NAMESPACE 0}}
+
 # Retina Network Flow Log config
 {{$createRetinaNetworkFlowLogs := DefaultParam .createRetinaNetworkFlowLogs false}}
 
@@ -88,6 +91,7 @@ steps:
         fortioClientConnections: {{$fortioClientConnections}}
         generateRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
         deploymentLabel: start
+        networkPoliciesPerNamespace: {{$networkPoliciesPerNamespace}}
 
   # FIXME: is this needed?
   - module:

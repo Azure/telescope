@@ -65,6 +65,7 @@ def configure_clusterloader2(
     fortio_client_connections,
     fortio_namespaces,
     fortio_deployments_per_namespace,
+    network_policies_per_namespace,
     generate_retina_network_flow_logs,
     override_file):
 
@@ -100,6 +101,7 @@ def configure_clusterloader2(
         file.write(f"CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE: {fortio_deployments_per_namespace}\n")
         file.write("CL2_FORTIO_POD_CPU: 10m\n")
         file.write("CL2_FORTIO_POD_MEMORY: 50Mi\n")
+        file.write(f"CL2_NETWORK_POLICIES_PER_NAMESPACE: {network_policies_per_namespace}\n")
         file.write(f"CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS: {generate_retina_network_flow_logs}\n")
 
         # if scrape_containerd:
@@ -184,6 +186,7 @@ def collect_clusterloader2(
     fortio_client_connections,
     fortio_namespaces,
     fortio_deployments_per_namespace,
+    network_policies_per_namespace,
     generate_retina_network_flow_logs=False,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -215,6 +218,7 @@ def collect_clusterloader2(
             # add more details here about tests (e.g. features tested)
             "traffic_generator": "fortio",
             "traffic_pods": fortio_namespaces * fortio_deployments_per_namespace * (fortio_clients_per_deployment + fortio_servers_per_deployment),
+            "network_policies": network_policies_per_namespace,
             "generate_retina_network_flow_logs": generate_retina_network_flow_logs,
             "requests_per_second": fortio_client_queries_per_second,
         },
@@ -344,6 +348,7 @@ def main():
     parser_collect.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_collect.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_collect.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
+    parser_collect.add_argument("--network-policies-per-namespace", type=int, help="Number of network policies to be created per namespace", default=0, nargs='?')
     parser_collect.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
 
     args = parser.parse_args()
@@ -359,6 +364,7 @@ def main():
                                  args.fortio_client_connections,
                                  args.fortio_namespaces,
                                  args.fortio_deployments_per_namespace,
+                                 args.network_policies_per_namespace,
                                  args.generate_retina_network_flow_logs,
                                  args.cl2_override_file)
     elif args.command == "validate":
@@ -378,6 +384,7 @@ def main():
                                args.fortio_client_connections,
                                args.fortio_namespaces,
                                args.fortio_deployments_per_namespace,
+                               args.network_policies_per_namespace,
                                args.generate_retina_network_flow_logs,
                                )
 

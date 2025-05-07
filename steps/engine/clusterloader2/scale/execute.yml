@@ -53,6 +53,7 @@ steps:
         --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
         --fortio-namespaces $FORTIO_NAMESPACES \
         --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+        --network-policies-per-namespace $NETWORK_POLICIES_PER_NAMESPACE \
         --cpu_per_node ${CPU_PER_NODE:-0} \
         --node_count ${NODE_COUNT:-0} \
         --node_per_step ${NODE_PER_STEP:-0} \

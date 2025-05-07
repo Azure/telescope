@@ -6,6 +6,7 @@
 {{$Group := .Group}}
 {{$namespaces := .namespaces}}
 {{$deploymentLabel := .deploymentLabel}}
+{{$networkPoliciesPerNamespace := .networkPoliciesPerNamespace}}
 {{$fortioDeploymentsPerNamespace := .fortioDeploymentsPerNamespace}}
 {{$fortioServerReplicas := .fortioServerReplicas}}
 {{$fortioClientReplicas := .fortioClientReplicas}}
@@ -120,6 +121,104 @@ steps:
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
           FortioServerServiceBasename: fortio-server
 
+- name: Sleep 1m
+  measurements:
+  - Identifier: Dummy
+    Method: Sleep
+    Params:
+      action: start
+      duration: 1m
+
+- name: 'add label to client pods in deployment'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-client
+        objectTemplatePath: modules/fortio/client-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioClientReplicas}}
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          uniqueLabel: "uniqueLabel"
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+          FortioClientConnections: {{$fortioClientConnections}}
+          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+          FortioServerServiceBasename: fortio-server
+
+- name: '{{$actionName}} network policies'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$networkPoliciesPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: scale-test-policy
+        objectTemplatePath: modules/networkpolicy-template.yaml
+
+- name: Waiting for '{{$actionName}} clients' to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+      refreshInterval: 15s
+
+- name: 'remove label from client pods in deployment'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-client
+        objectTemplatePath: modules/fortio/client-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioClientReplicas}}
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+          FortioClientConnections: {{$fortioClientConnections}}
+          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+          FortioServerServiceBasename: fortio-server
+
+- name: Sleep 1m
+  measurements:
+  - Identifier: Dummy
+    Method: Sleep
+    Params:
+      action: start
+      duration: 1m
+
+- name: 're-add label to client pods in deployment'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-client
+        objectTemplatePath: modules/fortio/client-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioClientReplicas}}
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          uniqueLabel: "uniqueLabel"
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+          FortioClientConnections: {{$fortioClientConnections}}
+          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+          FortioServerServiceBasename: fortio-server
+
 - name: Waiting for '{{$actionName}} clients' to be completed
   measurements:
   - Method: WaitForControlledPodsRunning
@@ -135,7 +234,7 @@ steps:
     Method: Sleep
     Params:
       action: start
-      duration: 5m
+      duration: 1m
 
 {{if $generateRetinaNetworkFlowLogs}}
 # Delete retina network flow log

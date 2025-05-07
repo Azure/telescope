@@ -62,14 +62,14 @@ parameters:
   displayName: Number of Traffic Replicas (per deployment)
   type: number
   default: 10
-- name: network_policy_count
+- name: network_policies_per_namespace
   displayName: Number of Network Policies
   type: number
   default: 10
 - name: fortio_client_requests_per_second
   displayName: Fortio Client Requests Per Second
   type: number
-  default: 2000
+  default: 1500
 - name: generate_retina_network_flow_logs
   displayName: Add Test Run with Retina Network Flow Logs 
   type: boolean
@@ -96,7 +96,7 @@ stages:
             acns:
               traffic_deployment_count: ${{ parameters.traffic_deployment_count }}
               traffic_replica_count: ${{ parameters.traffic_replica_count }}
-              network_policy_count: ${{ parameters.network_policy_count }}
+              network_policies_per_namespace: ${{ parameters.network_policies_per_namespace }}
               cl2_config_file: config.yaml
               # fortio parameters
               fortio_servers_per_deployment: ${{ parameters.traffic_replica_count }}
