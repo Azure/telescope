@@ -18,7 +18,7 @@ jobs:
           AZURE_MI_ID: $(AZURE_MI_CLIENT_ID)
         displayName: "Get ADO token"
       - script: |
-          set -eu
+          set -e
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE --org $ORG --project $PROJECT --pat $TOKEN
 
         displayName: "Run Pipleine Validation"
