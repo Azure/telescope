@@ -4,6 +4,11 @@ import sys
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 import requests
+from utils.logger_config import get_logger, setup_logging
+
+setup_logging()
+logger = get_logger(__name__)
+
 def get_headers(pat):
     return {
         "Content-Type": "application/json",
@@ -45,7 +50,7 @@ def disable_pipeline(org, project, pipeline_def, headers):
         url = f"https://dev.azure.com/{org}/{project}/_apis/build/definitions/{definition_id}?api-version=7.1-preview.7"
         res = requests.put(url, json=pipeline_def, headers=headers, timeout=10)
         res.raise_for_status()
-        print(f"✅ Disabled pipeline: {pipeline_def['name']} under {pipeline_def['path']}")
+        logger.info(f"✅ Disabled pipeline: {pipeline_def['name']} under {pipeline_def['path']}")
 
 def main():
     parser = argparse.ArgumentParser(description="Validate and disable ADO pipelines not scheduled on 'main' branch.")
@@ -59,7 +64,6 @@ def main():
     headers = get_headers(pat)
     excluded_ids = list(map(int, args.exclude_pipelines))
 
-
     pipelines_to_disable = []
 
     try:
@@ -70,24 +74,19 @@ def main():
                 pipeline_def = get_pipeline_definition(org, project, p['definition']['id'], headers)
                 if pipeline_def['queueStatus'] == "enabled":
                     if pipeline_def['id'] not in excluded_ids:
-                        print(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
+                        logger.warning(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
                         pipelines_to_disable.append(pipeline_def)
                     else:
-                        print(f"✅ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch but is excluded from disabling.")
-                else:
-                    print(f"✅ Pipeline '{p['definition']['path']} {p['definition']['name']}' is already disabled.")
+                        logger.warning(f"Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch but is excluded from disabling.")
     except Exception as e:
-        print(f"❌ Failed: {e}")
+        logger.error(f"❌ Failed: {e}")
         sys.exit(1)
-    if not pipelines_to_disable:
-        print("✅ All pipelines are scheduled on 'main' branch.")
-        sys.exit(0)
 
     for pipeline_def in pipelines_to_disable:
         try:
             disable_pipeline(org, project, pipeline_def, headers)
         except Exception as e:
-            print(f"❌ Failed to disable pipeline {pipeline_def['id']}: {e}")
+            logger.error(f"❌ Failed to disable pipeline {pipeline_def['id']}: {e}")
             sys.exit(1)
 
 if __name__ == "__main__":
