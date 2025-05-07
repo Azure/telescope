@@ -63,6 +63,7 @@ tuningSets:
   - name: DeploymentDeleteQps
     qpsLoad:
       qps: {{$apiServerCallsPerSecond}}
+      
 
 steps:
   - name: Log - fortioNamespaces={{$fortioNamespaces}}, fortioServerDeployments={{$fortioServerDeployments}}, fortioClientDeployments={{$fortioClientDeployments}}, fortioServerReplicasPerDeployment={{$fortioServerReplicasPerDeployment}}, fortioServerDeploymentReplicasPerNamespace={{$fortioServerDeploymentReplicasPerNamespace}}, fortioServiceReplicasPerNamespace=={{$fortioServiceReplicasPerNamespace}}
