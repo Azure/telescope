@@ -1,25 +1,12 @@
 import argparse
 import base64
 import sys
-import json
-from urllib.parse import quote
-from datetime import datetime, timedelta, timezone
 import requests
 def get_headers(pat):
     return {
         "Content-Type": "application/json",
         "Authorization": f"Basic {base64.b64encode(f':{pat}'.encode()).decode()}"
     }
-
-# return pipelines that are enabled
-# def get_pipelines(org, project, headers):
-#     url = f"https://dev.azure.com/{org}/{project}/_apis/pipelines?api-version=7.1-preview.1"
-#     res = requests.get(url, headers=headers, timeout=10)
-#     res.raise_for_status()
-#     pipelines = res.json()["value"]
-#     print(f"Found {len(pipelines)} pipelines in '{project}' project.")
-#     print(json.dumps(pipelines[0], indent=2))
-#     return [p for p in pipelines if p["queueStatus"] == "enabled"]
 
 def get_pipeline_definition(org, project, pipeline_id, headers):
     url = (
