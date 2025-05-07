@@ -1,9 +1,5 @@
 trigger: none
 
-variables:
-  ORG_URL: https://dev.azure.com/msazure
-  PROJECT: CloudNativeCompute
-
 jobs:
   - job: pipeline_checker
     continueOnError: false
