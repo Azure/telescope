@@ -75,7 +75,7 @@ def main():
                 pipeline_def = get_pipeline_definition(org, project, p['definition']['id'], headers)
                 if pipeline_def['queueStatus'] == "enabled":
                     if pipeline_def['id'] not in excluded_ids:
-                        logger.warning(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
+                        logger.warning(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' with pipeline ID {pipeline_def['id']} is scheduled on {source_branch} branch.")
                         pipelines_to_disable.append(pipeline_def)
                     else:
                         logger.warning(f"Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch but is excluded from disabling.")
