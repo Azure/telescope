@@ -372,12 +372,13 @@ class KubernetesClient:
         """
         Get detailed info about pods in a namespace
         """
-        
-        pods = self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector)
+
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector)
 
         pod_details = []
         for pod in pods:
-            
+
             pod_details.append({
                 "name": pod.metadata.name,
                 "labels": pod.metadata.labels,
@@ -410,52 +411,43 @@ class KubernetesClient:
         }
         return node_details
 
-    def collect_pod_and_node_info(self, namespace="default", label_selector="", result_dir=""):
+    def collect_pod_and_node_info(self, namespace="default", label_selector="", result_dir="", role=""):
         """
-        Collect information about all pods and their respective nodes, separating server and client pods.
+        Collect information about all pods and their respective nodes.
+        The result will have pod information under 'pod' key and node information under 'node' key
+        to prevent any naming conflicts.
         """
-        pods = self.get_pod_details(namespace=namespace, label_selector=label_selector)
+        pods = self.get_pod_details(
+            namespace=namespace, label_selector=label_selector)
 
-        logger.info(f"Inside collect_pod_and_node_info, The pods details are: {pods}")
+        logger.info(
+            f"Inside collect_pod_and_node_info, The pods details are: {pods}")
 
         node_cache = {}
-        client_pods = []
-        server_pods = []
+        pods_and_nodes = []
 
         for pod in pods:
             node_name = pod["node_name"]
-            logger.info(f"Inside collect_pod_and_node_info, The node_name details are: {node_name}")
+            logger.info(
+                f"Inside collect_pod_and_node_info, The node_name details are: {node_name}")
 
             if node_name not in node_cache:
-                node_cache[node_name] = self.get_node_details(node_name=node_name)
+                node_cache[node_name] = self.get_node_details(
+                    node_name=node_name)
             node_info = node_cache[node_name]
-
-            logger.info(f"Inside collect_pod_and_node_info, The node_info details are: {node_info}")
-
+            logger.info(
+                f"Inside collect_pod_and_node_info, The node_info details are: {node_info}")
 
             pod_and_node_info = {
-                **pod,
-                **node_info
+                "pod": pod,
+                "node": node_info
             }
-
-            logger.info(f"Inside collect_pod_and_node_info, The pod_and_node_info details are: {pod_and_node_info}")
-
-            # Classify as server or client pod
-            pod_labels = pod["labels"]
-            
-            logger.info(f"Inside collect_pod_and_node_info, The pod_labels details are: {pod_labels}")
-
-            if pod_labels.get("app") == "iperf3-server":
-                server_pods.append(pod_and_node_info)
-            elif pod_labels.get("app") == "iperf3":
-                client_pods.append(pod_and_node_info)
+            logger.info(
+                f"Inside collect_pod_and_node_info, The pod_and_node_info details are: {pod_and_node_info}")
+            pods_and_nodes.append(pod_and_node_info)
 
         # Save results
-        client_file = os.path.join(result_dir, "client_pod_node_info.json")
-        server_file = os.path.join(result_dir, "server_pod_node_info.json")
-
-        logger.info(f"Inside collect_pod_and_node_info, The client_file details are: {client_file}")
-        logger.info(f"Inside collect_pod_and_node_info, The server_file details are: {server_file}")
-
-        save_info_to_file(client_pods, client_file)
-        save_info_to_file(server_pods, server_file)
+        file_name = os.path.join(result_dir, f"{role}_pod_node_info.json")
+        logger.info(
+            f"Inside collect_pod_and_node_info, The file_name details are: {file_name}")
+        save_info_to_file(pods_and_nodes, file_name)

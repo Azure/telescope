@@ -6,7 +6,7 @@ import sys
 import os
 from datetime import datetime, timezone
 from clients.pod_command import PodRoleCommand
-from modules.python.utils.common import extract_parameter
+from utils.common import extract_parameter, save_info_to_file
 from utils.retries import execute_with_retries
 from utils.constants import CommandConstants
 from utils.logger_config import get_logger, setup_logging
@@ -26,8 +26,8 @@ class Iperf3Pod(PodRoleCommand):
         """
         super().__init__(
             server_container="iperf3-server",
-            client_container="iperf3",
-            client_label_selector="app=iperf3",
+            client_container="iperf3-client",
+            client_label_selector="app=iperf3-client",
             server_label_selector="app=iperf3-server",
             service_name="iperf3-server",
             validate_command=command_constants.IPERF3_VERSION_CMD,
@@ -77,12 +77,19 @@ class Iperf3Pod(PodRoleCommand):
 
         return res
 
-    def run_nestat(self, role, result_dir, stage_name, index):
+    def run_netstat(self, role, result_dir, stage_name, index):
         logger.info(
             f"\nRUNNING netstat for {role} in stage {stage_name} with index {index}\n")
         result_file = f"{result_dir}/{role}-netstat-{stage_name}-{index}.json"
         self.run_command_for_role(
             role=role, command=command_constants.NETSTAT_CMD, result_file=result_file)
+
+    def run_iplink(self, role: str, result_dir: str, stage_name: str, index: int):
+        print(
+            f"\nRUNNING ip-link for {role} in stage {stage_name} with index {index}\n")
+        result_file = f"{result_dir}/{role}-ip-link-{stage_name}-{index}.json"
+        self.run_command_for_role(
+            role=role, command=command_constants.IP_LINK_CMD, result_file=result_file)
 
     def run_lscpu(self, role, result_dir):
         logger.info(f"\nRUNNING lscpu for {role}\n")
@@ -112,10 +119,17 @@ class Iperf3Pod(PodRoleCommand):
         :param server_ip_type: The type of server IP to use ("pod", "node" or "external").
         """
         logger.info(f"\nRUNNING benchmark with index {index}\n")
-        self.run_nestat(
+        self.run_netstat(
             role="client", result_dir=result_dir, stage_name="before-execute", index=index
         )
-        self.run_nestat(
+        self.run_netstat(
+            role="server", result_dir=result_dir, stage_name="before-execute", index=index
+        )
+
+        self.run_iplink(
+            role="client", result_dir=result_dir, stage_name="before-execute", index=index
+        )
+        self.run_iplink(
             role="server", result_dir=result_dir, stage_name="before-execute", index=index
         )
 
@@ -123,10 +137,17 @@ class Iperf3Pod(PodRoleCommand):
             iperf3_command=iperf3_command, result_file=result_file, server_ip_type=server_ip_type
         )
 
-        self.run_nestat(
+        self.run_netstat(
             role="client", result_dir=result_dir, stage_name="after-execute", index=index
         )
-        self.run_nestat(
+        self.run_netstat(
+            role="server", result_dir=result_dir, stage_name="after-execute", index=index
+        )
+
+        self.run_iplink(
+            role="client", result_dir=result_dir, stage_name="after-execute", index=index
+        )
+        self.run_iplink(
             role="server", result_dir=result_dir, stage_name="after-execute", index=index
         )
 
@@ -136,19 +157,19 @@ class Iperf3Pod(PodRoleCommand):
         self.run_lspci(role="client", result_dir=result_dir)
         self.run_lspci(role="server", result_dir=result_dir)
 
-    def collect_iperf3(self, result_dir, cloud_info, run_url, protocol, bandwidth, datapath, parallel, index="", is_k8s=False):
-        result_file = self.create_result_file_name(
+    def collect_iperf3(self, result_dir, result_file, cloud_info, run_url, protocol, bandwidth, parallel, datapath, index="", is_k8s=False):
+        iperf3_result_file = self.create_result_file_name(
             result_dir=result_dir,
             protocol=protocol,
             bandwidth=bandwidth,
             parallel=parallel,
             datapath=datapath)
-        with open(result_file, 'r', encoding='utf-8') as file:
+        with open(iperf3_result_file, 'r', encoding='utf-8') as file:
             iperf3_result = file.read()
             file.close()
         if not iperf3_result:
             raise RuntimeError(
-                f"Result file {result_file} is empty or not found!")
+                f"Iperf3 result file {iperf3_result_file} is empty or not found!")
 
         if protocol == "tcp":
             parser_function = parse_tcp_output
@@ -161,6 +182,7 @@ class Iperf3Pod(PodRoleCommand):
 
         os_info = {}
         netstat_info = {}
+        ip_link_info = {}
         kubernetes_info = {}
         for role in ["client", "server"]:
             # Collect OS info
@@ -174,16 +196,20 @@ class Iperf3Pod(PodRoleCommand):
                 else:
                     raise RuntimeError(f"File {file_name} not found!")
 
-            # Collect netstat info
+            # Collect netstat and ip link info
             for stage in ["before-execute", "after-execute"]:
-                file_name = f"{result_dir}/{role}-netstat-{stage}-{index}.json"
-                if os.path.exists(file_name):
-                    with open(file_name, 'r', encoding='utf-8') as file:
-                        data = json.load(file)
-                        netstat_info[f"{role}_netstat_{stage}_info"] = data
-                        file.close()
-                else:
-                    raise RuntimeError(f"File {file_name} not found!")
+                for metric in ["netstat", "ip-link"]:
+                    file_name = f"{result_dir}/{role}-{metric}-{stage}-{index}.json"
+                    if os.path.exists(file_name):
+                        with open(file_name, 'r', encoding='utf-8') as file:
+                            data = json.load(file)
+                            if metric == "netstat":
+                                netstat_info[f"{role}_{metric}_{stage}_info"] = data
+                            elif metric == "ip-link":
+                                ip_link_info[f"{role}_{metric}_{stage}_info"] = data
+                            file.close()
+                    else:
+                        raise RuntimeError(f"File {file_name} not found!")
 
             # Collect kubernetes info
             if is_k8s:
@@ -206,11 +232,18 @@ class Iperf3Pod(PodRoleCommand):
             "result_info": parsed_iperf3_result,
             "os_info": os_info,
             "netstat_info": netstat_info,
+            "ip_link_info": ip_link_info,
             "kubernetes_info": kubernetes_info,
             "cloud_info": cloud_info,
             "run_url": run_url,
             "raw_data": iperf3_result,
         }
+        os.makedirs(os.path.dirname(result_file), exist_ok=True)
+        with open(result_file, 'a', encoding='utf-8') as file:
+            content = json.dumps(data)
+            file.write(f"{content}\n")
+            logger.info(f"Final data:\n{json.dumps(data, indent=2)}")
+            file.close()
 
 
 def parse_args(args):
@@ -220,7 +253,8 @@ def parse_args(args):
     )
     parser.add_argument(
         "action",
-        choices=["run_benchmark", "validate"],
+        choices=["run_benchmark", "validate",
+                 "collect", "collect_pod_node_info"],
         help="Action to perform"
     )
     parser.add_argument(
@@ -258,18 +292,28 @@ def parse_args(args):
     parser.add_argument(
         "--cluster_cli_context",
         help="Cluster config context for client pod",
-        default="pod2pod"
     )
     parser.add_argument(
         "--cluster_srv_context",
         help="Cluster config context for server pod",
-        default="pod2pod"
     )
     parser.add_argument(
         "--server_ip_type",
         choices=["pod", "node", "external"],
         help="Select the server ip",
         default="pod"
+    )
+    parser.add_argument(
+        "--cloud_info",
+        help="Cloud information for the benchmark"
+    )
+    parser.add_argument(
+        "--run_url",
+        help="URL for the benchmark run"
+    )
+    parser.add_argument(
+        "--result_file",
+        help="File to store the benchmark result"
     )
     return parser.parse_args(args)
 
@@ -328,19 +372,21 @@ def main():
     elif args.action == "validate":
         iperf3_pod.validate()
     elif args.action == "collect":
-        iperf3_pod.collect(
-            result_dir=args.result_dir,
-        )
-
         iperf3_pod.collect_iperf3(
             result_dir=args.result_dir,
+            result_file=args.result_file,
             cloud_info=args.cloud_info,
             run_url=args.run_url,
             protocol=args.protocol,
             bandwidth=args.bandwidth,
-            datapath=args.datapath,
             parallel=args.parallel,
-            index=args.index
+            datapath=args.datapath,
+            index=args.index,
+            is_k8s=True,
+        )
+    elif args.action == "collect_pod_node_info":
+        iperf3_pod.collect(
+            result_dir=args.result_dir,
         )
     else:
         pass
