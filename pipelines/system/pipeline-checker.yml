@@ -1,5 +1,13 @@
 trigger: none
 
+schedules:
+  - cron: "0 8/2 * * *"
+    displayName: "Every 2 hours"
+    branches:
+      include:
+        - main
+    always: true
+
 jobs:
   - job: pipeline_checker
     continueOnError: false
