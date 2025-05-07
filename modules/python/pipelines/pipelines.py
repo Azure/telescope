@@ -2,6 +2,8 @@ import argparse
 import base64
 import sys
 import requests
+from urllib.parse import quote
+from datetime import datetime, timedelta, timezone
 def get_headers(pat):
     return {
         "Content-Type": "application/json",
@@ -18,10 +20,17 @@ def get_pipeline_definition(org, project, pipeline_id, headers):
     return res.json()
 
 def get_scheduled_pipelines(org, project, headers):
+    min_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    max_time = datetime.now(timezone.utc).isoformat()
+
+    min_time_encoded = quote(min_time)
+    max_time_encoded = quote(max_time)
     url = (
         f"https://dev.azure.com/{org}/{project}/_apis/build/builds"
         f"?reasonFilter=schedule"
         f"&maxBuildsPerDefinition=1"
+        f"&minTime={min_time_encoded}"
+        f"&maxTime={max_time_encoded}"
         f"&api-version=7.1-preview.7"
     )
     res = requests.get(url, headers=headers, timeout=10)
