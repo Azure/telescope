@@ -26,5 +26,5 @@ jobs:
         env:
           PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipelines/pipelines.py
           ORG: $(ORG_NAME)
-          PROJECT: $(PROJECT)
+          PROJECT: $(PROJECT_NAME)
           TOKEN: $(DEVOPS_ACCESS_TOKEN)
