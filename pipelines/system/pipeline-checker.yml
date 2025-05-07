@@ -22,9 +22,9 @@ jobs:
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE --org $ORG --project $PROJECT --pat $TOKEN
 
         displayName: "Run Pipleine Validation"
-        workingDirectory: modules/python/pipelines
+        workingDirectory: modules/python
         env:
-          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipeline/pipeline.py
+          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipelines/pipeline.py
           ORG: $(ORG_NAME)
           PROJECT: $(PROJECT)
           TOKEN: $(DEVOPS_ACCESS_TOKEN)
