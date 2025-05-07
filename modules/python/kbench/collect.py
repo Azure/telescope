@@ -1,18 +1,25 @@
-#import json
-#import os
+import json
 import argparse
-#import math
 
-#from datetime import datetime, timezone
-#from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
 logger = get_logger(__name__)
 
+
 def collect(results_dir, cloud_info, run_id, run_url, result_file):
-    logger.info(f"Calling k-bench collect function with results_dir: {results_dir}, cloud_info: {cloud_info}, run_id: {run_id}, run_url: {run_url}, result_file: {result_file}")
+    logger.info(f"Calling k-bench collect function with results_dir: {results_dir}, run_id: {run_id}, run_url: {run_url}, result_file: {result_file}, cloud_info: {cloud_info}")
     logger.info("Collecting k-bench results")
+    test_result_data = {
+        "results_dir": results_dir,
+        "result_file": result_file,
+        "run_id": run_id
+    }
+    logger.info(f"Test result data to be written to result_file: {test_result_data}")
+    with open(result_file, "w") as file:
+        json.dump(test_result_data, file)
+    logger.info(f"Successfully collected k-bench results and saved to {result_file}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Collect k-bench test results.")

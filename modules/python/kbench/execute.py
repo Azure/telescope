@@ -7,6 +7,7 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
+
 def execute(kbench_image, results_dir, kubeconfig):
     logger.info(f"Calling k-bench execute function with image: {kbench_image}, results_dir: {results_dir}, kubeconfig: {kubeconfig}")
     logger.info("Installing golang")
