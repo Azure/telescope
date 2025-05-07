@@ -90,7 +90,6 @@ def configure_clusterloader2(
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
         file.write("PROMETHEUS_SCRAPE_KUBE_PROXY: false\n")
-        file.write("PROMETHEUS_SCRAPE_KUBELETS: false\n")
 
         # topology config
         file.write(f"CL2_FORTIO_SERVERS_PER_DEPLOYMENT: {fortio_servers_per_deployment}\n")
