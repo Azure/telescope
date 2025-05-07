@@ -3,7 +3,7 @@ locals {
 }
 
 resource "google_container_cluster" "gke" {
-  name       = substr("${var.gke_config.name}-${var.run_id}", 0, 40)
+  name       = var.gke_config.name
   network    = var.vpc_id
   subnetwork = var.subnet_id
 

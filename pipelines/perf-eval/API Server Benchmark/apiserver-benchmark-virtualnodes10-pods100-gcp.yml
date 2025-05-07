@@ -18,12 +18,12 @@ stages:
           matrix:
             exempt:
               flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: ""
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
               disable_warmup: "true"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.2.0
-            benchmark_subcmd: node10_job1_pod100
-            benchmark_subcmd_args: "--total 1000"
+            enchmark_subcmd: node100_pod10k
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
