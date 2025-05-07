@@ -94,7 +94,7 @@ steps:
       Params:
         apiVersion: apps/v1
         kind: Deployment
-        labelSelector: role = client
+        labelSelector: role = load
     Params:
       action: start
       checkIfPodsAreUpdated: true
@@ -180,7 +180,7 @@ steps:
       Params:
         apiVersion: apps/v1
         kind: Deployment
-        labelSelector: role = client
+        labelSelector: role = load
     Params:
       action: start
       checkIfPodsAreUpdated: true
