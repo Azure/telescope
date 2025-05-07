@@ -21,10 +21,7 @@ spec:
       app: fortio
       role: load
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 20%
-      maxSurge: 20%
+    type: Recreate
   template:
     metadata:
       annotations:
