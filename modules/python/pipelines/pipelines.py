@@ -1,6 +1,7 @@
 import argparse
 import base64
 import sys
+import json
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 import requests
@@ -10,23 +11,30 @@ def get_headers(pat):
         "Authorization": f"Basic {base64.b64encode(f':{pat}'.encode()).decode()}"
     }
 
+# return pipelines that are enabled
+# def get_pipelines(org, project, headers):
+#     url = f"https://dev.azure.com/{org}/{project}/_apis/pipelines?api-version=7.1-preview.1"
+#     res = requests.get(url, headers=headers, timeout=10)
+#     res.raise_for_status()
+#     pipelines = res.json()["value"]
+#     print(f"Found {len(pipelines)} pipelines in '{project}' project.")
+#     print(json.dumps(pipelines[0], indent=2))
+#     return [p for p in pipelines if p["queueStatus"] == "enabled"]
+
 def get_pipeline_definition(org, project, pipeline_id, headers):
-    url = f"https://dev.azure.com/{org}/{project}/_apis/build/definitions/{pipeline_id}?api-version=7.1-preview.7"
+    url = (
+        f"https://dev.azure.com/{org}/{project}/_apis/build/definitions/{pipeline_id}"
+        f"?api-version=7.1-preview.7"
+    )
     res = requests.get(url, headers=headers, timeout=10)
     res.raise_for_status()
     return res.json()
 
-def get_scheduled_pipelines(org, project, headers, min_time=None):
-    if not min_time:
-        # Default to 2 Hours ago if not provided
-        min_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
-
-    min_time_encoded = quote(min_time)
+def get_scheduled_pipelines(org, project, headers):
     url = (
         f"https://dev.azure.com/{org}/{project}/_apis/build/builds"
         f"?reasonFilter=schedule"
         f"&maxBuildsPerDefinition=1"
-        f"&minTime={min_time_encoded}"
         f"&api-version=7.1-preview.7"
     )
     res = requests.get(url, headers=headers, timeout=10)
@@ -35,6 +43,7 @@ def get_scheduled_pipelines(org, project, headers, min_time=None):
 
 def disable_pipeline(org, project, pipeline_def, headers):
     pipeline_def["queueStatus"] = "disabled"
+    pipeline_def["comment"] = "Disabled by script to prevent scheduling on non-main branches."
     definition_id = pipeline_def["id"]
     if definition_id == 72:
         url = f"https://dev.azure.com/{org}/{project}/_apis/build/definitions/{definition_id}?api-version=7.1-preview.7"
@@ -56,12 +65,13 @@ def main():
 
     try:
         scheduled_pipelines = get_scheduled_pipelines(org, project, headers)
-        print(f"Found {len(scheduled_pipelines)} pipelines in '{project}' project.")
         for p in scheduled_pipelines:
             source_branch = p["sourceBranch"]
-            if source_branch != "refs/heads/main":
-                print(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
-                pipelines_to_disable.append(p['definition']['id'])
+            if source_branch != "refs/heads/main" and p['definition']['id'] == 72:
+                pipeline_def = get_pipeline_definition(org, project, p['definition']['id'], headers)
+                if pipeline_def['queueStatus'] == "enabled":
+                    print(f"❌ Pipeline '{p['definition']['path']} {p['definition']['name']}' is scheduled on {source_branch} branch.")
+                    pipelines_to_disable.append(pipeline_def)
     except Exception as e:
         print(f"❌ Failed: {e}")
         sys.exit(1)
@@ -69,12 +79,12 @@ def main():
         print("✅ All pipelines are scheduled on 'main' branch.")
         sys.exit(0)
 
-    for pipeline_id in pipelines_to_disable:
+    for pipeline_def in pipelines_to_disable:
         try:
-            pipeline_def = get_pipeline_definition(org, project, pipeline_id, headers)
             disable_pipeline(org, project, pipeline_def, headers)
         except Exception as e:
-            print(f"❌ Failed to disable pipeline {pipeline_id}: {e}")
+            print(f"❌ Failed to disable pipeline {pipeline_def['id']}: {e}")
             sys.exit(1)
+
 if __name__ == "__main__":
     main()
