@@ -38,7 +38,7 @@ spec:
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
-        network-load: "true"
+        scenario: "highcount"
       containers:
       - name: fortio
         image: {{$Image}}
