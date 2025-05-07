@@ -3,7 +3,7 @@ name: scale-test
 # generic config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "scale-test"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
-{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 100}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 10}}
 
 # topology config
 {{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
