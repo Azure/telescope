@@ -9,10 +9,13 @@ name: netpol-scale-test
 {{$NUMBER_OF_CLIENTS_PER_Group := DefaultParam .CL2_NUMBER_OF_CLIENTS_PER_GROUP 1}}
 {{$NUMBER_OF_GROUPS := DefaultParam .CL2_NUMBER_OF_GROUPS 2}}
 {{$TARGET_PORT := DefaultParam .CL2_TARGET_PORT 8080}}
+{{$TARGET_PORT2 := DefaultParam .CL2_TARGET_PORT2 9090}}
 {{$WORKERS_PER_CLIENT := DefaultParam .CL2_WORKERS_PER_CLIENT 5}}
 {{$DURATION := DefaultParam .CL2_DURATION 600}}
+{{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$Network_Policy_Type := DefaultParam .CL2_NETWORK_POLICY_TYPE "k8s"}}
-{{$Netwrok_POlicy_L7_Enabled := DefaultParam .CL2_NETWORK_POLICY_L7_ENABLED false}}
+{{$NET_POLICY_L7_ENABLED := DefaultParam .CL2_NET_POLICY_L7_ENABLED false}}
+{{$L3_L4_CNP_TEST := DefaultParam .CL2_L3_L4_CNP_TEST true}}
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
 namespace:
@@ -55,6 +58,8 @@ steps:
       params:
         action: start
 {{end}}
+
+{{range $i := Loop $repeats}}
   # start network performance measurement
   - name: Network Policy Soak Test - Start
     measurements:
@@ -69,12 +74,35 @@ steps:
         targetReplicasPerNs: {{$NUMBER_OF_SERVERS_PER_Group}}
         clientReplicasPerDep: {{$NUMBER_OF_CLIENTS_PER_Group}}
         targetPort: {{$TARGET_PORT}}
+        targetPort2: {{$TARGET_PORT2}}
+        l7Enabled: {{$NET_POLICY_L7_ENABLED}}
+        cnpTestL3L4: {{$L3_L4_CNP_TEST}}
         targetPath: /
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
         npType: {{$Network_Policy_Type}}
         resourceGatheringEnabled: true
         ingressEgressMode: egress # ingress, egress, both, none
+  - name: Network Policy Soak Test - RestartPods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: restart
+  - name: Network Policy Soak Test - Delete CNPS
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-ccnps-cnps
+  - name: Network Policy Soak Test - Delete Pods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-pods
+{{end}}
+
 {{if $CLIENT_METRICS_GATHERING}}
         clientMetricsGatheringEnabled: true
 {{end}}
