@@ -1,0 +1,100 @@
+[
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-qwkbw",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-tpzsf",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-7pb5c",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-8jwkp",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-xmq72",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-45brq",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-hd9x7",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-x84h4",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-885kh",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-cv6jk",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-lh8sq",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-4c66j",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-mlq95",
+    "host": "",
+    "status": "PendingNotScheduled"
+  },
+  {
+    "namespace": "resource-consumer-1",
+    "controlledBy": "resource-consumer-1/resource-consumer-0-0",
+    "name": "resource-consumer-0-0-79cd584f9d-xd954",
+    "host": "",
+    "status": "PendingNotScheduled"
+  }
+]
