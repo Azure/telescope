@@ -131,22 +131,7 @@ steps:
         action: start
         duration: 1m30s
 
-#   - module:
-#       path: /modules/reconcile-objects.yaml
-#       params:
-#         actionName: "delete"
-#         tuningSet: DeploymentDeleteQps
-#         operationTimeout: {{$operationTimeout}}
-#         Group: {{$groupName}}
-#         namespaces: {{$fortioNamespaces}}
-#         fortioDeploymentsPerNamespace: {{$fortioDeploymentsPerNamespace}}
-#         fortioServerReplicas: {{$fortioServerReplicas}}
-#         fortioClientReplicas: {{$fortioClientReplicas}}
-#         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
-#         fortioClientConnections: {{$fortioClientConnections}}
-#         CpuRequest: {{$fortioPodCPU}}m
-#         MemoryRequest: {{$fortioPodMemory}}M
-#         deploymentLabel: start
+
 {{end}}
 
 {{if $ciliumMetricsEnabled}}
