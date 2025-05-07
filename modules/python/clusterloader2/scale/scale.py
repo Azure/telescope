@@ -302,6 +302,7 @@ def main():
     parser_configure.add_argument("--fortio-client-connections", type=int, required=True, help="Number of simultaneous connections for each Fortio client")
     parser_configure.add_argument("--fortio-namespaces", type=int, required=True, help="Number of namespaces, each with their own service. Fortio clients query servers in the same namespace. Be weary of integer division causing less pods than expected regarding this parameter, pods, and pods per node.")
     parser_configure.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
+    parser_configure.add_argument("--network-policies-per-namespace", type=int, help="Number of network policies to be created per namespace", default=0, nargs='?')
     parser_configure.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
     parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
