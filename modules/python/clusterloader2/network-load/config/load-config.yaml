@@ -65,7 +65,7 @@ tuningSets:
       qps: {{$apiServerCallsPerSecond}}
 
 steps:
-  - name: Log - fortioNamespaces={{$fortioNamespaces}}, fortioServerDeployments={{$fortioServerDeployments}}, fortioClientDeployments={{$fortioClientDeployments}}, fortioServerReplicasPerDeployment={{$fortioServerReplicasPerDeployment}}
+  - name: Log - fortioNamespaces={{$fortioNamespaces}}, fortioServerDeployments={{$fortioServerDeployments}}, fortioClientDeployments={{$fortioClientDeployments}}, fortioServerReplicasPerDeployment={{$fortioServerReplicasPerDeployment}}, fortioServiceReplicasPerNamespace=={{$fortioServiceReplicasPerNamespace}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -92,6 +92,7 @@ steps:
       params:
         actionName: "Creating"
         namespaces: {{$fortioNamespaces}}
+        fortioServiceReplicasPerNamespace: {{$fortioServiceReplicasPerNamespace}}
 
   {{if $applyFqdnCnp}}
   - module:

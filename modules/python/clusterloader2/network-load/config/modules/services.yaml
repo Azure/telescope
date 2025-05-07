@@ -3,6 +3,9 @@
 ## Input params
 {{$actionName := .actionName}}
 {{$namespaces := .namespaces}}
+{{$fortioServiceReplicasPerNamespace := .fortioServiceReplicasPerNamespace}}
+{{$Group := .Group}}
+{{$deploymentLabel := .deploymentLabel}}
 
 steps:
 - name: "{{$actionName}} k8s services"
