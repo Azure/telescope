@@ -154,6 +154,7 @@ variable "aks_config_list" {
       vm_size                      = string
       os_sku                       = optional(string)
       os_disk_type                 = optional(string)
+      os_disk_size_gb              = optional(number, null)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
@@ -169,6 +170,7 @@ variable "aks_config_list" {
       vm_size              = string
       os_sku               = optional(string)
       os_disk_type         = optional(string)
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])
@@ -217,6 +219,7 @@ variable "aks_cli_config_list" {
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
+    use_aks_preview_private_build = optional(bool, false)
 
     default_node_pool = object({
       name        = string

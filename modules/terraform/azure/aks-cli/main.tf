@@ -69,17 +69,23 @@ resource "azurerm_role_assignment" "network_contributor" {
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
-resource "terraform_data" "aks_cli_preview" {
+resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 
+  # Todo - Update aks-preview extension for newer features
   provisioner "local-exec" {
-    command = join(" ", [
-      "az",
-      "extension",
-      "add",
-      "-n",
-      "aks-preview",
-    ])
+    command = var.aks_cli_config.use_aks_preview_private_build == true ? (
+      <<EOT
+			wget https://telescopetools.z13.web.core.windows.net/packages/az-cli/aks_preview-14.0.0b6-py2.py3-none-any.whl
+			az extension add --source ./aks_preview-14.0.0b6-py2.py3-none-any.whl -y
+			az version
+    EOT
+      ) : (
+      <<EOT
+      az extension add -n aks-preview --version 14.0.0b2
+      az version
+    EOT
+    )
   }
 
   provisioner "local-exec" {
@@ -96,7 +102,7 @@ resource "terraform_data" "aks_cli_preview" {
 
 resource "terraform_data" "aks_cli" {
   depends_on = [
-    terraform_data.aks_cli_preview,
+    terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor
   ]
 

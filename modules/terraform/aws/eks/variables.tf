@@ -26,6 +26,12 @@ variable "k8s_machine_type" {
   default     = null
 }
 
+variable "ena_express" {
+  description = "Whether to enable ENA Express. This replaces the value under eks_managed_node_groups"
+  type        = bool
+  default     = null
+}
+
 variable "eks_config" {
   type = object({
     role                      = string
@@ -44,10 +50,21 @@ variable "eks_config" {
       capacity_type  = optional(string, "ON_DEMAND")
       labels         = optional(map(string), {})
       subnet_names   = optional(list(string), null)
+      ena_express    = optional(bool, null)
       taints = optional(list(object({
         key    = string
         value  = string
         effect = string
+      })), [])
+      block_device_mappings = optional(list(object({
+        device_name = string
+        ebs = object({
+          delete_on_termination = optional(bool, true)
+          iops                  = optional(number, null)
+          throughput            = optional(number, null)
+          volume_size           = optional(number, null)
+          volume_type           = optional(string, null)
+        })
       })), [])
     }))
     eks_addons = list(object({

@@ -21,7 +21,7 @@ steps:
       $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST ${CNP_TEST:-False} \
       ${CCNP_TEST:-False} ${DS_TEST:-False} $TEST_RESULTS_FILE \
       $TEST_TYPE $SLO_START_TIME
-  workingDirectory: modules/python/clusterloader2
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)

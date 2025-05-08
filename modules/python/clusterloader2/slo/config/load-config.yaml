@@ -18,7 +18,6 @@ name: load-config
 {{$namespaces := 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
-{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 {{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
@@ -49,6 +48,15 @@ name: load-config
 {{$CCNPS := DefaultParam .CL2_CCNPS 0}}
 {{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
 
+# QPS
+# We use RandomizedTimeLimitedLoad for load QPS.
+# Specifically, we aim to create/delete LOAD_TEST_THROUGHPUT/DELETE_TEST_THROUGHPUT pods per second, on average.
+# Operations make an independent choice about the time to start uniformly at random from the associated time period.
+{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$DELETE_TEST_THROUGHPUT := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $LOAD_TEST_THROUGHPUT}}
+{{$saturationTime := DivideInt $totalPods $LOAD_TEST_THROUGHPUT}}
+{{$deletionTime := DivideInt $totalPods $DELETE_TEST_THROUGHPUT}}
+
 namespace:
   number: {{$namespaces}}
   prefix: slo
@@ -60,15 +68,15 @@ tuningSets:
   - name: Sequence
     parallelismLimitedLoad:
       parallelismLimit: 1
-  - name: DeploymentCreateQps
-    qpsLoad:
-      qps: {{$deploymentQPS}}
-  - name: DeploymentDeleteQps
-    qpsLoad:
-      qps: {{$deploymentQPS}}
+  - name: RandomizedSaturationTimeLimited
+    RandomizedTimeLimitedLoad:
+      timeLimit: {{$saturationTime}}s
+  - name: RandomizedDeletionTimeLimited
+    RandomizedTimeLimitedLoad:
+      timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, bigGroupSize={{$BIG_GROUP_SIZE}}, smallGroupSize={{$SMALL_GROUP_SIZE}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -131,7 +139,7 @@ steps:
       params:
         actionName: "create"
         namespaces: {{$namespaces}}
-        tuningSet: DeploymentCreateQps
+        tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
@@ -177,7 +185,7 @@ steps:
       params:
         actionName: "delete"
         namespaces: {{$namespaces}}
-        tuningSet: DeploymentDeleteQps
+        tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0

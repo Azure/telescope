@@ -3,22 +3,23 @@ kind: Namespace
 metadata:
   name: autoscale-1
 ---
+# Warm-up for on-demand NodePool
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: inflate-warmup
+  name: warmup-default
   namespace: autoscale-1
   labels:
-    app: inflate
+    app: warmup-default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: inflate
+      app: warmup-default
   template:
     metadata:
       labels:
-        app: inflate
+        app: warmup-default
     spec:
       nodeSelector:
         karpenter.sh/nodepool: default
@@ -33,5 +34,39 @@ spec:
           command:
             - "/bin/bash"
             - "-c"
-            - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
-      restartPolicy: Always
+            - |
+              runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+---
+# Warm-up for spot NodePool
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warmup-spot
+  namespace: autoscale-1
+  labels:
+    app: warmup-spot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: warmup-spot
+  template:
+    metadata:
+      labels:
+        app: warmup-spot
+    spec:
+      nodeSelector:
+        karpenter.sh/nodepool: spot
+      containers:
+        - name: nginx
+          image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          resources:
+            requests:
+              cpu: 100m
+            limits:
+              cpu: 100m
+          command:
+            - "/bin/bash"
+            - "-c"
+            - |
+              runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done

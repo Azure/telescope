@@ -44,4 +44,7 @@ jobs:
 
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: python -m unittest discover
+        run: coverage run -m unittest discover
+      - name: Generate Coverage Report
+        working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        run: coverage report -m
