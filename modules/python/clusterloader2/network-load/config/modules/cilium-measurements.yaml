@@ -121,21 +121,99 @@ steps:
           query: quantile(0.90, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(rate(cilium_operator_process_cpu_seconds_total[1m])[%v:]))
-    - Identifier: CiliumOperatorMaxMemUsage
+    - Identifier: CiliumBPFMapPressure
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Operator Max Memory Usage
+        metricName: Cilium BPF Map Pressure
         metricVersion: v1
-        unit: MB
+        unit: count
+        enableViolations: true
+        queries:
+        - name: ct4_global
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="ct4_global"}[%v:]))
+        - name: lb4_services_v2
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="lb4_services_v2"}[%v:]))
+        - name: ipcache
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="ipcache"}[%v:]))
+        - name: lb4_backends_v3
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="lb4_backends_v3"}[%v:]))
+        - name: lb4_reverse_nat
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="lb4_reverse_nat"}[%v:]))
+        - name: lb_affinity_match
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="lb_affinity_match"}[%v:]))
+        - name: lxc
+          query: max(max_over_time(cilium_bpf_map_pressure{map_name="lxc"}[%v:]))
+    - Identifier: CiliumControllersFailing
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Map Pressure
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: ControllersFailing
+          query: max(max_over_time(cilium_controllers_failing{}[%v:]))
+    - Identifier: CiliumProxyDatapathUpdateTimeout
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Proxy Datapath Update Timeout
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: timeouts
+          query: max(max_over_time(cilium_proxy_datapath_update_timeout_total{}[%v:]))
+    - Identifier: CiliumUnreachableHealthEndpoints
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Unreachable Health Endpoints
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: UnreachableHealthEndpoints
+          query: count(cilium_unreachable_health_endpoints{})
+    - Identifier: CiliumUnreachableNodes
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Unreachable Nodes
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: UnreachableNodes
+          query: count(cilium_unreachable_nodes{})
+    - Identifier: CiliumNodesAll
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Nodes All
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: CiliumNodesAll
+          query: count(cilium_nodes_all_num{})
+    - Identifier: CiliumGoroutineCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Goroutine Count
+        metricVersion: v1
+        unit: count
         enableViolations: true
         queries:
         - name: Perc99
-          query: quantile(0.99, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.99, max_over_time(go_goroutines{container="cilium-agent"}[%v:]))
         - name: Perc90
-          query: quantile(0.90, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.90, max_over_time(go_goroutines{container="cilium-agent"}[%v:]))
         - name: Perc50
-          query: quantile(0.5, max_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
+          query: quantile(0.50, max_over_time(go_goroutines{container="cilium-agent"}[%v:]))
     - Identifier: CiliumOperatorAvgMemUsage
       Method: GenericPrometheusQuery
       Params:
