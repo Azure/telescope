@@ -1,5 +1,12 @@
 trigger: none
-
+schedules:
+  - cron: "0 12 * * *"
+    displayName: "Every Day at Noon"
+    branches:
+      include:
+        - main
+        - xinwei/kperf-configmaps
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-cm100
