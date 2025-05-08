@@ -177,6 +177,41 @@ steps:
         queries:
         - name: cilium_proxy_redirects_dns
           query: max(max_over_time(cilium_proxy_redirects{protocol_l7="dns"}[%v:]))
+          
+    - Identifier: CiliumErrorsWarningsTotal
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Errors Warnings Total
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: cilium_errors_total_fqdn_server
+          query: max(max_over_time(cilium_errors_warnings_total{level="error",subsystem="fqdn/server"}[%v:]))
+        - name: cilium_errors_total_init
+          query: max(max_over_time(cilium_errors_warnings_total{level="error",subsystem="init"}[%v:]))
+        - name: cilium_warning_total_fqdn_server
+          query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/server"}[%v:]))
+        - name: cilium_warning_total_fqdn_dnsproxy
+          query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/dnsproxy"}[%v:]))
+        - name: cilium_warning_total_fqdn_hubble
+          query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="hubble"}[%v:]))
+        - name: cilium_warning_total_init
+          query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="init"}[%v:]))
+        - name: cilium_warning_total_klog
+          query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="klog"}[%v:]))
+    - Identifier: CiliumErrorsWarningsTotal
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Errors Warnings Total
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: cilium_errors_total_fqdn_server
+          query: max(max_over_time(cilium_errors_warnings_total{level="error",subsystem="fqdn/server"}[%v:]))
     - Identifier: CiliumUnreachableHealthEndpoints
       Method: GenericPrometheusQuery
       Params:
