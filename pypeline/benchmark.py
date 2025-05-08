@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import yaml
+
 from pipeline import Job, Pipeline, Stage, Step, customize_yaml
 
 
