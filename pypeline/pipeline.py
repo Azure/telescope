@@ -85,9 +85,9 @@ def literal_block_representer(dumper: yaml.Dumper, data: str):
 
 def custom_name_representer(dumper, data):
     data_dict = {}
-    for field in fields(data):
-        yaml_name = field.metadata.get("yaml", field.name)
-        value = getattr(data, field.name)
+    for data_field in fields(data):
+        yaml_name = data_field.metadata.get("yaml", data_field.name)
+        value = getattr(data, data_field.name)
         if value is not None:
             data_dict[yaml_name] = value
     return dumper.represent_dict(data_dict)
