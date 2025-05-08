@@ -13,11 +13,11 @@ steps:
         enableViolations: true
         queries:
           - name: http_requests_total
-            query: sum(increase(http_requests_total{service="np-soak-client-metrics-svc"}[%v:]))
+            query: sum(increase(http_requests_total[%v:]))
           - name: http_requests_success
-            query: sum(increase(http_requests_success{service="np-soak-client-metrics-svc"}[%v:]))
+            query: sum(increase(http_requests_success[%v:]))
           - name: http_requests_fail
-            query: sum(increase(http_requests_fail{service="np-soak-client-metrics-svc"}[%v:]))
+            query: sum(increase(http_requests_fail[%v:]))
           - name: http_requests_latency_le_0.01s
             query: sum(increase(http_request_latency_seconds_bucket{le="0.01"}[%v:]))
           - name: http_requests_latency_le_0.025s
@@ -34,36 +34,3 @@ steps:
             query: sum(increase(http_request_latency_seconds_bucket{le="5"}[%v:]))
           - name: http_requests_latency_le_10s
             query: sum(increase(http_request_latency_seconds_bucket{le="10"}[%v:]))
-    - Identifier: HttpRequestsTotal
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Endpoint Propagation Delay
-        metricVersion: v1
-        unit: s
-        queries:
-        queries:
-          - name: http_requests_total
-            query: sum(increase(http_requests_total[%v:]))
-    - Identifier: HttpRequestsSuccess
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Endpoint Propagation Delay
-        metricVersion: v1
-        unit: s
-        queries:
-        queries:
-          - name: http_requests_total
-            query: sum(increase(http_requests_success[%v:]))
-    - Identifier: HttpRequestsFail
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Endpoint Propagation Delay
-        metricVersion: v1
-        unit: s
-        queries:
-        queries:
-          - name: http_requests_total
-            query: sum(increase(http_requests_fail[%v:]))
