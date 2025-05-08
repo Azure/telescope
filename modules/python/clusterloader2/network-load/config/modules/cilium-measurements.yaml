@@ -247,3 +247,37 @@ steps:
           query: count(hubble_dns_queries_total)
         - name: DNSResponses
           query: count(hubble_dns_responses_total)
+    - Identifier: HubbleFlowsProcessedTotasl
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Hubble Flow Metrics
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: node_local_dns_udp_to_endpoint
+          query: max(max_over_time(hubble_flows_processed_total{source="node-local-dns"}[%v:]))
+    - Identifier: HubbleLostEvents
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble Lost Events
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: ring_buffer
+          query: max(max_over_time(hubble_lost_events_total{source="hubble_ring_buffer"}[%v:]))
+        - name: observer_events_queue
+          query: max(max_over_time(hubble_lost_events_total{source="observer_events_queue"}[%v:]))
+    - Identifier: HubbleHTTPHandlerRequestDurationSeconds
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble HTTP Handler Request Duration Seconds
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: sum_code200
+          query: topk(1,(max_over_time(hubble_metrics_http_handler_request_duration_seconds_sum{code="200"}[%v:])))
+        - name: count_code200
+          query: topk(1,(max_over_time(hubble_metrics_http_handler_request_duration_seconds_count{code="200"}[%v:])))
