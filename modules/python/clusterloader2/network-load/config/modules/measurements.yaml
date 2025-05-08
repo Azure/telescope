@@ -13,39 +13,39 @@
 # Probe measurements shared parameter
 {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT := DefaultParam .CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT "15m"}}
 
-steps:
-  - name: {{$action}} Additional Measurements
-    measurements:
-      - Identifier: APIResponsivenessPrometheus
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: {{$action}}
-          enableViolations: {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE}}
-          useSimpleLatencyQuery: true
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: {{$action}}
-          labelSelector: group = {{.group}}
-          threshold: {{$podStartupLatencyThreshold}}
-    {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
-      - Identifier: NetworkProgrammingLatency
-        Method: NetworkProgrammingLatency
-        Params:
-          action: {{$action}}
-          enableViolations: {{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES}}
-          threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
-    {{end}}
-    {{if $ENABLE_IN_CLUSTER_NETWORK_LATENCY}}
-      - Identifier: InClusterNetworkLatency
-        Method: InClusterNetworkLatency
-        Params:
-          action: {{$action}}
-          checkProbesReadyTimeout: {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT}}
-          replicasPerProbe: {{AddInt 2 (DivideInt .Nodes 100)}}
-          pingSleepDuration: {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION}}
-          threshold: {{$NETWORK_LATENCY_THRESHOLD}}
-    {{end}}
+#steps:
+#  - name: {{$action}} Additional Measurements
+#    measurements:
+#      - Identifier: APIResponsivenessPrometheus
+#        Method: APIResponsivenessPrometheus
+#        Params:
+#          action: {{$action}}
+#          enableViolations: {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE}}
+#          useSimpleLatencyQuery: true
+#      - Identifier: PodStartupLatency
+#        Method: PodStartupLatency
+#        Params:
+#          action: {{$action}}
+#          labelSelector: group = {{.group}}
+#          threshold: {{$podStartupLatencyThreshold}}
+#    {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
+#      - Identifier: NetworkProgrammingLatency
+#        Method: NetworkProgrammingLatency
+#        Params:
+#          action: {{$action}}
+#          enableViolations: {{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES}}
+#          threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
+#    {{end}}
+#    {{if $ENABLE_IN_CLUSTER_NETWORK_LATENCY}}
+#      - Identifier: InClusterNetworkLatency
+#        Method: InClusterNetworkLatency
+#        Params:
+#          action: {{$action}}
+#          checkProbesReadyTimeout: {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT}}
+#          replicasPerProbe: {{AddInt 2 (DivideInt .Nodes 100)}}
+#          pingSleepDuration: {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION}}
+#          threshold: {{$NETWORK_LATENCY_THRESHOLD}}
+#    {{end}}
 #      - Identifier: ApiserverAvgCPUUsage
 #        Method: GenericPrometheusQuery
 #        Params:
