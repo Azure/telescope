@@ -15,5 +15,5 @@ steps:
     parameters:
       role: ces
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: 500
+      nodes_per_nodepool: 250
       enable_autoscale: "false"
