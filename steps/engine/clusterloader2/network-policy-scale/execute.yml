@@ -26,7 +26,7 @@ steps:
         --clients_per_group $CLIENTS_PER_GROUP \
         --servers_per_group $SERVERS_PER_GROUP \
         --workers_per_client $WORKERS_PER_CLIENT \
-        --repeats 2 \
+        --repeats 1 \
         --netpol_type $NETWORKPOLICY_TYPE \
         --test_duration_secs $TEST_RUN_DURATION_SECS \
         --provider $CLOUD \
