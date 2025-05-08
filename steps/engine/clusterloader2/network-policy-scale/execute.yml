@@ -28,7 +28,6 @@ steps:
         --workers_per_client $WORKERS_PER_CLIENT \
         --repeats 1 \
         --netpol_type $NETWORKPOLICY_TYPE \
-        --number_of_groups $GROUPS \
         --test_duration_secs $TEST_RUN_DURATION_SECS \
         --provider $CLOUD \
         --cilium_enabled $CILIUM_ENABLED \
