@@ -166,6 +166,17 @@ steps:
         queries:
         - name: cilium_proxy_datapath_update_timeout_total
           query: max(max_over_time(cilium_proxy_datapath_update_timeout_total{}[%v:]))
+    - Identifier: CiliumProxyRedirects
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Proxy Redirects
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: cilium_proxy_redirects_dns
+          query: max(max_over_time(cilium_proxy_redirects{protocol_l7="dns"}[%v:]))
     - Identifier: CiliumUnreachableHealthEndpoints
       Method: GenericPrometheusQuery
       Params:
@@ -229,11 +240,11 @@ steps:
           query: quantile(0.90, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
         - name: Perc50
           query: quantile(0.5, avg_over_time(cilium_operator_process_resident_memory_bytes[%v:]) / 1024 / 1024)
-    - Identifier: CiliumHubbleMetricCardinality
+    - Identifier: HubbleMetricCardinality
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Hubble Metric Cardinality
+        metricName: Hubble Metric Cardinality
         metricVersion: v1
         unit: count
         queries:
@@ -247,11 +258,11 @@ steps:
           query: count(hubble_dns_queries_total)
         - name: DNSResponses
           query: count(hubble_dns_responses_total)
-    - Identifier: HubbleFlowsProcessedTotasl
+    - Identifier: HubbleFlowsProcessedTotal
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium Hubble Flow Metrics
+        metricName: Hubble Flow Metrics
         metricVersion: v1
         unit: count
         queries:
@@ -278,6 +289,6 @@ steps:
         unit: count
         queries:
         - name: sum_code200
-          query: topk(1,(max_over_time(hubble_metrics_http_handler_request_duration_seconds_sum{code="200"}[%v:])))
+          query: max(max_over_time(hubble_metrics_http_handler_request_duration_seconds_sum{code="200"}[%v:]))
         - name: count_code200
-          query: topk(1,(max_over_time(hubble_metrics_http_handler_request_duration_seconds_count{code="200"}[%v:])))
+          query: max(max_over_time(hubble_metrics_http_handler_request_duration_seconds_count{code="200"}[%v:]))
