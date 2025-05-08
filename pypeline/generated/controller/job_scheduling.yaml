@@ -37,23 +37,22 @@ stages:
         azureSubscription: null
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
+        inlineScript: |2
+
           echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
           echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
           echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
         addSpnToEnvironment: 'true'
     - displayName: Azure Login
-      script: |
+      script: |2
+
         set -eu
 
-        echo "login to Azure in $REGION"
+        echo "login to Azure in eastus2"
         az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
-        az account set --subscription "$AZURE_SP_SUBSCRIPTION_ID"
-        az config set defaults.location="$REGION"
+        az account set --subscription "None"
+        az config set defaults.location="eastus2"
         az account show
-      env:
-        REGION: eastus
-        AZURE_SP_SUBSCRIPTION_ID: null
     - displayName: Check Dependencies
       script: |
         python3 --version && pip3 --version
