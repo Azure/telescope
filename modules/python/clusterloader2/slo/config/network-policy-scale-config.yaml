@@ -59,7 +59,6 @@ steps:
         action: start
 {{end}}
 
-{{range $i := Loop $repeats}}
   # start network performance measurement
   - name: Network Policy Soak Test - Start
     measurements:
@@ -101,7 +100,6 @@ steps:
       Method: NetworkPolicySoakMeasurement
       Params:
         action: delete-pods
-{{end}}
 
 {{if $CLIENT_METRICS_GATHERING}}
         clientMetricsGatheringEnabled: true
