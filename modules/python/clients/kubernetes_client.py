@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 class KubernetesClient:
     def __init__(self, config_file=None):
         self.config_file = config_file
-        self.config = config.load_kube_config(config_file=config_file)
+        config.load_kube_config(config_file=config_file)
         self._setup_clients()
 
     def _setup_clients(self):
@@ -324,12 +324,12 @@ class KubernetesClient:
             Exception: If the context switch fails
         """
         try:
-            self.config = config.load_kube_config(
+            config.load_kube_config(
                 config_file=self.config_file, context=context_name)
             self._setup_clients()
             logger.info(f"Successfully switched to context: {context_name}")
         except Exception as e:
-            raise Exception(f"Failed to switch to context {context_name}: {e}")
+            raise Exception(f"Failed to switch to context {context_name}: {e}") from e
 
     def get_pods_name_and_ip(self, label_selector="", namespace="default"):
         pods = self.get_pods_by_namespace(
@@ -365,8 +365,8 @@ class KubernetesClient:
         service = self.api.read_namespaced_service(service_name, namespace)
         if service.status.load_balancer.ingress:
             return service.status.load_balancer.ingress[0].ip
-        else:
-            return None
+
+        return None
 
     def get_pod_details(self, namespace="default", label_selector=""):
         """

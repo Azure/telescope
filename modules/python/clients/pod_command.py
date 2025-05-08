@@ -121,10 +121,12 @@ class PodRoleCommand:
         )
 
     def validate(self):
+        if not self.validate_command:
+            return
         self.run_command_for_role(
-            role="client", command=self.validate_command or "", result_file="")
+            role="client", command=self.validate_command, result_file="")
         self.run_command_for_role(
-            role="server", command=self.validate_command or "", result_file="")
+            role="server", command=self.validate_command, result_file="")
 
     def collect(self, result_dir: str):
         logger.info(f"Switching context to {self.cluster_cli_context}")

@@ -21,7 +21,6 @@ class TestKubernetesClient(unittest.TestCase):
     @patch('kubernetes.config.load_kube_config')
     def setUp(self, mock_load_kube_config):  # pylint: disable=unused-argument, arguments-differ
         self.client = KubernetesClient()
-        self.maxDiff = None  # pylint: disable=invalid-name
         return super().setUp()
 
     def _create_node(self, name, ready_status, network_unavailable_status=None, unschedulable=False, taints=None):
@@ -88,8 +87,7 @@ class TestKubernetesClient(unittest.TestCase):
         )
 
     def _create_pod_list(self, pods):
-        items = [pod for pod in pods]
-        return V1PodList(items=items)
+        return V1PodList(items=pods)
 
     def _create_pvc(self, name, namespace, phase):
         return V1PersistentVolumeClaim(

@@ -6,7 +6,7 @@ import sys
 import os
 from datetime import datetime, timezone
 from clients.pod_command import PodRoleCommand
-from utils.common import extract_parameter, save_info_to_file
+from utils.common import extract_parameter
 from utils.retries import execute_with_retries
 from utils.constants import CommandConstants
 from utils.logger_config import get_logger, setup_logging
@@ -389,7 +389,7 @@ def main():
             result_dir=args.result_dir,
         )
     else:
-        pass
+        raise ValueError(f"Unsupported action: {args.action}")
 
 
 if __name__ == '__main__':

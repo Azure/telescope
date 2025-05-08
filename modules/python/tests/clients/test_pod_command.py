@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch, call
 from clients.pod_command import PodRoleCommand
 
+
 class TestPodRoleCommand(unittest.TestCase):
     def setUp(self):
         self.namespace = "test-namespace"
@@ -14,8 +15,10 @@ class TestPodRoleCommand(unittest.TestCase):
             server_label_selector="app=server",
             client_label_selector="app=client",
             namespace=self.namespace,
+            validate_command="validate-cmd",
+            service_name="test-service"
         )
-        
+
         # Create a new MagicMock for k8s_client
         self.k8s_client = MagicMock()
         self.pod_cmd.k8s_client = self.k8s_client
@@ -54,7 +57,8 @@ class TestPodRoleCommand(unittest.TestCase):
     @patch('clients.pod_command.execute_with_retries')
     def test_run_command_for_role_client(self, mock_execute_with_retries):
 
-        self.pod_cmd.k8s_client.get_pod_name_and_ip.return_value = {"name": "client-pod", "ip": "10.0.0.2"}
+        self.pod_cmd.k8s_client.get_pod_name_and_ip.return_value = {
+            "name": "client-pod", "ip": "10.0.0.2"}
 
         self.pod_cmd.run_command_for_role(
             role="client",
@@ -78,7 +82,8 @@ class TestPodRoleCommand(unittest.TestCase):
 
     @patch('clients.pod_command.execute_with_retries')
     def test_run_command_for_role_server(self, mock_execute_with_retries):
-        self.pod_cmd.k8s_client.get_pod_name_and_ip.return_value = {"name": "server-pod", "ip": "10.0.0.1"}
+        self.pod_cmd.k8s_client.get_pod_name_and_ip.return_value = {
+            "name": "server-pod", "ip": "10.0.0.1"}
 
         self.pod_cmd.run_command_for_role(
             role="server",
@@ -102,9 +107,6 @@ class TestPodRoleCommand(unittest.TestCase):
 
     @patch('clients.pod_command.execute_with_retries')
     def test_validate(self, mock_execute_with_retries):
-        # Set validate command
-        self.pod_cmd._validate_command = "validate-cmd"
-        
         # Setup return values for get_pod calls
         self.k8s_client.get_pod_name_and_ip.side_effect = [
             {"name": "client-pod", "ip": "10.0.0.2"},
@@ -133,7 +135,7 @@ class TestPodRoleCommand(unittest.TestCase):
             ),
             call(
                 self.k8s_client.run_pod_exec_command,
-                pod_name="server-pod", 
+                pod_name="server-pod",
                 command="validate-cmd",
                 container_name="server-container",
                 dest_path="",
@@ -142,19 +144,33 @@ class TestPodRoleCommand(unittest.TestCase):
         ]
         mock_execute_with_retries.assert_has_calls(execute_calls)
 
-    def test_validate_empty_command(self):
-        self.pod_cmd._validate_command = ""
-        
-        self.k8s_client.get_pod_name_and_ip.side_effect = [
-            {"name": "client-pod", "ip": "10.0.0.2"},
-            {"name": "server-pod", "ip": "10.0.0.1"}
-        ]
+    @patch('clients.pod_command.execute_with_retries')
+    def test_validate_empty_command(self, mock_execute_with_retries):
+        self.pod_cmd = PodRoleCommand(
+            cluster_cli_context="cli-context",
+            cluster_srv_context="srv-context",
+            server_container="server-container",
+            client_container="client-container",
+            server_label_selector="app=server",
+            client_label_selector="app=client",
+            namespace=self.namespace,
+            service_name="test-service"
+        )
 
+        # Set up the mock k8s_client
+        self.pod_cmd.k8s_client = self.k8s_client
+
+        # Validate should not make any calls since validate_command is empty
         self.pod_cmd.validate()
+
+        # Verify that no context switches or pod executions occurred
+        self.k8s_client.set_context.assert_not_called()
+        self.k8s_client.get_pod_name_and_ip.assert_not_called()
+        mock_execute_with_retries.assert_not_called()
 
     def test_collect(self):
         result_dir = "/tmp/test-results"
-        
+
         self.pod_cmd.collect(result_dir)
 
         context_calls = [
@@ -177,10 +193,10 @@ class TestPodRoleCommand(unittest.TestCase):
                 role="server"
             )
         ]
-        self.k8s_client.collect_pod_and_node_info.assert_has_calls(collect_calls)
+        self.k8s_client.collect_pod_and_node_info.assert_has_calls(
+            collect_calls)
 
     def test_get_service_external_ip_success(self):
-        self.pod_cmd._service_name = "test-service"
         expected_ip = "1.2.3.4"
         self.k8s_client.get_service_external_ip.return_value = expected_ip
 
@@ -192,19 +208,30 @@ class TestPodRoleCommand(unittest.TestCase):
             namespace=self.namespace
         )
         self.assertEqual(expected_ip, result)
-        
+
         result = self.pod_cmd.get_service_external_ip()
         self.assertEqual(expected_ip, result)
         self.k8s_client.get_service_external_ip.assert_called_once()
 
     def test_get_service_external_ip_no_service_name(self):
-        self.pod_cmd._service_name = ""
-        
+        self.pod_cmd = PodRoleCommand(
+            cluster_cli_context="cli-context",
+            cluster_srv_context="srv-context",
+            server_container="server-container",
+            client_container="client-container",
+            server_label_selector="app=server",
+            client_label_selector="app=client",
+            namespace=self.namespace,
+            validate_command="validate-cmd",
+            service_name=""
+        )
         with self.assertRaises(ValueError) as context:
             self.pod_cmd.get_service_external_ip()
-        
-        self.assertEqual(str(context.exception), "Service name must be provided to get the external IP.")
+
+        self.assertEqual(str(context.exception),
+                         "Service name must be provided to get the external IP.")
         self.k8s_client.get_service_external_ip.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

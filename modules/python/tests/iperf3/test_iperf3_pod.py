@@ -1,11 +1,11 @@
 import unittest
 import argparse
 import sys
-from unittest.mock import MagicMock, patch, mock_open
-from iperf3.iperf3_pod import Iperf3Pod, command_constants, main, parse_args
-from io import StringIO
 import json
 import os
+from io import StringIO
+from unittest.mock import MagicMock, patch
+from iperf3.iperf3_pod import Iperf3Pod, command_constants, main, parse_args
 
 
 class TestIPerfsPod(unittest.TestCase):
@@ -69,7 +69,6 @@ class TestIPerfsPod(unittest.TestCase):
         parallel = 1
         datapath = "direct"
         iperf3_properties = "--time 60 --bandwidth 1000M --parallel 1 --interval 0 --port 20003"
-        result_dir = "/tmp"
         result_file = f"iperf3-{protocol}-{bandwidth}-{parallel}-{datapath}.json"
         expected_command = (
             f"iperf3 -c {self.server_pod_info['ip']} {iperf3_properties} --json"
@@ -88,7 +87,6 @@ class TestIPerfsPod(unittest.TestCase):
         parallel = 1
         datapath = "direct"
         iperf3_properties = "--time 60 --bandwidth 1000M --parallel 1 --interval 0 --port 20003"
-        result_dir = "/tmp"
         result_file = f"iperf3-{protocol}-{bandwidth}-{parallel}-{datapath}.json"
         expected_command = (
             f"iperf3 -c {self.server_pod_info['node_ip']} {iperf3_properties} --json"
@@ -109,7 +107,6 @@ class TestIPerfsPod(unittest.TestCase):
         parallel = 1
         datapath = "direct"
         iperf3_properties = "--time 60 --bandwidth 1000M --parallel 1 --interval 0 --port 20003"
-        result_dir = "/tmp"
         result_file = f"iperf3-{protocol}-{bandwidth}-{parallel}-{datapath}.json"
         expected_command = (
             f"iperf3 -c {self.service_external_ip } {iperf3_properties} --json"
@@ -129,7 +126,7 @@ class TestIPerfsPod(unittest.TestCase):
             self.client_pod_info
         ])
         iperf3_properties = "--tcp"
-        result_file = f"/tmp/iperf3-tcp-direct.json"
+        result_file = "/tmp/iperf3-tcp-direct.json"
 
         self.iperf3.k8s_client.run_pod_exec_command.return_value = {
             "error": "error"}
@@ -164,7 +161,7 @@ class TestIPerfsPod(unittest.TestCase):
 
     @patch("builtins.open", new_callable=MagicMock)
     @patch("json.dump")
-    def test_run_lspci(self, mock_json_dump, mock_open):
+    def test_run_lspci(self, mock_json_dump, mock_open_file):
         self.iperf3.get_pod_by_role = MagicMock(side_effect=[
             self.client_pod_info
         ])
@@ -176,12 +173,12 @@ class TestIPerfsPod(unittest.TestCase):
         self.iperf3.run_lspci(role, result_dir)
         self._assert_run_command(command_constants.LSPCI_CMD, "")
 
-        mock_open.assert_called_with(result_file, 'w', encoding='utf-8')
+        mock_open_file.assert_called_with(result_file, 'w', encoding='utf-8')
         mock_json_dump.assert_called()
 
     @patch("builtins.open", new_callable=MagicMock)
     @patch("json.dump")
-    def test_run_benchmark(self, mock_json_dump, mock_open):
+    def test_run_benchmark(self, _mock_json_dump, _mock_open):
         self.iperf3.get_pod_by_role = MagicMock(
             side_effect=[
                 self.client_pod_info,
@@ -201,7 +198,7 @@ class TestIPerfsPod(unittest.TestCase):
             ])
 
         result_dir = "/tmp"
-        result_file = f"iperf3-tcp-1000-1-direct.json"
+        result_file = "iperf3-tcp-1000-1-direct.json"
         self.iperf3.run_benchmark(
             index=1,
             iperf3_command="--time 60 --bandwidth 1000M --parallel 1 --interval 0 --port 20003",
@@ -251,7 +248,7 @@ class TestIPerfsPod(unittest.TestCase):
     @patch('json.load')
     @patch('os.path.exists')
     @patch('builtins.open')
-    def test_collect_iperf3_protocol(self, mock_open, mock_exists, mock_json_load,
+    def test_collect_iperf3_protocol(self, mock_open_file, mock_exists, mock_json_load,
                                      mock_json_dumps, mock_makedirs, mock_parse_udp, mock_parse_tcp):
         # Test cases for different protocols
         test_cases = [
@@ -322,6 +319,23 @@ class TestIPerfsPod(unittest.TestCase):
             }
         ]
 
+        mock_files = {
+            "client-lscpu.json": json.dumps(["CPU info"]),
+            "server-lscpu.json": json.dumps(["CPU info"]),
+            "client-lspci.json": json.dumps(["PCI info"]),
+            "server-lspci.json": json.dumps(["PCI info"]),
+            "client-netstat-before-execute-1.json": json.dumps({"connections": 10}),
+            "server-netstat-before-execute-1.json": json.dumps({"connections": 5}),
+            "client-netstat-after-execute-1.json": json.dumps({"connections": 11}),
+            "server-netstat-after-execute-1.json": json.dumps({"connections": 6}),
+            "client-ip-link-before-execute-1.json": json.dumps({"link": "info"}),
+            "server-ip-link-before-execute-1.json": json.dumps({"link": "info"}),
+            "client-ip-link-after-execute-1.json": json.dumps({"link": "info"}),
+            "server-ip-link-after-execute-1.json": json.dumps({"link": "info"}),
+            "client_pod_node_info.json": json.dumps({"pod": "client-pod", "node": "client-node"}),
+            "server_pod_node_info.json": json.dumps({"pod": "server-pod", "node": "server-node"})
+        }
+
         for test_case in test_cases:
             with self.subTest(protocol=test_case['protocol']):
                 protocol = test_case['protocol']
@@ -335,40 +349,21 @@ class TestIPerfsPod(unittest.TestCase):
                 result_file = "/tmp/final_results.json"
                 iperf3_result_file = f"{result_dir}/iperf3-{protocol}-{bandwidth}-{parallel}-{datapath}.json"
 
-                # Mock files that would be read
-                mock_files = {
-                    iperf3_result_file: test_case['result'],
-                    f"{result_dir}/client-lscpu.json": json.dumps(["CPU info"]),
-                    f"{result_dir}/server-lscpu.json": json.dumps(["CPU info"]),
-                    f"{result_dir}/client-lspci.json": json.dumps(["PCI info"]),
-                    f"{result_dir}/server-lspci.json": json.dumps(["PCI info"]),
-                    f"{result_dir}/client-netstat-before-execute-1.json": json.dumps({"connections": 10}),
-                    f"{result_dir}/server-netstat-before-execute-1.json": json.dumps({"connections": 5}),
-                    f"{result_dir}/client-netstat-after-execute-1.json": json.dumps({"connections": 11}),
-                    f"{result_dir}/server-netstat-after-execute-1.json": json.dumps({"connections": 6}),
-                    f"{result_dir}/client-ip-link-before-execute-1.json": json.dumps({"link": "info"}),
-                    f"{result_dir}/server-ip-link-before-execute-1.json": json.dumps({"link": "info"}),
-                    f"{result_dir}/client-ip-link-after-execute-1.json": json.dumps({"link": "info"}),
-                    f"{result_dir}/server-ip-link-after-execute-1.json": json.dumps({"link": "info"}),
-                    f"{result_dir}/client_pod_node_info.json": json.dumps({"pod": "client-pod", "node": "client-node"}),
-                    f"{result_dir}/server_pod_node_info.json": json.dumps({"pod": "server-pod", "node": "server-node"})
-                }
-
-                # Set up mocks properly
-                mock_exists.return_value = True
-
-                # Set up the open mock to use a context manager mock
-                mock_file_handle = mock_open.return_value.__enter__.return_value
-                mock_file_handle.read.return_value = test_case['result']
-
-                # Configure json.load to return different content based on the file
+                # # Configure json.load to return different content based on the file
                 def side_effect_load(file_handle):
                     for file_path, content in mock_files.items():
                         if hasattr(file_handle, 'name') and file_handle.name == file_path:
                             return json.loads(content)
                     return {}
 
+                # Set up mocks properly
+                mock_exists.return_value = True
                 mock_json_load.side_effect = side_effect_load
+
+                # Set up the open mock to use a context manager mock
+                mock_file_handle = mock_open_file.return_value.__enter__.return_value
+                mock_file_handle.read.return_value = test_case['result']
+
                 test_case['mock_parser'].return_value = test_case['parsed_result']
                 mock_json_dumps.return_value = '{}'
 
@@ -387,9 +382,10 @@ class TestIPerfsPod(unittest.TestCase):
                 )
 
                 # Verify the open calls
-                mock_open.assert_any_call(
+                mock_open_file.assert_any_call(
                     iperf3_result_file, 'r', encoding='utf-8')
-                mock_open.assert_any_call(result_file, 'a', encoding='utf-8')
+                mock_open_file.assert_any_call(
+                    result_file, 'a', encoding='utf-8')
 
                 # Verify that write was called with JSON content
                 mock_file_handle.write.assert_called()
@@ -399,7 +395,7 @@ class TestIPerfsPod(unittest.TestCase):
                     os.path.dirname(result_file), exist_ok=True)
 
                 # Reset mocks for next iteration
-                mock_open.reset_mock()
+                mock_open_file.reset_mock()
                 mock_exists.reset_mock()
                 mock_json_load.reset_mock()
                 mock_json_dumps.reset_mock()
@@ -408,7 +404,7 @@ class TestIPerfsPod(unittest.TestCase):
 
     @patch('builtins.open')
     @patch('os.path.exists')
-    def test_collect_iperf3_file_not_found(self, mock_exists, mock_open):
+    def test_collect_iperf3_file_not_found(self, mock_exists, mock_open_file):
         protocol = "tcp"
         bandwidth = 1000
         parallel = 1
@@ -418,17 +414,13 @@ class TestIPerfsPod(unittest.TestCase):
         run_url = "https://example.com/run"
         result_dir = "/tmp"
         result_file = "/tmp/final_results.json"
-        iperf3_result_file = f"{result_dir}/iperf3-{protocol}-{bandwidth}-{parallel}-{datapath}.json"
 
-        # Set up mock to simulate file exists but is empty
         mock_exists.return_value = True
-
-        # Mock the file open operation to return an empty file
-        mock_file = mock_open.return_value.__enter__.return_value
+        mock_file = mock_open_file.return_value.__enter__.return_value
         mock_file.read.return_value = ""
 
         # Test when iperf3 result file is empty
-        with self.assertRaises(RuntimeError) as context:
+        with self.assertRaises(RuntimeError) as _context:
             self.iperf3.collect_iperf3(
                 result_dir=result_dir,
                 result_file=result_file,
@@ -444,7 +436,7 @@ class TestIPerfsPod(unittest.TestCase):
 
     @patch('os.path.exists')
     @patch('builtins.open')
-    def test_collect_iperf3_unsupported_protocol(self, mock_open, mock_exists):
+    def test_collect_iperf3_unsupported_protocol(self, mock_open_file, mock_exists):
         protocol = "invalid"
         bandwidth = 1000
         parallel = 1
@@ -457,7 +449,7 @@ class TestIPerfsPod(unittest.TestCase):
 
         # Set up mocks
         mock_exists.return_value = True
-        mock_file = mock_open.return_value.__enter__.return_value
+        mock_file = mock_open_file.return_value.__enter__.return_value
         mock_file.read.return_value = "{}"
 
         # Test with an invalid protocol
@@ -490,7 +482,7 @@ class TestIperf3PodArguments(unittest.TestCase):
     @patch('iperf3.iperf3_pod.extract_parameter')
     @patch('random.randint', return_value=42)
     @patch('time.sleep', return_value=None)
-    def test_main_run_benchmark(self, mock_sleep, mock_randint, mock_extract_parameter, mock_Iperf3Pod, mock_execute_with_retries, mock_parse_args):
+    def test_main_run_benchmark(self, _mock_sleep, _mock_randint, mock_extract_parameter, mock_iperf3_pod, mock_execute_with_retries, mock_parse_args):
         mock_parse_args.return_value = argparse.Namespace(
             action='run_benchmark',
             index=1,
@@ -506,11 +498,11 @@ class TestIperf3PodArguments(unittest.TestCase):
         )
         result_file = '/tmp/iperf3-tcp-1000-1-direct.json'
         mock_extract_parameter.return_value = '60'
-        mock_Iperf3Pod.create_result_file_name.return_value = result_file
+        mock_iperf3_pod.create_result_file_name.return_value = result_file
 
         main()
         mock_execute_with_retries.assert_called_with(
-            mock_Iperf3Pod.return_value.run_benchmark,
+            mock_iperf3_pod.return_value.run_benchmark,
             backoff_time=70,
             index=1,
             result_dir='/tmp',
@@ -543,8 +535,9 @@ class TestIperf3PodArguments(unittest.TestCase):
         mock_parse_args.return_value = argparse.Namespace(
             action='invalid_action', cluster_cli_context='cli-context', cluster_srv_context='srv-context'
         )
-        result = main()
-        self.assertIsNone(result)
+        with self.assertRaises(ValueError) as context:
+            main()
+        self.assertIn("Unsupported action", str(context.exception))
 
     @patch('sys.stderr', new_callable=StringIO)
     def test_main_invalid_protocol(self, mock_stderr):
@@ -554,3 +547,7 @@ class TestIperf3PodArguments(unittest.TestCase):
             parse_args(args)
         self.assertIn("argument --protocol: invalid choice",
                       mock_stderr.getvalue())
+
+
+if __name__ == '__main__':
+    unittest.main()

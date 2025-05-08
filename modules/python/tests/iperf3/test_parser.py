@@ -195,7 +195,6 @@ class TestIperf3Parser(unittest.TestCase):
             'cpu_usage_server': 50.0066564627557,
         }
 
-        self.maxDiff = None
         self.assertEqual(parse_tcp_output(stdout), expected_result)
 
     def test_parse_udp_output(self):

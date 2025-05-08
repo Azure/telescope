@@ -44,5 +44,5 @@ def save_info_to_file(info, file_path):
             f"Directory does not exist: {directory}. Please ensure it is created before running the script.")
 
     logger.info(f"Writing data to {file_path}")
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding='utf-8') as f:
         json.dump(info, f, indent=2)
