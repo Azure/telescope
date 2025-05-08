@@ -17,7 +17,7 @@ def main():
                 display_name="eastus",
                 setup=Setup(run_id=os.getenv("RUN_ID")),
                 cloud=Azure(),
-                resouces=[
+                resources=[
                     Python3(),
                     SSH(cloud="azure"),
                 ],
