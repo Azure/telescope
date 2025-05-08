@@ -10,7 +10,7 @@ from terraform.terraform import Terraform
 
 
 def main():
-    # TODO : reactor, make function to generate layout
+    # TODO : Refactor, make function to generate layout
     job_scheduling = Benchmark(
         name="job_scheduling",
         layouts=[
