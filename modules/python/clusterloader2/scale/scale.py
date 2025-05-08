@@ -217,10 +217,15 @@ def collect_clusterloader2(
         "test_details": {
             # add more details here about tests (e.g. features tested)
             "traffic_generator": "fortio",
+            "traffic_namespaces": fortio_namespaces,
+            "traffic_deployments_per_namespace": fortio_deployments_per_namespace,
+            "fortio_servers_per_deployment": fortio_servers_per_deployment,
+            "fortio_clients_per_deployment": fortio_clients_per_deployment,
             "traffic_pods": fortio_namespaces * fortio_deployments_per_namespace * (fortio_clients_per_deployment + fortio_servers_per_deployment),
             "network_policies": network_policies_per_namespace,
             "generate_retina_network_flow_logs": generate_retina_network_flow_logs,
             "requests_per_second": fortio_client_queries_per_second,
+            "details": testsuites[0]["testcases"][0]["failure"],
         },
         "cloud_info": cloud_info,
         "run_id": run_id,
