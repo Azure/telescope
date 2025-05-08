@@ -17,6 +17,7 @@ class Script(Step):
     display_name: str = field(metadata={"yaml": "displayName"})
     script: str
     env: Optional[dict[str, str]] = None
+    condition: Optional[str] = None
 
 
 @dataclass

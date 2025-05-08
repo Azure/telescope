@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 from textwrap import dedent
+
 from benchmark import Resource
 from pipeline import Script, Step
-from dataclasses import dataclass
 
 set_run_id = lambda run_id: Script(
     display_name="Set run id",
