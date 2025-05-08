@@ -50,57 +50,64 @@ parameters:
   default: true
 
 jobs:
-- job: ${{ parameters.cloud }}
-  strategy:
-    maxParallel: ${{ parameters.max_parallel }}
-    matrix:
-      ${{ parameters.matrix }}
-  timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
-  steps:
-  - template: /steps/setup-tests.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      region: ${{ parameters.regions[0] }}
-      run_id: ${{ parameters.run_id }}
-      test_modules_dir: ${{ parameters.test_modules_dir }}
-      retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
-      ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
-  - template: /steps/provision-resources.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      regions: ${{ parameters.regions }}
-      terraform_modules_dir: ${{ parameters.terraform_modules_dir }}
-      terraform_input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
-      terraform_arguments: ${{ parameters.terraform_arguments }}
-      terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
-      retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
-  - template: /steps/validate-resources.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      regions: ${{ parameters.regions }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-  - template: /steps/execute-tests.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-  - template: /steps/publish-results.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-      credential_type: ${{ parameters.credential_type }}
-  - template: /steps/cleanup-resources.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      regions: ${{ parameters.regions }}
-      terraform_arguments: ${{ parameters.terraform_arguments }}
-      retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
+- ${{ if or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main'))) }}:
+  - job: ${{ parameters.cloud }}
+    strategy:
+      maxParallel: ${{ parameters.max_parallel }}
+      matrix:
+        ${{ parameters.matrix }}
+    timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
+    steps:
+    - template: /steps/setup-tests.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        region: ${{ parameters.regions[0] }}
+        run_id: ${{ parameters.run_id }}
+        test_modules_dir: ${{ parameters.test_modules_dir }}
+        retry_attempt_count: ${{ parameters.retry_attempt_count }}
+        credential_type: ${{ parameters.credential_type }}
+        ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
+    - template: /steps/provision-resources.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        regions: ${{ parameters.regions }}
+        terraform_modules_dir: ${{ parameters.terraform_modules_dir }}
+        terraform_input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
+        terraform_arguments: ${{ parameters.terraform_arguments }}
+        terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
+        retry_attempt_count: ${{ parameters.retry_attempt_count }}
+        credential_type: ${{ parameters.credential_type }}
+    - template: /steps/validate-resources.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        regions: ${{ parameters.regions }}
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+    - template: /steps/execute-tests.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions: ${{ parameters.regions }}
+        engine_input: ${{ parameters.engine_input }}
+    - template: /steps/publish-results.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions: ${{ parameters.regions }}
+        engine_input: ${{ parameters.engine_input }}
+        credential_type: ${{ parameters.credential_type }}
+    - template: /steps/cleanup-resources.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        regions: ${{ parameters.regions }}
+        terraform_arguments: ${{ parameters.terraform_arguments }}
+        retry_attempt_count: ${{ parameters.retry_attempt_count }}
+        credential_type: ${{ parameters.credential_type }}
+- ${{ if and(eq(variables['Build.Reason'], 'Schedule'), ne(variables['Build.SourceBranchName'], 'main')) }}:
+  - steps:
+    - script: |
+         echo "##vso[task.logissue type=error;]This job is skipped because the scheduled run is not on the main branch."
+         exit 1
+      displayName: "Skip Pipeline run"
