@@ -116,5 +116,5 @@ class Benchmark:
         self.prepare_directory(yaml_file_path)
 
         customize_yaml()
-        with open(yaml_file_path, "w") as file:
+        with open(yaml_file_path, "w", encoding="utf-8") as file:
             yaml.dump(p, file, sort_keys=False)
