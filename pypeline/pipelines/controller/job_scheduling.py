@@ -10,16 +10,19 @@ from terraform.terraform import Terraform
 
 
 def main():
-    # TODO : make function to generate layout
+    # TODO : reactor, make function to generate layout
     job_scheduling = Benchmark(
         name="job_scheduling",
         layouts=[
             Layout(
                 display_name="azure-eastus2",
-                setup=Setup(run_id=os.getenv("RUN_ID")),
-                terraform=Terraform(cloud="azure", regions=["eastus2"]),
                 cloud=Azure(),
-                resources=[Python3(), SSH(cloud="azure")],
+                resources=[
+                    Setup(run_id=os.getenv("RUN_ID")),
+                    Terraform(cloud="azure", regions=["eastus2"]),
+                    Python3(),
+                    SSH(cloud="azure"),
+                ],
                 engine=ClusterLoader2(),
             )
         ],

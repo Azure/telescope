@@ -7,9 +7,6 @@ from typing import List
 from benchmark import Resource
 from cloud.azure import CredentialType
 from pipeline import Script, Step
-from terraform.input_variables import set_input_variables
-from terraform.run_command import (generate_apply_or_destroy_script,
-                                   generate_generic_script)
 
 
 def generate_regional_config(
@@ -140,39 +137,8 @@ def create_resource_group(region: str, cloud: str) -> Script:
     )
 
 
-def run_command(
-    command: str,
-    cloud,
-    regions: list[str],
-    credential_type: CredentialType,
-    retry_attempt_count,
-    arguments,
-) -> Script:
-    if command == "apply" or command == "destroy":
-        script = generate_apply_or_destroy_script(command, arguments, regions, cloud)
-    else:
-        script = generate_generic_script(command, arguments)
-
-    return Script(
-        display_name=f"Run Terraform {command.capitalize()} Command",
-        script=script,
-        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
-        retry_count_on_task_failure=retry_attempt_count,
-        env={
-            "ARM_SUBSCRIPTION_ID": "$(AZURE_SUBSCRIPTION_ID)",
-            **(
-                {
-                    "ARM_USE_MSI": "true",
-                    "ARM_TENANT_ID": "$(AZURE_MI_TENANT_ID)",
-                    "ARM_CLIENT_ID": "$(AZURE_MI_CLIENT_ID)",
-                }
-                if credential_type == CredentialType.MANAGED_IDENTITY
-                else {}
-            ),
-        },
-    )
-
-
+# TODO: Add delete_resource_group function and validate_resource_group function
+# TODO: add set_input_variables and run_command terraform, decouple them from cloud specific logics
 @dataclass
 class Terraform(Resource):
     cloud: str
@@ -190,33 +156,8 @@ class Terraform(Resource):
             set_working_directory(self.cloud, self.modules_dir),
             set_input_file(self.cloud, self.regions, self.input_file_mapping),
             set_user_data_path(self.user_data_path),
-            set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
             create_resource_group(self.regions[0], self.cloud),
-            run_command(
-                "version",
-                self.cloud,
-                self.regions,
-                self.credential_type,
-                self.retry_attempt_count,
-                self.arguments,
-            ),
-            run_command(
-                "init",
-                self.cloud,
-                self.regions,
-                self.credential_type,
-                self.retry_attempt_count,
-                self.arguments,
-            ),
-            run_command(
-                "apply",
-                self.cloud,
-                self.regions,
-                self.credential_type,
-                self.retry_attempt_count,
-                self.arguments,
-            ),
         ]
 
     def validate(self):
