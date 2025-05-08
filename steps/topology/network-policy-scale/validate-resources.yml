@@ -16,3 +16,9 @@ steps:
   #     # keeping this low value for now, in auto scale enabled clusters
   #     # usually the node count will be min and scale up.
   #     desired_nodes: 6
+  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+    parameters:
+      role: ces
+      region: ${{ parameters.regions[0] }}
+      nodes_per_nodepool: 500
+      enable_autoscale: "false"
