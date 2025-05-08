@@ -15,6 +15,7 @@ def configure_clusterloader2(
     cilium_enabled,
     cilium_envoy_enabled,
     l7_enabled,
+    repeats,
     override_file,
 ):
     # Ensure the directory for override_file exists
