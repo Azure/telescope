@@ -176,7 +176,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_unreachable_health_endpoints
-          query: count(cilium_unreachable_health_endpoints{})
+          query: max(max_over_time(cilium_unreachable_health_endpoints{}[%v:]))
     - Identifier: CiliumUnreachableNodes
       Method: GenericPrometheusQuery
       Params:
@@ -187,7 +187,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_unreachable_nodes
-          query: count(cilium_unreachable_nodes{})
+          query: max(max_over_time(cilium_unreachable_nodes{}[%v:]))
     - Identifier: CiliumNodesAll
       Method: GenericPrometheusQuery
       Params:
@@ -198,7 +198,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_nodes_all_num
-          query: count(cilium_nodes_all_num{})
+          query: max(max_over_time(cilium_nodes_all_num{}[%v:]))
     - Identifier: CiliumGoroutineCount
       Method: GenericPrometheusQuery
       Params:
