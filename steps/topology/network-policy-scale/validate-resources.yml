@@ -15,4 +15,4 @@ steps:
     parameters:
       # keeping this low value for now, in auto scale enabled clusters
       # usually the node count will be min and scale up.
-      desired_nodes: 6
+      desired_nodes: 2
