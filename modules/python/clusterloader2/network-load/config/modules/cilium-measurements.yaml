@@ -144,6 +144,34 @@ steps:
           query: max(max_over_time(cilium_bpf_map_pressure{map_name="lb_affinity_match"}[%v:]))
         - name: lxc
           query: max(max_over_time(cilium_bpf_map_pressure{map_name="lxc"}[%v:]))
+    - Identifier: CiliumBPFMapVirtualMemoryMax
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Map Virtual Memory Max Bytes
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: cilium_bpf_maps_virtual_memory_max_bytes 
+          query: max(max_over_time(cilium_bpf_maps_virtual_memory_max_bytes{}[%v:]))
+    - Identifier: Cilium Datapath Conntrack GC Entries
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Datapath Conntrack GC Entries
+        metricVersion: v1
+        unit: count
+        enableViolations: true
+        queries:
+        - name: cilium_datapath_conntrack_gc_entries_v4_tcp_alive
+          query: max(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="TCP",status="alive"}[%v:]))
+        - name: cilium_datapath_conntrack_gc_entries_v4_tcp_deleted
+          query: max(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="TCP",status="deleted"}[%v:]))
+        - name: cilium_datapath_conntrack_gc_entries_v4_nontcp_alive
+          query: max(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="non-TCP",status="alive"}[%v:]))
+        - name: cilium_datapath_conntrack_gc_entries_v4_nontcp_deleted
+          query: max(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="non-TCP",status="deleted"}[%v:]))
     - Identifier: CiliumControllersFailing
       Method: GenericPrometheusQuery
       Params:
