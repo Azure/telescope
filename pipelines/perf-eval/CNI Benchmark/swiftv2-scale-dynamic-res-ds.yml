@@ -17,13 +17,13 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-          node_count: $(nodecount)
-          node_label: $(nodelabel)
+          node_count: $(NODECOUNT)
+          node_label: $(NODELABEL)
           topology: swiftv2-ds-churn
           matrix:
             azure_swiftv2_datapath:
               cpu_per_node: 4
-              node_count: $(nodecount)
+              node_count: $(NODECOUNT)
               node_per_step: 50
               max_pods: 1
               repeats: $(LOOPS)
