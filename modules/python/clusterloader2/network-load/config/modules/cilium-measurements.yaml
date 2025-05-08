@@ -148,12 +148,12 @@ steps:
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Cilium BPF Map Pressure
+        metricName: Cilium Controllers Failing
         metricVersion: v1
         unit: count
         enableViolations: true
         queries:
-        - name: ControllersFailing
+        - name: cilium_controllers_failing
           query: max(max_over_time(cilium_controllers_failing{}[%v:]))
     - Identifier: CiliumProxyDatapathUpdateTimeout
       Method: GenericPrometheusQuery
@@ -164,7 +164,7 @@ steps:
         unit: count
         enableViolations: true
         queries:
-        - name: timeouts
+        - name: cilium_proxy_datapath_update_timeout_total
           query: max(max_over_time(cilium_proxy_datapath_update_timeout_total{}[%v:]))
     - Identifier: CiliumUnreachableHealthEndpoints
       Method: GenericPrometheusQuery
@@ -175,7 +175,7 @@ steps:
         unit: count
         enableViolations: true
         queries:
-        - name: UnreachableHealthEndpoints
+        - name: cilium_unreachable_health_endpoints
           query: count(cilium_unreachable_health_endpoints{})
     - Identifier: CiliumUnreachableNodes
       Method: GenericPrometheusQuery
@@ -186,7 +186,7 @@ steps:
         unit: count
         enableViolations: true
         queries:
-        - name: UnreachableNodes
+        - name: cilium_unreachable_nodes
           query: count(cilium_unreachable_nodes{})
     - Identifier: CiliumNodesAll
       Method: GenericPrometheusQuery
@@ -197,7 +197,7 @@ steps:
         unit: count
         enableViolations: true
         queries:
-        - name: CiliumNodesAll
+        - name: cilium_nodes_all_num
           query: count(cilium_nodes_all_num{})
     - Identifier: CiliumGoroutineCount
       Method: GenericPrometheusQuery
