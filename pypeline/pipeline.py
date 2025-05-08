@@ -18,6 +18,9 @@ class Script(Step):
     script: str
     env: Optional[dict[str, str]] = None
     condition: Optional[str] = None
+    retry_count_on_task_failure: Optional[int] = field(
+        metadata={"yaml": "retryCountOnTaskFailure"}, default=None
+    )
 
 
 @dataclass

@@ -37,6 +37,7 @@ class Cloud(ABC):
 class Layout:
     display_name: str
     setup: Resource
+    terraform: Resource
     cloud: Cloud
     resources: list[Resource]
     engine: Engine
@@ -48,12 +49,14 @@ class Layout:
             steps=self.setup.setup()
             + self.cloud.login()
             + [step for r in self.resources for step in r.setup()]
+            + self.terraform.setup()
             + self.engine.setup(),
         )
         validate = Job(
             job="validate",
             display_name="Validate resources",
-            steps=[step for r in self.resources for step in r.validate()]
+            steps=self.setup.validate()
+            + [step for r in self.resources for step in r.validate()]
             + self.engine.validate(),
             depends_on=[setup.job],
         )

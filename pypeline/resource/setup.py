@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from textwrap import dedent
 
-from pipeline import Script, Step
 from benchmark import Resource
+from pipeline import Script, Step
 
 
 def set_run_id(run_id: str) -> Script:
