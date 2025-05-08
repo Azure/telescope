@@ -16,7 +16,7 @@ steps:
       exit 1
     fi
   displayName: "Validate OWNER info"
-  condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+  condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'false')
 - template: /steps/topology/${{ parameters.topology }}/validate-resources.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}

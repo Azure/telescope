@@ -39,7 +39,7 @@ steps:
       echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
 
     displayName: 'Set Terraform Input Variables'
-    condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'false')
     env:
       CLOUD: ${{ parameters.cloud }}
       REGIONS: ${{ convertToJson(parameters.regions) }}
