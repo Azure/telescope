@@ -1,7 +1,7 @@
 trigger: none
 
 variables:
-  SCENARIO_TYPE: Azure_CNI_Benchmarking
+  SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: azure_cni_static_block
 
 stages:
