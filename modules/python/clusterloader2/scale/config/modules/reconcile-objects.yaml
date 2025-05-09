@@ -123,13 +123,30 @@ steps:
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
           FortioServerServiceBasename: fortio-server
 
-- name: Sleep 1m
+- name: Waiting for '{{$actionName}} clients' to be completed
   measurements:
-  - Identifier: Dummy
-    Method: Sleep
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForClientPodsRunning
+    Params:
+      action: gather
+      refreshInterval: 15s
+
+- name: Starting measurement for '{{$actionName}}'
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForClientPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+        labelSelector: role = load
     Params:
       action: start
-      duration: 1m
+      checkIfPodsAreUpdated: true
+      labelSelector: group = {{.Group}}
+      operationTimeout: {{$operationTimeout}}
+      apiVersion: apps/v1
 
 - name: 'add label to client pods in deployment'
   phases:
@@ -152,6 +169,15 @@ steps:
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
           FortioServerServiceBasename: fortio-server
 
+- name: Waiting for '{{$actionName}} clients' to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForClientPodsRunning
+    Params:
+      action: gather
+      refreshInterval: 15s
+
 - name: '{{$actionName}} network policies'
   phases:
   - namespaceRange:
@@ -162,15 +188,6 @@ steps:
     objectBundle:
       - basename: scale-test-policy
         objectTemplatePath: modules/networkpolicy-template.yaml
-
-- name: Waiting for '{{$actionName}} clients' to be completed
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-    Params:
-      action: gather
-      refreshInterval: 15s
 
 - name: Starting measurement for '{{$actionName}}'
   measurements:
@@ -208,13 +225,30 @@ steps:
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
           FortioServerServiceBasename: fortio-server
 
-- name: Sleep 1m
+- name: Waiting for '{{$actionName}} clients' to be completed
   measurements:
-  - Identifier: Dummy
-    Method: Sleep
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForClientPodsRunning
+    Params:
+      action: gather
+      refreshInterval: 15s
+
+- name: Starting measurement for '{{$actionName}}'
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForClientPodsRunning
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+        labelSelector: role = load
     Params:
       action: start
-      duration: 1m
+      checkIfPodsAreUpdated: true
+      labelSelector: group = {{.Group}}
+      operationTimeout: {{$operationTimeout}}
+      apiVersion: apps/v1
 
 - name: 're-add label to client pods in deployment'
   phases:

@@ -22,7 +22,7 @@ steps:
           apiVersion: apps/v1
           kind: DaemonSet
           labelSelector: app.kubernetes.io/name = kube-state-metrics
-          operationTimeout: 120s
+          operationTimeout: 5m
   - name: {{.actionName}} KubeStateMetrics Service Monitor
     phases:
       - namespaceList:
