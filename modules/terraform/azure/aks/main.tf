@@ -37,6 +37,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_plugin_mode = var.aks_config.network_profile.network_plugin_mode
     network_policy      = try(coalesce(var.network_policy, var.aks_config.network_profile.network_policy), null)
     network_data_plane  = try(coalesce(var.network_dataplane, var.aks_config.network_profile.network_dataplane), null)
+    npm_enabled         = try(coalesce(var.npm_enabled, var.aks_config.network_profile.npm_enabled), false)
     outbound_type       = var.aks_config.network_profile.outbound_type
     pod_cidr            = var.aks_config.network_profile.pod_cidr
     service_cidr        = var.aks_config.network_profile.service_cidr
