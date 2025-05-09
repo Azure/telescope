@@ -49,7 +49,6 @@ vendor.orig
 .terraform*
 darwin-amd64/
 linux-amd64/
-./terraform
 
 # python
 __pycache__/
