@@ -1,0 +1,17 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: regions
+    type: object
+    default: {}
+
+steps:
+  - template: /steps/engine/iperf3/execute.yml
+    parameters:
+      iperf_properties: ${{ parameters.engine_input.iperf3_command_array }}
+      cluster_cli_context: "${{ parameters.engine_input.cluster_name.client }}-${{ parameters.cloud }}"
+      cluster_srv_context: "${{ parameters.engine_input.cluster_name.server }}-${{ parameters.cloud }}"

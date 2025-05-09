@@ -1,0 +1,21 @@
+parameters:
+  cluster_cli_context:
+    type: string
+  cluster_srv_context:
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect_pod_node_info \
+        --result_dir "$RESULT_DIR" \
+        --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
+        --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
+    workingDirectory: modules/python
+    displayName: "Collect pod node info"
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+      RESULT_DIR: $(TEST_RESULTS_DIR)
+      CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
+      CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}

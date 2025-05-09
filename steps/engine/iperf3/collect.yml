@@ -1,0 +1,39 @@
+parameters:
+  iperf_properties: {} # format: index|protocol|bandwidth|parallel|iperf_command|datapath|server_ip_type
+  cluster_cli_context:
+    type: string
+  cluster_srv_context:
+    type: string
+
+steps:
+  - ${{ each property in parameters.iperf_properties }}:
+      - script: |
+          set -eo pipefail
+
+          index=$(echo $IPERF_PROPERTY | cut -d "|" -f1)
+          protocol=$(echo $IPERF_PROPERTY | cut -d "|" -f2)
+          bandwidth=$(echo $IPERF_PROPERTY | cut -d "|" -f3)
+          parallel=$(echo $IPERF_PROPERTY | cut -d "|" -f4)
+          iperf_command=$(echo $IPERF_PROPERTY | cut -d "|" -f5)
+          datapath=$(echo $IPERF_PROPERTY | cut -d "|" -f6)
+          server_ip_type=$(echo $IPERF_PROPERTY | cut -d "|" -f7)
+
+          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+            --result_dir "$RESULT_DIR" \
+            --result_file "$RESULT_FILE" \
+            --cloud_info "$CLOUD_INFO" \
+            --run_url "$RUN_URL" \
+            --protocol "$protocol" \
+            --bandwidth "$bandwidth" \
+            --parallel "$bandwidth" \
+            --datapath "$datapath" \
+            --index "$index"
+        workingDirectory: modules/python
+        displayName: "Execute iperf3 ${{ property }}"
+        env:
+          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+          RESULT_DIR: $(TEST_RESULTS_DIR)
+          RESULT_FILE: $(TEST_RESULTS_FILE)
+          IPERF_PROPERTY: ${{ property }}
+          CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
+          CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}

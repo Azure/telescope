@@ -1,0 +1,23 @@
+parameters:
+  cloud:
+    type: string
+  cluster_cli_context:
+    type: string
+  cluster_srv_context:
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+      kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+      kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --pod-count 1 \
+        --label-selector mtu-config-daemonset
+    workingDirectory: modules/python
+    env:
+      KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu
+      CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
+      CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
+      CLOUD: ${{ parameters.cloud }}
+    displayName: "Configure MTU"

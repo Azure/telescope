@@ -145,3 +145,19 @@ class PodRoleCommand:
             result_dir=result_dir,
             role="server",
         )
+
+    def configure(self, pod_count: int = 1, label_selector: str = ""):
+        self.k8s_client.set_context(self.cluster_cli_context)
+        self.k8s_client.wait_for_pods_ready(
+            pod_count=pod_count,
+            operation_timeout_in_minutes=5,
+            label_selector=label_selector or self.client_label_selector,
+            namespace=self.namespace,
+        )
+        self.k8s_client.set_context(self.cluster_srv_context)
+        self.k8s_client.wait_for_pods_ready(
+            pod_count=pod_count,
+            operation_timeout_in_minutes=5,
+            label_selector=label_selector or self.server_label_selector,
+            namespace=self.namespace,
+        )
