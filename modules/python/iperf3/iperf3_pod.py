@@ -254,7 +254,7 @@ def parse_args(args):
     parser.add_argument(
         "action",
         choices=["run_benchmark", "validate",
-                 "collect", "collect_pod_node_info"],
+                 "collect", "collect_pod_node_info", "configure"],
         help="Action to perform"
     )
     parser.add_argument(
@@ -314,6 +314,16 @@ def parse_args(args):
     parser.add_argument(
         "--result_file",
         help="File to store the benchmark result"
+    )
+    parser.add_argument(
+        "--pod_count",
+        type=int,
+        help="Number of pods to configure"
+    )
+    parser.add_argument(
+        "--label_selector",
+        help="Label selector for the pods"
+        default=""
     )
     return parser.parse_args(args)
 
@@ -387,6 +397,11 @@ def main():
     elif args.action == "collect_pod_node_info":
         iperf3_pod.collect(
             result_dir=args.result_dir,
+        )
+    elif args.action == "configure":
+        iperf3_pod.configure(
+            pod_count=args.pod_count,
+            label_selector=args.label_selector,
         )
     else:
         raise ValueError(f"Unsupported action: {args.action}")
