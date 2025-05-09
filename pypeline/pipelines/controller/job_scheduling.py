@@ -17,8 +17,8 @@ def main():
             Layout(
                 display_name="azure-eastus2",
                 cloud=Azure(),
+                setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
-                    Setup(run_id=os.getenv("RUN_ID")),
                     Terraform(cloud="azure", regions=["eastus2"]),
                     Python3(),
                     SSH(cloud="azure"),

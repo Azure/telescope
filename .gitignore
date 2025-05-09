@@ -48,8 +48,7 @@ terraform.*
 .terraform*
 darwin-amd64/
 linux-amd64/
-# This will not ignore terraform.py
-!terraform.py
+./terraform
 
 # python
 __pycache__/
