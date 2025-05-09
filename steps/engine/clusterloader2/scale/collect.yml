@@ -31,6 +31,8 @@ steps:
     --result_file $TEST_RESULTS_FILE \
     --start_timestamp $START_TIME \
     --observability_tool ${OBSERVABILITY_TOOL:-""} \
+    --repository ${REPOSITORY:-""} \
+    --repository_ref ${REPOSITORY_REF:-""} \
     --fortio-servers-per-deployment $FORTIO_SERVERS_PER_DEPLOYMENT \
     --fortio-clients-per-deployment $FORTIO_CLIENTS_PER_DEPLOYMENT \
     --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
@@ -46,4 +48,6 @@ steps:
     RUN_URL: $(RUN_URL)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/scale.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
+    REPOSITORY: ${{ parameters.engine_input.repository }}
+    REPOSITORY_REF: ${{ parameters.engine_input.repository.ref }}
   displayName: "Collect Results"

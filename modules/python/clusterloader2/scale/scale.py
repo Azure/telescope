@@ -180,6 +180,8 @@ def collect_clusterloader2(
     test_type,
     start_timestamp,
     observability_tool,
+    repository,
+    repository_ref,
     fortio_servers_per_deployment,
     fortio_clients_per_deployment,
     fortio_client_queries_per_second,
@@ -216,11 +218,14 @@ def collect_clusterloader2(
         "observability_tool": observability_tool,
         "test_details": {
             # add more details here about tests (e.g. features tested)
+            "observability_tool": observability_tool,
+            "repository": repository,
+            "repository_ref": repository_ref,
             "traffic_generator": "fortio",
             "traffic_namespaces": fortio_namespaces,
             "traffic_deployments_per_namespace": fortio_deployments_per_namespace,
-            "fortio_servers_per_deployment": fortio_servers_per_deployment,
-            "fortio_clients_per_deployment": fortio_clients_per_deployment,
+            "traffic_servers_per_deployment": fortio_servers_per_deployment,
+            "traffic_clients_per_deployment": fortio_clients_per_deployment,
             "traffic_pods": fortio_namespaces * fortio_deployments_per_namespace * (fortio_clients_per_deployment + fortio_servers_per_deployment),
             "network_policies": network_policies_per_namespace,
             "generate_retina_network_flow_logs": generate_retina_network_flow_logs,
@@ -348,6 +353,8 @@ def main():
                                 help="Description of test type")
     parser_collect.add_argument("--start_timestamp", type=str, help="Test start timestamp")
     parser_collect.add_argument("--observability_tool", type=str, help="Observability tool evaluated in the test")
+    parser_collect.add_argument("--repository", type=str, help="Repository of observability tool evaluated in the test")
+    parser_collect.add_argument("--repository_ref", type=str, help="Repository Ref (branch/tag/SHA) of observability tool evaluated in the test")
     parser_collect.add_argument("--fortio-servers-per-deployment", type=int, required=True, help="Number of Fortio servers per deployment")
     parser_collect.add_argument("--fortio-clients-per-deployment", type=int, required=True, help="Number of Fortio clients per deployment")
     parser_collect.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client pod. NOT queries per second per connection")
@@ -384,6 +391,8 @@ def main():
                                args.service_test, args.cnp_test, args.ccnp_test,
                                args.result_file, args.test_type, args.start_timestamp,
                                args.observability_tool,
+                               args.repository,
+                               args.repository_ref,
                                args.fortio_servers_per_deployment,
                                args.fortio_clients_per_deployment,
                                args.fortio_client_queries_per_second,
