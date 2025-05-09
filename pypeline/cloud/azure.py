@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from textwrap import dedent
 
-from benchmark import Cloud
+from benchmark import Cloud, CloudProvider
 from pipeline import Script, Step, Task
 
 
@@ -19,6 +19,10 @@ class Azure(Cloud):
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     azure_service_connection: str = os.getenv("AZURE_SERVICE_CONNECTION")
     azure_mi_client_id: str = os.getenv("AZURE_MI_CLIENT_ID")
+
+    @property
+    def provider(self) -> CloudProvider:
+        return CloudProvider.AZURE
 
     def login(self) -> list[Step]:
         if self.credential_type == CredentialType.MANAGED_IDENTITY:
@@ -86,3 +90,43 @@ class Azure(Cloud):
                     },
                 ),
             ]
+
+    def generate_input_variables(self, region: str, input_variables: dict) -> dict:
+        aks_custom_headers_env = input_variables.get(
+            "aks_custom_headers", "$AKS_CLI_CUSTOM_HEADERS"
+        )
+        aks_custom_headers = []
+        if aks_custom_headers_env:
+            aks_custom_headers = [
+                header.strip()
+                for header in aks_custom_headers_env.split(",")
+                if header.strip()
+            ]
+
+        return {
+            "run_id": "$(RUN_ID)",
+            "region": region,
+            "aks_sku_tier": input_variables.get("sku_tier", "$AKS_SKU_TIER"),
+            "aks_kubernetes_version": input_variables.get(
+                "kubernetes_version", "$KUBERNETES_VERSION"
+            ),
+            "aks_network_policy": input_variables.get(
+                "network_policy", "$NETWORK_POLICY"
+            ),
+            "aks_network_dataplane": input_variables.get(
+                "network_dataplane", "$NETWORK_DATAPLANE"
+            ),
+            "k8s_machine_type": input_variables.get(
+                "k8s_machine_type", "$K8S_MACHINE_TYPE"
+            ),
+            "k8s_os_disk_type": input_variables.get(
+                "k8s_os_disk_type", "$K8S_OS_DISK_TYPE"
+            ),
+            "aks_custom_headers": aks_custom_headers,
+            "aks_cli_system_node_pool": input_variables.get(
+                "system_node_pool", "$SYSTEM_NODE_POOL"
+            ),
+            "aks_cli_user_node_pool": input_variables.get(
+                "user_node_pool", "$USER_NODE_POOL"
+            ),
+        }
