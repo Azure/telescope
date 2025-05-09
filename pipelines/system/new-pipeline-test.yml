@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: azure-cni-static-block-ab-testing
+  SCENARIO_NAME: azure-cni-static-block
 
 stages:
   - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)

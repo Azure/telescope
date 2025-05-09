@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "azure-cni-static-block-ab-testing"
+scenario_name  = "azure-cni-static-block"
 deletion_delay = "12h"
 owner          = "aks"
 
