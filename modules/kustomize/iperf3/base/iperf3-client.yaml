@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-iperf3-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iperf3-client
+  template:
+    metadata:
+      labels:
+        app: iperf3-client
+    spec:
+      containers:
+        - name: iperf3-client
+          image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+          command: ["/bin/sh"]
+          args: ["-c", "ldconfig; sleep infinity"]
+      nodeSelector:
+        app: client
+      tolerations:
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoExecute"
