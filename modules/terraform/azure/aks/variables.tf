@@ -54,12 +54,6 @@ variable "network_dataplane" {
   default     = null
 }
 
-variable "npm_enabled" {
-  description = "Whether to enable NPM configuration"
-  type        = bool
-  default     = false
-}
-
 variable "aks_config" {
   type = object({
     role        = string
@@ -71,7 +65,6 @@ variable "aks_config" {
       network_plugin_mode = optional(string, null)
       network_policy      = optional(string, null)
       network_dataplane   = optional(string, null)
-      npm_enabled         = optional(bool, false)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
       service_cidr        = optional(string, null)
