@@ -1,0 +1,18 @@
+parameters:
+  cluster_cli_context:
+    type: string
+  cluster_srv_context:
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+      kustomize build ${KUSTOMIZE_DIR}/overlays/client-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+      kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod-count 1
+    workingDirectory: modules/python
+    env:
+      KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/iperf3
+      CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
+      CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
+    displayName: "Configure Iperf3"
