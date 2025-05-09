@@ -4,7 +4,8 @@ from clients.pod_command import PodRoleCommand
 
 
 class TestPodRoleCommand(unittest.TestCase):
-    def setUp(self):
+    @patch('kubernetes.config.load_kube_config')
+    def setUp(self, _mock_load_kube_config): # pylint: disable=arguments-differ
         self.namespace = "test-namespace"
 
         self.pod_cmd = PodRoleCommand(
@@ -144,8 +145,10 @@ class TestPodRoleCommand(unittest.TestCase):
         ]
         mock_execute_with_retries.assert_has_calls(execute_calls)
 
+    @patch('kubernetes.config.load_kube_config')
     @patch('clients.pod_command.execute_with_retries')
-    def test_validate_empty_command(self, mock_execute_with_retries):
+    def test_validate_empty_command(self, mock_execute_with_retries, _mock_load_kube_config):
+        # Create a new PodRoleCommand instance with an empty validate_command
         self.pod_cmd = PodRoleCommand(
             cluster_cli_context="cli-context",
             cluster_srv_context="srv-context",
@@ -213,7 +216,8 @@ class TestPodRoleCommand(unittest.TestCase):
         self.assertEqual(expected_ip, result)
         self.k8s_client.get_service_external_ip.assert_called_once()
 
-    def test_get_service_external_ip_no_service_name(self):
+    @patch('kubernetes.config.load_kube_config')
+    def test_get_service_external_ip_no_service_name(self, _mock_load_kube_config):
         self.pod_cmd = PodRoleCommand(
             cluster_cli_context="cli-context",
             cluster_srv_context="srv-context",

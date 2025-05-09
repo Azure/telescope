@@ -9,7 +9,8 @@ from iperf3.iperf3_pod import Iperf3Pod, command_constants, main, parse_args
 
 
 class TestIPerfsPod(unittest.TestCase):
-    def setUp(self):
+    @patch('kubernetes.config.load_kube_config')
+    def setUp(self, _mock_load_kube_config):  # pylint: disable=arguments-differ
         self.namespace = "test-namespace"
         self.iperf3 = Iperf3Pod(
             namespace=self.namespace,
@@ -511,8 +512,9 @@ class TestIperf3PodArguments(unittest.TestCase):
             server_ip_type='pod'
         )
 
+    @patch('kubernetes.config.load_kube_config')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_insufficient_args(self, mock_parse_args):
+    def test_main_insufficient_args(self, mock_parse_args, _mock_load_kube_config):
         mock_parse_args.return_value = argparse.Namespace(
             action='run_benchmark',
             index=1,
@@ -530,8 +532,9 @@ class TestIperf3PodArguments(unittest.TestCase):
         self.assertIn("Insufficient arguments provided",
                       str(context.exception))
 
+    @patch('kubernetes.config.load_kube_config')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_invalid_action(self, mock_parse_args):
+    def test_main_invalid_action(self, mock_parse_args, _mock_load_kube_config):
         mock_parse_args.return_value = argparse.Namespace(
             action='invalid_action', cluster_cli_context='cli-context', cluster_srv_context='srv-context'
         )

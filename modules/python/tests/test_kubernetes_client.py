@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 class TestKubernetesClient(unittest.TestCase):
 
     @patch('kubernetes.config.load_kube_config')
-    def setUp(self, mock_load_kube_config):  # pylint: disable=unused-argument, arguments-differ
+    def setUp(self, _mock_load_kube_config): # pylint: disable=arguments-differ
         self.client = KubernetesClient()
         return super().setUp()
 
@@ -431,10 +431,18 @@ class TestKubernetesClient(unittest.TestCase):
         mock_load_kube_config.assert_called_with(
             config_file=None, context=context_name)
 
-        another_context_name = "another-context"
-        self.client.set_context(another_context_name)
+    @patch('kubernetes.config.load_kube_config')
+    def test_set_context_failure(self, mock_load_kube_config):
+        context_name = "non-existent-context"
+        mock_load_kube_config.side_effect = Exception("Failed to load context")
+
+        with self.assertRaises(Exception) as context:
+            self.client.set_context(context_name)
+
+        self.assertIn(
+            f"Failed to switch to context {context_name}", str(context.exception))
         mock_load_kube_config.assert_called_with(
-            config_file=None, context=another_context_name)
+            config_file=None, context=context_name)
 
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     def test_get_pods_name_and_ip(self, mock_get_pods):
