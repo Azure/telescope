@@ -4,14 +4,22 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition, V1Deployment
+    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition, V1Deployment,
+    V1Service, V1ServiceStatus, V1LoadBalancerStatus, V1LoadBalancerIngress, V1NodeSystemInfo,
+    V1PodList
 )
 from clients.kubernetes_client import KubernetesClient
+from utils.logger_config import setup_logging, get_logger
+
+# Configure logging
+setup_logging()
+logger = get_logger(__name__)
+
 
 class TestKubernetesClient(unittest.TestCase):
 
     @patch('kubernetes.config.load_kube_config')
-    def setUp(self, mock_load_kube_config):  # pylint: disable=unused-argument, arguments-differ
+    def setUp(self, _mock_load_kube_config): # pylint: disable=arguments-differ
         self.client = KubernetesClient()
         return super().setUp()
 
@@ -61,7 +69,7 @@ class TestKubernetesClient(unittest.TestCase):
     def _create_namespace(self, name):
         return V1Namespace(metadata=V1ObjectMeta(name=name))
 
-    def _create_pod(self, namespace, name, phase, labels=None, node_name=None, container=None):
+    def _create_pod(self, namespace, name, phase, labels=None, node_name=None, container=None, pod_ip=None, host_ip=None):
         return V1Pod(
             metadata=V1ObjectMeta(name=name, namespace=namespace, labels=labels),
             status=V1PodStatus(
@@ -71,10 +79,15 @@ class TestKubernetesClient(unittest.TestCase):
                         type="Ready",
                         status="True" if phase == "Running" else "False"
                     ),
-                ]
+                ],
+                pod_ip=pod_ip,
+                host_ip=host_ip
             ),
             spec=V1PodSpec(node_name=node_name, containers=[container])
         )
+
+    def _create_pod_list(self, pods):
+        return V1PodList(items=pods)
 
     def _create_pvc(self, name, namespace, phase):
         return V1PersistentVolumeClaim(
@@ -90,6 +103,13 @@ class TestKubernetesClient(unittest.TestCase):
                 node_name=node_name,
                 source=V1VolumeAttachmentSource(persistent_volume_name=name)),
             status=V1VolumeAttachmentStatus(attached=phase)
+        )
+
+    def _create_service(self, name, namespace, external_ip):
+        return V1Service(
+            metadata=V1ObjectMeta(name=name, namespace=namespace),
+            status=V1ServiceStatus(load_balancer=V1LoadBalancerStatus(
+                ingress=[V1LoadBalancerIngress(ip=external_ip)]))
         )
 
     @patch("kubernetes.client.CoreV1Api.create_namespace")
@@ -239,7 +259,7 @@ class TestKubernetesClient(unittest.TestCase):
             pod_name='test-pod',
             container_name='test-container',
             command='echo "Hello, World!"',
-            dest_path=None,
+            dest_path='',
             namespace='default'
         )
 
@@ -274,7 +294,7 @@ class TestKubernetesClient(unittest.TestCase):
                 pod_name='test-pod',
                 container_name='test-container',
                 command='echo "Hello, World!"',
-                dest_path=None,
+                dest_path='',
                 namespace='default'
             )
 
@@ -403,6 +423,246 @@ class TestKubernetesClient(unittest.TestCase):
           namespace='default',
           field_selector="spec.nodeName=node-1"
         )
+
+    @patch('kubernetes.config.load_kube_config')
+    def test_set_context(self, mock_load_kube_config):
+        context_name = "test-context"
+        self.client.set_context(context_name)
+        mock_load_kube_config.assert_called_with(
+            config_file=None, context=context_name)
+
+    @patch('kubernetes.config.load_kube_config')
+    def test_set_context_failure(self, mock_load_kube_config):
+        context_name = "non-existent-context"
+        mock_load_kube_config.side_effect = Exception("Failed to load context")
+
+        with self.assertRaises(Exception) as context:
+            self.client.set_context(context_name)
+
+        self.assertIn(
+            f"Failed to switch to context {context_name}", str(context.exception))
+        mock_load_kube_config.assert_called_with(
+            config_file=None, context=context_name)
+
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
+    def test_get_pods_name_and_ip(self, mock_get_pods):
+        labels = {"app": "test"}
+        pod1 = self._create_pod(
+            namespace="default", name="pod1", labels=labels, phase="Running",
+            pod_ip="10.0.0.1", host_ip="192.168.1.1")
+        pod2 = self._create_pod(
+            namespace="default", name="pod2", labels=labels, phase="Running",
+            pod_ip="10.0.0.2", host_ip="192.168.1.2")
+        mock_get_pods.return_value = [pod1, pod2]
+        expected = [
+            {"name": "pod1", "ip": "10.0.0.1", "node_ip": "192.168.1.1"},
+            {"name": "pod2", "ip": "10.0.0.2", "node_ip": "192.168.1.2"}
+        ]
+
+        result = self.client.get_pods_name_and_ip(
+            label_selector="app=test", namespace="default")
+        self.assertEqual(result, expected)
+        mock_get_pods.assert_called_with(
+            namespace="default", label_selector="app=test")
+
+    @patch('kubernetes.client.CoreV1Api.list_namespaced_pod')
+    def test_get_pod_name_and_ip(self, mock_list_namespaced_pod):
+        pod = self._create_pod(
+            namespace="default", name="pod1", labels={"app": "test"}, phase="Running",
+            pod_ip="10.0.0.1", host_ip="192.168.1.1")
+        pod_list = self._create_pod_list([pod])
+        mock_list_namespaced_pod.return_value = pod_list
+        expected = {"name": "pod1", "ip": "10.0.0.1", "node_ip": "192.168.1.1"}
+
+        result = self.client.get_pod_name_and_ip(
+            label_selector="app=test", namespace="default")
+        self.assertEqual(result, expected)
+        mock_list_namespaced_pod.assert_called_with(
+            namespace="default", label_selector="app=test", field_selector=None)
+
+    @patch('kubernetes.client.CoreV1Api.list_namespaced_pod')
+    def test_get_pod_name_and_ip_no_pods(self, mock_list_namespaced_pod):
+        mock_list_namespaced_pod.return_value = V1PodList(items=[])
+
+        with self.assertRaises(Exception) as context:
+            self.client.get_pod_name_and_ip(
+                label_selector="app=test", namespace="default")
+
+        self.assertIn("No pod found with label: app=test and namespace: default", str(
+            context.exception))
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_service')
+    def test_get_service_external_ip_success(self, mock_read_namespaced_service):
+        expected_ip = "1.2.3.4"
+        service = self._create_service(
+            name="my-service", namespace="default", external_ip=expected_ip)
+        mock_read_namespaced_service.return_value = service
+
+        external_ip = self.client.get_service_external_ip(
+            "my-service", namespace="default")
+        self.assertEqual(external_ip, expected_ip)
+        mock_read_namespaced_service.assert_called_once_with(
+            "my-service", "default")
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_service')
+    def test_get_service_external_ip_no_ingress(self, mock_read_namespaced_service):
+        service = self._create_service(
+            name="my-service", namespace="default", external_ip=None)
+        mock_read_namespaced_service.return_value = service
+
+        external_ip = self.client.get_service_external_ip(
+            "my-service", namespace="default")
+        self.assertIsNone(external_ip)
+        mock_read_namespaced_service.assert_called_once_with(
+            "my-service", "default")
+
+    @patch('kubernetes.client.CoreV1Api.list_namespaced_pod')
+    def test_get_pod_details(self, mock_list_namespaced_pod):
+        pod = self._create_pod(
+            namespace="default",
+            name="test-pod",
+            phase="Running",
+            labels={"app": "test"},
+            node_name="test-node",
+            pod_ip="10.0.0.1",
+            container={"name": "test-container"}
+        )
+        pod_list = self._create_pod_list([pod])
+        mock_list_namespaced_pod.return_value = pod_list
+        expected = [{
+            "name": "test-pod",
+            "labels": {"app": "test"},
+            "node_name": "test-node",
+            "ip": "10.0.0.1",
+            "status": "Running",
+            "spec": pod.spec.to_dict(),
+        }]
+
+        result = self.client.get_pod_details(
+            namespace="default", label_selector="app=test")
+        self.assertEqual(result, expected)
+
+    @patch('kubernetes.client.CoreV1Api.read_node')
+    def test_get_node_details(self, mock_read_node):
+        labels = {
+            "topology.kubernetes.io/region": "us-east-1",
+            "topology.kubernetes.io/zone": "us-east-1a",
+            "node.kubernetes.io/instance-type": "t3.large"
+        }
+        node = V1Node(
+            metadata=V1ObjectMeta(
+                name="test-node",
+                labels=labels,
+            ),
+            status=V1NodeStatus(
+                allocatable={"cpu": "2", "memory": "4Gi"},
+                capacity={"cpu": "2", "memory": "4Gi"},
+                node_info=V1NodeSystemInfo(
+                    architecture="amd64",
+                    boot_id="1234567890abcdef",
+                    container_runtime_version="docker://20.10.7",
+                    kernel_version="5.4.0-80-generic",
+                    kubelet_version="1.25.0",
+                    machine_id="1234567890abcdef",
+                    operating_system="linux",
+                    os_image="Ubuntu 20.04.3 LTS",
+                    system_uuid="12345678-1234-5678-1234-123456789abc",
+                    kube_proxy_version="v1.25.0",
+                )
+            ),
+        )
+        mock_read_node.return_value = node
+        expected = {
+            "name": "test-node",
+            "labels": labels,
+            "region": "us-east-1",
+            "zone": "us-east-1a",
+            "instance_type": "t3.large",
+            "allocatable": {"cpu": "2", "memory": "4Gi"},
+            "capacity": {"cpu": "2", "memory": "4Gi"},
+            "node_info": node.status.node_info.to_dict()
+        }
+
+        result = self.client.get_node_details("test-node")
+        self.assertEqual(result, expected)
+
+    @patch('kubernetes.client.CoreV1Api.read_node')
+    @patch('kubernetes.client.CoreV1Api.list_namespaced_pod')
+    @patch('clients.kubernetes_client.save_info_to_file')
+    def test_collect_pod_and_node_info(self, mock_save_info, mock_list_namespaced_pod, mock_read_node):
+        pod = self._create_pod(
+            namespace="default",
+            name="test-pod",
+            phase="Running",
+            labels={"app": "test"},
+            node_name="test-node",
+            pod_ip="10.0.0.1",
+            container={"name": "test-container"}
+        )
+        pod_list = self._create_pod_list([pod])
+        mock_list_namespaced_pod.return_value = pod_list
+        labels = {
+            "topology.kubernetes.io/region": "us-east-1",
+            "topology.kubernetes.io/zone": "us-east-1a",
+            "node.kubernetes.io/instance-type": "t3.large"
+        }
+        node = V1Node(
+            metadata=V1ObjectMeta(
+                name="test-node",
+                labels=labels,
+            ),
+            status=V1NodeStatus(
+                allocatable={"cpu": "2", "memory": "4Gi"},
+                capacity={"cpu": "2", "memory": "4Gi"},
+                node_info=V1NodeSystemInfo(
+                    architecture="amd64",
+                    boot_id="1234567890abcdef",
+                    container_runtime_version="docker://20.10.7",
+                    kernel_version="5.4.0-80-generic",
+                    kubelet_version="1.25.0",
+                    machine_id="1234567890abcdef",
+                    operating_system="linux",
+                    os_image="Ubuntu 20.04.3 LTS",
+                    system_uuid="12345678-1234-5678-1234-123456789abc",
+                    kube_proxy_version="v1.25.0",
+                )
+            ),
+        )
+        mock_read_node.return_value = node
+        expected_info = [{
+            "pod": {
+                "name": "test-pod",
+                "labels": {"app": "test"},
+                "node_name": "test-node",
+                "ip": "10.0.0.1",
+                "status": "Running",
+                "spec": pod.spec.to_dict(),
+            },
+            "node": {
+                "name": "test-node",
+                "labels": labels,
+                "region": "us-east-1",
+                "zone": "us-east-1a",
+                "instance_type": "t3.large",
+                "allocatable": {"cpu": "2", "memory": "4Gi"},
+                "capacity": {"cpu": "2", "memory": "4Gi"},
+                "node_info": node.status.node_info.to_dict()
+            }
+        }]
+
+        self.client.collect_pod_and_node_info(
+            namespace="default",
+            label_selector="app=test",
+            result_dir="/tmp",
+            role="test"
+        )
+
+        mock_list_namespaced_pod.assert_called_with(
+            namespace="default", label_selector="app=test", field_selector=None)
+        mock_read_node.assert_called_with("test-node")
+        mock_save_info.assert_called_with(
+            expected_info, "/tmp/test_pod_node_info.json")
+
 
 if __name__ == '__main__':
     unittest.main()

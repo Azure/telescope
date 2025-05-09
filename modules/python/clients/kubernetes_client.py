@@ -4,6 +4,7 @@ import yaml
 from kubernetes import client, config
 from kubernetes.stream import stream
 from utils.logger_config import get_logger, setup_logging
+from utils.common import save_info_to_file
 
 # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#taint-based-evictions
 # https://kubernetes.io/docs/reference/labels-annotations-taints/
@@ -24,9 +25,18 @@ builtin_taints_keys = [
 setup_logging()
 logger = get_logger(__name__)
 
+
 class KubernetesClient:
-    def __init__(self, kubeconfig=None):
-        config.load_kube_config(kubeconfig)
+    def __init__(self, config_file=None):
+        self.config_file = config_file
+        config.load_kube_config(config_file=config_file)
+        self._setup_clients()
+
+    def _setup_clients(self):
+        """
+        Initialize or reinitialize all Kubernetes API clients.
+        This method is used by both __init__ and set_context to create client instances.
+        """
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
         self.storage = client.StorageV1Api()
@@ -247,14 +257,14 @@ class KubernetesClient:
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
-    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = None, namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = "", namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
             pod_name (str): The name of the pod where the command will be executed.
             container_name (str): The name of the container within the pod where the command will be executed.
             command (str): The command to be executed in the container.
-            dest_path (str, optional): The file path where the command output will be saved. Defaults to None.
+            dest_path (str, optional): The file path where the command output will be saved. Defaults to "".
             namespace (str, optional): The Kubernetes namespace where the pod is located. Defaults to "default".
         Returns:
             str: The combined standard output of the executed command.
@@ -272,7 +282,7 @@ class KubernetesClient:
                       _preload_content=False)
 
         res = []
-        file = open(dest_path, 'wb') if dest_path else None # pylint: disable=consider-using-with
+        file = open(dest_path, 'wb') if dest_path != "" else None  # pylint: disable=consider-using-with
         try:
             while resp.is_open():
                 resp.update(timeout=1)
@@ -302,3 +312,152 @@ class KubernetesClient:
                 cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
                 memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
         return cpu_request, memory_request * 1024 # Convert to KiB
+
+    def set_context(self, context_name):
+        """
+        Switch to the specified Kubernetes context and reinitialize all API clients.
+        Args:
+            context_name (str): Name of the Kubernetes context to switch to
+        Returns:
+            None
+        Raises:
+            Exception: If the context switch fails
+        """
+        try:
+            config.load_kube_config(
+                config_file=self.config_file, context=context_name)
+            self._setup_clients()
+            logger.info(f"Successfully switched to context: {context_name}")
+        except Exception as e:
+            raise Exception(f"Failed to switch to context {context_name}: {e}") from e
+
+    def get_pods_name_and_ip(self, label_selector="", namespace="default"):
+        """
+        Retrieve the name and IP address of all pods matching the given label selector and namespace.
+
+        Args:
+            label_selector (str, optional): The label selector to filter pods. Defaults to an empty string.
+            namespace (str, optional): The namespace to search for pods. Defaults to "default".
+
+        Returns:
+            list: A list of dictionaries containing the name and IP address of each matching pod.
+        """
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector)
+        return [{"name": pod.metadata.name, "ip": pod.status.pod_ip, "node_ip": pod.status.host_ip} for pod in pods]
+
+    def get_pod_name_and_ip(self, label_selector="", namespace="default"):
+        """
+        Retrieve the name and IP address of the first pod matching the given label selector and namespace.
+
+        Args:
+            label_selector (str, optional): The label selector to filter pods. Defaults to an empty string.
+            namespace (str, optional): The namespace to search for pods. Defaults to "default".
+
+        Returns:
+            tuple: A tuple containing the name and IP address of the first matching pod.
+
+        Raises:
+            Exception: If no pods are found matching the given label selector and namespace.
+        """
+        pods = self.get_pods_name_and_ip(
+            namespace=namespace, label_selector=label_selector)
+        logger.info(pods)
+        if not pods:
+            raise Exception(
+                f"No pod found with label: {label_selector} and namespace: {namespace}")
+        return pods[0]
+
+    def get_service_external_ip(self, service_name, namespace="default"):
+        """
+        Get the external IP address of a service.
+        """
+        service = self.api.read_namespaced_service(service_name, namespace)
+        if service.status.load_balancer.ingress:
+            return service.status.load_balancer.ingress[0].ip
+
+        return None
+
+    def get_pod_details(self, namespace="default", label_selector=""):
+        """
+        Get detailed info about pods in a namespace
+        """
+
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector)
+
+        pod_details = []
+        for pod in pods:
+
+            pod_details.append({
+                "name": pod.metadata.name,
+                "labels": pod.metadata.labels,
+                "node_name": pod.spec.node_name,
+                "ip": pod.status.pod_ip,
+                "status": pod.status.phase,
+                "spec": pod.spec.to_dict(),
+            })
+
+        return pod_details
+
+    def get_node_details(self, node_name):
+        """
+        Get detailed info about a node
+        """
+        node = self.api.read_node(node_name)
+        if not node:
+            raise Exception(f"Node '{node_name}' not found.")
+        labels = node.metadata.labels
+
+        node_details = {
+            "name": node.metadata.name,
+            "labels": labels,
+            "region": labels.get("topology.kubernetes.io/region", "Unknown"),
+            "zone": labels.get("topology.kubernetes.io/zone", "Unknown"),
+            "instance_type": labels.get("node.kubernetes.io/instance-type", "Unknown"),
+            "allocatable": node.status.allocatable,
+            "capacity": node.status.capacity,
+            "node_info": node.status.node_info.to_dict(),
+        }
+        return node_details
+
+    def collect_pod_and_node_info(self, namespace="default", label_selector="", result_dir="", role=""):
+        """
+        Collect information about all pods and their respective nodes.
+        The result will have pod information under 'pod' key and node information under 'node' key
+        to prevent any naming conflicts.
+        """
+        pods = self.get_pod_details(
+            namespace=namespace, label_selector=label_selector)
+
+        logger.info(
+            f"Inside collect_pod_and_node_info, The pods details are: {pods}")
+
+        node_cache = {}
+        pods_and_nodes = []
+
+        for pod in pods:
+            node_name = pod["node_name"]
+            logger.info(
+                f"Inside collect_pod_and_node_info, The node_name details are: {node_name}")
+
+            if node_name not in node_cache:
+                node_cache[node_name] = self.get_node_details(
+                    node_name=node_name)
+            node_info = node_cache[node_name]
+            logger.info(
+                f"Inside collect_pod_and_node_info, The node_info details are: {node_info}")
+
+            pod_and_node_info = {
+                "pod": pod,
+                "node": node_info
+            }
+            logger.info(
+                f"Inside collect_pod_and_node_info, The pod_and_node_info details are: {pod_and_node_info}")
+            pods_and_nodes.append(pod_and_node_info)
+
+        # Save results
+        file_name = os.path.join(result_dir, f"{role}_pod_node_info.json")
+        logger.info(
+            f"Inside collect_pod_and_node_info, The file_name details are: {file_name}")
+        save_info_to_file(pods_and_nodes, file_name)
