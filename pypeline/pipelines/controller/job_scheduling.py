@@ -1,23 +1,25 @@
 import os
-from resource.ssh import SSH
 from resource.python3 import Python3
 from resource.setup import Setup
+from resource.ssh import SSH
 
 from benchmark import Benchmark, Layout
 from cloud.azure import Azure
 from engine.clusterloader2 import ClusterLoader2
+from terraform.terraform import Terraform
 
 
 def main():
-    #TODO : make function to generate layout
+    # TODO : Refactor, make function to generate layout
     job_scheduling = Benchmark(
         name="job_scheduling",
         layouts=[
             Layout(
-                display_name="eastus",
-                setup=Setup(run_id=os.getenv("RUN_ID")),
+                display_name="azure-eastus2",
                 cloud=Azure(),
+                setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
+                    Terraform(cloud="azure", regions=["eastus2"]),
                     Python3(),
                     SSH(cloud="azure"),
                 ],

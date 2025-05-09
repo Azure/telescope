@@ -53,7 +53,8 @@ class Layout:
         validate = Job(
             job="validate",
             display_name="Validate resources",
-            steps=[step for r in self.resources for step in r.validate()]
+            steps=self.setup.validate()
+            + [step for r in self.resources for step in r.validate()]
             + self.engine.validate(),
             depends_on=[setup.job],
         )
