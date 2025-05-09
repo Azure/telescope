@@ -44,7 +44,7 @@ go.work.sum
 vendor.orig
 
 # terraform
-# *tfstate* to only ignore cache files
+# to only ignore terraform cache files
 *tfstate* 
 .terraform*
 darwin-amd64/
