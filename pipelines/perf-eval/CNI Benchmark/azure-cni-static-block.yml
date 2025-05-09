@@ -27,8 +27,7 @@ stages:
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
-              network_policy: azure-cni
-              network_dataplane: azure-cni
+              network_dataplane: azure
               service_test: False
               cl2_config_file: load-config.yaml
           max_parallel: 1
