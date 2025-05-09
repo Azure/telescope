@@ -33,9 +33,6 @@ spec:
         group: {{.Group}}
         app: fortio
         role: load
-{{if .SvcName}}
-        svc: {{.SvcName}}-0
-{{end}}
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
@@ -60,7 +57,7 @@ spec:
             "{{$FortioClientQueriesPerSecond}}",
             "-t",
             "0",
-            "http://fortio-server-service-0:8080"
+            "http://fortio-server-service-{{.Index}}:8080"
           ]
         ports:
           - containerPort: 8078 # tcp echo

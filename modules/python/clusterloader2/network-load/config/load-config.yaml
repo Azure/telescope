@@ -49,7 +49,7 @@ name: load-config
 
 namespace:
   number: {{$fortioNamespaces}}
-  prefix: ns-telescope
+  prefix: ns
   deleteAutomanagedNamespaces: false
   enableExistingNamespaces: true
 

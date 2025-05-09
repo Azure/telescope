@@ -222,7 +222,7 @@ steps:
           query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/server"}[%v:]))
         - name: cilium_warning_total_fqdn_dnsproxy
           query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/dnsproxy"}[%v:]))
-        - name: cilium_warning_total_fqdn_hubble
+        - name: cilium_warning_total_hubble
           query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="hubble"}[%v:]))
         - name: cilium_warning_total_init
           query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="init"}[%v:]))
