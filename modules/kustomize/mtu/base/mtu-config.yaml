@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mtu-config-daemonset
+  namespace: default
+  labels:
+    app: mtu-config
+spec:
+  selector:
+    matchLabels:
+      app: mtu-config
+  template:
+    metadata:
+      labels:
+        app: mtu-config
+    spec:
+      containers:
+        - name: mtu-config
+          image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+          command: ["/bin/sh"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+      hostNetwork: true
+      tolerations:
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoExecute"
+      nodeSelector:
+        test: true
