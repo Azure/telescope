@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from textwrap import dedent
 from typing import List
 
-from benchmark import Resource
+from benchmark import Cloud, Resource
 from cloud.azure import CredentialType
 from pipeline import Script, Step
 
@@ -137,11 +137,42 @@ def create_resource_group(region: str, cloud: str) -> Script:
     )
 
 
+def set_input_variables(
+    cloud: Cloud, regions: list[str], input_variables: dict
+) -> Script:
+    # Initialize regional configuration
+    regional_config = {}
+
+    # Generate input variables for each region
+    for region in regions:
+        region_input_variables = cloud.generate_input_variables(region, input_variables)
+        regional_config[region] = {"TERRAFORM_INPUT_VARIABLES": region_input_variables}
+
+    # Convert regional configuration to JSON
+    regional_config_str = json.dumps(regional_config)
+
+    # Generate the script to set pipeline variables
+    return Script(
+        display_name="Set Terraform Input Variables",
+        script=dedent(
+            f"""
+            set -e
+            if [[ \"${{DEBUG,,}}\" =~ \"true\" ]]; then
+                set -x
+            fi
+            echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
+            echo "Regional configuration set successfully."
+            """
+        ).strip(),
+        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
+    )
+
+
 # TODO: Add delete_resource_group function and validate_resource_group function
 # TODO: add set_input_variables and run_command terraform, decouple them from cloud specific logics
 @dataclass
 class Terraform(Resource):
-    cloud: str
+    cloud: Cloud
     regions: list[str]
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     modules_dir: str = ""
@@ -153,11 +184,14 @@ class Terraform(Resource):
 
     def setup(self) -> list[Step]:
         return [
-            set_working_directory(self.cloud, self.modules_dir),
-            set_input_file(self.cloud, self.regions, self.input_file_mapping),
+            set_working_directory(self.cloud.provider.value, self.modules_dir),
+            set_input_file(
+                self.cloud.provider.value, self.regions, self.input_file_mapping
+            ),
             set_user_data_path(self.user_data_path),
+            set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
-            create_resource_group(self.regions[0], self.cloud),
+            create_resource_group(self.regions[0], self.cloud.provider.value),
         ]
 
     def validate(self):

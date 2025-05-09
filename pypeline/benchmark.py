@@ -1,11 +1,16 @@
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 
 import yaml
 
 from pipeline import Job, Pipeline, Stage, Step, customize_yaml
 
+class CloudProvider(Enum):
+    AWS = "aws"
+    AZURE = "azure"
+    GCP = "gcp"
 
 class Resource(ABC):
     @abstractmethod
@@ -28,8 +33,17 @@ class Engine(Resource):
 
 
 class Cloud(ABC):
+    @property
+    @abstractmethod
+    def provider(self) -> CloudProvider:
+        pass
+
     @abstractmethod
     def login(self) -> list[Step]:
+        pass
+
+    @abstractmethod
+    def generate_input_variables(self, region:str, input_variables:dict) -> dict:
         pass
 
 

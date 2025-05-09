@@ -11,6 +11,7 @@ from terraform.terraform import Terraform
 
 def main():
     # TODO : Refactor, make function to generate layout
+    azure_eastus2 = Azure(region="eastus2")
     job_scheduling = Benchmark(
         name="job_scheduling",
         layouts=[
@@ -19,7 +20,7 @@ def main():
                 cloud=Azure(),
                 setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
-                    Terraform(cloud="azure", regions=["eastus2"]),
+                    Terraform(cloud=azure_eastus2, regions=["eastus2"]),
                     Python3(),
                     SSH(cloud="azure"),
                 ],
