@@ -7,10 +7,12 @@ import yaml
 
 from pipeline import Job, Pipeline, Stage, Step, customize_yaml
 
+
 class CloudProvider(Enum):
     AWS = "aws"
     AZURE = "azure"
     GCP = "gcp"
+
 
 class Resource(ABC):
     @abstractmethod
@@ -43,7 +45,7 @@ class Cloud(ABC):
         pass
 
     @abstractmethod
-    def generate_input_variables(self, region:str, input_variables:dict) -> dict:
+    def generate_input_variables(self, region: str, input_variables: dict) -> dict:
         pass
 
 
