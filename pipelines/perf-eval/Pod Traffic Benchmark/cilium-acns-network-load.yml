@@ -32,9 +32,9 @@ stages:
               scale_timeout: "15m"
               deployment_recreation_count: 0
               node_count: 1500
-              fortio_namespaces: 1
-              fortio_server_deployments: 5
-              fortio_client_deployments: 5
+              fortio_namespaces: 2
+              fortio_server_deployments: 10
+              fortio_client_deployments: 10
               fortio_server_replicas_per_deployment: 150
               fortio_client_replicas_per_deployment: 150
               fortio_client_queries_per_second: 1300

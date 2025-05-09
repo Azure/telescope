@@ -205,7 +205,6 @@ steps:
         queries:
         - name: cilium_proxy_redirects_dns
           query: max(max_over_time(cilium_proxy_redirects{protocol_l7="dns"}[%v:]))
-          
     - Identifier: CiliumErrorsWarningsTotal
       Method: GenericPrometheusQuery
       Params:
