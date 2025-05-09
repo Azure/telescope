@@ -228,17 +228,6 @@ steps:
           query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="init"}[%v:]))
         - name: cilium_warning_total_klog
           query: max(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="klog"}[%v:]))
-    - Identifier: CiliumErrorsWarningsTotal
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Errors Warnings Total
-        metricVersion: v1
-        unit: count
-        enableViolations: true
-        queries:
-        - name: cilium_errors_total_fqdn_server
-          query: max(max_over_time(cilium_errors_warnings_total{level="error",subsystem="fqdn/server"}[%v:]))
     - Identifier: CiliumUnreachableHealthEndpoints
       Method: GenericPrometheusQuery
       Params:
@@ -342,15 +331,17 @@ steps:
           query: max(max_over_time(hubble_lost_events_total{source="hubble_ring_buffer"}[%v:]))
         - name: observer_events_queue
           query: max(max_over_time(hubble_lost_events_total{source="observer_events_queue"}[%v:]))
-    - Identifier: HubbleHTTPHandlerRequestDurationSeconds
+    - Identifier: HubbleHTTPHandlerRequestDurationSecondsBucket
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Hubble HTTP Handler Request Duration Seconds
+        metricName: Hubble HTTP Handler Request Duration Seconds Bucket
         metricVersion: v1
-        unit: count
+        unit: s
         queries:
-        - name: sum_code200
-          query: max(max_over_time(hubble_metrics_http_handler_request_duration_seconds_sum{code="200"}[%v:]))
-        - name: count_code200
-          query: max(max_over_time(hubble_metrics_http_handler_request_duration_seconds_count{code="200"}[%v:]))
+        - name: 99percentile
+          query: histogram_quantile(0.99, sum(rate(hubble_metrics_http_handler_request_duration_seconds_bucket[%v:])) by (le))
+        - name: 95percentile
+          query: histogram_quantile(0.95, sum(rate(hubble_metrics_http_handler_request_duration_seconds_bucket[%v:])) by (le))
+        - name: 50percentile
+          query: histogram_quantile(0.50, sum(rate(hubble_metrics_http_handler_request_duration_seconds_bucket[%v:])) by (le))
