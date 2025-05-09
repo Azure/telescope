@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: azure-cni-static-block-ab-testing
+  SCENARIO_NAME: azure-cni-static-block
   OWNER: aks
 
 stages:
