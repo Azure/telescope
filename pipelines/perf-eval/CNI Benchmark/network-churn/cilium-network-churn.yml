@@ -100,4 +100,3 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          use_secondary_cluster: true
