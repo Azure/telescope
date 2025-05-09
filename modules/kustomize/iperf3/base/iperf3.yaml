@@ -1,27 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: server-iperf3-deployment
+  name: iperf3-deployment
   namespace: default
 spec:
   replicas: 1
-  selector:
-    matchLabels:
-      app: iperf3-server
   template:
-    metadata:
-      labels:
-        app: iperf3-server
     spec:
       containers:
-        - name: iperf3-server
-          image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+        - image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
           command: ["/bin/sh"]
-          args: ["-c", "ldconfig; iperf3 -s -p 20003"]
-          ports:
-            - containerPort: 20003
-      nodeSelector:
-        app: server
       tolerations:
         - key: "dedicated-test"
           operator: "Equal"
