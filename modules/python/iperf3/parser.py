@@ -13,8 +13,6 @@ def parse_tcp_output(stdout):
     data = json.loads(stdout)
     start = data.get('start', {})
     timestamp = start.get('timestamp', {})
-    # test_start = start.get('test_start', {})
-    # num_streams = test_start.get('num_streams')
     intervals = data.get('intervals', {})
     stream_rtts = {}
     combined_rtts = []

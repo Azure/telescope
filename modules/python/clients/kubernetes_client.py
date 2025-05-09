@@ -332,6 +332,16 @@ class KubernetesClient:
             raise Exception(f"Failed to switch to context {context_name}: {e}") from e
 
     def get_pods_name_and_ip(self, label_selector="", namespace="default"):
+        """
+        Retrieve the name and IP address of all pods matching the given label selector and namespace.
+
+        Args:
+            label_selector (str, optional): The label selector to filter pods. Defaults to an empty string.
+            namespace (str, optional): The namespace to search for pods. Defaults to "default".
+
+        Returns:
+            list: A list of dictionaries containing the name and IP address of each matching pod.
+        """
         pods = self.get_pods_by_namespace(
             namespace=namespace, label_selector=label_selector)
         return [{"name": pod.metadata.name, "ip": pod.status.pod_ip, "node_ip": pod.status.host_ip} for pod in pods]
