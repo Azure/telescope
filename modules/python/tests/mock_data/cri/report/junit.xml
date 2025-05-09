@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="2" errors="0" time="295.852">
+      <testcase name="resource-consumer overall (/root/perf-tests/clusterloader2/config/config.yaml)" classname="ClusterLoaderV2" time="295.845197291">
+          <failure type="Failure">:0&#xA;[measurement call WaitForControlledPodsRunning - WaitForRunningLatencyDeployments error: 1 objects timed out: Deployments: resource-consumer-1/resource-consumer-0-0]&#xA;:0</failure>
+      </testcase>
+      <testcase name="resource-consumer: [step: 01] Start measurements [00] - PodStartupLatency" classname="ClusterLoaderV2" time="0.187484746"></testcase>
+      <testcase name="resource-consumer: [step: 01] Start measurements [01] - ResourceUsageSummary" classname="ClusterLoaderV2" time="0.13399485"></testcase>
+      <testcase name="resource-consumer: [step: 01] Start measurements [02] - WaitForRunningLatencyDeployments" classname="ClusterLoaderV2" time="0.287993059"></testcase>
+      <testcase name="resource-consumer: [step: 02] Create deployment 0" classname="ClusterLoaderV2" time="1.001929535"></testcase>
+      <testcase name="resource-consumer: [step: 03] Waiting for latency pods to be running [00] - WaitForRunningLatencyDeployments" classname="ClusterLoaderV2" time="179.06117353">
+          <failure type="Failure">:0&#xA;[measurement call WaitForControlledPodsRunning - WaitForRunningLatencyDeployments error: 1 objects timed out: Deployments: resource-consumer-1/resource-consumer-0-0]&#xA;:0</failure>
+      </testcase>
+      <testcase name="resource-consumer: [step: 04] Wait for resource consumption [00] - Sleep" classname="ClusterLoaderV2" time="60.08635772"></testcase>
+      <testcase name="resource-consumer: [step: 05] Wait for nodes to be ready [00] - ConfirmNodeCount" classname="ClusterLoaderV2" time="5.088018529"></testcase>
+      <testcase name="resource-consumer: [step: 06] Deleting deployments 0" classname="ClusterLoaderV2" time="1.001501752"></testcase>
+      <testcase name="resource-consumer: [step: 07] Waiting for latency pods to be deleted [00] - WaitForRunningLatencyDeployments" classname="ClusterLoaderV2" time="34.051288814"></testcase>
+      <testcase name="resource-consumer: [step: 08] Collect measurements [00] - ResourceUsageSummary" classname="ClusterLoaderV2" time="0.052326614"></testcase>
+      <testcase name="resource-consumer: [step: 08] Collect measurements [01] - PodStartupLatency" classname="ClusterLoaderV2" time="0.146430075"></testcase>
+  </testsuite>

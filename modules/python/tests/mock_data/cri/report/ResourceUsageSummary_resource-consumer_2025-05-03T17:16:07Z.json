@@ -1,0 +1,3870 @@
+{
+  "100": [
+    {
+      "Name": "aks-default-13672022-vmss000000/kubelet",
+      "CPU": 0.02261875,
+      "Mem": 62205952
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/pods",
+      "CPU": 0.01793003,
+      "Mem": 357158912
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/runtime",
+      "CPU": 0.018494546,
+      "Mem": 262201344
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/kubelet",
+      "CPU": 0.018109654,
+      "Mem": 61816832
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/pods",
+      "CPU": 0.013592977,
+      "Mem": 290340864
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/runtime",
+      "CPU": 0.015450335,
+      "Mem": 228356096
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/kubelet",
+      "CPU": 0.020995178,
+      "Mem": 63787008
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/pods",
+      "CPU": 0.020626411,
+      "Mem": 344018944
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/runtime",
+      "CPU": 0.019702605,
+      "Mem": 210866176
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/kubelet",
+      "CPU": 0.025417887,
+      "Mem": 72736768
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/pods",
+      "CPU": 0.166707381,
+      "Mem": 682127360
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/runtime",
+      "CPU": 0.019407299,
+      "Mem": 261816320
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/kubelet",
+      "CPU": 0.096791923,
+      "Mem": 82833408
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/pods",
+      "CPU": 0.122971429,
+      "Mem": 266346496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/runtime",
+      "CPU": 0.327598578,
+      "Mem": 396500992
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/kubelet",
+      "CPU": 0.077795241,
+      "Mem": 82804736
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/pods",
+      "CPU": 0.106850224,
+      "Mem": 258285568
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/runtime",
+      "CPU": 0.037581292,
+      "Mem": 408195072
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/kubelet",
+      "CPU": 0.09614701,
+      "Mem": 84353024
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/pods",
+      "CPU": 0.012718774,
+      "Mem": 262209536
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/runtime",
+      "CPU": 0.02898107,
+      "Mem": 395190272
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/kubelet",
+      "CPU": 0.036196873,
+      "Mem": 84459520
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/pods",
+      "CPU": 0.013670243,
+      "Mem": 253145088
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/runtime",
+      "CPU": 0.044522875,
+      "Mem": 398663680
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/kubelet",
+      "CPU": 0.033148455,
+      "Mem": 78909440
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/pods",
+      "CPU": 0.010563197,
+      "Mem": 260325376
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/runtime",
+      "CPU": 0.026853019,
+      "Mem": 405110784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/kubelet",
+      "CPU": 0.03820381,
+      "Mem": 84914176
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/pods",
+      "CPU": 0.012201084,
+      "Mem": 253546496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/runtime",
+      "CPU": 0.23928783,
+      "Mem": 409497600
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/kubelet",
+      "CPU": 0.031827844,
+      "Mem": 83062784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/pods",
+      "CPU": 0.012955871,
+      "Mem": 259465216
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/runtime",
+      "CPU": 0.031601988,
+      "Mem": 389140480
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/kubelet",
+      "CPU": 0.037213411,
+      "Mem": 78692352
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/pods",
+      "CPU": 0.012082555,
+      "Mem": 261021696
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/runtime",
+      "CPU": 0.031081949,
+      "Mem": 386695168
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/kubelet",
+      "CPU": 0.034947399,
+      "Mem": 80412672
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/pods",
+      "CPU": 0.01213884,
+      "Mem": 262250496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/runtime",
+      "CPU": 0.028243391,
+      "Mem": 388403200
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/kubelet",
+      "CPU": 0.036559997,
+      "Mem": 81317888
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/pods",
+      "CPU": 0.014805095,
+      "Mem": 262115328
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/runtime",
+      "CPU": 0.025532354,
+      "Mem": 396369920
+    },
+    {
+      "Name": "azure-cns-2jgq7/cns-container",
+      "CPU": 0.002505069,
+      "Mem": 40476672
+    },
+    {
+      "Name": "azure-cns-7xwbb/cns-container",
+      "CPU": 0.002439541,
+      "Mem": 39714816
+    },
+    {
+      "Name": "azure-cns-96xbr/cns-container",
+      "CPU": 0.002259832,
+      "Mem": 39776256
+    },
+    {
+      "Name": "azure-cns-bjq9p/cns-container",
+      "CPU": 0.001605338,
+      "Mem": 45064192
+    },
+    {
+      "Name": "azure-cns-bkxdg/cns-container",
+      "CPU": 0.001800766,
+      "Mem": 45662208
+    },
+    {
+      "Name": "azure-cns-ckh2h/cns-container",
+      "CPU": 0.002075538,
+      "Mem": 41005056
+    },
+    {
+      "Name": "azure-cns-dvqrw/cns-container",
+      "CPU": 0.001532361,
+      "Mem": 32440320
+    },
+    {
+      "Name": "azure-cns-gh69t/cns-container",
+      "CPU": 0.006042696,
+      "Mem": 42909696
+    },
+    {
+      "Name": "azure-cns-lv6vf/cns-container",
+      "CPU": 0.00181025,
+      "Mem": 38932480
+    },
+    {
+      "Name": "azure-cns-phh54/cns-container",
+      "CPU": 0.002070933,
+      "Mem": 38461440
+    },
+    {
+      "Name": "azure-cns-r5rqd/cns-container",
+      "CPU": 0.002690752,
+      "Mem": 34705408
+    },
+    {
+      "Name": "azure-cns-v6xpr/cns-container",
+      "CPU": 0.009317373,
+      "Mem": 40886272
+    },
+    {
+      "Name": "azure-cns-vhzdg/cns-container",
+      "CPU": 0.002034491,
+      "Mem": 40833024
+    },
+    {
+      "Name": "azure-cns-vwzwl/cns-container",
+      "CPU": 0.007205351,
+      "Mem": 42827776
+    },
+    {
+      "Name": "azure-ip-masq-agent-c7nvt/azure-ip-masq-agent",
+      "CPU": 0.00004638,
+      "Mem": 14987264
+    },
+    {
+      "Name": "azure-ip-masq-agent-cvgz2/azure-ip-masq-agent",
+      "CPU": 0.000036469,
+      "Mem": 12914688
+    },
+    {
+      "Name": "azure-ip-masq-agent-gxqp9/azure-ip-masq-agent",
+      "CPU": 0.00064014,
+      "Mem": 15044608
+    },
+    {
+      "Name": "azure-ip-masq-agent-h7xkv/azure-ip-masq-agent",
+      "CPU": 0.000478422,
+      "Mem": 15056896
+    },
+    {
+      "Name": "azure-ip-masq-agent-jtq8w/azure-ip-masq-agent",
+      "CPU": 0.000059317,
+      "Mem": 12865536
+    },
+    {
+      "Name": "azure-ip-masq-agent-ksfjb/azure-ip-masq-agent",
+      "CPU": 0.000061949,
+      "Mem": 15003648
+    },
+    {
+      "Name": "azure-ip-masq-agent-lsxds/azure-ip-masq-agent",
+      "CPU": 0.000050444,
+      "Mem": 15044608
+    },
+    {
+      "Name": "azure-ip-masq-agent-p7rjn/azure-ip-masq-agent",
+      "CPU": 0.000041931,
+      "Mem": 14663680
+    },
+    {
+      "Name": "azure-ip-masq-agent-pl2l5/azure-ip-masq-agent",
+      "CPU": 0.00084203,
+      "Mem": 14987264
+    },
+    {
+      "Name": "azure-ip-masq-agent-rp997/azure-ip-masq-agent",
+      "CPU": 0.000529135,
+      "Mem": 14860288
+    },
+    {
+      "Name": "azure-ip-masq-agent-vzwnh/azure-ip-masq-agent",
+      "CPU": 0.00003922,
+      "Mem": 17092608
+    },
+    {
+      "Name": "azure-ip-masq-agent-w7sgb/azure-ip-masq-agent",
+      "CPU": 0.000043046,
+      "Mem": 14860288
+    },
+    {
+      "Name": "azure-ip-masq-agent-xhbmj/azure-ip-masq-agent",
+      "CPU": 0.000859758,
+      "Mem": 15007744
+    },
+    {
+      "Name": "azure-ip-masq-agent-xrnm5/azure-ip-masq-agent",
+      "CPU": 0.000689193,
+      "Mem": 12902400
+    },
+    {
+      "Name": "cloud-node-manager-4qztn/cloud-node-manager",
+      "CPU": 0.000430141,
+      "Mem": 18964480
+    },
+    {
+      "Name": "cloud-node-manager-5pk9f/cloud-node-manager",
+      "CPU": 0.000271105,
+      "Mem": 19062784
+    },
+    {
+      "Name": "cloud-node-manager-7xzkb/cloud-node-manager",
+      "CPU": 0.00011923,
+      "Mem": 18862080
+    },
+    {
+      "Name": "cloud-node-manager-8jnjc/cloud-node-manager",
+      "CPU": 0.000814315,
+      "Mem": 21123072
+    },
+    {
+      "Name": "cloud-node-manager-9fxn5/cloud-node-manager",
+      "CPU": 0.000179944,
+      "Mem": 21585920
+    },
+    {
+      "Name": "cloud-node-manager-d5s5b/cloud-node-manager",
+      "CPU": 0.000592262,
+      "Mem": 18870272
+    },
+    {
+      "Name": "cloud-node-manager-gf8vd/cloud-node-manager",
+      "CPU": 0.00014663,
+      "Mem": 21184512
+    },
+    {
+      "Name": "cloud-node-manager-hrh5z/cloud-node-manager",
+      "CPU": 0.000233803,
+      "Mem": 18976768
+    },
+    {
+      "Name": "cloud-node-manager-lj6pn/cloud-node-manager",
+      "CPU": 0.000237594,
+      "Mem": 17727488
+    },
+    {
+      "Name": "cloud-node-manager-nvb5k/cloud-node-manager",
+      "CPU": 0.000189823,
+      "Mem": 18894848
+    },
+    {
+      "Name": "cloud-node-manager-s8stc/cloud-node-manager",
+      "CPU": 0.000109217,
+      "Mem": 20975616
+    },
+    {
+      "Name": "cloud-node-manager-vmfg2/cloud-node-manager",
+      "CPU": 0.000219861,
+      "Mem": 19017728
+    },
+    {
+      "Name": "cloud-node-manager-z962x/cloud-node-manager",
+      "CPU": 0.000979886,
+      "Mem": 18980864
+    },
+    {
+      "Name": "cloud-node-manager-zf664/cloud-node-manager",
+      "CPU": 0.00012777,
+      "Mem": 23130112
+    },
+    {
+      "Name": "coredns-659fcb469c-kmb2r/coredns",
+      "CPU": 0.001732775,
+      "Mem": 21561344
+    },
+    {
+      "Name": "coredns-659fcb469c-qsqgn/coredns",
+      "CPU": 0.001678903,
+      "Mem": 22179840
+    },
+    {
+      "Name": "coredns-659fcb469c-xdk7r/coredns",
+      "CPU": 0.002110519,
+      "Mem": 22634496
+    },
+    {
+      "Name": "coredns-autoscaler-5955d6bbdb-6z6cf/autoscaler",
+      "CPU": 0.000581659,
+      "Mem": 16719872
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/azuredisk",
+      "CPU": 0.000275931,
+      "Mem": 16596992
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/liveness-probe",
+      "CPU": 0.000236512,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/node-driver-registrar",
+      "CPU": 0.007318694,
+      "Mem": 19767296
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/azuredisk",
+      "CPU": 0.00053316,
+      "Mem": 17526784
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/liveness-probe",
+      "CPU": 0.000275317,
+      "Mem": 12529664
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/node-driver-registrar",
+      "CPU": 0.003533063,
+      "Mem": 9461760
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/azuredisk",
+      "CPU": 0.000090784,
+      "Mem": 19763200
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/liveness-probe",
+      "CPU": 0.000338993,
+      "Mem": 10571776
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/node-driver-registrar",
+      "CPU": 0.004183926,
+      "Mem": 19996672
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/azuredisk",
+      "CPU": 0.00026316,
+      "Mem": 17850368
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/liveness-probe",
+      "CPU": 0.000308553,
+      "Mem": 13975552
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/node-driver-registrar",
+      "CPU": 0.005389974,
+      "Mem": 17158144
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/azuredisk",
+      "CPU": 0.00008103,
+      "Mem": 15564800
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/liveness-probe",
+      "CPU": 0.000366882,
+      "Mem": 13451264
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/node-driver-registrar",
+      "CPU": 0.005720937,
+      "Mem": 20238336
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/azuredisk",
+      "CPU": 0.000036153,
+      "Mem": 17518592
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/liveness-probe",
+      "CPU": 0.000329237,
+      "Mem": 13275136
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/node-driver-registrar",
+      "CPU": 0.006441472,
+      "Mem": 19505152
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/azuredisk",
+      "CPU": 0.000102552,
+      "Mem": 17694720
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/liveness-probe",
+      "CPU": 0.000269003,
+      "Mem": 13025280
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/node-driver-registrar",
+      "CPU": 0.006548188,
+      "Mem": 20439040
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/azuredisk",
+      "CPU": 0.000268988,
+      "Mem": 19865600
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/liveness-probe",
+      "CPU": 0.000333834,
+      "Mem": 13160448
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/node-driver-registrar",
+      "CPU": 0.006927137,
+      "Mem": 20688896
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/azuredisk",
+      "CPU": 0.000076078,
+      "Mem": 17829888
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/liveness-probe",
+      "CPU": 0.000390486,
+      "Mem": 10502144
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/node-driver-registrar",
+      "CPU": 0.006147108,
+      "Mem": 22650880
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/azuredisk",
+      "CPU": 0.00038354,
+      "Mem": 17666048
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/liveness-probe",
+      "CPU": 0.000324314,
+      "Mem": 13004800
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/node-driver-registrar",
+      "CPU": 0.006341612,
+      "Mem": 20271104
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/azuredisk",
+      "CPU": 0.000100254,
+      "Mem": 15437824
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/liveness-probe",
+      "CPU": 0.00026683,
+      "Mem": 10027008
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/node-driver-registrar",
+      "CPU": 0.008043792,
+      "Mem": 12967936
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/azuredisk",
+      "CPU": 0.000431063,
+      "Mem": 17678336
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/liveness-probe",
+      "CPU": 0.000247893,
+      "Mem": 13709312
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/node-driver-registrar",
+      "CPU": 0.006812229,
+      "Mem": 20598784
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/azuredisk",
+      "CPU": 0.000114996,
+      "Mem": 19746816
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/liveness-probe",
+      "CPU": 0.000155616,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/node-driver-registrar",
+      "CPU": 0.005784186,
+      "Mem": 19619840
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/azuredisk",
+      "CPU": 0.000505808,
+      "Mem": 17637376
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/liveness-probe",
+      "CPU": 0.000271126,
+      "Mem": 12771328
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/node-driver-registrar",
+      "CPU": 0.004573764,
+      "Mem": 14479360
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/azurefile",
+      "CPU": 0.000281267,
+      "Mem": 18534400
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/liveness-probe",
+      "CPU": 0.000272914,
+      "Mem": 11198464
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/node-driver-registrar",
+      "CPU": 0.005973889,
+      "Mem": 20459520
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/azurefile",
+      "CPU": 0.000393239,
+      "Mem": 16625664
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/liveness-probe",
+      "CPU": 0.000240284,
+      "Mem": 12230656
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/node-driver-registrar",
+      "CPU": 0.005186147,
+      "Mem": 18546688
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/azurefile",
+      "CPU": 0.000102592,
+      "Mem": 15949824
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/liveness-probe",
+      "CPU": 0.00023974,
+      "Mem": 12468224
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/node-driver-registrar",
+      "CPU": 0.005974551,
+      "Mem": 21131264
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/azurefile",
+      "CPU": 0,
+      "Mem": 16220160
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/liveness-probe",
+      "CPU": 0.000224835,
+      "Mem": 14336000
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/node-driver-registrar",
+      "CPU": 0.007432124,
+      "Mem": 19435520
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/azurefile",
+      "CPU": 0.000064735,
+      "Mem": 16297984
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/liveness-probe",
+      "CPU": 0.000234258,
+      "Mem": 12972032
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/node-driver-registrar",
+      "CPU": 0.004354736,
+      "Mem": 20246528
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/azurefile",
+      "CPU": 0.000748037,
+      "Mem": 18190336
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/liveness-probe",
+      "CPU": 0.000320029,
+      "Mem": 14254080
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/node-driver-registrar",
+      "CPU": 0.006536993,
+      "Mem": 21221376
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/azurefile",
+      "CPU": 0.000414302,
+      "Mem": 16351232
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/liveness-probe",
+      "CPU": 0.000394564,
+      "Mem": 9199616
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/node-driver-registrar",
+      "CPU": 0.005028897,
+      "Mem": 31055872
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/azurefile",
+      "CPU": 0.000630085,
+      "Mem": 18030592
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/liveness-probe",
+      "CPU": 0.000291595,
+      "Mem": 12877824
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/node-driver-registrar",
+      "CPU": 0.005602934,
+      "Mem": 22069248
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/azurefile",
+      "CPU": 0.000636817,
+      "Mem": 15175680
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/liveness-probe",
+      "CPU": 0.000266385,
+      "Mem": 12869632
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/node-driver-registrar",
+      "CPU": 0.005093119,
+      "Mem": 27967488
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/azurefile",
+      "CPU": 0.000072145,
+      "Mem": 16158720
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/liveness-probe",
+      "CPU": 0.000106442,
+      "Mem": 12595200
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/node-driver-registrar",
+      "CPU": 0.004220108,
+      "Mem": 16891904
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/azurefile",
+      "CPU": 0.000079758,
+      "Mem": 18280448
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/liveness-probe",
+      "CPU": 0.000402697,
+      "Mem": 12763136
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/node-driver-registrar",
+      "CPU": 0.007130705,
+      "Mem": 21610496
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/azurefile",
+      "CPU": 0.000385127,
+      "Mem": 16101376
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/liveness-probe",
+      "CPU": 0.000436498,
+      "Mem": 13869056
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/node-driver-registrar",
+      "CPU": 0.004539321,
+      "Mem": 20594688
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/azurefile",
+      "CPU": 0.000100543,
+      "Mem": 16076800
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/liveness-probe",
+      "CPU": 0.000237423,
+      "Mem": 12951552
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/node-driver-registrar",
+      "CPU": 0.005038689,
+      "Mem": 21336064
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/azurefile",
+      "CPU": 0.000339633,
+      "Mem": 16244736
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/liveness-probe",
+      "CPU": 0.000436663,
+      "Mem": 12333056
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/node-driver-registrar",
+      "CPU": 0.005888355,
+      "Mem": 19034112
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-9cv7m/konnectivity-agent",
+      "CPU": 0.003820013,
+      "Mem": 15458304
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-sm6k4/konnectivity-agent",
+      "CPU": 0.004661257,
+      "Mem": 15810560
+    },
+    {
+      "Name": "konnectivity-agent-autoscaler-cdfc7c46-hnglw/autoscaler",
+      "CPU": 0.000333535,
+      "Mem": 16592896
+    },
+    {
+      "Name": "kube-proxy-48wnt/kube-proxy",
+      "CPU": 0.000412007,
+      "Mem": 29134848
+    },
+    {
+      "Name": "kube-proxy-5r4kj/kube-proxy",
+      "CPU": 0.001975238,
+      "Mem": 31150080
+    },
+    {
+      "Name": "kube-proxy-6jlws/kube-proxy",
+      "CPU": 0.000624056,
+      "Mem": 26779648
+    },
+    {
+      "Name": "kube-proxy-86xbd/kube-proxy",
+      "CPU": 0.000719667,
+      "Mem": 29503488
+    },
+    {
+      "Name": "kube-proxy-8bzp5/kube-proxy",
+      "CPU": 0.000698144,
+      "Mem": 31776768
+    },
+    {
+      "Name": "kube-proxy-9xjph/kube-proxy",
+      "CPU": 0.00092684,
+      "Mem": 31019008
+    },
+    {
+      "Name": "kube-proxy-fgncq/kube-proxy",
+      "CPU": 0.00095572,
+      "Mem": 27705344
+    },
+    {
+      "Name": "kube-proxy-hcfxt/kube-proxy",
+      "CPU": 0.000617671,
+      "Mem": 28643328
+    },
+    {
+      "Name": "kube-proxy-pkcfx/kube-proxy",
+      "CPU": 0.000623677,
+      "Mem": 28737536
+    },
+    {
+      "Name": "kube-proxy-shjt6/kube-proxy",
+      "CPU": 0.000646991,
+      "Mem": 27381760
+    },
+    {
+      "Name": "kube-proxy-w6pwj/kube-proxy",
+      "CPU": 0.000719792,
+      "Mem": 31105024
+    },
+    {
+      "Name": "kube-proxy-wrhht/kube-proxy",
+      "CPU": 0.000740489,
+      "Mem": 32161792
+    },
+    {
+      "Name": "kube-proxy-z44zx/kube-proxy",
+      "CPU": 0.00056089,
+      "Mem": 30826496
+    },
+    {
+      "Name": "kube-proxy-zpn5j/kube-proxy",
+      "CPU": 0.000857319,
+      "Mem": 29302784
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server",
+      "CPU": 0.009959848,
+      "Mem": 46673920
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server-vpa",
+      "CPU": 0.000701544,
+      "Mem": 14888960
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server",
+      "CPU": 0.011789636,
+      "Mem": 46501888
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server-vpa",
+      "CPU": 0.000040572,
+      "Mem": 17494016
+    }
+  ],
+  "50": [
+    {
+      "Name": "aks-default-13672022-vmss000000/kubelet",
+      "CPU": 0.020987744,
+      "Mem": 60207104
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/pods",
+      "CPU": 0.017306611,
+      "Mem": 356872192
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/runtime",
+      "CPU": 0.016995664,
+      "Mem": 261734400
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/kubelet",
+      "CPU": 0.017592315,
+      "Mem": 61431808
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/pods",
+      "CPU": 0.012980684,
+      "Mem": 289955840
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/runtime",
+      "CPU": 0.013476156,
+      "Mem": 227180544
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/kubelet",
+      "CPU": 0.018833257,
+      "Mem": 63160320
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/pods",
+      "CPU": 0.019335171,
+      "Mem": 342233088
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/runtime",
+      "CPU": 0.017637193,
+      "Mem": 210137088
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/kubelet",
+      "CPU": 0.022723263,
+      "Mem": 70676480
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/pods",
+      "CPU": 0.131166749,
+      "Mem": 674119680
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/runtime",
+      "CPU": 0.018513485,
+      "Mem": 261390336
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/kubelet",
+      "CPU": 0.033231889,
+      "Mem": 79069184
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/pods",
+      "CPU": 0.013878757,
+      "Mem": 265289728
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/runtime",
+      "CPU": 0.032493116,
+      "Mem": 395476992
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/kubelet",
+      "CPU": 0.030529213,
+      "Mem": 77922304
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/pods",
+      "CPU": 0.010550765,
+      "Mem": 257228800
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/runtime",
+      "CPU": 0.024623106,
+      "Mem": 405721088
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/kubelet",
+      "CPU": 0.035586632,
+      "Mem": 80297984
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/pods",
+      "CPU": 0.011844723,
+      "Mem": 259248128
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/runtime",
+      "CPU": 0.020728765,
+      "Mem": 392585216
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/kubelet",
+      "CPU": 0.03484766,
+      "Mem": 79704064
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/pods",
+      "CPU": 0.011715481,
+      "Mem": 252293120
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/runtime",
+      "CPU": 0.025567341,
+      "Mem": 396562432
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/kubelet",
+      "CPU": 0.031140016,
+      "Mem": 77185024
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/pods",
+      "CPU": 0.010385685,
+      "Mem": 258846720
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/runtime",
+      "CPU": 0.025067052,
+      "Mem": 393117696
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/kubelet",
+      "CPU": 0.037024564,
+      "Mem": 80384000
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/pods",
+      "CPU": 0.011852748,
+      "Mem": 252448768
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/runtime",
+      "CPU": 0.027351978,
+      "Mem": 397873152
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/kubelet",
+      "CPU": 0.028931266,
+      "Mem": 77279232
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/pods",
+      "CPU": 0.012053435,
+      "Mem": 259190784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/runtime",
+      "CPU": 0.020597534,
+      "Mem": 387272704
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/kubelet",
+      "CPU": 0.03122208,
+      "Mem": 76455936
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/pods",
+      "CPU": 0.011733768,
+      "Mem": 260882432
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/runtime",
+      "CPU": 0.02634543,
+      "Mem": 386027520
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/kubelet",
+      "CPU": 0.032075259,
+      "Mem": 74936320
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/pods",
+      "CPU": 0.011305173,
+      "Mem": 262123520
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/runtime",
+      "CPU": 0.021607794,
+      "Mem": 387194880
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/kubelet",
+      "CPU": 0.034909544,
+      "Mem": 75431936
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/pods",
+      "CPU": 0.012485037,
+      "Mem": 261574656
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/runtime",
+      "CPU": 0.021586119,
+      "Mem": 394661888
+    },
+    {
+      "Name": "azure-cns-2jgq7/cns-container",
+      "CPU": 0.001879759,
+      "Mem": 40267776
+    },
+    {
+      "Name": "azure-cns-7xwbb/cns-container",
+      "CPU": 0.001908026,
+      "Mem": 39329792
+    },
+    {
+      "Name": "azure-cns-96xbr/cns-container",
+      "CPU": 0.001783388,
+      "Mem": 37359616
+    },
+    {
+      "Name": "azure-cns-bjq9p/cns-container",
+      "CPU": 0.001534453,
+      "Mem": 44810240
+    },
+    {
+      "Name": "azure-cns-bkxdg/cns-container",
+      "CPU": 0.001659223,
+      "Mem": 45420544
+    },
+    {
+      "Name": "azure-cns-ckh2h/cns-container",
+      "CPU": 0.001652958,
+      "Mem": 40759296
+    },
+    {
+      "Name": "azure-cns-dvqrw/cns-container",
+      "CPU": 0.001510611,
+      "Mem": 32321536
+    },
+    {
+      "Name": "azure-cns-gh69t/cns-container",
+      "CPU": 0.00147065,
+      "Mem": 42762240
+    },
+    {
+      "Name": "azure-cns-lv6vf/cns-container",
+      "CPU": 0.001591642,
+      "Mem": 38641664
+    },
+    {
+      "Name": "azure-cns-phh54/cns-container",
+      "CPU": 0.001993462,
+      "Mem": 38006784
+    },
+    {
+      "Name": "azure-cns-r5rqd/cns-container",
+      "CPU": 0.001685354,
+      "Mem": 34451456
+    },
+    {
+      "Name": "azure-cns-v6xpr/cns-container",
+      "CPU": 0.001906887,
+      "Mem": 40620032
+    },
+    {
+      "Name": "azure-cns-vhzdg/cns-container",
+      "CPU": 0.001909818,
+      "Mem": 40419328
+    },
+    {
+      "Name": "azure-cns-vwzwl/cns-container",
+      "CPU": 0.001825534,
+      "Mem": 41578496
+    },
+    {
+      "Name": "azure-ip-masq-agent-c7nvt/azure-ip-masq-agent",
+      "CPU": 0.000038916,
+      "Mem": 14954496
+    },
+    {
+      "Name": "azure-ip-masq-agent-cvgz2/azure-ip-masq-agent",
+      "CPU": 0.000030633,
+      "Mem": 12886016
+    },
+    {
+      "Name": "azure-ip-masq-agent-gxqp9/azure-ip-masq-agent",
+      "CPU": 0.00008643,
+      "Mem": 15032320
+    },
+    {
+      "Name": "azure-ip-masq-agent-h7xkv/azure-ip-masq-agent",
+      "CPU": 0.000044411,
+      "Mem": 14897152
+    },
+    {
+      "Name": "azure-ip-masq-agent-jtq8w/azure-ip-masq-agent",
+      "CPU": 0.000051051,
+      "Mem": 12861440
+    },
+    {
+      "Name": "azure-ip-masq-agent-ksfjb/azure-ip-masq-agent",
+      "CPU": 0.000040317,
+      "Mem": 14995456
+    },
+    {
+      "Name": "azure-ip-masq-agent-lsxds/azure-ip-masq-agent",
+      "CPU": 0.000031937,
+      "Mem": 15032320
+    },
+    {
+      "Name": "azure-ip-masq-agent-p7rjn/azure-ip-masq-agent",
+      "CPU": 0.000031869,
+      "Mem": 14659584
+    },
+    {
+      "Name": "azure-ip-masq-agent-pl2l5/azure-ip-masq-agent",
+      "CPU": 0.000520494,
+      "Mem": 14966784
+    },
+    {
+      "Name": "azure-ip-masq-agent-rp997/azure-ip-masq-agent",
+      "CPU": 0.000396964,
+      "Mem": 14856192
+    },
+    {
+      "Name": "azure-ip-masq-agent-vzwnh/azure-ip-masq-agent",
+      "CPU": 0.000026699,
+      "Mem": 17080320
+    },
+    {
+      "Name": "azure-ip-masq-agent-w7sgb/azure-ip-masq-agent",
+      "CPU": 0.000037098,
+      "Mem": 14848000
+    },
+    {
+      "Name": "azure-ip-masq-agent-xhbmj/azure-ip-masq-agent",
+      "CPU": 0.000531857,
+      "Mem": 14999552
+    },
+    {
+      "Name": "azure-ip-masq-agent-xrnm5/azure-ip-masq-agent",
+      "CPU": 0.000621783,
+      "Mem": 12898304
+    },
+    {
+      "Name": "cloud-node-manager-4qztn/cloud-node-manager",
+      "CPU": 0.000056783,
+      "Mem": 18837504
+    },
+    {
+      "Name": "cloud-node-manager-5pk9f/cloud-node-manager",
+      "CPU": 0.000122657,
+      "Mem": 19054592
+    },
+    {
+      "Name": "cloud-node-manager-7xzkb/cloud-node-manager",
+      "CPU": 0.000087047,
+      "Mem": 18853888
+    },
+    {
+      "Name": "cloud-node-manager-8jnjc/cloud-node-manager",
+      "CPU": 0.000140239,
+      "Mem": 21123072
+    },
+    {
+      "Name": "cloud-node-manager-9fxn5/cloud-node-manager",
+      "CPU": 0.000077817,
+      "Mem": 21581824
+    },
+    {
+      "Name": "cloud-node-manager-d5s5b/cloud-node-manager",
+      "CPU": 0.000080771,
+      "Mem": 18870272
+    },
+    {
+      "Name": "cloud-node-manager-gf8vd/cloud-node-manager",
+      "CPU": 0.00008584,
+      "Mem": 21180416
+    },
+    {
+      "Name": "cloud-node-manager-hrh5z/cloud-node-manager",
+      "CPU": 0.00010213,
+      "Mem": 18972672
+    },
+    {
+      "Name": "cloud-node-manager-lj6pn/cloud-node-manager",
+      "CPU": 0.000091925,
+      "Mem": 17719296
+    },
+    {
+      "Name": "cloud-node-manager-nvb5k/cloud-node-manager",
+      "CPU": 0.000069164,
+      "Mem": 18890752
+    },
+    {
+      "Name": "cloud-node-manager-s8stc/cloud-node-manager",
+      "CPU": 0.000068311,
+      "Mem": 20955136
+    },
+    {
+      "Name": "cloud-node-manager-vmfg2/cloud-node-manager",
+      "CPU": 0.000065218,
+      "Mem": 19013632
+    },
+    {
+      "Name": "cloud-node-manager-z962x/cloud-node-manager",
+      "CPU": 0.000123355,
+      "Mem": 18853888
+    },
+    {
+      "Name": "cloud-node-manager-zf664/cloud-node-manager",
+      "CPU": 0.000076281,
+      "Mem": 23126016
+    },
+    {
+      "Name": "coredns-659fcb469c-kmb2r/coredns",
+      "CPU": 0.001561104,
+      "Mem": 21463040
+    },
+    {
+      "Name": "coredns-659fcb469c-qsqgn/coredns",
+      "CPU": 0.001520645,
+      "Mem": 21692416
+    },
+    {
+      "Name": "coredns-659fcb469c-xdk7r/coredns",
+      "CPU": 0.001651347,
+      "Mem": 22208512
+    },
+    {
+      "Name": "coredns-autoscaler-5955d6bbdb-6z6cf/autoscaler",
+      "CPU": 0.000213785,
+      "Mem": 16560128
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/azuredisk",
+      "CPU": 0.000106607,
+      "Mem": 16596992
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/liveness-probe",
+      "CPU": 0.000202353,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/node-driver-registrar",
+      "CPU": 0.005207205,
+      "Mem": 19709952
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/azuredisk",
+      "CPU": 0.000052011,
+      "Mem": 17518592
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/liveness-probe",
+      "CPU": 0.000222866,
+      "Mem": 12525568
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/node-driver-registrar",
+      "CPU": 0.002885853,
+      "Mem": 9461760
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/azuredisk",
+      "CPU": 0,
+      "Mem": 19759104
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/liveness-probe",
+      "CPU": 0.000235455,
+      "Mem": 10563584
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/node-driver-registrar",
+      "CPU": 0.002799885,
+      "Mem": 19931136
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/azuredisk",
+      "CPU": 0.000076561,
+      "Mem": 17842176
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/liveness-probe",
+      "CPU": 0.000061147,
+      "Mem": 13950976
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/node-driver-registrar",
+      "CPU": 0.004319056,
+      "Mem": 17129472
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/azuredisk",
+      "CPU": 0.000065428,
+      "Mem": 15560704
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/liveness-probe",
+      "CPU": 0.000216981,
+      "Mem": 13193216
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/node-driver-registrar",
+      "CPU": 0.003792668,
+      "Mem": 20221952
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/azuredisk",
+      "CPU": 0,
+      "Mem": 17514496
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/liveness-probe",
+      "CPU": 0.00005508,
+      "Mem": 13266944
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/node-driver-registrar",
+      "CPU": 0.005164922,
+      "Mem": 19472384
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/azuredisk",
+      "CPU": 0,
+      "Mem": 17694720
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/liveness-probe",
+      "CPU": 0.000242588,
+      "Mem": 12902400
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/node-driver-registrar",
+      "CPU": 0.004278213,
+      "Mem": 20418560
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/azuredisk",
+      "CPU": 0.000007587,
+      "Mem": 19861504
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/liveness-probe",
+      "CPU": 0.000059313,
+      "Mem": 13144064
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/node-driver-registrar",
+      "CPU": 0.004468263,
+      "Mem": 20688896
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/azuredisk",
+      "CPU": 0.000010985,
+      "Mem": 17825792
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/liveness-probe",
+      "CPU": 0.000061778,
+      "Mem": 10485760
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/node-driver-registrar",
+      "CPU": 0.00389556,
+      "Mem": 22286336
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/azuredisk",
+      "CPU": 0.00005579,
+      "Mem": 17661952
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/liveness-probe",
+      "CPU": 0.000243114,
+      "Mem": 12894208
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/node-driver-registrar",
+      "CPU": 0.003338719,
+      "Mem": 20209664
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/azuredisk",
+      "CPU": 0,
+      "Mem": 15433728
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/liveness-probe",
+      "CPU": 0.000087231,
+      "Mem": 10006528
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/node-driver-registrar",
+      "CPU": 0.003499996,
+      "Mem": 12931072
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/azuredisk",
+      "CPU": 0.000056046,
+      "Mem": 17661952
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/liveness-probe",
+      "CPU": 0.000195372,
+      "Mem": 13590528
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/node-driver-registrar",
+      "CPU": 0.004747593,
+      "Mem": 20541440
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/azuredisk",
+      "CPU": 0.000056324,
+      "Mem": 19742720
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/liveness-probe",
+      "CPU": 0.000029853,
+      "Mem": 12693504
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/node-driver-registrar",
+      "CPU": 0.004242528,
+      "Mem": 19554304
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/azuredisk",
+      "CPU": 0.000071988,
+      "Mem": 17633280
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/liveness-probe",
+      "CPU": 0.000087541,
+      "Mem": 12771328
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/node-driver-registrar",
+      "CPU": 0.00364496,
+      "Mem": 14393344
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/azurefile",
+      "CPU": 0.000002375,
+      "Mem": 18518016
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/liveness-probe",
+      "CPU": 0.000237762,
+      "Mem": 11190272
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/node-driver-registrar",
+      "CPU": 0.004410138,
+      "Mem": 20377600
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/azurefile",
+      "CPU": 0.00007212,
+      "Mem": 16490496
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/liveness-probe",
+      "CPU": 0.000192724,
+      "Mem": 12226560
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/node-driver-registrar",
+      "CPU": 0.004355136,
+      "Mem": 18542592
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/azurefile",
+      "CPU": 0,
+      "Mem": 15945728
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/liveness-probe",
+      "CPU": 0.000221582,
+      "Mem": 12398592
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/node-driver-registrar",
+      "CPU": 0.004404832,
+      "Mem": 21078016
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/azurefile",
+      "CPU": 0,
+      "Mem": 16211968
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/liveness-probe",
+      "CPU": 0.000212739,
+      "Mem": 13959168
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/node-driver-registrar",
+      "CPU": 0.006237925,
+      "Mem": 19427328
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/azurefile",
+      "CPU": 0.000009744,
+      "Mem": 16293888
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/liveness-probe",
+      "CPU": 0.000174383,
+      "Mem": 12955648
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/node-driver-registrar",
+      "CPU": 0.004111611,
+      "Mem": 20221952
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/azurefile",
+      "CPU": 0.000077678,
+      "Mem": 18186240
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/liveness-probe",
+      "CPU": 0.000057591,
+      "Mem": 14118912
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/node-driver-registrar",
+      "CPU": 0.00328007,
+      "Mem": 20918272
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/azurefile",
+      "CPU": 0.000104242,
+      "Mem": 16347136
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/liveness-probe",
+      "CPU": 0.000230115,
+      "Mem": 9187328
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/node-driver-registrar",
+      "CPU": 0.004336131,
+      "Mem": 27549696
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/azurefile",
+      "CPU": 0.000079851,
+      "Mem": 18030592
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/liveness-probe",
+      "CPU": 0.000223849,
+      "Mem": 12787712
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/node-driver-registrar",
+      "CPU": 0.005256033,
+      "Mem": 21905408
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/azurefile",
+      "CPU": 0.000053102,
+      "Mem": 15171584
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/liveness-probe",
+      "CPU": 0.000213109,
+      "Mem": 12865536
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/node-driver-registrar",
+      "CPU": 0.003522424,
+      "Mem": 27738112
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/azurefile",
+      "CPU": 0,
+      "Mem": 16154624
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/liveness-probe",
+      "CPU": 0.00007446,
+      "Mem": 12595200
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/node-driver-registrar",
+      "CPU": 0.004041632,
+      "Mem": 16883712
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/azurefile",
+      "CPU": 0,
+      "Mem": 18280448
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/liveness-probe",
+      "CPU": 0.000268995,
+      "Mem": 12623872
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/node-driver-registrar",
+      "CPU": 0.004785997,
+      "Mem": 21594112
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/azurefile",
+      "CPU": 0,
+      "Mem": 16101376
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/liveness-probe",
+      "CPU": 0.000090448,
+      "Mem": 13864960
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/node-driver-registrar",
+      "CPU": 0.003554281,
+      "Mem": 20516864
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/azurefile",
+      "CPU": 0,
+      "Mem": 16076800
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/liveness-probe",
+      "CPU": 0.00003209,
+      "Mem": 12914688
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/node-driver-registrar",
+      "CPU": 0.004441539,
+      "Mem": 21278720
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/azurefile",
+      "CPU": 0.000060124,
+      "Mem": 16244736
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/liveness-probe",
+      "CPU": 0.000250126,
+      "Mem": 12328960
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/node-driver-registrar",
+      "CPU": 0.005180102,
+      "Mem": 18944000
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-9cv7m/konnectivity-agent",
+      "CPU": 0.003714564,
+      "Mem": 15097856
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-sm6k4/konnectivity-agent",
+      "CPU": 0.004083038,
+      "Mem": 15716352
+    },
+    {
+      "Name": "konnectivity-agent-autoscaler-cdfc7c46-hnglw/autoscaler",
+      "CPU": 0.000254101,
+      "Mem": 16580608
+    },
+    {
+      "Name": "kube-proxy-48wnt/kube-proxy",
+      "CPU": 0.000376165,
+      "Mem": 29065216
+    },
+    {
+      "Name": "kube-proxy-5r4kj/kube-proxy",
+      "CPU": 0.001011488,
+      "Mem": 30482432
+    },
+    {
+      "Name": "kube-proxy-6jlws/kube-proxy",
+      "CPU": 0.000371176,
+      "Mem": 26767360
+    },
+    {
+      "Name": "kube-proxy-86xbd/kube-proxy",
+      "CPU": 0.000441027,
+      "Mem": 29483008
+    },
+    {
+      "Name": "kube-proxy-8bzp5/kube-proxy",
+      "CPU": 0.000534009,
+      "Mem": 31113216
+    },
+    {
+      "Name": "kube-proxy-9xjph/kube-proxy",
+      "CPU": 0.000820991,
+      "Mem": 31002624
+    },
+    {
+      "Name": "kube-proxy-fgncq/kube-proxy",
+      "CPU": 0.000136205,
+      "Mem": 26693632
+    },
+    {
+      "Name": "kube-proxy-hcfxt/kube-proxy",
+      "CPU": 0.000324726,
+      "Mem": 28561408
+    },
+    {
+      "Name": "kube-proxy-pkcfx/kube-proxy",
+      "CPU": 0.000363304,
+      "Mem": 26771456
+    },
+    {
+      "Name": "kube-proxy-shjt6/kube-proxy",
+      "CPU": 0.000148209,
+      "Mem": 27254784
+    },
+    {
+      "Name": "kube-proxy-w6pwj/kube-proxy",
+      "CPU": 0.000543458,
+      "Mem": 30982144
+    },
+    {
+      "Name": "kube-proxy-wrhht/kube-proxy",
+      "CPU": 0.00047272,
+      "Mem": 31326208
+    },
+    {
+      "Name": "kube-proxy-z44zx/kube-proxy",
+      "CPU": 0.000535558,
+      "Mem": 28987392
+    },
+    {
+      "Name": "kube-proxy-zpn5j/kube-proxy",
+      "CPU": 0.00045633,
+      "Mem": 29204480
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server",
+      "CPU": 0.002924005,
+      "Mem": 46309376
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server-vpa",
+      "CPU": 0.000029697,
+      "Mem": 14880768
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server",
+      "CPU": 0.006323847,
+      "Mem": 45613056
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server-vpa",
+      "CPU": 0,
+      "Mem": 17240064
+    }
+  ],
+  "90": [
+    {
+      "Name": "aks-default-13672022-vmss000000/kubelet",
+      "CPU": 0.02261875,
+      "Mem": 62205952
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/pods",
+      "CPU": 0.01793003,
+      "Mem": 357158912
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/runtime",
+      "CPU": 0.018494546,
+      "Mem": 262201344
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/kubelet",
+      "CPU": 0.018109654,
+      "Mem": 61816832
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/pods",
+      "CPU": 0.013592977,
+      "Mem": 290340864
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/runtime",
+      "CPU": 0.015450335,
+      "Mem": 228356096
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/kubelet",
+      "CPU": 0.020995178,
+      "Mem": 63787008
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/pods",
+      "CPU": 0.020626411,
+      "Mem": 344018944
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/runtime",
+      "CPU": 0.019702605,
+      "Mem": 210866176
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/kubelet",
+      "CPU": 0.025417887,
+      "Mem": 72736768
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/pods",
+      "CPU": 0.166707381,
+      "Mem": 682127360
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/runtime",
+      "CPU": 0.019407299,
+      "Mem": 261816320
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/kubelet",
+      "CPU": 0.096791923,
+      "Mem": 82833408
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/pods",
+      "CPU": 0.122971429,
+      "Mem": 266346496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/runtime",
+      "CPU": 0.327598578,
+      "Mem": 396500992
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/kubelet",
+      "CPU": 0.077795241,
+      "Mem": 82804736
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/pods",
+      "CPU": 0.106850224,
+      "Mem": 258285568
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/runtime",
+      "CPU": 0.037581292,
+      "Mem": 408195072
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/kubelet",
+      "CPU": 0.09614701,
+      "Mem": 84353024
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/pods",
+      "CPU": 0.012718774,
+      "Mem": 262209536
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/runtime",
+      "CPU": 0.02898107,
+      "Mem": 395190272
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/kubelet",
+      "CPU": 0.036196873,
+      "Mem": 84459520
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/pods",
+      "CPU": 0.013670243,
+      "Mem": 253145088
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/runtime",
+      "CPU": 0.044522875,
+      "Mem": 398663680
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/kubelet",
+      "CPU": 0.033148455,
+      "Mem": 78909440
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/pods",
+      "CPU": 0.010563197,
+      "Mem": 260325376
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/runtime",
+      "CPU": 0.026853019,
+      "Mem": 405110784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/kubelet",
+      "CPU": 0.03820381,
+      "Mem": 84914176
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/pods",
+      "CPU": 0.012201084,
+      "Mem": 253546496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/runtime",
+      "CPU": 0.23928783,
+      "Mem": 409497600
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/kubelet",
+      "CPU": 0.031827844,
+      "Mem": 83062784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/pods",
+      "CPU": 0.012955871,
+      "Mem": 259465216
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/runtime",
+      "CPU": 0.031601988,
+      "Mem": 389140480
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/kubelet",
+      "CPU": 0.037213411,
+      "Mem": 78692352
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/pods",
+      "CPU": 0.012082555,
+      "Mem": 261021696
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/runtime",
+      "CPU": 0.031081949,
+      "Mem": 386695168
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/kubelet",
+      "CPU": 0.034947399,
+      "Mem": 80412672
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/pods",
+      "CPU": 0.01213884,
+      "Mem": 262250496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/runtime",
+      "CPU": 0.028243391,
+      "Mem": 388403200
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/kubelet",
+      "CPU": 0.036559997,
+      "Mem": 81317888
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/pods",
+      "CPU": 0.014805095,
+      "Mem": 262115328
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/runtime",
+      "CPU": 0.025532354,
+      "Mem": 396369920
+    },
+    {
+      "Name": "azure-cns-2jgq7/cns-container",
+      "CPU": 0.002505069,
+      "Mem": 40476672
+    },
+    {
+      "Name": "azure-cns-7xwbb/cns-container",
+      "CPU": 0.002439541,
+      "Mem": 39714816
+    },
+    {
+      "Name": "azure-cns-96xbr/cns-container",
+      "CPU": 0.002259832,
+      "Mem": 39776256
+    },
+    {
+      "Name": "azure-cns-bjq9p/cns-container",
+      "CPU": 0.001605338,
+      "Mem": 45064192
+    },
+    {
+      "Name": "azure-cns-bkxdg/cns-container",
+      "CPU": 0.001800766,
+      "Mem": 45662208
+    },
+    {
+      "Name": "azure-cns-ckh2h/cns-container",
+      "CPU": 0.002075538,
+      "Mem": 41005056
+    },
+    {
+      "Name": "azure-cns-dvqrw/cns-container",
+      "CPU": 0.001532361,
+      "Mem": 32440320
+    },
+    {
+      "Name": "azure-cns-gh69t/cns-container",
+      "CPU": 0.006042696,
+      "Mem": 42909696
+    },
+    {
+      "Name": "azure-cns-lv6vf/cns-container",
+      "CPU": 0.00181025,
+      "Mem": 38932480
+    },
+    {
+      "Name": "azure-cns-phh54/cns-container",
+      "CPU": 0.002070933,
+      "Mem": 38461440
+    },
+    {
+      "Name": "azure-cns-r5rqd/cns-container",
+      "CPU": 0.002690752,
+      "Mem": 34705408
+    },
+    {
+      "Name": "azure-cns-v6xpr/cns-container",
+      "CPU": 0.009317373,
+      "Mem": 40886272
+    },
+    {
+      "Name": "azure-cns-vhzdg/cns-container",
+      "CPU": 0.002034491,
+      "Mem": 40833024
+    },
+    {
+      "Name": "azure-cns-vwzwl/cns-container",
+      "CPU": 0.007205351,
+      "Mem": 42827776
+    },
+    {
+      "Name": "azure-ip-masq-agent-c7nvt/azure-ip-masq-agent",
+      "CPU": 0.00004638,
+      "Mem": 14987264
+    },
+    {
+      "Name": "azure-ip-masq-agent-cvgz2/azure-ip-masq-agent",
+      "CPU": 0.000036469,
+      "Mem": 12914688
+    },
+    {
+      "Name": "azure-ip-masq-agent-gxqp9/azure-ip-masq-agent",
+      "CPU": 0.00064014,
+      "Mem": 15044608
+    },
+    {
+      "Name": "azure-ip-masq-agent-h7xkv/azure-ip-masq-agent",
+      "CPU": 0.000478422,
+      "Mem": 15056896
+    },
+    {
+      "Name": "azure-ip-masq-agent-jtq8w/azure-ip-masq-agent",
+      "CPU": 0.000059317,
+      "Mem": 12865536
+    },
+    {
+      "Name": "azure-ip-masq-agent-ksfjb/azure-ip-masq-agent",
+      "CPU": 0.000061949,
+      "Mem": 15003648
+    },
+    {
+      "Name": "azure-ip-masq-agent-lsxds/azure-ip-masq-agent",
+      "CPU": 0.000050444,
+      "Mem": 15044608
+    },
+    {
+      "Name": "azure-ip-masq-agent-p7rjn/azure-ip-masq-agent",
+      "CPU": 0.000041931,
+      "Mem": 14663680
+    },
+    {
+      "Name": "azure-ip-masq-agent-pl2l5/azure-ip-masq-agent",
+      "CPU": 0.00084203,
+      "Mem": 14987264
+    },
+    {
+      "Name": "azure-ip-masq-agent-rp997/azure-ip-masq-agent",
+      "CPU": 0.000529135,
+      "Mem": 14860288
+    },
+    {
+      "Name": "azure-ip-masq-agent-vzwnh/azure-ip-masq-agent",
+      "CPU": 0.00003922,
+      "Mem": 17092608
+    },
+    {
+      "Name": "azure-ip-masq-agent-w7sgb/azure-ip-masq-agent",
+      "CPU": 0.000043046,
+      "Mem": 14860288
+    },
+    {
+      "Name": "azure-ip-masq-agent-xhbmj/azure-ip-masq-agent",
+      "CPU": 0.000859758,
+      "Mem": 15007744
+    },
+    {
+      "Name": "azure-ip-masq-agent-xrnm5/azure-ip-masq-agent",
+      "CPU": 0.000689193,
+      "Mem": 12902400
+    },
+    {
+      "Name": "cloud-node-manager-4qztn/cloud-node-manager",
+      "CPU": 0.000430141,
+      "Mem": 18964480
+    },
+    {
+      "Name": "cloud-node-manager-5pk9f/cloud-node-manager",
+      "CPU": 0.000271105,
+      "Mem": 19062784
+    },
+    {
+      "Name": "cloud-node-manager-7xzkb/cloud-node-manager",
+      "CPU": 0.00011923,
+      "Mem": 18862080
+    },
+    {
+      "Name": "cloud-node-manager-8jnjc/cloud-node-manager",
+      "CPU": 0.000814315,
+      "Mem": 21123072
+    },
+    {
+      "Name": "cloud-node-manager-9fxn5/cloud-node-manager",
+      "CPU": 0.000179944,
+      "Mem": 21585920
+    },
+    {
+      "Name": "cloud-node-manager-d5s5b/cloud-node-manager",
+      "CPU": 0.000592262,
+      "Mem": 18870272
+    },
+    {
+      "Name": "cloud-node-manager-gf8vd/cloud-node-manager",
+      "CPU": 0.00014663,
+      "Mem": 21184512
+    },
+    {
+      "Name": "cloud-node-manager-hrh5z/cloud-node-manager",
+      "CPU": 0.000233803,
+      "Mem": 18976768
+    },
+    {
+      "Name": "cloud-node-manager-lj6pn/cloud-node-manager",
+      "CPU": 0.000237594,
+      "Mem": 17727488
+    },
+    {
+      "Name": "cloud-node-manager-nvb5k/cloud-node-manager",
+      "CPU": 0.000189823,
+      "Mem": 18894848
+    },
+    {
+      "Name": "cloud-node-manager-s8stc/cloud-node-manager",
+      "CPU": 0.000109217,
+      "Mem": 20975616
+    },
+    {
+      "Name": "cloud-node-manager-vmfg2/cloud-node-manager",
+      "CPU": 0.000219861,
+      "Mem": 19017728
+    },
+    {
+      "Name": "cloud-node-manager-z962x/cloud-node-manager",
+      "CPU": 0.000979886,
+      "Mem": 18980864
+    },
+    {
+      "Name": "cloud-node-manager-zf664/cloud-node-manager",
+      "CPU": 0.00012777,
+      "Mem": 23130112
+    },
+    {
+      "Name": "coredns-659fcb469c-kmb2r/coredns",
+      "CPU": 0.001732775,
+      "Mem": 21561344
+    },
+    {
+      "Name": "coredns-659fcb469c-qsqgn/coredns",
+      "CPU": 0.001678903,
+      "Mem": 22179840
+    },
+    {
+      "Name": "coredns-659fcb469c-xdk7r/coredns",
+      "CPU": 0.002110519,
+      "Mem": 22634496
+    },
+    {
+      "Name": "coredns-autoscaler-5955d6bbdb-6z6cf/autoscaler",
+      "CPU": 0.000581659,
+      "Mem": 16719872
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/azuredisk",
+      "CPU": 0.000275931,
+      "Mem": 16596992
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/liveness-probe",
+      "CPU": 0.000236512,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/node-driver-registrar",
+      "CPU": 0.007318694,
+      "Mem": 19767296
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/azuredisk",
+      "CPU": 0.00053316,
+      "Mem": 17526784
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/liveness-probe",
+      "CPU": 0.000275317,
+      "Mem": 12529664
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/node-driver-registrar",
+      "CPU": 0.003533063,
+      "Mem": 9461760
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/azuredisk",
+      "CPU": 0.000090784,
+      "Mem": 19763200
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/liveness-probe",
+      "CPU": 0.000338993,
+      "Mem": 10571776
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/node-driver-registrar",
+      "CPU": 0.004183926,
+      "Mem": 19996672
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/azuredisk",
+      "CPU": 0.00026316,
+      "Mem": 17850368
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/liveness-probe",
+      "CPU": 0.000308553,
+      "Mem": 13975552
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/node-driver-registrar",
+      "CPU": 0.005389974,
+      "Mem": 17158144
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/azuredisk",
+      "CPU": 0.00008103,
+      "Mem": 15564800
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/liveness-probe",
+      "CPU": 0.000366882,
+      "Mem": 13451264
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/node-driver-registrar",
+      "CPU": 0.005720937,
+      "Mem": 20238336
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/azuredisk",
+      "CPU": 0.000036153,
+      "Mem": 17518592
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/liveness-probe",
+      "CPU": 0.000329237,
+      "Mem": 13275136
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/node-driver-registrar",
+      "CPU": 0.006441472,
+      "Mem": 19505152
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/azuredisk",
+      "CPU": 0.000102552,
+      "Mem": 17694720
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/liveness-probe",
+      "CPU": 0.000269003,
+      "Mem": 13025280
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/node-driver-registrar",
+      "CPU": 0.006548188,
+      "Mem": 20439040
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/azuredisk",
+      "CPU": 0.000268988,
+      "Mem": 19865600
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/liveness-probe",
+      "CPU": 0.000333834,
+      "Mem": 13160448
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/node-driver-registrar",
+      "CPU": 0.006927137,
+      "Mem": 20688896
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/azuredisk",
+      "CPU": 0.000076078,
+      "Mem": 17829888
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/liveness-probe",
+      "CPU": 0.000390486,
+      "Mem": 10502144
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/node-driver-registrar",
+      "CPU": 0.006147108,
+      "Mem": 22650880
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/azuredisk",
+      "CPU": 0.00038354,
+      "Mem": 17666048
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/liveness-probe",
+      "CPU": 0.000324314,
+      "Mem": 13004800
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/node-driver-registrar",
+      "CPU": 0.006341612,
+      "Mem": 20271104
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/azuredisk",
+      "CPU": 0.000100254,
+      "Mem": 15437824
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/liveness-probe",
+      "CPU": 0.00026683,
+      "Mem": 10027008
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/node-driver-registrar",
+      "CPU": 0.008043792,
+      "Mem": 12967936
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/azuredisk",
+      "CPU": 0.000431063,
+      "Mem": 17678336
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/liveness-probe",
+      "CPU": 0.000247893,
+      "Mem": 13709312
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/node-driver-registrar",
+      "CPU": 0.006812229,
+      "Mem": 20598784
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/azuredisk",
+      "CPU": 0.000114996,
+      "Mem": 19746816
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/liveness-probe",
+      "CPU": 0.000155616,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/node-driver-registrar",
+      "CPU": 0.005784186,
+      "Mem": 19619840
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/azuredisk",
+      "CPU": 0.000505808,
+      "Mem": 17637376
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/liveness-probe",
+      "CPU": 0.000271126,
+      "Mem": 12771328
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/node-driver-registrar",
+      "CPU": 0.004573764,
+      "Mem": 14479360
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/azurefile",
+      "CPU": 0.000281267,
+      "Mem": 18534400
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/liveness-probe",
+      "CPU": 0.000272914,
+      "Mem": 11198464
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/node-driver-registrar",
+      "CPU": 0.005973889,
+      "Mem": 20459520
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/azurefile",
+      "CPU": 0.000393239,
+      "Mem": 16625664
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/liveness-probe",
+      "CPU": 0.000240284,
+      "Mem": 12230656
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/node-driver-registrar",
+      "CPU": 0.005186147,
+      "Mem": 18546688
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/azurefile",
+      "CPU": 0.000102592,
+      "Mem": 15949824
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/liveness-probe",
+      "CPU": 0.00023974,
+      "Mem": 12468224
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/node-driver-registrar",
+      "CPU": 0.005974551,
+      "Mem": 21131264
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/azurefile",
+      "CPU": 0,
+      "Mem": 16220160
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/liveness-probe",
+      "CPU": 0.000224835,
+      "Mem": 14336000
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/node-driver-registrar",
+      "CPU": 0.007432124,
+      "Mem": 19435520
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/azurefile",
+      "CPU": 0.000064735,
+      "Mem": 16297984
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/liveness-probe",
+      "CPU": 0.000234258,
+      "Mem": 12972032
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/node-driver-registrar",
+      "CPU": 0.004354736,
+      "Mem": 20246528
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/azurefile",
+      "CPU": 0.000748037,
+      "Mem": 18190336
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/liveness-probe",
+      "CPU": 0.000320029,
+      "Mem": 14254080
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/node-driver-registrar",
+      "CPU": 0.006536993,
+      "Mem": 21221376
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/azurefile",
+      "CPU": 0.000414302,
+      "Mem": 16351232
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/liveness-probe",
+      "CPU": 0.000394564,
+      "Mem": 9199616
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/node-driver-registrar",
+      "CPU": 0.005028897,
+      "Mem": 31055872
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/azurefile",
+      "CPU": 0.000630085,
+      "Mem": 18030592
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/liveness-probe",
+      "CPU": 0.000291595,
+      "Mem": 12877824
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/node-driver-registrar",
+      "CPU": 0.005602934,
+      "Mem": 22069248
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/azurefile",
+      "CPU": 0.000636817,
+      "Mem": 15175680
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/liveness-probe",
+      "CPU": 0.000266385,
+      "Mem": 12869632
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/node-driver-registrar",
+      "CPU": 0.005093119,
+      "Mem": 27967488
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/azurefile",
+      "CPU": 0.000072145,
+      "Mem": 16158720
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/liveness-probe",
+      "CPU": 0.000106442,
+      "Mem": 12595200
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/node-driver-registrar",
+      "CPU": 0.004220108,
+      "Mem": 16891904
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/azurefile",
+      "CPU": 0.000079758,
+      "Mem": 18280448
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/liveness-probe",
+      "CPU": 0.000402697,
+      "Mem": 12763136
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/node-driver-registrar",
+      "CPU": 0.007130705,
+      "Mem": 21610496
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/azurefile",
+      "CPU": 0.000385127,
+      "Mem": 16101376
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/liveness-probe",
+      "CPU": 0.000436498,
+      "Mem": 13869056
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/node-driver-registrar",
+      "CPU": 0.004539321,
+      "Mem": 20594688
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/azurefile",
+      "CPU": 0.000100543,
+      "Mem": 16076800
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/liveness-probe",
+      "CPU": 0.000237423,
+      "Mem": 12951552
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/node-driver-registrar",
+      "CPU": 0.005038689,
+      "Mem": 21336064
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/azurefile",
+      "CPU": 0.000339633,
+      "Mem": 16244736
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/liveness-probe",
+      "CPU": 0.000436663,
+      "Mem": 12333056
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/node-driver-registrar",
+      "CPU": 0.005888355,
+      "Mem": 19034112
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-9cv7m/konnectivity-agent",
+      "CPU": 0.003820013,
+      "Mem": 15458304
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-sm6k4/konnectivity-agent",
+      "CPU": 0.004661257,
+      "Mem": 15810560
+    },
+    {
+      "Name": "konnectivity-agent-autoscaler-cdfc7c46-hnglw/autoscaler",
+      "CPU": 0.000333535,
+      "Mem": 16592896
+    },
+    {
+      "Name": "kube-proxy-48wnt/kube-proxy",
+      "CPU": 0.000412007,
+      "Mem": 29134848
+    },
+    {
+      "Name": "kube-proxy-5r4kj/kube-proxy",
+      "CPU": 0.001975238,
+      "Mem": 31150080
+    },
+    {
+      "Name": "kube-proxy-6jlws/kube-proxy",
+      "CPU": 0.000624056,
+      "Mem": 26779648
+    },
+    {
+      "Name": "kube-proxy-86xbd/kube-proxy",
+      "CPU": 0.000719667,
+      "Mem": 29503488
+    },
+    {
+      "Name": "kube-proxy-8bzp5/kube-proxy",
+      "CPU": 0.000698144,
+      "Mem": 31776768
+    },
+    {
+      "Name": "kube-proxy-9xjph/kube-proxy",
+      "CPU": 0.00092684,
+      "Mem": 31019008
+    },
+    {
+      "Name": "kube-proxy-fgncq/kube-proxy",
+      "CPU": 0.00095572,
+      "Mem": 27705344
+    },
+    {
+      "Name": "kube-proxy-hcfxt/kube-proxy",
+      "CPU": 0.000617671,
+      "Mem": 28643328
+    },
+    {
+      "Name": "kube-proxy-pkcfx/kube-proxy",
+      "CPU": 0.000623677,
+      "Mem": 28737536
+    },
+    {
+      "Name": "kube-proxy-shjt6/kube-proxy",
+      "CPU": 0.000646991,
+      "Mem": 27381760
+    },
+    {
+      "Name": "kube-proxy-w6pwj/kube-proxy",
+      "CPU": 0.000719792,
+      "Mem": 31105024
+    },
+    {
+      "Name": "kube-proxy-wrhht/kube-proxy",
+      "CPU": 0.000740489,
+      "Mem": 32161792
+    },
+    {
+      "Name": "kube-proxy-z44zx/kube-proxy",
+      "CPU": 0.00056089,
+      "Mem": 30826496
+    },
+    {
+      "Name": "kube-proxy-zpn5j/kube-proxy",
+      "CPU": 0.000857319,
+      "Mem": 29302784
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server",
+      "CPU": 0.009959848,
+      "Mem": 46673920
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server-vpa",
+      "CPU": 0.000701544,
+      "Mem": 14888960
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server",
+      "CPU": 0.011789636,
+      "Mem": 46501888
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server-vpa",
+      "CPU": 0.000040572,
+      "Mem": 17494016
+    }
+  ],
+  "99": [
+    {
+      "Name": "aks-default-13672022-vmss000000/kubelet",
+      "CPU": 0.02261875,
+      "Mem": 62205952
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/pods",
+      "CPU": 0.01793003,
+      "Mem": 357158912
+    },
+    {
+      "Name": "aks-default-13672022-vmss000000/runtime",
+      "CPU": 0.018494546,
+      "Mem": 262201344
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/kubelet",
+      "CPU": 0.018109654,
+      "Mem": 61816832
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/pods",
+      "CPU": 0.013592977,
+      "Mem": 290340864
+    },
+    {
+      "Name": "aks-default-13672022-vmss000001/runtime",
+      "CPU": 0.015450335,
+      "Mem": 228356096
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/kubelet",
+      "CPU": 0.020995178,
+      "Mem": 63787008
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/pods",
+      "CPU": 0.020626411,
+      "Mem": 344018944
+    },
+    {
+      "Name": "aks-default-13672022-vmss000002/runtime",
+      "CPU": 0.019702605,
+      "Mem": 210866176
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/kubelet",
+      "CPU": 0.025417887,
+      "Mem": 72736768
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/pods",
+      "CPU": 0.166707381,
+      "Mem": 682127360
+    },
+    {
+      "Name": "aks-prompool-36298474-vmss000000/runtime",
+      "CPU": 0.019407299,
+      "Mem": 261816320
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/kubelet",
+      "CPU": 0.096791923,
+      "Mem": 82833408
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/pods",
+      "CPU": 0.122971429,
+      "Mem": 266346496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000000/runtime",
+      "CPU": 0.327598578,
+      "Mem": 396500992
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/kubelet",
+      "CPU": 0.077795241,
+      "Mem": 82804736
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/pods",
+      "CPU": 0.106850224,
+      "Mem": 258285568
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000001/runtime",
+      "CPU": 0.037581292,
+      "Mem": 408195072
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/kubelet",
+      "CPU": 0.09614701,
+      "Mem": 84353024
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/pods",
+      "CPU": 0.012718774,
+      "Mem": 262209536
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000002/runtime",
+      "CPU": 0.02898107,
+      "Mem": 395190272
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/kubelet",
+      "CPU": 0.036196873,
+      "Mem": 84459520
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/pods",
+      "CPU": 0.013670243,
+      "Mem": 253145088
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000003/runtime",
+      "CPU": 0.044522875,
+      "Mem": 398663680
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/kubelet",
+      "CPU": 0.033148455,
+      "Mem": 78909440
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/pods",
+      "CPU": 0.010563197,
+      "Mem": 260325376
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000004/runtime",
+      "CPU": 0.026853019,
+      "Mem": 405110784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/kubelet",
+      "CPU": 0.03820381,
+      "Mem": 84914176
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/pods",
+      "CPU": 0.012201084,
+      "Mem": 253546496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000005/runtime",
+      "CPU": 0.23928783,
+      "Mem": 409497600
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/kubelet",
+      "CPU": 0.031827844,
+      "Mem": 83062784
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/pods",
+      "CPU": 0.012955871,
+      "Mem": 259465216
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000006/runtime",
+      "CPU": 0.031601988,
+      "Mem": 389140480
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/kubelet",
+      "CPU": 0.037213411,
+      "Mem": 78692352
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/pods",
+      "CPU": 0.012082555,
+      "Mem": 261021696
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000007/runtime",
+      "CPU": 0.031081949,
+      "Mem": 386695168
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/kubelet",
+      "CPU": 0.034947399,
+      "Mem": 80412672
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/pods",
+      "CPU": 0.01213884,
+      "Mem": 262250496
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000008/runtime",
+      "CPU": 0.028243391,
+      "Mem": 388403200
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/kubelet",
+      "CPU": 0.036559997,
+      "Mem": 81317888
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/pods",
+      "CPU": 0.014805095,
+      "Mem": 262115328
+    },
+    {
+      "Name": "aks-userpool0-25384903-vmss000009/runtime",
+      "CPU": 0.025532354,
+      "Mem": 396369920
+    },
+    {
+      "Name": "azure-cns-2jgq7/cns-container",
+      "CPU": 0.002505069,
+      "Mem": 40476672
+    },
+    {
+      "Name": "azure-cns-7xwbb/cns-container",
+      "CPU": 0.002439541,
+      "Mem": 39714816
+    },
+    {
+      "Name": "azure-cns-96xbr/cns-container",
+      "CPU": 0.002259832,
+      "Mem": 39776256
+    },
+    {
+      "Name": "azure-cns-bjq9p/cns-container",
+      "CPU": 0.001605338,
+      "Mem": 45064192
+    },
+    {
+      "Name": "azure-cns-bkxdg/cns-container",
+      "CPU": 0.001800766,
+      "Mem": 45662208
+    },
+    {
+      "Name": "azure-cns-ckh2h/cns-container",
+      "CPU": 0.002075538,
+      "Mem": 41005056
+    },
+    {
+      "Name": "azure-cns-dvqrw/cns-container",
+      "CPU": 0.001532361,
+      "Mem": 32440320
+    },
+    {
+      "Name": "azure-cns-gh69t/cns-container",
+      "CPU": 0.006042696,
+      "Mem": 42909696
+    },
+    {
+      "Name": "azure-cns-lv6vf/cns-container",
+      "CPU": 0.00181025,
+      "Mem": 38932480
+    },
+    {
+      "Name": "azure-cns-phh54/cns-container",
+      "CPU": 0.002070933,
+      "Mem": 38461440
+    },
+    {
+      "Name": "azure-cns-r5rqd/cns-container",
+      "CPU": 0.002690752,
+      "Mem": 34705408
+    },
+    {
+      "Name": "azure-cns-v6xpr/cns-container",
+      "CPU": 0.009317373,
+      "Mem": 40886272
+    },
+    {
+      "Name": "azure-cns-vhzdg/cns-container",
+      "CPU": 0.002034491,
+      "Mem": 40833024
+    },
+    {
+      "Name": "azure-cns-vwzwl/cns-container",
+      "CPU": 0.007205351,
+      "Mem": 42827776
+    },
+    {
+      "Name": "azure-ip-masq-agent-c7nvt/azure-ip-masq-agent",
+      "CPU": 0.00004638,
+      "Mem": 14987264
+    },
+    {
+      "Name": "azure-ip-masq-agent-cvgz2/azure-ip-masq-agent",
+      "CPU": 0.000036469,
+      "Mem": 12914688
+    },
+    {
+      "Name": "azure-ip-masq-agent-gxqp9/azure-ip-masq-agent",
+      "CPU": 0.00064014,
+      "Mem": 15044608
+    },
+    {
+      "Name": "azure-ip-masq-agent-h7xkv/azure-ip-masq-agent",
+      "CPU": 0.000478422,
+      "Mem": 15056896
+    },
+    {
+      "Name": "azure-ip-masq-agent-jtq8w/azure-ip-masq-agent",
+      "CPU": 0.000059317,
+      "Mem": 12865536
+    },
+    {
+      "Name": "azure-ip-masq-agent-ksfjb/azure-ip-masq-agent",
+      "CPU": 0.000061949,
+      "Mem": 15003648
+    },
+    {
+      "Name": "azure-ip-masq-agent-lsxds/azure-ip-masq-agent",
+      "CPU": 0.000050444,
+      "Mem": 15044608
+    },
+    {
+      "Name": "azure-ip-masq-agent-p7rjn/azure-ip-masq-agent",
+      "CPU": 0.000041931,
+      "Mem": 14663680
+    },
+    {
+      "Name": "azure-ip-masq-agent-pl2l5/azure-ip-masq-agent",
+      "CPU": 0.00084203,
+      "Mem": 14987264
+    },
+    {
+      "Name": "azure-ip-masq-agent-rp997/azure-ip-masq-agent",
+      "CPU": 0.000529135,
+      "Mem": 14860288
+    },
+    {
+      "Name": "azure-ip-masq-agent-vzwnh/azure-ip-masq-agent",
+      "CPU": 0.00003922,
+      "Mem": 17092608
+    },
+    {
+      "Name": "azure-ip-masq-agent-w7sgb/azure-ip-masq-agent",
+      "CPU": 0.000043046,
+      "Mem": 14860288
+    },
+    {
+      "Name": "azure-ip-masq-agent-xhbmj/azure-ip-masq-agent",
+      "CPU": 0.000859758,
+      "Mem": 15007744
+    },
+    {
+      "Name": "azure-ip-masq-agent-xrnm5/azure-ip-masq-agent",
+      "CPU": 0.000689193,
+      "Mem": 12902400
+    },
+    {
+      "Name": "cloud-node-manager-4qztn/cloud-node-manager",
+      "CPU": 0.000430141,
+      "Mem": 18964480
+    },
+    {
+      "Name": "cloud-node-manager-5pk9f/cloud-node-manager",
+      "CPU": 0.000271105,
+      "Mem": 19062784
+    },
+    {
+      "Name": "cloud-node-manager-7xzkb/cloud-node-manager",
+      "CPU": 0.00011923,
+      "Mem": 18862080
+    },
+    {
+      "Name": "cloud-node-manager-8jnjc/cloud-node-manager",
+      "CPU": 0.000814315,
+      "Mem": 21123072
+    },
+    {
+      "Name": "cloud-node-manager-9fxn5/cloud-node-manager",
+      "CPU": 0.000179944,
+      "Mem": 21585920
+    },
+    {
+      "Name": "cloud-node-manager-d5s5b/cloud-node-manager",
+      "CPU": 0.000592262,
+      "Mem": 18870272
+    },
+    {
+      "Name": "cloud-node-manager-gf8vd/cloud-node-manager",
+      "CPU": 0.00014663,
+      "Mem": 21184512
+    },
+    {
+      "Name": "cloud-node-manager-hrh5z/cloud-node-manager",
+      "CPU": 0.000233803,
+      "Mem": 18976768
+    },
+    {
+      "Name": "cloud-node-manager-lj6pn/cloud-node-manager",
+      "CPU": 0.000237594,
+      "Mem": 17727488
+    },
+    {
+      "Name": "cloud-node-manager-nvb5k/cloud-node-manager",
+      "CPU": 0.000189823,
+      "Mem": 18894848
+    },
+    {
+      "Name": "cloud-node-manager-s8stc/cloud-node-manager",
+      "CPU": 0.000109217,
+      "Mem": 20975616
+    },
+    {
+      "Name": "cloud-node-manager-vmfg2/cloud-node-manager",
+      "CPU": 0.000219861,
+      "Mem": 19017728
+    },
+    {
+      "Name": "cloud-node-manager-z962x/cloud-node-manager",
+      "CPU": 0.000979886,
+      "Mem": 18980864
+    },
+    {
+      "Name": "cloud-node-manager-zf664/cloud-node-manager",
+      "CPU": 0.00012777,
+      "Mem": 23130112
+    },
+    {
+      "Name": "coredns-659fcb469c-kmb2r/coredns",
+      "CPU": 0.001732775,
+      "Mem": 21561344
+    },
+    {
+      "Name": "coredns-659fcb469c-qsqgn/coredns",
+      "CPU": 0.001678903,
+      "Mem": 22179840
+    },
+    {
+      "Name": "coredns-659fcb469c-xdk7r/coredns",
+      "CPU": 0.002110519,
+      "Mem": 22634496
+    },
+    {
+      "Name": "coredns-autoscaler-5955d6bbdb-6z6cf/autoscaler",
+      "CPU": 0.000581659,
+      "Mem": 16719872
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/azuredisk",
+      "CPU": 0.000275931,
+      "Mem": 16596992
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/liveness-probe",
+      "CPU": 0.000236512,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-4hp8r/node-driver-registrar",
+      "CPU": 0.007318694,
+      "Mem": 19767296
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/azuredisk",
+      "CPU": 0.00053316,
+      "Mem": 17526784
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/liveness-probe",
+      "CPU": 0.000275317,
+      "Mem": 12529664
+    },
+    {
+      "Name": "csi-azuredisk-node-84gg6/node-driver-registrar",
+      "CPU": 0.003533063,
+      "Mem": 9461760
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/azuredisk",
+      "CPU": 0.000090784,
+      "Mem": 19763200
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/liveness-probe",
+      "CPU": 0.000338993,
+      "Mem": 10571776
+    },
+    {
+      "Name": "csi-azuredisk-node-c6z67/node-driver-registrar",
+      "CPU": 0.004183926,
+      "Mem": 19996672
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/azuredisk",
+      "CPU": 0.00026316,
+      "Mem": 17850368
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/liveness-probe",
+      "CPU": 0.000308553,
+      "Mem": 13975552
+    },
+    {
+      "Name": "csi-azuredisk-node-j6d5v/node-driver-registrar",
+      "CPU": 0.005389974,
+      "Mem": 17158144
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/azuredisk",
+      "CPU": 0.00008103,
+      "Mem": 15564800
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/liveness-probe",
+      "CPU": 0.000366882,
+      "Mem": 13451264
+    },
+    {
+      "Name": "csi-azuredisk-node-kdqd9/node-driver-registrar",
+      "CPU": 0.005720937,
+      "Mem": 20238336
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/azuredisk",
+      "CPU": 0.000036153,
+      "Mem": 17518592
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/liveness-probe",
+      "CPU": 0.000329237,
+      "Mem": 13275136
+    },
+    {
+      "Name": "csi-azuredisk-node-kxgnx/node-driver-registrar",
+      "CPU": 0.006441472,
+      "Mem": 19505152
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/azuredisk",
+      "CPU": 0.000102552,
+      "Mem": 17694720
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/liveness-probe",
+      "CPU": 0.000269003,
+      "Mem": 13025280
+    },
+    {
+      "Name": "csi-azuredisk-node-lxdbs/node-driver-registrar",
+      "CPU": 0.006548188,
+      "Mem": 20439040
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/azuredisk",
+      "CPU": 0.000268988,
+      "Mem": 19865600
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/liveness-probe",
+      "CPU": 0.000333834,
+      "Mem": 13160448
+    },
+    {
+      "Name": "csi-azuredisk-node-m7mf4/node-driver-registrar",
+      "CPU": 0.006927137,
+      "Mem": 20688896
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/azuredisk",
+      "CPU": 0.000076078,
+      "Mem": 17829888
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/liveness-probe",
+      "CPU": 0.000390486,
+      "Mem": 10502144
+    },
+    {
+      "Name": "csi-azuredisk-node-nq8wx/node-driver-registrar",
+      "CPU": 0.006147108,
+      "Mem": 22650880
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/azuredisk",
+      "CPU": 0.00038354,
+      "Mem": 17666048
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/liveness-probe",
+      "CPU": 0.000324314,
+      "Mem": 13004800
+    },
+    {
+      "Name": "csi-azuredisk-node-slfpg/node-driver-registrar",
+      "CPU": 0.006341612,
+      "Mem": 20271104
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/azuredisk",
+      "CPU": 0.000100254,
+      "Mem": 15437824
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/liveness-probe",
+      "CPU": 0.00026683,
+      "Mem": 10027008
+    },
+    {
+      "Name": "csi-azuredisk-node-t9n2j/node-driver-registrar",
+      "CPU": 0.008043792,
+      "Mem": 12967936
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/azuredisk",
+      "CPU": 0.000431063,
+      "Mem": 17678336
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/liveness-probe",
+      "CPU": 0.000247893,
+      "Mem": 13709312
+    },
+    {
+      "Name": "csi-azuredisk-node-z8fxq/node-driver-registrar",
+      "CPU": 0.006812229,
+      "Mem": 20598784
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/azuredisk",
+      "CPU": 0.000114996,
+      "Mem": 19746816
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/liveness-probe",
+      "CPU": 0.000155616,
+      "Mem": 12697600
+    },
+    {
+      "Name": "csi-azuredisk-node-zbzhs/node-driver-registrar",
+      "CPU": 0.005784186,
+      "Mem": 19619840
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/azuredisk",
+      "CPU": 0.000505808,
+      "Mem": 17637376
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/liveness-probe",
+      "CPU": 0.000271126,
+      "Mem": 12771328
+    },
+    {
+      "Name": "csi-azuredisk-node-zw8lm/node-driver-registrar",
+      "CPU": 0.004573764,
+      "Mem": 14479360
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/azurefile",
+      "CPU": 0.000281267,
+      "Mem": 18534400
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/liveness-probe",
+      "CPU": 0.000272914,
+      "Mem": 11198464
+    },
+    {
+      "Name": "csi-azurefile-node-24tb7/node-driver-registrar",
+      "CPU": 0.005973889,
+      "Mem": 20459520
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/azurefile",
+      "CPU": 0.000393239,
+      "Mem": 16625664
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/liveness-probe",
+      "CPU": 0.000240284,
+      "Mem": 12230656
+    },
+    {
+      "Name": "csi-azurefile-node-4rn27/node-driver-registrar",
+      "CPU": 0.005186147,
+      "Mem": 18546688
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/azurefile",
+      "CPU": 0.000102592,
+      "Mem": 15949824
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/liveness-probe",
+      "CPU": 0.00023974,
+      "Mem": 12468224
+    },
+    {
+      "Name": "csi-azurefile-node-7nvcd/node-driver-registrar",
+      "CPU": 0.005974551,
+      "Mem": 21131264
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/azurefile",
+      "CPU": 0,
+      "Mem": 16220160
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/liveness-probe",
+      "CPU": 0.000224835,
+      "Mem": 14336000
+    },
+    {
+      "Name": "csi-azurefile-node-95n22/node-driver-registrar",
+      "CPU": 0.007432124,
+      "Mem": 19435520
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/azurefile",
+      "CPU": 0.000064735,
+      "Mem": 16297984
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/liveness-probe",
+      "CPU": 0.000234258,
+      "Mem": 12972032
+    },
+    {
+      "Name": "csi-azurefile-node-dg5qb/node-driver-registrar",
+      "CPU": 0.004354736,
+      "Mem": 20246528
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/azurefile",
+      "CPU": 0.000748037,
+      "Mem": 18190336
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/liveness-probe",
+      "CPU": 0.000320029,
+      "Mem": 14254080
+    },
+    {
+      "Name": "csi-azurefile-node-kwpw9/node-driver-registrar",
+      "CPU": 0.006536993,
+      "Mem": 21221376
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/azurefile",
+      "CPU": 0.000414302,
+      "Mem": 16351232
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/liveness-probe",
+      "CPU": 0.000394564,
+      "Mem": 9199616
+    },
+    {
+      "Name": "csi-azurefile-node-llcfx/node-driver-registrar",
+      "CPU": 0.005028897,
+      "Mem": 31055872
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/azurefile",
+      "CPU": 0.000630085,
+      "Mem": 18030592
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/liveness-probe",
+      "CPU": 0.000291595,
+      "Mem": 12877824
+    },
+    {
+      "Name": "csi-azurefile-node-ls8jh/node-driver-registrar",
+      "CPU": 0.005602934,
+      "Mem": 22069248
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/azurefile",
+      "CPU": 0.000636817,
+      "Mem": 15175680
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/liveness-probe",
+      "CPU": 0.000266385,
+      "Mem": 12869632
+    },
+    {
+      "Name": "csi-azurefile-node-n87j5/node-driver-registrar",
+      "CPU": 0.005093119,
+      "Mem": 27967488
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/azurefile",
+      "CPU": 0.000072145,
+      "Mem": 16158720
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/liveness-probe",
+      "CPU": 0.000106442,
+      "Mem": 12595200
+    },
+    {
+      "Name": "csi-azurefile-node-pgxp7/node-driver-registrar",
+      "CPU": 0.004220108,
+      "Mem": 16891904
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/azurefile",
+      "CPU": 0.000079758,
+      "Mem": 18280448
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/liveness-probe",
+      "CPU": 0.000402697,
+      "Mem": 12763136
+    },
+    {
+      "Name": "csi-azurefile-node-r5t47/node-driver-registrar",
+      "CPU": 0.007130705,
+      "Mem": 21610496
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/azurefile",
+      "CPU": 0.000385127,
+      "Mem": 16101376
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/liveness-probe",
+      "CPU": 0.000436498,
+      "Mem": 13869056
+    },
+    {
+      "Name": "csi-azurefile-node-tcztk/node-driver-registrar",
+      "CPU": 0.004539321,
+      "Mem": 20594688
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/azurefile",
+      "CPU": 0.000100543,
+      "Mem": 16076800
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/liveness-probe",
+      "CPU": 0.000237423,
+      "Mem": 12951552
+    },
+    {
+      "Name": "csi-azurefile-node-wnhkc/node-driver-registrar",
+      "CPU": 0.005038689,
+      "Mem": 21336064
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/azurefile",
+      "CPU": 0.000339633,
+      "Mem": 16244736
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/liveness-probe",
+      "CPU": 0.000436663,
+      "Mem": 12333056
+    },
+    {
+      "Name": "csi-azurefile-node-wzww2/node-driver-registrar",
+      "CPU": 0.005888355,
+      "Mem": 19034112
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-9cv7m/konnectivity-agent",
+      "CPU": 0.003820013,
+      "Mem": 15458304
+    },
+    {
+      "Name": "konnectivity-agent-67c489d88d-sm6k4/konnectivity-agent",
+      "CPU": 0.004661257,
+      "Mem": 15810560
+    },
+    {
+      "Name": "konnectivity-agent-autoscaler-cdfc7c46-hnglw/autoscaler",
+      "CPU": 0.000333535,
+      "Mem": 16592896
+    },
+    {
+      "Name": "kube-proxy-48wnt/kube-proxy",
+      "CPU": 0.000412007,
+      "Mem": 29134848
+    },
+    {
+      "Name": "kube-proxy-5r4kj/kube-proxy",
+      "CPU": 0.001975238,
+      "Mem": 31150080
+    },
+    {
+      "Name": "kube-proxy-6jlws/kube-proxy",
+      "CPU": 0.000624056,
+      "Mem": 26779648
+    },
+    {
+      "Name": "kube-proxy-86xbd/kube-proxy",
+      "CPU": 0.000719667,
+      "Mem": 29503488
+    },
+    {
+      "Name": "kube-proxy-8bzp5/kube-proxy",
+      "CPU": 0.000698144,
+      "Mem": 31776768
+    },
+    {
+      "Name": "kube-proxy-9xjph/kube-proxy",
+      "CPU": 0.00092684,
+      "Mem": 31019008
+    },
+    {
+      "Name": "kube-proxy-fgncq/kube-proxy",
+      "CPU": 0.00095572,
+      "Mem": 27705344
+    },
+    {
+      "Name": "kube-proxy-hcfxt/kube-proxy",
+      "CPU": 0.000617671,
+      "Mem": 28643328
+    },
+    {
+      "Name": "kube-proxy-pkcfx/kube-proxy",
+      "CPU": 0.000623677,
+      "Mem": 28737536
+    },
+    {
+      "Name": "kube-proxy-shjt6/kube-proxy",
+      "CPU": 0.000646991,
+      "Mem": 27381760
+    },
+    {
+      "Name": "kube-proxy-w6pwj/kube-proxy",
+      "CPU": 0.000719792,
+      "Mem": 31105024
+    },
+    {
+      "Name": "kube-proxy-wrhht/kube-proxy",
+      "CPU": 0.000740489,
+      "Mem": 32161792
+    },
+    {
+      "Name": "kube-proxy-z44zx/kube-proxy",
+      "CPU": 0.00056089,
+      "Mem": 30826496
+    },
+    {
+      "Name": "kube-proxy-zpn5j/kube-proxy",
+      "CPU": 0.000857319,
+      "Mem": 29302784
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server",
+      "CPU": 0.009959848,
+      "Mem": 46673920
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-bs75v/metrics-server-vpa",
+      "CPU": 0.000701544,
+      "Mem": 14888960
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server",
+      "CPU": 0.011789636,
+      "Mem": 46501888
+    },
+    {
+      "Name": "metrics-server-78bc87db4b-nbhtc/metrics-server-vpa",
+      "CPU": 0.000040572,
+      "Mem": 17494016
+    }
+  ]
+}
