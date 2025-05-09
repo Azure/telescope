@@ -31,7 +31,7 @@ steps:
     - Identifier: HttpRequestsTotal
       Method: GenericPrometheusQuery
       Params:
-        action: start
+        action: {{$action}}
         metricName: Total number of HTTP Requests Total
         metricVersion: v1
         unit: count
@@ -44,7 +44,7 @@ steps:
     - Identifier: MaxHttpRequestsFail
       Method: GenericPrometheusQuery
       Params:
-        action: start
+        action: {{$action}}
         metricName: Max number of HTTP Requests Fail
         metricVersion: v1
         unit: count
@@ -57,7 +57,7 @@ steps:
     - Identifier: MaxHttpRequestsSuccess
       Method: GenericPrometheusQuery
       Params:
-        action: start
+        action: {{$action}}
         metricName: Max number of HTTP Requests Success
         metricVersion: v1
         unit: count
