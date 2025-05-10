@@ -148,11 +148,3 @@ class Pod(KWOK):
 
     def tear_down(self):
         pass
-
-
-# Example usage
-if __name__ == "__main__":
-    node_manager = Node(node_count=5)
-    node_manager.create()
-    node_manager.validate()
-    node_manager.tear_down()
