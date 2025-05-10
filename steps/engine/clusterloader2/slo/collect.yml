@@ -25,7 +25,7 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
-    TEST_TYPE: $(TEST_TYPE)
+    # TEST_TYPE: $(TEST_TYPE)
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
   displayName: "Collect Results"
