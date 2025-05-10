@@ -73,6 +73,7 @@ stages:
               max_pods: 1
               repeats: 1
               scale_timeout: "30m"
+              node_label: slo=true
               cilium_enabled: False
               scrape_containerd: False
               service_test: False
@@ -86,6 +87,7 @@ stages:
               max_pods: 1
               repeats: 1
               scale_timeout: "30m"
+              node_label: slo=true
               cilium_enabled: False
               scrape_containerd: False
               service_test: False
