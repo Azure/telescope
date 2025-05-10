@@ -3,7 +3,7 @@ trigger: none
 variables:
     SCENARIO_TYPE: perf-eval
     SCENARIO_NAME: network-policy-scale
-    SCENARIO_VERSION: cnpTesting
+    SCENARIO_VERSION: test-cnps
     OWNER: aks
 
 stages:
