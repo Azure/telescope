@@ -24,6 +24,3 @@ steps:
   - template: /steps/engine/clusterloader2/swiftv2/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: ${{ parameters.node_count }}
-      additional_nodes: 0
-      node_label: ${{ parameters.node_label }}

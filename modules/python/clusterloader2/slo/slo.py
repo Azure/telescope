@@ -123,10 +123,10 @@ def configure_clusterloader2(
 
     file.close()
 
-def validate_clusterloader2(node_count, operation_timeout_in_minutes=10, additional_nodes=0, node_label=""):
+def validate_clusterloader2(node_count, operation_timeout_in_minutes=10, node_label=""):
     kube_client = KubernetesClient()
     ready_node_count = 0
-    expected_node_count = node_count + additional_nodes
+    expected_node_count = node_count
     timeout = time.time() + (operation_timeout_in_minutes * 60)
     while time.time() < timeout:
         ready_nodes = kube_client.get_ready_nodes(label_selector=node_label)
@@ -269,7 +269,6 @@ def main():
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
     parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
-    parser_validate.add_argument("additional_nodes", type=int, help="Number of additional nodes")
     parser_validate.add_argument("node_label", type=str, help="Node label selector")
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -313,7 +312,7 @@ def main():
                                  args.cilium_enabled, args.scrape_containerd,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.ds_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
     elif args.command == "validate":
-        validate_clusterloader2(args.node_count, args.operation_timeout, args.additional_nodes, args.node_label)
+        validate_clusterloader2(args.node_count, args.operation_timeout, args.node_label)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
