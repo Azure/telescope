@@ -81,24 +81,24 @@ steps:
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
         npType: {{$Network_Policy_Type}}
-  # - name: Network Policy Soak Test - RestartPods
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: restart
-  # - name: Network Policy Soak Test - Delete CNPS
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: delete-ccnps-cnps
-  # - name: Network Policy Soak Test - Delete Pods
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: delete-pods
+  - name: Network Policy Soak Test - RestartPods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: restart
+  - name: Network Policy Soak Test - Delete CNPS
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-ccnps-cnps
+  - name: Network Policy Soak Test - Delete Pods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-pods
   {{end}}
 
 {{if $CLIENT_METRICS_GATHERING}}
