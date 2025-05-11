@@ -27,7 +27,6 @@ name: netpol-scale-test
 {{$NET_POLICY_ENFORCEMENT_LOAD_COUNT := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT 0}}
 {{$NET_POLICY_ENFORCEMENT_LOAD_QPS := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS 0}}
 {{$NET_POLICY_ENFORCEMENT_LOAD_TARGET_NAME := DefaultParam .CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME "small-deployment"}}
-{{$NET_POLICY_TYPE := DefaultParam .CL2_NET_POLICY_TYPE "k8s"}}
 {{$NET_POLICY_L7_ENABLED := DefaultParam .CL2_NET_POLICY_L7_ENABLED false}}
 {{$CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD := DefaultParam .CL2_CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD 0}}
 {{$CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD := DefaultParam .CL2_CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD 0.01}}
@@ -85,7 +84,7 @@ steps:
 
 {{if $NETPOL_ENFORCEMENT_LATENCY}}
 # 3. start policy enforcement latency metrics
-- name: "starting policy enforcement metrics, network policy type - {{.CL2_NET_POLICY_TYPE}}"
+- name: "starting policy enforcement metrics, network policy type - {{.CL2_NETWORK_POLICY_TYPE}}"
   measurements:
   - Identifier: PolicyEnforcementLatencyMetrics
     Method: GenericPrometheusQuery
@@ -115,7 +114,7 @@ steps:
       targetLabelValue: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
       testClientNodeSelectorKey: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY}}
       testClientNodeSelectorValue: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE}}
-      networkPolicyType: {{$NET_POLICY_TYPE}}
+      networkPolicyType: {{$Network_Policy_Type}}
       l7Enabled: {{$NET_POLICY_L7_ENABLED}}
       l3l4port: {{$L3_L4_PORT}}
       targetPort: 80
