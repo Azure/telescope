@@ -42,6 +42,7 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
             file.write("CL2_L3_L4_CNP_TEST: true\n")
+            file.write("CL2_SOAK_TEST: false\n")
 
         if cilium_envoy_enabled:
             file.write("# Cilium Envoy config\n")
