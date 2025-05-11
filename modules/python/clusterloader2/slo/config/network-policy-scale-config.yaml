@@ -99,6 +99,12 @@ steps:
   #     Method: NetworkPolicySoakMeasurement
   #     Params:
   #       action: delete-pods
+  # - name: Sleep
+  #   measurements:
+  #   - Identifier: Sleep
+  #     Method: Sleep
+  #     Params:
+  #       duration: 2m
   {{end}}
 
 {{if $CLIENT_METRICS_GATHERING}}
@@ -141,4 +147,4 @@ steps:
     - Identifier: Sleep
       Method: Sleep
       Params:
-        duration: 30m
+        duration: 5m
