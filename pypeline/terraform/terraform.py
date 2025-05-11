@@ -268,7 +268,6 @@ def run_command(
 
 
 # TODO: Add delete_resource_group function and validate_resource_group function
-# TODO: add set_input_variables and run_command terraform, decouple them from cloud specific logics
 @dataclass
 class Terraform(Resource):
     cloud: Cloud
