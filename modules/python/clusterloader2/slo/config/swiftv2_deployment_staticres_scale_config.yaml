@@ -74,7 +74,7 @@ steps:
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 120s
+          duration: 240s
 
 # start repeat
 
