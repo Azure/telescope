@@ -119,45 +119,45 @@ steps:
       targetPort: 80
       baseline: {{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE}}
 # 5. Start target deployments
-- name: "Start target deployments"
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForControlledPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: Deployment
-    Params:
-      action: start
-      checkIfPodsAreUpdated: true
-      labelSelector: group={{$TARGET_GROUP}}
-      operationTimeout: 20m
-      apiVersion: apps/v1
-- name: "Create target deployments"
-  phases:      
-  - namespaceRange:
-      min: 1
-      max: {{$NUMBER_OF_GROUPS}}
-    replicasPerNamespace: 1
-    tuningSet: Uniform1qps
-    objectBundle:
-    - basename: target-deployment
-      objectTemplatePath: target_deployment.yaml
-      templateFillMap:
-        Replicas: {{$NUMBER_OF_SERVERS_PER_Group}}
-        TargetLabelKey: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
-        TargetLabelValue: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
-        SvcName: small-service
-        Group: {{$TARGET_GROUP}}
-        deploymentLabel: start
-# 7. Wait for target deployments to be ready
-- name: "Wait for target deployments to be ready"
-  measurements:
-  - Identifier: WaitForControlledPodsRunning 
-    Method: WaitForControlledPodsRunning
-    Params:
-      action: gather
-      refreshInterval: 15s
+# - name: "Start target deployments"
+#   measurements:
+#   - Method: WaitForControlledPodsRunning
+#     Instances:
+#     - Identifier: WaitForControlledPodsRunning
+#       Params:
+#         apiVersion: apps/v1
+#         kind: Deployment
+#     Params:
+#       action: start
+#       checkIfPodsAreUpdated: true
+#       labelSelector: group={{$TARGET_GROUP}}
+#       operationTimeout: 20m
+#       apiVersion: apps/v1
+# - name: "Create target deployments"
+#   phases:      
+#   - namespaceRange:
+#       min: 1
+#       max: {{$NUMBER_OF_GROUPS}}
+#     replicasPerNamespace: 1
+#     tuningSet: Uniform1qps
+#     objectBundle:
+#     - basename: target-deployment
+#       objectTemplatePath: target_deployment.yaml
+#       templateFillMap:
+#         Replicas: {{$NUMBER_OF_SERVERS_PER_Group}}
+#         TargetLabelKey: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
+#         TargetLabelValue: {{$NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
+#         SvcName: small-service
+#         Group: {{$TARGET_GROUP}}
+#         deploymentLabel: start
+# # 7. Wait for target deployments to be ready
+# - name: "Wait for target deployments to be ready"
+#   measurements:
+#   - Identifier: WaitForControlledPodsRunning 
+#     Method: WaitForControlledPodsRunning
+#     Params:
+#       action: gather
+#       refreshInterval: 15s
 # 8. Run network policy enforcement latency measurement test-type 'policy-creation'
 - name: "Run network policy enforcement latency measurement test-type 'policy-creation'"
   measurements:
