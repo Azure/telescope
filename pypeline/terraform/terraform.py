@@ -168,6 +168,105 @@ def set_input_variables(
     )
 
 
+def generate_workspace_script() -> str:
+    return dedent(
+        """if terraform workspace list | grep -q "$region"; then
+              terraform workspace select $region
+            else
+              terraform workspace new $region
+              terraform workspace select $region
+            fi
+        """
+    ).strip()
+
+
+def generate_generic_script(command: str, arguments: str) -> str:
+    return dedent(
+        f"""
+        set -e
+        
+        # Navigate to the Terraform working directory
+        cd $TERRAFORM_WORKING_DIRECTORY
+
+        # Run Terraform {command} command
+        terraform {command} {arguments}
+        """
+    ).strip()
+
+
+def generate_apply_or_destroy_script(
+    command: str, arguments: str, regions: list[str], cloud: Cloud
+) -> str:
+    workspace_script = generate_workspace_script()
+    error_handling_script = cloud.generate_tf_error_handler(command)
+
+    return dedent(
+        f"""
+        set -e
+
+        # Navigate to the Terraform working directory
+        cd $TERRAFORM_WORKING_DIRECTORY
+
+        for region in $(echo "{regions}" | jq -r '.[]'); do
+            echo "Processing region: $region"
+            
+            {workspace_script}
+            
+            # Retrieve input file and variables
+            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+
+            # Run Terraform {command} command
+            set +e
+            terraform {command} --auto-approve {arguments} -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            exit_code=$?
+            set -e
+
+            # Handle errors
+            if [[ $exit_code -ne 0 ]]; then
+                echo "Terraform {command} failed for region: $region"
+                {error_handling_script}
+                exit 1
+            fi
+          
+        done
+        """
+    ).strip()
+
+
+def run_command(
+    command: str,
+    arguments: str,
+    regions: list[str],
+    cloud: Cloud,
+    retry_attempt_count: int,
+    credential_type: CredentialType,
+) -> Script:
+    if command == "apply" or command == "destroy":
+        script = generate_apply_or_destroy_script(command, arguments, regions, cloud)
+    else:
+        script = generate_generic_script(command, arguments)
+
+    return Script(
+        display_name=f"Run Terraform {command.capitalize()} Command",
+        script=script,
+        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
+        retry_count_on_task_failure=retry_attempt_count,
+        env={
+            "ARM_SUBSCRIPTION_ID": "$(AZURE_SUBSCRIPTION_ID)",
+            **(
+                {
+                    "ARM_USE_MSI": "true",
+                    "ARM_TENANT_ID": "$(AZURE_MI_TENANT_ID)",
+                    "ARM_CLIENT_ID": "$(AZURE_MI_CLIENT_ID)",
+                }
+                if credential_type == CredentialType.MANAGED_IDENTITY
+                else {}
+            ),
+        },
+    )
+
+
 # TODO: Add delete_resource_group function and validate_resource_group function
 # TODO: add set_input_variables and run_command terraform, decouple them from cloud specific logics
 @dataclass
@@ -192,6 +291,30 @@ class Terraform(Resource):
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
             create_resource_group(self.regions[0], self.cloud.provider.value),
+            run_command(
+                "version",
+                self.arguments,
+                self.regions,
+                self.cloud,
+                self.retry_attempt_count,
+                self.credential_type,
+            ),
+            run_command(
+                "init",
+                self.arguments,
+                self.regions,
+                self.cloud,
+                self.retry_attempt_count,
+                self.credential_type,
+            ),
+            run_command(
+                "apply",
+                self.arguments,
+                self.regions,
+                self.cloud,
+                self.retry_attempt_count,
+                self.credential_type,
+            ),
         ]
 
     def validate(self):

@@ -130,3 +130,15 @@ class Azure(Cloud):
                 "user_node_pool", "$USER_NODE_POOL"
             ),
         }
+
+    def generate_tf_error_handler(self, command: str) -> str:
+        if command == "apply":
+            return dedent(
+                """echo "Deleting resources and removing state file before retrying"
+                    ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
+                    az resource delete --ids $ids --verbose
+                    rm -r terraform.tfstate.d/$region
+                """
+            ).strip()
+        else:
+            return ""

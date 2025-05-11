@@ -47,6 +47,10 @@ class Cloud(ABC):
     @abstractmethod
     def generate_input_variables(self, region: str, input_variables: dict) -> dict:
         pass
+     
+    @abstractmethod
+    def generate_tf_error_handler(self, command:str) -> str:
+        pass
 
 
 @dataclass
