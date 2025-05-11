@@ -53,7 +53,7 @@ steps:
         enableViolations: true
         queries:
         - name: max number of http requests fail over time
-          query: max(max_over_time(http_requests_fail[%v:])) by (port)
+          query: sum(increase(http_requests_fail[%v:])) by (port)
     - Identifier: MaxHttpRequestsSuccess
       Method: GenericPrometheusQuery
       Params:
@@ -66,5 +66,5 @@ steps:
         enableViolations: true
         queries:
         - name: max number of http requests success over time
-          query: max(max_over_time(http_requests_success[%v:])) by (port)
+          query: sum(increase(http_requests_success[%v:])) by (port)
     
