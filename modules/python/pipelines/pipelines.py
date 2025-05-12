@@ -1,6 +1,4 @@
 import argparse
-import base64
-import sys
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 import requests
@@ -12,7 +10,7 @@ logger = get_logger(__name__)
 def get_headers(pat):
     return {
         "Content-Type": "application/json",
-        "Authorization": f"Basic {base64.b64encode(f':{pat}'.encode()).decode()}"
+        "Authorization": f"Basic {pat}",
     }
 
 def get_pipeline_definition(org, project, pipeline_id, headers):
@@ -25,7 +23,7 @@ def get_pipeline_definition(org, project, pipeline_id, headers):
     return res.json()
 
 def get_scheduled_pipelines(org, project, headers):
-    min_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    min_time = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
     max_time = datetime.now(timezone.utc).isoformat()
 
     min_time_encoded = quote(min_time)
