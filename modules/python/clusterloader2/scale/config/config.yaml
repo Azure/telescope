@@ -28,7 +28,6 @@ namespace:
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
-  deleteNamespaceTimeout: 20m
 
 tuningSets:
   - name: Sequence

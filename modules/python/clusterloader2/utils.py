@@ -7,7 +7,6 @@ import json
 import os
 import argparse
 import docker
-import sys
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "PodStartupLatency_PodStartupLatency_": "PodStartupLatency_PodStartupLatency",
@@ -56,14 +55,9 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         container = docker_client.run_container(cl2_image, command, volumes, detach=True)
         for log in container.logs(stream=True):
             print(log.decode('utf-8'), end='')
-        status_code = int(container.wait())
-        if status_code != 0:
-            sys.exit(status_code)
+        container.wait()
     except docker.errors.ContainerError as e:
         print(f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
-        sys.exit(1)
-    except:
-        sys.exit(1)
 
 def get_measurement(file_path):
     file_name = os.path.basename(file_path)
