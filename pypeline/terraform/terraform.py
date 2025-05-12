@@ -1,12 +1,20 @@
 import json
 import os
 from dataclasses import dataclass, field
-from textwrap import dedent
+from enum import Enum
+from textwrap import dedent, indent
 from typing import List
 
-from benchmark import Cloud, Resource
+from benchmark import Cloud, CloudProvider, Resource
 from cloud.azure import CredentialType
 from pipeline import Script, Step
+
+
+class TerraformCommand(Enum):
+    INIT = "init"
+    VERSION = "version"
+    APPLY = "apply"
+    DESTROY = "destroy"
 
 
 def generate_regional_config(
@@ -168,8 +176,78 @@ def set_input_variables(
     )
 
 
+def generate_workspace_script() -> str:
+    return dedent(
+        """
+        if terraform workspace list | grep -q "$region"; then
+            terraform workspace select $region
+        else:
+            terraform workspace new $region
+            terraform workspace select $region
+        fi
+        """
+    ).strip("")
+
+
+def generate_generic_script(command: str, arguments: str) -> str:
+    return dedent(
+        f"""
+        set -e
+        
+        # Navigate to the Terraform working directory
+        cd $TERRAFORM_WORKING_DIRECTORY
+
+        # Run Terraform {command} command
+        terraform {command} {arguments}
+        """
+    ).strip()
+
+
+def generate_apply_or_destroy_script(
+    command: TerraformCommand, arguments: str, regions: list[str], cloud: Cloud
+) -> str:
+
+    workspace_script = indent(generate_workspace_script(), " " * 12)
+    error_handling_script = ""
+
+    if (
+        TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
+    ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
+        error_handling_script = indent(cloud.delete_resource_group(), " " * 16)
+
+    return dedent(
+        f"""
+        set -e
+
+        # Navigate to the Terraform working directory
+        cd $TERRAFORM_WORKING_DIRECTORY
+
+        for region in $(echo "{regions}" | jq -r '.[]'); do
+            echo "Processing region: $region"
+            {workspace_script}
+            # Retrieve input file and variables
+            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+
+            # Run Terraform {command.value} command
+            set +e
+            terraform {command.value} --auto-approve {arguments} -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            exit_code=$?
+            set -e
+
+            # Handle errors
+            if [[ $exit_code -ne 0 ]]; then
+                echo "Terraform {command.value} failed for region: $region"
+                {error_handling_script}
+                exit 1
+            fi
+          
+        done
+        """
+    ).strip()
+
+
 # TODO: Add delete_resource_group function and validate_resource_group function
-# TODO: add set_input_variables and run_command terraform, decouple them from cloud specific logics
 @dataclass
 class Terraform(Resource):
     cloud: Cloud
@@ -192,6 +270,9 @@ class Terraform(Resource):
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
             create_resource_group(self.regions[0], self.cloud.provider.value),
+            self.run_command(TerraformCommand.VERSION),
+            self.run_command(TerraformCommand.INIT),
+            self.run_command(TerraformCommand.APPLY),
         ]
 
     def validate(self):
@@ -199,3 +280,33 @@ class Terraform(Resource):
 
     def tear_down(self):
         return []
+
+    def run_command(
+        self,
+        command: TerraformCommand,
+    ) -> Script:
+        if command == TerraformCommand.APPLY or TerraformCommand.DESTROY:
+            script = generate_apply_or_destroy_script(
+                command, self.arguments, self.regions, self.cloud
+            )
+        else:
+            script = generate_generic_script(command, self.arguments)
+
+        return Script(
+            display_name=f"Run Terraform {command.value.capitalize()} Command",
+            script=script,
+            condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
+            retry_count_on_task_failure=self.retry_attempt_count,
+            env={
+                "ARM_SUBSCRIPTION_ID": "$(AZURE_SUBSCRIPTION_ID)",
+                **(
+                    {
+                        "ARM_USE_MSI": "true",
+                        "ARM_TENANT_ID": "$(AZURE_MI_TENANT_ID)",
+                        "ARM_CLIENT_ID": "$(AZURE_MI_CLIENT_ID)",
+                    }
+                    if self.credential_type == CredentialType.MANAGED_IDENTITY
+                    else {}
+                ),
+            },
+        )
