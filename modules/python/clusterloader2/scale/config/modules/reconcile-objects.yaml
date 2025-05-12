@@ -288,6 +288,55 @@ steps:
       action: start
       duration: 15m
 
+- name: "delete k8s services"
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 0
+    tuningSet: Sequence
+    objectBundle:
+    - basename: fortio-server
+      objectTemplatePath: modules/fortio/service.yaml
+
+- name: 'delete servers'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 0
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-server
+        objectTemplatePath: modules/fortio/server-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioServerReplicas}}
+          # SvcName: fortio-server-service
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+
+- name: 'delete clients'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 0
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: fortio-client
+        objectTemplatePath: modules/fortio/client-deployment.yaml
+        templateFillMap:
+          Replicas: {{$fortioClientReplicas}}
+          Group: {{.Group}}
+          deploymentLabel: {{.deploymentLabel}}
+          CpuRequest: {{$CpuRequest}}
+          MemoryRequest: {{$MemoryRequest}}
+          FortioClientConnections: {{$fortioClientConnections}}
+          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
+          FortioServerServiceBasename: fortio-server
+
 {{if $generateRetinaNetworkFlowLogs}}
 # Delete retina network flow log
 - name: Delete Retina Network Flow Log

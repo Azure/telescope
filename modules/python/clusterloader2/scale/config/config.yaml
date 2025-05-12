@@ -77,12 +77,12 @@ steps:
         createRetinaNetworkFlowLogs: false
 
     {{if $generateRetinaNetworkFlowLogs}}
-  - name: Wait 1m and run test Creating Retina Network Flow Logs
+  - name: Wait 5m and run test Creating Retina Network Flow Logs
     measurements:
       - Identifier: Sleep
         Method: Sleep
         Params:
-          duration: 1m
+          duration: 5m
 
   - module:
       path: /modules/scale-test.yaml
