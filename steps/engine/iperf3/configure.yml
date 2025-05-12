@@ -8,15 +8,16 @@ steps:
   - script: |
       set -eo pipefail
       pushd $KUSTOMIZE_DIR
+      HOST_NETWORK=${HOST_NETWORK,,}
       kustomize build ${KUSTOMIZE_DIR}/overlays/client-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
       kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
       popd
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod_count 1
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure
     workingDirectory: modules/python
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/iperf3
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
       CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
       CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
-    displayName: "Configure Iperf3"
+    displayName: "Configure iperf3"

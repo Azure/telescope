@@ -30,7 +30,7 @@ parameters:
     default: [azure, cilium]
   - name: host_networks
     type: object
-    default: ["true", "false"]
+    default: [true, false]
 
 stages:
   - stage: azure_eastus2_new_sku
@@ -56,7 +56,7 @@ stages:
             ${{ each machine_type in parameters.azure_machine_types_new_sku }}:
               ${{ each network in parameters.host_networks }}:
                 ${{ each dataplane in parameters.network_dataplanes }}:
-                  ${{ machine_type }}_${{ dataplane }}_${{ network }}_network:
+                  ${{ machine_type }}_${{ dataplane }}_${{ network }}:
                     k8s_machine_type: ${{ machine_type }}
                     network_dataplane: ${{ dataplane }}
                     host_network: ${{ network }}
@@ -90,7 +90,7 @@ stages:
           matrix:
             ${{ each machine_type in parameters.aws_machine_types_new_sku }}:
               ${{ each network in parameters.host_networks }}:
-                ${{ machine_type }}_${{ network }}_network:
+                ${{ machine_type }}_${{ network }}:
                   k8s_machine_type: ${{ machine_type }}
                   host_network: ${{ network }}
                   ena_express: "true"

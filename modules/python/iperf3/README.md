@@ -16,7 +16,7 @@ popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod_count 1 --label_selector "app=mtu-config"
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --label_selector "app=mtu-config"
 popd
 ```
 
@@ -37,7 +37,7 @@ popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod_count 1
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure
 popd
 ```
 

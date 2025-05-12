@@ -94,12 +94,6 @@ class PodRoleCommand:
         return self.service_external_ip
 
     def run_command_for_role(self, role: str, command: str, result_file: str):
-        pod = self.get_pod_by_role(role=role)
-        if not pod:
-            raise ValueError(f"No pod found for role: {role}")
-        logger.info(
-            f"namespace: {self.namespace}, client_pod: {pod['name']}, command: {command}")
-
         if role == "client":
             container_name = self.client_container
             context_name = self.cluster_cli_context
@@ -108,6 +102,12 @@ class PodRoleCommand:
             context_name = self.cluster_srv_context
         else:
             raise ValueError(f"Unsupported role: {role}")
+
+        pod = self.get_pod_by_role(role=role)
+        if not pod:
+            raise ValueError(f"No pod found for role: {role}")
+        logger.info(
+            f"namespace: {self.namespace}, client_pod: {pod['name']}, command: {command}")
 
         self.k8s_client.set_context(context_name)
 
@@ -146,23 +146,23 @@ class PodRoleCommand:
             role="server",
         )
 
-    def configure(self, pod_count: int = 1, label_selector: str = ""):
+    def configure(self, label_selector: str = ""):
         self.k8s_client.set_context(self.cluster_cli_context)
         logger.info(
-            f"Waiting for {pod_count} client pods to be ready with label: {label_selector or self.client_label_selector}"
+            f"Waiting for pod to be ready with label: {label_selector or self.client_label_selector}"
         )
         self.k8s_client.wait_for_pods_ready(
-            pod_count=pod_count,
+            pod_count=1,
             operation_timeout_in_minutes=5,
             label_selector=label_selector or self.client_label_selector,
             namespace=self.namespace,
         )
         logger.info(
-            f"Waiting for {pod_count} client pods to be ready with label: {label_selector or self.client_label_selector}"
+            f"Waiting for pod to be ready with label: {label_selector or self.client_label_selector}"
         )
         self.k8s_client.set_context(self.cluster_srv_context)
         self.k8s_client.wait_for_pods_ready(
-            pod_count=pod_count,
+            pod_count=1,
             operation_timeout_in_minutes=5,
             label_selector=label_selector or self.server_label_selector,
             namespace=self.namespace,

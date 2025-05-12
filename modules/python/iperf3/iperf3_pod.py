@@ -85,7 +85,7 @@ class Iperf3Pod(PodRoleCommand):
             role=role, command=command_constants.NETSTAT_CMD, result_file=result_file)
 
     def run_iplink(self, role: str, result_dir: str, stage_name: str, index: int):
-        print(
+        logger.info(
             f"\nRUNNING ip-link for {role} in stage {stage_name} with index {index}\n")
         result_file = f"{result_dir}/{role}-ip-link-{stage_name}-{index}.json"
         self.run_command_for_role(
@@ -316,12 +316,6 @@ def parse_args(args):
         help="File to store the benchmark result"
     )
     parser.add_argument(
-        "--pod_count",
-        type=int,
-        help="Number of pods to configure",
-        default=1
-    )
-    parser.add_argument(
         "--label_selector",
         help="Label selector for the pods",
         default=""
@@ -401,7 +395,6 @@ def main():
         )
     elif args.action == "configure":
         iperf3_pod.configure(
-            pod_count=args.pod_count,
             label_selector=args.label_selector,
         )
     else:
