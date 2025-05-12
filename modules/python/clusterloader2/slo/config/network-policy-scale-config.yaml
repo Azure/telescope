@@ -19,6 +19,8 @@ name: netpol-scale-test
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
 {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST true}}
+{{$L3_L4_PORT := DefaultParam .CL2_L3_L4_PORT true}}
+{{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE := DefaultParam .CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE false}}
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
   prefix: slo
@@ -91,10 +93,10 @@ steps:
     Method: NetworkPolicyEnforcement
     Params:
       action: setup
-      targetLabelKey: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_KEY}}
-      targetLabelValue: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_TARGET_LABEL_VALUE}}
-      testClientNodeSelectorKey: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_KEY}}
-      testClientNodeSelectorValue: {{.CL2_NET_POLICY_ENFORCEMENT_LATENCY_NODE_LABEL_VALUE}}
+      targetLabelKey: net-pol-test
+      targetLabelValue: enforcement-latency
+      testClientNodeSelectorKey: test
+      testClientNodeSelectorValue: net-policy-client
       networkPolicyType: {{$Network_Policy_Type}}
       l7Enabled: {{$NET_POLICY_L7_ENABLED}}
       l3l4port: {{$L3_L4_PORT}}
