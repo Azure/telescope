@@ -1,4 +1,5 @@
 import argparse
+import sys
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 import requests
