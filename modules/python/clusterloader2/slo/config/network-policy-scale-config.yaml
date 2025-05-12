@@ -19,12 +19,26 @@ name: netpol-scale-test
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
 {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST true}}
+{{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE := DefaultParam .CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE false}}
+{{$NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS 5}}
+{{$NET_POLICY_ENFORCEMENT_LOAD_COUNT := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LOAD_COUNT 0}}
+{{$NET_POLICY_ENFORCEMENT_LOAD_QPS := DefaultParam .CL2_NET_POLICY_ENFORCEMENT_LOAD_QPS 0}}
+{{$NET_POLICY_ENFORCEMENT_LOAD_TARGET_NAME := DefaultParam .CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME "small-deployment"}}
+{{$CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD := DefaultParam .CL2_CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD 0}}
+{{$CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD := DefaultParam .CL2_CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD 0.01}}
+{{$NUMBER_OF_SERVERS := DefaultParam .CL2_NUMBER_OF_SERVERS 5}}
+{{$L3_L4_PORT := DefaultParam .CL2_L3_L4_PORT false}}
+{{$TARGET_GROUP := DefaultParam .CL2_TARGET_GROUP "service-discovery"}}
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
 
 steps:
 # 1. If cilium enabled
@@ -81,6 +95,21 @@ steps:
             query: histogram_quantile(0.95, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
           - name: PolicyCreation - Perc99
             query: histogram_quantile(0.99, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
+  - name: "Setup network policy enforcement latency measurement"
+    measurements:
+    - Identifier: NetworkPolicyEnforcement
+      Method: NetworkPolicyEnforcement
+      Params:
+        action: setup
+        targetLabelKey: net-pol-test
+        targetLabelValue: enforcement-latency
+        testClientNodeSelectorKey: test
+        testClientNodeSelectorValue: net-policy-client
+        networkPolicyType: {{$Network_Policy_Type}}
+        l7Enabled: {{$NET_POLICY_L7_ENABLED}}
+        l3l4port: {{$L3_L4_PORT}}
+        targetPort: 80
+        baseline: {{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE}}
 {{end}}
 {{if $SOAK_TEST}}
   {{range $i := Loop $repeats}}
