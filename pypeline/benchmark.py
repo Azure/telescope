@@ -5,7 +5,7 @@ from enum import Enum
 
 import yaml
 
-from pipeline import Job, Pipeline, Script, Stage, Step, customize_yaml
+from pipeline import Job, Pipeline, Stage, Step, customize_yaml
 
 
 class CloudProvider(Enum):
