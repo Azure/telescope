@@ -86,7 +86,7 @@ stages:
       - eastus2euap
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250507"
+        image: "ghcr.io/azure/clusterloader2:v20250512"
         repository: ${{ variables.REPOSITORY }}
         makeargs: ${{ variables.MAKEARGS }}
         ref: ${{ parameters.ref }}
