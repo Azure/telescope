@@ -318,11 +318,12 @@ def parse_args(args):
     parser.add_argument(
         "--pod_count",
         type=int,
-        help="Number of pods to configure"
+        help="Number of pods to configure",
+        default=1
     )
     parser.add_argument(
         "--label_selector",
-        help="Label selector for the pods"
+        help="Label selector for the pods",
         default=""
     )
     return parser.parse_args(args)

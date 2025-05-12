@@ -236,6 +236,60 @@ class TestPodRoleCommand(unittest.TestCase):
                          "Service name must be provided to get the external IP.")
         self.k8s_client.get_service_external_ip.assert_not_called()
 
+    def test_configure(self):
+        # Test with default parameters
+        self.pod_cmd.configure()
+
+        context_calls = [
+            call(self.pod_cmd.cluster_cli_context),
+            call(self.pod_cmd.cluster_srv_context)
+        ]
+        self.k8s_client.set_context.assert_has_calls(context_calls)
+
+        wait_calls = [
+            call(
+                pod_count=1,
+                operation_timeout_in_minutes=5,
+                label_selector=self.pod_cmd.client_label_selector,
+                namespace=self.namespace
+            ),
+            call(
+                pod_count=1,
+                operation_timeout_in_minutes=5,
+                label_selector=self.pod_cmd.server_label_selector,
+                namespace=self.namespace
+            )
+        ]
+        self.k8s_client.wait_for_pods_ready.assert_has_calls(wait_calls)
+
+    def test_configure_with_custom_params(self):
+        # Test with custom pod count and label selector
+        custom_pod_count = 2
+        custom_label = "app=custom"
+        
+        self.pod_cmd.configure(pod_count=custom_pod_count, label_selector=custom_label)
+
+        context_calls = [
+            call(self.pod_cmd.cluster_cli_context),
+            call(self.pod_cmd.cluster_srv_context)
+        ]
+        self.k8s_client.set_context.assert_has_calls(context_calls)
+
+        wait_calls = [
+            call(
+                pod_count=custom_pod_count,
+                operation_timeout_in_minutes=5,
+                label_selector=custom_label,
+                namespace=self.namespace
+            ),
+            call(
+                pod_count=custom_pod_count,
+                operation_timeout_in_minutes=5,
+                label_selector=custom_label,
+                namespace=self.namespace
+            )
+        ]
+        self.k8s_client.wait_for_pods_ready.assert_has_calls(wait_calls)
 
 if __name__ == '__main__':
     unittest.main()

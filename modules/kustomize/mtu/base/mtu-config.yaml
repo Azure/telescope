@@ -34,4 +34,4 @@ spec:
           value: "true"
           effect: "NoExecute"
       nodeSelector:
-        test: true
+        test: "true"

@@ -15,7 +15,7 @@ class TestIPerfsPod(unittest.TestCase):
         self.iperf3 = Iperf3Pod(
             namespace=self.namespace,
             cluster_cli_context="cli-context",
-            cluster_srv_context="srv-context"
+            cluster_srv_context="srv-context",
         )
         self.iperf3.k8s_client = MagicMock()
         self.client_pod_info = {"name": "client-pod",
@@ -510,6 +510,31 @@ class TestIperf3PodArguments(unittest.TestCase):
             result_file=result_file,
             iperf3_command='--time 60 --bandwidth 1000M --parallel 1 --interval 0 --port 20003',
             server_ip_type='pod'
+        )
+
+    @patch('argparse.ArgumentParser.parse_args')
+    @patch('iperf3.iperf3_pod.Iperf3Pod')
+    def test_main_configure(self, mock_iperf3_pod, mock_parse_args):
+        mock_parse_args.return_value = argparse.Namespace(
+            action='configure',
+            pod_count=1,
+            label_selector='test=true',
+            cluster_cli_context='cli-context',
+            cluster_srv_context='srv-context'
+        )
+
+        main()
+
+        # Verify Iperf3Pod was instantiated with correct arguments
+        mock_iperf3_pod.assert_called_once_with(
+            cluster_cli_context='cli-context',
+            cluster_srv_context='srv-context'
+        )
+
+        # Verify configure was called with correct arguments
+        mock_iperf3_pod.return_value.configure.assert_called_once_with(
+            pod_count=1,
+            label_selector='test=true'
         )
 
     @patch('kubernetes.config.load_kube_config')

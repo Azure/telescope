@@ -21,20 +21,20 @@ spec:
               done;
               sleep infinity # must be kept since daemonset will be restarted if the container exits
           readinessProbe:
-          initialDelaySeconds: 1
-          periodSeconds: 60
-          exec:
-            command:
-              - /bin/sh
-              - -c
-              - |
-                set -e;
-                devices=$(ip -j -s link show | jq -r '.[] | select((.ifname | test("^e")) and (.flags | index("SLAVE") | not) and (has("link_netnsid") | not)) | .ifname')
-                for device in $devices; do
-                  mtu=$(ip link show $device | grep -oP 'mtu \K\d+');
-                  if [ "$mtu" -ne 8900 ]; then
-                    echo "MTU for $device is not 8900, current value is $mtu" >> /proc/1/fd/1;
-                    exit 1;
-                  fi;
-                  echo "MTU for $device is 8900" >> /proc/1/fd/1;
-                done;
+            initialDelaySeconds: 1
+            periodSeconds: 60
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e;
+                  devices=$(ip -j -s link show | jq -r '.[] | select((.ifname | test("^e")) and (.flags | index("SLAVE") | not) and (has("link_netnsid") | not)) | .ifname')
+                  for device in $devices; do
+                    mtu=$(ip link show $device | grep -oP 'mtu \K\d+');
+                    if [ "$mtu" -ne 8900 ]; then
+                      echo "MTU for $device is not 8900, current value is $mtu" >> /proc/1/fd/1;
+                      exit 1;
+                    fi;
+                    echo "MTU for $device is 8900" >> /proc/1/fd/1;
+                  done;

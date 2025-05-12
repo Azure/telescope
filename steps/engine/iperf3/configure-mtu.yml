@@ -9,14 +9,18 @@ parameters:
 steps:
   - script: |
       set -eo pipefail
+      pushd $KUSTOMIZE_DIR
       kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
       kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+      popd
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --pod-count 1 \
         --label-selector mtu-config-daemonset
     workingDirectory: modules/python
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
       CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
       CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
       CLOUD: ${{ parameters.cloud }}
