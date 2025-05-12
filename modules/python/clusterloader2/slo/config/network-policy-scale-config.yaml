@@ -25,6 +25,10 @@ namespace:
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
 
 steps:
 # 1. If cilium enabled
