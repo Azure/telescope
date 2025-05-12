@@ -12,7 +12,7 @@ class TestPipelines(unittest.TestCase):
     def test_get_headers(self):
         headers = get_headers("pat")
         self.assertEqual(headers["Content-Type"], "application/json")
-        self.assertEqual(headers["Authorization"], "Bearer  pat")
+        self.assertEqual(headers["Authorization"], "Bearer pat")
 
     @patch("pipelines.pipelines.requests.get")
     def test_get_pipeline_definition(self, mock_get):
