@@ -17,6 +17,8 @@ def configure_clusterloader2(
     l7_enabled,
     repeats,
     override_file,
+    netpol_latency_test,
+    netpol_soak_test,
 ):
     # Ensure the directory for override_file exists
     override_dir = os.path.dirname(override_file)
@@ -41,8 +43,7 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
-            file.write("CL2_L3_L4_CNP_TEST: true\n")
-            file.write("CL2_SOAK_TEST: false\n")
+            file.write("CL2_L3_L4_PORT: true\n")
 
         if cilium_envoy_enabled:
             file.write("# Cilium Envoy config\n")
@@ -66,12 +67,20 @@ def configure_clusterloader2(
         file.write(f"CL2_WORKERS_PER_CLIENT: {workers_per_client}\n")
         file.write(f"CL2_NUMBER_OF_GROUPS: {number_of_groups}\n")
         file.write(f"CL2_NETWORK_POLICY_TYPE: {netpol_type}\n")
-        file.write("CL2_CLIENT_METRICS_GATHERING: false\n")
+        file.write("CL2_CLIENT_METRICS_GATHERING: true\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
 
         # Disable non related tests in measurements.yaml
         file.write("# Disable non related tests in measurements.yaml\n")
         file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
+
+        if netpol_latency_test:
+            file.write("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true\n")
+            file.write("CL2_CLIENT_METRICS_GATHERING: false\n")
+            file.write("CL2_SOAK_TEST: false\n")
+        
+        if netpol_soak_test:
+            file.write("CL2_SOAK_TEST: true\n")
 
     with open(override_file, "r", encoding="utf-8") as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -238,6 +247,21 @@ def main():
         required=True,
         help="Path to the overrides of CL2 config file",
     )
+    parser_configure.add_argument(
+        "--netpol_latency_test",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether netpol latency test is enabled. Must be either True or False",
+    )
+    parser_configure.add_argument(
+        "--netpol_soak_test",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether netpol soak test is enabled. Must be either True or False",
+    )
+
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -301,6 +325,8 @@ def main():
             args.l7_enabled,
             args.repeats,
             args.cl2_override_file,
+            args.netpol_latency_test,
+            args.netpol_soak_test,
         )
     elif args.command == "execute":
         execute_clusterloader2(
