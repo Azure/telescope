@@ -26,7 +26,6 @@ name: netpol-scale-test
 {{$NET_POLICY_ENFORCEMENT_LOAD_TARGET_NAME := DefaultParam .CL2_POLICY_ENFORCEMENT_LOAD_TARGET_NAME "small-deployment"}}
 {{$CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD := DefaultParam .CL2_CILIUM_POLICY_IMPORTS_ERROR_THRESHOLD 0}}
 {{$CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD := DefaultParam .CL2_CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD 0.01}}
-{{$NUMBER_OF_SERVERS := DefaultParam .CL2_NUMBER_OF_SERVERS 5}}
 {{$L3_L4_PORT := DefaultParam .CL2_L3_L4_PORT false}}
 {{$TARGET_GROUP := DefaultParam .CL2_TARGET_GROUP "service-discovery"}}
 namespace:
@@ -136,7 +135,7 @@ steps:
       - basename: target-deployment
         objectTemplatePath: target_deployment.yaml
         templateFillMap:
-          Replicas: {{$NUMBER_OF_SERVERS}}
+          Replicas: {{$NUMBER_OF_SERVERS_PER_Group}}
           TargetLabelKey: net-pol-test
           TargetLabelValue: enforcement-latency
           SvcName: small-service
