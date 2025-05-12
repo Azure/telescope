@@ -18,7 +18,7 @@ name: netpol-scale-test
 {{$L3_L4_CNP_TEST := DefaultParam .CL2_L3_L4_CNP_TEST true}}
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
-{{$NETPOL_ENFORCEMENT_LATENCY := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST true}}
+{{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST true}}
 
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
@@ -61,7 +61,7 @@ steps:
   {{end}}
 {{end}}
 
-{{if and $CLIENT_METRICS_GATHERING (eq $NETPOL_ENFORCEMENT_LATENCY false)}}
+{{if $CLIENT_METRICS_GATHERING}}
   - module:
       path: /modules/network-policy-client-metrics.yaml
       params:
@@ -118,7 +118,7 @@ steps:
   {{end}}
   {{end}}
 
-{{if and $CLIENT_METRICS_GATHERING (eq $NETPOL_ENFORCEMENT_LATENCY false)}}
+{{if $CLIENT_METRICS_GATHERING}}
         clientMetricsGatheringEnabled: true
 {{end}}
 
@@ -131,7 +131,7 @@ steps:
       Params:
         action: gather #gather will wait for the soak test to finish   
 {{end}} 
-{{if and $CLIENT_METRICS_GATHERING (eq $NETPOL_ENFORCEMENT_LATENCY false)}}
+{{if $CLIENT_METRICS_GATHERING}}
   - module:
       path: /modules/network-policy-client-metrics.yaml
       params:
@@ -155,7 +155,7 @@ steps:
       params:
         action: gather
         group: "service-discovery"
-{{if $NETPOL_ENFORCEMENT_LATENCY}}
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
 # 11. Gather policy enforcement latency metrics
 - name: "Gather policy enforcement latency metrics"
   measurements:
@@ -172,7 +172,7 @@ steps:
       Method: Sleep
       Params:
         duration: 5m
-{{if $NETPOL_ENFORCEMENT_LATENCY}}
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
 - name: "Complete pod creation network policy enforcement latency measurement"
   measurements:
   - Identifier: NetworkPolicyEnforcement
