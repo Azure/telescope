@@ -233,13 +233,15 @@ steps:
 {{if $CLIENT_METRICS_GATHERING}}
         clientMetricsGatheringEnabled: true
 {{end}}
+{{if $SOAK_TEST}}
   # 5. gather network performance measurement (wait and gather results)
   - name: Network Policy Soak Test - Gather Results
     measurements:
     - Identifier: NetworkPolicySoakMeasurement
       Method: NetworkPolicySoakMeasurement
       Params:
-        action: gather #gather will wait for the soak test to finish    
+        action: gather #gather will wait for the soak test to finish  
+{{end}}  
 {{if $CLIENT_METRICS_GATHERING}}
   - module:
       path: /modules/network-policy-client-metrics.yaml
