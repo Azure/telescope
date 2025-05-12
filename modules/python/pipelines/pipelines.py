@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 def get_headers(pat):
     return {
         "Content-Type": "application/json",
-        "Authorization": f"Basic {pat}",
+        "Authorization": f"Bearer {pat}",
     }
 
 def get_pipeline_definition(org, project, pipeline_id, headers):
