@@ -345,3 +345,33 @@ steps:
           query: histogram_quantile(0.95, sum(rate(hubble_metrics_http_handler_request_duration_seconds_bucket[%v:])) by (le))
         - name: 50percentile
           query: histogram_quantile(0.50, sum(rate(hubble_metrics_http_handler_request_duration_seconds_bucket[%v:])) by (le))
+    - Identifier: CiliumEndpoints
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoints
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: max_over_time(apiserver_storage_objects{resource="ciliumendpoints.cilium.io"}[%v])
+    - Identifier: CiliumEndpointSlices
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Slices
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: max_over_time(apiserver_storage_objects{resource="ciliumendpointslices.cilium.io"}[%v])
+    - Identifier: CiliumIdentities
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Identities
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: max_over_time(apiserver_storage_objects{resource="ciliumidentities.cilium.io"}[%v])
