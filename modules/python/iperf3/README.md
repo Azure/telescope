@@ -1,5 +1,46 @@
 # Running iperf3 locally
 
+## Configure MTU (optional)
+
+From root folder, run the following commands to update MTU value in Azure v6 machine type and configure ENA Express for AWS m7i machine type:
+
+```bash
+CLOUD=azure # or aws
+CLUSTER_CLI_CONTEXT=pod-diff-node
+CLUSTER_SRV_CONTEXT=pod-diff-node
+KUSTOMIZE_DIR=$(pwd)/modules/kustomize/mtu
+pushd $KUSTOMIZE_DIR
+kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+popd
+
+pushd modules/python
+PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod_count 1 --label_selector "app=mtu-config"
+popd
+```
+
+## Configure iperf3
+
+From root folder, run the following command to deploy iperf3:
+
+```bash
+HOST_NETWORK=false # or true
+CLUSTER_CLI_CONTEXT=pod-diff-node
+CLUSTER_SRV_CONTEXT=pod-diff-node
+KUSTOMIZE_DIR=$(pwd)/modules/kustomize/iperf3
+KUSTOMIZE_DIR=$(pwd)/iperf3
+pushd $KUSTOMIZE_DIR
+kustomize build ${KUSTOMIZE_DIR}/overlays/client-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+popd
+
+pushd modules/python
+PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod_count 1
+popd
+```
+
 ## Validation
 
 From root folder, run:
