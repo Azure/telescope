@@ -27,12 +27,6 @@ namespace:
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
 
-# {{if $NETPOL_ENFORCEMENT_LATENCY}}
-# tuningSets:
-# - name: Uniform1qps
-#   qpsLoad:
-#     qps: 1
-# {{end}}
 steps:
 # 1. If cilium enabled
 #    * start cilium agent metrics 
