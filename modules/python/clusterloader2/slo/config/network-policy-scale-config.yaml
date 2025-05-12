@@ -61,26 +61,6 @@ steps:
 {{end}}
 {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
 # 3. start policy enforcement latency metrics
-- name: "starting policy enforcement metrics"
-  measurements:
-  - Identifier: PolicyEnforcementLatencyMetrics
-    Method: GenericPrometheusQuery
-    Params:
-      action: start
-      metricName: "Network Policy Enforcement Latency"
-      metricVersion: v1
-      unit: s
-      queries:
-        - name: PolicyCreation - TargetCount
-          query: sum(policy_enforcement_latency_policy_creation_seconds_count)
-        - name: PolicyCreation - Perc50
-          query: histogram_quantile(0.5, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
-        - name: PolicyCreation - Perc90
-          query: histogram_quantile(0.9, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
-        - name: PolicyCreation - Perc95
-          query: histogram_quantile(0.95, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
-        - name: PolicyCreation - Perc99
-          query: histogram_quantile(0.99, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
 {{end}}
 {{if $SOAK_TEST}}
   {{range $i := Loop $repeats}}
