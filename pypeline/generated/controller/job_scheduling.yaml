@@ -341,18 +341,5 @@ stages:
         rm -f "$SSH_PUBLIC_KEY_PATH"
 
         echo "SSH keys deleted successfully."
-    - displayName: Uninstall Python Dependencies
-      script: |-
-        set -e
-
-        echo "Uninstalling Python dependencies listed in requirements.txt..."
-        xargs -a "$(Pipeline.Workspace)/s/modules/python/requirements.txt" -n 1 pip3 uninstall -y
-    - displayName: Delete Python Cache
-      script: |-
-        set -e
-
-        echo "Deleting Python cache..."
-        rm -rf "$(Pipeline.Workspace)/s/modules/python/__pycache__"
-        echo "Python environment cleanup completed."
     dependsOn:
     - run
