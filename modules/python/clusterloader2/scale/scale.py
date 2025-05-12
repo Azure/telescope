@@ -44,21 +44,8 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
     return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
 def configure_clusterloader2(
-    cpu_per_node,
-    node_count,
-    node_per_step,
-    max_pods,
-    repeats,
     operation_timeout,
-    provider,
     cilium_enabled,
-    scrape_containerd,
-    service_test,
-    cnp_test,
-    ccnp_test,
-    num_cnps,
-    num_ccnps,
-    dualstack,
     fortio_servers_per_deployment,
     fortio_clients_per_deployment,
     fortio_client_queries_per_second,
@@ -69,19 +56,7 @@ def configure_clusterloader2(
     generate_retina_network_flow_logs,
     override_file):
 
-    # steps = node_count // node_per_step
-    # throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
-
     with open(override_file, 'w', encoding='utf-8') as file:
-        # file.write(f"CL2_NODES: {node_count}\n")
-        # file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
-        # file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
-        # file.write(f"CL2_NODES_PER_STEP: {node_per_step}\n")
-        # file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
-        # file.write(f"CL2_DEPLOYMENT_SIZE: {pods_per_node}\n")
-        # file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
-        # file.write(f"CL2_REPEATS: {repeats}\n")
-        # file.write(f"CL2_STEPS: {steps}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
@@ -104,32 +79,11 @@ def configure_clusterloader2(
         file.write(f"CL2_NETWORK_POLICIES_PER_NAMESPACE: {network_policies_per_namespace}\n")
         file.write(f"CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS: {generate_retina_network_flow_logs}\n")
 
-        # if scrape_containerd:
-        #     file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
-        #     file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
-        #
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
-
-        # if service_test:
-        #     file.write("CL2_SERVICE_TEST: true\n")
-        # else:
-        #     file.write("CL2_SERVICE_TEST: false\n")
-        #
-        # if cnp_test:
-        #     file.write("CL2_CNP_TEST: true\n")
-        #     file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
-        #     file.write(f"CL2_DUALSTACK: {dualstack}\n")
-        #     file.write("CL2_GROUP_NAME: cnp-ccnp\n")
-        #
-        # if ccnp_test:
-        #     file.write("CL2_CCNP_TEST: true\n")
-        #     file.write(f"CL2_CCNPS: {num_ccnps}\n")
-        #     file.write(f"CL2_DUALSTACK: {dualstack}\n")
-        #     file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
     with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -165,17 +119,10 @@ def execute_clusterloader2(
                     scrape_containerd=scrape_containerd, tear_down_prometheus=False, scrape_kubelets=True, scrape_ksm=True, scrape_metrics_server=True)
 
 def collect_clusterloader2(
-    cpu_per_node,
-    node_count,
-    max_pods,
-    repeats,
     cl2_report_dir,
     cloud_info,
     run_id,
     run_url,
-    service_test,
-    cnp_test,
-    ccnp_test,
     result_file,
     test_type,
     start_timestamp,
@@ -194,23 +141,15 @@ def collect_clusterloader2(
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
-    provider = json.loads(cloud_info)["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    # _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
-    # pod_count = node_count * pods_per_node
-
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        # "cpu_per_node": cpu_per_node,
-        # "node_count": node_count,
-        # "pod_count": pod_count,
-        # "churn_rate": repeats,
         "status": status,
         "group": None,
         "measurement": None,
@@ -367,10 +306,8 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                                 args.repeats, args.operation_timeout, args.provider,
-                                 args.cilium_enabled, args.scrape_containerd,
-                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack,
+        configure_clusterloader2(args.operation_timeout,
+                                 args.cilium_enabled,
                                  args.fortio_servers_per_deployment,
                                  args.fortio_clients_per_deployment,
                                  args.fortio_client_queries_per_second,
@@ -386,9 +323,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test,
+        collect_clusterloader2(args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp,
                                args.observability_tool,
                                args.repository,

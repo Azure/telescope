@@ -29,16 +29,16 @@ steps:
     displayName: set up timestamp variable
 
   - ${{ if parameters.install }}:
-    - script: |
-        git clone http://github.com/microsoft/retina.git --depth 1 retina
-        cd retina
-        git checkout ${{ parameters.ref }}
-      displayName: Clone Retina OSS Repo
+      - script: |
+          git clone http://github.com/microsoft/retina.git --depth 1 retina
+          cd retina
+          git checkout ${{ parameters.ref }}
+        displayName: Clone Retina OSS Repo
 
-    - script: |
-        cd retina
-        make ${{ parameters.makeargs }}
-      displayName: Install Retina
+      - script: |
+          cd retina
+          make ${{ parameters.makeargs }}
+        displayName: Install Retina
 
   - script: |
       set -eo pipefail
@@ -88,9 +88,8 @@ steps:
     displayName: "Run Benchmark"
 
   - ${{ if parameters.install }}:
-    - script: |
-        cd retina
-        make helm-uninstall
-      condition: always()
-      displayName: Uninstall Helm Chart
-
+      - script: |
+          cd retina
+          make helm-uninstall
+        condition: always()
+        displayName: Uninstall Helm Chart

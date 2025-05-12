@@ -37,23 +37,23 @@ aks_cli_config_list = [
         value = ""
       },
       {
-        name = "network-dataplane"
+        name  = "network-dataplane"
         value = "cilium"
       }
     ]
 
     default_node_pool = {
-      name       = "default"
-      node_count = 5
+      name                 = "default"
+      node_count           = 5
       auto_scaling_enabled = false
-      vm_size    = "Standard_D4_v3"
+      vm_size              = "Standard_D4_v3"
     }
     extra_node_pool = [
       {
-        name       = "prompool"
-        node_count = 1
+        name                 = "prompool"
+        node_count           = 1
         auto_scaling_enabled = false
-        vm_size    = "Standard_D64_v3"
+        vm_size              = "Standard_D64_v3"
         optional_parameters = [
           {
             name  = "labels"
@@ -62,11 +62,11 @@ aks_cli_config_list = [
         ]
       },
       {
-        name       = "traffic"
-        node_count = 5
+        name                 = "traffic"
+        node_count           = 5
         auto_scaling_enabled = false
-        max_pods   = 250
-        vm_size    = "Standard_D4_v3"
+        max_pods             = 250
+        vm_size              = "Standard_D4_v3"
         optional_parameters = [
           {
             name  = "labels"

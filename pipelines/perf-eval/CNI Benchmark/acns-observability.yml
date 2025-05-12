@@ -71,42 +71,42 @@ parameters:
   type: number
   default: 1500
 - name: generate_retina_network_flow_logs
-  displayName: Add Test Run with Retina Network Flow Logs 
+  displayName: Add Test Run with Retina Network Flow Logs
   type: boolean
   default: false
 
 stages:
-  - stage: ACNS_Infra_Test
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - eastus2euap
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250507"
-            repository: ${{ variables.REPOSITORY }}
-            makeargs: ${{ variables.MAKEARGS }}
-            ref: ${{ parameters.ref }}
-            install: ${{ variables.INSTALL }}
-          topology: observability
-          matrix:
-            acns:
-              traffic_deployment_count: ${{ parameters.traffic_deployment_count }}
-              traffic_replica_count: ${{ parameters.traffic_replica_count }}
-              network_policies_per_namespace: ${{ parameters.network_policies_per_namespace }}
-              cl2_config_file: config.yaml
-              # fortio parameters
-              fortio_servers_per_deployment: ${{ parameters.traffic_replica_count }}
-              fortio_clients_per_deployment: ${{ parameters.traffic_replica_count }}
-              fortio_client_queries_per_second: ${{ parameters.fortio_client_requests_per_second }}
-              fortio_client_connections: ${{ parameters.fortio_client_requests_per_second }}
-              fortio_namespaces: 1
-              fortio_deployments_per_namespace: ${{ parameters.traffic_deployment_count }}
-              generate_retina_network_flow_logs: ${{ parameters.generate_retina_network_flow_logs }}
-          max_parallel: 1
-          timeout_in_minutes: 720
-          credential_type: service_connection
-          ssh_key_enabled: false
+- stage: ACNS_Infra_Test
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2euap
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250507"
+        repository: ${{ variables.REPOSITORY }}
+        makeargs: ${{ variables.MAKEARGS }}
+        ref: ${{ parameters.ref }}
+        install: ${{ variables.INSTALL }}
+      topology: observability
+      matrix:
+        acns:
+          traffic_deployment_count: ${{ parameters.traffic_deployment_count }}
+          traffic_replica_count: ${{ parameters.traffic_replica_count }}
+          network_policies_per_namespace: ${{ parameters.network_policies_per_namespace }}
+          cl2_config_file: config.yaml
+          # fortio parameters
+          fortio_servers_per_deployment: ${{ parameters.traffic_replica_count }}
+          fortio_clients_per_deployment: ${{ parameters.traffic_replica_count }}
+          fortio_client_queries_per_second: ${{ parameters.fortio_client_requests_per_second }}
+          fortio_client_connections: ${{ parameters.fortio_client_requests_per_second }}
+          fortio_namespaces: 1
+          fortio_deployments_per_namespace: ${{ parameters.traffic_deployment_count }}
+          generate_retina_network_flow_logs: ${{ parameters.generate_retina_network_flow_logs }}
+      max_parallel: 1
+      timeout_in_minutes: 720
+      credential_type: service_connection
+      ssh_key_enabled: false
