@@ -66,7 +66,7 @@ def configure_clusterloader2(
         file.write(f"CL2_WORKERS_PER_CLIENT: {workers_per_client}\n")
         file.write(f"CL2_NUMBER_OF_GROUPS: {number_of_groups}\n")
         file.write(f"CL2_NETWORK_POLICY_TYPE: {netpol_type}\n")
-        file.write("CL2_CLIENT_METRICS_GATHERING: true\n")
+        file.write("CL2_CLIENT_METRICS_GATHERING: false\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
 
         # Disable non related tests in measurements.yaml
