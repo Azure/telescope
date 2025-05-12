@@ -3,6 +3,11 @@ from unittest.mock import patch, MagicMock, call
 from pipelines.pipelines import get_headers, get_pipeline_definition, get_scheduled_pipelines, disable_pipeline, main
 
 class TestPipelines(unittest.TestCase):
+    def setUp(self):
+        self.org = "org"
+        self.project = "project"
+        self.pat = "pat"
+        self.headers = {"Authorization": "Basic pat"}
 
     def test_get_headers(self):
         headers = get_headers("pat")
@@ -74,10 +79,6 @@ class TestPipelines(unittest.TestCase):
             ]
 
         mock_get_headers.return_value = {"Authorization": "Basic pat"}
-        self.org = "org"
-        self.project = "project"
-        self.pat = "pat"
-        self.headers = {"Authorization": "Basic pat"}
 
         args = ["--org", self.org, "--project", self.project, "--pat", self.pat, "--exclude-pipelines", "20"]
         with patch("sys.argv", ["main.py"] + args):
@@ -91,7 +92,7 @@ class TestPipelines(unittest.TestCase):
             call("Pipeline:'\\MyPipelines P1' \n Scheduled Branch: refs/heads/feature-xyz \n Pipeline ID: 10 \n Build Url: http://example.com"),
             call("Pipeline '\\MyPipelines P2' is excluded from disabling."),
         ], any_order=False)
-        
+
         mock_logger.info.assert_has_calls([
             call("Excluded pipeline IDs: [20]")
         ], any_order=False)
@@ -103,7 +104,7 @@ class TestPipelines(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 main()
             mock_logger.error.assert_called_once_with("Failed: Api error")
-        
+
 
         # Test when the disable pipeline throws an exception
         mock_logger.reset_mock()
