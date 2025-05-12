@@ -270,8 +270,8 @@ class Terraform(Resource):
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
             create_resource_group(self.regions[0], self.cloud.provider.value),
-            self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.VERSION),
+            self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),
         ]
 
