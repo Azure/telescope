@@ -32,25 +32,23 @@ install_dependencies = Script(
 
 
 def validate_dependencies() -> Script:
-    return (
-        Script(
-            display_name="Validate Installed Dependencies",
-            script=dedent(
-                """
-                set -e
+    return Script(
+        display_name="Validate Installed Dependencies",
+        script=dedent(
+            """
+            set -e
 
-                # Check if requirements.txt exists
-                echo "Validating installed dependencies..."
-                missing_dependencies=$(pip3 check 2>&1 | grep -i "not found" || true)
-                if [ -n "$missing_dependencies" ]; then
-                    echo "Error: Missing dependencies:"
-                    echo "$missing_dependencies"
-                    exit 1
-                fi
-                echo "All dependencies are installed."
-                """
-            ).strip(),
-        ),
+            # Check if requirements.txt exists
+            echo "Validating installed dependencies..."
+            missing_dependencies=$(pip3 check 2>&1 | grep -i "not found" || true)
+            if [ -n "$missing_dependencies" ]; then
+                echo "Error: Missing dependencies:"
+                echo "$missing_dependencies"
+                exit 1
+            fi
+            echo "All dependencies are installed."
+            """
+        ).strip(),
     )
 
 
