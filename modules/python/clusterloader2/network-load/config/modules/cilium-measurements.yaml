@@ -154,7 +154,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_bpf_maps_virtual_memory_max_bytes 
-          query: quantile(0.99,(max_over_time(cilium_bpf_maps_virtual_memory_max_bytes{}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_maps_virtual_memory_max_bytes{}[%v:])))
     - Identifier: Cilium Datapath Conntrack GC Entries
       Method: GenericPrometheusQuery
       Params:
@@ -165,13 +165,13 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_datapath_conntrack_gc_entries_v4_tcp_alive
-          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="TCP",status="alive"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="TCP",status="alive"}[%v:])))
         - name: cilium_datapath_conntrack_gc_entries_v4_tcp_deleted
-          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="TCP",status="deleted"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="TCP",status="deleted"}[%v:])))
         - name: cilium_datapath_conntrack_gc_entries_v4_nontcp_alive
-          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="non-TCP",status="alive"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="non-TCP",status="alive"}[%v:])))
         - name: cilium_datapath_conntrack_gc_entries_v4_nontcp_deleted
-          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="non-TCP",status="deleted"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_datapath_conntrack_gc_entries{family="ipv4",protocol="non-TCP",status="deleted"}[%v:])))
     - Identifier: CiliumControllersFailing
       Method: GenericPrometheusQuery
       Params:
@@ -182,7 +182,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_controllers_failing
-          query: quantile(0.99,(max_over_time(cilium_controllers_failing{}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_controllers_failing{}[%v:])))
     - Identifier: CiliumProxyDatapathUpdateTimeout
       Method: GenericPrometheusQuery
       Params:
@@ -193,7 +193,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_proxy_datapath_update_timeout_total
-          query: quantile(0.99,(max_over_time(cilium_proxy_datapath_update_timeout_total{}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_proxy_datapath_update_timeout_total{}[%v:])))
     - Identifier: CiliumProxyRedirects
       Method: GenericPrometheusQuery
       Params:
@@ -204,7 +204,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_proxy_redirects_dns
-          query: quantile(0.99,(max_over_time(cilium_proxy_redirects{protocol_l7="dns"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_proxy_redirects{protocol_l7="dns"}[%v:])))
     - Identifier: CiliumErrorsWarningsTotal
       Method: GenericPrometheusQuery
       Params:
@@ -215,19 +215,19 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_errors_total_fqdn_server
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="error",subsystem="fqdn/server"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="error",subsystem="fqdn/server"}[%v:])))
         - name: cilium_errors_total_init
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="error",subsystem="init"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="error",subsystem="init"}[%v:])))
         - name: cilium_warning_total_fqdn_server
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/server"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/server"}[%v:])))
         - name: cilium_warning_total_fqdn_dnsproxy
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/dnsproxy"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="fqdn/dnsproxy"}[%v:])))
         - name: cilium_warning_total_hubble
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="hubble"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="hubble"}[%v:])))
         - name: cilium_warning_total_init
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="init"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="init"}[%v:])))
         - name: cilium_warning_total_klog
-          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="klog"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_errors_warnings_total{level="warning",subsystem="klog"}[%v:])))
     - Identifier: CiliumUnreachableHealthEndpoints
       Method: GenericPrometheusQuery
       Params:
@@ -238,7 +238,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_unreachable_health_endpoints
-          query: quantile(0.99,(max_over_time(cilium_unreachable_health_endpoints{}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_unreachable_health_endpoints{}[%v:])))
     - Identifier: CiliumUnreachableNodes
       Method: GenericPrometheusQuery
       Params:
@@ -249,7 +249,7 @@ steps:
         enableViolations: true
         queries:
         - name: cilium_unreachable_nodes
-          query:  quantile(0.99,(max_over_time(cilium_unreachable_nodes{}[%v:]))
+          query:  quantile(0.99,(max_over_time(cilium_unreachable_nodes{}[%v:])))
     - Identifier: CiliumNodesAll
       Method: GenericPrometheusQuery
       Params:
@@ -300,15 +300,15 @@ steps:
         unit: count
         queries:
         - name: Drop
-          query: quantile(0.99, max_over_time(hubble_drop_total)
+          query: quantile(0.99, max_over_time(hubble_drop_total))
         - name: TCPFlags
-          query: quantile(0.99, max_over_time(hubble_tcp_flags_total)
+          query: quantile(0.99, max_over_time(hubble_tcp_flags_total))
         - name: FlowsProcessed
-          query: quantile(0.99, max_over_time(hubble_flows_processed_total)
+          query: quantile(0.99, max_over_time(hubble_flows_processed_total))
         - name: DNSQueries
-          query: quantile(0.99, max_over_time(hubble_dns_queries_total)
+          query: quantile(0.99, max_over_time(hubble_dns_queries_total))
         - name: DNSResponses
-          query: quantile(0.99, max_over_time(hubble_dns_responses_total)
+          query: quantile(0.99, max_over_time(hubble_dns_responses_total))
     - Identifier: HubbleFlowsProcessedTotal
       Method: GenericPrometheusQuery
       Params:
