@@ -15,8 +15,8 @@ steps:
       popd
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-        --pod-count 1 \
-        --label-selector mtu-config-daemonset
+        --pod_count 1 \
+        --label_selector "app=mtu-config"
     workingDirectory: modules/python
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu

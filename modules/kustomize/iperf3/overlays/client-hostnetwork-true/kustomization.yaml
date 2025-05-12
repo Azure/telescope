@@ -6,23 +6,23 @@ resources:
   - ../../base
 
 patches:
-  - target:
+  - patch: |-
+      - op: add
+        path: /spec/template/spec/hostNetwork
+        value: true
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          app: client
+      - op: add
+        path: /spec/template/spec/containers/0/name
+        value: iperf3-client
+      - op: add
+        path: /spec/template/spec/containers/0/args
+        value: ["-c", "ldconfig; sleep infinity"]
+    target:
       kind: Deployment
       name: iperf3-deployment
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: iperf3-deployment
-      spec:
-        template:
-          spec:
-            hostNetwork: true
-            nodeSelector:
-              app: client
-            containers:
-              - name: iperf3-client
-                args: ["-c", "ldconfig; sleep infinity"]
 labels:
   - includeSelectors: true
     pairs:

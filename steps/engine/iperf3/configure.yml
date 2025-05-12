@@ -12,7 +12,7 @@ steps:
       kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
       popd
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod-count 1
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --pod_count 1
     workingDirectory: modules/python
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/iperf3

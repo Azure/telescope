@@ -6,25 +6,28 @@ resources:
   - ../../base
 
 patches:
-  - target:
+  - patch: |-
+      - op: add
+        path: /spec/template/spec/hostNetwork
+        value: false
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          app: server
+      - op: add
+        path: /spec/template/spec/containers/0/name
+        value: iperf3-server
+      - op: add
+        path: /spec/template/spec/containers/0/args
+        value: ["-c", "ldconfig; iperf3 -s -p 20003"]
+      - op: add
+        path: /spec/template/spec/containers/0/ports
+        value:
+        - containerPort: 20003
+    target:
       kind: Deployment
       name: iperf3-deployment
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: iperf3-deployment
-      spec:
-        template:
-          spec:
-            hostNetwork: false
-            nodeSelector:
-              app: server-
-            containers:
-              - name: iperf3-server
-                args: ["-c", "ldconfig; iperf3 -s -p 20003"]
-                ports:
-                  - containerPort: 20003
+
 labels:
   - includeSelectors: true
     pairs:

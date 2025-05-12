@@ -148,11 +148,17 @@ class PodRoleCommand:
 
     def configure(self, pod_count: int = 1, label_selector: str = ""):
         self.k8s_client.set_context(self.cluster_cli_context)
+        logger.info(
+            f"Waiting for {pod_count} client pods to be ready with label: {label_selector or self.client_label_selector}"
+        )
         self.k8s_client.wait_for_pods_ready(
             pod_count=pod_count,
             operation_timeout_in_minutes=5,
             label_selector=label_selector or self.client_label_selector,
             namespace=self.namespace,
+        )
+        logger.info(
+            f"Waiting for {pod_count} client pods to be ready with label: {label_selector or self.client_label_selector}"
         )
         self.k8s_client.set_context(self.cluster_srv_context)
         self.k8s_client.wait_for_pods_ready(

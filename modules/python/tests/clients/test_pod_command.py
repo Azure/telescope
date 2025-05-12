@@ -266,7 +266,7 @@ class TestPodRoleCommand(unittest.TestCase):
         # Test with custom pod count and label selector
         custom_pod_count = 2
         custom_label = "app=custom"
-        
+
         self.pod_cmd.configure(pod_count=custom_pod_count, label_selector=custom_label)
 
         context_calls = [

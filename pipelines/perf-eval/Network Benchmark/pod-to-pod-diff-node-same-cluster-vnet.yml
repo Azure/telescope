@@ -28,9 +28,9 @@ parameters:
   - name: network_dataplanes
     type: object
     default: [azure, cilium]
-  - name: host_network
+  - name: host_networks
     type: object
-    default: [true, false]
+    default: ["true", "false"]
 
 stages:
   - stage: azure_eastus2_new_sku
@@ -54,11 +54,12 @@ stages:
               - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.azure_machine_types_new_sku }}:
-              ${{ each network in parameters.host_network }}:
+              ${{ each network in parameters.host_networks }}:
                 ${{ each dataplane in parameters.network_dataplanes }}:
                   ${{ machine_type }}_${{ dataplane }}_${{ network }}_network:
                     k8s_machine_type: ${{ machine_type }}
                     network_dataplane: ${{ dataplane }}
+                    host_network: ${{ network }}
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -88,9 +89,10 @@ stages:
               - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types_new_sku }}:
-              ${{ each network in parameters.pod_networks }}:
+              ${{ each network in parameters.host_networks }}:
                 ${{ machine_type }}_${{ network }}_network:
                   k8s_machine_type: ${{ machine_type }}
+                  host_network: ${{ network }}
                   ena_express: "true"
           max_parallel: 1
           timeout_in_minutes: 120
