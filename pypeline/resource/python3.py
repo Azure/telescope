@@ -31,6 +31,27 @@ install_dependencies = Script(
 )
 
 
+def validate_dependencies() -> Script:
+    return Script(
+        display_name="Validate Installed Dependencies",
+        script=dedent(
+            """
+            set -e
+
+            # Check if requirements.txt exists
+            echo "Validating installed dependencies..."
+            missing_dependencies=$(pip3 check 2>&1 | grep -i "not found" || true)
+            if [ -n "$missing_dependencies" ]; then
+                echo "Error: Missing dependencies:"
+                echo "$missing_dependencies"
+                exit 1
+            fi
+            echo "All dependencies are installed."
+            """
+        ).strip(),
+    )
+
+
 class Python3(Resource):
     def setup(self) -> list[Step]:
         return [
@@ -39,7 +60,7 @@ class Python3(Resource):
         ]
 
     def validate(self) -> list[Step]:
-        return []
+        return [validate_dependencies()]
 
     def tear_down(self) -> list[Step]:
         return []
