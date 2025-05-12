@@ -27,12 +27,12 @@ namespace:
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
 
-{{if $NETPOL_ENFORCEMENT_LATENCY}}
-tuningSets:
-- name: Uniform1qps
-  qpsLoad:
-    qps: 1
-{{end}}
+# {{if $NETPOL_ENFORCEMENT_LATENCY}}
+# tuningSets:
+# - name: Uniform1qps
+#   qpsLoad:
+#     qps: 1
+# {{end}}
 steps:
 # 1. If cilium enabled
 #    * start cilium agent metrics 
@@ -68,8 +68,7 @@ steps:
         action: start
 {{end}}
 
-
-{{if $SOAK_TEST}}
+  {{if $SOAK_TEST}}
   {{range $i := Loop $repeats}}
   # start network performance measurement
   - name: Network Policy Soak Test - Start
@@ -117,7 +116,7 @@ steps:
   #     Params:
   #       duration: 2m
   {{end}}
-{{end}}
+  {{end}}
 
 {{if and $CLIENT_METRICS_GATHERING (eq $NETPOL_ENFORCEMENT_LATENCY false)}}
         clientMetricsGatheringEnabled: true
