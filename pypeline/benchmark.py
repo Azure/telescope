@@ -5,7 +5,7 @@ from enum import Enum
 
 import yaml
 
-from pipeline import Job, Pipeline, Stage, Step, customize_yaml
+from pipeline import Job, Pipeline, Script, Stage, Step, customize_yaml
 
 
 class CloudProvider(Enum):
@@ -46,6 +46,10 @@ class Cloud(ABC):
 
     @abstractmethod
     def generate_input_variables(self, region: str, input_variables: dict) -> dict:
+        pass
+
+    @abstractmethod
+    def create_resource_group(self, region: str) -> Script:
         pass
 
 
