@@ -1,8 +1,49 @@
 # Running iperf3 locally
 
+## Provision cluster
+
+Follow one of the below guides to provision resources in corresponding cloud
+- [Guide](../../terraform/azure/README.md) for Azure resources
+- [Guide](../../terraform/aws/README.md) for AWS resources
+
+Variables specific to this test:
+
+```bash
+SCENARIO_TYPE=perf-eval
+SCENARIO_NAME=pod-diff-node-vnet
+RUN_ID=$(date +%s)
+OWNER=$(whoami)
+
+# For Azure only 
+CLOUD=azure
+REGION=eastus2
+K8S_MACHINE_TYPE=Standard_D48s_v6
+NETWORK_DATAPLANE=azure # or cilium
+
+# For AWS only
+CLOUD=azure
+REGION=us-east-2
+K8S_MACHINE_TYPE=m7i.12xlarge
+ENA_EXPRESS=true
+```
+
+### Download credentials to access cluster
+
+- For AKS:
+
+```bash
+az aks get-credentials -n pod-diff-node -g $RUN_ID --context pod-diff-node
+```
+
+- For EKS:
+
+```bash
+aws eks update-kubeconfig --name "pod-diff-node-${RUN_ID}" --region $REGION --alias pod-diff-node
+```
+
 ## Configure MTU (optional)
 
-From root folder, run the following commands to update MTU value in Azure v6 machine type and configure ENA Express for AWS m7i machine type:
+- From root folder, run the following commands to update MTU value in Azure v6 machine type and configure ENA Express for AWS m7i machine type:
 
 ```bash
 CLOUD=azure # or aws
@@ -16,7 +57,10 @@ popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --label_selector "app=mtu-config"
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+    --label_selector "app=mtu-config" \
+    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
+    --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
 popd
 ```
 
@@ -37,11 +81,13 @@ popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
+    --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
 popd
 ```
 
-## Validation
+## Validate
 
 From root folder, run:
 

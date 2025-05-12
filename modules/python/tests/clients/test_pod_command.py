@@ -5,7 +5,7 @@ from clients.pod_command import PodRoleCommand
 
 class TestPodRoleCommand(unittest.TestCase):
     @patch('kubernetes.config.load_kube_config')
-    def setUp(self, _mock_load_kube_config):  # pylint: disable=arguments-differ
+    def setUp(self, _mock_load_kube_config): # pylint: disable=arguments-differ
         self.namespace = "test-namespace"
 
         self.pod_cmd = PodRoleCommand(
