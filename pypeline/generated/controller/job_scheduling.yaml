@@ -108,45 +108,6 @@ stages:
         az group create --name $RUN_ID --location eastus2             --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
       condition: and(eq('azure', 'azure'), ne(variables['SKIP_RESOURCE_MANAGEMENT'],
         'true'))
-    - displayName: Run Terraform Version Command
-      script: |-
-        set -e
-
-        # Navigate to the Terraform working directory
-        cd $TERRAFORM_WORKING_DIRECTORY
-
-        for region in $(echo "['eastus2']" | jq -r '.[]'); do
-            echo "Processing region: $region"
-
-            if terraform workspace list | grep -q "$region"; then
-                terraform workspace select $region
-            else:
-                terraform workspace new $region
-                terraform workspace select $region
-            fi
-
-            # Retrieve input file and variables
-            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
-
-            # Run Terraform version command
-            set +e
-            terraform version --auto-approve  -var-file $terraform_input_file -var json_input="$terraform_input_variables"
-            exit_code=$?
-            set -e
-
-            # Handle errors
-            if [[ $exit_code -ne 0 ]]; then
-                echo "Terraform version failed for region: $region"
-
-                exit 1
-            fi
-
-        done
-      env:
-        ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
-      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-      retryCountOnTaskFailure: 3
     - displayName: Run Terraform Init Command
       script: |-
         set -e
@@ -177,6 +138,45 @@ stages:
             # Handle errors
             if [[ $exit_code -ne 0 ]]; then
                 echo "Terraform init failed for region: $region"
+
+                exit 1
+            fi
+
+        done
+      env:
+        ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+      retryCountOnTaskFailure: 3
+    - displayName: Run Terraform Version Command
+      script: |-
+        set -e
+
+        # Navigate to the Terraform working directory
+        cd $TERRAFORM_WORKING_DIRECTORY
+
+        for region in $(echo "['eastus2']" | jq -r '.[]'); do
+            echo "Processing region: $region"
+
+            if terraform workspace list | grep -q "$region"; then
+                terraform workspace select $region
+            else:
+                terraform workspace new $region
+                terraform workspace select $region
+            fi
+
+            # Retrieve input file and variables
+            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+
+            # Run Terraform version command
+            set +e
+            terraform version --auto-approve  -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            exit_code=$?
+            set -e
+
+            # Handle errors
+            if [[ $exit_code -ne 0 ]]; then
+                echo "Terraform version failed for region: $region"
 
                 exit 1
             fi
