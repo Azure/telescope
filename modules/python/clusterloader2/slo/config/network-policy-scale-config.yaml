@@ -201,6 +201,7 @@ steps:
         targetPort2: {{$TARGET_PORT2}}
         l7Enabled: {{$NET_POLICY_L7_ENABLED}}
         cnpTestL3L4: {{$L3_L4_PORT}}
+        resourceGatheringEnabled: false
         targetPath: /
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
@@ -211,12 +212,6 @@ steps:
       Method: NetworkPolicySoakMeasurement
       Params:
         action: restart
-  - name: Network Policy Soak Test - Delete CNPS
-    measurements:
-    - Identifier: NetworkPolicySoakMeasurement
-      Method: NetworkPolicySoakMeasurement
-      Params:
-        action: delete-ccnps-cnps
   - name: Network Policy Soak Test - Delete Pods
     measurements:
     - Identifier: NetworkPolicySoakMeasurement
@@ -228,7 +223,13 @@ steps:
     - Identifier: Sleep
       Method: Sleep
       Params:
-        duration: 2m
+        duration: 5m
+  - name: Network Policy Soak Test - Delete CNPS
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-ccnps-cnps
   {{end}}
   {{end}}
 
