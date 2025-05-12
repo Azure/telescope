@@ -16,9 +16,9 @@ def configure_clusterloader2(
     cilium_envoy_enabled,
     l7_enabled,
     repeats,
-    override_file,
     netpol_latency_test,
     netpol_soak_test,
+    override_file,
 ):
     # Ensure the directory for override_file exists
     override_dir = os.path.dirname(override_file)
@@ -242,12 +242,6 @@ def main():
         "--repeats", type=int, required=True, help="number of repeats"
     )
     parser_configure.add_argument(
-        "--cl2_override_file",
-        type=str,
-        required=True,
-        help="Path to the overrides of CL2 config file",
-    )
-    parser_configure.add_argument(
         "--netpol_latency_test",
         type=str2bool,
         choices=[True, False],
@@ -260,6 +254,12 @@ def main():
         choices=[True, False],
         default=False,
         help="Whether netpol soak test is enabled. Must be either True or False",
+    )
+    parser_configure.add_argument(
+        "--cl2_override_file",
+        type=str,
+        required=True,
+        help="Path to the overrides of CL2 config file",
     )
 
 
@@ -324,9 +324,9 @@ def main():
             args.cilium_envoy_enabled,
             args.l7_enabled,
             args.repeats,
-            args.cl2_override_file,
             args.netpol_latency_test,
             args.netpol_soak_test,
+            args.cl2_override_file,
         )
     elif args.command == "execute":
         execute_clusterloader2(
