@@ -1,8 +1,12 @@
 trigger: none
 
-variables:
-  ORG_URL: https://dev.azure.com/msazure
-  PROJECT: CloudNativeCompute
+schedules:
+  - cron: "0 */2 * * *"
+    displayName: "Every 2 hours"
+    branches:
+      include:
+        - main
+    always: true
 
 jobs:
   - job: pipeline_checker
@@ -11,20 +15,21 @@ jobs:
       - script: |
           set -eu
 
-          az login --identity --username $AZURE_MI_ID
+          az login --identity --client-id $AZURE_MI_ID --allow-no-subscriptions
           token=$(az account get-access-token --query "accessToken" -o tsv)
           echo "##vso[task.setvariable variable=DEVOPS_ACCESS_TOKEN;issecret=true]$token"
         env:
           AZURE_MI_ID: $(AZURE_MI_CLIENT_ID)
         displayName: "Get ADO token"
       - script: |
-          set -eu
-          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE --org $ORG --project $PROJECT --pat $TOKEN
+          set -eo pipefail
+          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE --org $ORG --project $PROJECT --pat $TOKEN --exclude-pipelines $EXCLUDE_PIPELINES
 
-        displayName: "Run syntax check"
-        workingDirectory: modules/python/pipeline
+        displayName: "Run Pipleine Validation"
+        workingDirectory: modules/python
         env:
-          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipeline/pipeline.py
+          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/pipelines/pipelines.py
           ORG: $(ORG_NAME)
-          PROJECT: $(PROJECT)
+          PROJECT: $(PROJECT_NAME)
           TOKEN: $(DEVOPS_ACCESS_TOKEN)
+          EXCLUDE_PIPELINES: $(EXCLUDE_PIPELINES)
