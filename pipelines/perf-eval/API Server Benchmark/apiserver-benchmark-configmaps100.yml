@@ -4,7 +4,6 @@ schedules:
     displayName: "Every Day at Noon"
     branches:
       include:
-        - main
         - xinwei/kperf-configmaps
     always: true
 variables:
