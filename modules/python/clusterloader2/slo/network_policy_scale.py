@@ -81,6 +81,7 @@ def configure_clusterloader2(
         
         if netpol_soak_test:
             file.write("CL2_SOAK_TEST: true\n")
+            file.write("CL2_CLIENT_POD_MONITOR: true\n")
 
     with open(override_file, "r", encoding="utf-8") as file:
         print(f"Content of file {override_file}:\n{file.read()}")

@@ -15,7 +15,7 @@ name: netpol-scale-test
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$Network_Policy_Type := DefaultParam .CL2_NETWORK_POLICY_TYPE "k8s"}}
 {{$NET_POLICY_L7_ENABLED := DefaultParam .CL2_NET_POLICY_L7_ENABLED false}}
-{{$L3_L4_CNP_TEST := DefaultParam .CL2_L3_L4_CNP_TEST true}}
+{{$CLIENT_POD_MONITOR := DefaultParam .CL2_CLIENT_POD_MONITOR false}}
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
 {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
