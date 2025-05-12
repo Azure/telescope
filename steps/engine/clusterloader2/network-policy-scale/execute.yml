@@ -32,8 +32,8 @@ steps:
         --provider $CLOUD \
         --cilium_enabled $CILIUM_ENABLED \
         --cilium_envoy_enabled $CILIUM_ENVOY_ENABLED \
-        --netpol_latency_test false \
-        --netpol_soak_test true \
+        --netpol_latency_test true \
+        --netpol_soak_test false \
         --l7_enabled false \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
