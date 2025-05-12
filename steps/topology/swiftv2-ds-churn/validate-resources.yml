@@ -5,10 +5,6 @@ parameters:
     type: string
   - name: regions
     type: object
-  - name: node_count
-    type: string
-  - name: node_label
-    type: string
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -19,11 +15,8 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: ${{ parameters.node_count }}
+      nodes_per_nodepool: $NODE_COUNT
       enable_autoscale: "false"
   - template: /steps/engine/clusterloader2/swiftv2/validate.yml
     parameters:
       validation_timeout_in_minutes: 10
-      desired_nodes: ${{ parameters.node_count }}
-      additional_nodes: 0
-      node_label: ${{ parameters.node_label }}

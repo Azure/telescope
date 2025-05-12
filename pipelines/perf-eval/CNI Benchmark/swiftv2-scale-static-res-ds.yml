@@ -17,23 +17,317 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-          node_count: $(NODECOUNT)
-          node_label: $(NODELABEL)
           topology: swiftv2-ds-churn
           matrix:
-            azure_swiftv2_datapath:
+            azure_swiftv2_dsburst_staticres_pods=10_nodes=10:
               cpu_per_node: 4
-              node_count: $(NODECOUNT)
-              node_per_step: 50
+              node_count: 10
+              node_per_step: 10
               max_pods: 1
-              repeats: $(LOOPS)
+              repeats: 1
               scale_timeout: "30m"
+              node_label: slo=true
               cilium_enabled: False
               scrape_containerd: False
               service_test: False
               ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
               cl2_config_file: daemonset_scale_static_res_config.yaml
-          max_parallel: 1
+            azure_swiftv2_dsburst_staticres_pods=20_nodes=20:
+              cpu_per_node: 4
+              node_count: 20
+              node_per_step: 20
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=50_nodes=50:
+              cpu_per_node: 4
+              node_count: 50
+              node_per_step: 50
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=100_nodes=100:
+              cpu_per_node: 4
+              node_count: 100
+              node_per_step: 100
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=150_nodes=150:
+              cpu_per_node: 4
+              node_count: 150
+              node_per_step: 150
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=200_nodes=200:
+              cpu_per_node: 4
+              node_count: 200
+              node_per_step: 200
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=250_nodes=250:
+              cpu_per_node: 4
+              node_count: 250
+              node_per_step: 250
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=300_nodes=300:
+              cpu_per_node: 4
+              node_count: 300
+              node_per_step: 300
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=350_nodes=350:
+              cpu_per_node: 4
+              node_count: 350
+              node_per_step: 350
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=400_nodes=400:
+              cpu_per_node: 4
+              node_count: 400
+              node_per_step: 400
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=450_nodes=450:
+              cpu_per_node: 4
+              node_count: 450
+              node_per_step: 450
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=500_nodes=500:
+              cpu_per_node: 4
+              node_count: 500
+              node_per_step: 500
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=550_nodes=550:
+              cpu_per_node: 4
+              node_count: 550
+              node_per_step: 550
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=600_nodes=600:
+              cpu_per_node: 4
+              node_count: 600
+              node_per_step: 600
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=650_nodes=650:
+              cpu_per_node: 4
+              node_count: 650
+              node_per_step: 650
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=700_nodes=700:
+              cpu_per_node: 4
+              node_count: 700
+              node_per_step: 700
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=750_nodes=750:
+              cpu_per_node: 4
+              node_count: 750
+              node_per_step: 750
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=800_nodes=800:
+              cpu_per_node: 4
+              node_count: 800
+              node_per_step: 800
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=850_nodes=850:
+              cpu_per_node: 4
+              node_count: 850
+              node_per_step: 850
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=900_nodes=900:
+              cpu_per_node: 4
+              node_count: 900
+              node_per_step: 900
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=950_nodes=950:
+              cpu_per_node: 4
+              node_count: 950
+              node_per_step: 950
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+            azure_swiftv2_dsburst_staticres_pods=1000_nodes=1000:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 1000
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: DSBurst_StaticRes_PODS=NODES&R=NODES_$(BUILD_VERSION)
+              cl2_config_file: daemonset_scale_static_res_config.yaml
+          max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false

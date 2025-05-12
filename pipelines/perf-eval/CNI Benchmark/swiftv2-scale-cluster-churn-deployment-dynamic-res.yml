@@ -5,39 +5,6 @@ variables:
   SCENARIO_NAME: swiftv2-cluster-churn-feature
   OWNER: aks
 
-# stages:
-#   - stage: azure_eastus2
-#     dependsOn: []
-#     jobs:
-#       - template: /jobs/competitive-test.yml
-#         parameters:
-#           cloud: azure
-#           regions:
-#             - $(LOCATION)
-#           engine: clusterloader2
-#           engine_input:
-#             image: "ghcr.io/azure/clusterloader2:v20250311"
-#           node_count: $(NODECOUNT)
-#           node_label: $(NODELABEL)
-#           topology: swiftv2-ds-churn
-#           matrix:
-#             azure_swiftv2:
-#               cpu_per_node: 4
-#               node_count: $(NODECOUNT)
-#               node_per_step: $(PODS_PER_STEP)
-#               max_pods: 1
-#               repeats: $(LOOPS)
-#               scale_timeout: "30m"
-#               cilium_enabled: False
-#               scrape_containerd: False
-#               service_test: False
-#               ds_test: True
-#               cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-#           max_parallel: 1
-#           timeout_in_minutes: 720
-#           credential_type: service_connection
-#           ssh_key_enabled: false
-
 stages:
   - stage: azure_eastus2
     dependsOn: []
@@ -52,7 +19,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
           matrix:
-            azure_swiftv2_gradual_staticres_pods=10_nodes=10:
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=10:
               cpu_per_node: 4
               node_count: 10
               node_per_step: 10
@@ -64,9 +31,9 @@ stages:
               node_label: slo=true
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=20:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=20:
               cpu_per_node: 4
               node_count: 20
               node_per_step: 10
@@ -78,9 +45,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)            
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=50:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)            
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=50:
               cpu_per_node: 4
               node_count: 50
               node_per_step: 10
@@ -92,9 +59,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml   
-            azure_swiftv2_gradual_staticres_pods=10_nodes=100:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml   
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=100:
               cpu_per_node: 4
               node_count: 100
               node_per_step: 10
@@ -106,9 +73,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=150:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=150:
               cpu_per_node: 4
               node_count: 150
               node_per_step: 10
@@ -120,9 +87,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=200:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=200:
               cpu_per_node: 4
               node_count: 200
               node_per_step: 10
@@ -134,9 +101,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=250:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=250:
               cpu_per_node: 4
               node_count: 250
               node_per_step: 10
@@ -148,9 +115,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=300:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=300:
               cpu_per_node: 4
               node_count: 300
               node_per_step: 10
@@ -162,9 +129,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=350:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=350:
               cpu_per_node: 4
               node_count: 350
               node_per_step: 10
@@ -176,9 +143,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=400:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=400:
               cpu_per_node: 4
               node_count: 400
               node_per_step: 10
@@ -190,9 +157,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=450:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=450:
               cpu_per_node: 4
               node_count: 450
               node_per_step: 10
@@ -204,9 +171,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=500:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=500:
               cpu_per_node: 4
               node_count: 500
               node_per_step: 10
@@ -218,9 +185,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=600:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=600:
               cpu_per_node: 4
               node_count: 600
               node_per_step: 10
@@ -232,9 +199,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=700:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=700:
               cpu_per_node: 4
               node_count: 700
               node_per_step: 10
@@ -246,9 +213,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=800:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=800:
               cpu_per_node: 4
               node_count: 800
               node_per_step: 10
@@ -260,9 +227,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=900:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=900:
               cpu_per_node: 4
               node_count: 900
               node_per_step: 10
@@ -274,9 +241,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=10_nodes=1000:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=10_nodes=1000:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 10
@@ -288,9 +255,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=20:
+              test_type: DeploymentGradual_dynamicRes_PODS=10&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=20:
               cpu_per_node: 4
               node_count: 20
               node_per_step: 20
@@ -302,9 +269,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=40:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=40:
               cpu_per_node: 4
               node_count: 40
               node_per_step: 20
@@ -316,9 +283,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=60:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=60:
               cpu_per_node: 4
               node_count: 60
               node_per_step: 20
@@ -330,9 +297,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=80:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=80:
               cpu_per_node: 4
               node_count: 80
               node_per_step: 20
@@ -344,9 +311,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=100:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=100:
               cpu_per_node: 4
               node_count: 100
               node_per_step: 20
@@ -358,9 +325,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=200:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=200:
               cpu_per_node: 4
               node_count: 200
               node_per_step: 20
@@ -372,9 +339,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=300:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=300:
               cpu_per_node: 4
               node_count: 300
               node_per_step: 20
@@ -386,9 +353,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=400:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=400:
               cpu_per_node: 4
               node_count: 400
               node_per_step: 20
@@ -400,9 +367,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=500:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=500:
               cpu_per_node: 4
               node_count: 500
               node_per_step: 20
@@ -414,9 +381,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=600:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=600:
               cpu_per_node: 4
               node_count: 600
               node_per_step: 20
@@ -428,9 +395,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=700:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=700:
               cpu_per_node: 4
               node_count: 700
               node_per_step: 20
@@ -442,9 +409,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=800:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=800:
               cpu_per_node: 4
               node_count: 800
               node_per_step: 20
@@ -456,9 +423,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=900:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=900:
               cpu_per_node: 4
               node_count: 900
               node_per_step: 20
@@ -470,9 +437,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=20_nodes=1000:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=20_nodes=1000:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 20
@@ -484,9 +451,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=50:
+              test_type: DeploymentGradual_dynamicRes_PODS=20&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=50:
               cpu_per_node: 4
               node_count: 50
               node_per_step: 50
@@ -498,9 +465,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=100:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=100:
               cpu_per_node: 4
               node_count: 100
               node_per_step: 50
@@ -512,9 +479,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=150:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=150:
               cpu_per_node: 4
               node_count: 150
               node_per_step: 50
@@ -526,9 +493,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=200:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=200:
               cpu_per_node: 4
               node_count: 200
               node_per_step: 50
@@ -540,9 +507,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=250:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=250:
               cpu_per_node: 4
               node_count: 250
               node_per_step: 50
@@ -554,9 +521,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=300:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=300:
               cpu_per_node: 4
               node_count: 300
               node_per_step: 50
@@ -568,9 +535,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=350:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=350:
               cpu_per_node: 4
               node_count: 350
               node_per_step: 50
@@ -582,9 +549,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=400:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=400:
               cpu_per_node: 4
               node_count: 400
               node_per_step: 50
@@ -596,9 +563,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=450:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=450:
               cpu_per_node: 4
               node_count: 450
               node_per_step: 50
@@ -610,9 +577,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=500:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=500:
               cpu_per_node: 4
               node_count: 500
               node_per_step: 50
@@ -624,79 +591,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=600:
-              cpu_per_node: 4
-              node_count: 600
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=700:
-              cpu_per_node: 4
-              node_count: 700
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=800:
-              cpu_per_node: 4
-              node_count: 800
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=900:
-              cpu_per_node: 4
-              node_count: 900
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=50_nodes=1000:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=100:
+              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=100:
               cpu_per_node: 4
               node_count: 100
               node_per_step: 100
@@ -708,9 +605,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=200:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=200:
               cpu_per_node: 4
               node_count: 200
               node_per_step: 100
@@ -722,9 +619,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=300:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=300:
               cpu_per_node: 4
               node_count: 300
               node_per_step: 100
@@ -736,9 +633,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=400:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=400:
               cpu_per_node: 4
               node_count: 400
               node_per_step: 100
@@ -750,9 +647,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=500:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=500:
               cpu_per_node: 4
               node_count: 500
               node_per_step: 100
@@ -764,9 +661,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=600:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=600:
               cpu_per_node: 4
               node_count: 600
               node_per_step: 100
@@ -778,9 +675,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=700:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=700:
               cpu_per_node: 4
               node_count: 700
               node_per_step: 100
@@ -792,9 +689,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=800:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=800:
               cpu_per_node: 4
               node_count: 800
               node_per_step: 100
@@ -806,9 +703,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=900:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=900:
               cpu_per_node: 4
               node_count: 900
               node_per_step: 100
@@ -820,9 +717,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pods=100_nodes=1000:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_gradual_dynamicres_pods=100_nodes=1000:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 100
@@ -834,37 +731,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentGradual_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=10_nodes=10:
-              cpu_per_node: 4
-              node_count: 10
-              node_per_step: 10
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=10&R=10_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=20_nodes=20:
-              cpu_per_node: 4
-              node_count: 20
-              node_per_step: 20
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=20&R=20_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=50_nodes=50:
+              test_type: DeploymentGradual_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=50_nodes=50:
               cpu_per_node: 4
               node_count: 50
               node_per_step: 50
@@ -876,9 +745,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=50&R=50_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=100_nodes=100:
+              test_type: DeploymentBurst_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=100_nodes=100:
               cpu_per_node: 4
               node_count: 100
               node_per_step: 100
@@ -890,9 +759,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=100&R=100_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=150_nodes=150:
+              test_type: DeploymentBurst_dynamicRes_PODS=100&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=150_nodes=150:
               cpu_per_node: 4
               node_count: 150
               node_per_step: 150
@@ -904,9 +773,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=150&R=150_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=200_nodes=200:
+              test_type: DeploymentBurst_dynamicRes_PODS=150&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=200_nodes=200:
               cpu_per_node: 4
               node_count: 200
               node_per_step: 200
@@ -918,9 +787,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=200&R=200_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=250_nodes=250:
+              test_type: DeploymentBurst_dynamicRes_PODS=200&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=250_nodes=250:
               cpu_per_node: 4
               node_count: 250
               node_per_step: 250
@@ -932,9 +801,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=250&R=250_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=300_nodes=300:
+              test_type: DeploymentBurst_dynamicRes_PODS=250&R=250_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=300_nodes=300:
               cpu_per_node: 4
               node_count: 300
               node_per_step: 300
@@ -946,9 +815,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=300&R=300_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=350_nodes=350:
+              test_type: DeploymentBurst_dynamicRes_PODS=300&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=350_nodes=350:
               cpu_per_node: 4
               node_count: 350
               node_per_step: 350
@@ -960,9 +829,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=350&R=350_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=400_nodes=400:
+              test_type: DeploymentBurst_dynamicRes_PODS=350&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=400_nodes=400:
               cpu_per_node: 4
               node_count: 400
               node_per_step: 400
@@ -974,9 +843,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=400&R=400_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=450_nodes=450:
+              test_type: DeploymentBurst_dynamicRes_PODS=400&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=450_nodes=450:
               cpu_per_node: 4
               node_count: 450
               node_per_step: 450
@@ -988,9 +857,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=450&R=450_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=500_nodes=500:
+              test_type: DeploymentBurst_dynamicRes_PODS=450&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=500_nodes=500:
               cpu_per_node: 4
               node_count: 500
               node_per_step: 500
@@ -1002,9 +871,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=500&R=500_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=600_nodes=600:
+              test_type: DeploymentBurst_dynamicRes_PODS=500&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=600_nodes=600:
               cpu_per_node: 4
               node_count: 600
               node_per_step: 600
@@ -1016,9 +885,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=600&R=600_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=700_nodes=700:
+              test_type: DeploymentBurst_dynamicRes_PODS=600&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=700_nodes=700:
               cpu_per_node: 4
               node_count: 700
               node_per_step: 700
@@ -1030,9 +899,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=700&R=700_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=800_nodes=800:
+              test_type: DeploymentBurst_dynamicRes_PODS=700&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=800_nodes=800:
               cpu_per_node: 4
               node_count: 800
               node_per_step: 800
@@ -1044,9 +913,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=800&R=800_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=900_nodes=900:
+              test_type: DeploymentBurst_dynamicRes_PODS=800&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=900_nodes=900:
               cpu_per_node: 4
               node_count: 900
               node_per_step: 900
@@ -1058,9 +927,9 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=900&R=900_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_deploymentburst_staticres_pods=1000_nodes=1000:
+              test_type: DeploymentBurst_dynamicRes_PODS=900&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_deploymentburst_dynamicres_pods=1000_nodes=1000:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 1000
@@ -1072,8 +941,8 @@ stages:
               scrape_containerd: False
               service_test: False
               ds_test: True
-              test_type: DeploymentBurst_StaticRes_PODS=1000&R=1000_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+              test_type: DeploymentBurst_dynamicRes_PODS=1000&R=0_$(BUILD_VERSION)
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
           max_parallel: 3
           timeout_in_minutes: 720
           credential_type: service_connection
