@@ -52,35 +52,6 @@ def validate_dependencies() -> Script:
     )
 
 
-def delete_dependencies() -> Script:
-    return Script(
-        display_name="Uninstall Python Dependencies",
-        script=dedent(
-            """
-            set -e
-
-            echo "Uninstalling Python dependencies listed in requirements.txt..."
-            xargs -a "$(Pipeline.Workspace)/s/modules/python/requirements.txt" -n 1 pip3 uninstall -y
-            """
-        ).strip(),
-    )
-
-
-def delete_cache() -> Script:
-    return Script(
-        display_name="Delete Python Cache",
-        script=dedent(
-            """
-            set -e
-
-            echo "Deleting Python cache..."
-            rm -rf "$(Pipeline.Workspace)/s/modules/python/__pycache__"
-            echo "Python environment cleanup completed."
-            """
-        ).strip(),
-    )
-
-
 class Python3(Resource):
     def setup(self) -> list[Step]:
         return [
@@ -92,4 +63,4 @@ class Python3(Resource):
         return [validate_dependencies()]
 
     def tear_down(self) -> list[Step]:
-        return [delete_dependencies(), delete_cache()]
+        return []

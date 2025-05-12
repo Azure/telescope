@@ -75,6 +75,34 @@ def validate_ssh_key() -> Script:
     )
 
 
+def remove_ssh_key() -> list[Step]:
+    return Script(
+        display_name="Delete SSH Keys",
+        script=dedent(
+            """
+            set -eu
+            # Check if the private key file exists
+            if [ ! -f "$SSH_KEY_PATH" ]; then
+                echo "Error: Private SSH key not found at $SSH_KEY_PATH"
+                exit 1
+            fi
+            echo "Deleting private SSH key at $SSH_KEY_PATH"
+            rm -f "$SSH_KEY_PATH"
+
+            # Check if the public key file exists
+            if [ ! -f "$SSH_PUBLIC_KEY_PATH" ]; then
+                echo "Error: Public SSH key not found at $SSH_PUBLIC_KEY_PATH"
+                exit 1
+            fi
+            echo "Deleting public SSH key at $SSH_PUBLIC_KEY_PATH"
+            rm -f "$SSH_PUBLIC_KEY_PATH"
+
+            echo "SSH keys deleted successfully."
+            """
+        ).strip(),
+    )
+
+
 @dataclass
 class SSH(Resource):
     cloud: str
@@ -86,4 +114,4 @@ class SSH(Resource):
         return [validate_ssh_key()]
 
     def tear_down(self) -> list[Step]:
-        return []
+        return [remove_ssh_key()]

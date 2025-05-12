@@ -321,6 +321,26 @@ stages:
   - job: tear down
     displayName: Tear down resources
     steps:
+    - displayName: Delete SSH Keys
+      script: |-
+        set -eu
+        # Check if the private key file exists
+        if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "Error: Private SSH key not found at $SSH_KEY_PATH"
+            exit 1
+        fi
+        echo "Deleting private SSH key at $SSH_KEY_PATH"
+        rm -f "$SSH_KEY_PATH"
+
+        # Check if the public key file exists
+        if [ ! -f "$SSH_PUBLIC_KEY_PATH" ]; then
+            echo "Error: Public SSH key not found at $SSH_PUBLIC_KEY_PATH"
+            exit 1
+        fi
+        echo "Deleting public SSH key at $SSH_PUBLIC_KEY_PATH"
+        rm -f "$SSH_PUBLIC_KEY_PATH"
+
+        echo "SSH keys deleted successfully."
     - displayName: Uninstall Python Dependencies
       script: |-
         set -e
