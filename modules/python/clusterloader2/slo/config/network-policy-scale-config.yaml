@@ -200,7 +200,7 @@ steps:
         targetPort: {{$TARGET_PORT}}
         targetPort2: {{$TARGET_PORT2}}
         l7Enabled: {{$NET_POLICY_L7_ENABLED}}
-        cnpTestL3L4: {{$L3_L4_PORT}}
+        l3l4port: {{$L3_L4_PORT}}
         resourceGatheringEnabled: false
         targetPath: /
         testDuration: "{{$DURATION}}"
