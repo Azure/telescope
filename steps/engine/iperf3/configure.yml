@@ -1,4 +1,6 @@
 parameters:
+  pod_count:
+    type: int
   cluster_cli_context:
     type: string
   cluster_srv_context:
@@ -14,12 +16,14 @@ steps:
       popd
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --pod_count "$POD_COUNT" \
         --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
         --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
     workingDirectory: modules/python
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/iperf3
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+      POD_COUNT: ${{ parameters.pod_count }}
       CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
       CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
     displayName: "Configure iperf3"

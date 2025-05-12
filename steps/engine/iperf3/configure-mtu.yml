@@ -1,6 +1,8 @@
 parameters:
   cloud:
     type: string
+  pod_count:
+    type: int
   cluster_cli_context:
     type: string
   cluster_srv_context:
@@ -15,6 +17,7 @@ steps:
       popd
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --pod_count "$POD_COUNT" \
         --label_selector "app=mtu-config" \
         --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
         --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
@@ -22,6 +25,7 @@ steps:
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+      POD_COUNT: ${{ parameters.pod_count }}
       CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
       CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
       CLOUD: ${{ parameters.cloud }}

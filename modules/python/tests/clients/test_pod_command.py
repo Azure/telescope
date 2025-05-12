@@ -272,7 +272,8 @@ class TestPodRoleCommand(unittest.TestCase):
         self.k8s_client.get_service_external_ip.assert_not_called()
 
     def test_configure(self):
-        self.pod_cmd.configure()
+        pod_count = 1
+        self.pod_cmd.configure(pod_count=pod_count)
 
         context_calls = [
             call(self.pod_cmd.cluster_cli_context),
@@ -282,13 +283,13 @@ class TestPodRoleCommand(unittest.TestCase):
 
         wait_calls = [
             call(
-                pod_count=1,
+                pod_count=pod_count,
                 operation_timeout_in_minutes=5,
                 label_selector=self.pod_cmd.client_label_selector,
                 namespace=self.namespace
             ),
             call(
-                pod_count=1,
+                pod_count=pod_count,
                 operation_timeout_in_minutes=5,
                 label_selector=self.pod_cmd.server_label_selector,
                 namespace=self.namespace
@@ -297,9 +298,10 @@ class TestPodRoleCommand(unittest.TestCase):
         self.k8s_client.wait_for_pods_ready.assert_has_calls(wait_calls)
 
     def test_configure_with_labels(self):
+        pod_count = 2
         custom_label = "app=custom"
 
-        self.pod_cmd.configure(label_selector=custom_label)
+        self.pod_cmd.configure(pod_count=pod_count, label_selector=custom_label)
 
         context_calls = [
             call(self.pod_cmd.cluster_cli_context),
@@ -309,13 +311,13 @@ class TestPodRoleCommand(unittest.TestCase):
 
         wait_calls = [
             call(
-                pod_count=1,
+                pod_count=pod_count,
                 operation_timeout_in_minutes=5,
                 label_selector=custom_label,
                 namespace=self.namespace
             ),
             call(
-                pod_count=1,
+                pod_count=pod_count,
                 operation_timeout_in_minutes=5,
                 label_selector=custom_label,
                 namespace=self.namespace

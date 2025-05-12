@@ -316,6 +316,11 @@ def parse_args(args):
         help="File to store the benchmark result"
     )
     parser.add_argument(
+        "--pod_count",
+        type=int,
+        help="Number of pods to validate"
+    )
+    parser.add_argument(
         "--label_selector",
         help="Label selector for the pods",
         default=""
@@ -395,6 +400,7 @@ def main():
         )
     elif args.action == "configure":
         iperf3_pod.configure(
+            pod_count=args.pod_count,
             label_selector=args.label_selector,
         )
     else:

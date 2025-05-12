@@ -517,6 +517,7 @@ class TestIperf3PodArguments(unittest.TestCase):
     def test_main_configure(self, mock_iperf3_pod, mock_parse_args):
         mock_parse_args.return_value = argparse.Namespace(
             action='configure',
+            pod_count=2,
             label_selector='test=true',
             cluster_cli_context='cli-context',
             cluster_srv_context='srv-context'
@@ -529,6 +530,7 @@ class TestIperf3PodArguments(unittest.TestCase):
             cluster_srv_context='srv-context'
         )
         mock_iperf3_pod.return_value.configure.assert_called_once_with(
+            pod_count=2,
             label_selector='test=true'
         )
 

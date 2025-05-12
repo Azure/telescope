@@ -47,10 +47,10 @@ stages:
           engine_input:
             iperf3_command_array:
               - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              # - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 0 --port 20003|direct|pod"
-              # - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 0 --port 20003|direct|pod"
-              # - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              # - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 0 --port 20003|direct|pod"
+              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 0 --port 20003|direct|pod"
+              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 0 --port 20003|direct|pod"
+              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 0 --port 20003|direct|pod"
+              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 0 --port 20003|direct|pod"
               - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.azure_machine_types_new_sku }}:
@@ -82,10 +82,10 @@ stages:
           engine_input:
             iperf3_command_array:
               - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              # - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 0 --port 20003|direct|pod"
-              # - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 0 --port 20003|direct|pod"
-              # - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              # - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 0 --port 20003|direct|pod"
+              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 0 --port 20003|direct|pod"
+              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 0 --port 20003|direct|pod"
+              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 0 --port 20003|direct|pod"
+              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 0 --port 20003|direct|pod"
               - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types_new_sku }}:

@@ -57,7 +57,11 @@ popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
+POD_COUNT=2
+CLUSTER_CLI_CONTEXT=pod-diff-node
+CLUSTER_SRV_CONTEXT=pod-diff-node
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+    --pod_count "$POD_COUNT" \
     --label_selector "app=mtu-config" \
     --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
     --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
@@ -73,7 +77,6 @@ HOST_NETWORK=false # or true
 CLUSTER_CLI_CONTEXT=pod-diff-node
 CLUSTER_SRV_CONTEXT=pod-diff-node
 KUSTOMIZE_DIR=$(pwd)/modules/kustomize/iperf3
-KUSTOMIZE_DIR=$(pwd)/iperf3
 pushd $KUSTOMIZE_DIR
 kustomize build ${KUSTOMIZE_DIR}/overlays/client-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
 kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
@@ -81,7 +84,11 @@ popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
+POD_COUNT=1
+CLUSTER_CLI_CONTEXT=pod-diff-node
+CLUSTER_SRV_CONTEXT=pod-diff-node
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+    --pod_count "$POD_COUNT" \
     --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
     --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
 popd

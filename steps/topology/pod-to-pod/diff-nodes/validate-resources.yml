@@ -15,10 +15,12 @@ steps:
   - template: /steps/engine/iperf3/configure-mtu.yml
     parameters:
       cloud: ${{ parameters.cloud }}
+      pod_count: 2
       cluster_cli_context: "pod-diff-node"
       cluster_srv_context: "pod-diff-node"
   - template: /steps/engine/iperf3/configure.yml
     parameters:
+      pod_count: 1
       cluster_cli_context: "pod-diff-node"
       cluster_srv_context: "pod-diff-node"
   - template: /steps/engine/iperf3/validate.yml
