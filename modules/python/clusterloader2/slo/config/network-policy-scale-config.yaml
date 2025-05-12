@@ -110,6 +110,76 @@ steps:
         l3l4port: {{$L3_L4_PORT}}
         targetPort: 80
         baseline: {{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE}}
+  # 5. Start target deployments
+  - name: "Start target deployments"
+    measurements:
+    - Method: WaitForControlledPodsRunning
+      Instances:
+      - Identifier: WaitForControlledPodsRunning
+        Params:
+          apiVersion: apps/v1
+          kind: Deployment
+      Params:
+        action: start
+        checkIfPodsAreUpdated: true
+        labelSelector: group={{$TARGET_GROUP}}
+        operationTimeout: 20m
+        apiVersion: apps/v1
+  - name: "Create target deployments"
+    phases:      
+    - namespaceRange:
+        min: 1
+        max: {{$TARGET_NAMESPACE_COUNT}}
+      replicasPerNamespace: 1
+      tuningSet: Uniform1qps
+      objectBundle:
+      - basename: target-deployment
+        objectTemplatePath: target_deployment.yaml
+        templateFillMap:
+          Replicas: {{$NUMBER_OF_SERVERS}}
+          TargetLabelKey: net-pol-test
+          TargetLabelValue: enforcement-latency
+          SvcName: small-service
+          Group: {{$TARGET_GROUP}}
+          deploymentLabel: start
+  # 7. Wait for target deployments to be ready
+  - name: "Wait for target deployments to be ready"
+    measurements:
+    - Identifier: WaitForControlledPodsRunning 
+      Method: WaitForControlledPodsRunning
+      Params:
+        action: gather
+        refreshInterval: 15s
+  # 8. Run network policy enforcement latency measurement test-type 'policy-creation'
+  - name: "Run network policy enforcement latency measurement test-type 'policy-creation'"
+    measurements:
+    - Identifier: NetworkPolicyEnforcement
+      Method: NetworkPolicyEnforcement
+      Params:
+        action: run
+        testType: policy-creation
+        targetPort: 80
+        networkPolicyType: cilium
+        l7Enabled: {{$NET_POLICY_L7_ENABLED}}
+        l3l4port: {{$L3_L4_PORT}}
+        maxTargets: {{$NET_POLICY_ENFORCEMENT_LATENCY_MAX_TARGET_PODS_PER_NS}}
+        policyLoadCount: {{$NET_POLICY_ENFORCEMENT_LOAD_COUNT}}
+        policyLoadQPS: {{$NET_POLICY_ENFORCEMENT_LOAD_QPS}}
+        policyLoadTargetBaseName: {{$NET_POLICY_ENFORCEMENT_LOAD_TARGET_NAME}}
+  - name: Sleep
+    measurements:
+    - Identifier: sleep
+      Method: Sleep
+      Params:
+        duration: 60s
+  # 11. Gather policy enforcement latency metrics
+  - name: "Gather policy enforcement latency metrics"
+    measurements:
+    - Identifier: PolicyEnforcementLatencyMetrics
+      Method: GenericPrometheusQuery
+      Params:
+        action: gather
+        enableViolations: true
 {{end}}
 {{if $SOAK_TEST}}
   {{range $i := Loop $repeats}}
@@ -202,3 +272,13 @@ steps:
       Method: Sleep
       Params:
         duration: 5m
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
+  # 12. Complete policy enforcement latency measurement
+  - name: "Complete pod creation network policy enforcement latency measurement"
+    measurements:
+    - Identifier: NetworkPolicyEnforcement
+      Method: NetworkPolicyEnforcement
+      Params:
+        action: complete
+        testType: policy-creation
+{{end}}
