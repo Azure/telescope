@@ -131,7 +131,7 @@ class Azure(Cloud):
             ),
         }
 
-    def create_resource_group(self, region: str) -> Script:
+    def create_resource_group(self, region: str) -> str:
         return dedent(
             f"""
             set -eu
