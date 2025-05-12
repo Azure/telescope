@@ -31,6 +31,58 @@ install_dependencies = Script(
 )
 
 
+def validate_dependencies() -> Script:
+    return (
+        Script(
+            display_name="Validate Installed Dependencies",
+            script=dedent(
+                """
+                set -e
+
+                # Check if requirements.txt exists
+                echo "Validating installed dependencies..."
+                missing_dependencies=$(pip3 check 2>&1 | grep -i "not found" || true)
+                if [ -n "$missing_dependencies" ]; then
+                    echo "Error: Missing dependencies:"
+                    echo "$missing_dependencies"
+                    exit 1
+                fi
+                echo "All dependencies are installed."
+                """
+            ).strip(),
+        ),
+    )
+
+
+def delete_dependencies() -> Script:
+    return Script(
+        display_name="Uninstall Python Dependencies",
+        script=dedent(
+            """
+            set -e
+
+            echo "Uninstalling Python dependencies listed in requirements.txt..."
+            xargs -a "$(Pipeline.Workspace)/s/modules/python/requirements.txt" -n 1 pip3 uninstall -y
+            """
+        ).strip(),
+    )
+
+
+def delete_cache() -> Script:
+    return Script(
+        display_name="Delete Python Cache",
+        script=dedent(
+            """
+            set -e
+
+            echo "Deleting Python cache..."
+            rm -rf "$(Pipeline.Workspace)/s/modules/python/__pycache__"
+            echo "Python environment cleanup completed."
+            """
+        ).strip(),
+    )
+
+
 class Python3(Resource):
     def setup(self) -> list[Step]:
         return [
@@ -39,7 +91,7 @@ class Python3(Resource):
         ]
 
     def validate(self) -> list[Step]:
-        return []
+        return [validate_dependencies()]
 
     def tear_down(self) -> list[Step]:
-        return []
+        return [delete_dependencies(), delete_cache()]
