@@ -19,18 +19,12 @@ name: netpol-scale-test
 {{$SOAK_TEST := DefaultParam .CL2_SOAK_TEST false}}
 {{$CLIENT_METRICS_GATHERING := DefaultParam .CL2_CLIENT_METRICS_GATHERING false}}
 {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST true}}
-{{$L3_L4_PORT := DefaultParam .CL2_L3_L4_PORT true}}
-{{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE := DefaultParam .CL2_NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE false}}
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
   prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
-tuningSets:
-- name: Uniform1qps
-  qpsLoad:
-    qps: 1
 
 steps:
 # 1. If cilium enabled
@@ -67,7 +61,7 @@ steps:
 {{end}}
 {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
 # 3. start policy enforcement latency metrics
-- name: "starting policy enforcement metrics, network policy type - {{.CL2_NETWORK_POLICY_TYPE}}"
+- name: "starting policy enforcement metrics"
   measurements:
   - Identifier: PolicyEnforcementLatencyMetrics
     Method: GenericPrometheusQuery
@@ -87,7 +81,7 @@ steps:
           query: histogram_quantile(0.95, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
         - name: PolicyCreation - Perc99
           query: histogram_quantile(0.99, sum(policy_enforcement_latency_policy_creation_seconds_bucket) by (le))
-  {{end}}
+{{end}}
 {{if $SOAK_TEST}}
   {{range $i := Loop $repeats}}
   # start network performance measurement
