@@ -33,8 +33,8 @@ steps:
         --cilium_enabled $CILIUM_ENABLED \
         --cilium_envoy_enabled $CILIUM_ENVOY_ENABLED \
         --netpol_latency_test false \
-        --netpol_soak_test true \
-        --l7_enabled false \
+        --netpol_soak_test false \
+        --l7_enabled true \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
       # execute
