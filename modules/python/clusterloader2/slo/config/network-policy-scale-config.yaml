@@ -34,10 +34,12 @@ namespace:
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
+{{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
 tuningSets:
 - name: Uniform1qps
   qpsLoad:
     qps: 1
+{{end}}
 
 steps:
 # 1. If cilium enabled
@@ -209,24 +211,24 @@ steps:
       Method: NetworkPolicySoakMeasurement
       Params:
         action: restart
-  # - name: Network Policy Soak Test - Delete CNPS
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: delete-ccnps-cnps
-  # - name: Network Policy Soak Test - Delete Pods
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: delete-pods
-  # - name: Sleep
-  #   measurements:
-  #   - Identifier: Sleep
-  #     Method: Sleep
-  #     Params:
-  #       duration: 2m
+  - name: Network Policy Soak Test - Delete CNPS
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-ccnps-cnps
+  - name: Network Policy Soak Test - Delete Pods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-pods
+  - name: Sleep
+    measurements:
+    - Identifier: Sleep
+      Method: Sleep
+      Params:
+        duration: 2m
   {{end}}
   {{end}}
 
