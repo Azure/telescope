@@ -17,8 +17,6 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-          node_count: $(NODECOUNT)
-          node_label: $(NODELABEL)
           topology: swiftv2-ds-churn
           matrix:
             azure_swiftv2_dsburst_dynamicres_pods=10_nodes=10:
