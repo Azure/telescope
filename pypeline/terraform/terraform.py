@@ -1,12 +1,20 @@
 import json
 import os
 from dataclasses import dataclass, field
-from textwrap import dedent
+from enum import Enum
+from textwrap import dedent, indent
 from typing import List
 
-from benchmark import Cloud, Resource
+from benchmark import Cloud, CloudProvider, Resource
 from cloud.azure import CredentialType
 from pipeline import Script, Step
+
+
+class TerraformCommand(Enum):
+    INIT = "init"
+    VERSION = "version"
+    APPLY = "apply"
+    DESTROY = "destroy"
 
 
 def generate_regional_config(
@@ -170,14 +178,15 @@ def set_input_variables(
 
 def generate_workspace_script() -> str:
     return dedent(
-        """if terraform workspace list | grep -q "$region"; then
-              terraform workspace select $region
-            else
-              terraform workspace new $region
-              terraform workspace select $region
-            fi
         """
-    ).strip()
+        if terraform workspace list | grep -q "$region"; then
+            terraform workspace select $region
+        else:
+            terraform workspace new $region
+            terraform workspace select $region
+        fi
+        """
+    ).strip("")
 
 
 def generate_generic_script(command: str, arguments: str) -> str:
@@ -195,10 +204,16 @@ def generate_generic_script(command: str, arguments: str) -> str:
 
 
 def generate_apply_or_destroy_script(
-    command: str, arguments: str, regions: list[str], cloud: Cloud
+    command: TerraformCommand, arguments: str, regions: list[str], cloud: Cloud
 ) -> str:
-    workspace_script = generate_workspace_script()
-    error_handling_script = cloud.generate_tf_error_handler(command)
+
+    workspace_script = indent(generate_workspace_script(), " " * 12)
+    error_handling_script = ""
+
+    if (
+        TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
+    ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
+        error_handling_script = indent(cloud.delete_resource_group(), " " * 16)
 
     return dedent(
         f"""
@@ -209,22 +224,20 @@ def generate_apply_or_destroy_script(
 
         for region in $(echo "{regions}" | jq -r '.[]'); do
             echo "Processing region: $region"
-            
             {workspace_script}
-            
             # Retrieve input file and variables
             terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
             terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
 
-            # Run Terraform {command} command
+            # Run Terraform {command.value} command
             set +e
-            terraform {command} --auto-approve {arguments} -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            terraform {command.value} --auto-approve {arguments} -var-file $terraform_input_file -var json_input="$terraform_input_variables"
             exit_code=$?
             set -e
 
             # Handle errors
             if [[ $exit_code -ne 0 ]]; then
-                echo "Terraform {command} failed for region: $region"
+                echo "Terraform {command.value} failed for region: $region"
                 {error_handling_script}
                 exit 1
             fi
@@ -235,20 +248,20 @@ def generate_apply_or_destroy_script(
 
 
 def run_command(
-    command: str,
+    command: TerraformCommand,
     arguments: str,
     regions: list[str],
     cloud: Cloud,
     retry_attempt_count: int,
     credential_type: CredentialType,
 ) -> Script:
-    if command == "apply" or command == "destroy":
+    if command == TerraformCommand.APPLY or TerraformCommand.DESTROY:
         script = generate_apply_or_destroy_script(command, arguments, regions, cloud)
     else:
         script = generate_generic_script(command, arguments)
 
     return Script(
-        display_name=f"Run Terraform {command.capitalize()} Command",
+        display_name=f"Run Terraform {command.value.capitalize()} Command",
         script=script,
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
         retry_count_on_task_failure=retry_attempt_count,
@@ -291,7 +304,7 @@ class Terraform(Resource):
             get_deletion_info(self.regions[0]),
             create_resource_group(self.regions[0], self.cloud.provider.value),
             run_command(
-                "version",
+                TerraformCommand.VERSION,
                 self.arguments,
                 self.regions,
                 self.cloud,
@@ -299,7 +312,7 @@ class Terraform(Resource):
                 self.credential_type,
             ),
             run_command(
-                "init",
+                TerraformCommand.INIT,
                 self.arguments,
                 self.regions,
                 self.cloud,
@@ -307,7 +320,7 @@ class Terraform(Resource):
                 self.credential_type,
             ),
             run_command(
-                "apply",
+                TerraformCommand.APPLY,
                 self.arguments,
                 self.regions,
                 self.cloud,

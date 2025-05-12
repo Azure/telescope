@@ -115,8 +115,34 @@ stages:
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        # Run Terraform version command
-        terraform version
+        for region in $(echo "['eastus2']" | jq -r '.[]'); do
+            echo "Processing region: $region"
+
+            if terraform workspace list | grep -q "$region"; then
+                terraform workspace select $region
+            else:
+                terraform workspace new $region
+                terraform workspace select $region
+            fi
+
+            # Retrieve input file and variables
+            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+
+            # Run Terraform version command
+            set +e
+            terraform version --auto-approve  -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            exit_code=$?
+            set -e
+
+            # Handle errors
+            if [[ $exit_code -ne 0 ]]; then
+                echo "Terraform version failed for region: $region"
+
+                exit 1
+            fi
+
+        done
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
@@ -128,8 +154,34 @@ stages:
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        # Run Terraform init command
-        terraform init
+        for region in $(echo "['eastus2']" | jq -r '.[]'); do
+            echo "Processing region: $region"
+
+            if terraform workspace list | grep -q "$region"; then
+                terraform workspace select $region
+            else:
+                terraform workspace new $region
+                terraform workspace select $region
+            fi
+
+            # Retrieve input file and variables
+            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+
+            # Run Terraform init command
+            set +e
+            terraform init --auto-approve  -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            exit_code=$?
+            set -e
+
+            # Handle errors
+            if [[ $exit_code -ne 0 ]]; then
+                echo "Terraform init failed for region: $region"
+
+                exit 1
+            fi
+
+        done
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
@@ -145,10 +197,10 @@ stages:
             echo "Processing region: $region"
 
             if terraform workspace list | grep -q "$region"; then
-              terraform workspace select $region
-            else
-              terraform workspace new $region
-              terraform workspace select $region
+                terraform workspace select $region
+            else:
+                terraform workspace new $region
+                terraform workspace select $region
             fi
 
             # Retrieve input file and variables
@@ -164,10 +216,12 @@ stages:
             # Handle errors
             if [[ $exit_code -ne 0 ]]; then
                 echo "Terraform apply failed for region: $region"
+
                 echo "Deleting resources and removing state file before retrying"
-                    ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
-                    az resource delete --ids $ids --verbose
-                    rm -r terraform.tfstate.d/$region
+                ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
+                az resource delete --ids $ids --verbose
+                rm -r terraform.tfstate.d/$region
+
                 exit 1
             fi
 
