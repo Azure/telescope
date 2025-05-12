@@ -30,3 +30,12 @@ steps:
       CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
       CLOUD: ${{ parameters.cloud }}
     displayName: "Configure MTU"
+  - ${{ if eq(parameters.cloud, 'aws') }}:
+      # VPC_CNI doc: https://github.com/aws/amazon-vpc-cni-k8s?tab=readme-ov-file#aws_vpc_eni_mtu-v160
+      - script: |
+          set -eu
+          kubectl set env daemonset aws-node -n kube-system AWS_VPC_ENI_MTU=8900
+          kubectl rollout status daemonset aws-node -n kube-system
+          kubectl get pods -n kube-system -o wide
+        displayName: "Set MTU for AWS VPC CNI"
+        condition: eq(variables.ena_express, 'true')

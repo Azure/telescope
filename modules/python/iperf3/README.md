@@ -21,7 +21,7 @@ K8S_MACHINE_TYPE=Standard_D48s_v6
 NETWORK_DATAPLANE=azure # or cilium
 
 # For AWS only
-CLOUD=azure
+CLOUD=aws
 REGION=us-east-2
 K8S_MACHINE_TYPE=m7i.12xlarge
 ENA_EXPRESS=true

@@ -5,7 +5,8 @@ parameters:
     type: string
 
 steps:
-  - script: set -eo pipefail
+  - script: |
+      set -eo pipefail
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
       --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
       --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
