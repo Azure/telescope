@@ -129,7 +129,7 @@ steps:
     phases:      
     - namespaceRange:
         min: 1
-        max: {{$TARGET_NAMESPACE_COUNT}}
+        max: {{$NUMBER_OF_GROUPS}}
       replicasPerNamespace: 1
       tuningSet: Uniform1qps
       objectBundle:
