@@ -79,11 +79,3 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
-  # TODO: Remove. Added just for testing
-  - name: Log - deployments={{$deployments}}, podReplicas={{$podReplicas}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 120s

@@ -93,10 +93,3 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
-  # - name: Wait for resource consumption
-  #   measurements:
-  #     - Identifier: Sleep
-  #       Method: Sleep
-  #       Params:
-  #         duration: 1m
-  #
