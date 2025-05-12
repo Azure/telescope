@@ -52,6 +52,10 @@ class Cloud(ABC):
     def delete_resource_group(self) -> str:
         pass
 
+    @abstractmethod
+    def create_resource_group(self) -> str:
+        pass
+
 
 @dataclass
 class Layout:

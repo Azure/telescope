@@ -105,9 +105,9 @@ stages:
       script: |-
         set -eu
         echo "Create resource group $RUN_ID in region eastus2"
-        az group create --name $RUN_ID --location eastus2             --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
-      condition: and(eq('azure', 'azure'), ne(variables['SKIP_RESOURCE_MANAGEMENT'],
-        'true'))
+        az group create --name $RUN_ID --location eastus2 \
+        --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - displayName: Run Terraform Version Command
       script: |-
         set -e
