@@ -37,7 +37,7 @@ stages:
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml@templates
+      - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
@@ -61,6 +61,8 @@ stages:
                     network_dataplane: ${{ dataplane }}
           max_parallel: 1
           timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
   - stage: aws_eastus2_new_sku
     condition: |
       or(
@@ -69,7 +71,7 @@ stages:
       )
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml@templates
+      - template: /jobs/competitive-test.yml
         parameters:
           cloud: aws
           regions:
@@ -92,3 +94,5 @@ stages:
                   ena_express: "true"
           max_parallel: 1
           timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false

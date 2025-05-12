@@ -13,5 +13,5 @@ steps:
   - template: /steps/engine/iperf3/execute.yml
     parameters:
       iperf_properties: ${{ parameters.engine_input.iperf3_command_array }}
-      cluster_cli_context: "${{ parameters.engine_input.cluster_name.client }}-${{ parameters.cloud }}"
-      cluster_srv_context: "${{ parameters.engine_input.cluster_name.server }}-${{ parameters.cloud }}"
+      cluster_cli_context: "pod-diff-node"
+      cluster_srv_context: "pod-diff-node"
