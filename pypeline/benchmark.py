@@ -53,7 +53,7 @@ class Cloud(ABC):
         pass
 
     @abstractmethod
-    def create_resource_group(self) -> Script:
+    def create_resource_group(self) -> str:
         pass
 
 

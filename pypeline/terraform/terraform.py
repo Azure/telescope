@@ -129,6 +129,7 @@ def get_deletion_info(region: str) -> Script:
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
     )
 
+
 def set_input_variables(
     cloud: Cloud, regions: list[str], input_variables: dict
 ) -> Script:
@@ -231,6 +232,14 @@ def generate_apply_or_destroy_script(
     ).strip()
 
 
+def create_resource_group(cloud: Cloud, region: str) -> Script:
+    return Script(
+        display_name="Create Resource Group",
+        script=cloud.create_resource_group(region),
+        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
+    )
+
+
 # TODO: Add delete_resource_group function and validate_resource_group function
 @dataclass
 class Terraform(Resource):
@@ -253,7 +262,7 @@ class Terraform(Resource):
             set_user_data_path(self.user_data_path),
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
-            self.cloud.create_resource_group(self.regions[0]),
+            create_resource_group(self.cloud, self.regions[0]),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),
