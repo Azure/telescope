@@ -31,35 +31,35 @@ name: scale-test
 
 steps:
   - module:
-      path: /modules/measurements.yaml
+      path: /modules/measurements/measurements.yaml
       params:
         action: start
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/retina-measurements.yaml
+      path: /modules/measurements/retina.yaml
       params:
         action: start
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/cilium-measurements.yaml
+      path: /modules/measurements/cilium.yaml
       params:
         action: start
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/ama-logs-measurements.yaml
+      path: /modules/measurements/ama-logs.yaml
       params:
         action: start
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/node-disk-measurements.yaml
+      path: /modules/measurements/node-disk.yaml
       params:
         action: start
         group: {{$groupName}}
@@ -95,35 +95,35 @@ steps:
 
   # FIXME: is this needed?
   - module:
-      path: /modules/measurements.yaml
+      path: /modules/measurements/measurements.yaml
       params:
         action: gather
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/retina-measurements.yaml
+      path: /modules/measurements/retina.yaml
       params:
         action: gather
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/cilium-measurements.yaml
+      path: /modules/measurements/cilium.yaml
       params:
         action: gather
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/ama-logs-measurements.yaml
+      path: /modules/measurements/ama-logs.yaml
       params:
         action: gather
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
   - module:
-      path: /modules/node-disk-measurements.yaml
+      path: /modules/measurements/node-disk.yaml
       params:
         action: gather
         group: {{$groupName}}
