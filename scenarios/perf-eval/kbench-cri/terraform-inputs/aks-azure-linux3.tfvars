@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "kbench-cri"
-deletion_delay = "3h"
+deletion_delay = "8h"
 owner          = "aks"
 
 network_config_list = [
