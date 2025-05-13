@@ -54,12 +54,6 @@ steps:
         actionName: "create"
         tuningSet: DeploymentCreateQps
 
-  - module:
-      path: /modules/kube-state-metrics.yaml
-      params:
-        actionName: "create"
-        tuningSet: DeploymentCreateQps
-
   - name: Run Test without Creating Retina Network Flow Logs
     measurements:
     - Identifier: Dummy
@@ -95,12 +89,6 @@ steps:
       
   - module:
       path: /modules/node-exporter.yaml
-      params:
-        actionName: "delete"
-        tuningSet: DeploymentCreateQps
-
-  - module:
-      path: /modules/kube-state-metrics.yaml
       params:
         actionName: "delete"
         tuningSet: DeploymentCreateQps
