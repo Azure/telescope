@@ -9,7 +9,7 @@ schedules:
     always: true
 
 jobs:
-  - job: pipeline_checker
+  - job: pipeline_validator
     continueOnError: false
     steps:
       - script: |
