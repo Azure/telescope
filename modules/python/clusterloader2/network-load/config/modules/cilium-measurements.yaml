@@ -131,19 +131,19 @@ steps:
         enableViolations: true
         queries:
         - name: ct4_global
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="ct4_global"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="ct4_global"}[%v:])))
         - name: lb4_services_v2
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb4_services_v2"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb4_services_v2"}[%v:])))
         - name: ipcache
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="ipcache"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="ipcache"}[%v:])))
         - name: lb4_backends_v3
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb4_backends_v3"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb4_backends_v3"}[%v:])))
         - name: lb4_reverse_nat
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb4_reverse_nat"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb4_reverse_nat"}[%v:])))
         - name: lb_affinity_match
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb_affinity_match"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lb_affinity_match"}[%v:])))
         - name: lxc
-          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lxc"}[%v:]))
+          query: quantile(0.99,(max_over_time(cilium_bpf_map_pressure{map_name="lxc"}[%v:])))
     - Identifier: CiliumBPFMapVirtualMemoryMax
       Method: GenericPrometheusQuery
       Params:
@@ -300,15 +300,15 @@ steps:
         unit: count
         queries:
         - name: Drop
-          query: quantile(0.99, max_over_time(hubble_drop_total))
+          query: max(hubble_drop_total)
         - name: TCPFlags
-          query: quantile(0.99, max_over_time(hubble_tcp_flags_total))
+          query: max(hubble_tcp_flags_total)
         - name: FlowsProcessed
-          query: quantile(0.99, max_over_time(hubble_flows_processed_total))
+          query: max(hubble_flows_processed_total)
         - name: DNSQueries
-          query: quantile(0.99, max_over_time(hubble_dns_queries_total))
+          query: max(hubble_dns_queries_total)
         - name: DNSResponses
-          query: quantile(0.99, max_over_time(hubble_dns_responses_total))
+          query: max(hubble_dns_responses_total)
     - Identifier: HubbleFlowsProcessedTotal
       Method: GenericPrometheusQuery
       Params:
@@ -328,9 +328,9 @@ steps:
         unit: count
         queries:
         - name: ring_buffer
-          query:  quantile(0.99,(max_over_time(hubble_lost_events_total{source="hubble_ring_buffer"}[%v:]))
+          query:  quantile(0.99,(max_over_time(hubble_lost_events_total{source="hubble_ring_buffer"}[%v:])))
         - name: observer_events_queue
-          query:  quantile(0.99,(max_over_time(hubble_lost_events_total{source="observer_events_queue"}[%v:]))
+          query:  quantile(0.99,(max_over_time(hubble_lost_events_total{source="observer_events_queue"}[%v:])))
     - Identifier: HubbleHTTPHandlerRequestDurationSecondsBucket
       Method: GenericPrometheusQuery
       Params:
