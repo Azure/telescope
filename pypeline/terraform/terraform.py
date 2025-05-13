@@ -133,7 +133,7 @@ def get_deletion_info(region: str) -> Script:
 def set_input_variables(
     cloud: Cloud, regions: list[str], input_variables: dict
 ) -> Script:
-    # Initialize regional configuration
+
     regional_config = {}
 
     # Generate input variables for each region
