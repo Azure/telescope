@@ -1,6 +1,7 @@
 apiVersion: v1
 kind: Node
 metadata:
+  name: {{node_name}}
   annotations:
     node.alpha.kubernetes.io/ttl: "0"
     kwok.x-k8s.io/node: fake
@@ -13,7 +14,6 @@ metadata:
     kubernetes.io/role: agent
     node-role.kubernetes.io/agent: ""
     type: kwok
-  name: kwok-node-0
 spec:
   taints: # Avoid scheduling actual running pods to fake Node
   - effect: NoSchedule
@@ -28,6 +28,11 @@ status:
     cpu: 32
     memory: 256Gi
     pods: 110
+  conditions:
+    - type: "Ready"
+      status: "True"
+      reason: "KubeletReady"
+      message: "kubelet is posting ready status"
   nodeInfo:
     architecture: amd64
     bootID: ""

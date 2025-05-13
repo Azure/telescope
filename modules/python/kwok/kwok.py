@@ -1,10 +1,10 @@
-import json
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import requests
-import yaml
+
+from clients.kubernetes_client import KubernetesClient
 
 
 @dataclass
@@ -12,6 +12,7 @@ class KWOK(ABC):
     kwok_repo: str = "kubernetes-sigs/kwok"
     kwok_release: str = None
     enable_metrics: bool = False
+    k8s_client: KubernetesClient = KubernetesClient()
 
     def fetch_latest_release(self):
         response = requests.get(
@@ -19,14 +20,6 @@ class KWOK(ABC):
         )
         response.raise_for_status()
         return response.json().get("tag_name")
-
-    def apply_manifest(self, manifest):
-        with subprocess.Popen(
-            ["kubectl", "apply", "-f", "-"], stdin=subprocess.PIPE, text=True
-        ) as process:
-            process.communicate(input=json.dumps(manifest))
-            if process.returncode != 0:
-                raise RuntimeError("Failed to apply manifest")
 
     # Setting up the KWOK environment and simulating the pod/node emulation
     # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
@@ -56,7 +49,7 @@ class KWOK(ABC):
 
 @dataclass
 class Node(KWOK):
-    node_manifest_path: str = "config/kwok-node.yaml"
+    node_manifest_path: str = "kwok/config/kwok-node.yaml"
     node_count: int = 1
 
     def create(self):
@@ -66,78 +59,73 @@ class Node(KWOK):
 
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
-            with open(self.node_manifest_path, "r", encoding="utf-8") as file:
-                base_node_manifest = yaml.safe_load(file)
-
             for i in range(self.node_count):
-                node_manifest = base_node_manifest.copy()
-                node_manifest["metadata"]["name"] = f"kwok-node-{i}"
-                self.apply_manifest(node_manifest)
+                replacements = {"node_name": f"kwok-node-{i}"}
+                kwok_template = self.k8s_client.create_template(
+                    self.node_manifest_path, replacements
+                )
+                self.k8s_client.create_node(kwok_template)
 
             print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
     def validate(self):
-        for i in range(self.node_count):
-            node_name = f"kwok-node-{i}"
-            print(f"Validating node: {node_name}")
+        ready_nodes = self.k8s_client.get_nodes()
+        kwok_nodes = [
+            node
+            for node in ready_nodes
+            if node.metadata.annotations
+            and node.metadata.annotations.get("kwok.x-k8s.io/node") == "fake"
+        ]
+        if len(kwok_nodes) < self.node_count:
+            raise RuntimeError(
+                f"Validation failed: Expected at least {self.node_count} KWOK nodes, but found {len(kwok_nodes)}."
+            )
+
+        for node in kwok_nodes:
             try:
-                node_info = self._get_node_info(node_name)
-                self._validate_node_status(node_name, node_info)
-                self._validate_node_annotations(node_name, node_info)
-                self._validate_node_resources(node_name, node_info)
+                self._validate_node_status(node)
+                self._validate_node_resources(node)
             except Exception as e:
                 raise RuntimeError(
-                    f"Validation failed for node {node_name}: {e}"
+                    f"Validation failed for node {node.metadata.name}: {e}"
                 ) from e
 
-        print(f"Validation completed for {self.node_count} nodes.")
+        print(f"Validation completed for {self.node_count} KWOK nodes.")
 
     def tear_down(self):
         for i in range(self.node_count):
             node_name = f"kwok-node-{i}"
             print(f"Deleting node: {node_name}")
-            try:
-                subprocess.run(["kubectl", "delete", "node", node_name], check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to delete node {node_name}: {e}") from e
-
+            self.k8s_client.delete_node(node_name)
         print(f"Successfully deleted {self.node_count} nodes.")
 
-    def _get_node_info(self, node_name):
-        result = subprocess.run(
-            ["kubectl", "get", "node", node_name, "-o", "json"],
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
+    def _validate_node_status(self, node):
+        conditions = (
+            node.status.conditions if node.status and node.status.conditions else []
         )
-        return json.loads(result.stdout)
-
-    def _validate_node_status(self, node_name, node_info):
-        conditions = node_info.get("status", {}).get("conditions", [])
-        ready_condition = next((c for c in conditions if c["type"] == "Ready"), None)
-        if ready_condition and ready_condition["status"] == "True":
-            print(f"Node {node_name} is Ready.")
+        ready_condition = next((c for c in conditions if c.type == "Ready"), None)
+        if ready_condition and ready_condition.status == "True":
+            print(f"Node {node.metadata.name} is Ready.")
         else:
-            raise RuntimeError(f"Node {node_name} is NOT Ready.")
+            raise RuntimeError(
+                f"Node {node.metadata.name} is NOT Ready. "
+                f"Condition: {ready_condition.status if ready_condition else 'No Ready condition found'}"
+            )
 
-    def _validate_node_annotations(self, node_name, node_info):
-        annotations = node_info.get("metadata", {}).get("annotations", {})
-        if annotations.get("kwok.x-k8s.io/node") == "fake":
-            print(f"Node {node_name} is correctly annotated as a KWOK node.")
-        else:
-            raise RuntimeError(f"Node {node_name} is missing the KWOK annotation.")
+    def _validate_node_resources(self, node):
+        allocatable = (
+            node.status.allocatable if node.status and node.status.allocatable else {}
+        )
+        capacity = node.status.capacity if node.status and node.status.capacity else {}
 
-    def _validate_node_resources(self, node_name, node_info):
-        allocatable = node_info.get("status", {}).get("allocatable", {})
-        capacity = node_info.get("status", {}).get("capacity", {})
         if not allocatable or not capacity:
             raise RuntimeError(
-                f"Node {node_name} is missing resource information (allocatable or capacity)."
+                f"Node {node.metadata.name} is missing resource information (allocatable or capacity)."
             )
-        print(f"Node {node_name} Allocatable: {allocatable}")
-        print(f"Node {node_name} Capacity: {capacity}")
+        print(f"Node {node.metadata.name} Allocatable: {allocatable}")
+        print(f"Node {node.metadata.name} Capacity: {capacity}")
 
 
 # TODO: Implement the logic for KWOK pods
@@ -151,3 +139,11 @@ class Pod(KWOK):
 
     def tear_down(self):
         pass
+
+
+if __name__ == "__main__":
+    # Example usage
+    kwok_node = Node(node_count=2)
+    kwok_node.create()
+    kwok_node.validate()
+    kwok_node.tear_down()
