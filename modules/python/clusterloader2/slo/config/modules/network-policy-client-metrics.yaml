@@ -39,8 +39,8 @@ steps:
         - port
         enableViolations: true
         queries:
-        - name: max number of http requests total over time
-          query: sum(increase(http_requests_total[%v:])) by (port)
+        - name: total number of http requests total over time
+          query: count(count_over_time(http_requests_total[%v:])) by (port)
     - Identifier: MaxHttpRequestsFail
       Method: GenericPrometheusQuery
       Params:
@@ -52,8 +52,8 @@ steps:
         - port
         enableViolations: true
         queries:
-        - name: max number of http requests fail over time
-          query: sum(increase(http_requests_fail[%v:])) by (port)
+        - name: total number of http requests fail over time
+          query: count(count_over_time(http_requests_fail[%v:])) by (port)
     - Identifier: MaxHttpRequestsSuccess
       Method: GenericPrometheusQuery
       Params:
@@ -65,6 +65,6 @@ steps:
         - port
         enableViolations: true
         queries:
-        - name: max number of http requests success over time
-          query: sum(increase(http_requests_success[%v:])) by (port)
+        - name: total number of http requests success over time
+          query: count(count_over_time(http_requests_success[%v:])) by (port)
     
