@@ -45,7 +45,7 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name                 = "prompool"
+        name                 = "promnodepool"
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D64_v3"
