@@ -87,6 +87,7 @@ steps:
         labelTrafficPods: {{$labelTrafficPods}}
     {{end}}
       
+  # TODO: Remove this module once there's a way to deploy node exporter that works in perf-tests repository
   - module:
       path: /modules/node-exporter.yaml
       params:
