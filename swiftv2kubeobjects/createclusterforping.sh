@@ -52,6 +52,7 @@ natGatewayID=$(az network nat gateway list -g ${RG} | jq -r '.[].id')
 az network vnet subnet create -n ${vnetSubnetNameNodes} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetNodesCIDR} --nat-gateway ${natGatewayID} -g ${RG}
 az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetPodsCIDR} --nat-gateway $NAT_GW_NAME -g ${RG}
 
+az role assignment create --assignee d0fdeb79-ee9b-464c-ae0f-ba72d307208d --role "Network Contributor" --scope /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$vnetName
 for attempt in $(seq 1 5); do
     echo "Attempting to execute subnetdelegator command: $attempt/5"
     script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename'" /dev/null && break || echo "Command failed, retrying..."
@@ -98,7 +99,6 @@ az aks create -n ${CLUSTER} -g ${RG} \
         --outbound-type userAssignedNATGateway \
         --no-ssh-key \
         --node-resource-group MC_sv2perf-$RG-$CLUSTER \
-        --skip-role-assignment \
         --yes
         
 SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --query id)
