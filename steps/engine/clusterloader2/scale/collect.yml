@@ -41,7 +41,7 @@ steps:
     --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
     --network-policies-per-namespace $NETWORK_POLICIES_PER_NAMESPACE \
     --generate-retina-network-flow-logs ${GENERATE_RETINA_NETWORK_FLOW_LOGS:-False} \
-    # --test_type ${TEST_TYPE:-False} \
+    --label_traffic_pods ${LABEL_TRAFFIC_PODS:-False}
   workingDirectory: modules/python/clusterloader2
   env:
     CLOUD: ${{ parameters.cloud }}

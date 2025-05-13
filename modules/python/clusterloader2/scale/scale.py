@@ -54,6 +54,7 @@ def configure_clusterloader2(
     fortio_deployments_per_namespace,
     network_policies_per_namespace,
     generate_retina_network_flow_logs,
+    label_traffic_pods,
     override_file):
 
     with open(override_file, 'w', encoding='utf-8') as file:
@@ -65,7 +66,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
-        file.write("PROMETHEUS_SCRAPE_KUBE_PROXY: false\n")
+        file.write(f"CL2_LABEL_TRAFFIC_PODS: {label_traffic_pods}\n")
 
         # topology config
         file.write(f"CL2_FORTIO_SERVERS_PER_DEPLOYMENT: {fortio_servers_per_deployment}\n")
@@ -139,6 +140,7 @@ def collect_clusterloader2(
     fortio_deployments_per_namespace,
     network_policies_per_namespace,
     generate_retina_network_flow_logs=False,
+    label_traffic_pods=False,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -170,6 +172,7 @@ def collect_clusterloader2(
             "traffic_pods": fortio_namespaces * fortio_deployments_per_namespace * (fortio_clients_per_deployment + fortio_servers_per_deployment),
             "network_policies": network_policies_per_namespace,
             "generate_retina_network_flow_logs": generate_retina_network_flow_logs,
+            "label_traffic_pods": label_traffic_pods,
             "requests_per_second": fortio_client_queries_per_second,
             "details": testsuites[0]["testcases"][0]["failure"],
         },
@@ -255,6 +258,7 @@ def main():
     parser_configure.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
     parser_configure.add_argument("--network-policies-per-namespace", type=int, help="Number of network policies to be created per namespace", default=0, nargs='?')
     parser_configure.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
+    parser_configure.add_argument("--label_traffic_pods", type=str2bool, choices=[True, False], nargs='?', default=False, help="Add/Remove label to client traffic pods(default=False)")
     parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -304,6 +308,7 @@ def main():
     parser_collect.add_argument("--fortio-deployments-per-namespace", type=int, required=True, help="Number of Fortio server deployments (and number of client deployments) per service/partition. Be weary of integer division causing less pods than expected regarding this parameter, namespaces, pods, and pods per node.")
     parser_collect.add_argument("--network-policies-per-namespace", type=int, help="Number of network policies to be created per namespace", default=0, nargs='?')
     parser_collect.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
+    parser_collect.add_argument("--label_traffic_pods", type=str2bool, choices=[True, False], nargs='?', default=False, help="Add/Remove label to client traffic pods(default=False)")
 
     args = parser.parse_args()
 
@@ -318,6 +323,7 @@ def main():
                                  args.fortio_deployments_per_namespace,
                                  args.network_policies_per_namespace,
                                  args.generate_retina_network_flow_logs,
+                                 args.label_traffic_pods,
                                  args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
@@ -338,6 +344,7 @@ def main():
                                args.fortio_deployments_per_namespace,
                                args.network_policies_per_namespace,
                                args.generate_retina_network_flow_logs,
+                               args.label_traffic_pods,
                                )
 
 if __name__ == "__main__":

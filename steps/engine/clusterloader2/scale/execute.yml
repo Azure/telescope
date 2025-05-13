@@ -70,6 +70,7 @@ steps:
         --num_ccnps ${NUM_CCNPS:-0} \
         --dualstack ${DUALSTACK:-False} \
         --generate-retina-network-flow-logs ${GENERATE_RETINA_NETWORK_FLOW_LOGS:-False} \
+        --label_traffic_pods ${LABEL_TRAFFIC_PODS:-False} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \

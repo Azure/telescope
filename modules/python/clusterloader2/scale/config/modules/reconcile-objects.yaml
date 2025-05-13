@@ -132,6 +132,8 @@ steps:
       action: gather
       refreshInterval: 15s
 
+{{if .labelTrafficPods}}
+
 - name: Starting measurement for '{{$actionName}}'
   measurements:
   - Method: WaitForControlledPodsRunning
@@ -178,7 +180,9 @@ steps:
       action: gather
       refreshInterval: 15s
 
-- name: '{{$actionName}} network policies'
+{{end}}
+
+- name: '{{$actionName}} {{$networkPoliciesPerNamespace}} network policies per namespace'
   phases:
   - namespaceRange:
       min: 1
@@ -188,6 +192,8 @@ steps:
     objectBundle:
       - basename: scale-test-policy
         objectTemplatePath: modules/networkpolicy-template.yaml
+
+{{if .labelTrafficPods}}
 
 - name: Starting measurement for '{{$actionName}}'
   measurements:
@@ -279,6 +285,8 @@ steps:
     Params:
       action: gather
       refreshInterval: 15s
+
+{{end}}
 
 - name: Wait to get metrics
   measurements:

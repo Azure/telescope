@@ -18,6 +18,8 @@ name: scale-test
 {{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
 {{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 
+{{$labelTrafficPods := DefaultParam .CL2_LABEL_TRAFFIC_PODS false}}
+
 # Retina Network Flow Log config
 {{$generateRetinaNetworkFlowLogs := DefaultParam .CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS false}}
 
@@ -76,6 +78,7 @@ steps:
         action: start
         group: {{$groupName}}
         createRetinaNetworkFlowLogs: false
+        labelTrafficPods: {{$labelTrafficPods}}
 
     {{if $generateRetinaNetworkFlowLogs}}
   - name: Wait 5m and run test Creating Retina Network Flow Logs
@@ -91,6 +94,7 @@ steps:
         action: start
         group: {{$groupName}}
         createRetinaNetworkFlowLogs: true
+        labelTrafficPods: {{$labelTrafficPods}}
     {{end}}
       
   - module:

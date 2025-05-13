@@ -91,6 +91,7 @@ steps:
         generateRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
         deploymentLabel: start
         networkPoliciesPerNamespace: {{$networkPoliciesPerNamespace}}
+        labelTrafficPods: {{.labelTrafficPods}}
 
   # FIXME: is this needed?
   - module:
