@@ -77,9 +77,11 @@ HOST_NETWORK=false # or true
 CLUSTER_CLI_CONTEXT=pod-diff-node
 CLUSTER_SRV_CONTEXT=pod-diff-node
 KUSTOMIZE_DIR=$(pwd)/modules/kustomize/iperf3
-pushd $KUSTOMIZE_DIR
-kustomize build ${KUSTOMIZE_DIR}/overlays/client-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
-kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+pushd $KUSTOMIZE_DIR/overlays/client
+kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+popd
+pushd $KUSTOMIZE_DIR/overlays/server
+kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
 popd
 
 pushd modules/python

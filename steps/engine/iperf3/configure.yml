@@ -9,10 +9,12 @@ parameters:
 steps:
   - script: |
       set -eo pipefail
-      pushd $KUSTOMIZE_DIR
       HOST_NETWORK=${HOST_NETWORK,,}
-      kustomize build ${KUSTOMIZE_DIR}/overlays/client-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
-      kustomize build ${KUSTOMIZE_DIR}/overlays/server-hostnetwork-${HOST_NETWORK} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+      pushd $KUSTOMIZE_DIR/overlays/client
+      kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+      popd
+      pushd $KUSTOMIZE_DIR/overlays/server
+      kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
       popd
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
