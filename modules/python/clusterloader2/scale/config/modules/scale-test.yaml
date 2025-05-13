@@ -31,7 +31,7 @@ name: scale-test
 
 steps:
   - module:
-      path: /modules/measurements/measurements.yaml
+      path: /modules/measurements/control-plane.yaml
       params:
         action: start
         group: {{$groupName}}
@@ -85,7 +85,7 @@ steps:
 
   # FIXME: is this needed?
   - module:
-      path: /modules/measurements/measurements.yaml
+      path: /modules/measurements/control-plane.yaml
       params:
         action: gather
         group: {{$groupName}}
