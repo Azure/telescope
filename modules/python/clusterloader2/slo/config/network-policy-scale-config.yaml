@@ -212,18 +212,18 @@ steps:
       Method: NetworkPolicySoakMeasurement
       Params:
         action: restart
-  # - name: Network Policy Soak Test - Delete Pods
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: delete-pods
-  # - name: Network Policy Soak Test - Delete CNPS
-  #   measurements:
-  #   - Identifier: NetworkPolicySoakMeasurement
-  #     Method: NetworkPolicySoakMeasurement
-  #     Params:
-  #       action: delete-ccnps-cnps
+  - name: Network Policy Soak Test - Delete Pods
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-pods
+  - name: Network Policy Soak Test - Delete CNPS
+    measurements:
+    - Identifier: NetworkPolicySoakMeasurement
+      Method: NetworkPolicySoakMeasurement
+      Params:
+        action: delete-ccnps-cnps
   {{end}}
   {{end}}
 
