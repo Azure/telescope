@@ -4,14 +4,8 @@
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE := DefaultParam .CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE true}}
 {{$PROMETHEUS_SCRAPE_KUBE_PROXY := DefaultParam .PROMETHEUS_SCRAPE_KUBE_PROXY true}}
-{{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD := DefaultParam .CL2_NETWORK_PROGRAMMING_LATENCY_THRESHOLD "30s"}}
-{{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES := DefaultParam .CL2_ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES false}}
 {{$NETWORK_LATENCY_THRESHOLD := DefaultParam .CL2_NETWORK_LATENCY_THRESHOLD "0s"}}
-{{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION := DefaultParam .CL2_PROBE_MEASUREMENTS_PING_SLEEP_DURATION "1s"}}
 {{$ENABLE_IN_CLUSTER_NETWORK_LATENCY := DefaultParam .CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY true}}
-
-# Probe measurements shared parameter
-{{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT := DefaultParam .CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT "15m"}}
 
 {{$suffix := DefaultParam .suffix ""}}
 
@@ -30,24 +24,6 @@ steps:
           action: {{$action}}
           labelSelector: group = {{.group}}
           threshold: {{$podStartupLatencyThreshold}}
-    {{if $PROMETHEUS_SCRAPE_KUBE_PROXY}}
-      - Identifier: NetworkProgrammingLatency{{$suffix}}
-        Method: NetworkProgrammingLatency
-        Params:
-          action: {{$action}}
-          enableViolations: {{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES}}
-          threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
-    {{end}}
-    {{if $ENABLE_IN_CLUSTER_NETWORK_LATENCY}}
-      - Identifier: InClusterNetworkLatency{{$suffix}}
-        Method: InClusterNetworkLatency
-        Params:
-          action: {{$action}}
-          checkProbesReadyTimeout: {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT}}
-          replicasPerProbe: {{AddInt 2 (DivideInt .Nodes 100)}}
-          pingSleepDuration: {{$PROBE_MEASUREMENTS_PING_SLEEP_DURATION}}
-          threshold: {{$NETWORK_LATENCY_THRESHOLD}}
-    {{end}}
       - Identifier: ApiserverAvgCPUUsage{{$suffix}}
         Method: GenericPrometheusQuery
         Params:

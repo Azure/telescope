@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "acns-azurecni-overlay"
+scenario_name  = "non-acns-azurecni-overlay"
 deletion_delay = "20h"
 owner          = "aks"
 
@@ -7,7 +7,6 @@ aks_cli_config_list = [
   {
     role               = "slo"
     aks_name           = "telescope-acns-scale-test"
-    sku_tier           = "standard"
     kubernetes_version = "1.32"
     sku_tier           = "Standard"
 

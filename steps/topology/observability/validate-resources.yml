@@ -11,6 +11,3 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-# - template: /steps/engine/clusterloader2/slo/validate.yml
-#   parameters:
-#     desired_nodes: $(node_count)

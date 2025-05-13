@@ -4,12 +4,10 @@
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
 # interval
 {{$interval := DefaultParam .interval "15s"}}
-{{$replicasPerNamespace := 1}}
-
 {{if eq .actionName "create"}}
-  {{ $replicasPerNamespace = 1 }}
+  {{ $replicasPerNamespace := 1 }}
 {{else}}
-  {{ $replicasPerNamespace = 0 }}
+  {{ $replicasPerNamespace := 0 }}
 {{end}} 
 
 steps:
