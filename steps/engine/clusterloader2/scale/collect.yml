@@ -17,17 +17,10 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-    --cpu_per_node ${CPU_PER_NODE:-0} \
-    --node_count ${NODE_COUNT:-0} \
-    --max_pods ${MAX_PODS:-0} \
-    --repeats ${REPEATS:-0} \
     --cl2_report_dir ${CL2_REPORT_DIR:-0} \
     --cloud_info "${CLOUD_INFO:-""}" \
     --run_id $RUN_ID \
     --run_url $RUN_URL \
-    --service_test ${SERVICE_TEST:-False} \
-    --cnp_test ${CNP_TEST:-False} \
-    --ccnp_test ${CCNP_TEST:-False} \
     --result_file $TEST_RESULTS_FILE \
     --start_timestamp $START_TIME \
     --observability_tool ${OBSERVABILITY_TOOL:-""} \

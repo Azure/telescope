@@ -45,7 +45,6 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
 
 def configure_clusterloader2(
     operation_timeout,
-    cilium_enabled,
     fortio_servers_per_deployment,
     fortio_clients_per_deployment,
     fortio_client_queries_per_second,
@@ -79,12 +78,6 @@ def configure_clusterloader2(
         file.write("CL2_FORTIO_POD_MEMORY: 50Mi\n")
         file.write(f"CL2_NETWORK_POLICIES_PER_NAMESPACE: {network_policies_per_namespace}\n")
         file.write(f"CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS: {generate_retina_network_flow_logs}\n")
-
-        if cilium_enabled:
-            file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
     with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -229,27 +222,9 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
-    parser_configure.add_argument("--cpu_per_node", type=int, help="CPU per node")
-    parser_configure.add_argument("--node_count", type=int, help="Number of nodes")
-    parser_configure.add_argument("--node_per_step", type=int, help="Number of nodes per scaling step")
-    parser_configure.add_argument("--max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_configure.add_argument("--repeats", type=int, help="Number of times to repeat the deployment churn")
-    parser_configure.add_argument("--operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("--provider", type=str, help="Cloud provider name")
-    parser_configure.add_argument("--cilium_enabled", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("--scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
-    parser_configure.add_argument("--service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")
-    parser_configure.add_argument("--cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cnp test is running. Must be either True or False")
-    parser_configure.add_argument("--ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether ccnp test is running. Must be either True or False")
-    parser_configure.add_argument("--num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-    parser_configure.add_argument("--num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
-    parser_configure.add_argument("--dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("--fortio-servers-per-deployment", type=int, required=True, help="Number of Fortio servers per deployment")
     parser_configure.add_argument("--fortio-clients-per-deployment", type=int, required=True, help="Number of Fortio clients per deployment")
     parser_configure.add_argument("--fortio-client-queries-per-second", type=int, required=True, help="Queries per second for each Fortio client pod. NOT queries per second per connection")
@@ -279,20 +254,10 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("--cpu_per_node", type=int, help="CPU per node")
-    parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("--max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
-    parser_collect.add_argument("--repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("--run_id", type=str, help="Run ID")
     parser_collect.add_argument("--run_url", type=str, help="Run URL")
-    parser_collect.add_argument("--service_test", type=str2bool, choices=[True, False], default=False, nargs='?',
-                                  help="Whether service test is running. Must be either True or False")
-    parser_collect.add_argument("--cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cnp test is running. Must be either True or False")
-    parser_collect.add_argument("--ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether ccnp test is running. Must be either True or False")
     parser_collect.add_argument("--result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("--test_type", type=str, nargs='?', default="default-config",
                                 help="Description of test type")
@@ -314,7 +279,6 @@ def main():
 
     if args.command == "configure":
         configure_clusterloader2(args.operation_timeout,
-                                 args.cilium_enabled,
                                  args.fortio_servers_per_deployment,
                                  args.fortio_clients_per_deployment,
                                  args.fortio_client_queries_per_second,
