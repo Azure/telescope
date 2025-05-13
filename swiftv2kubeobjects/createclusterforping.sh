@@ -100,8 +100,6 @@ az aks create -n ${CLUSTER} -g ${RG} \
         --no-ssh-key \
         --node-resource-group MC_sv2perf-$RG-$CLUSTER \
         --enable-managed-identity \
-        --service-principal msi \
-        --client-secret null \
         --generate-ssh-keys \
         --yes
         
