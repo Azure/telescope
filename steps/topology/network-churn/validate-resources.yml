@@ -12,18 +12,12 @@ steps:
       role: net
       region: ${{ parameters.regions[0] }}
 
-  # - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
-  #   parameters:
-  #     role: net
-  #     region: ${{ parameters.regions[0] }}
-  #     nodes_per_nodepool: 240 # fix it to 240
-  #     enable_autoscale: "false"
-
-  - script: |
-      echo "Dumping all environment variables:"
-      env | sort
-      echo "NPM_ENABLED value: '$NPM_ENABLED'"
-    displayName: 'Debug Environment Variables'
+  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+    parameters:
+      role: net
+      region: ${{ parameters.regions[0] }}
+      nodes_per_nodepool: 240 
+      enable_autoscale: "false"
 
   - script: |
       #!/bin/bash
