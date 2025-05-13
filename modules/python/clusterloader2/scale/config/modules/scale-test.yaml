@@ -65,16 +65,6 @@ steps:
         group: {{$groupName}}
         suffix: "{{$suffix}}"
 
-  # deployment creation
-  # - module:
-  #     path: /modules/kapinger.yaml
-  #     params:
-  #       namespaces: {{$namespaces}}
-  #       tuningSet: DeploymentCreateQps
-  #       deployments: {{$deploymentsPerNamespace}}
-  #       podReplicas: {{$replicasPerNamespace}}
-  #
-
   - module:
       path: /modules/reconcile-objects.yaml
       params:
