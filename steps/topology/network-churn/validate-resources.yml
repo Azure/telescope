@@ -11,3 +11,31 @@ steps:
     parameters:
       role: net
       region: ${{ parameters.regions[0] }}
+
+  - script: |
+      #!/bin/bash
+      set -e
+      
+      # Check if NPM_ENABLED environment variable is set to true
+      if [[ "$NPM_ENABLED" == "true" ]]; then
+        echo "NPM is enabled, applying Azure NPM configuration..."
+        
+        # Path to the NPM configuration file
+        npm_config_file="$(Pipeline.Workspace)/s/scripts/azure_npm.yml"
+        
+        # Check if the file exists
+        if [[ -f "$npm_config_file" ]]; then
+          echo "Applying NPM configuration from: $npm_config_file"
+          kubectl apply -f "$npm_config_file"
+          echo "Azure NPM configuration applied successfully!"
+        else
+          echo "Error: NPM configuration file not found at $npm_config_file"
+          echo "Looking for file in current directory:"
+          ls -la "$(Pipeline.Workspace)/s/scripts/"
+          exit 1
+        fi
+      else
+        echo "NPM is not enabled, skipping Azure NPM configuration."
+      fi
+    displayName: 'Apply Azure NPM Configuration (if enabled)'
+    condition: and(succeeded(), eq('${{ parameters.cloud }}', 'azure'))
