@@ -12,12 +12,12 @@ steps:
       role: net
       region: ${{ parameters.regions[0] }}
 
-  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
-    parameters:
-      role: net
-      region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: 0 # fix it to 240
-      enable_autoscale: "false"
+  # - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+  #   parameters:
+  #     role: net
+  #     region: ${{ parameters.regions[0] }}
+  #     nodes_per_nodepool: 240 # fix it to 240
+  #     enable_autoscale: "false"
 
   - script: |
       echo "Dumping all environment variables:"
@@ -30,11 +30,11 @@ steps:
       set -e
       
       # Check if NPM_ENABLED environment variable is set to true
-      if [[ "$NPM_ENABLED" == "true" ]] || [[ "$NPM_ENABLED" == "True" ]] || [[ "$NPM_ENABLED" == true ]]; then
+      if [[ "$NPM_ENABLED" == "True" ]]; then
         echo "NPM is enabled, applying Azure NPM configuration..."
         
         # Path to the NPM configuration file
-        npm_config_file="$(Pipeline.Workspace)/s/scripts/azure_npm.yml"
+        npm_config_file="$(Pipeline.Workspace)/s/scripts/azure-npm.yaml"
         
         # Check if the file exists
         if [[ -f "$npm_config_file" ]]; then
