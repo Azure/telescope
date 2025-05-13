@@ -99,6 +99,10 @@ az aks create -n ${CLUSTER} -g ${RG} \
         --outbound-type userAssignedNATGateway \
         --no-ssh-key \
         --node-resource-group MC_sv2perf-$RG-$CLUSTER \
+        --enable-managed-identity \
+        --service-principal msi \
+        --client-secret null \
+        --generate-ssh-keys \
         --yes
         
 SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --query id)
