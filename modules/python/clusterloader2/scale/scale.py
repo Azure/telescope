@@ -1,11 +1,9 @@
 import json
 import os
 import argparse
-import time
 
 from datetime import datetime, timezone
 from utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
-from kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 40
 
@@ -22,26 +20,6 @@ CPU_CAPACITY = {
     "aks": 0.87
 }
 # TODO: Remove aks once CL2 update provider name to be azure
-
-def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test):
-    throughput = 100
-    nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
-
-    pods_per_node = DEFAULT_PODS_PER_NODE
-    if service_test:
-        pods_per_node = max_pods
-
-    if cnp_test or ccnp_test:
-        pods_per_node = max_pods
-    # Different cloud has different reserved values and number of daemonsets
-    # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
-    # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
-    # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
-    capacity = CPU_CAPACITY[provider]
-    cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
-    cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
-
-    return throughput, nodes_per_namespace, pods_per_node, cpu_request
 
 def configure_clusterloader2(
     operation_timeout,
@@ -82,21 +60,6 @@ def configure_clusterloader2(
         print(f"Content of file {override_file}:\n{file.read()}")
 
     file.close()
-
-def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
-    kube_client = KubernetesClient()
-    ready_node_count = 0
-    timeout = time.time() + (operation_timeout_in_minutes * 60)
-    while time.time() < timeout:
-        ready_nodes = kube_client.get_ready_nodes()
-        ready_node_count = len(ready_nodes)
-        print(f"Currently {ready_node_count} nodes are ready.")
-        if ready_node_count == node_count:
-            break
-        print(f"Waiting for {node_count} nodes to be ready.")
-        time.sleep(10)
-    if ready_node_count != node_count:
-        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
 def execute_clusterloader2(
     cl2_image,
@@ -234,11 +197,6 @@ def main():
     parser_configure.add_argument("--label_traffic_pods", type=str2bool, choices=[True, False], nargs='?', default=False, help="Add/Remove label to client traffic pods(default=False)")
     parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
-    # Sub-command for validate_clusterloader2
-    parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
-    parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
-
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -287,8 +245,6 @@ def main():
                                  args.generate_retina_network_flow_logs,
                                  args.label_traffic_pods,
                                  args.cl2_override_file)
-    elif args.command == "validate":
-        validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
