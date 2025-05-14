@@ -28,6 +28,7 @@ name: netpol-scale-test
 {{$CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD := DefaultParam .CL2_CILIUM_ENDPOINT_REGEN_FAIL_PERC_THRESHOLD 0.01}}
 {{$L3_L4_PORT := DefaultParam .CL2_L3_L4_PORT false}}
 {{$TARGET_GROUP := DefaultParam .CL2_TARGET_GROUP "service-discovery"}}
+{{$RESTART_DELETION_ENABLED := DefaultParam .CL2_RESTART_DELETION_ENABLED false}}
 namespace:
   number: {{$NUMBER_OF_GROUPS}}
   prefix: slo
@@ -206,6 +207,7 @@ steps:
         testDuration: "{{$DURATION}}"
         workerPerClient: {{$WORKERS_PER_CLIENT}}
         npType: {{$Network_Policy_Type}}
+  {{if $RESTART_DELETION_ENABLED}}
   - name: Network Policy Soak Test - RestartPods
     measurements:
     - Identifier: NetworkPolicySoakMeasurement
@@ -224,6 +226,7 @@ steps:
       Method: NetworkPolicySoakMeasurement
       Params:
         action: delete-ccnps-cnps
+  {{end}}
   {{end}}
   {{end}}
 

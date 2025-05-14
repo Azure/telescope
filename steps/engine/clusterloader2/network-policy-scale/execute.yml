@@ -20,7 +20,7 @@ steps:
       set -eo pipefail
 
       # configure
-      echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --number_of_groups $GROUPS --clients_per_group $CLIENTS_PER_GROUP --servers_per_group $SERVERS_PER_GROUP --workers_per_client $WORKERS_PER_CLIENT --repeats 1 --netpol_type $NETWORKPOLICY_TYPE --test_duration_secs $TEST_RUN_DURATION_SECS --provider $CLOUD --cilium_enabled $CILIUM_ENABLED --cilium_envoy_enabled $CILIUM_ENVOY_ENABLED --l7_enabled False --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml --netpol_latency_test false --netpol_soak_test true"
+      echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure --number_of_groups $GROUPS --clients_per_group $CLIENTS_PER_GROUP --servers_per_group $SERVERS_PER_GROUP --workers_per_client $WORKERS_PER_CLIENT --repeats 1 --netpol_type $NETWORKPOLICY_TYPE --test_duration_secs $TEST_RUN_DURATION_SECS --provider $CLOUD --cilium_enabled $CILIUM_ENABLED --cilium_envoy_enabled $CILIUM_ENVOY_ENABLED --l7_enabled False --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml --netpol_latency_test false --netpol_soak_test true --restart_deletion_enabled true"
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --number_of_groups $GROUPS \
         --clients_per_group $CLIENTS_PER_GROUP \
@@ -34,6 +34,7 @@ steps:
         --cilium_envoy_enabled $CILIUM_ENVOY_ENABLED \
         --netpol_latency_test false \
         --netpol_soak_test true \
+        --restart_deletion_enabled true \
         --l7_enabled false \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 

@@ -18,6 +18,7 @@ def configure_clusterloader2(
     repeats,
     netpol_latency_test,
     netpol_soak_test,
+    restart_deletion_enabled,
     override_file,
 ):
     # Ensure the directory for override_file exists
@@ -52,6 +53,10 @@ def configure_clusterloader2(
 
         if l7_enabled:
             file.write("CL2_NET_POLICY_L7_ENABLED: true\n")
+            file.write("CL2_L3_L4_PORT: false\n")
+
+        if restart_deletion_enabled:
+            file.write("CL2_RESTART_DELETION_ENABLED: true\n")
 
         # test config
         # add "s" at the end of test_duration_secs
@@ -257,6 +262,13 @@ def main():
         help="Whether netpol soak test is enabled. Must be either True or False",
     )
     parser_configure.add_argument(
+        "--restart_deletion_enabled",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether restart deletion is enabled. Must be either True or False",
+    )
+    parser_configure.add_argument(
         "--cl2_override_file",
         type=str,
         required=True,
@@ -327,6 +339,7 @@ def main():
             args.repeats,
             args.netpol_latency_test,
             args.netpol_soak_test,
+            args.restart_deletion_enabled,
             args.cl2_override_file,
         )
     elif args.command == "execute":
