@@ -18,7 +18,7 @@ steps:
       pod_count: 2
       cluster_cli_context: "pod-diff-node"
       cluster_srv_context: "pod-diff-node"
-  - template: /steps/engine/iperf3/configure.yml
+  - template: /steps/engine/iperf3/configure-pod.yml
     parameters:
       pod_count: 1
       cluster_cli_context: "pod-diff-node"
