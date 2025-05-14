@@ -41,7 +41,10 @@ jobs:
           else
             pylint $file_changes
           fi
+      
 
+      - name: Set up kind cluster
+        uses: helm/kind-action@v1.9.0
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: coverage run -m unittest discover
