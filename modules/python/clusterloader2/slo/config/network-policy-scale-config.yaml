@@ -76,7 +76,7 @@ steps:
         action: start
 {{end}}
 {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
-# 3. start policy enforcement latency metrics
+# start policy enforcement latency metrics
   - name: "starting policy enforcement metrics"
     measurements:
     - Identifier: PolicyEnforcementLatencyMetrics
@@ -112,7 +112,7 @@ steps:
         l3l4port: {{$L3_L4_PORT}}
         targetPort: 80
         baseline: {{$NETWORK_POLICY_ENFORCEMENT_LATENCY_BASELINE}}
-  # 5. Start target deployments
+  # Start target deployments
   - name: "Start target deployments"
     measurements:
     - Method: WaitForControlledPodsRunning
@@ -144,7 +144,7 @@ steps:
           SvcName: small-service
           Group: {{$TARGET_GROUP}}
           deploymentLabel: start
-  # 7. Wait for target deployments to be ready
+  # Wait for target deployments to be ready
   - name: "Wait for target deployments to be ready"
     measurements:
     - Identifier: WaitForControlledPodsRunning 
@@ -152,7 +152,7 @@ steps:
       Params:
         action: gather
         refreshInterval: 15s
-  # 8. Run network policy enforcement latency measurement test-type 'policy-creation'
+  # Run network policy enforcement latency measurement test-type 'policy-creation'
   - name: "Run network policy enforcement latency measurement test-type 'policy-creation'"
     measurements:
     - Identifier: NetworkPolicyEnforcement
@@ -174,7 +174,7 @@ steps:
       Method: Sleep
       Params:
         duration: 60s
-  # 11. Gather policy enforcement latency metrics
+  # Gather policy enforcement latency metrics
   - name: "Gather policy enforcement latency metrics"
     measurements:
     - Identifier: PolicyEnforcementLatencyMetrics
@@ -234,7 +234,7 @@ steps:
         clientMetricsGatheringEnabled: true
 {{end}}
 {{if $SOAK_TEST}}
-  # 5. gather network performance measurement (wait and gather results)
+  # gather network performance measurement (wait and gather results)
   - name: Network Policy Soak Test - Gather Results
     measurements:
     - Identifier: NetworkPolicySoakMeasurement
@@ -266,15 +266,8 @@ steps:
       params:
         action: gather
         group: "service-discovery"
-# 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
-  - name: Sleep
-    measurements:
-    - Identifier: Sleep
-      Method: Sleep
-      Params:
-        duration: 5m
 {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
-  # 12. Complete policy enforcement latency measurement
+  # Complete policy enforcement latency measurement
   - name: "Complete pod creation network policy enforcement latency measurement"
     measurements:
     - Identifier: NetworkPolicyEnforcement
@@ -283,3 +276,10 @@ steps:
         action: complete
         testType: policy-creation
 {{end}}
+# 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
+  - name: Sleep
+    measurements:
+    - Identifier: Sleep
+      Method: Sleep
+      Params:
+        duration: 5m
