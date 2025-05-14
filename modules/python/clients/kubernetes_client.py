@@ -209,7 +209,7 @@ class KubernetesClient:
                 self.api.replace_node(name=node_obj["metadata"]["name"], body=node_obj)
                 return node_obj["metadata"]["name"]
             raise Exception(f"Error creating Node: {str(e)}") from e
-        
+
     def delete_node(self, node_name):
         """
         Delete a Kubernetes Node resource by name.
