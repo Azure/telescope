@@ -187,6 +187,45 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error creating deployment {template}: {str(e)}") from e
 
+    def create_node(self, template):
+        """
+        Create a Node in the Kubernetes cluster using the provided YAML template.
+
+        :param template: YAML template for the Node.
+        :param namespace: Namespace where the Node will be created (not applicable for Node, but kept for consistency).
+        :return: Name of the created Node.
+        """
+        try:
+            node_obj = yaml.safe_load(template)
+            if node_obj["kind"] != "Node":
+                raise ValueError("The provided YAML template does not define a Node resource.")
+
+            response = self.api.create_node(body=node_obj)
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing Node template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:  # Node already exists
+                self.api.replace_node(name=node_obj["metadata"]["name"], body=node_obj)
+                return node_obj["metadata"]["name"]
+            raise Exception(f"Error creating Node: {str(e)}") from e
+        
+    def delete_node(self, node_name):
+        """
+        Delete a Kubernetes Node resource by name.
+
+        :param node_name: Name of the Node to delete.
+        :return: None
+        """
+        try:
+            self.api.delete_node(name=node_name, body=client.V1DeleteOptions())
+            print(f"Node '{node_name}' deleted successfully.")
+        except client.rest.ApiException as e:
+            if e.status == 404:  # Node not found
+                print(f"Node '{node_name}' not found.")
+            else:
+                raise Exception(f"Error deleting Node '{node_name}': {str(e)}") from e
+
     def wait_for_nodes_ready(self, node_count, operation_timeout_in_minutes, label_selector=None):
         """
         Waits for a specific number of nodes with a given label to be ready within a specified timeout.

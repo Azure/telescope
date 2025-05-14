@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import requests
 
+
 from clients.kubernetes_client import KubernetesClient
 
 
@@ -29,7 +30,7 @@ class KWOK(ABC):
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
         subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
         subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
-
+        # TODO: exchange subprocess with k8s_client, will be done in another PR since change is quiet big
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
             subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
@@ -78,6 +79,7 @@ class Node(KWOK):
             if node.metadata.annotations
             and node.metadata.annotations.get("kwok.x-k8s.io/node") == "fake"
         ]
+        print(f"Found {len(kwok_nodes)} KWOK nodes.")
         if len(kwok_nodes) < self.node_count:
             raise RuntimeError(
                 f"Validation failed: Expected at least {self.node_count} KWOK nodes, but found {len(kwok_nodes)}."
@@ -110,7 +112,7 @@ class Node(KWOK):
             print(f"Node {node.metadata.name} is Ready.")
         else:
             raise RuntimeError(
-                f"Node {node.metadata.name} is NOT Ready. "
+                f"Node {node.metadata.name} is NOT Ready."
                 f"Condition: {ready_condition.status if ready_condition else 'No Ready condition found'}"
             )
 
@@ -141,9 +143,5 @@ class Pod(KWOK):
         pass
 
 
-if __name__ == "__main__":
-    # Example usage
-    kwok_node = Node(node_count=2)
-    kwok_node.create()
-    kwok_node.validate()
-    kwok_node.tear_down()
+# TODO: Implement an argument parser so that
+# KWOK can be invoked in the topology. 
