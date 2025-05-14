@@ -79,7 +79,7 @@ class Node(KWOK):
             if node.metadata.annotations
             and node.metadata.annotations.get("kwok.x-k8s.io/node") == "fake"
         ]
-        print(f"Found {len(kwok_nodes)} KWOK nodes.")
+        
         if len(kwok_nodes) < self.node_count:
             raise RuntimeError(
                 f"Validation failed: Expected at least {self.node_count} KWOK nodes, but found {len(kwok_nodes)}."
@@ -143,5 +143,4 @@ class Pod(KWOK):
         pass
 
 
-# TODO: Implement an argument parser so that
-# KWOK can be invoked in the topology. 
+# TODO: Implement an argument parser so that KWOK can be invoked in the topology. 
