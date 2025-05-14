@@ -296,6 +296,16 @@ steps:
       action: start
       duration: 15m
 
+- name: 'delete network policies'
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: 0
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+      - basename: scale-test-policy
+        objectTemplatePath: modules/networkpolicy-template.yaml
 - name: "delete k8s services"
   phases:
   - namespaceRange:
