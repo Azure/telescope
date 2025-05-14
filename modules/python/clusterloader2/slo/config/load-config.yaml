@@ -1,7 +1,7 @@
 name: load-config
 
 # Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST false}}
+{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
 {{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 {{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
 {{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
@@ -19,7 +19,7 @@ name: load-config
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
+{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
 
