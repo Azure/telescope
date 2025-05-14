@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iperf3-deployment
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+          command: ["/bin/sh"]
+      tolerations:
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoExecute"
