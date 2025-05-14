@@ -24,7 +24,7 @@ stages:
             - $(LOCATION)
           engine: clusterloader2
           engine_input:
-            image: acnpublic.azurecr.io/matmerr/clusterloader2:daa18e130 # "acnpublic.azurecr.io/clusterloader2:hgregory-02-26-test15-replace-address" # "ghcr.io/azure/clusterloader2:v20241022" # https://github.com/kubernetes/perf-tests/pull/3340
+            image: acnpublic.azurecr.io/matmerr/clusterloader2:b5bebdf25 # "acnpublic.azurecr.io/clusterloader2:hgregory-02-26-test15-replace-address" # "ghcr.io/azure/clusterloader2:v20241022" # https://github.com/kubernetes/perf-tests/pull/3340
           topology: network-load
           matrix:
             azure_cilium_acns:
