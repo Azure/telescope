@@ -10,7 +10,7 @@ schedules:
 parameters:
   - name: node_count
     type: number
-    default: 240
+    default: 24
   - name: node_per_step
     type: number
     default: 240
