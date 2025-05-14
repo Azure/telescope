@@ -157,7 +157,7 @@ class TestNodeValidation(unittest.TestCase):
         self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
         # verify if validation raises an error for the node that is not ready
-        with self.assertRaises(RuntimeError) as context:
+        with self.assertRaises(RuntimeError):
             self.node.validate()
 
     def test_validate_missing_resources(self):
@@ -190,8 +190,9 @@ class TestNodeValidation(unittest.TestCase):
         self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
         # Verify if validation raises an error for the node with missing resources
-        with self.assertRaises(RuntimeError) as context:
+        with self.assertRaises(RuntimeError):
             self.node.validate()
+
 
 if __name__ == "__main__":
     unittest.main()
