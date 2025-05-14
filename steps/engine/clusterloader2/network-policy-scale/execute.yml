@@ -35,7 +35,7 @@ steps:
         --netpol_latency_test true \
         --netpol_soak_test false \
         --restart_deletion_enabled false \
-        --l7_enabled false \
+        --l7_enabled $CILIUM_ENVOY_ENABLED \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
       # execute

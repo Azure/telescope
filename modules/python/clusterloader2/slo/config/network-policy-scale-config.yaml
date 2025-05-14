@@ -276,7 +276,7 @@ steps:
         action: complete
         testType: policy-creation
 {{end}}
-# 6. sleep for 5 minutes before deleting the namespaces, to not overload apiserver
+# sleep for 5 minutes before deleting the namespaces, to not overload apiserver
   - name: Sleep
     measurements:
     - Identifier: Sleep
