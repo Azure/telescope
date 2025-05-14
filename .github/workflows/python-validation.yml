@@ -3,7 +3,7 @@ name: Python Validation
 on:
   pull_request:
     paths:
-      - 'modules/python/**'
+    - 'modules/python/**'
 
 env:
   PYTHON_MODULES_DIR: modules/python
@@ -12,42 +12,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-      - name: Python Version Check
-        run: python --version
+    - name: Python Version Check
+      run: python --version
 
-      - name: Install Python Dependencies
-        working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: pip install -r requirements.txt
+    - name: Install Python Dependencies
+      working-directory: ${{ env.PYTHON_MODULES_DIR }}
+      run: pip install -r requirements.txt
 
-      - name: Fetch all branches
-        run: git fetch --prune --unshallow
+    - name: Fetch all branches
+      run: git fetch --prune --unshallow
 
-      - name: Run Pylint on changed files
-        id: changed-files
-        run: |
-          # Get list of changed files
-          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
-          echo "Files changed: $file_changes"
-          if [ -z "$file_changes" ]; then
-            echo "No Python files were changed."
-          else
-            pylint $file_changes
-          fi
-      
+    - name: Run Pylint on changed files
+      id: changed-files
+      run: |
+        # Get list of changed files
+        file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
+        echo "Files changed: $file_changes"
+        if [ -z "$file_changes" ]; then
+          echo "No Python files were changed."
+        else
+          pylint $file_changes
+        fi
 
-      - name: Set up kind cluster
-        uses: helm/kind-action@v1.9.0
-      - name: Run Python Unit Tests
-        working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: coverage run -m unittest discover
-      - name: Generate Coverage Report
-        working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: coverage report -m
+    - name: Set up kind cluster
+      uses: helm/kind-action@v1.9.0
+    - name: Run Python Unit Tests
+      working-directory: ${{ env.PYTHON_MODULES_DIR }}
+      run: coverage run -m unittest discover
+    - name: Generate Coverage Report
+      working-directory: ${{ env.PYTHON_MODULES_DIR }}
+      run: coverage report -m
