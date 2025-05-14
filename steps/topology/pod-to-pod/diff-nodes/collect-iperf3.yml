@@ -15,10 +15,10 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/iperf3/collect-pod-node-info.yml
     parameters:
-      cluster_cli_context: "pod-diff-node"
-      cluster_srv_context: "pod-diff-node"
+      client_context: "pod-diff-node"
+      server_context: "pod-diff-node"
   - template: /steps/engine/iperf3/collect.yml
     parameters:
       iperf_properties: ${{ parameters.engine_input.iperf3_command_array }}
-      cluster_cli_context: "pod-diff-node"
-      cluster_srv_context: "pod-diff-node"
+      client_context: "pod-diff-node"
+      server_context: "pod-diff-node"

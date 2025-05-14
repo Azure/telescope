@@ -1,8 +1,8 @@
 parameters:
   iperf_properties: {} # format: index|protocol|bandwidth|parallel|iperf_command|datapath|server_ip_type
-  cluster_cli_context:
+  client_context:
     type: string
-  cluster_srv_context:
+  server_context:
     type: string
 
 steps:
@@ -35,5 +35,5 @@ steps:
           RESULT_DIR: $(TEST_RESULTS_DIR)
           RESULT_FILE: $(TEST_RESULTS_FILE)
           IPERF_PROPERTY: ${{ property }}
-          CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
-          CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
+          CLIENT_CONTEXT: ${{ parameters.client_context }}
+          SERVER_CONTEXT: ${{ parameters.server_context }}

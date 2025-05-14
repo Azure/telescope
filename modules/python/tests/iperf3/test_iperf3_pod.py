@@ -14,8 +14,8 @@ class TestIPerfsPod(unittest.TestCase):
         self.namespace = "test-namespace"
         self.iperf3 = Iperf3Pod(
             namespace=self.namespace,
-            cluster_cli_context="cli-context",
-            cluster_srv_context="srv-context",
+            client_context="client-context",
+            server_context="server-context",
         )
         self.iperf3.k8s_client = MagicMock()
         self.client_pod_info = {"name": "client-pod",
@@ -493,8 +493,8 @@ class TestIperf3PodArguments(unittest.TestCase):
             iperf_command='--time 60 --bandwidth 1000M --parallel 1 --interval 0 --port 20003',
             datapath='direct',
             result_dir='/tmp',
-            cluster_cli_context='cli-context',
-            cluster_srv_context='srv-context',
+            client_context='client-context',
+            server_context='server-context',
             server_ip_type='pod'
         )
         result_file = '/tmp/iperf3-tcp-1000-1-direct.json'
@@ -519,15 +519,15 @@ class TestIperf3PodArguments(unittest.TestCase):
             action='configure',
             pod_count=2,
             label_selector='test=true',
-            cluster_cli_context='cli-context',
-            cluster_srv_context='srv-context'
+            client_context='client-context',
+            server_context='server-context'
         )
 
         main()
 
         mock_iperf3_pod.assert_called_once_with(
-            cluster_cli_context='cli-context',
-            cluster_srv_context='srv-context'
+            client_context='client-context',
+            server_context='server-context'
         )
         mock_iperf3_pod.return_value.configure.assert_called_once_with(
             pod_count=2,
@@ -546,8 +546,8 @@ class TestIperf3PodArguments(unittest.TestCase):
             iperf_command=None,  # Missing
             datapath='direct',
             result_dir='/tmp',
-            cluster_cli_context='cli-context',
-            cluster_srv_context='srv-context'
+            client_context='client-context',
+            server_context='server-context'
         )
         with self.assertRaises(ValueError) as context:
             main()
@@ -558,7 +558,7 @@ class TestIperf3PodArguments(unittest.TestCase):
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_invalid_action(self, mock_parse_args, _mock_load_kube_config):
         mock_parse_args.return_value = argparse.Namespace(
-            action='invalid_action', cluster_cli_context='cli-context', cluster_srv_context='srv-context'
+            action='invalid_action', client_context='client-context', server_context='server-context'
         )
         with self.assertRaises(ValueError) as context:
             main()

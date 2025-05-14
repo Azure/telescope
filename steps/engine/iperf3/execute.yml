@@ -1,8 +1,8 @@
 parameters:
   iperf_properties: {} # format: index|protocol|bandwidth|parallel|iperf_command|datapath|server_ip_type
-  cluster_cli_context:
+  client_context:
     type: string
-  cluster_srv_context:
+  server_context:
     type: string
 
 steps:
@@ -27,8 +27,8 @@ steps:
             --iperf_command "$iperf_command" \
             --datapath "$datapath" \
             --result_dir "$RESULT_DIR" \
-            --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-            --cluster_srv_context "$CLUSTER_SRV_CONTEXT" \
+            --client_context "$CLIENT_CONTEXT" \
+            --server_context "$SERVER_CONTEXT" \
             --server_ip_type "$server_ip_type"
         workingDirectory: modules/python
         displayName: "Execute iperf3 ${{ property }}"
@@ -36,5 +36,5 @@ steps:
           PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
           RESULT_DIR: $(TEST_RESULTS_DIR)
           IPERF_PROPERTY: ${{ property }}
-          CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
-          CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
+          CLIENT_CONTEXT: ${{ parameters.client_context }}
+          SERVER_CONTEXT: ${{ parameters.server_context }}

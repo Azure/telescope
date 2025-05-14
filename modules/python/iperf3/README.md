@@ -47,24 +47,24 @@ aws eks update-kubeconfig --name "pod-diff-node-${RUN_ID}" --region $REGION --al
 
 ```bash
 CLOUD=azure # or aws
-CLUSTER_CLI_CONTEXT=pod-diff-node
-CLUSTER_SRV_CONTEXT=pod-diff-node
+CLIENT_CONTEXT=pod-diff-node
+SERVER_CONTEXT=pod-diff-node
 KUSTOMIZE_DIR=$(pwd)/modules/kustomize/mtu
 pushd $KUSTOMIZE_DIR
-kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
-kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+kustomize build overlays/${CLOUD} | kubectl --context=$CLIENT_CONTEXT apply -f -
+kustomize build overlays/${CLOUD} | kubectl --context=$SERVER_CONTEXT apply -f -
 popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
 POD_COUNT=2
-CLUSTER_CLI_CONTEXT=pod-diff-node
-CLUSTER_SRV_CONTEXT=pod-diff-node
+CLIENT_CONTEXT=pod-diff-node
+SERVER_CONTEXT=pod-diff-node
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
     --pod_count "$POD_COUNT" \
     --label_selector "app=mtu-config" \
-    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-    --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
+    --client_context "$CLIENT_CONTEXT" \
+    --server_context "$SERVER_CONTEXT"
 popd
 ```
 
@@ -74,25 +74,25 @@ From root folder, run the following command to deploy iperf3:
 
 ```bash
 HOST_NETWORK=false # or true
-CLUSTER_CLI_CONTEXT=pod-diff-node
-CLUSTER_SRV_CONTEXT=pod-diff-node
+CLIENT_CONTEXT=pod-diff-node
+SERVER_CONTEXT=pod-diff-node
 KUSTOMIZE_DIR=$(pwd)/modules/kustomize/iperf3
 pushd $KUSTOMIZE_DIR/overlays/client
-kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
+kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLIENT_CONTEXT apply -f -
 popd
 pushd $KUSTOMIZE_DIR/overlays/server
-kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+kustomize edit add component ../../components/hostnetwork/${HOST_NETWORK} && kustomize build . | kubectl --context=$SERVER_CONTEXT apply -f -
 popd
 
 pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
 POD_COUNT=1
-CLUSTER_CLI_CONTEXT=pod-diff-node
-CLUSTER_SRV_CONTEXT=pod-diff-node
+CLIENT_CONTEXT=pod-diff-node
+SERVER_CONTEXT=pod-diff-node
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
     --pod_count "$POD_COUNT" \
-    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-    --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
+    --client_context "$CLIENT_CONTEXT" \
+    --server_context "$SERVER_CONTEXT"
 popd
 ```
 
@@ -104,11 +104,11 @@ From root folder, run:
 cd modules/python
 CLOUD=azure
 PYTHON_SCRIPT_FILE=$(pwd)/iperf3/iperf3_pod.py
-CLUSTER_CLI_CONTEXT=pod-diff-node
-CLUSTER_SRV_CONTEXT=pod-diff-node
+CLIENT_CONTEXT=pod-diff-node
+SERVER_CONTEXT=pod-diff-node
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
-    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-    --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
+    --client_context "$CLIENT_CONTEXT" \
+    --server_context "$SERVER_CONTEXT"
 ```
 
 ## Execute
@@ -134,8 +134,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE run_benchmark \
     --iperf_command "$iperf_command" \
     --datapath "$datapath" \
     --result_dir "$RESULT_DIR" \
-    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-    --cluster_srv_context "$CLUSTER_SRV_CONTEXT" \
+    --client_context "$CLIENT_CONTEXT" \
+    --server_context "$SERVER_CONTEXT" \
     --server_ip_type "$server_ip_type"
 ```
 
@@ -146,8 +146,8 @@ Run once to collect pod and node information:
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect_pod_node_info \
     --result_dir "$RESULT_DIR" \
-    --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-    --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
+    --client_context "$CLIENT_CONTEXT" \
+    --server_context "$SERVER_CONTEXT"
 ```
 
 Run the same number of times you run execute command for different inputs:

@@ -9,8 +9,8 @@ class TestPodRoleCommand(unittest.TestCase):
         self.namespace = "test-namespace"
 
         self.pod_cmd = PodRoleCommand(
-            cluster_cli_context="cli-context",
-            cluster_srv_context="srv-context",
+            client_context="client-context",
+            server_context="server-context",
             server_container="server-container",
             client_container="client-container",
             server_label_selector="app=server",
@@ -30,7 +30,7 @@ class TestPodRoleCommand(unittest.TestCase):
 
         res = self.pod_cmd.get_pod_by_role(role="server")
 
-        self.k8s_client.set_context.assert_called_with("srv-context")
+        self.k8s_client.set_context.assert_called_with("server-context")
         self.k8s_client.get_pod_name_and_ip.assert_called_with(
             label_selector="app=server",
             namespace=self.namespace
@@ -44,7 +44,7 @@ class TestPodRoleCommand(unittest.TestCase):
 
         res = self.pod_cmd.get_pod_by_role(role="client")
 
-        self.k8s_client.set_context.assert_called_with("cli-context")
+        self.k8s_client.set_context.assert_called_with("client-context")
         self.k8s_client.get_pod_name_and_ip.assert_called_with(
             label_selector="app=client",
             namespace=self.namespace
@@ -73,7 +73,7 @@ class TestPodRoleCommand(unittest.TestCase):
             result_file="/tmp/result.txt"
         )
 
-        self.pod_cmd.k8s_client.set_context.assert_any_call("cli-context")
+        self.pod_cmd.k8s_client.set_context.assert_any_call("client-context")
         self.pod_cmd.k8s_client.get_pod_name_and_ip.assert_called_with(
             label_selector="app=client",
             namespace=self.namespace
@@ -98,7 +98,7 @@ class TestPodRoleCommand(unittest.TestCase):
             result_file="/tmp/result.txt"
         )
 
-        self.pod_cmd.k8s_client.set_context.assert_any_call("srv-context")
+        self.pod_cmd.k8s_client.set_context.assert_any_call("server-context")
         self.pod_cmd.k8s_client.get_pod_name_and_ip.assert_called_with(
             label_selector="app=server",
             namespace=self.namespace
@@ -154,8 +154,8 @@ class TestPodRoleCommand(unittest.TestCase):
 
         # Verify context switches and pod lookups
         context_calls = [
-            call("cli-context"),
-            call("srv-context")
+            call("client-context"),
+            call("server-context")
         ]
         self.k8s_client.set_context.assert_has_calls(context_calls)
 
@@ -185,8 +185,8 @@ class TestPodRoleCommand(unittest.TestCase):
     def test_validate_empty_command(self, mock_execute_with_retries, _mock_load_kube_config):
         # Create a new PodRoleCommand instance with an empty validate_command
         self.pod_cmd = PodRoleCommand(
-            cluster_cli_context="cli-context",
-            cluster_srv_context="srv-context",
+            client_context="client-context",
+            server_context="server-context",
             server_container="server-container",
             client_container="client-container",
             server_label_selector="app=server",
@@ -212,8 +212,8 @@ class TestPodRoleCommand(unittest.TestCase):
         self.pod_cmd.collect(result_dir)
 
         context_calls = [
-            call("cli-context"),
-            call("srv-context")
+            call("client-context"),
+            call("server-context")
         ]
         self.k8s_client.set_context.assert_has_calls(context_calls)
 
@@ -240,7 +240,7 @@ class TestPodRoleCommand(unittest.TestCase):
 
         result = self.pod_cmd.get_service_external_ip()
 
-        self.k8s_client.set_context.assert_called_with("srv-context")
+        self.k8s_client.set_context.assert_called_with("server-context")
         self.k8s_client.get_service_external_ip.assert_called_with(
             service_name="test-service",
             namespace=self.namespace
@@ -254,8 +254,8 @@ class TestPodRoleCommand(unittest.TestCase):
     @patch('kubernetes.config.load_kube_config')
     def test_get_service_external_ip_no_service_name(self, _mock_load_kube_config):
         self.pod_cmd = PodRoleCommand(
-            cluster_cli_context="cli-context",
-            cluster_srv_context="srv-context",
+            client_context="client-context",
+            server_context="server-context",
             server_container="server-container",
             client_container="client-container",
             server_label_selector="app=server",
@@ -276,8 +276,8 @@ class TestPodRoleCommand(unittest.TestCase):
         self.pod_cmd.configure(pod_count=pod_count)
 
         context_calls = [
-            call(self.pod_cmd.cluster_cli_context),
-            call(self.pod_cmd.cluster_srv_context)
+            call(self.pod_cmd.client_context),
+            call(self.pod_cmd.server_context)
         ]
         self.k8s_client.set_context.assert_has_calls(context_calls)
 
@@ -304,8 +304,8 @@ class TestPodRoleCommand(unittest.TestCase):
         self.pod_cmd.configure(pod_count=pod_count, label_selector=custom_label)
 
         context_calls = [
-            call(self.pod_cmd.cluster_cli_context),
-            call(self.pod_cmd.cluster_srv_context)
+            call(self.pod_cmd.client_context),
+            call(self.pod_cmd.server_context)
         ]
         self.k8s_client.set_context.assert_has_calls(context_calls)
 

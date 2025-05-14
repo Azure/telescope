@@ -3,31 +3,31 @@ parameters:
     type: string
   pod_count:
     type: int
-  cluster_cli_context:
+  client_context:
     type: string
-  cluster_srv_context:
+  server_context:
     type: string
 
 steps:
   - script: |
       set -eo pipefail
       pushd $KUSTOMIZE_DIR
-      kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_CLI_CONTEXT apply -f -
-      kustomize build overlays/${CLOUD} | kubectl --context=$CLUSTER_SRV_CONTEXT apply -f -
+      kustomize build overlays/${CLOUD} | kubectl --context=$CLIENT_CONTEXT apply -f -
+      kustomize build overlays/${CLOUD} | kubectl --context=$SERVER_CONTEXT apply -f -
       popd
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --pod_count "$POD_COUNT" \
         --label_selector "app=mtu-config" \
-        --cluster_cli_context "$CLUSTER_CLI_CONTEXT" \
-        --cluster_srv_context "$CLUSTER_SRV_CONTEXT"
+        --client_context "$CLIENT_CONTEXT" \
+        --server_context "$SERVER_CONTEXT"
     workingDirectory: modules/python
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
       POD_COUNT: ${{ parameters.pod_count }}
-      CLUSTER_CLI_CONTEXT: ${{ parameters.cluster_cli_context }}
-      CLUSTER_SRV_CONTEXT: ${{ parameters.cluster_srv_context }}
+      CLIENT_CONTEXT: ${{ parameters.client_context }}
+      SERVER_CONTEXT: ${{ parameters.server_context }}
       CLOUD: ${{ parameters.cloud }}
     displayName: "Configure MTU"
   - ${{ if eq(parameters.cloud, 'aws') }}:

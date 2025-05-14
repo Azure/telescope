@@ -18,10 +18,10 @@ logger = get_logger(__name__)
 
 
 class Iperf3Pod(PodRoleCommand):
-    def __init__(self, cluster_cli_context, cluster_srv_context, namespace="default"):
+    def __init__(self, client_context, server_context, namespace="default"):
         """
-        :param cluster_cli_context: Cluster config context for client pod.
-        :param cluster_srv_context: Cluster config context for server pod.
+        :param client_context: Cluster config context for client pod.
+        :param server_context: Cluster config context for server pod.
         :param namespace: Kubernetes namespace to use. Default is "default".
         """
         super().__init__(
@@ -31,8 +31,8 @@ class Iperf3Pod(PodRoleCommand):
             server_label_selector="app=iperf3-server",
             service_name="iperf3-server",
             validate_command=command_constants.IPERF3_VERSION_CMD,
-            cluster_cli_context=cluster_cli_context,
-            cluster_srv_context=cluster_srv_context,
+            client_context=client_context,
+            server_context=server_context,
             namespace=namespace,
         )
 
@@ -290,11 +290,11 @@ def parse_args(args):
         help="Directory to store the results"
     )
     parser.add_argument(
-        "--cluster_cli_context",
+        "--client_context",
         help="Cluster config context for client pod",
     )
     parser.add_argument(
-        "--cluster_srv_context",
+        "--server_context",
         help="Cluster config context for server pod",
     )
     parser.add_argument(
@@ -333,8 +333,8 @@ def main():
     args = parse_args(sys.argv[1:])
 
     iperf3_pod = Iperf3Pod(
-        cluster_cli_context=args.cluster_cli_context,
-        cluster_srv_context=args.cluster_srv_context
+        client_context=args.client_context,
+        server_context=args.server_context
     )
 
     if args.action == "run_benchmark":
@@ -354,7 +354,7 @@ def main():
                 "  --index, --protocol, --bandwidth, --parallel,\n"
                 "  --iperf_command, --datapath, --result_dir\n"
                 "Optional arguments:\n"
-                "  --cluster_cli_context, --cluster_srv_context, --server_ip_type"
+                "  --client_context, --server_context, --server_ip_type"
             )
 
         result_file = Iperf3Pod.create_result_file_name(
