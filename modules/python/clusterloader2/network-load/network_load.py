@@ -76,6 +76,7 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
         file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
         file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_HUBBLE: true\n")
+        file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_STANDALONE_DNS_PROXY: true\n")
 
         # prometheus server config
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
