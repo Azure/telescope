@@ -1,0 +1,41 @@
+parameters:
+  cloud:
+    type: string
+  pod_count:
+    type: int
+  client_context:
+    type: string
+  server_context:
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+      pushd $KUSTOMIZE_DIR
+      kustomize build overlays/${CLOUD} | kubectl --context=$CLIENT_CONTEXT apply -f -
+      kustomize build overlays/${CLOUD} | kubectl --context=$SERVER_CONTEXT apply -f -
+      popd
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --pod_count "$POD_COUNT" \
+        --label_selector "app=mtu-config" \
+        --client_context "$CLIENT_CONTEXT" \
+        --server_context "$SERVER_CONTEXT"
+    workingDirectory: modules/python
+    env:
+      KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+      POD_COUNT: ${{ parameters.pod_count }}
+      CLIENT_CONTEXT: ${{ parameters.client_context }}
+      SERVER_CONTEXT: ${{ parameters.server_context }}
+      CLOUD: ${{ parameters.cloud }}
+    displayName: "Configure MTU"
+  - ${{ if eq(parameters.cloud, 'aws') }}:
+      # VPC_CNI doc: https://github.com/aws/amazon-vpc-cni-k8s?tab=readme-ov-file#aws_vpc_eni_mtu-v160
+      - script: |
+          set -eu
+          kubectl set env daemonset aws-node -n kube-system AWS_VPC_ENI_MTU=8900
+          kubectl rollout status daemonset aws-node -n kube-system
+          kubectl get pods -n kube-system -o wide
+        displayName: "Set MTU for AWS VPC CNI"
+        condition: eq(variables.ena_express, 'true')

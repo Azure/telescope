@@ -1,0 +1,29 @@
+{
+    "start": {
+        "timestamp": {
+            "timesecs": 1585574400
+        }
+    },
+    "end": {
+        "sum": {
+            "start": 0,
+            "end": 10.000579,
+            "seconds": 10.000579,
+            "bytes": 1310720,
+            "bits_per_second": 1048546.1164356816,
+            "jitter_ms": 0.015205598777989252,
+            "lost_packets": 0,
+            "packets": 40,
+            "lost_percent": 0,
+            "sender": true
+        },
+        "cpu_utilization_percent": {
+            "host_total": 2.16911029122016,
+            "host_user": 0.67411861083911218,
+            "host_system": 1.4949916803810477,
+            "remote_total": 0.021418732011064947,
+            "remote_user": 0.0014499141650814273,
+            "remote_system": 0.019968817845983519
+        }
+    }
+}
