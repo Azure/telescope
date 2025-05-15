@@ -10,7 +10,7 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value:
-          app: server
+          server: true
       - op: add
         path: /spec/template/spec/containers/0/name
         value: iperf3-server
