@@ -39,7 +39,7 @@ parameters:
     default: ["true", "false"]
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_eastus2_v3_v5
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -73,7 +73,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_new_sku
+  - stage: azure_eastus2_v6
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -106,7 +106,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: aws_eastus2
+  - stage: aws_eastus2_m4_m6i
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
@@ -142,7 +142,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: aws_eastus2_new_sku
+  - stage: aws_eastus2_m7i
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
