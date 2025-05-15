@@ -85,7 +85,7 @@ spec:
             privileged: false
             capabilities:
               add:
-              - NET_ADMIN
+                - NET_ADMIN
             readOnlyRootFilesystem: true
           env:
             - name: HOSTNAME

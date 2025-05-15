@@ -60,8 +60,8 @@ aks_config_list = [
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
         max_pods             = 250
-        node_labels          = { "slo" = "true",
-                                "test-np" = "net-policy-client" }
+        node_labels = { "slo" = "true",
+        "test-np" = "net-policy-client" }
       }
     ]
     kubernetes_version = "1.32"

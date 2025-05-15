@@ -16,20 +16,20 @@ steps:
     parameters:
       role: net
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: 240 
+      nodes_per_nodepool: 240
       enable_autoscale: "false"
 
   - script: |
       #!/bin/bash
       set -e
-      
+
       # Check if NPM_ENABLED environment variable is set to true
       if [[ "$NPM_ENABLED" == "True" ]]; then
         echo "NPM is enabled, applying Azure NPM configuration..."
-        
+
         # Path to the NPM configuration file
         npm_config_file="$(Pipeline.Workspace)/s/scripts/azure-npm.yaml"
-        
+
         # Check if the file exists
         if [[ -f "$npm_config_file" ]]; then
           echo "Applying NPM configuration from: $npm_config_file"
