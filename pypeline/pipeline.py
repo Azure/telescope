@@ -14,8 +14,8 @@ class Step:
 
 @dataclass
 class Script(Step):
-    display_name: str = field(metadata={"yaml": "displayName"})
     script: str
+    display_name: str = field(metadata={"yaml": "displayName"})
     env: Optional[dict[str, str]] = None
     condition: Optional[str] = None
     retry_count_on_task_failure: Optional[int] = field(
@@ -25,8 +25,8 @@ class Script(Step):
 
 @dataclass
 class Task(Step):
-    display_name: str = field(metadata={"yaml": "displayName"})
     task: str
+    display_name: str = field(metadata={"yaml": "displayName"})
     inputs: Optional[dict[str, str]] = None
 
 
@@ -64,6 +64,7 @@ class Job:
 
 @dataclass
 class Stage:
+    stage: str  # Required as first property. ID of the stage.
     display_name: str = field(metadata={"yaml": "displayName"})
     jobs: list[Job]
     depend_on: Optional[list[str]] = field(metadata={"yaml": "dependsOn"}, default=None)

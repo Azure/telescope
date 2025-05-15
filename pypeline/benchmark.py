@@ -132,6 +132,7 @@ class Benchmark:
         for layout in self.layouts:
             stages.append(
                 Stage(
+                    stage=layout.display_name,
                     display_name=layout.display_name,
                     jobs=layout.get_jobs(),
                 )
