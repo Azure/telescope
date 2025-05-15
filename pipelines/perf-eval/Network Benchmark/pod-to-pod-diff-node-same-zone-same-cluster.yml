@@ -43,16 +43,14 @@ stages:
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml@templates
+      - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
             - eastus2
           topology: pod-to-pod/diff-nodes
-          engine: iperf3-python
+          engine: iperf3
           engine_input:
-            cluster_name:
-              client: pod-diff-node
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
@@ -61,8 +59,6 @@ stages:
               - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
               - "7|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct"
-            sockperf_command_array:
-              - "tcp|-t 120 -p 11111 --tcp|direct"
           matrix:
             ${{ each machine_type in parameters.azure_machine_types }}:
               ${{ each network in parameters.host_networks }}:
@@ -118,16 +114,14 @@ stages:
       )
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml@templates
+      - template: /jobs/competitive-test.yml
         parameters:
           cloud: aws
           regions:
             - us-east-2
           topology: pod-to-pod/diff-nodes
-          engine: iperf3-python
+          engine: iperf3
           engine_input:
-            cluster_name:
-              client: pod-diff-node
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
@@ -136,8 +130,6 @@ stages:
               - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
               - "7|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct"
-            sockperf_command_array:
-              - "tcp|-t 120 -p 11111 --tcp|direct"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types }}:
               ${{ each network in parameters.host_networks }}:
