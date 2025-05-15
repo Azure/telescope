@@ -43,9 +43,6 @@ steps:
   - script: |
       set -eo pipefail
 
-      # Always get Cilium metrics
-      CILIUM_ENABLED=True
-
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --fortio-servers-per-deployment $FORTIO_SERVERS_PER_DEPLOYMENT \
         --fortio-clients-per-deployment $FORTIO_CLIENTS_PER_DEPLOYMENT \
