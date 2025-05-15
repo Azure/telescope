@@ -44,6 +44,7 @@ aks_config_list = [
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = false
       temporary_name_for_rotation  = "defaulttmp"
+      pod_ip_allocation_mode       = "StaticBlock"
     }
     extra_node_pool = [
       {
@@ -53,28 +54,31 @@ aks_config_list = [
         vm_size              = "Standard_D64_v3"
         max_pods             = 110
         node_labels          = { "prometheus" = "true" }
+        pod_ip_allocation_mode      = "StaticBlock"
       },
       {
-        name                 = "userpool0"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 500
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v3"
-        max_pods             = 110
-        node_taints          = ["slo=true:NoSchedule"]
-        node_labels          = { "slo" = "true" }
+        name                        = "userpool0"
+        node_count                  = 0
+        min_count                   = 0
+        max_count                   = 500
+        auto_scaling_enabled        = true
+        vm_size                     = "Standard_D4_v3"
+        max_pods                    = 110
+        node_taints                 = ["slo=true:NoSchedule"]
+        node_labels                 = { "slo" = "true" }
+        pod_ip_allocation_mode      = "StaticBlock"
       },
       {
-        name                 = "userpool1"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 500
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v3"
-        max_pods             = 110
-        node_taints          = ["slo=true:NoSchedule"]
-        node_labels          = { "slo" = "true" }
+        name                          = "userpool1"
+        node_count                    = 0
+        min_count                     = 0
+        max_count                     = 500
+        auto_scaling_enabled          = true
+        vm_size                       = "Standard_D4_v3"
+        max_pods                      = 110
+        node_taints                   = ["slo=true:NoSchedule"]
+        node_labels                   = { "slo" = "true" }
+        pod_ip_allocation_mode        = "StaticBlock"
       }
     ]
     kubernetes_version = "1.32"
