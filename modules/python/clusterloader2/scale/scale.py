@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
 
 def configure_clusterloader2(
-    operation_timeout,
     fortio_servers_per_deployment,
     fortio_clients_per_deployment,
     fortio_client_queries_per_second,
@@ -19,7 +18,6 @@ def configure_clusterloader2(
     override_file):
 
     with open(override_file, 'w', encoding='utf-8') as file:
-        file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
@@ -220,8 +218,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.operation_timeout,
-                                 args.fortio_servers_per_deployment,
+        configure_clusterloader2(args.fortio_servers_per_deployment,
                                  args.fortio_clients_per_deployment,
                                  args.fortio_client_queries_per_second,
                                  args.fortio_client_connections,
