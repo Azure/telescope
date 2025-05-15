@@ -4,25 +4,18 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
-from kubernetes_client import KubernetesClient, client as k8s_client
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
+from clients.kubernetes_client import KubernetesClient, client as k8s_client
+from utils.logger_config import get_logger, setup_logging
+
+setup_logging()
+logger = get_logger(__name__)
 
 DAEMONSETS_PER_NODE_MAP = {
     "aws": 2,
     "aks": 6
 }
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
-
-def _get_daemonsets_pods_allocated_resources(client, node_name):
-    pods = client.get_pods_by_namespace("kube-system", field_selector=f"spec.nodeName={node_name}")
-    cpu_request = 0
-    memory_request = 0
-    for pod in pods:
-        for container in pod.spec.containers:
-            print(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-            cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-            memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
-    return cpu_request, memory_request * 1024
 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
@@ -36,7 +29,7 @@ def override_config_clusterloader2(
     node = nodes[0]
     allocatable_cpu = node.status.allocatable["cpu"]
     allocatable_memory = node.status.allocatable["memory"]
-    print(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu} and allocatable memory of {allocatable_memory}")
+    logger.info(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu} and allocatable memory of {allocatable_memory}")
 
     cpu_value = int(allocatable_cpu.replace("m", ""))
     # Bottlerocket OS SKU on EKS has allocatable_memory property in Mi. AKS and Amazon Linux (default SKUs)
@@ -48,10 +41,10 @@ def override_config_clusterloader2(
     else:
         raise Exception("Unexpected format of allocatable memory node property")
 
-    print(f"Node {node.metadata.name} has cpu value of {cpu_value} and memory value of {memory_value}")
+    logger.info(f"Node {node.metadata.name} has cpu value of {cpu_value} and memory value of {memory_value}")
 
-    allocated_cpu, allocated_memory = _get_daemonsets_pods_allocated_resources(client, node.metadata.name)
-    print(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu} and allocated memory of {allocated_memory}")
+    allocated_cpu, allocated_memory = client.get_daemonsets_pods_allocated_resources("kube-system", node.metadata.name)
+    logger.info(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu} and allocated memory of {allocated_memory}")
 
     cpu_value -= allocated_cpu
     memory_value -= allocated_memory
@@ -61,11 +54,11 @@ def override_config_clusterloader2(
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
     memory_request_in_k = int(memory_request_in_ki // 1.024)
-    print(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
+    logger.info(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
-    print(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
+    logger.info(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
@@ -98,7 +91,7 @@ def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     user_pool = [node.metadata.name for node in nodes]
-    print(f"User pool: {user_pool}")
+    logger.info(f"User pool: {user_pool}")
     # Create an API client
     api_client = k8s_client.ApiClient()
     for node_name in user_pool:
@@ -117,11 +110,11 @@ def verify_measurement():
             filtered_metrics = "\n".join(
                 line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
             )
-            print("##[section]Metrics for node:", node_name)
-            print(filtered_metrics)
+            logger.info("##[section]Metrics for node:", node_name) # pylint: disable=logging-too-many-args
+            logger.info(filtered_metrics) # pylint: disable=logging-too-many-args
 
         except k8s_client.ApiException as e:
-            print(f"Error fetching metrics: {e}")
+            logger.error(f"Error fetching metrics: {e}")
 
 def collect_clusterloader2(
     node_count,
@@ -170,7 +163,7 @@ def collect_clusterloader2(
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
-            print(measurement, group_name)
+            logger.info(measurement, group_name)
             data = json.loads(file.read())
 
             if measurement == "ResourceUsageSummary":
@@ -184,8 +177,8 @@ def collect_clusterloader2(
             elif "dataItems" in data:
                 items = data["dataItems"]
                 if not items:
-                    print(f"No data items found in {file_path}")
-                    print(f"Data:\n{data}")
+                    logger.info(f"No data items found in {file_path}")
+                    logger.info(f"Data:\n{data}")
                     continue
                 for item in items:
                     template["measurement"] = measurement

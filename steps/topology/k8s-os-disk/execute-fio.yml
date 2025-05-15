@@ -1,0 +1,15 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: regions
+    type: object
+    default: {}
+
+steps:
+  - template: /steps/engine/fio/execute.yml
+    parameters:
+      fio_properties: ${{ parameters.engine_input.fio_command_array }}

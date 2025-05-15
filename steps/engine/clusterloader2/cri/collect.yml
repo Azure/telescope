@@ -19,7 +19,7 @@ steps:
       $NODE_COUNT $MAX_PODS $REPEATS $LOAD_TYPE \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE \
       ${SCRAPE_KUBELETS:-False}
-  workingDirectory: modules/python/clusterloader2
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)

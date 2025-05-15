@@ -95,7 +95,7 @@ steps:
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Max Memory Usage
+          metricName: Apiserver Avg Memory Usage
           metricVersion: v1
           unit: MB
           enableViolations: true

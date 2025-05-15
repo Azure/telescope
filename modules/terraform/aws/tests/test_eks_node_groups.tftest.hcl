@@ -69,7 +69,17 @@ variables {
       min_size       = 5
       max_size       = 5
       desired_size   = 5
-      ena_express    = true
+      block_device_mappings = [{
+        device_name = "/dev/xvda"
+        ebs = {
+          delete_on_termination = true
+          iops                  = 5000
+          throughput            = 200
+          volume_size           = 1024
+          volume_type           = "gp3"
+        }
+      }]
+      ena_express = true
     }]
     eks_addons = []
   }]
@@ -160,6 +170,38 @@ run "valid_launch_template_ena_express_override" {
   assert {
     condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
     error_message = "Error. Expected ena_srd_udp_enabled true in the launch template ena srd specification"
+  }
+
+  expect_failures = [check.deletion_due_time]
+}
+
+run "valid_launch_template_block_device_mappings" {
+
+  command = plan
+
+  assert {
+    condition     = length(module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].block_device_mappings) == 0
+    error_message = "Error. Expected block_device_mappings empty in the launch template"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].block_device_mappings[0].ebs[0].iops == 5000
+    error_message = "Error. Expected iops in the launch template block device mappings"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].block_device_mappings[0].ebs[0].throughput == 200
+    error_message = "Error. Expected throughput in the launch template block device mappings"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].block_device_mappings[0].ebs[0].volume_size == 1024
+    error_message = "Error. Expected volume_size in the launch template block device mappings"
+  }
+
+  assert {
+    condition     = module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng-2"].block_device_mappings[0].ebs[0].volume_type == "gp3"
+    error_message = "Error. Expected volume_type in the launch template block device mappings"
   }
 
   expect_failures = [check.deletion_due_time]

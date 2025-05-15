@@ -11,8 +11,9 @@
 {{$scaleDownTimeout := DefaultParam .CL2_SCALE_DOWN_TIMEOUT "10m"}}
 {{$refreshInterval := DefaultParam .CL2_REFRESH_INTERVAL "5s"}}
 {{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
-{{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "30s"}}
+{{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "120s"}}
 {{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
+{{$countErrorMargin := MultiplyInt .CL2_DEPLOYMENT_SIZE 0.01}}
 
 name: autoscale
 namespace:
@@ -50,6 +51,7 @@ steps:
     Params:
       action: start
       desiredPodCount: {{$deploymentSize}}
+      countErrorMargin: {{$countErrorMargin}}
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}

@@ -7,6 +7,8 @@ good-names=e,ex,_,id  # Allow short variable names
 [MESSAGES CONTROL]
 disable=
     missing-docstring,  # Allow missing docstrings
+    too-many-public-methods, # Allow too many public methods
+    too-many-branches, # Allow too many branches
     too-many-arguments, # Allow too many arguments
     too-many-statements, # Allow too many statements
     too-many-return-statements, # Allow too many return statements
@@ -24,4 +26,5 @@ disable=
     unnecessary-lambda,  # Allow unnecessary lambda
     import-error,  # Allow import errors
     no-name-in-module,  # Allow no name in module
+    logging-fstring-interpolation # Allow logging f-string interpolation
     

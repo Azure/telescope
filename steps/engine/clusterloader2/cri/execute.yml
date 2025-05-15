@@ -19,7 +19,7 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD \
         ${SCRAPE_KUBELETS:-False}
-    workingDirectory: modules/python/clusterloader2
+    workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
         CLOUD: aks

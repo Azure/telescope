@@ -15,9 +15,9 @@ steps:
 - script: |
     set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE ${CAPACITY_TYPE:-on-demand} $NODE_COUNT $POD_COUNT \
       $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE
-  workingDirectory: modules/python/clusterloader2
+  workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)

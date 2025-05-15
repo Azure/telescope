@@ -34,7 +34,7 @@ steps:
         --cl2-config-file $CL2_CONFIG_FILE \
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD
-    workingDirectory: modules/python/clusterloader2
+    workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
         CLOUD: aks

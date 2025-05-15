@@ -1,0 +1,6 @@
+{
+    "run_id"                           : "123456789",
+    "region"                           : "westus3",
+    "k8s_machine_type"                 : "Standard_D16ds_v6",
+    "k8s_os_disk_type"                 : "Managed"
+}
