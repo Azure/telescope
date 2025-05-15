@@ -22,6 +22,7 @@ steps:
         --client_context "$CLIENT_CONTEXT" \
         --server_context "$SERVER_CONTEXT"
     workingDirectory: modules/python
+    condition: eq(variables.configure_mtu, 'true')
     env:
       KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/mtu
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
