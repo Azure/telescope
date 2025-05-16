@@ -18,7 +18,7 @@ steps:
 
 - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
   parameters:
-    role: ces
+    role: cni-static-block
     region: ${{ parameters.regions[0] }}
     nodes_per_nodepool: 0
     enable_autoscale: "false"

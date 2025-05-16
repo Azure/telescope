@@ -24,13 +24,18 @@ network_config_list = [
   }
 ]
 
-aks_config_list = [
+aks_config_list = []
+
+aks_cli_config_list = [
   {
-    role        = "cni-static-block"
-    aks_name    = "cni-static-block"
-    dns_prefix  = "cni-static-block"
-    subnet_name = "podsubnet"
-    sku_tier    = "Standard"
+    role                          = "cni-static-block"
+    aks_name                      = "cni-static-block"
+    dns_prefix                    = "cni-static-block"
+    subnet_name                   = "podsubnet"
+    sku_tier                      = "standard"
+    kubernetes_version            = "1.32"
+    use_aks_preview_private_build = true
+    use_aks_preview_cli_extension = true
     network_profile = {
       network_plugin      = "azure"
       service_cidr        = "192.168.0.0/16"
@@ -39,48 +44,138 @@ aks_config_list = [
     default_node_pool = {
       name                         = "default"
       node_count                   = 5
-      auto_scaling_enabled         = false
       vm_size                      = "Standard_D8_v3"
-      os_disk_type                 = "Managed"
-      only_critical_addons_enabled = false
-      temporary_name_for_rotation  = "defaulttmp"
-      pod_ip_allocation_mode       = "StaticBlock"
+      optional_parameters = [
+          {
+            name  = "pod_ip_allocation_mode"
+            value = "StaticBlock"
+          },
+          {
+            name  = "auto_scaling_enabled"
+            value = "false"
+          }
+        ]
     }
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
-        auto_scaling_enabled = false
         vm_size              = "Standard_D64_v3"
-        max_pods             = 110
-        node_labels          = { "prometheus" = "true" }
-        pod_ip_allocation_mode      = "StaticBlock"
+        optional_parameters = [
+          {
+            name  = "pod_ip_allocation_mode"
+            value = "StaticBlock"
+          },
+          {
+            name  = "max_pods"
+            value = "110"
+          },
+          {
+            name  = "node_labels"
+            value = "prometheus=true"
+          },
+          {
+            name  = "auto_scaling_enabled"
+            value = "false"
+          }
+        ]
       },
       {
         name                        = "userpool0"
         node_count                  = 0
-        min_count                   = 0
-        max_count                   = 500
-        auto_scaling_enabled        = true
         vm_size                     = "Standard_D4_v3"
-        max_pods                    = 110
-        node_taints                 = ["slo=true:NoSchedule"]
-        node_labels                 = { "slo" = "true" }
-        pod_ip_allocation_mode      = "StaticBlock"
+        optional_parameters = [
+          {
+            name  = "pod_ip_allocation_mode"
+            value = "StaticBlock"
+          },
+          {
+            name  = "max_pods"
+            value = "110"
+          },
+          {
+            name  = "node_labels"
+            value = "slo=true"
+          },
+          {
+            name  = "auto_scaling_enabled"
+            value = "true"
+          },
+          {
+            name  = "min_count"
+            value = "0"
+          },
+          {
+            name  = "max_count"
+            value = "500"
+          },
+          {
+            name  = "max_count"
+            value = "true"
+          },
+          {
+            name  = "node-taints"
+            value = "slo=true:NoSchedule"
+          }
+        ]
       },
       {
         name                          = "userpool1"
         node_count                    = 0
-        min_count                     = 0
-        max_count                     = 500
-        auto_scaling_enabled          = true
         vm_size                       = "Standard_D4_v3"
-        max_pods                      = 110
-        node_taints                   = ["slo=true:NoSchedule"]
-        node_labels                   = { "slo" = "true" }
-        pod_ip_allocation_mode        = "StaticBlock"
+        optional_parameters = [
+          {
+            name  = "pod_ip_allocation_mode"
+            value = "StaticBlock"
+          },
+          {
+            name  = "max_pods"
+            value = "110"
+          },
+          {
+            name  = "node_labels"
+            value = "slo=true"
+          },
+          {
+            name  = "auto_scaling_enabled"
+            value = "true"
+          },
+          {
+            name  = "min_count"
+            value = "0"
+          },
+          {
+            name  = "max_count"
+            value = "500"
+          },
+          {
+            name  = "max_count"
+            value = "true"
+          },
+          {
+            name  = "node-taints"
+            value = "slo=true:NoSchedule"
+          }
+        ]
       }
     ]
-    kubernetes_version = "1.32"
+    optional_parameters = [
+      {
+        name  = "network-plugin"
+        value = "azure"
+      },
+      {
+        name  = "node-init-taints"
+        value = "CriticalAddonsOnly=true:NoSchedule"
+      },
+      {
+        name  = "service-cidr"
+        value = "192.168.0.0/16"
+      },
+      {
+        name  = "dns-service-ip"
+        value = "192.168.0.10"
+      }
+    ]
   }
 ]
