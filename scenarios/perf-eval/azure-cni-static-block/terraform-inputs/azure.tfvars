@@ -51,7 +51,7 @@ aks_cli_config_list = [
             value = "StaticBlock"
           },
           {
-            name  = "auto-scaling-enabled"
+            name  = "enable-cluster-autoscaler"
             value = "false"
           }
         ]
@@ -71,11 +71,11 @@ aks_cli_config_list = [
             value = "110"
           },
           {
-            name  = "node-labels"
+            name  = "labels"
             value = "prometheus=true"
           },
           {
-            name  = "auto-scaling-enabled"
+            name  = "enable-cluster-autoscaler"
             value = "false"
           }
         ]
@@ -94,11 +94,11 @@ aks_cli_config_list = [
             value = "110"
           },
           {
-            name  = "node-labels"
+            name  = "labels"
             value = "slo=true"
           },
           {
-            name  = "auto-scaling-enabled"
+            name  = "enable-cluster-autoscaler"
             value = "true"
           },
           {
@@ -129,11 +129,11 @@ aks_cli_config_list = [
             value = "110"
           },
           {
-            name  = "node-labels"
+            name  = "labels"
             value = "slo=true"
           },
           {
-            name  = "auto-scaling-enabled"
+            name  = "enable-cluster-autoscaler"
             value = "true"
           },
           {
