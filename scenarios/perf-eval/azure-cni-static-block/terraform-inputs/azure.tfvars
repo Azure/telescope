@@ -49,10 +49,6 @@ aks_cli_config_list = [
           {
             name  = "pod-ip-allocation-mode"
             value = "StaticBlock"
-          },
-          {
-            name  = "enable-cluster-autoscaler"
-            value = "false"
           }
         ]
     }
@@ -73,10 +69,6 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "prometheus=true"
-          },
-          {
-            name  = "enable-cluster-autoscaler"
-            value = "false"
           }
         ]
       },
@@ -99,7 +91,7 @@ aks_cli_config_list = [
           },
           {
             name  = "enable-cluster-autoscaler"
-            value = "true"
+            value = ""
           },
           {
             name  = "min-count"
@@ -134,7 +126,7 @@ aks_cli_config_list = [
           },
           {
             name  = "enable-cluster-autoscaler"
-            value = "true"
+            value = ""
           },
           {
             name  = "min-count"
