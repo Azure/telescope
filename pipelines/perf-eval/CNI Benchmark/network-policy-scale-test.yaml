@@ -3,6 +3,7 @@ trigger: none
 variables:
     SCENARIO_TYPE: perf-eval
     SCENARIO_NAME: network-policy-scale
+    SCENARIO_VERSION: cnpScale
     OWNER: aks
 
 stages:
@@ -17,7 +18,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest5" # TODO: Fix this after perf-tests PR is merged
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest6" # TODO: Fix this after perf-tests PR is merged
         matrix:
             azure_cilium:
                 cl2_config_file: network-policy-scale-config.yaml
