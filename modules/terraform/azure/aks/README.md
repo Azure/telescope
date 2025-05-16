@@ -27,12 +27,6 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
 - **Description:** ID of the subnet where the AKS cluster will be deployed.
 - **Type:** String
 - **Default:** ""
-
-### `pod_ip_allocation_mode`
-
-- **Description:** The IP allocation mode for pods in the agent pool. Possible values **DynamicIndividual** or **StaticBlock**
-- **Type:** String
-- **Default:** "DynamicIndividual"
   
 ### `vnet_id`
 
