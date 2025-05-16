@@ -1,8 +1,7 @@
 trigger: none
-schedules:
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: apiserver-cm100
+  SCENARIO_NAME: apiserver-vn15kp200k
 
 stages:
   - stage: azure_eastus2
