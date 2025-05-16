@@ -16,7 +16,7 @@ stages:
           topology: azure-cni-static-block # e.g. cluster-autoscaler
           engine: clusterloader2 # e.g. clusterloader2
           matrix: # list of test parameters to customize the provisioned resources
-            azure_cilium:
+            azure-cni-static-block:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 100
