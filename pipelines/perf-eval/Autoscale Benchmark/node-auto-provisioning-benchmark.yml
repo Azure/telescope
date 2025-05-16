@@ -292,8 +292,8 @@ stages:
           matrix:
             large-scale-on-demand:
               cpu_per_node: 2
-              node_count: 5000
-              pod_count: 5000
+              node_count: 2000
+              pod_count: 2000
               scale_up_timeout: "120m"
               scale_down_timeout: "120m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -304,8 +304,8 @@ stages:
               capacity_type: on-demand
             large-scale-spot:
               cpu_per_node: 2
-              node_count: 5000
-              pod_count: 5000
+              node_count: 2000
+              pod_count: 2000
               scale_up_timeout: "120m"
               scale_down_timeout: "120m"
               node_label_selector: "karpenter.sh/nodepool = spot"
