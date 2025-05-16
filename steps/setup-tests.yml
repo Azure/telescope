@@ -60,12 +60,16 @@ steps:
 
 - script: |
     set -e
+    python3 -m pip install --upgrade pip==25.0
+
     if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     fi
 
     sudo apt-get -y install bc
   displayName: "Install Dependencies"
+  retryCountOnTaskFailure: 3
+
 
 - template: /steps/cloud/${{ parameters.cloud }}/login.yml
   parameters:
