@@ -1,0 +1,68 @@
+trigger: none
+schedules:
+  - cron: "0 5,10,15,20 * * *"
+    displayName: "4 runs daily, avoid 12 AM"
+    branches:
+      include:
+        - main
+    always: true
+
+parameters:
+  - name: no_of_namespaces
+    type: number
+    default: 35
+  - name: node_count
+    type: number
+    default: 142
+  - name: max_pods
+    type: number
+    default: 41
+  - name: repeats
+    type: number
+    default: 1
+  - name: scale_timeout
+    type: string
+    default: "60m"
+  - name: small_group_size
+    type: number
+    default: 630
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cilium-project-hyperion-baseline
+  SCENARIO_VERSION: main
+  OWNER: aks
+
+stages:
+  - stage: azure_canada_central_project_hyperion_baseline
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cilium-hyperion-project
+          matrix:
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: ${{ parameters.node_count }}
+              node_per_step: 240
+              max_pods: ${{ parameters.max_pods }}
+              repeats: ${{ parameters.repeats }}
+              scale_timeout: ${{ parameters.scale_timeout }}
+              no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              small_group_size: ${{ parameters.small_group_size }}
+              cilium_enabled: True
+              network_policy: cilium
+              network_dataplane: cilium
+              cl2_config_file: load-config-hyperion.yaml
+              override_default_pods_per_node: True
+              service_test: False
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
