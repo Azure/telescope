@@ -18,12 +18,6 @@ variable "subnet_id" {
   default     = null
 }
 
-variable "pod_ip_allocation_mode" {
-  description = "The IP allocation mode for pods in the agent pool. Possible values 'DynamicIndividual' or 'StaticBlock'"
-  type        = string
-  default     = DynamicIndividual
-}
-
 variable "vnet_id" {
   description = "Vnet id"
   type        = string

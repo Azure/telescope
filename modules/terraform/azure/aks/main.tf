@@ -31,7 +31,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation  = var.aks_config.default_node_pool.temporary_name_for_rotation
     max_pods                     = var.aks_config.default_node_pool.max_pods
     node_labels                  = var.aks_config.default_node_pool.node_labels
-    pod_ip_allocation_mode       = var.aks_config.default_node_pool.pod_ip_allocation_mode
   }
 
   network_profile {
