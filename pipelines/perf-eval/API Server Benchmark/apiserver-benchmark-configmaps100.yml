@@ -1,0 +1,34 @@
+trigger: none
+schedules:
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-cm100
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "true"
+            exempt:
+              flowcontrol: "exempt:5"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "true"
+          engine_input:
+            runner_image: ghcr.io/xinweiwei24/kperf:15k_20250512
+            benchmark_subcmd: node15k_pod200k
+            benchmark_subcmd_args: " --total=100000 --cpu=4"
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
