@@ -47,11 +47,11 @@ aks_cli_config_list = [
       vm_size                      = "Standard_D8_v3"
       optional_parameters = [
           {
-            name  = "pod_ip_allocation_mode"
+            name  = "pod-ip-allocation-mode"
             value = "StaticBlock"
           },
           {
-            name  = "auto_scaling_enabled"
+            name  = "auto-scaling-enabled"
             value = "false"
           }
         ]
@@ -63,19 +63,19 @@ aks_cli_config_list = [
         vm_size              = "Standard_D64_v3"
         optional_parameters = [
           {
-            name  = "pod_ip_allocation_mode"
+            name  = "pod-ip-allocation-mode"
             value = "StaticBlock"
           },
           {
-            name  = "max_pods"
+            name  = "max-pods"
             value = "110"
           },
           {
-            name  = "node_labels"
+            name  = "node-labels"
             value = "prometheus=true"
           },
           {
-            name  = "auto_scaling_enabled"
+            name  = "auto-scaling-enabled"
             value = "false"
           }
         ]
@@ -86,32 +86,28 @@ aks_cli_config_list = [
         vm_size                     = "Standard_D4_v3"
         optional_parameters = [
           {
-            name  = "pod_ip_allocation_mode"
+            name  = "pod-ip-allocation-mode"
             value = "StaticBlock"
           },
           {
-            name  = "max_pods"
+            name  = "max-pods"
             value = "110"
           },
           {
-            name  = "node_labels"
+            name  = "node-labels"
             value = "slo=true"
           },
           {
-            name  = "auto_scaling_enabled"
+            name  = "auto-scaling-enabled"
             value = "true"
           },
           {
-            name  = "min_count"
+            name  = "min-count"
             value = "0"
           },
           {
-            name  = "max_count"
+            name  = "max-count"
             value = "500"
-          },
-          {
-            name  = "max_count"
-            value = "true"
           },
           {
             name  = "node-taints"
@@ -125,32 +121,28 @@ aks_cli_config_list = [
         vm_size                       = "Standard_D4_v3"
         optional_parameters = [
           {
-            name  = "pod_ip_allocation_mode"
+            name  = "pod-ip-allocation-mode"
             value = "StaticBlock"
           },
           {
-            name  = "max_pods"
+            name  = "max-pods"
             value = "110"
           },
           {
-            name  = "node_labels"
+            name  = "node-labels"
             value = "slo=true"
           },
           {
-            name  = "auto_scaling_enabled"
+            name  = "auto-scaling-enabled"
             value = "true"
           },
           {
-            name  = "min_count"
+            name  = "min-count"
             value = "0"
           },
           {
-            name  = "max_count"
+            name  = "max-count"
             value = "500"
-          },
-          {
-            name  = "max_count"
-            value = "true"
           },
           {
             name  = "node-taints"
