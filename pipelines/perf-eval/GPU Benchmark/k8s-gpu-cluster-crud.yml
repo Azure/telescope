@@ -1,0 +1,33 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-gpu-cluster-crud
+  USE_LATEST_GA_K8S_VERSION: true
+
+
+stages:
+  - stage: azure_australiaeast
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          topology: k8s-crud-gpu
+          engine: raw
+          matrix:
+            crud_small_node_pool_vmss:
+              enable_gpu_plugin: true
+              vm_size: Standard_NC40ads_H100_v5
+              create_node_count: 0
+              scale_node_count: 1
+              node_pool_num: 1
+              batch_size: 1
+              node_pool_type: VirtualMachineScaleSets
+              step_time_out: 600 # in seconds (10 minutes)
+              system_node_pool: '{"name":"default","vm_size":"Standard_D8_v5","node_count":2,"vm_set_type":"VirtualMachineScaleSets"}'
+              workload_test_setting: "PodSetting=1*10*60:JobSetting=20*60:StatefulSetSetting=3*60" #PodSetting=(serviceCount)*(deployment_replicas)*timeout
+          max_parallel: 1 # required
+          timeout_in_minutes: 180 # required

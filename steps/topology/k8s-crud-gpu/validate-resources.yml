@@ -1,0 +1,18 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+- name: engine
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml@templates
+  parameters:
+    role: gpu
+    region: ${{ parameters.regions[0] }}
+- script: |
+    echo "Installing GPU plugin"
+    kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.1/deployments/static/nvidia-device-plugin.yml
+    kubectl -n kube-system get daemonset nvidia-device-plugin-daemonset
+  displayName: 'Install GPU plugin'

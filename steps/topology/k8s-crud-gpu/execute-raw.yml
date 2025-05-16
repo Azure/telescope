@@ -1,0 +1,25 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- template: /steps/engine/raw/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    vm_size: $(VM_SIZE)
+    create_node_count: $(CREATE_NODE_COUNT)
+    scale_node_count: $(SCALE_NODE_COUNT)
+    node_pool_type: $(NODE_POOL_TYPE)
+    node_pool_num: $(NODE_POOL_NUM)
+    batch_size: $(BATCH_SIZE)
+    pool_name_prefix: $(POOL_NAME_PREFIX)
+    step_time_out: $(STEP_TIME_OUT)
+    result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+
