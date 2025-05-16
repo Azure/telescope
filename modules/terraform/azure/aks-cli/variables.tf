@@ -17,7 +17,13 @@ variable "tags" {
 }
 
 variable "subnet_id" {
-  description = "Value of the subnet id"
+  description = "Value of the vnet subnet id"
+  type        = string
+  default     = null
+}
+
+variable "pod_subnet_id" {
+  description = "Value of the pod subnet id"
   type        = string
   default     = null
 }
@@ -28,6 +34,7 @@ variable "aks_cli_config" {
     aks_name                      = string
     sku_tier                      = string
     subnet_name                   = optional(string, null)
+    pod_subnet_name               = optional(string, null)
     managed_identity_name         = optional(string, null)
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])

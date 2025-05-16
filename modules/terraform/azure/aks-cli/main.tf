@@ -45,6 +45,14 @@ locals {
     )
   )
 
+  pod_subnet_id_parameter = (var.pod_subnet_id == null ?
+    "" :
+    format(
+      "%s %s",
+      "--pod-subnet-id", var.pod_subnet_id,
+    )
+  )
+
   managed_identity_parameter = (var.aks_cli_config.managed_identity_name == null ?
     "--enable-managed-identity" :
     format(
@@ -131,6 +139,7 @@ resource "terraform_data" "aks_cli" {
       local.optional_parameters,
       local.subnet_id_parameter,
       local.managed_identity_parameter,
+      local.pod_subnet_id_parameter,
     ])
   }
 
