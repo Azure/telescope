@@ -70,7 +70,6 @@ steps:
   displayName: "Install Dependencies"
   retryCountOnTaskFailure: 3
 
-
 - template: /steps/cloud/${{ parameters.cloud }}/login.yml
   parameters:
     region: ${{ parameters.region }}
