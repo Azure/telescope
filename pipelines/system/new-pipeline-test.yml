@@ -19,10 +19,6 @@ stages:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
-            exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: ""
-              disable_warmup: "true"
           engine_input:
             runner_image: ghcr.io/xinweiwei24/kperf:15k_20250512
             benchmark_subcmd: node15k_pod200k
