@@ -18,7 +18,7 @@ aks_cli_config_list = [
     extra_node_pool = [
       {
         name       = "virtualnodes"
-        node_count = 200
+        node_count = 250
         vm_size    = "Standard_D8s_v3"
       },
       {
