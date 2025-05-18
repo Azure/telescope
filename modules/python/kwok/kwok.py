@@ -48,6 +48,7 @@ class KWOK(ABC):
         pass
 
 
+
 @dataclass
 class Node(KWOK):
     node_manifest_path: str = "kwok/config/kwok-node.yaml"
