@@ -94,7 +94,6 @@ def set_user_data_path(user_data_path: str, scenario_type:str, scenario_name:str
         display_name="Set User Data Path",
         script=dedent(
             f"""
-            echo '$(REGIONAL_CONFIG)'
             terraform_user_data_path={terraform_user_data_path}
             echo {terraform_user_data_path}
             
@@ -139,7 +138,7 @@ def set_input_variables(
 ) -> Script:
     # Initialize regional configuration
     regional_config = {}
-
+    
     # Generate input variables for each region
     for region in regions:
         region_input_variables = cloud.generate_input_variables(region, input_variables)
@@ -157,6 +156,10 @@ def set_input_variables(
             if [[ "${{DEBUG,,}}" =~ "true" ]]; then
                 set -x
             fi
+            config_vars={regional_config_str}
+            merged=$(jq -s '.[0] * .[1]' <(echo "$regional_config") <(echo "$config_vars"))
+            echo "$merged"
+            
             echo "Final regional config: {regional_config_str}"
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
             echo "Regional configuration set successfully."
