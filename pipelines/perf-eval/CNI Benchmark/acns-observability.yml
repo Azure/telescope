@@ -75,7 +75,7 @@ parameters:
   type: boolean
   default: false
 - name: generate_retina_network_flow_logs
-  displayName: Add Test Run with Retina Network Flow Logs
+  displayName: Create Retina Network Flow Logs
   type: boolean
   default: false
 

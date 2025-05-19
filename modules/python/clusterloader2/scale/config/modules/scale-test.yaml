@@ -23,47 +23,36 @@ name: scale-test
 # Retina Network Flow Log config
 {{$createRetinaNetworkFlowLogs := DefaultParam .createRetinaNetworkFlowLogs false}}
 
-# PFL
-{{$suffix := ""}}
-{{if $createRetinaNetworkFlowLogs}}
-{{$suffix = "WithRetinaNetworkFlowLogs"}}
-{{end}}
-
 steps:
   - module:
       path: /modules/measurements/control-plane.yaml
       params:
         action: start
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/retina.yaml
       params:
         action: start
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/cilium.yaml
       params:
         action: start
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/ama-logs.yaml
       params:
         action: start
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/node-disk.yaml
       params:
         action: start
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/test-steps.yaml
@@ -77,7 +66,7 @@ steps:
         fortioClientReplicas: {{$fortioClientReplicas}}
         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
         fortioClientConnections: {{$fortioClientConnections}}
-        generateRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
+        createRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
         deploymentLabel: start
         networkPoliciesPerNamespace: {{$networkPoliciesPerNamespace}}
         labelTrafficPods: {{.labelTrafficPods}}
@@ -87,32 +76,27 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/retina.yaml
       params:
         action: gather
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/cilium.yaml
       params:
         action: gather
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/ama-logs.yaml
       params:
         action: gather
         group: {{$groupName}}
-        suffix: "{{$suffix}}"
 
   - module:
       path: /modules/measurements/node-disk.yaml
       params:
         action: gather
         group: {{$groupName}}
-        suffix: "{{$suffix}}"

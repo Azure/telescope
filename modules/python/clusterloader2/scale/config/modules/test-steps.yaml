@@ -12,10 +12,10 @@
 {{$fortioClientConnections := .fortioClientConnections}}
 {{$CpuRequest := .CpuRequest}}
 {{$MemoryRequest := .MemoryRequest}}
-{{$generateRetinaNetworkFlowLogs := .generateRetinaNetworkFlowLogs}}
+{{$createRetinaNetworkFlowLogs := .createRetinaNetworkFlowLogs}}
 
 steps:
-{{if $generateRetinaNetworkFlowLogs}}
+{{if $createRetinaNetworkFlowLogs}}
 - name: Create Retina Network Flow Log
   phases:
   - namespaceList:
@@ -353,7 +353,7 @@ steps:
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
           FortioServerServiceBasename: fortio-server
 
-{{if $generateRetinaNetworkFlowLogs}}
+{{if $createRetinaNetworkFlowLogs}}
 # Delete retina network flow log
 - name: Delete Retina Network Flow Log
   phases:

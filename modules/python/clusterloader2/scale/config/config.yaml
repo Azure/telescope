@@ -20,7 +20,7 @@ name: scale-test
 {{$labelTrafficPods := DefaultParam .CL2_LABEL_TRAFFIC_PODS false}}
 
 # Retina Network Flow Log config
-{{$generateRetinaNetworkFlowLogs := DefaultParam .CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS false}}
+{{$createRetinaNetworkFlowLogs := DefaultParam .CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS false}}
 
 
 namespace:
@@ -54,39 +54,14 @@ steps:
         actionName: "create"
         tuningSet: DeploymentCreateQps
 
-  - name: Run Test without Creating Retina Network Flow Logs
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 1ms
-
   - module:
       path: /modules/scale-test.yaml
       params:
         action: start
         group: {{$groupName}}
-        createRetinaNetworkFlowLogs: false
+        createRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
         labelTrafficPods: {{$labelTrafficPods}}
 
-    {{if $generateRetinaNetworkFlowLogs}}
-  - name: Wait 5m and run test Creating Retina Network Flow Logs
-    measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          duration: 5m
-
-  - module:
-      path: /modules/scale-test.yaml
-      params:
-        action: start
-        group: {{$groupName}}
-        createRetinaNetworkFlowLogs: true
-        labelTrafficPods: {{$labelTrafficPods}}
-    {{end}}
-      
   # TODO: Remove this module once there's a way to deploy node exporter that works in perf-tests repository
   - module:
       path: /modules/node-exporter.yaml
