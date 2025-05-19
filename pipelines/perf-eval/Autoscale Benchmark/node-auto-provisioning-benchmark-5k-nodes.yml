@@ -1,0 +1,94 @@
+trigger: none
+schedules:
+  # Azure Large Scale(5000) On-Demand Schedule
+  - cron: "0 19 * * *"
+    displayName: "Every day at 7:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Large Scale(5000) Spot Schedule
+  - cron: "0 7 * * *"
+    displayName: "Every day at 7:00 AM"
+    branches:
+      include:
+        - main
+    always: true    
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: nap
+
+stages:
+  - stage: azure_eastus2_5k_with_Firebolt_Enabled_On_Demand
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 AM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    variables:
+      - group: NAP-5K-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            5k-on-demand:
+              cpu_per_node: 2
+              node_count: 5000
+              pod_count: 5000
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2ds_v4
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 500
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_5k_with_Firebolt_Enabled_Spot
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    variables:
+      - group: NAP-5K-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            5k-spot:
+              cpu_per_node: 2
+              node_count: 5000
+              pod_count: 5000
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2ds_v4
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 500
+          credential_type: service_connection
+          ssh_key_enabled: false
