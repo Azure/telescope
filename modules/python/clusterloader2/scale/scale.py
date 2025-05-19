@@ -22,6 +22,8 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
         file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
+        file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         file.write(f"CL2_LABEL_TRAFFIC_PODS: {label_traffic_pods}\n")
