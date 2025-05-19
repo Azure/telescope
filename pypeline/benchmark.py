@@ -89,7 +89,7 @@ class Layout:
             depends_on=[validate.job],
         )
         tear_down = Job(
-            job="tear down",
+            job="tearDown",
             display_name="Tear down resources",
             # Tears down in reverse order of setup.
             steps=self.engine.tear_down()
@@ -132,6 +132,7 @@ class Benchmark:
         for layout in self.layouts:
             stages.append(
                 Stage(
+                    stage=layout.display_name,
                     display_name=layout.display_name,
                     jobs=layout.get_jobs(),
                 )

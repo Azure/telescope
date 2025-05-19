@@ -16,11 +16,11 @@ def main():
         name="job_scheduling",
         layouts=[
             Layout(
-                display_name="azure-eastus2",
+                display_name="azeastus2",
                 cloud=Azure(),
                 setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
-                    Terraform(cloud=azure_eastus2, regions=["eastus2"]),
+                    Terraform(cloud=azure_eastus2, regions=["eastus2"], scenario_name="job-scheduling"),
                     Python3(),
                     SSH(cloud="azure"),
                 ],

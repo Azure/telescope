@@ -14,11 +14,11 @@ class CredentialType(Enum):
 
 @dataclass
 class Azure(Cloud):
-    region: str = "eastus"
-    subscription: str = os.getenv("AZURE_SUBSCRIPTION_ID")
+    region: str = "eastus2"
+    subscription: str = "$(AZURE_SUBSCRIPTION_ID)"
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
-    azure_service_connection: str = os.getenv("AZURE_SERVICE_CONNECTION")
-    azure_mi_client_id: str = os.getenv("AZURE_MI_CLIENT_ID")
+    azure_service_connection: str = "$(AZURE_SERVICE_CONNECTION)"
+    azure_mi_client_id: str = "$(AZURE_MI_CLIENT_ID)"
 
     @property
     def provider(self) -> CloudProvider:
@@ -66,7 +66,7 @@ class Azure(Cloud):
                                 "\n"
                             )
                         ),
-                        "addSpnToEnvironment": "true",
+                        "addSpnToEnvironment": True,
                     },
                 ),
                 Script(
