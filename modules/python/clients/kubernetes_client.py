@@ -500,3 +500,217 @@ class KubernetesClient:
         logger.info(
             f"Inside collect_pod_and_node_info, The file_name details are: {file_name}")
         save_info_to_file(pods_and_nodes, file_name)
+
+    def create_attach(self, template, namespace="default"):
+        """
+        Create a KWOK Attach custom resource using the provided YAML template.
+
+        :param template: YAML template for the Attach.
+        :param namespace: Namespace where the Attach will be created.
+        :return: Name of the created Attach.
+        """
+        try:
+            obj = yaml.safe_load(template)
+            api = client.CustomObjectsApi()
+            response = api.create_namespaced_custom_object(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="attaches",
+                body=obj
+            )
+            return response["metadata"]["name"]
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing Attach template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                return obj["metadata"]["name"]
+            raise Exception(f"Error creating Attach: {str(e)}") from e
+
+    def create_cluster_resource(self, template):
+        """
+        Create a KWOK ClusterAttach custom resource using the provided YAML template.
+
+        :param template: YAML template for the ClusterAttach.
+        :return: Name of the created ClusterAttach.
+        """
+        try:
+            obj = yaml.safe_load(template)
+            api = client.CustomObjectsApi()
+            response = api.create_cluster_custom_object(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                plural="clusterattaches",
+                body=obj
+            )
+            return response["metadata"]["name"]
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing ClusterAttach template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                return obj["metadata"]["name"]
+            raise Exception(f"Error creating ClusterAttach: {str(e)}") from e
+
+    def create_stage(self, template, namespace="default"):
+        """
+        Create a KWOK Stage custom resource using the provided YAML template.
+
+        :param template: YAML template for the Stage.
+        :param namespace: Namespace where the Stage will be created.
+        :return: Name of the created Stage.
+        """
+        try:
+            obj = yaml.safe_load(template)
+            api = client.CustomObjectsApi()
+            response = api.create_namespaced_custom_object(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="stages",
+                body=obj
+            )
+            return response["metadata"]["name"]
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing Stage template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                return obj["metadata"]["name"]
+            raise Exception(f"Error creating Stage: {str(e)}") from e
+
+    def create_metric(self, template, namespace="default"):
+        """
+        Create a KWOK Metric custom resource using the provided YAML template.
+
+        :param template: YAML template for the Metric.
+        :param namespace: Namespace where the Metric will be created.
+        :return: Name of the created Metric.
+        """
+        try:
+            obj = yaml.safe_load(template)
+            api = client.CustomObjectsApi()
+            response = api.create_namespaced_custom_object(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="metrics",
+                body=obj
+            )
+            return response["metadata"]["name"]
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing Metric template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                return obj["metadata"]["name"]
+            raise Exception(f"Error creating Metric: {str(e)}") from e
+
+    def create_service(self, template, namespace="default"):
+        """
+        Create a Service in the specified namespace using the provided YAML template.
+        """
+        try:
+            service_obj = yaml.safe_load(template)
+            response = self.api.create_namespaced_service(
+                body=service_obj,
+                namespace=namespace
+            )
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing Service template: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Error creating Service: {str(e)}") from e
+
+    def create_config_map(self, template, namespace="default"):
+        """
+        Create a ConfigMap in the specified namespace using the provided YAML template.
+        """
+        try:
+            configmap_obj = yaml.safe_load(template)
+            response = self.api.create_namespaced_config_map(
+                body=configmap_obj,
+                namespace=namespace
+            )
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing ConfigMap template: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Error creating ConfigMap: {str(e)}") from e
+
+    def create_service_account(self, template, namespace="default"):
+        """
+        Create a ServiceAccount in the specified namespace using the provided YAML template.
+        """
+        try:
+            sa_obj = yaml.safe_load(template)
+            response = self.api.create_namespaced_service_account(
+                body=sa_obj,
+                namespace=namespace
+            )
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing ServiceAccount template: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Error creating ServiceAccount: {str(e)}") from e
+
+    def create_cluster_role(self, template):
+        """
+        Create a ClusterRole using the provided YAML template.
+        """
+        try:
+            cr_obj = yaml.safe_load(template)
+            api = client.RbacAuthorizationV1Api()
+            response = api.create_cluster_role(body=cr_obj)
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing ClusterRole template: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Error creating ClusterRole: {str(e)}") from e
+
+    def create_cluster_role_binding(self, template):
+        """
+        Create a ClusterRoleBinding using the provided YAML template.
+        """
+        try:
+            crb_obj = yaml.safe_load(template)
+            api = client.RbacAuthorizationV1Api()
+            response = api.create_cluster_role_binding(body=crb_obj)
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing ClusterRoleBinding template: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Error creating ClusterRoleBinding: {str(e)}") from e
+
+    def create_crd(self, template):
+        """
+        Create a CustomResourceDefinition using the provided YAML template.
+        """
+        try:
+            crd_obj = yaml.safe_load(template)
+            api = client.ApiextensionsV1Api()
+            response = api.create_custom_resource_definition(body=crd_obj)
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing CRD template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                return crd_obj["metadata"]["name"]
+            raise Exception(f"Error creating CRD: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Error creating CRD: {str(e)}") from e
+
+    def create_flow_schema(self, template):
+        """
+        Create a FlowSchema using the provided YAML template.
+        """
+        try:
+            obj = yaml.safe_load(template)
+            api = client.FlowcontrolApiserverV1Api()
+            response = api.create_flow_schema(body=obj)
+            return response.metadata.name
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing FlowSchema template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                return obj["metadata"]["name"]
+            raise Exception(f"Error creating FlowSchema: {str(e)}") from e
+
+

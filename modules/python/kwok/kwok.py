@@ -1,6 +1,11 @@
 import subprocess
+import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import os
+import tempfile
+import urllib.request
+import yaml
 
 import requests
 
@@ -21,20 +26,80 @@ class KWOK(ABC):
         )
         response.raise_for_status()
         return response.json().get("tag_name")
-
+    
+                
     # Setting up the KWOK environment and simulating the pod/node emulation
     # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
     # to simulate resource usage for nodes, pods, and containers.
     def apply_kwok_manifests(self, kwok_release, enable_metrics):
         kwok_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/kwok.yaml"
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
-        subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
-        subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
+        self.apply_yaml_file(kwok_yaml_url)
+        self.apply_yaml_file(stage_fast_yaml_url)
         # TODO: exchange subprocess with k8s_client, will be done in another PR since change is quiet big
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
-            subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
+            self.apply_yaml_file(metrics_usage_url)
+    def apply_yaml_file(self, yaml_file_path):
+        """
+        Apply all resources in a YAML file (local path or URL) using the K8s client.
+        """
+        tmp = None
+        # Download if it's a URL
+        if yaml_file_path.startswith("http://") or yaml_file_path.startswith("https://"):
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".yaml")
+            urllib.request.urlretrieve(yaml_file_path, tmp.name)
+            yaml_file_path = tmp.name
 
+        plural_map = {
+            "ClusterAttach": "clusterattaches",
+            "ClusterExec": "clusterexecs",
+            "ClusterLogs": "clusterlogs"
+        }
+
+        kind_method_map = {
+            "Deployment": self.k8s_client.create_deployment,
+            "Service": self.k8s_client.create_service,
+            "ConfigMap": self.k8s_client.create_config_map,
+            "ServiceAccount": self.k8s_client.create_service_account,
+            "ClusterRole": self.k8s_client.create_cluster_role,
+            "ClusterRoleBinding": self.k8s_client.create_cluster_role_binding,
+            "CustomResourceDefinition": self.k8s_client.create_crd,
+            "Attach": self.k8s_client.create_attach,
+            "Stage": self.k8s_client.create_stage,
+            "Metric": self.k8s_client.create_metric,
+            "FlowSchema": self.k8s_client.create_flow_schema,
+        }
+
+        try:
+            with open(yaml_file_path) as f:
+                docs = list(yaml.safe_load_all(f))
+
+            for doc in docs:
+                if not doc or "kind" not in doc:
+                    continue
+                kind = doc["kind"]
+                # Convert the doc back to YAML string for your create_* methods
+                template = yaml.dump(doc)
+                namespace = doc.get("metadata", {}).get("namespace", "default")
+
+                try:
+                    if kind in kind_method_map:
+                        if kind in ["ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition", "FlowSchema"]:
+                            kind_method_map[kind](template)
+                        else:
+                            kind_method_map[kind](template, namespace)
+                    elif kind in plural_map:
+                        self.k8s_client.create_cluster_resource(template, plural_map[kind])
+                    else:
+                        print(f"Skipping unsupported kind: {kind}")
+                except Exception as e:
+                    print(f"Failed to apply {kind}: {e}")
+        finally:
+            if tmp:
+                os.unlink(tmp.name)
+    
+            
     @abstractmethod
     def create(self):
         pass
@@ -46,7 +111,7 @@ class KWOK(ABC):
     @abstractmethod
     def tear_down(self):
         pass
-
+    
 
 
 @dataclass
