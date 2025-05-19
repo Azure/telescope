@@ -1,4 +1,5 @@
 locals {
+  subnets   = var.subnets
   tags_list = [
     for key, value in merge(var.tags, { "role" = var.aks_cli_config.role }) :
     format("%s=%s", key, value)
@@ -42,6 +43,30 @@ locals {
     format(
       "%s %s",
       "--vnet-subnet-id", var.subnet_id,
+    )
+  )
+
+  pod_subnet_id_parameter = (var.pod_subnet_name == null ?
+    "" :
+    format(
+      "%s %s",
+      "--pod-subnet-id", try(local.subnets[var.pod_subnet_name], try(var.pod_subnet_name, null),
+    )
+  )
+
+  node_subnet_id_parameter = (var.node_subnet_name == null ?
+    "" :
+    format(
+      "%s %s",
+      "--vnet-subnet-id", try(local.subnets[var.node_subnet_name], try(var.node_subnet_name, null),
+    )
+  )
+
+  pod_ip_allocation_mode_parameter = (var.pod_ip_allocation_mode == null ?
+    "" :
+    format(
+      "%s %s",
+      "--pod-ip-allocation-mode", var.pod_ip_allocation_mode,
     )
   )
 
@@ -131,6 +156,9 @@ resource "terraform_data" "aks_cli" {
       local.optional_parameters,
       local.subnet_id_parameter,
       local.managed_identity_parameter,
+      local.pod_subnet_id_parameter,
+      local.node_subnet_id_parameter,
+      local.pod_ip_allocation_mode_parameter,
     ])
   }
 
@@ -173,6 +201,9 @@ resource "terraform_data" "aks_nodepool_cli" {
         for param in each.value.optional_parameters :
         format("--%s %s", param.name, param.value)
       ]),
+      local.pod_subnet_id_parameter,
+      local.node_subnet_id_parameter,
+      local.pod_ip_allocation_mode_parameter,
     ])
   }
 }
