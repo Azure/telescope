@@ -25,8 +25,7 @@ class KWOK(ABC):
         )
         response.raise_for_status()
         return response.json().get("tag_name")
-    
-                
+
     # Setting up the KWOK environment and simulating the pod/node emulation
     # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
     # to simulate resource usage for nodes, pods, and containers.
@@ -39,11 +38,13 @@ class KWOK(ABC):
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
             self.apply_yaml_file(metrics_usage_url)
-    
+
     def apply_yaml_file(self, yaml_file_path):
         tmp = None
         # Download if it's a URL
-        if yaml_file_path.startswith("http://") or yaml_file_path.startswith("https://"):
+        if yaml_file_path.startswith("http://") or yaml_file_path.startswith(
+            "https://"
+        ):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml") as tmp_file:
                 urllib.request.urlretrieve(yaml_file_path, tmp_file.name)
                 yaml_file_path = tmp_file.name
@@ -52,7 +53,7 @@ class KWOK(ABC):
         plural_map = {
             "ClusterAttach": "clusterattaches",
             "ClusterExec": "clusterexecs",
-            "ClusterLogs": "clusterlogs"
+            "ClusterLogs": "clusterlogs",
         }
 
         kind_method_map = {
@@ -82,12 +83,17 @@ class KWOK(ABC):
 
                 try:
                     if kind in kind_method_map:
-                        if kind in ["ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition", "FlowSchema"]:
+                        if kind in [
+                            "ClusterRole",
+                            "ClusterRoleBinding",
+                            "CustomResourceDefinition",
+                            "FlowSchema",
+                        ]:
                             kind_method_map[kind](template)
                         else:
                             kind_method_map[kind](template, namespace)
                     elif kind in plural_map:
-                        self.k8s_client.create_cluster_resource(template, plural_map[kind])
+                        self.k8s_client.create_cluster_resource(template)
                     else:
                         print(f"Skipping unsupported kind: {kind}")
                 except Exception as e:
@@ -124,7 +130,8 @@ class Node(KWOK):
             for i in range(self.node_count):
                 replacements = {"node_name": f"kwok-node-{i}"}
                 kwok_template = self.k8s_client.create_template(
-                    self.node_manifest_path, replacements  # E1121 fix: pass two arguments
+                    self.node_manifest_path,
+                    replacements,  # E1121 fix: pass two arguments
                 )
                 self.k8s_client.create_node(kwok_template)
 
