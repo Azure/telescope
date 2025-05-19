@@ -118,7 +118,7 @@ steps:
       path: /modules/reconcile-objects.yaml
       params:
         actionName: "delete"
-        namespaces: {{$namespaces}}
+        namespaces: 0
         tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
         namespaceType: restart

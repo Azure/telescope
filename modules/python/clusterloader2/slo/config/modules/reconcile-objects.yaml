@@ -30,6 +30,7 @@ steps:
 
 - name: {{$actionName}}
   phases:
+  {{ if eq $namespaces 1 }}
   - replicasPerNamespace: 1
     tuningSet: {{$tuningSet}}
     objectBundle:
@@ -38,6 +39,7 @@ steps:
       templateFillMap:
         Name: {{$nsBasename}}
         Type: {{$namespaceType}}
+  {{ end }}
 
   - namespaceRange:
       min: 0
