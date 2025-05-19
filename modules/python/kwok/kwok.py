@@ -97,8 +97,7 @@ class KWOK(ABC):
         finally:
             if tmp:
                 os.unlink(tmp.name)
-    
-            
+   
     @abstractmethod
     def create(self):
         pass
@@ -110,7 +109,6 @@ class KWOK(ABC):
     @abstractmethod
     def tear_down(self):
         pass
-    
 
 
 @dataclass
