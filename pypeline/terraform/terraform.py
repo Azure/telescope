@@ -59,6 +59,7 @@ def set_working_directory(cloud: str, modules_dir: str) -> Script:
             echo "Terraform Working Directory: {terraform_working_directory}"
             """
         ).strip(),
+        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
     )
 
 
@@ -77,9 +78,6 @@ def set_input_file(cloud: str, regions: str, input_file_mapping: dict, scenario_
 
             echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
             echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{regional_config_str}"
-            
-            echo "REGIONAL_CONFIG value:"
-            echo '$(REGIONAL_CONFIG)'
             """
         ).strip(),
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
@@ -96,6 +94,7 @@ def set_user_data_path(user_data_path: str, scenario_type:str, scenario_name:str
         display_name="Set User Data Path",
         script=dedent(
             f"""
+            echo '$(REGIONAL_CONFIG)'
             terraform_user_data_path={terraform_user_data_path}
             echo {terraform_user_data_path}
             
@@ -158,6 +157,7 @@ def set_input_variables(
             if [[ "${{DEBUG,,}}" =~ "true" ]]; then
                 set -x
             fi
+            echo "Final regional config: {regional_config_str}"
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
             echo "Regional configuration set successfully."
             """
