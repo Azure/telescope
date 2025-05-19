@@ -22,6 +22,30 @@ variable "subnet_id" {
   default     = null
 }
 
+variable "subnets" {
+  description = "Maps of subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "node_subnet_name" {
+  description = "Value of the subnet name used for Node IPs"
+  type        = string
+  default     = null
+}
+
+variable "pod_subnet_name" {
+  description = "Value of the subnet name used for Pod IPs"
+  type        = string
+  default     = null
+}
+
+variable "pod_ip_allocation_mode" {
+  description = "Value of the pod ip allocation mode for the nodepool. This can be either DynamicIndividual or StaticBlock"
+  type        = string
+  default     = null
+}
+
 variable "aks_cli_config" {
   type = object({
     role                          = string
