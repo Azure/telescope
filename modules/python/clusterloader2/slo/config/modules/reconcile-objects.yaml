@@ -30,22 +30,18 @@ steps:
 
 - name: {{$actionName}}
   phases:
-  # - namespaceRange:
-  #     min: 1
-  #     max: {{$namespaces}}
-  #     basename: {{$nsBasename}}
   - replicasPerNamespace: 1
     tuningSet: {{$tuningSet}}
     objectBundle:
     - basename: {{$nsBasename}}
       objectTemplatePath: namespace_template.yaml
       templateFillMap:
-        Name: {{$nsBasename}}-1
+        Name: {{$nsBasename}}
         Type: {{$namespaceType}}
 
   - namespaceRange:
-      min: 1
-      max: {{$namespaces}}
+      min: 0
+      max: 0
       basename: {{$nsBasename}}
     replicasPerNamespace: {{$daemonsets}}
     tuningSet: {{$tuningSet}}
