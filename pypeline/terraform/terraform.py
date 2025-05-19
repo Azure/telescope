@@ -158,7 +158,7 @@ def set_input_variables(
             fi
             config_vars={regional_config_str}
             merged=$(jq -s '.[0] * .[1]' <(echo "$regional_config") <(echo "$config_vars"))
-            echo merged config "$merged"
+            echo "merged config $merged"
             
             echo "Final regional config: {regional_config_str}"
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
