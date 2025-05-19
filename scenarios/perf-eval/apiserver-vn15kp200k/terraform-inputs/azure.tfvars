@@ -22,7 +22,7 @@ aks_cli_config_list = [
         vm_size    = "Standard_D8s_v3"
       },
       {
-        name       = "virtualnodes2"
+        name       = "vn2"
         node_count = 150
         vm_size    = "Standard_D8s_v3"
       },
