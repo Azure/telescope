@@ -50,7 +50,7 @@ locals {
     "" :
     format(
       "%s %s",
-      "--pod-subnet-id", try(local.subnets[var.pod_subnet_name], try(var.pod_subnet_name, null),
+      "--pod-subnet-id", try(local.subnets[var.pod_subnet_name], try(var.pod_subnet_name, null))
     )
   )
 
@@ -58,7 +58,7 @@ locals {
     "" :
     format(
       "%s %s",
-      "--vnet-subnet-id", try(local.subnets[var.node_subnet_name], try(var.node_subnet_name, null),
+      "--vnet-subnet-id", try(local.subnets[var.node_subnet_name], try(var.node_subnet_name, null))
     )
   )
 
