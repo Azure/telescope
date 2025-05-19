@@ -131,13 +131,13 @@ class Azure(Cloud):
             ),
         }
 
-    def create_resource_group(self, region: str) -> str:
+    def create_resource_group(self, region: str, scenario_name:str, scenario_type:str) -> str:
         return dedent(
             f"""
             set -eu
             echo "Create resource group $RUN_ID in region {region}"
             az group create --name $RUN_ID --location {region} \\
-            --tags "run_id=$RUN_ID" "scenario=${{SCENARIO_TYPE}}-${{SCENARIO_NAME}}" "owner=${{OWNER}}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${{DELETION_DUE_TIME}}" "SkipAKSCluster=1"
+            --tags "run_id=$RUN_ID" "scenario={scenario_type}-{scenario_name}" "owner=${{OWNER}}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${{DELETION_DUE_TIME}}" "SkipAKSCluster=1"
             """
         ).strip()
 

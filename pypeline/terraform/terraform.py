@@ -77,6 +77,9 @@ def set_input_file(cloud: str, regions: str, input_file_mapping: dict, scenario_
 
             echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
             echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{regional_config_str}"
+            
+            echo "REGIONAL_CONFIG value:"
+            echo '$(REGIONAL_CONFIG)'
             """
         ).strip(),
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
@@ -93,6 +96,7 @@ def set_user_data_path(user_data_path: str, scenario_type:str, scenario_name:str
         display_name="Set User Data Path",
         script=dedent(
             f"""
+            terraform_user_data_path={terraform_user_data_path}
             echo {terraform_user_data_path}
             
             if [ -d "{terraform_user_data_path}" ]; then
@@ -142,7 +146,7 @@ def set_input_variables(
         region_input_variables = cloud.generate_input_variables(region, input_variables)
         regional_config[region] = {"TERRAFORM_INPUT_VARIABLES": region_input_variables}
 
-    # Convert regional configuration to JSON
+    # Convert regional configuration to JSON and escape for shell
     regional_config_str = json.dumps(regional_config)
 
     # Generate the script to set pipeline variables
@@ -151,7 +155,7 @@ def set_input_variables(
         script=dedent(
             f"""
             set -e
-            if [[ \"${{DEBUG,,}}\" =~ \"true\" ]]; then
+            if [[ "${{DEBUG,,}}" =~ "true" ]]; then
                 set -x
             fi
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
@@ -233,10 +237,10 @@ def generate_apply_or_destroy_script(
     ).strip()
 
 
-def create_resource_group(cloud: Cloud, region: str) -> Script:
+def create_resource_group(cloud: Cloud, region: str, scenario_name:str, scenario_type:str) -> Script:
     return Script(
         display_name="Create Resource Group",
-        script=cloud.create_resource_group(region),
+        script=cloud.create_resource_group(region, scenario_name, scenario_type),
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
     )
 
@@ -268,7 +272,7 @@ class Terraform(Resource):
             set_user_data_path(self.user_data_path, self.scenario_type, self.scenario_name),
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
-            create_resource_group(self.cloud, self.regions[0]),
+            create_resource_group(self.cloud, self.regions[0],self.scenario_name, self.scenario_type),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),
