@@ -22,7 +22,7 @@ stages:
           engine_input:
             runner_image: ghcr.io/xinweiwei24/kperf:15k_20250512
             benchmark_subcmd: node15k_pod200k
-            benchmark_subcmd_args: " --total=100000 --cpu=4 --memory=16"
+            benchmark_subcmd_args: " --total=10000 --cpu=4 --memory=16"
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
