@@ -64,9 +64,13 @@ stages:
 
         echo "##vso[task.setvariable variable=MULTI_REGION]false"
         echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/terraform-inputs/azure.tfvars"}}"
+
+        echo "REGIONAL_CONFIG value:"
+        echo '$(REGIONAL_CONFIG)'
       displayName: Set Terraform Input File
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
+        terraform_user_data_path=$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
         echo $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
 
         if [ -d "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data" ]; then
@@ -82,13 +86,12 @@ stages:
             set -x
         fi
         echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_VARIABLES": {"run_id": "$(RUN_ID)", "region": "eastus2", "aks_sku_tier": "$AKS_SKU_TIER", "aks_kubernetes_version": "$KUBERNETES_VERSION", "aks_network_policy": "$NETWORK_POLICY", "aks_network_dataplane": "$NETWORK_DATAPLANE", "k8s_machine_type": "$K8S_MACHINE_TYPE", "k8s_os_disk_type": "$K8S_OS_DISK_TYPE", "aks_custom_headers": ["$AKS_CLI_CUSTOM_HEADERS"], "aks_cli_system_node_pool": "$SYSTEM_NODE_POOL", "aks_cli_user_node_pool": "$USER_NODE_POOL"}}}"
-        echo '$(TERRAFORM_REGIONAL_CONFIG)'
         echo "Regional configuration set successfully."
       displayName: Set Terraform Input Variables
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
         set -e
-        echo '$(TERRAFORM_REGIONAL_CONFIG)'
+
         terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "eastus2" '.[$region].TERRAFORM_INPUT_FILE')
 
         deletion_delay=$(grep 'deletion_delay' "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}')
