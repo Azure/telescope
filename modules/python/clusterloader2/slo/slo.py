@@ -25,7 +25,7 @@ CPU_CAPACITY = {
 
 # TODO(jshr-w): Fix all references to calculate_config for new method argument list.
 def calculate_config(cpu_per_node, node_count, max_pods, provider, identity_test=True):
-    throughput = 100
+    throughput = 10 #0
     pods_per_node = max_pods
 
     nodes_per_namespace = node_count # TODO: Does this break churn test?

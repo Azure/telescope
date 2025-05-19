@@ -25,13 +25,13 @@ name: load-config
 # We use RandomizedTimeLimitedLoad for load QPS.
 # Specifically, we aim to create/delete LOAD_TEST_THROUGHPUT/DELETE_TEST_THROUGHPUT pods per second, on average.
 # Operations make an independent choice about the time to start uniformly at random from the associated time period.
-{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 10}} #100
 {{$DELETE_TEST_THROUGHPUT := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $LOAD_TEST_THROUGHPUT}}
 {{$saturationTime := DivideInt $totalPods $LOAD_TEST_THROUGHPUT}}
 {{$deletionTime := DivideInt $totalPods $DELETE_TEST_THROUGHPUT}}
 
 
-{{$ds_surge := DefaultParam CL2_DS_SURGE $nodes}}
+{{$ds_surge := DefaultParam .CL2_DS_SURGE $nodes}}
 
 namespace:
   #number: {{$namespaces}}
