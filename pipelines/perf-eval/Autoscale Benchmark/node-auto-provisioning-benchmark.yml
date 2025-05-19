@@ -280,8 +280,7 @@ stages:
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     variables:
-      - name: AZURE_SUBSCRIPTION_ID
-        value: 8f78be25-2c8d-4050-b23f-87a4a29eb813
+      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
