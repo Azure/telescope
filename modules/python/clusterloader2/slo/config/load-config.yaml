@@ -1,16 +1,6 @@
 name: load-config
 
-# Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
-{{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
-{{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
-{{$IDENTITY_CHURN_TEST := DefaultParam .CL2_IDENTITY_CHURN_TEST false}}
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
-
-# Config options for test parameters
-{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}} # 100
-{{$loadTestThroughput := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}} # 100
-{{$repeats := DefaultParam .CL2_REPEATS 1}} # 1
 
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
@@ -18,22 +8,18 @@ name: load-config
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
-{{$nodes := DefaultParam .CL2_NODES 1000}} # 500
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}} # 500
+# Config options for test parameters
+{{$daemonsets := DefaultParam .CL2_NUM_OF_BIG_GROUPS 1}}
+{{$repeats := DefaultParam .CL2_REPEATS 1}} # 1
+
+{{$nodes := DefaultParam .CL2_NODES 500}}
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 500}}
 {{$namespaces := DivideInt $nodes $nodesPerNamespace}} # 1
 
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 1 * 500 * 100 = 50,000
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 50000 / 1 = 50,000
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $daemonsets}}
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}} 
 
-{{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}} # 3
-{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}} # 4
-
-{{$NUM_OF_BIG_GROUPS := DefaultParam .CL2_NUM_OF_BIG_GROUPS 1 }} # 10000
-{{$bigDeploymentsPerNamespace := $NUM_OF_BIG_GROUPS }} # 10000
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $NUM_OF_BIG_GROUPS $BIG_GROUP_SIZE)}} # 50000 - (10000 * 3) = 20000
-{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}} # 20000 / 4 = 5000
-{{$totalDeploymentsPerNamespace := AddInt $smallDeploymentsPerNamespace $bigDeploymentsPerNamespace}}
-{{$expectedIdentities := MultiplyInt 2 $namespaces $totalDeploymentsPerNamespace}}
+{{$expectedIdentities := MultiplyInt 2 $daemonsets}}
 
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
@@ -44,14 +30,12 @@ name: load-config
 {{$saturationTime := DivideInt $totalPods $LOAD_TEST_THROUGHPUT}}
 {{$deletionTime := DivideInt $totalPods $DELETE_TEST_THROUGHPUT}}
 
-# CNP & CCNP Test
-{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
-{{$CCNPS := DefaultParam .CL2_CCNPS 0}}
-{{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
+
+{{$ds_surge := DefaultParam CL2_DS_SURGE $nodes}}
 
 namespace:
-  number: {{$namespaces}}
-  prefix: slo
+  #number: {{$namespaces}}
+  #prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
@@ -68,7 +52,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - schedulableNodes={{$nodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, expectedIdentities={{$expectedIdentities}}
+  - name: Log - schedulableNodes={{$nodes}}, daemonsets={{$daemonsets}}, expectedIdentities={{$expectedIdentities}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -90,35 +74,7 @@ steps:
 {{end}}
 
 {{range $i := Loop $repeats}}
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
-        bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
-{{end}}
-
-{{if $CNP_TEST}}
-  - module:
-      path: /modules/ciliumnetworkpolicy.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        Group: {{$groupName}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-{{end}}
-
-{{if $CCNP_TEST}}
-  - module:
-      path: /modules/ciliumclusternetworkpolicy.yaml
-      params:
-        actionName: "Creating"
-        Group: {{$groupName}}
-        ccnps: {{$CCNPS}}
-{{end}}
-
+# Create Daemonsets
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -126,24 +82,14 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-    {{end}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
-        deploymentLabel: start
-        svcTest: {{$SERVICE_TEST}}
-        identityChurnTest: {$IDENTITY_CHURN_TEST}
+        daemonsets: {{$daemonsets}}
+        namespaceType: create
+        surge: {{$ds_surge}}
 
+# Relabel Namespace
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -151,24 +97,23 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: Sequence
         operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-    {{end}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
-        deploymentLabel: restart
-        svcTest: {{$SERVICE_TEST}}
-        identityChurnTest: {$IDENTITY_CHURN_TEST}
+        daemonsets: {{$daemonsets}}
+        namespaceType: restart
+        surge: {{$ds_surge}}
 
+# Sleep 5 minutes
+  - name: Sleep
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 5m
+
+# Delete Daemonsets
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -176,49 +121,10 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: 0
-    {{end}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: 0
-        deploymentLabel: restart
+        namespaceType: restart
         Group: {{$groupName}}
-        svcTest: {{$SERVICE_TEST}}
-        identityChurnTest: {$IDENTITY_CHURN_TEST}
-
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: 0
-        bigServicesPerNamespace: 0
-{{end}}
-
-{{if $CNP_TEST}}
-  - module:
-      path: /modules/ciliumnetworkpolicy.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        cnpsPerNamespace: 0
-{{end}}
-
-{{if $CCNP_TEST}}
-  - module:
-      path: /modules/ciliumclusternetworkpolicy.yaml
-      params:
-        actionName: "Deleting"
-        namespaces: {{$namespaces}}
-        ccnps: 0
-{{end}}
+        daemonsets: 0
+        surge: {{$ds_surge}}
 {{end}} # end loop
 
 {{if $CILIUM_METRICS_ENABLED}}

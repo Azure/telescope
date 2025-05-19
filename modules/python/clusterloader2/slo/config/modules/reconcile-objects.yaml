@@ -8,72 +8,55 @@
 {{$is_deleting := (eq .actionName "delete")}}
 {{$operationTimeout := .operationTimeout}}
 
-# Deployments
-{{$bigDeploymentSize := .bigDeploymentSize}}
-{{$bigDeploymentsPerNamespace := .bigDeploymentsPerNamespace}}
-{{$smallDeploymentSize := .smallDeploymentSize}}
-{{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
-
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
+{{$daemonsets := .daemonsets}}
+{{$namespaceType := .namespaceType}}
+{{$nsBasename := "my-namespace"}}
+{{$surge := .surge}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForRunningDaemonSets
       Params:
         apiVersion: apps/v1
-        kind: Deployment
+        kind: DaemonSet
     Params:
       action: start
       checkIfPodsAreUpdated: true
       labelSelector: group = {{.Group}}
       operationTimeout: {{$operationTimeout}}
-      apiVersion: apps/v1
 
 - name: {{$actionName}}
   phases:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$bigDeploymentsPerNamespace}}
+    replicasPerNamespace: 1
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: big-deployment
-      objectTemplatePath: deployment_template.yaml
-      templateFillMap:
-        Replicas: {{$bigDeploymentSize}}
-        SvcName: big-service
-        Group: {{.Group}}
-        deploymentLabel: {{.deploymentLabel}}
+    - basename: {{$nsBasename}}
+      objectTemplatePath: namespace_template.yaml
+
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$smallDeploymentsPerNamespace}}
+      basename: {{$nsBasename}}
+    replicasPerNamespace: {{$daemonsets}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: small-deployment
-      objectTemplatePath: deployment_template.yaml
+    - basename: daemonset
+      objectTemplatePath: daemonset_template.yaml
       templateFillMap:
-        Replicas: {{$smallDeploymentSize}}
-  {{if or $cnp_test $ccnp_test}}
-        cnp_test: {{$cnp_test}}
-        ccnp_test: {{$ccnp_test}}
-  {{end}}
-  {{if $.svcTest}}
-        SvcName: small-service
-  {{end}}
         Group: {{.Group}}
-        deploymentLabel: {{.deploymentLabel}}
-        identityChurnTest: {{$.identityChurnTest}}
+        surge: {{.surge}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForRunningDaemonSets
     Params:
       action: gather
       refreshInterval: 15s
