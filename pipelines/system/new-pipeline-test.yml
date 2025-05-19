@@ -65,12 +65,10 @@ stages:
 
         echo "##vso[task.setvariable variable=MULTI_REGION]false"
         echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/terraform-inputs/azure.tfvars"}}"
-
-        echo "REGIONAL_CONFIG value:"
-        echo '$(REGIONAL_CONFIG)'
       displayName: Set Terraform Input File
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
+        echo '$(REGIONAL_CONFIG)'
         terraform_user_data_path=$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
         echo $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
 
