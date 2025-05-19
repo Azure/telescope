@@ -130,8 +130,7 @@ class Node(KWOK):
             for i in range(self.node_count):
                 replacements = {"node_name": f"kwok-node-{i}"}
                 kwok_template = self.k8s_client.create_template(
-                    self.node_manifest_path,
-                    replacements,  # E1121 fix: pass two arguments
+                    self.node_manifest_path, replacements
                 )
                 self.k8s_client.create_node(kwok_template)
 
