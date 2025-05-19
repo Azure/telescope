@@ -157,6 +157,8 @@ def set_input_variables(
                 set -x
             fi
             config_vars='{regional_config_str}'
+            echo "regional_config: $regional_config"
+            echo "config_vars: $config_vars"
             merged=$(jq -s '.[0] * .[1]' <(echo "$regional_config") <(echo "$config_vars"))
             echo "merged config $merged"
             
