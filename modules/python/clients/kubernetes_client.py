@@ -712,5 +712,3 @@ class KubernetesClient:
             if e.status == 409:
                 return obj["metadata"]["name"]
             raise Exception(f"Error creating FlowSchema: {str(e)}") from e
-
-
