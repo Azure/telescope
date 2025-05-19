@@ -1,15 +1,15 @@
 stages:
-- displayName: azure-eastus2
+- stage: azeastus2
+  displayName: azeastus2
   jobs:
   - job: setup
     displayName: Setup resources
     steps:
-    - displayName: Set run id
-      script: |-
+    - script: |-
         echo "Run ID: $(Build.BuildId)-$(System.JobId)"
         echo "##vso[task.setvariable variable=RUN_ID]$(Build.BuildId)-$(System.JobId)"
-    - displayName: Set Run URL & Code URL
-      script: |-
+      displayName: Set run id
+    - script: |-
         run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
         echo "Run URL: $run_url"
         echo "##vso[task.setvariable variable=RUN_URL]$run_url"
@@ -17,8 +17,8 @@ stages:
         code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
         echo "Code URL: $code_url"
         echo "##vso[task.setvariable variable=CODE_URL]$code_url"
-    - displayName: Set Test Results Directory
-      script: |-
+      displayName: Set Run URL & Code URL
+    - script: |-
         test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
         mkdir -p $test_results_directory
         echo "Test Results directory: $test_results_directory"
@@ -27,23 +27,23 @@ stages:
 
         echo "Test Results file: $test_results_file"
         echo "##vso[task.setvariable variable=TEST_RESULTS_FILE]$test_results_file"
-    - displayName: Set Script Module Directory
-      script: |-
+      displayName: Set Test Results Directory
+    - script: |-
         echo "Script modules directory: $(Pipeline.Workspace)/s/modules/bash"
         echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$(Pipeline.Workspace)/s/modules/bash"
-    - displayName: Get login credentials
-      task: AzureCLI@2
+      displayName: Set Script Module Directory
+    - task: AzureCLI@2
+      displayName: Get login credentials
       inputs:
-        azureSubscription: null
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
           echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
           echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
-        addSpnToEnvironment: 'true'
-    - displayName: Azure Login
-      script: |
+        addSpnToEnvironment: true
+    - script: |
         set -eu
 
         echo "login to Azure in $REGION"
@@ -51,41 +51,41 @@ stages:
         az account set --subscription "$AZURE_SP_SUBSCRIPTION_ID"
         az config set defaults.location="$REGION"
         az account show
+      displayName: Azure Login
       env:
-        REGION: eastus
-        AZURE_SP_SUBSCRIPTION_ID: null
-    - displayName: Set Terraform Working Directory
-      script: |-
+        REGION: eastus2
+        AZURE_SP_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+    - script: |-
         echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$(Pipeline.Workspace)/s/modules/terraform/azure"
         echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"
-    - displayName: Set Terraform Input File
-      script: |-
+      displayName: Set Terraform Working Directory
+    - script: |-
         set -eu
 
         echo "##vso[task.setvariable variable=MULTI_REGION]false"
-        echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/azure.tfvars"}}"
+        echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/terraform-inputs/azure.tfvars"}}"
+      displayName: Set Terraform Input File
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - displayName: Set User Data Path
-      script: |-
-        echo $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
+    - script: |-
+        echo $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
 
-        if [ -d "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data" ]; then
-            echo "Terraform user data path exists: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
-            echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+        if [ -d "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data" ]; then
+            echo "Terraform user data path exists: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
+            echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
         else:
-            echo "Terraform user data path does not exist: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+            echo "Terraform user data path does not exist: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
         fi
-    - displayName: Set Terraform Input Variables
-      script: |-
+      displayName: Set User Data Path
+    - script: |-
         set -e
         if [[ "${DEBUG,,}" =~ "true" ]]; then
             set -x
         fi
         echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_VARIABLES": {"run_id": "$(RUN_ID)", "region": "eastus2", "aks_sku_tier": "$AKS_SKU_TIER", "aks_kubernetes_version": "$KUBERNETES_VERSION", "aks_network_policy": "$NETWORK_POLICY", "aks_network_dataplane": "$NETWORK_DATAPLANE", "k8s_machine_type": "$K8S_MACHINE_TYPE", "k8s_os_disk_type": "$K8S_OS_DISK_TYPE", "aks_custom_headers": ["$AKS_CLI_CUSTOM_HEADERS"], "aks_cli_system_node_pool": "$SYSTEM_NODE_POOL", "aks_cli_user_node_pool": "$USER_NODE_POOL"}}}"
         echo "Regional configuration set successfully."
+      displayName: Set Terraform Input Variables
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - displayName: Get Deletion Due Time and Owner
-      script: |-
+    - script: |-
         set -e
 
         terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "eastus2" '.[$region].TERRAFORM_INPUT_FILE')
@@ -100,16 +100,16 @@ stages:
         owner=$(grep 'owner' "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//')
         echo "Owner: $owner"
         echo "##vso[task.setvariable variable=OWNER]$owner"
+      displayName: Get Deletion Due Time and Owner
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - displayName: Create Resource Group
-      script: |-
+    - script: |-
         set -eu
         echo "Create resource group $RUN_ID in region eastus2"
         az group create --name $RUN_ID --location eastus2 \
         --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
+      displayName: Create Resource Group
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - displayName: Run Terraform Version Command
-      script: |-
+    - script: |-
         set -e
 
         # Navigate to the Terraform working directory
@@ -143,12 +143,12 @@ stages:
             fi
 
         done
+      displayName: Run Terraform Version Command
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
       retryCountOnTaskFailure: 3
-    - displayName: Run Terraform Init Command
-      script: |-
+    - script: |-
         set -e
 
         # Navigate to the Terraform working directory
@@ -182,12 +182,12 @@ stages:
             fi
 
         done
+      displayName: Run Terraform Init Command
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
       retryCountOnTaskFailure: 3
-    - displayName: Run Terraform Apply Command
-      script: |-
+    - script: |-
         set -e
 
         # Navigate to the Terraform working directory
@@ -226,23 +226,23 @@ stages:
             fi
 
         done
+      displayName: Run Terraform Apply Command
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
       retryCountOnTaskFailure: 3
-    - displayName: Check Dependencies
-      script: |
+    - script: |
         python3 --version && pip3 --version
         jq --version
-    - displayName: Install Dependencies
-      script: |
+      displayName: Check Dependencies
+    - script: |
         set -e
         if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
             pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
         fi
         sudo apt-get -y install bc
-    - displayName: Generate SSH Key
-      script: |-
+      displayName: Install Dependencies
+    - script: |-
         set -eu
 
         ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/azure/private_key.pem"
@@ -254,8 +254,8 @@ stages:
         echo "##vso[task.setvariable variable=SSH_KEY_PATH;]$ssh_key_path"
         echo "Public Key Path: $public_key_path"
         echo "##vso[task.setvariable variable=SSH_PUBLIC_KEY_PATH;]$public_key_path"
-    - displayName: Download SSH Key
-      script: |-
+      displayName: Generate SSH Key
+    - script: |-
         set -eu
 
         echo "Get private key from key vault $AZURE_SSH_KEY_VAULT"
@@ -263,20 +263,20 @@ stages:
         chmod 600 $SSH_KEY_PATH
         cat $SSH_KEY_PATH
         echo "##vso[task.setvariable variable=SSH_KEY_PATH;]${SSH_KEY_PATH}"
+      displayName: Download SSH Key
       condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   - job: validate
     displayName: Validate resources
     steps:
-    - displayName: Validate OWNER info
-      script: |-
+    - script: |-
         # Check if OWNER has been set to any string value other than an empty string
         if [ -z "$OWNER" ]; then
             echo "##vso[task.logissue type=error;] OWNER is not set. Please set OWNER to a valid value ('aks', 'compute', 'networking', 'storage') in the pipeline."
             exit 1
         fi
+      displayName: Validate OWNER info
       condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - displayName: Validate Installed Dependencies
-      script: |-
+    - script: |-
         set -e
 
         # Check if requirements.txt exists
@@ -288,8 +288,8 @@ stages:
             exit 1
         fi
         echo "All dependencies are installed."
-    - displayName: Validate SSH Key
-      script: |-
+      displayName: Validate Installed Dependencies
+    - script: |-
         set -eu
 
         # Check if the private key file exists
@@ -311,6 +311,7 @@ stages:
         fi
 
         echo "SSH key validation passed."
+      displayName: Validate SSH Key
     dependsOn:
     - setup
   - job: run
@@ -318,11 +319,10 @@ stages:
     steps: []
     dependsOn:
     - validate
-  - job: tear down
+  - job: tearDown
     displayName: Tear down resources
     steps:
-    - displayName: Delete SSH Keys
-      script: |-
+    - script: |-
         set -eu
         # Check if the private key file exists
         if [ ! -f "$SSH_KEY_PATH" ]; then
@@ -341,5 +341,6 @@ stages:
         rm -f "$SSH_PUBLIC_KEY_PATH"
 
         echo "SSH keys deleted successfully."
+      displayName: Delete SSH Keys
     dependsOn:
     - run
