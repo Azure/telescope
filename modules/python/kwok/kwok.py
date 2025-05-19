@@ -1,11 +1,13 @@
-import os
-import tempfile
-import urllib.request
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import requests
+import os
+import tempfile
+import urllib.request
 import yaml
+
+import requests
+
 
 from clients.kubernetes_client import KubernetesClient
 
@@ -23,7 +25,8 @@ class KWOK(ABC):
         )
         response.raise_for_status()
         return response.json().get("tag_name")
-
+    
+                
     # Setting up the KWOK environment and simulating the pod/node emulation
     # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
     # to simulate resource usage for nodes, pods, and containers.
@@ -32,25 +35,24 @@ class KWOK(ABC):
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
         self.apply_yaml_file(kwok_yaml_url)
         self.apply_yaml_file(stage_fast_yaml_url)
-        # TODO: exchange subprocess with k8s_client, will be done in another PR since change is quiet big
+
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
             self.apply_yaml_file(metrics_usage_url)
-
+    
     def apply_yaml_file(self, yaml_file_path):
         tmp = None
         # Download if it's a URL
-        if yaml_file_path.startswith("http://") or yaml_file_path.startswith(
-            "https://"
-        ):
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".yaml")
-            urllib.request.urlretrieve(yaml_file_path, tmp.name)
-            yaml_file_path = tmp.name
+        if yaml_file_path.startswith("http://") or yaml_file_path.startswith("https://"):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml") as tmp_file:
+                urllib.request.urlretrieve(yaml_file_path, tmp_file.name)
+                yaml_file_path = tmp_file.name
+            tmp = yaml_file_path
 
         plural_map = {
             "ClusterAttach": "clusterattaches",
             "ClusterExec": "clusterexecs",
-            "ClusterLogs": "clusterlogs",
+            "ClusterLogs": "clusterlogs"
         }
 
         kind_method_map = {
@@ -68,39 +70,31 @@ class KWOK(ABC):
         }
 
         try:
-            with open(yaml_file_path) as f:
+            with open(yaml_file_path, encoding="utf-8") as f:
                 docs = list(yaml.safe_load_all(f))
 
             for doc in docs:
                 if not doc or "kind" not in doc:
                     continue
                 kind = doc["kind"]
-                # Convert the doc back to YAML string for your create_* methods
                 template = yaml.dump(doc)
                 namespace = doc.get("metadata", {}).get("namespace", "default")
 
                 try:
                     if kind in kind_method_map:
-                        if kind in [
-                            "ClusterRole",
-                            "ClusterRoleBinding",
-                            "CustomResourceDefinition",
-                            "FlowSchema",
-                        ]:
+                        if kind in ["ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition", "FlowSchema"]:
                             kind_method_map[kind](template)
                         else:
                             kind_method_map[kind](template, namespace)
                     elif kind in plural_map:
-                        self.k8s_client.create_cluster_resource(
-                            template, plural_map[kind]
-                        )
+                        self.k8s_client.create_cluster_resource(template, plural_map[kind])
                     else:
                         print(f"Skipping unsupported kind: {kind}")
                 except Exception as e:
                     print(f"Failed to apply {kind}: {e}")
         finally:
             if tmp:
-                os.unlink(tmp.name)
+                os.unlink(tmp)
 
     @abstractmethod
     def create(self):
@@ -130,7 +124,7 @@ class Node(KWOK):
             for i in range(self.node_count):
                 replacements = {"node_name": f"kwok-node-{i}"}
                 kwok_template = self.k8s_client.create_template(
-                    self.node_manifest_path, replacements
+                    self.node_manifest_path, replacements  # E1121 fix: pass two arguments
                 )
                 self.k8s_client.create_node(kwok_template)
 
