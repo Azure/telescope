@@ -294,10 +294,10 @@ stages:
           matrix:
             large-scale-on-demand:
               cpu_per_node: 2
-              node_count: 100
-              pod_count: 100
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
+              node_count: 5000
+              pod_count: 5000
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
@@ -306,10 +306,10 @@ stages:
               capacity_type: on-demand
             large-scale-spot:
               cpu_per_node: 2
-              node_count: 100
-              pod_count: 100
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
+              node_count: 5000
+              pod_count: 5000
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 1
@@ -317,6 +317,6 @@ stages:
               vm_size: Standard_D2ds_v4
               capacity_type: spot
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 500
           credential_type: service_connection
           ssh_key_enabled: false
