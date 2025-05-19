@@ -55,12 +55,25 @@ steps:
         tuningSet: DeploymentCreateQps
 
   - module:
+      path: /modules/hubble.yaml
+      params:
+        actionName: "create"
+        tuningSet: DeploymentCreateQps
+
+  - module:
       path: /modules/scale-test.yaml
       params:
         action: start
         group: {{$groupName}}
         createRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
         labelTrafficPods: {{$labelTrafficPods}}
+
+  - module:
+      path: /modules/hubble.yaml
+      params:
+        actionName: "delete"
+        tuningSet: DeploymentCreateQps
+
 
   # TODO: Remove this module once there's a way to deploy node exporter that works in perf-tests repository
   - module:

@@ -1,0 +1,35 @@
+## Hubble module creates Hubble service and service monitor components
+
+# Tuning set
+{{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
+
+# interval
+{{$interval := DefaultParam .interval "15s"}}
+{{ $replicasPerNamespace := 1 }}
+
+{{if eq .actionName "create"}}
+  {{ $replicasPerNamespace = 1 }}
+{{else}}
+  {{ $replicasPerNamespace = 0 }}
+{{end}} 
+
+steps:
+  - name: {{.actionName}} Hubble Service Monitor
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/hubble/servicemonitor.yaml"
+            basename: hubble
+            interval: 15s
+  - name: {{.actionName}} Hubble Service
+    phases:
+      - namespaceList:
+        - "kube-system"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/hubble/service.yaml"
+            basename: hubble
