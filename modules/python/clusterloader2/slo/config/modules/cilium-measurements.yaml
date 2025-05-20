@@ -224,6 +224,16 @@ steps:
         queries:
         - name: total
           query: max_over_time(apiserver_storage_objects{resource="ciliumidentities.cilium.io"}[%v])
+    - Identifier: CiliumNetworkPolicies
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Network Policies
+        metricVersion: v1
+        unit: count
+        queries:
+        - name: total
+          query: max_over_time(apiserver_storage_objects{resource="ciliumnetworkpolicies.cilium.io"}[%v])
     - Identifier: CiliumEndpointsLongRunningWatches
       Method: GenericPrometheusQuery
       Params:
