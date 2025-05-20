@@ -6,7 +6,6 @@ name: load-config-hyperion
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
-{{$OVERRIDE_DEFAULT_PODS_PER_NODE := DefaultParam .CL2_OVERRIDE_DEFAULT_PODS_PER_NODE true}}
 
 # TODO(jshr-w): This should eventually use >1 namespace.
 {{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
