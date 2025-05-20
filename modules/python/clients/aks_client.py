@@ -89,7 +89,6 @@ class AKSClient:
             
         self.resource_group = resource_group
         self.cluster_name = cluster_name
-        logger.info(f"Result directory: {result_dir}")
         
         # Set up authentication
         if use_managed_identity:
@@ -247,7 +246,7 @@ class AKSClient:
         vm_size: str,
         node_count: int = 1,
         cluster_name: Optional[str] = None,
-        operation_timeout_minutes: int = 30,
+        operation_timeout_minutes: int = 10,
         node_pool_label: Optional[str] = None,
         gpu_node_pool: bool = False
     ) -> Any:
@@ -558,10 +557,10 @@ class AKSClient:
             # Add cluster data
             try:
                 cluster_data = self.get_cluster_data()
-                metrics["aks_data"] = cluster_data
+                metrics["cluster_data"] = cluster_data
             except Exception as cluster_err:
                 logger.warning(f"Failed to get cluster data for metrics: {str(cluster_err)}")
-                metrics["aks_data"] = None
+                metrics["cluster_data"] = None
             
             # Add operation info
             metrics["operation_info"] = operation_info

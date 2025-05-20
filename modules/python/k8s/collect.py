@@ -44,7 +44,7 @@ def main():
         result = {
             "timestamp": datetime.now().isoformat(),
             "region": REGION,
-            "aks_data": json.dumps(content.get("aks_data")),
+            "cluster_info": json.dumps(content.get("cluster_data")),
             "operation_info": json.dumps(content.get("operation_info")),
             "run_id": RUN_ID,
             "run_url": RUN_URL,

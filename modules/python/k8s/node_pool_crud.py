@@ -32,7 +32,6 @@ class NodePoolCRUD:
             kube_config_file=kube_config_file,
             result_dir=result_dir
         )
-        logger.info(f"Result directory: {result_dir}")
         
         if not self.aks_client:
             error_msg = "Failed to initialize AKS client."
