@@ -37,7 +37,7 @@ steps:
 
     # Run the command
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "${ARGS[@]}"
-  displayName: 'Execute K8s CRUD Operations for ${parameters.cloud}'
+  displayName: 'Execute K8s CRUD Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/k8s/crud/node_pool_crud.py
@@ -50,4 +50,3 @@ steps:
     STEP_TIME_OUT: 600
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-
