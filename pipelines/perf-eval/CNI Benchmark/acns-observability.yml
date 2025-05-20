@@ -111,6 +111,7 @@ stages:
           fortio_deployments_per_namespace: ${{ parameters.traffic_deployment_count }}
           generate_retina_network_flow_logs: ${{ parameters.generate_retina_network_flow_logs }}
           label_traffic_pods: ${{ parameters.label_traffic_pods }}
+          trigger_reason: ${{ variables['Build.Reason'] }}
       max_parallel: 1
       timeout_in_minutes: 720
       credential_type: service_connection

@@ -81,6 +81,7 @@ def collect_clusterloader2(
     network_policies_per_namespace,
     generate_retina_network_flow_logs=False,
     label_traffic_pods=False,
+    trigger_reason="",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -101,6 +102,7 @@ def collect_clusterloader2(
         "observability_tool": observability_tool,
         "test_details": {
             # add more details here about tests (e.g. features tested)
+            "trigger_reason": trigger_reason,
             "observability_tool": observability_tool,
             "repository": repository,
             "repository_ref": repository_ref,
@@ -216,6 +218,7 @@ def main():
     parser_collect.add_argument("--network-policies-per-namespace", type=int, help="Number of network policies to be created per namespace", default=0, nargs='?')
     parser_collect.add_argument("--generate-retina-network-flow-logs", type=str2bool, choices=[True, False], nargs='?', default=False, help="Generate Retina Network Flow Logs (default=False)")
     parser_collect.add_argument("--label_traffic_pods", type=str2bool, choices=[True, False], nargs='?', default=False, help="Add/Remove label to client traffic pods(default=False)")
+    parser_collect.add_argument("--trigger_reason", type=str, help="What triggerred the test", nargs='?', default="")
 
     args = parser.parse_args()
 
@@ -229,7 +232,8 @@ def main():
                                  args.network_policies_per_namespace,
                                  args.generate_retina_network_flow_logs,
                                  args.label_traffic_pods,
-                                 args.cl2_override_file)
+                                 args.cl2_override_file,
+                                 )
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
@@ -248,6 +252,7 @@ def main():
                                args.network_policies_per_namespace,
                                args.generate_retina_network_flow_logs,
                                args.label_traffic_pods,
+                               args.trigger_reason,
                                )
 
 if __name__ == "__main__":
