@@ -169,7 +169,7 @@ def main():
     parser.add_argument(
         "--kwok-release",
         type=str,
-        default=None,
+        default="",
         help="KWOK release version to use (default: latest).",
     )
     parser.add_argument(
