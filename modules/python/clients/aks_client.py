@@ -42,10 +42,10 @@ except ImportError:
     logger = logging.getLogger(__name__)
 
 # Suppress noisy Azure SDK logs
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
-logging.getLogger("azure.identity").setLevel(logging.ERROR)
-logging.getLogger("azure.core.pipeline").setLevel(logging.ERROR)
-logging.getLogger("msal").setLevel(logging.ERROR)
+# logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
+# logging.getLogger("azure.identity").setLevel(logging.ERROR)
+# logging.getLogger("azure.core.pipeline").setLevel(logging.ERROR)
+# logging.getLogger("msal").setLevel(logging.ERROR)
 
 
 class AKSClient:
