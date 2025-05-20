@@ -9,6 +9,7 @@
 {{$operationTimeout := .operationTimeout}}
 
 {{$daemonsets := .daemonsets}}
+{{$replicas := .replicas}}
 {{$namespaceType := .namespaceType}}
 {{$nsBasename := "my-namespace"}}
 {{$surge := .surge}}
@@ -18,10 +19,10 @@ steps:
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDaemonSets
+    - Identifier: WaitForRunningDeployments
       Params:
         apiVersion: apps/v1
-        kind: DaemonSet
+        kind: Deployment
     Params:
       action: start
       checkIfPodsAreUpdated: true
@@ -30,7 +31,6 @@ steps:
 
 - name: {{$actionName}}
   phases:
-  {{ if eq $namespaces 1 }}
   - replicasPerNamespace: 1
     tuningSet: {{$tuningSet}}
     objectBundle:
@@ -39,8 +39,19 @@ steps:
       templateFillMap:
         Name: {{$nsBasename}}
         Type: {{$namespaceType}}
-  {{ end }}
 
+  # - namespaceRange:
+  #     min: 0
+  #     max: 0
+  #     basename: {{$nsBasename}}
+  #   replicasPerNamespace: {{$daemonsets}}
+  #   tuningSet: {{$tuningSet}}
+  #   objectBundle:
+  #   - basename: daemonset
+  #     objectTemplatePath: daemonset_template.yaml
+  #     templateFillMap:
+  #       Group: {{.Group}}
+  #       surge: {{.surge}}
   - namespaceRange:
       min: 0
       max: 0
@@ -48,17 +59,18 @@ steps:
     replicasPerNamespace: {{$daemonsets}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: daemonset
-      objectTemplatePath: daemonset_template.yaml
+    - basename: deployment
+      objectTemplatePath: deployment_template.yaml
       templateFillMap:
+        Replicas: {{$replicas}}
         Group: {{.Group}}
-        surge: {{.surge}}
+        deploymentLabel: {{.deploymentLabel}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
   - Method: WaitForControlledPodsRunning
     Instances:
-    - Identifier: WaitForRunningDaemonSets
+    - Identifier: WaitForRunningDeployments
     Params:
       action: gather
       refreshInterval: 15s

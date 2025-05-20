@@ -88,6 +88,7 @@ steps:
         daemonsets: {{$daemonsets}}
         namespaceType: create
         surge: {{$ds_surge}}
+        replicas: {{$nodes}}
 
 # Relabel Namespace
   - module:
@@ -103,6 +104,7 @@ steps:
         daemonsets: {{$daemonsets}}
         namespaceType: restart
         surge: {{$ds_surge}}
+        replicas: {{$nodes}}
 
 # Sleep 5 minutes
   - name: Sleep
@@ -125,6 +127,7 @@ steps:
         Group: {{$groupName}}
         daemonsets: 0
         surge: {{$ds_surge}}
+        replicas: 0
 {{end}} # end loop
 
 {{if $CILIUM_METRICS_ENABLED}}
