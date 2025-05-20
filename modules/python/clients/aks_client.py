@@ -119,6 +119,10 @@ class AKSClient:
             subscription_id=self.subscription_id,
             transport=transport
         )
+        if not self.aks_client:
+            error_msg = "Failed to initialize AKS client."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         self.result_dir = result_dir
         
         # Initialize Kubernetes client if provided or if kubeconfig is available
