@@ -30,7 +30,7 @@ steps:
     if [[ "$GPU_NODE_POOL" == "true" ]]; then
       ARGS+=(--gpu-node-pool)
     fi
-    if [[ "$SCALE_STEP_UP_COUNT" != "$SCALE_NODE_COUNT"]]
+    if [[ "$SCALE_STEP_UP_COUNT" != "$SCALE_NODE_COUNT" ]]
     then
       ARGS+=(--progressive)
     fi
