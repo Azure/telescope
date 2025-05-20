@@ -34,8 +34,6 @@ name: load-config
 {{$ds_surge := DefaultParam .CL2_DS_SURGE $nodes}}
 
 namespace:
-  #number: {{$namespaces}}
-  #prefix: slo
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false
@@ -73,26 +71,25 @@ steps:
         action: start
 {{end}}
 
-{{range $i := Loop $repeats}}
 # Create Namespace
-- name: Setup namespace
-  phases:
-  - replicasPerNamespace: 1
-    tuningSet: Sequence
-    objectBundle:
-    - basename: my-namespace
-      objectTemplatePath: namespace_template.yaml
-      templateFillMap:
-        Name: my-namespace
-        Type: start
+# - name: Setup namespace
+#   phases:
+#   - replicasPerNamespace: 1
+#     tuningSet: Sequence
+#     objectBundle:
+#     - basename: my-namespace
+#       objectTemplatePath: namespace_template.yaml
+#       templateFillMap:
+#         Name: my-namespace
+#         Type: start
 
-- name: Sleep
-  measurements:
-  - Identifier: Dummy
-    Method: Sleep
-    Params:
-      action: start
-      duration: 1m
+# - name: Sleep
+#   measurements:
+#   - Identifier: Dummy
+#     Method: Sleep
+#     Params:
+#       action: start
+#       duration: 1m
 
 # Create Daemonsets
   # - module:
@@ -123,13 +120,13 @@ steps:
   #         Type: restart
 
 # Sleep 5 minutes
-  - name: Sleep
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 5m
+  # - name: Sleep
+  #   measurements:
+  #   - Identifier: Dummy
+  #     Method: Sleep
+  #     Params:
+  #       action: start
+  #       duration: 5m
 
 # Delete Daemonsets
   # - module:
@@ -144,7 +141,6 @@ steps:
   #       daemonsets: 0
   #       surge: {{$ds_surge}}
   #       replicas: 0
-{{end}} # end loop
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
