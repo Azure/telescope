@@ -29,6 +29,8 @@ def main():
     RESULT_DIR = get_env_vars("RESULT_DIR")
     RUN_URL = get_env_vars("RUN_URL")
     RUN_ID = get_env_vars("RUN_ID")
+    REGION = get_env_vars("REGION")
+    logger.info(f"environment variable REGION: `{REGION}`")
     logger.info(f"environment variable RESULT_DIR: `{RESULT_DIR}`")
     logger.info(f"environment variable RUN_URL: `{RUN_URL}`")
 
@@ -39,13 +41,9 @@ def main():
         logger.info(f"Processing file: `{filepath}`")
         content = json.load(open(filepath, "r"))
         logger.debug(f"Content: {content}")
-        cloud_info = {
-            "cloud": content.get("cloud"),
-            "aks_name": content.get("aks_name"),
-        }
         result = {
             "timestamp": datetime.now().isoformat(),
-            "region": content.get("region"),
+            "region": REGION,
             "aks_data": json.dumps(content.get("aks_data")),
             "operation_info": json.dumps(content.get("operation_info")),
             "run_id": RUN_ID,

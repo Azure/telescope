@@ -313,10 +313,11 @@ class AKSClient:
                 end_time = time.time()
                 duration = end_time - start_time
                 # Verify NVIDIA drivers if this is a GPU node pool
+                pod_logs = None
                 if gpu_node_pool and node_count > 0:
                     logger.info(f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'")
-                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
-                    self._record_metrics("create_node_pool", node_pool_name, duration, True, node_count, logs=pod_logs)                
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)     
+                self._record_metrics("create_node_pool", node_pool_name, duration, True, node_count, logs=pod_logs)                               
             except Exception as k8s_err:
                 error_msg = str(k8s_err)
                 logger.error(f"Error waiting for node readiness: {error_msg}")
@@ -424,11 +425,12 @@ class AKSClient:
                 
                 end_time = time.time()
                 duration = end_time - start_time
+                pod_logs = None
                 # Verify NVIDIA drivers if this is a GPU node pool and we're scaling up
                 if gpu_node_pool and node_count > 0:
                     logger.info(f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after scaling")
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
-                    self._record_metrics(operation_type, node_pool_name, duration, True, node_count, logs=pod_logs)
+                self._record_metrics(operation_type, node_pool_name, duration, True, node_count, logs=pod_logs)
             except Exception as k8s_err:
                 error_msg = str(k8s_err)
                 logger.error(f"Error waiting for node readiness: {error_msg}")

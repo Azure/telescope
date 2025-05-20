@@ -304,16 +304,13 @@ class NodePoolCRUD:
 def handle_node_pool_operation(node_pool_crud, args):
     """Handle node pool operations (create, scale, delete) based on the command"""
     command = args.command
-    
-    # Get gpu_node_pool flag if it exists, default to False
-    gpu_node_pool = getattr(args, 'gpu_node_pool', False)
-    
+        
     if command == 'create':
         node_pool_crud.create_node_pool(
             node_pool_name=args.node_pool_name,
             vm_size=args.vm_size,
             node_count=args.node_count,
-            gpu_node_pool=gpu_node_pool
+            gpu_node_pool=args.gpu_node_pool
         )
     elif command == 'scale':        
         node_pool_crud.scale_node_pool(
@@ -322,7 +319,7 @@ def handle_node_pool_operation(node_pool_crud, args):
             progressive=args.progressive,
             step_size=args.step_size,
             wait_time=args.step_wait_time,
-            gpu_node_pool=gpu_node_pool
+            gpu_node_pool=args.gpu_node_pool
         )
     elif command == 'delete':
         node_pool_crud.delete_node_pool(
@@ -337,7 +334,7 @@ def handle_node_pool_operation(node_pool_crud, args):
             progressive=args.progressive,
             step_size=args.step_size,
             wait_time=args.step_wait_time,
-            gpu_node_pool=gpu_node_pool
+            gpu_node_pool=args.gpu_node_pool
         )
     else:
         logger.error(f"Unsupported command: {command}")

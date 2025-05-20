@@ -24,9 +24,11 @@ steps:
       --step-timeout "$STEP_TIME_OUT"
       --result-dir "$RESULT_DIR"
       --step-size "$SCALE_STEP_UP_COUNT"
+      --gpu-node-pool
     )
 
     # Conditionally add gpu-node
+    echo "GPU_NODE_POOL: $GPU_NODE_POOL"
     if [[ "$GPU_NODE_POOL" == "true" ]]; then
       ARGS+=(--gpu-node-pool)
     fi
