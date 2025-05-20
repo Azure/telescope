@@ -40,13 +40,12 @@ steps:
         Name: {{$nsBasename}}
         Type: {{$namespaceType}}
 
-# - name: Sleep
-#   measurements:
-#   - Identifier: Dummy
-#     Method: Sleep
-#     Params:
-#       action: start
-#       duration: 1m
+- name: Sleep
+  measurements:
+  - Identifier: sleep
+    Method: Sleep
+    Params:
+      duration: 60s
 
   - namespaceRange:
       min: 0
