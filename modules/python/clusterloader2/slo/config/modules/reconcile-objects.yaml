@@ -3,7 +3,6 @@
 {{$actionName := printf "%s objects" .actionName}}
 {{$namespaces := .namespaces}}
 {{$tuningSet := .tuningSet}}
-{{$startTest := .startTest}}
 
 # Derivative variables
 {{$is_deleting := (eq .actionName "delete")}}
@@ -30,7 +29,6 @@ steps:
       labelSelector: group = {{.Group}}
       operationTimeout: {{$operationTimeout}}
 
-{{if $startTest}}
 - name: {{$actionName}}
   phases:
   - replicasPerNamespace: 1
@@ -41,7 +39,6 @@ steps:
       templateFillMap:
         Name: {{$nsBasename}}
         Type: {{$namespaceType}}
-{{end}}
 
   - namespaceRange:
       min: 0
