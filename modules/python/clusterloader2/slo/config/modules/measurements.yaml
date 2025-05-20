@@ -23,6 +23,10 @@ steps:
           action: {{$action}}
           enableViolations: {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE}}
           useSimpleLatencyQuery: true
+      - Identifier: EtcdMetrics
+        Method: EtcdMetrics
+        Params:
+          action: {{$action}}
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
@@ -121,56 +125,92 @@ steps:
             query: quantile(0.90, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
           - name: Perc50
             query: quantile(0.5, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
-      - Identifier: apiserver_request_total
-        Method: GenericPrometheusQuery
-        Params:
-          action: {{$action}}
-          metricName: Apiserver Request Total by verb, resource
-          metricVersion: v1
-          unit: count
-          dimensions:
-          - resource
-          - verb
-          enableViolations: true
-          queries:
-          - name: Apiserver Request Total by verb and resource
-            query: sum(rate(apiserver_request_total[1m])) by (verb, resource)
-      - Identifier: apiserver_request_duration_seconds
-        Method: GenericPrometheusQuery
-        Params:
-          action: {{$action}}
-          metricName: Api requests latency by verb, resource
-          metricVersion: v1
-          unit: s
-          dimensions:
-          - verb
-          - resource
-          enableViolations: true
-          queries:
-          - name: Perc99
-            query: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket[5m])) by (le, verb, resource))
-          - name: Perc90
-            query: histogram_quantile(0.90, sum(rate(apiserver_request_duration_seconds_bucket[5m])) by (le, verb, resource))
-          - name: Perc50
-            query: histogram_quantile(0.50, sum(rate(apiserver_request_duration_seconds_bucket[5m])) by (le, verb, resource))
       - Identifier: apiserver_current_inflight_requests #TODO - not sure how useful this is as it's a gauge metric
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
           metricName: Current API requests inflight
+          metricVersion: v1
           unit: count
           enableViolations: true
           queries:
           - name: Current API requests inflight
-            query: sum(apiserver_current_inflight_requests)
+            query: sum(rate(apiserver_current_inflight_requests[%v:]))
       - Identifier: apiserver_watch_events_total
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
           metricName: Apiserver watch events total per resource
+          metricVersion: v1
+          unit: count
+          dimensions:
+          - resource
+          enableViolations: true
+          queries:
+          - name: data
+            query: sum(rate(apiserver_watch_events_total}[%v:])) by (resource)
+      - Identifier: apiserver_watch_duration_seconds_bucket
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Api server watch duration seconds
+          metricVersion: v1
+          unit: s
+          dimensions:
+          - resource
+          enableViolations: true
+          queries:
+          - name: Perc99
+            query: histogram_quantile(0.99, sum(rate(apiserver_watch_duration_seconds_bucket[%v:])) by (le, resource))
+          - name: Perc90
+            query: histogram_quantile(0.90, sum(rate(apiserver_watch_duration_seconds_bucket[%v:])) by (le, resource))
+          - name: Perc50
+            query: histogram_quantile(0.50, sum(rate(apiserver_watch_duration_seconds_bucket[%v:])) by (le, resource))
+      # - Identifier: etcd_disk_backend_commit_duration_seconds
+      #   Method: GenericPrometheusQuery
+      #   Params:
+      #     action: {{$action}}
+      #     metricName: ETCD disk backend commit duration #TODO - check if this is correct gauge metric
+      #     metricVersion: v1
+      #     unit: rate #TODO check if unit is valid - rate of size change per second
+      #     enableViolations: true
+      #     queries:
+      #     - name: P99
+      #       query: histogram_quantile(0.99, sum(rate(etcd_disk_backend_commit_duration_seconds_bucket[%v:])) by (le))
+      #     - name: P90
+      #       query: histogram_quantile(0.90, sum(rate(etcd_disk_backend_commit_duration_seconds_bucket[%v:])) by (le))
+      #     - name: P50
+      #       query: histogram_quantile(0.50, sum(rate(etcd_disk_backend_commit_duration_seconds_bucket[%v:])) by (le))
+      # - Identifier: etcd_debugging_mvcc_db_total_size_in_bytes
+      #   Method: GenericPrometheusQuery
+      #   Params:
+      #     action: {{$action}}
+      #     metricName: ETCD total size database rate change #TODO - check if this is correct gauge metric
+      #     metricVersion: v1
+      #     unit: rate #TODO check if unit is valid - rate of size change per second
+      #     enableViolations: true
+      #     queries:
+      #     - name: ETCD total size database rate change
+      #       query: deriv(etcd_debugging_mvcc_db_total_size_in_bytes[5m])
+      - Identifier: etcd_server_proposals_pending
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: ETCD number of uncommited proposals rate change #TODO - check if this is correct gauge metric
+          metricVersion: v1
+          unit: rate #TODO check if unit is valid - rate of size change per second
+          enableViolations: true
+          queries:
+          - name: ETCD total size database rate change
+            query: deriv(etcd_server_proposals_pending[%v:])
+      - Identifier: etcd_server_proposals_applied_total
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: ETCD number of proposals applied #TODO - check if this is correct gauge metric
+          metricVersion: v1
           unit: count
           enableViolations: true
           queries:
-          - name: Apiserver watch events total per resource
-            query: sum(rate(apiserver_watch_events_total[5m])) by (resource)
-
+          - name: ETCD total size database rate change
+            query: rate(etcd_server_proposals_applied_total[%v:])
