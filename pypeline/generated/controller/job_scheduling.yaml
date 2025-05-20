@@ -1,6 +1,6 @@
 stages:
-- stage: azure-eastus2
-  displayName: azure-eastus2
+- stage: azureeastus2
+  displayName: azureeastus2
   jobs:
   - job: setup
     displayName: Setup resources
@@ -35,26 +35,23 @@ stages:
     - task: AzureCLI@2
       displayName: Get login credentials
       inputs:
-        azureSubscription: null
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
           echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
           echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
-        addSpnToEnvironment: 'true'
+        addSpnToEnvironment: true
     - script: |
         set -eu
 
-        echo "login to Azure in $REGION"
+        echo "login to Azure in eastus2"
         az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
-        az account set --subscription "$AZURE_SP_SUBSCRIPTION_ID"
-        az config set defaults.location="$REGION"
+        az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+        az config set defaults.location="eastus2"
         az account show
       displayName: Azure Login
-      env:
-        REGION: eastus
-        AZURE_SP_SUBSCRIPTION_ID: null
     - script: |-
         echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$(Pipeline.Workspace)/s/modules/terraform/azure"
         echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"

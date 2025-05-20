@@ -14,11 +14,11 @@ class CredentialType(Enum):
 
 @dataclass
 class Azure(Cloud):
-    region: str = "eastus"
-    subscription: str = os.getenv("AZURE_SUBSCRIPTION_ID")
+    region: str = "eastus2"
+    subscription: str = "$(AZURE_SUBSCRIPTION_ID)"
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
-    azure_service_connection: str = os.getenv("AZURE_SERVICE_CONNECTION")
-    azure_mi_client_id: str = os.getenv("AZURE_MI_CLIENT_ID")
+    azure_service_connection: str = "$(AZURE_SERVICE_CONNECTION)"
+    azure_mi_client_id: str = "$(AZURE_MI_CLIENT_ID)"
 
     @property
     def provider(self) -> CloudProvider:
@@ -30,22 +30,17 @@ class Azure(Cloud):
                 Script(
                     display_name="Azure Login",
                     script=dedent(
-                        """
+                        f"""
                         set -eu
-                        echo "login to Azure in $REGION"
-                        az login --identity --username $AZURE_MI_ID
-                        az account set --subscription "$AZURE_MI_SUBSCRIPTION_ID"
-                        az config set defaults.location="$REGION"
+                        echo "login to Azure in {self.region}"
+                        az login --identity --username {self.azure_mi_client_id}
+                        az account set --subscription "{self.subscription}"
+                        az config set defaults.location="{self.region}"
                         az account show
                         """.strip(
                             "\n"
                         )
-                    ),
-                    env={
-                        "AZURE_MI_ID": self.azure_mi_client_id,
-                        "AZURE_MI_SUBSCRIPTION_ID": self.subscription,
-                        "REGION": self.region,
-                    },
+                    )
                 ),
             ]
         elif self.credential_type == CredentialType.SERVICE_CONNECTION:
@@ -66,28 +61,25 @@ class Azure(Cloud):
                                 "\n"
                             )
                         ),
-                        "addSpnToEnvironment": "true",
+                        "addSpnToEnvironment": True,
                     },
                 ),
                 Script(
                     display_name="Azure Login",
                     script=dedent(
-                        """
+                        f"""
                         set -eu
 
-                        echo "login to Azure in $REGION"
+                        echo "login to Azure in {self.region}"
                         az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
-                        az account set --subscription "$AZURE_SP_SUBSCRIPTION_ID"
-                        az config set defaults.location="$REGION"
+                        az account set --subscription "{self.subscription}"
+                        az config set defaults.location="{self.region}"
                         az account show
                         """.strip(
                             "\n"
                         )
-                    ),
-                    env={
-                        "REGION": self.region,
-                        "AZURE_SP_SUBSCRIPTION_ID": self.subscription,
-                    },
+                    )
+
                 ),
             ]
 

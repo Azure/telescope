@@ -16,7 +16,7 @@ def main():
         name="job_scheduling",
         layouts=[
             Layout(
-                display_name="azure-eastus2",
+                display_name="azureeastus2",
                 cloud=Azure(),
                 setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
