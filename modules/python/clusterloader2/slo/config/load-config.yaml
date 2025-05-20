@@ -74,6 +74,27 @@ steps:
 {{end}}
 
 {{range $i := Loop $repeats}}
+
+# Create Namespace
+- name: Setup namespace
+  phases:
+  - replicasPerNamespace: 1
+    tuningSet: Sequence
+    objectBundle:
+    - basename: my-namespace
+      objectTemplatePath: namespace_template.yaml
+      templateFillMap:
+        Name: my-namespace
+        Type: start
+
+- name: Sleep
+  measurements:
+  - Identifier: Dummy
+    Method: Sleep
+    Params:
+      action: start
+      duration: 1m
+
 # Create Daemonsets
   - module:
       path: /modules/reconcile-objects.yaml
@@ -91,20 +112,16 @@ steps:
         replicas: {{$nodes}}
 
 # Relabel Namespace
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "restart"
-        namespaces: {{$namespaces}}
-        tuningSet: Sequence
-        operationTimeout: {{$operationTimeout}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        daemonsets: {{$daemonsets}}
-        namespaceType: restart
-        surge: {{$ds_surge}}
-        replicas: {{$nodes}}
+  - name: Setup namespace
+    phases:
+    - replicasPerNamespace: 1
+      tuningSet: Sequence
+      objectBundle:
+      - basename: my-namespace
+        objectTemplatePath: namespace_template.yaml
+        templateFillMap:
+          Name: my-namespace
+          Type: restart
 
 # Sleep 5 minutes
   - name: Sleep
