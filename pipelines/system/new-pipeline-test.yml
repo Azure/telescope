@@ -292,23 +292,21 @@ stages:
     - script: |-
         set -eu
 
-        echo $(SSH_KEY_PATH)
-
         # Check if the private key file exists
-        if [ ! -f "$(SSH_KEY_PATH)" ]; then
-            echo "Error: SSH private key not found at $(SSH_KEY_PATH)"
+        if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "Error: SSH private key not found at $SSH_KEY_PATH"
             exit 1
         fi
 
         # Check if the private key has the correct permissions
-        if [ "$(stat -c %a $(SSH_KEY_PATH))" != "600" ]; then
+        if [ "$(stat -c %a $SSH_KEY_PATH)" != "600" ]; then
             echo "Error: SSH private key permissions are not set to 600"
             exit 1
         fi
 
         # Check if the public key file exists
-        if [ ! -f "$(SSH_PUBLIC_KEY_PATH)" ]; then
-            echo "Error: SSH public key not found at $(SSH_PUBLIC_KEY_PATH)"
+        if [ ! -f "$SSH_PUBLIC_KEY_PATH" ]; then
+            echo "Error: SSH public key not found at $SSH_PUBLIC_KEY_PATH"
             exit 1
         fi
 
