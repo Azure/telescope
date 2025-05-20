@@ -72,16 +72,16 @@ steps:
 {{end}}
 
 # Create Namespace
-# - name: Setup namespace
-#   phases:
-#   - replicasPerNamespace: 1
-#     tuningSet: Sequence
-#     objectBundle:
-#     - basename: my-namespace
-#       objectTemplatePath: namespace_template.yaml
-#       templateFillMap:
-#         Name: my-namespace
-#         Type: start
+- name: Setup namespace
+  phases:
+  - replicasPerNamespace: 1
+    tuningSet: Sequence
+    objectBundle:
+    - basename: my-namespace
+      objectTemplatePath: namespace_template.yaml
+      templateFillMap:
+        Name: my-namespace
+        Type: start
 
 # - name: Sleep
 #   measurements:
