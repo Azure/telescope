@@ -225,7 +225,7 @@ class Iperf3Pod(PodRoleCommand):
         data = {
             "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             "metric": protocol,
-            "target_bw": bandwidth,
+            "target_bandwidth": bandwidth,
             "parallel": parallel,
             "datapath": datapath,
             "unit": "Mbits/sec",
@@ -237,6 +237,7 @@ class Iperf3Pod(PodRoleCommand):
             "cloud_info": cloud_info,
             "run_url": run_url,
             "raw_data": iperf3_result,
+            "test_engine": "iperf3",
         }
         os.makedirs(os.path.dirname(result_file), exist_ok=True)
         with open(result_file, 'a', encoding='utf-8') as file:
