@@ -1,0 +1,18 @@
+parameters:
+  client_context:
+    type: string
+  server_context:
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
+      --client_context "$CLIENT_CONTEXT" \
+      --server_context "$SERVER_CONTEXT"
+    displayName: "Validate iperf3"
+    workingDirectory: modules/python
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+      CLIENT_CONTEXT: ${{ parameters.client_context }}
+      SERVER_CONTEXT: ${{ parameters.server_context }}

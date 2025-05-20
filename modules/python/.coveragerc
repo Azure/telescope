@@ -1,0 +1,11 @@
+[run]
+omit =
+    */tests/*
+    */site-packages/*
+    */MagicMock/*
+    */__init__.py
+
+[report]
+exclude_lines =
+    if __name__ == .__main__.:
+show_missing = True

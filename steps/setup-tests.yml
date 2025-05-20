@@ -9,9 +9,6 @@ parameters:
 - name: run_id
   type: string
   default: ''
-- name: run_id_2
-  type: string
-  default: ''
 - name: retry_attempt_count
   type: number
   default: 3
@@ -19,18 +16,10 @@ parameters:
   type: string
 - name: ssh_key_enabled
   type: boolean
-- name: use_secondary_cluster
-  type: boolean
-  default: false
 
 steps:
 - script: |
-   set -eu
-    if [ "${{ parameters.use_secondary_cluster }}" == "True" ] && [ -n "${RUN_ID_2:-}" ]; then
-      echo "Using secondary cluster"
-      run_id=$RUN_ID_2
-    elif [ -n "${RUN_ID:-}" ]; then
-      echo "Using primary cluster"
+    if [ -n "$RUN_ID" ]; then
       run_id=$RUN_ID
     else
       run_id=$(Build.BuildId)-$(System.JobId)
@@ -40,7 +29,6 @@ steps:
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
-    RUN_ID_2: ${{ parameters.run_id_2 }}
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
@@ -67,6 +55,7 @@ steps:
 - script: |
     python3 --version && pip3 --version
     jq --version
+    kubectl version --client
   displayName: "Check Dependencies"
 
 - script: |

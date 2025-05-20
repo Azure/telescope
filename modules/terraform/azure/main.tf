@@ -10,7 +10,6 @@ locals {
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
-  user_data_path           = lookup(var.json_input, "user_data_path", null)
 
   tags = {
     "owner"             = var.owner
@@ -20,8 +19,6 @@ locals {
     "run_id"            = local.run_id
     "SkipAKSCluster"    = "1"
   }
-
-  aks_arm_deployment_config_map = { for arm in var.aks_arm_deployment_config_list : arm.name => arm }
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
@@ -103,15 +100,4 @@ module "aks-cli" {
   location            = local.region
   aks_cli_config      = each.value
   tags                = local.tags
-}
-
-module "aks-arm-deployment" {
-  for_each = local.aks_arm_deployment_config_map
-  source   = "./aks-arm-deployment"
-
-  deployment_name     = each.value.name
-  location            = local.region
-  resource_group_name = local.run_id
-  tags                = local.tags
-  parameters_path     = local.user_data_path != null ? "${local.user_data_path}/${each.value.parameters_path}" : null
 }

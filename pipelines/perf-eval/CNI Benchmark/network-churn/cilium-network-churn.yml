@@ -4,13 +4,13 @@ schedules:
     displayName: "Every 6 Hours Daily"
     branches:
       include:
-        - itia/network-churn
+        - main
     always: true
 
 parameters:
   - name: node_count
     type: number
-    default: 240
+    default: 24
   - name: node_per_step
     type: number
     default: 240
@@ -60,6 +60,7 @@ stages:
               no_of_namespaces: ${{ parameters.no_of_namespaces }}
               total_network_policies: ${{ parameters.total_nework_policies }}
               cilium_enabled: True
+              npm_enabled: False
               network_policy: cilium
               network_dataplane: cilium
               service_test: False
@@ -93,6 +94,7 @@ stages:
               total_network_policies: ${{ parameters.total_nework_policies }}
               cilium_enabled: False
               scrape_kubelets: True
+              npm_enabled: True
               service_test: False
               network_test: True
               cl2_config_file: load-config.yaml
@@ -100,4 +102,3 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-          use_secondary_cluster: true
