@@ -89,6 +89,7 @@ steps:
         namespaceType: create
         surge: {{$ds_surge}}
         replicas: {{$nodes}}
+        startTest: true
 
 # Relabel Namespace
   - module:
@@ -105,6 +106,7 @@ steps:
         namespaceType: restart
         surge: {{$ds_surge}}
         replicas: {{$nodes}}
+        startTest: false
 
 # Sleep 5 minutes
   - name: Sleep
