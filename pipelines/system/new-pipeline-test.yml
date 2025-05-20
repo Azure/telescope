@@ -312,6 +312,9 @@ stages:
 
         echo "SSH key validation passed."
       displayName: Validate SSH Key
+      env:
+        SSH_KEY_PATH: $(SSH_KEY_PATH)
+        SSH_PUBLIC_KEY_PATH: $(SSH_PUBLIC_KEY_PATH)
     dependsOn:
     - setup
   - job: run
