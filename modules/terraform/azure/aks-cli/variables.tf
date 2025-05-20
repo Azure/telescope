@@ -28,14 +28,14 @@ variable "subnets" {
   default     = {}
 }
 
-variable "node_subnet_name" {
-  description = "Value of the subnet name used for Node IPs"
+variable "node_subnet_id" {
+  description = "Value of the subnet ID used for Node IPs"
   type        = string
   default     = null
 }
 
-variable "pod_subnet_name" {
-  description = "Value of the subnet name used for Pod IPs"
+variable "pod_subnet_id" {
+  description = "Value of the subnet ID used for Pod IPs"
   type        = string
   default     = null
 }

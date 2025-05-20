@@ -46,19 +46,19 @@ locals {
     )
   )
 
-  pod_subnet_id_parameter = (var.pod_subnet_name == null ?
+  pod_subnet_id_parameter = (var.pod_subnet_id == null ?
     "" :
     format(
       "%s %s",
-      "--pod-subnet-id", try(local.subnets[var.pod_subnet_name], try(var.pod_subnet_name, null))
+      "--pod-subnet-id", var.pod_subnet_id,
     )
   )
 
-  node_subnet_id_parameter = (var.node_subnet_name == null ?
+  node_subnet_id_parameter = (var.node_subnet_id == null ?
     "" :
     format(
       "%s %s",
-      "--vnet-subnet-id", try(local.subnets[var.node_subnet_name], try(var.node_subnet_name, null))
+      "--vnet-subnet-id", var.node_subnet_id,
     )
   )
 
