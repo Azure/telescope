@@ -292,6 +292,8 @@ stages:
     - script: |-
         set -eu
 
+        echo $(SSH_KEY_PATH)
+
         # Check if the private key file exists
         if [ ! -f "$(SSH_KEY_PATH)" ]; then
             echo "Error: SSH private key not found at $(SSH_KEY_PATH)"
