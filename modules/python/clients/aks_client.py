@@ -25,6 +25,8 @@ from typing import Dict, List, Optional, Any
 from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.mgmt.containerservice import ContainerServiceClient
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.pipeline.policies import RetryPolicy, RetryMode
+from azure.core.pipeline.transport import RequestsTransport
 
 try:
     from utils.logger_config import get_logger, setup_logging
@@ -104,11 +106,18 @@ class AKSClient:
         else:
             logger.info(f"Using DefaultAzureCredential for authentication")
             self.credential = DefaultAzureCredential()
-            
+        # Set up retry policy
+        retry_policy = RetryPolicy(
+            retry_mode=RetryMode.Exponential,
+            total=3,  # Maximum retry attempts
+            backoff_factor=1.0  # Exponential backoff factor
+        )
+        transport = RequestsTransport(retry_policy=retry_policy)    
         # Initialize AKS client
         self.aks_client = ContainerServiceClient(
             credential=self.credential,
-            subscription_id=self.subscription_id
+            subscription_id=self.subscription_id,
+            transport=transport
         )
         self.result_dir = result_dir
         
