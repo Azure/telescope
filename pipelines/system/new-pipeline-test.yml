@@ -46,12 +46,12 @@ stages:
     - script: |
         set -eu
 
-        echo "login to Azure in $REGION"
+        echo "login to Azure in eastus2"
         az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
-        az account set --subscription "$AZURE_SP_SUBSCRIPTION_ID"
+        az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
         az config set defaults.location="$REGION"
         az account show
       displayName: Azure Login
-      env:
-        REGION: eastus2
-        AZURE_SP_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+    - script: |-
+        echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$(Pipeline.Workspace)/s/modules/terraform/azure"
+        echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"
