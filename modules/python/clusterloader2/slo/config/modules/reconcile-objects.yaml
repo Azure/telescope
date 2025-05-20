@@ -29,16 +29,16 @@ steps:
       labelSelector: group = {{.Group}}
       operationTimeout: {{$operationTimeout}}
 
-# - name: {{$actionName}}
-#   phases:
-#   - replicasPerNamespace: 1
-#     tuningSet: {{$tuningSet}}
-#     objectBundle:
-#     - basename: {{$nsBasename}}
-#       objectTemplatePath: namespace_template.yaml
-#       templateFillMap:
-#         Name: {{$nsBasename}}
-#         Type: {{$namespaceType}}
+- name: {{$actionName}}
+  phases:
+  - replicasPerNamespace: 1
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: {{$nsBasename}}
+      objectTemplatePath: namespace_template.yaml
+      templateFillMap:
+        Name: {{$nsBasename}}
+        Type: {{$namespaceType}}
 
 # - name: Sleep
 #   measurements:
