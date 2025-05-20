@@ -18,7 +18,7 @@ steps:
       all
       --run-id "$RUN_ID"
       --node-pool-name "$POOL_NAME"
-      ---node-count "$CREATE_NODE_COUNT"
+      --node-count "$CREATE_NODE_COUNT"
       --target-count "$SCALE_NODE_COUNT"
       --vm-size "$VM_SIZE"
       --step-timeout "$STEP_TIME_OUT"
