@@ -120,7 +120,7 @@ steps:
         Group: {{$groupName}}
         daemonsets: 0
         surge: {{$ds_surge}}
-        replicas: 0
+        replicas: {{$nodes}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
