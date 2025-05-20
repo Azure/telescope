@@ -233,12 +233,18 @@ class NodePoolCRUD:
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
                 
         Returns:
-            Dictionary containing results of all operations if operation_type is 'all',
-            otherwise the node pool object or operation result, or False if the operation failed
+            True if all operations succeeded, False if any operation failed
         """
+        operations_gap = 30  # Default gap between operations
+        errors = []
+        results = {
+            "create": False,
+            "scale_up": False,
+            "scale_down": False,
+            "delete": False
+        }
+        
         try:
-            operations_gap = 30  # Default gap between operations
-                
             # 1. Create node pool
             logger.info(f"Starting to create node pool '{node_pool_name}'")
             create_result = self.create_node_pool(
@@ -247,9 +253,13 @@ class NodePoolCRUD:
                 node_count=node_count,
                 gpu_node_pool=gpu_node_pool
             )
+            results["create"] = create_result
             
             if create_result is False:
-                logger.error("Create node pool operation failed, stopping sequence.")
+                error_msg = f"Create node pool operation failed for '{node_pool_name}'"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                return False
                 
             logger.info(f"Waiting {operations_gap} seconds before scaling up...")
             time.sleep(operations_gap)
@@ -263,10 +273,14 @@ class NodePoolCRUD:
                 step_size=step_size,
                 wait_time=wait_time,
                 gpu_node_pool=gpu_node_pool
-            )           
+            )
+            results["scale_up"] = scale_up_result
             
             if scale_up_result is False:
-                logger.error("Scale up operation failed, stopping sequence.")
+                error_msg = f"Scale up operation failed for '{node_pool_name}'"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                # Continue to scale down and delete to clean up resources
                 
             logger.info(f"Waiting {operations_gap} seconds before scaling down...")
             time.sleep(operations_gap)
@@ -281,9 +295,13 @@ class NodePoolCRUD:
                 wait_time=wait_time,
                 gpu_node_pool=gpu_node_pool
             )
+            results["scale_down"] = scale_down_result
             
             if scale_down_result is False:
-                logger.error("Scale down operation failed, stopping sequence.")
+                error_msg = f"Scale down operation failed for '{node_pool_name}'"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                # Continue to delete to clean up resources
                 
             logger.info(f"Waiting {operations_gap} seconds before deleting...")
             time.sleep(operations_gap)
@@ -293,53 +311,77 @@ class NodePoolCRUD:
             delete_result = self.delete_node_pool(
                 node_pool_name=node_pool_name
             )
+            results["delete"] = delete_result
             
-            logger.info(f"All operations completed for node pool '{node_pool_name}'")
+            if delete_result is False:
+                error_msg = f"Delete operation failed for '{node_pool_name}'"
+                logger.error(error_msg)
+                errors.append(error_msg)
+            
+            # Check overall success
+            if all(results.values()):
+                logger.info(f"All operations completed successfully for node pool '{node_pool_name}'")
+                return True
+            else:
+                failed_ops = [op for op, result in results.items() if result is False]
+                logger.error(f"The following operations failed: {', '.join(failed_ops)}")
+                return False
 
         except Exception as e:
-            logger.error(f"Failed to perform operations on node pool '{node_pool_name}': {str(e)}")
+            error_msg = f"Failed to perform operations on node pool '{node_pool_name}': {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
             return False
     
 def handle_node_pool_operation(node_pool_crud, args):
     """Handle node pool operations (create, scale, delete) based on the command"""
     command = args.command
+    result = None
         
-    if command == 'create':
-        node_pool_crud.create_node_pool(
-            node_pool_name=args.node_pool_name,
-            vm_size=args.vm_size,
-            node_count=args.node_count,
-            gpu_node_pool=args.gpu_node_pool
-        )
-    elif command == 'scale':        
-        node_pool_crud.scale_node_pool(
-            node_pool_name=args.node_pool_name,
-            node_count=args.target_count,
-            progressive=args.progressive,
-            step_size=args.step_size,
-            wait_time=args.step_wait_time,
-            gpu_node_pool=args.gpu_node_pool
-        )
-    elif command == 'delete':
-        node_pool_crud.delete_node_pool(
-            node_pool_name=args.node_pool_name
-        )
-    elif command == 'all':
-        node_pool_crud.all(
-            node_pool_name=args.node_pool_name,
-            vm_size=args.vm_size,
-            node_count=args.node_count,
-            target_count=args.target_count,
-            progressive=args.progressive,
-            step_size=args.step_size,
-            wait_time=args.step_wait_time,
-            gpu_node_pool=args.gpu_node_pool
-        )
-    else:
-        logger.error(f"Unsupported command: {command}")
+    try:
+        if command == 'create':
+            result = node_pool_crud.create_node_pool(
+                node_pool_name=args.node_pool_name,
+                vm_size=args.vm_size,
+                node_count=args.node_count,
+                gpu_node_pool=args.gpu_node_pool
+            )
+        elif command == 'scale':        
+            result = node_pool_crud.scale_node_pool(
+                node_pool_name=args.node_pool_name,
+                node_count=args.target_count,
+                progressive=args.progressive,
+                step_size=args.step_size,
+                wait_time=args.step_wait_time,
+                gpu_node_pool=args.gpu_node_pool
+            )
+        elif command == 'delete':
+            result = node_pool_crud.delete_node_pool(
+                node_pool_name=args.node_pool_name
+            )
+        elif command == 'all':
+            result = node_pool_crud.all(
+                node_pool_name=args.node_pool_name,
+                vm_size=args.vm_size,
+                node_count=args.node_count,
+                target_count=args.target_count,
+                progressive=args.progressive,
+                step_size=args.step_size,
+                wait_time=args.step_wait_time,
+                gpu_node_pool=args.gpu_node_pool
+            )
+        else:
+            logger.error(f"Unsupported command: {command}")
+            return 1
+            
+        # Check if the operation was successful
+        if result is False:
+            logger.error(f"Operation '{command}' failed")
+            return 1
+        return 0
+    except Exception as e:
+        logger.error(f"Error during '{command}' operation: {str(e)}")
         return 1
-        
-    return None
 
 
 def main():
@@ -390,8 +432,33 @@ def main():
     args = parser.parse_args()
     
     if not hasattr(args, 'func'):
+        logger.error("No command specified")
         parser.print_help()
         return 1
+        
+    # Validate required arguments are present
+    if args.command in ['create', 'scale', 'delete', 'all'] and not args.node_pool_name:
+        logger.error("--node-pool-name is required")
+        return 1
+        
+    if args.command == 'create' and not args.vm_size:
+        logger.error("--vm-size is required for create command")
+        return 1
+        
+    if args.command == 'scale' and args.target_count is None:
+        logger.error("--target-count is required for scale command")
+        return 1
+        
+    if args.command == 'all':
+        if not args.vm_size:
+            logger.error("--vm-size is required for all command")
+            return 1
+        if args.node_count is None:
+            logger.error("--node-count is required for all command")
+            return 1
+        if args.target_count is None:
+            logger.error("--target-count is required for all command")
+            return 1
     
     try:
         # Create a single NodePoolCRUD instance to be used across all operations
@@ -402,7 +469,17 @@ def main():
         )
         
         # Execute the function associated with the selected command
-        return args.func(node_pool_crud, args)
+        exit_code = args.func(node_pool_crud, args)
+        if exit_code is None:
+            # For backward compatibility, treat None as success
+            logger.info(f"Operation '{args.command}' completed successfully")
+            return 0
+        elif isinstance(exit_code, bool):
+            # Convert boolean to exit code
+            return 0 if exit_code else 1
+        else:
+            # Return the explicit exit code
+            return exit_code
         
     except Exception as e:
         logger.error(f"Error executing command: {str(e)}")
@@ -412,42 +489,54 @@ def main():
 def handle_node_pool_all(node_pool_crud, args):
     """Handle the all-in-one node pool operation command (create, scale up, scale down, delete)"""
     
-    success = node_pool_crud.node_pool_operation(
-        operation_type='all',
-        node_pool_name=args.node_pool_name,
-        vm_size=args.vm_size,
-        node_count=args.node_count,
-        target_count=args.target_count,
-        progressive=args.progressive if hasattr(args, 'progressive') else False,
-        step_size=args.step_size if hasattr(args, 'step_size') else 1,
-        wait_time=args.step_wait_time if hasattr(args, 'step_wait_time') else 30,
-        gpu_node_pool=args.gpu_node_pool if hasattr(args, 'gpu_node_pool') else False
-    )
-    
-    # For 'all' operation type, success is a dictionary of results
-    if isinstance(success, dict):
-        # Check if any operation failed
-        for op, result in success.items():
-            if result is False:
-                logger.error(f"{op} operation failed in 'all' sequence")
-                return 1
-        return 0
-    else:
-        return 0 if success is not False else 1
+    try:
+        success = node_pool_crud.all(
+            node_pool_name=args.node_pool_name,
+            vm_size=args.vm_size,
+            node_count=args.node_count,
+            target_count=args.target_count,
+            progressive=args.progressive if hasattr(args, 'progressive') else False,
+            step_size=args.step_size if hasattr(args, 'step_size') else 1,
+            wait_time=args.step_wait_time if hasattr(args, 'step_wait_time') else 30,
+            gpu_node_pool=args.gpu_node_pool if hasattr(args, 'gpu_node_pool') else False
+        )
+        
+        # The all method now returns a boolean success status
+        if success:
+            logger.info("All node pool operations completed successfully")
+            return 0
+        else:
+            logger.error("One or more node pool operations failed")
+            return 1
+    except Exception as e:
+        logger.error(f"Error during all operations sequence: {str(e)}")
+        return 1
 
 if __name__ == "__main__":
     try:
         print("Starting node_pool_crud.py...")
         exit_code = main()
+        if exit_code == 0:
+            print("Operation completed successfully")
+        else:
+            print(f"Operation failed with exit code: {exit_code}")
         print(f"Exiting with code: {exit_code}")
         sys.exit(exit_code)
     except ImportError as e:
-        print(f"Import Error: {e}")
+        error_msg = f"Import Error: {e}"
+        print(error_msg)
+        logger.critical(error_msg)
         import traceback
-        traceback.print_exc()
+        error_trace = traceback.format_exc()
+        print(error_trace)
+        logger.critical(error_trace)
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        error_msg = f"Unexpected error: {e}"
+        print(error_msg)
+        logger.critical(error_msg)
         import traceback
-        traceback.print_exc()
+        error_trace = traceback.format_exc()
+        print(error_trace)
+        logger.critical(error_trace)
         sys.exit(1)

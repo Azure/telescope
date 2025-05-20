@@ -62,7 +62,7 @@ class AKSClient:
         subscription_id: Optional[str] = None, 
         resource_group: Optional[str] = None,
         cluster_name: Optional[str] = None,
-        use_managed_identity: bool = True,
+        use_managed_identity: bool = False,
         kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
         kubernetes_client: Optional[KubernetesClient] = None,
         result_dir: Optional[str] = None
