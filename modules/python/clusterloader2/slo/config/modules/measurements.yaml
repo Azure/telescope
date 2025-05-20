@@ -128,6 +128,10 @@ steps:
           metricName: Apiserver Request Total by verb, resource, job
           metricVersion: v1
           unit: count
+          dimensions:
+          - resource
+          - verb
+          - job
           enableViolations: true
           queries:
           - name: Apiserver Request Total by verb and resource
@@ -139,6 +143,9 @@ steps:
           metricName: Api requests latency by verb, resource
           metricVersion: v1
           unit: s
+          dimensions:
+          - verb
+          - resource
           enableViolations: true
           queries:
           - name: Perc99
@@ -154,6 +161,8 @@ steps:
           metricName: Apiserver stored objects per resource
           metricVersion: v1
           unit: count
+          dimensions:
+          - resource
           enableViolations: true
           queries:
           - name: Objects stored by resource
