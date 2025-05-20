@@ -42,10 +42,10 @@ except ImportError:
     logger = logging.getLogger(__name__)
 
 # Suppress noisy Azure SDK logs
-# logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
-# logging.getLogger("azure.identity").setLevel(logging.ERROR)
-# logging.getLogger("azure.core.pipeline").setLevel(logging.ERROR)
-# logging.getLogger("msal").setLevel(logging.ERROR)
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
+logging.getLogger("azure.identity").setLevel(logging.ERROR)
+logging.getLogger("azure.core.pipeline").setLevel(logging.ERROR)
+logging.getLogger("msal").setLevel(logging.ERROR)
 
 
 class AKSClient:
@@ -63,7 +63,6 @@ class AKSClient:
         resource_group: Optional[str] = None,
         cluster_name: Optional[str] = None,
         use_managed_identity: bool = True,
-        managed_identity_client_id: Optional[str] = None,
         kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
         kubernetes_client: Optional[KubernetesClient] = None,
         result_dir: Optional[str] = None
@@ -79,9 +78,6 @@ class AKSClient:
                           will try to get the first cluster in the resource group.
             use_managed_identity: Whether to use managed identity for authentication.
                                  If False, will fall back to DefaultAzureCredential.
-            managed_identity_client_id: The client ID for the managed identity.
-                                       If not provided, will try to get it from 
-                                       AZURE_MI_ID env var.
             kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
             kubernetes_client: Optional pre-configured KubernetesClient instance.
                               If not provided, one will be created using kube_config_file.
@@ -96,7 +92,7 @@ class AKSClient:
         
         # Set up authentication
         if use_managed_identity:
-            mi_client_id = managed_identity_client_id or os.getenv("AZURE_MI_ID")
+            mi_client_id = os.getenv("AZURE_MI_ID")
             if mi_client_id:
                 logger.info(f"Using Managed Identity with client ID for authentication")
                 self.credential = ManagedIdentityCredential(client_id=mi_client_id)
