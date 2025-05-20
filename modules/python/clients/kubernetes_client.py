@@ -1,6 +1,7 @@
 import time
 import os
 import yaml
+import uuid
 from kubernetes import client, config
 from kubernetes.stream import stream
 from utils.logger_config import get_logger, setup_logging
@@ -209,6 +210,7 @@ class KubernetesClient:
                 self.api.replace_node(name=node_obj["metadata"]["name"], body=node_obj)
                 return node_obj["metadata"]["name"]
             raise Exception(f"Error creating Node: {str(e)}") from e
+
 
     def delete_node(self, node_name):
         """
@@ -500,3 +502,95 @@ class KubernetesClient:
         logger.info(
             f"Inside collect_pod_and_node_info, The file_name details are: {file_name}")
         save_info_to_file(pods_and_nodes, file_name)
+
+
+    def verify_nvidia_smi_on_node(self, nodes, namespace="default"):
+        """
+        Create a pod on the specific node and run nvidia-smi to verify GPU access
+
+        Args:
+            nodes: List of nodes to verify
+            namespace: Namespace to create the pod in (default: "default")
+
+        Returns:
+            True if nvidia-smi command succeeds, False otherwise
+        """
+        try:
+            all_pod_logs = {}
+            for node in nodes:
+                pod_name = f"gpu-verify-{uuid.uuid4()}"
+                node_name = node.metadata.name
+                logger.info(f"Verifying NVIDIA drivers on node {node_name}")
+
+                # Create pod spec with node selector
+                from kubernetes import client as k8s_client
+                pod = k8s_client.V1Pod(
+                    metadata=k8s_client.V1ObjectMeta(name=pod_name),
+                    spec=k8s_client.V1PodSpec(
+                        containers=[
+                            k8s_client.V1Container(
+                                name="nvidia-test",
+                                image="nvidia/cuda:12.2.0-base-ubuntu20.04",
+                            command=["/bin/bash", "-c", "nvidia-smi"],
+                                resources=k8s_client.V1ResourceRequirements(
+                                    limits={"nvidia.com/gpu": "1"}
+                                )
+                            )
+                        ],
+                         node_selector={"kubernetes.io/hostname": node_name},
+                        restart_policy="Never",
+                        tolerations=[
+                            k8s_client.V1Toleration(
+                                key="nvidia.com/gpu",
+                                operator="Exists",
+                                effect="NoSchedule"
+                            )
+                    ]
+                    )
+                )
+
+                # Create the pod
+                logger.info(f"Creating test pod {pod_name} on node {node_name}")
+                self.api.create_namespaced_pod(namespace=namespace, body=pod)
+
+                # Wait for pod to complete
+                timeout = time.time() + 120  # 2 minutes timeout
+                while time.time() < timeout:
+                    pod_status = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+                    if pod_status.status.phase in ["Succeeded", "Failed"]:
+                        break
+                    time.sleep(2)
+
+                # Get pod logs
+                pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+
+                logger.info(f"nvidia-smi output: {pod_logs}")
+
+                # Check if output contains expected NVIDIA information
+                if "NVIDIA-SMI" in pod_logs and "GPU" in pod_logs:
+                    logger.info(f"NVIDIA drivers verified on node {node_name}")
+                    verification_successful = True
+                else:
+                    logger.warning(f"nvidia-smi output does not contain expected NVIDIA information on node {node_name}")
+                    verification_successful = False
+                all_pod_logs[node_name] = {
+                    "pod_name": pod_name,
+                    "logs": pod_logs,
+                    "device_status": verification_successful
+                }
+                # Clean up the test pod
+                try:
+                    logger.info(f"Deleting test pod {pod_name}")
+                    self.api.delete_namespaced_pod(
+                        name=pod_name,
+                        namespace=namespace,
+                        body=k8s_client.V1DeleteOptions()
+                    )
+                except Exception as e:
+                    logger.warning(f"Error deleting test pod {pod_name}: {str(e)}")
+
+            return all_pod_logs
+
+        except Exception as e:
+            logger.error(f"Error verifying NVIDIA drivers on node {node_name}: {str(e)}")
+            return False

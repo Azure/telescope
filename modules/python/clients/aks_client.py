@@ -6,12 +6,19 @@ This module provides a client for interacting with Azure Kubernetes Service (AKS
 focusing specifically on node pool operations (create, scale, delete).
 It handles authentication with Azure services using Managed Identity
 or other authentication methods provided by DefaultAzureCredential.
+
+The client also validates node readiness after operations using Kubernetes API.
 """
 
 import os
+import sys
 import time
+import json
 import logging
 from datetime import datetime
+from typing import Dict, List, Optional, Any, Union
+
+from .kubernetes_client import KubernetesClient
 from typing import Dict, List, Optional, Any
 
 # Azure SDK imports
@@ -19,9 +26,18 @@ from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.mgmt.containerservice import ContainerServiceClient
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
-# Configure logging
-setup_logging()
-logger = get_logger(__name__)
+try:
+    from utils.logger_config import get_logger, setup_logging
+    # Configure logging if logger_config is available
+    setup_logging()
+    logger = get_logger(__name__)
+except ImportError:
+    # Fallback logging configuration if the utility isn't available
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
 
 # Suppress noisy Azure SDK logs
 logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
@@ -36,6 +52,7 @@ class AKSClient:
     
     This client handles authentication with Azure services and provides
     methods for managing AKS node pools (create, scale, delete).
+    It also validates node readiness using Kubernetes API.
     """
     
     def __init__(
@@ -44,7 +61,10 @@ class AKSClient:
         resource_group: Optional[str] = None,
         cluster_name: Optional[str] = None,
         use_managed_identity: bool = True,
-        managed_identity_client_id: Optional[str] = None
+        managed_identity_client_id: Optional[str] = None,
+        kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
+        kubernetes_client: Optional[KubernetesClient] = None,
+        result_dir: Optional[str] = None
     ):
         """
         Initialize the AKS client.
@@ -60,6 +80,9 @@ class AKSClient:
             managed_identity_client_id: The client ID for the managed identity.
                                        If not provided, will try to get it from 
                                        AZURE_MI_ID env var.
+            kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
+            kubernetes_client: Optional pre-configured KubernetesClient instance.
+                              If not provided, one will be created using kube_config_file.
         """
         # Get subscription ID from environment if not provided
         self.subscription_id = subscription_id or os.getenv("AZURE_MI_SUBSCRIPTION_ID")
@@ -87,6 +110,15 @@ class AKSClient:
             credential=self.credential,
             subscription_id=self.subscription_id
         )
+        self.result_dir = result_dir
+        
+        # Initialize Kubernetes client if provided or if kubeconfig is available
+        try:
+            self.k8s_client = KubernetesClient(config_file=kube_config_file)
+            logger.info("Kubernetes client initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Kubernetes client: {str(e)}")
+            self.k8s_client = None
         
         logger.info("AKS client initialized successfully")
 
@@ -121,6 +153,45 @@ class AKSClient:
             
         except HttpResponseError as e:
             logger.error(f"Error getting AKS clusters: {str(e)}")
+            raise
+    
+    def get_cluster_data(self, cluster_name: Optional[str] = None) -> Dict:
+        """
+        Get detailed information about the AKS cluster.
+        
+        Args:
+            cluster_name: The name of the AKS cluster. If not provided,
+                         will use the one from initialization or try to find one.
+                         
+        Returns:
+            Dictionary containing cluster information
+            
+        Raises:
+            ValueError: If resource group is not set or no cluster is found
+            ResourceNotFoundError: If the cluster is not found
+            HttpResponseError: If the Azure API request fails
+        """
+        if not self.resource_group:
+            raise ValueError("Resource group is required to get cluster data")
+            
+        cluster_name = cluster_name or self.get_cluster_name()
+        
+        try:
+            cluster = self.aks_client.managed_clusters.get(
+                resource_group_name=self.resource_group,
+                resource_name=cluster_name
+            )
+
+            # Convert the cluster object to a serializable dictionary
+            cluster_data = cluster.as_dict() if hasattr(cluster, "as_dict") else dict(cluster)
+
+            return cluster_data
+            
+        except ResourceNotFoundError:
+            logger.error(f"Cluster {cluster_name} not found in resource group {self.resource_group}")
+            raise
+        except HttpResponseError as e:
+            logger.error(f"Error getting cluster {cluster_name}: {str(e)}")
             raise
     
     def get_node_pool(self, node_pool_name: str, cluster_name: Optional[str] = None) -> Any:
@@ -166,10 +237,9 @@ class AKSClient:
         vm_size: str,
         node_count: int = 1,
         cluster_name: Optional[str] = None,
-        os_type: str = "Linux", 
-        mode: str = "User",
-        wait: bool = True,
-        record_time: bool = True
+        operation_timeout_minutes: int = 30,
+        node_pool_label: Optional[str] = None,
+        gpu_node_pool: bool = False
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -180,13 +250,12 @@ class AKSClient:
             node_count: The number of nodes to create (default: 1)
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
-            os_type: The OS type for the nodes (default: 'Linux')
-            mode: The mode for the node pool (default: 'User')
-            wait: Whether to wait for the operation to complete (default: True)
-            record_time: Whether to record the operation time metrics (default: True)
+            operation_timeout_minutes: Timeout in minutes to wait for node readiness (default: 30)
+            node_pool_label: Label selector to identify nodes in this node pool (default: None)
+                            If None, will use agentpool={node_pool_name}
             
         Returns:
-            Node pool object if wait is True, otherwise the operation
+            The created node pool object or operation result
             
         Raises:
             ValueError: If resource_group is not set or no cluster is found
@@ -202,11 +271,13 @@ class AKSClient:
         parameters = {
             "count": node_count,
             "vm_size": vm_size,
-            "os_type": os_type,
-            "mode": mode,
+            "os_type": "Linux",
+            "mode": "User",
         }
+        
+        self.vm_size = vm_size
             
-        start_time = time.time() if record_time else None
+        start_time = time.time()
         
         try:
             logger.info(f"Creating node pool {node_pool_name} in cluster {cluster_name}")
@@ -216,29 +287,44 @@ class AKSClient:
                 agent_pool_name=node_pool_name,
                 parameters=parameters
             )
+            operation.result()
+                            
+            # Use agentpool=node_pool_name as default label if not specified
+            label_selector = node_pool_label or f"agentpool={node_pool_name}"
             
-            if wait:
-                logger.info("Waiting for node pool creation to complete...")
-                result = operation.result()
-                logger.info(f"Node pool {node_pool_name} created successfully")
+            try:
+                ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                    node_count=node_count, 
+                    operation_timeout_in_minutes=operation_timeout_minutes,
+                    label_selector=label_selector
+                )
+                logger.info(f"All {node_count} nodes in pool {node_pool_name} are ready")
                 
-                if record_time:
-                    end_time = time.time()
-                    duration = end_time - start_time
-                    self._record_metrics("create_node_pool", node_pool_name, duration, True)
-                
-                return result
-            else:
-                logger.info(f"Node pool {node_pool_name} creation initiated. Not waiting for completion.")
-                return operation
-                
-        except Exception as e:
-            if record_time:
                 end_time = time.time()
                 duration = end_time - start_time
-                self._record_metrics("create_node_pool", node_pool_name, duration, False)
+                # Verify NVIDIA drivers if this is a GPU node pool
+                if gpu_node_pool and node_count > 0:
+                    logger.info(f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'")
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    self._record_metrics("create_node_pool", node_pool_name, duration, True, node_count, logs=pod_logs)                
+            except Exception as k8s_err:
+                error_msg = str(k8s_err)
+                logger.error(f"Error waiting for node readiness: {error_msg}")
                 
-            logger.error(f"Error creating node pool {node_pool_name}: {str(e)}")
+                end_time = time.time()
+                duration = end_time - start_time
+                self._record_metrics("create_node_pool", node_pool_name, duration, False, node_count, error_msg)
+                raise
+                
+            return True
+                
+        except Exception as e:
+            error_msg = str(e)
+            end_time = time.time()
+            duration = end_time - start_time
+            self._record_metrics("create_node_pool", node_pool_name, duration, False, node_count, error_msg)
+                
+            logger.error(f"Error creating node pool {node_pool_name}: {error_msg}")
             raise
     
     def scale_node_pool(
@@ -246,9 +332,10 @@ class AKSClient:
         node_pool_name: str,
         node_count: int,
         cluster_name: Optional[str] = None,
-        wait: bool = True,
-        record_time: bool = True,
-        operation_type: str = "scale"
+        operation_timeout_minutes: int = 30,
+        node_pool_label: Optional[str] = None,
+        operation_type: str = "scale",
+        gpu_node_pool: bool = False
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -258,13 +345,14 @@ class AKSClient:
             node_count: The desired number of nodes
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
-            wait: Whether to wait for the operation to complete (default: True)
-            record_time: Whether to record the operation time metrics (default: True)
+            operation_timeout_minutes: Timeout in minutes to wait for node readiness (default: 30)
+            node_pool_label: Label selector to identify nodes in this node pool (default: None)
+                            If None, will use agentpool={node_pool_name}
             operation_type: Type of scaling operation for metrics (default: "scale")
                           Can be "scale_up" or "scale_down" for more specific metrics
             
         Returns:
-            Node pool object if wait is True, otherwise the operation
+            The scaled node pool object
             
         Raises:
             ValueError: If resource_group is not set or no cluster is found
@@ -276,7 +364,7 @@ class AKSClient:
             
         cluster_name = cluster_name or self.get_cluster_name()
             
-        start_time = time.time() if record_time else None
+        start_time = time.time()
         
         try:
             # Get current node pool configuration
@@ -288,10 +376,17 @@ class AKSClient:
                     operation_type = "scale_up"
                 elif node_count < current_count:
                     operation_type = "scale_down"
+                else:
+                    # No change in node count, return the node pool as is
+                    logger.info(f"Node pool {node_pool_name} already has {node_count} nodes. No scaling needed.")                  
+                    return node_pool
             
             # Check if auto-scaling is enabled
             if hasattr(node_pool, 'enable_auto_scaling') and node_pool.enable_auto_scaling:
                 logger.warning(f"Node pool {node_pool_name} has auto-scaling enabled. Setting count may have no effect.")
+            
+            # Store VM size for metrics
+            self.vm_size = node_pool.vm_size
                 
             # Update the node count
             node_pool.count = node_count
@@ -303,37 +398,51 @@ class AKSClient:
                 agent_pool_name=node_pool_name,
                 parameters=node_pool
             )
+                        
+            logger.info(f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready...")
             
-            if wait:
-                logger.info("Waiting for node pool scaling to complete...")
-                result = operation.result()
-                logger.info(f"Node pool {node_pool_name} scaled to {node_count} nodes successfully")
+            # Use agentpool=node_pool_name as default label if not specified
+            label_selector = node_pool_label or f"agentpool={node_pool_name}"
+            
+            try:
+                ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                    node_count=node_count, 
+                    operation_timeout_in_minutes=operation_timeout_minutes,
+                    label_selector=label_selector
+                )
+                logger.info(f"All {node_count} nodes in pool {node_pool_name} are ready")
                 
-                if record_time:
-                    end_time = time.time()
-                    duration = end_time - start_time
-                    self._record_metrics(operation_type, node_pool_name, duration, True, node_count)
-                
-                return result
-            else:
-                logger.info(f"Node pool {node_pool_name} scaling initiated. Not waiting for completion.")
-                return operation
-                
-        except Exception as e:
-            if record_time:
                 end_time = time.time()
                 duration = end_time - start_time
-                self._record_metrics(operation_type, node_pool_name, duration, False, node_count)
+                # Verify NVIDIA drivers if this is a GPU node pool and we're scaling up
+                if gpu_node_pool and node_count > 0:
+                    logger.info(f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after scaling")
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    self._record_metrics(operation_type, node_pool_name, duration, True, node_count, logs=pod_logs)
+            except Exception as k8s_err:
+                error_msg = str(k8s_err)
+                logger.error(f"Error waiting for node readiness: {error_msg}")
                 
-            logger.error(f"Error scaling node pool {node_pool_name}: {str(e)}")
+                end_time = time.time()
+                duration = end_time - start_time
+                self._record_metrics(operation_type, node_pool_name, duration, False, node_count, error_msg)
+                raise
+                
+            return True  
+                
+        except Exception as e:
+            error_msg = str(e)
+            end_time = time.time()
+            duration = end_time - start_time
+            self._record_metrics(operation_type, node_pool_name, duration, False, node_count, error_msg)
+            
+            logger.error(f"Error scaling node pool {node_pool_name}: {error_msg}")
             raise
     
     def delete_node_pool(
         self,
         node_pool_name: str,
-        cluster_name: Optional[str] = None,
-        wait: bool = True,
-        record_time: bool = True
+        cluster_name: Optional[str] = None
     ) -> bool:
         """
         Delete a node pool from the AKS cluster.
@@ -342,11 +451,9 @@ class AKSClient:
             node_pool_name: The name of the node pool to delete
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
-            wait: Whether to wait for the operation to complete (default: True)
-            record_time: Whether to record the operation time metrics (default: True)
             
         Returns:
-            True if deletion was successful or initiated
+            True if deletion was successful
             
         Raises:
             ValueError: If resource_group is not set or no cluster is found
@@ -358,40 +465,46 @@ class AKSClient:
             
         cluster_name = cluster_name or self.get_cluster_name()
         
-        start_time = time.time() if record_time else None
+        # Try to get node pool info before deletion for metrics
+        try:
+            node_pool = self.get_node_pool(node_pool_name, cluster_name)
+            self.vm_size = node_pool.vm_size
+        except Exception as e:
+            logger.warning(f"Could not get node pool info before deletion: {str(e)}")
+            self.vm_size = "unknown"
+            
+        start_time = time.time()
             
         try:
             logger.info(f"Deleting node pool {node_pool_name} from cluster {cluster_name}")
+            # Always use no-wait for the Azure operation
             operation = self.aks_client.agent_pools.begin_delete(
                 resource_group_name=self.resource_group,
                 resource_name=cluster_name,
                 agent_pool_name=node_pool_name
             )
             
-            if wait:
-                logger.info("Waiting for node pool deletion to complete...")
-                operation.result()  # Wait for completion
-                logger.info(f"Node pool {node_pool_name} deleted successfully")
-                
-                if record_time:
-                    end_time = time.time()
-                    duration = end_time - start_time
-                    self._record_metrics("delete_node_pool", node_pool_name, duration, True)
-            else:
-                logger.info(f"Node pool {node_pool_name} deletion initiated. Not waiting for completion.")
+            logger.info("Waiting for node pool deletion to complete...")
+            operation.result()  # Wait for completion
+            logger.info(f"Node pool {node_pool_name} deleted successfully")
+            
+            end_time = time.time()
+            duration = end_time - start_time
+            self._record_metrics("delete_node_pool", node_pool_name, duration, True)
                 
             return True
                 
         except Exception as e:
-            if record_time and start_time:
-                end_time = time.time()
-                duration = end_time - start_time
-                self._record_metrics("delete_node_pool", node_pool_name, duration, False)
+            error_msg = str(e)
+            end_time = time.time()
+            duration = end_time - start_time
+            self._record_metrics("delete_node_pool", node_pool_name, duration, False, None, error_msg)
                 
-            logger.error(f"Error deleting node pool {node_pool_name}: {str(e)}")
+            logger.error(f"Error deleting node pool {node_pool_name}: {error_msg}")
             raise
             
-    def _record_metrics(self, operation: str, node_pool_name: str, duration: float, success: bool, node_count: Optional[int] = None) -> None:
+    def _record_metrics(self, operation: str, node_pool_name: str, duration: float, success: bool, 
+                     node_count: Optional[int] = None, error_msg: Optional[str] = None, logs: Optional[str] = None) -> None:
         """
         Record metrics for an operation.
         
@@ -401,6 +514,7 @@ class AKSClient:
             duration: The duration of the operation in seconds
             success: Whether the operation was successful
             node_count: The node count for scaling operations
+            error_msg: Error message if operation failed
         """
         try:
             import json
@@ -409,83 +523,41 @@ class AKSClient:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             clean_op_name = operation.replace(' ', '_').replace('/', '_').replace('\\', '_').replace(':', '_')
             filename = f"azure_{clean_op_name}_{timestamp}.json"
+            metrics = {}
             
-            metrics = {
-                "cloud_provider": "azure",
-                "operation": f"{operation}_{node_pool_name}",
+            operation_info = {
+                "operation": operation,
                 "duration_seconds": duration,
                 "start_time": datetime.fromtimestamp(time.time() - duration).isoformat(),
                 "end_time": datetime.fromtimestamp(time.time()).isoformat(),
                 "success": success,
-                "node_pool_name": node_pool_name
+                "node_pool_name": node_pool_name,
+                "error": error_msg,
+                "logs": logs,
             }
             
+            # Add VM size if available
+            if hasattr(self, 'vm_size') and self.vm_size:
+                operation_info["vm_size"] = self.vm_size
+            
             if node_count is not None:
-                metrics["node_count"] = node_count
+                operation_info["node_count"] = node_count
+            
+            # Add cluster data
+            try:
+                cluster_data = self.get_cluster_data()
+                metrics["aks_data"] = cluster_data
+            except Exception as cluster_err:
+                logger.warning(f"Failed to get cluster data for metrics: {str(cluster_err)}")
+                metrics["aks_data"] = None
+            
+            # Add operation info
+            metrics["operation_info"] = operation_info
                 
-            # Create the file in the current directory
-            with open(filename, 'w') as f:
+            result_file = os.path.join(self.result_dir, filename) if self.result_dir else filename
+            with open(result_file, 'w') as f:
                 json.dump(metrics, f, indent=2)
             logger.info(f"Metrics saved to {filename}")
         except Exception as e:
             logger.warning(f"Failed to record metrics: {str(e)}")
-    
-    
-# Example usage
-if __name__ == "__main__":
-    # This code is executed when the script is run directly
-    import sys
-    
-    # Parse command line arguments
-    if len(sys.argv) < 3:
-        print("Usage: python aks_client.py <resource_group> <operation> [params...]")
-        print("Operations: create, scale, delete")
-        print("Examples:")
-        print("  python aks_client.py my-resource-group create my-nodepool Standard_DS2_v2 3")
-        print("  python aks_client.py my-resource-group scale my-nodepool 5")
-        print("  python aks_client.py my-resource-group delete my-nodepool")
-        sys.exit(1)
-    
-    resource_group = sys.argv[1]
-    operation = sys.argv[2]
-    
-    # Create a client instance
-    client = AKSClient(resource_group=resource_group) 
-    
-    try:
-        # Get the cluster name
-        cluster_name = client.get_cluster_name()
-        print(f"Found AKS cluster: {cluster_name}")
-        
-        # Perform the requested operation
-        if operation == "create" and len(sys.argv) >= 6:
-            node_pool_name = sys.argv[3]
-            vm_size = sys.argv[4]
-            node_count = int(sys.argv[5])
-            
-            print(f"Creating node pool {node_pool_name} with {node_count} nodes...")
-            result = client.create_node_pool(node_pool_name, vm_size, node_count)
-            print(f"Node pool created successfully: {result.name}")
-            
-        elif operation == "scale" and len(sys.argv) >= 5:
-            node_pool_name = sys.argv[3]
-            node_count = int(sys.argv[4])
-            
-            print(f"Scaling node pool {node_pool_name} to {node_count} nodes...")
-            result = client.scale_node_pool(node_pool_name, node_count)
-            print(f"Node pool scaled successfully: {result.name}, new count: {result.count}")
-            
-        elif operation == "delete" and len(sys.argv) >= 4:
-            node_pool_name = sys.argv[3]
-            
-            print(f"Deleting node pool {node_pool_name}...")
-            client.delete_node_pool(node_pool_name)
-            print("Node pool deleted successfully")
-            
-        else:
-            print(f"Unknown operation or missing parameters: {operation}")
-            sys.exit(1)
-            
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        sys.exit(1)
+
