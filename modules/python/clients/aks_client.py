@@ -89,6 +89,7 @@ class AKSClient:
             
         self.resource_group = resource_group
         self.cluster_name = cluster_name
+        logger.info(f"Result directory: {result_dir}")
         
         # Set up authentication
         if use_managed_identity:
