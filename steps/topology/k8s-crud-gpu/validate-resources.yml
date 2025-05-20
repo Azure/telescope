@@ -7,7 +7,7 @@ parameters:
   type: string
 
 steps:
-- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml@templates
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
   parameters:
     role: gpu
     region: ${{ parameters.regions[0] }}
