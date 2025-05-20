@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "safegaurds-pod-chrun-50k"
+scenario_name  = "safeguards-pod-churn-50k"
 deletion_delay = "8h"
 owner          = "aks"
 
