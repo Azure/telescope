@@ -21,7 +21,7 @@ steps:
         echo "NPM is enabled, applying Azure NPM configuration..."
 
         # Path to the NPM configuration file
-        npm_config_file="$(Pipeline.Workspace)/s/scripts/azure-npm.yaml"
+        npm_config_file="$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/azure-npm.yaml"
 
         # Check if the file exists
         if [[ -f "$npm_config_file" ]]; then
@@ -31,7 +31,7 @@ steps:
         else
           echo "Error: NPM configuration file not found at $npm_config_file"
           echo "Looking for file in current directory:"
-          ls -la "$(Pipeline.Workspace)/s/scripts/"
+          ls -la "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/"
           exit 1
         fi
       else
