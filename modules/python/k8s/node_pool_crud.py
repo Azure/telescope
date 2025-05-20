@@ -424,6 +424,7 @@ def handle_node_pool_all(node_pool_crud, args):
         progressive=args.progressive if hasattr(args, 'progressive') else False,
         step_size=args.step_size if hasattr(args, 'step_size') else 1,
         wait_time=args.step_wait_time if hasattr(args, 'step_wait_time') else 30
+        gpu_node_pool=args.gpu_node_pool if hasattr(args, 'gpu_node_pool') else False
     )
     
     # For 'all' operation type, success is a dictionary of results
