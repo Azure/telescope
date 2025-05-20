@@ -26,4 +26,6 @@ stages:
               scale_node_count: 2
               scale_step_up_count: 1
           max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
           timeout_in_minutes: 180
