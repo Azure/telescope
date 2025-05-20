@@ -342,7 +342,7 @@ class AKSClient:
         node_pool_name: str,
         node_count: int,
         cluster_name: Optional[str] = None,
-        operation_timeout_minutes: int = 30,
+        operation_timeout_minutes: int = 10,
         node_pool_label: Optional[str] = None,
         operation_type: str = "scale",
         gpu_node_pool: bool = False
@@ -568,7 +568,7 @@ class AKSClient:
             result_file = os.path.join(self.result_dir, filename) if self.result_dir else filename
             with open(result_file, 'w') as f:
                 json.dump(metrics, f, indent=2)
-            logger.info(f"Metrics saved to {filename}")
+            logger.info(f"Metrics saved to {result_file}")
         except Exception as e:
             logger.warning(f"Failed to record metrics: {str(e)}")
 
