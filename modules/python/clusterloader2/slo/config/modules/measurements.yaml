@@ -125,18 +125,19 @@ steps:
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Apiserver Request Total by verb and resource
+          metricName: Apiserver Request Total by verb, resource, job
           metricVersion: v1
           unit: count
           enableViolations: true
           queries:
           - name: Apiserver Request Total by verb and resource
-            query:  sum(rate(apiserver_request_total[1m])) by (verb, resource)
+            query:  sum(rate(apiserver_request_total[1m])) by (verb, resource, job)
       - Identifier: apiserver_request_duration_seconds 
         Method: GenericPrometheusQuery
         Params:
           action: {{$action}}
-          metricName: Api requests latency ny vern and resource
+          metricName: Api requests latency by verb, resource
+          metricVersion: v1
           unit: s
           enableViolations: true
           queries:
@@ -146,3 +147,14 @@ steps:
             query:  histogram_quantile(0.90, sum(rate(apiserver_request_duration_seconds_bucket[5m])) by (le, verb, resource))
           - name: Perc50
             query:  histogram_quantile(0.50, sum(rate(apiserver_request_duration_seconds_bucket[5m])) by (le, verb, resource))
+      - Identifier: apiserver_storage_objects
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver stored objects per resource
+          metricVersion: v1
+          unit: count
+          enableViolations: true
+          queries:
+          - name: Objects stored by resource
+            query:  sum(apiserver_storage_objects) by (resource)
