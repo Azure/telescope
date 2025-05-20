@@ -40,6 +40,14 @@ steps:
         Name: {{$nsBasename}}
         Type: {{$namespaceType}}
 
+- name: Sleep
+  measurements:
+  - Identifier: Dummy
+    Method: Sleep
+    Params:
+      action: start
+      duration: 1m
+
   - namespaceRange:
       min: 0
       max: 0
