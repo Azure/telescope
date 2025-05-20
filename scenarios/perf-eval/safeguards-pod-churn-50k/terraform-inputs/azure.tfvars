@@ -28,7 +28,7 @@ aks_config_list = [
     subnet_name = "slo-subnet-1"
     sku_tier    = "Standard"
     safeguards_profile = {
-        level = "Warning"
+      level = "Warning"
     }
     network_profile = {
       network_plugin      = "azure"
