@@ -40,27 +40,19 @@ steps:
         Name: {{$nsBasename}}
         Type: {{$namespaceType}}
 
-- name: Sleep
-  measurements:
-  - Method: Sleep
-    Instances:
-      Identifier: sleep
-      Params:
-        duration: 60s
-        
-  - namespaceRange:
-      min: 0
-      max: 0
-      basename: {{$nsBasename}}
-    replicasPerNamespace: {{$daemonsets}}
-    tuningSet: {{$tuningSet}}
-    objectBundle:
-    - basename: deployment
-      objectTemplatePath: deployment_template.yaml
-      templateFillMap:
-        Replicas: {{$replicas}}
-        Group: {{.Group}}
-        deploymentLabel: {{.deploymentLabel}}
+- namespaceRange:
+    min: 0
+    max: 0
+    basename: {{$nsBasename}}
+  replicasPerNamespace: {{$daemonsets}}
+  tuningSet: {{$tuningSet}}
+  objectBundle:
+  - basename: deployment
+    objectTemplatePath: deployment_template.yaml
+    templateFillMap:
+      Replicas: {{$replicas}}
+      Group: {{.Group}}
+      deploymentLabel: {{.deploymentLabel}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:

@@ -71,7 +71,32 @@ steps:
         action: start
 {{end}}
 
-# Create Daemonsets
+  # Create Namespace
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "create"
+        namespaces: {{$namespaces}}
+        tuningSet: RandomizedSaturationTimeLimited
+        operationTimeout: {{$operationTimeout}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        daemonsets: 0
+        namespaceType: create
+        surge: {{$ds_surge}}
+        replicas: {{$nodes}}
+
+  # Sleep
+  - name: Sleep
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1m
+
+  # Create Daemonsets
   - module:
       path: /modules/reconcile-objects.yaml
       params:
