@@ -42,11 +42,12 @@ steps:
 
 - name: Sleep
   measurements:
-  - Identifier: sleep
-    Method: Sleep
-    Params:
-      duration: 60s
-
+  - Method: Sleep
+    Instances:
+      Identifier: sleep
+      Params:
+        duration: 60s
+        
   - namespaceRange:
       min: 0
       max: 0
