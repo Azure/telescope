@@ -9,7 +9,11 @@ aks_cli_config_list = [
     aks_name                      = "gpu-aks-cluster"
     sku_tier                      = "standard"
     use_aks_preview_cli_extension = true
-    default_node_pool             = null
+    default_node_pool = {
+      name       = "system"
+      node_count = 2
+      vm_size    = "Standard_D8_v5"
+    }
 
     optional_parameters = [
       {
