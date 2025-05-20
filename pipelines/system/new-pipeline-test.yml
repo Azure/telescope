@@ -86,6 +86,7 @@ stages:
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
         set -e
+        echo "Terraform Regional Config: $TERRAFORM_REGIONAL_CONFIG"
 
         terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "eastus2" '.[$region].TERRAFORM_INPUT_FILE')
 
