@@ -12,7 +12,7 @@ name: deployment-churn
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
-{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
 {{$namespaces := DivideInt $nodesPerStep $nodesPerNamespace}}
 {{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
@@ -52,8 +52,6 @@ steps:
         action: start
         duration: 1ms
 
-{{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
   - name: "Create PNI"
     phases:
     - namespaceRange:
@@ -62,12 +60,8 @@ steps:
       replicasPerNamespace: 1
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
-      - basename: pod-network-instance-{{$j}}
+      - basename: pod-network-instance-dynamic
         objectTemplatePath: pni_dynamic_template.yaml
-        # templateFillMap:
-        #       ReservationSize: {{$nodes}}
-  {{end}}
-{{end}}
 
   - name: Wait for PNI to be created and nodes to be registered
     measurements:
@@ -76,21 +70,18 @@ steps:
         Params:
           duration: 120s
 
-# start repeat
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
 
-  - name: Starting Pod Startup Latency Measurements
+  - name: Starting Pod Startup Latency Measurements {{$j}}
     measurements:
-    - Identifier: PodStartupLatency
+    - Identifier: PodStartupLatency_{{$j}}
       Method: PodStartupLatency
       Params:
         action: start
         labelSelector: group = {{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
-
-
-{{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
-  - name: Start measurements {{$j}}
+  - name: Starting deployement measurements {{$j}}
     measurements:
       - Identifier: WaitForRunningLatencyDeployments_{{$j}}
         Method: WaitForControlledPodsRunning
@@ -117,28 +108,24 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-{{$j}}-0
-
-  # - name: Wait for nodes to be ready
-  #   measurements:
-  #     - Identifier: ConfirmNodeCount
-  #       Method: WaitForNodes
-  #       Params:
-  #         action: start
-  #         minDesiredNodeCount: {{MultiplyInt $nodesPerNamespace (AddInt $j 1)}}
-  #         maxDesiredNodeCount: {{$totalNodes}}
-  #         labelSelector: slo = true
-  #         timeout: {{$operationTimeout}}
-  #         refreshInterval: 1m
-
-  - name: Waiting for latency pods to be running {{$j}}
+              pniName: pod-network-instance-dynamic
+  - name: Ending deployement measurements {{$j}}
     measurements:
       - Identifier: WaitForRunningLatencyDeployments_{{$j}}
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
           refreshInterval: 15s
+  - name: Ending Pod Startup Latency Measurements {{$j}}
+    measurements:
+    - Identifier: PodStartupLatency_{{$j}}
+      Method: PodStartupLatency
+      Params:
+        action: gather
+        labelSelector: group = {{$groupName}}
+
   {{end}}
+
   - name: Starting measurement Pod Curl Command
     measurements:
     - Identifier: PodPeriodicCommand
@@ -146,7 +133,7 @@ steps:
       Params:
         action: start # start/gather 
         labelSelector: group = {{$groupName}}
-        interval: 5m
+        interval: 30s
         container: deployment-churn
         limit: {{$nodes}} # randomly picks up to 3 pods that match labelSelector
         failOnCommandError: true
@@ -156,6 +143,13 @@ steps:
         - name: CustPodCurl
           command: ["/bin/sh", "-c", "curl -c 3 172.25.0.29"] # ["/bin/sh", "-c", "ping -c 3 172.25.0.11"]
           timeout: 5s
+
+  - name: Wait for Pod Curl Command to execute
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        duration: 40s # Longer than the interval to ensure at least one execution
 
   - name: Ending measurement Pod Curl Command
     measurements:
@@ -212,10 +206,4 @@ steps:
 
 {{end}}
 
-  - name: Ending Pod Startup Latency Measurements
-    measurements:
-    - Identifier: PodStartupLatency
-      Method: PodStartupLatency
-      Params:
-        action: gather
-        labelSelector: group = {{$groupName}}
+
