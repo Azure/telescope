@@ -111,7 +111,7 @@ steps:
   - module:
       path: /modules/reconcile-namespace.yaml
       params:
-        actionName: "create"
+        actionName: "relabel"
         namespaces: 1
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
@@ -120,14 +120,14 @@ steps:
         Group: {{$groupName}}
         namespaceType: restart
 
-# Sleep 5 minutes
+# Sleep 10 minutes (Allow CID creation to reach stable state)
   - name: Sleep
     measurements:
     - Identifier: Dummy
       Method: Sleep
       Params:
         action: start
-        duration: 1m
+        duration: 10m
 
   # Delete Daemonsets
   - module:
