@@ -24,7 +24,7 @@ stages:
               pool_name: gpunodepool
               vm_size: $(VM_SKU)
               create_node_count: 0
-              scale_node_count: 1
+              scale_node_count: 2
               scale_step_up_count: 1
           max_parallel: 1
           credential_type: service_connection
