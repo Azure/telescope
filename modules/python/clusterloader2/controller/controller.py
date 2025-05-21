@@ -3,15 +3,10 @@ import json
 import os
 import time
 from datetime import datetime, timezone
-from typing import Tuple
 
 from clients.kubernetes_client import KubernetesClient
-from clusterloader2.utils import (
-    get_measurement,
-    parse_xml_to_json,
-    run_cl2_command,
-    str2bool,
-)
+from clusterloader2.utils import (get_measurement, parse_xml_to_json,
+                                  run_cl2_command, str2bool)
 
 
 def configure_clusterloader2(
