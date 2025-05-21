@@ -68,7 +68,7 @@ steps:
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 120s
+          duration: 60s
 
 {{range $i := Loop $repeats}}
   {{range $j := Loop $steps}}
