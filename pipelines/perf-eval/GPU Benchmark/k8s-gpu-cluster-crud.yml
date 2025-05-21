@@ -22,7 +22,7 @@ stages:
             h100_gpu_node_pool:
               gpu_node_pool: true
               pool_name: gpunodepool
-              vm_size: $(VM_SIZE)
+              vm_size: $(VM_SKU)
               create_node_count: 0
               scale_node_count: 1
               scale_step_up_count: 1
