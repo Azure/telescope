@@ -14,7 +14,7 @@
 steps:
 - name: {{$actionName}}
   phases:
-  - replicasPerNamespace: 1
+  - replicasPerNamespace: {{$namespaces}}
     tuningSet: {{$tuningSet}}
     objectBundle:
     - basename: {{$nsBasename}}

@@ -76,7 +76,7 @@ steps:
       path: /modules/reconcile-namespace.yaml
       params:
         actionName: "create"
-        namespaces: {{$namespaces}}
+        namespaces: 1
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -114,7 +114,7 @@ steps:
       path: /modules/reconcile-namespace.yaml
       params:
         actionName: "create"
-        namespaces: {{$namespaces}}
+        namespaces: 1
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -144,6 +144,18 @@ steps:
 #         daemonsets: 0
 #         surge: {{$ds_surge}}
 #         replicas: {{$nodes}}
+
+  - module:
+      path: /modules/reconcile-namespace.yaml
+      params:
+        actionName: "delete"
+        namespaces: 0
+        tuningSet: RandomizedSaturationTimeLimited
+        operationTimeout: {{$operationTimeout}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        namespaceType: restart
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
