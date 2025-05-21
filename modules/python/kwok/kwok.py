@@ -1,9 +1,10 @@
+import argparse
 import subprocess
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import requests
-
 
 from clients.kubernetes_client import KubernetesClient
 
@@ -143,4 +144,68 @@ class Pod(KWOK):
         pass
 
 
-# TODO: Implement an argument parser so that KWOK can be invoked in the topology.
+def main():
+    parser = argparse.ArgumentParser(
+        description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["node", "pod"],
+        required=True,
+        help="KWOK simulation mode: 'node' for virtual nodes, 'pod' for virtual pods.",
+    )
+    parser.add_argument(
+        "--node-count",
+        type=int,
+        default=1,
+        help="Number of virtual nodes to create (only for --mode node).",
+    )
+    parser.add_argument(
+        "--node-manifest-path",
+        type=str,
+        default="kwok/config/kwok-node.yaml",
+        help="Path to the node manifest YAML template.",
+    )
+    parser.add_argument(
+        "--kwok-release",
+        type=str,
+        default="",
+        help="KWOK release version to use (default: latest).",
+    )
+    parser.add_argument(
+        "--enable-metrics",
+        action="store_true",
+        help="Enable metrics simulation by applying metrics-usage.yaml.",
+    )
+    parser.add_argument(
+        "--action",
+        choices=["create", "validate", "tear_down"],
+        required=True,
+        help="Action to perform: create, validate, or tear_down.",
+    )
+
+    args = parser.parse_args()
+
+    if args.mode == "node":
+        node = Node(
+            node_manifest_path=args.node_manifest_path,
+            node_count=args.node_count,
+            kwok_release=args.kwok_release,
+            enable_metrics=args.enable_metrics,
+        )
+        if args.action == "create":
+            node.create()
+        elif args.action == "validate":
+            node.validate()
+        elif args.action == "tear_down":
+            node.tear_down()
+    elif args.mode == "pod":
+        # TODO: Implement the logic for KWOK pods
+        pass
+    else:
+        print("Unknown mode specified.", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
