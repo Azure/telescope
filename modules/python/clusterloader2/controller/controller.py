@@ -6,8 +6,12 @@ from datetime import datetime, timezone
 from typing import Tuple
 
 from clients.kubernetes_client import KubernetesClient
-from clusterloader2.utils import (get_measurement, parse_xml_to_json,
-                                  run_cl2_command, str2bool)
+from clusterloader2.utils import (
+    get_measurement,
+    parse_xml_to_json,
+    run_cl2_command,
+    str2bool,
+)
 
 
 def configure_clusterloader2(
@@ -25,13 +29,14 @@ def configure_clusterloader2(
         file.write(f"CL2_JOBS: {job_count}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {job_throughput}\n")
 
-
     # Print the generated configuration for debugging
     with open(cl2_override_file, "r", encoding="utf-8") as file:
         print(f"Content of file {cl2_override_file}:\n{file.read()}")
 
 
-def validate_clusterloader2(node_count: int, operation_timeout_in_minutes: int = 10) -> None:
+def validate_clusterloader2(
+    node_count: int, operation_timeout_in_minutes: int = 10
+) -> None:
     kube_client = KubernetesClient()
     ready_node_count = 0
     timeout = time.time() + (operation_timeout_in_minutes * 60)
@@ -45,7 +50,9 @@ def validate_clusterloader2(node_count: int, operation_timeout_in_minutes: int =
         print(f"Waiting for {node_count} nodes to be ready.")
         time.sleep(10)
     if ready_node_count < node_count:
-        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+        raise Exception(
+            f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!"
+        )
 
 
 def execute_clusterloader2(
@@ -159,41 +166,94 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     # Sub-command for configure_clusterloader2
-    parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
+    parser_configure = subparsers.add_parser(
+        "configure", help="Override CL2 config file"
+    )
     parser_configure.add_argument("--node_count", type=int, help="Number of nodes")
-    parser_configure.add_argument("--operation_timeout", type=str, help="Timeout before failing the scale up test")
-    parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
-    parser_configure.add_argument("--job_count", type=int, default=1000, help="Number of jobs to run")
-    parser_configure.add_argument("--job_throughput", type=int, default=-1, help="Job throughput")
+    parser_configure.add_argument(
+        "--operation_timeout", type=str, help="Timeout before failing the scale up test"
+    )
+    parser_configure.add_argument(
+        "--cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
+    )
+    parser_configure.add_argument(
+        "--job_count", type=int, default=1000, help="Number of jobs to run"
+    )
+    parser_configure.add_argument(
+        "--job_throughput", type=int, default=-1, help="Job throughput"
+    )
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument("--node_count", type=int, help="Number of desired nodes")
-    parser_validate.add_argument("--operation_timeout_in_minutes", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
+    parser_validate.add_argument(
+        "--node_count", type=int, help="Number of desired nodes"
+    )
+    parser_validate.add_argument(
+        "--operation_timeout_in_minutes",
+        type=int,
+        default=600,
+        help="Operation timeout to wait for nodes to be ready",
+    )
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("--cl2_image", type=str, help="Name of the CL2 image")
-    parser_execute.add_argument("--cl2_config_dir", type=str, help="Path to the CL2 config directory")
-    parser_execute.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_execute.add_argument("--cl2_config_file", type=str, help="Path to the CL2 config file")
-    parser_execute.add_argument("--kubeconfig", type=str, help="Path to the kubeconfig file")
+    parser_execute.add_argument(
+        "--cl2_config_dir", type=str, help="Path to the CL2 config directory"
+    )
+    parser_execute.add_argument(
+        "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
+    )
+    parser_execute.add_argument(
+        "--cl2_config_file", type=str, help="Path to the CL2 config file"
+    )
+    parser_execute.add_argument(
+        "--kubeconfig", type=str, help="Path to the kubeconfig file"
+    )
     parser_execute.add_argument("--provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("--prometheus_enabled", type=str2bool, choices=[True, False], default=False, help="Whether to enable Prometheus scraping. Must be either True or False")
-    parser_execute.add_argument("--scrape_containerd", type=str2bool, choices=[True, False], default=False, help="Whether to scrape containerd metrics. Must be either True or False")
+    parser_execute.add_argument(
+        "--prometheus_enabled",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to enable Prometheus scraping. Must be either True or False",
+    )
+    parser_execute.add_argument(
+        "--scrape_containerd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape containerd metrics. Must be either True or False",
+    )
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale-up data")
     parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_collect.add_argument(
+        "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
+    )
     parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("--run_id", type=str, help="Run ID")
     parser_collect.add_argument("--run_url", type=str, help="Run URL")
-    parser_collect.add_argument("--result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("--test_type", type=str, nargs="?", default="default-config", help="Description of test type")
-    parser_collect.add_argument("--start_timestamp", type=str, help="Test start timestamp")
-    parser_collect.add_argument("--job_count", type=int, default=1000, help="Number of jobs to run")
-    parser_collect.add_argument("--job_throughput", type=int, default=-1, help="Job throughput")
+    parser_collect.add_argument(
+        "--result_file", type=str, help="Path to the result file"
+    )
+    parser_collect.add_argument(
+        "--test_type",
+        type=str,
+        nargs="?",
+        default="default-config",
+        help="Description of test type",
+    )
+    parser_collect.add_argument(
+        "--start_timestamp", type=str, help="Test start timestamp"
+    )
+    parser_collect.add_argument(
+        "--job_count", type=int, default=1000, help="Number of jobs to run"
+    )
+    parser_collect.add_argument(
+        "--job_throughput", type=int, default=-1, help="Job throughput"
+    )
 
     args = parser.parse_args()
     args_dict = vars(args)
