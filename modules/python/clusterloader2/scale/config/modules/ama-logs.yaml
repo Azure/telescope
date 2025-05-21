@@ -1,4 +1,4 @@
-## Hubble module creates Hubble pod monitor
+## AMA Logs module creates AMA Logs pod monitor
 
 # Tuning set
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
@@ -14,13 +14,13 @@
 {{end}} 
 
 steps:
-  - name: {{.actionName}} Hubble Pod Monitor
+  - name: {{.actionName}} AMA Logs Pod Monitor
     phases:
       - namespaceList:
         - "monitoring"
         replicasPerNamespace: {{$replicasPerNamespace}}
         tuningSet: {{$tuningSet}}
         objectBundle:
-          - objectTemplatePath: "modules/hubble/podmonitor.yaml"
-            basename: hubble-metrics
+          - objectTemplatePath: "modules/ama-logs/podmonitor.yaml"
+            basename: ama-logs-metrics
             interval: 15s

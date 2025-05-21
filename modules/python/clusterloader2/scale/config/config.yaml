@@ -55,6 +55,12 @@ steps:
         tuningSet: DeploymentCreateQps
 
   - module:
+      path: /modules/ama-logs.yaml
+      params:
+        actionName: "create"
+        tuningSet: DeploymentCreateQps
+
+  - module:
       path: /modules/hubble.yaml
       params:
         actionName: "create"
@@ -74,6 +80,11 @@ steps:
         actionName: "delete"
         tuningSet: DeploymentCreateQps
 
+  - module:
+      path: /modules/ama-logs.yaml
+      params:
+        actionName: "delete"
+        tuningSet: DeploymentCreateQps
 
   # TODO: Remove this module once there's a way to deploy node exporter that works in perf-tests repository
   - module:
