@@ -1,7 +1,6 @@
 ## Input params
 # Valid actions: "create", "delete"
 {{$actionName := printf "%s objects" .actionName}}
-{{$namespaces := .namespaces}}
 {{$tuningSet := .tuningSet}}
 
 # Derivative variables
@@ -10,7 +9,6 @@
 
 {{$daemonsets := .daemonsets}}
 {{$replicas := .replicas}}
-{{$namespaceType := .namespaceType}}
 {{$nsBasename := "my-namespace"}}
 {{$surge := .surge}}
 
