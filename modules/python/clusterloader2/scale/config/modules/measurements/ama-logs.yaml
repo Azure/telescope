@@ -140,3 +140,52 @@ steps:
           query: quantile(0.90, max_over_time(increase(kube_pod_container_status_restarts_total{container="ama-logs"}[%v])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="ama-logs"}[%v])[%v:]))
+
+    - Identifier: AMALogsNetworkFlowInputAvgRecordsPerSecond{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: AMALogs Network Flow Input Avg Records Per Second {{$suffix}}
+        metricVersion: v1
+        unit: "#/s"
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(fluentbit_input_records_total{name=~"oms_networkflow_input"}[5m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(fluentbit_input_records_total{name=~"oms_networkflow_input"}[5m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(fluentbit_input_records_total{name=~"oms_networkflow_input"}[5m])[%v:]))
+
+    - Identifier: AMALogsNetworkFlowOutputAvgRecordsPerSecond{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: AMALogs Network Flow Output Avg Records Per Second {{$suffix}}
+        metricVersion: v1
+        unit: "#/s"
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(fluentbit_output_proc_records_total{name=~"oms_network_flow_output"}[5m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(fluentbit_output_proc_records_total{name=~"oms_network_flow_output"}[5m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(fluentbit_output_proc_records_total{name=~"oms_network_flow_output"}[5m])[%v:]))
+
+    - Identifier: AMALogsNetworkFlowDroppedAvgRecordsPerSecond{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: AMALogs Network Flow Dropped Avg Records Per Second {{$suffix}}
+        metricVersion: v1
+        unit: "#/s"
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(fluentbit_filter_drop_records_total{name=~"oms_networkflow_throttle"}[5m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(fluentbit_filter_drop_records_total{name=~"oms_networkflow_throttle"}[5m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(fluentbit_filter_drop_records_total{name=~"oms_networkflow_throttle"}[5m])[%v:]))
+
