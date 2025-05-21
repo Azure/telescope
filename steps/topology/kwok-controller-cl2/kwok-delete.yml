@@ -1,0 +1,11 @@
+steps:
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
+        --mode node \
+        --action tear_down \
+        --node-count $NODE_COUNT
+    workingDirectory: modules/python
+    env:
+      KWOK_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kwok/kwok.py
+    displayName: "Delete KWOK Nodes"
