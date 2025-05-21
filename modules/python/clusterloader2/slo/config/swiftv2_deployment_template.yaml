@@ -11,8 +11,6 @@ metadata:
   name: {{.Name}}
   labels:
     group: {{.Group}}
-    kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: {{.pniName}}
 spec:
   replicas: {{.Replicas}}
   selector:
@@ -28,8 +26,6 @@ spec:
       labels:
         name: {{.Name}}
         group: {{.Group}}
-        kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: {{.pniName}}
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
