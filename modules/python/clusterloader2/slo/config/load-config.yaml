@@ -94,20 +94,18 @@ steps:
         duration: 1m
 
   # Create Daemonsets
-  # - module:
-  #     path: /modules/reconcile-objects.yaml
-  #     params:
-  #       actionName: "create"
-  #       namespaces: {{$namespaces}}
-  #       tuningSet: RandomizedSaturationTimeLimited
-  #       operationTimeout: {{$operationTimeout}}
-  #       CpuRequest: {{$latencyPodCpu}}m
-  #       MemoryRequest: {{$latencyPodMemory}}M
-  #       Group: {{$groupName}}
-  #       daemonsets: {{$daemonsets}}
-  #       namespaceType: create
-  #       surge: {{$ds_surge}}
-  #       replicas: {{$nodes}}
+  - module:
+      path: /modules/reconcile-deployment.yaml
+      params:
+        actionName: "create"
+        tuningSet: RandomizedSaturationTimeLimited
+        operationTimeout: {{$operationTimeout}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        daemonsets: {{$daemonsets}}
+        surge: {{$ds_surge}}
+        replicas: {{$nodes}}
 
 # Relabel Namespace
   - module:
@@ -132,18 +130,16 @@ steps:
         duration: 1m
 
 # # Delete Daemonsets
-#   - module:
-#       path: /modules/reconcile-objects.yaml
-#       params:
-#         actionName: "delete"
-#         namespaces: 0
-#         tuningSet: RandomizedDeletionTimeLimited
-#         operationTimeout: {{$operationTimeout}}
-#         namespaceType: restart
-#         Group: {{$groupName}}
-#         daemonsets: 0
-#         surge: {{$ds_surge}}
-#         replicas: {{$nodes}}
+  - module:
+      path: /modules/reconcile-deployment.yaml
+      params:
+        actionName: "delete"
+        tuningSet: RandomizedDeletionTimeLimited
+        operationTimeout: {{$operationTimeout}}
+        Group: {{$groupName}}
+        daemonsets: 0
+        surge: {{$ds_surge}}
+        replicas: {{$nodes}}
 
   - module:
       path: /modules/reconcile-namespace.yaml
