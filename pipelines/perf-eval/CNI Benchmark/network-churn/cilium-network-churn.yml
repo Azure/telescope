@@ -93,6 +93,7 @@ stages:
               no_of_namespaces: ${{ parameters.no_of_namespaces }}
               total_network_policies: ${{ parameters.total_nework_policies }}
               cilium_enabled: False
+              scrape_kubelets: True
               npm_enabled: True
               service_test: False
               network_test: True
