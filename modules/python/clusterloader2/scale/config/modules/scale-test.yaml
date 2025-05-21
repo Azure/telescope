@@ -13,7 +13,7 @@ name: scale-test
 {{$fortioServerReplicas := DefaultParam .CL2_FORTIO_SERVERS_PER_DEPLOYMENT 10}}
 {{$fortioClientReplicas := DefaultParam .CL2_FORTIO_CLIENTS_PER_DEPLOYMENT 10}}
 {{$fortioClientQueriesPerSecond := DefaultParam .CL2_FORTIO_CLIENT_QUERIES_PER_SECOND 1000}}
-{{$fortioClientConnections := DefaultParam .CL2_FORTIO_CLIENT_CONNECTIONS 10}}
+{{$fortioClientConnections := DefaultParam .CL2_FORTIO_CLIENT_CONNECTIONS 100}}
 {{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
 {{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 
