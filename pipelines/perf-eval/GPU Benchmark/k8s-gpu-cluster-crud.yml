@@ -8,21 +8,21 @@ variables:
 
 
 stages:
-  - stage: azure_australiaeast
+  - stage: azure_gpu_test
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - australiaeast
+            - $(REGION)
           topology: k8s-crud-gpu
           engine: raw
           matrix:
             h100_gpu_node_pool:
               gpu_node_pool: true
-              pool_name: h100nodepool
-              vm_size: Standard_NC40ads_H100_v5
+              pool_name: gpunodepool
+              vm_size: $(VM_SIZE)
               create_node_count: 0
               scale_node_count: 1
               scale_step_up_count: 1
