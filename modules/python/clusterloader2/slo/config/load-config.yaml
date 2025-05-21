@@ -73,7 +73,7 @@ steps:
 
   # Create Namespace
   - module:
-      path: /modules/reconcile-objects.yaml
+      path: /modules/reconcile-namespace.yaml
       params:
         actionName: "create"
         namespaces: {{$namespaces}}
@@ -82,10 +82,7 @@ steps:
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
-        daemonsets: 0
         namespaceType: create
-        surge: {{$ds_surge}}
-        replicas: {{$nodes}}
 
   # Sleep
   - name: Sleep
@@ -97,8 +94,24 @@ steps:
         duration: 1m
 
   # Create Daemonsets
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "create"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: RandomizedSaturationTimeLimited
+  #       operationTimeout: {{$operationTimeout}}
+  #       CpuRequest: {{$latencyPodCpu}}m
+  #       MemoryRequest: {{$latencyPodMemory}}M
+  #       Group: {{$groupName}}
+  #       daemonsets: {{$daemonsets}}
+  #       namespaceType: create
+  #       surge: {{$ds_surge}}
+  #       replicas: {{$nodes}}
+
+# Relabel Namespace
   - module:
-      path: /modules/reconcile-objects.yaml
+      path: /modules/reconcile-namespace.yaml
       params:
         actionName: "create"
         namespaces: {{$namespaces}}
@@ -107,22 +120,7 @@ steps:
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
-        daemonsets: {{$daemonsets}}
-        namespaceType: create
-        surge: {{$ds_surge}}
-        replicas: {{$nodes}}
-
-# Relabel Namespace
-  - name: Setup namespace
-    phases:
-    - replicasPerNamespace: 1
-      tuningSet: Sequence
-      objectBundle:
-      - basename: my-namespace
-        objectTemplatePath: namespace_template.yaml
-        templateFillMap:
-          Name: my-namespace
-          Type: restart
+        namespaceType: restart
 
 # Sleep 5 minutes
   - name: Sleep
@@ -131,21 +129,21 @@ steps:
       Method: Sleep
       Params:
         action: start
-        duration: 5m
+        duration: 1m
 
-# Delete Daemonsets
-  - module:
-      path: /modules/reconcile-objects.yaml
-      params:
-        actionName: "delete"
-        namespaces: 0
-        tuningSet: RandomizedDeletionTimeLimited
-        operationTimeout: {{$operationTimeout}}
-        namespaceType: restart
-        Group: {{$groupName}}
-        daemonsets: 0
-        surge: {{$ds_surge}}
-        replicas: {{$nodes}}
+# # Delete Daemonsets
+#   - module:
+#       path: /modules/reconcile-objects.yaml
+#       params:
+#         actionName: "delete"
+#         namespaces: 0
+#         tuningSet: RandomizedDeletionTimeLimited
+#         operationTimeout: {{$operationTimeout}}
+#         namespaceType: restart
+#         Group: {{$groupName}}
+#         daemonsets: 0
+#         surge: {{$ds_surge}}
+#         replicas: {{$nodes}}
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:

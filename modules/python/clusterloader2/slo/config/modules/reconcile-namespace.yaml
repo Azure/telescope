@@ -1,0 +1,24 @@
+## Input params
+# Valid actions: "create", "delete"
+{{$actionName := printf "%s objects" .actionName}}
+{{$namespaces := .namespaces}}
+{{$tuningSet := .tuningSet}}
+
+# Derivative variables
+{{$is_deleting := (eq .actionName "delete")}}
+{{$operationTimeout := .operationTimeout}}
+
+{{$namespaceType := .namespaceType}}
+{{$nsBasename := "my-namespace"}}
+
+steps:
+- name: {{$actionName}}
+  phases:
+  - replicasPerNamespace: 1
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: {{$nsBasename}}
+      objectTemplatePath: namespace_template.yaml
+      templateFillMap:
+        Name: {{$nsBasename}}
+        Type: {{$namespaceType}}
