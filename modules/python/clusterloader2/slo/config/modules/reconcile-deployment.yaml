@@ -27,19 +27,21 @@ steps:
       labelSelector: group = {{.Group}}
       operationTimeout: {{$operationTimeout}}
 
-- namespaceRange:
-    min: 0
-    max: 0
-    basename: {{$nsBasename}}
-  replicasPerNamespace: {{$daemonsets}}
-  tuningSet: {{$tuningSet}}
-  objectBundle:
-  - basename: deployment
-    objectTemplatePath: deployment_template.yaml
-    templateFillMap:
-      Replicas: {{$replicas}}
-      Group: {{.Group}}
-      deploymentLabel: {{.deploymentLabel}}
+- name: {{$actionName}}
+  phases:
+  - namespaceRange:
+      min: 0
+      max: 0
+      basename: {{$nsBasename}}
+    replicasPerNamespace: {{$daemonsets}}
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: deployment
+      objectTemplatePath: deployment_template.yaml
+      templateFillMap:
+        Replicas: {{$replicas}}
+        Group: {{.Group}}
+        deploymentLabel: {{.deploymentLabel}}
 
 - name: Waiting for '{{$actionName}}' to be completed
   measurements:
