@@ -246,7 +246,7 @@ class AKSClient:
         vm_size: str,
         node_count: int = 1,
         cluster_name: Optional[str] = None,
-        operation_timeout_minutes: int = 15,
+        operation_timeout_minutes: int = 30,
         node_pool_label: Optional[str] = None,
         gpu_node_pool: bool = False
     ) -> Any:
@@ -342,7 +342,7 @@ class AKSClient:
         node_pool_name: str,
         node_count: int,
         cluster_name: Optional[str] = None,
-        operation_timeout_minutes: int = 15,
+        operation_timeout_minutes: int = 30,
         node_pool_label: Optional[str] = None,
         operation_type: str = "scale",
         gpu_node_pool: bool = False
