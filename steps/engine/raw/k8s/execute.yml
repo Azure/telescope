@@ -50,5 +50,4 @@ steps:
     STEP_TIME_OUT: 600
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-    AZURE_MI_ID: $(AZURE_MI_CLIENT_ID)
     AZURE_MI_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
