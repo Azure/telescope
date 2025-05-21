@@ -1,0 +1,21 @@
+parameters:
+  client_context:
+    type: string
+  server_context:
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect_pod_node_info \
+        --result_dir "$RESULT_DIR" \
+        --client_context "$CLIENT_CONTEXT" \
+        --server_context "$SERVER_CONTEXT"
+    workingDirectory: modules/python
+    displayName: "Collect pod node info"
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/iperf3/iperf3_pod.py
+      RESULT_DIR: $(TEST_RESULTS_DIR)
+      CLIENT_CONTEXT: ${{ parameters.client_context }}
+      SERVER_CONTEXT: ${{ parameters.server_context }}

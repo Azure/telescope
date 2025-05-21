@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "pod-diff-node-vnet"
+scenario_name  = "pod-diff-node-same-zone"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -126,7 +126,7 @@ aks_config_list = [
         name        = "client"
         vm_size     = "Standard_D16_v3"
         node_count  = 1
-        node_labels = { "app" = "client", "test" = "true" }
+        node_labels = { "client" = "true", "test" = "true" }
         node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
         zones       = ["1"]
       },
@@ -134,7 +134,7 @@ aks_config_list = [
         name        = "server"
         vm_size     = "Standard_D16_v3"
         node_count  = 1
-        node_labels = { "app" = "server", "test" = "true" }
+        node_labels = { "server" = "true", "test" = "true" }
         node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
         zones       = ["1"]
       }

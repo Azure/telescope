@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "pod-diff-node-vnet"
+scenario_name  = "pod-diff-node-same-zone"
 deletion_delay = "2h"
 owner          = "aks"
 network_config_list = [
@@ -109,7 +109,7 @@ eks_config_list = [{
       max_size       = 2
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels         = { "app" = "client", "test" = "true" }
+      labels         = { "client" = "true", "test" = "true" }
       subnet_names   = ["pod2pod-subnet"]
       taints = [
         {
@@ -132,7 +132,7 @@ eks_config_list = [{
       max_size       = 2
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels         = { "app" = "server", "test" = "true" }
+      labels         = { "server" = "true", "test" = "true" }
       subnet_names   = ["pod2pod-subnet"]
       taints = [
         {

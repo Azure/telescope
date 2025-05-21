@@ -18,10 +18,10 @@ logger = get_logger(__name__)
 
 
 class Iperf3Pod(PodRoleCommand):
-    def __init__(self, cluster_cli_context, cluster_srv_context, namespace="default"):
+    def __init__(self, client_context, server_context, namespace="default"):
         """
-        :param cluster_cli_context: Cluster config context for client pod.
-        :param cluster_srv_context: Cluster config context for server pod.
+        :param client_context: Cluster config context for client pod.
+        :param server_context: Cluster config context for server pod.
         :param namespace: Kubernetes namespace to use. Default is "default".
         """
         super().__init__(
@@ -31,8 +31,8 @@ class Iperf3Pod(PodRoleCommand):
             server_label_selector="app=iperf3-server",
             service_name="iperf3-server",
             validate_command=command_constants.IPERF3_VERSION_CMD,
-            cluster_cli_context=cluster_cli_context,
-            cluster_srv_context=cluster_srv_context,
+            client_context=client_context,
+            server_context=server_context,
             namespace=namespace,
         )
 
@@ -85,7 +85,7 @@ class Iperf3Pod(PodRoleCommand):
             role=role, command=command_constants.NETSTAT_CMD, result_file=result_file)
 
     def run_iplink(self, role: str, result_dir: str, stage_name: str, index: int):
-        print(
+        logger.info(
             f"\nRUNNING ip-link for {role} in stage {stage_name} with index {index}\n")
         result_file = f"{result_dir}/{role}-ip-link-{stage_name}-{index}.json"
         self.run_command_for_role(
@@ -225,7 +225,7 @@ class Iperf3Pod(PodRoleCommand):
         data = {
             "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             "metric": protocol,
-            "target_bw": bandwidth,
+            "target_bandwidth": bandwidth,
             "parallel": parallel,
             "datapath": datapath,
             "unit": "Mbits/sec",
@@ -237,6 +237,7 @@ class Iperf3Pod(PodRoleCommand):
             "cloud_info": cloud_info,
             "run_url": run_url,
             "raw_data": iperf3_result,
+            "test_engine": "iperf3",
         }
         os.makedirs(os.path.dirname(result_file), exist_ok=True)
         with open(result_file, 'a', encoding='utf-8') as file:
@@ -254,7 +255,7 @@ def parse_args(args):
     parser.add_argument(
         "action",
         choices=["run_benchmark", "validate",
-                 "collect", "collect_pod_node_info"],
+                 "collect", "collect_pod_node_info", "configure"],
         help="Action to perform"
     )
     parser.add_argument(
@@ -290,11 +291,11 @@ def parse_args(args):
         help="Directory to store the results"
     )
     parser.add_argument(
-        "--cluster_cli_context",
+        "--client_context",
         help="Cluster config context for client pod",
     )
     parser.add_argument(
-        "--cluster_srv_context",
+        "--server_context",
         help="Cluster config context for server pod",
     )
     parser.add_argument(
@@ -315,6 +316,16 @@ def parse_args(args):
         "--result_file",
         help="File to store the benchmark result"
     )
+    parser.add_argument(
+        "--pod_count",
+        type=int,
+        help="Number of pods to validate"
+    )
+    parser.add_argument(
+        "--label_selector",
+        help="Label selector for the pods",
+        default=""
+    )
     return parser.parse_args(args)
 
 
@@ -323,8 +334,8 @@ def main():
     args = parse_args(sys.argv[1:])
 
     iperf3_pod = Iperf3Pod(
-        cluster_cli_context=args.cluster_cli_context,
-        cluster_srv_context=args.cluster_srv_context
+        client_context=args.client_context,
+        server_context=args.server_context
     )
 
     if args.action == "run_benchmark":
@@ -344,7 +355,7 @@ def main():
                 "  --index, --protocol, --bandwidth, --parallel,\n"
                 "  --iperf_command, --datapath, --result_dir\n"
                 "Optional arguments:\n"
-                "  --cluster_cli_context, --cluster_srv_context, --server_ip_type"
+                "  --client_context, --server_context, --server_ip_type"
             )
 
         result_file = Iperf3Pod.create_result_file_name(
@@ -387,6 +398,11 @@ def main():
     elif args.action == "collect_pod_node_info":
         iperf3_pod.collect(
             result_dir=args.result_dir,
+        )
+    elif args.action == "configure":
+        iperf3_pod.configure(
+            pod_count=args.pod_count,
+            label_selector=args.label_selector,
         )
     else:
         raise ValueError(f"Unsupported action: {args.action}")

@@ -1,0 +1,29 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: regions
+    type: object
+  - name: engine
+    type: string
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: pod2pod
+      region: ${{ parameters.regions[0] }}
+      alias: pod-diff-node
+  - template: /steps/engine/iperf3/configure-mtu.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      pod_count: 2
+      client_context: "pod-diff-node"
+      server_context: "pod-diff-node"
+  - template: /steps/engine/iperf3/configure-pod.yml
+    parameters:
+      pod_count: 1
+      client_context: "pod-diff-node"
+      server_context: "pod-diff-node"
+  - template: /steps/engine/iperf3/validate.yml
+    parameters:
+      client_context: "pod-diff-node"
+      server_context: "pod-diff-node"

@@ -15,7 +15,7 @@ SCENARIO_TYPE=perf-eval
 SCENARIO_NAME=cri-resource-consume
 RUN_ID=$(date +%s)
 CLOUD=azure # aws if provision AWS resources
-REGION=swedencetral # eu-west-1 if provision AWS resources
+REGION=swedencentral # eu-west-1 if provision AWS resources
 KUBERNETES_VERSION=1.31 # customize for different version, only available for Azure currently
 K8S_MACHINE_TYPE=Standard_D16ds_v4 # if not set, value defined in tfvars file will be used, only availabe for Azure currently
 K8S_OS_DISK_TYPE=Ephemeral # if not set, value defined in tfvars file will be used, only available for Azure currently
@@ -41,10 +41,10 @@ aws eks update-kubeconfig --name "cri-resource-consume-${RUN_ID}" --region $REGI
 Run following commands to validate node count (remember to run in `root` directory)
 
 ```bash
-cd modules/python/clusterloader2
+cd modules/python
 DESIRED_NODES=14
 VALIDATION_TIMEOUT_IN_MINUTES=10
-PYTHON_SCRIPT_FILE=$(pwd)/slo/slo.py
+PYTHON_SCRIPT_FILE=$(pwd)/clusterloader2/slo/slo.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
     $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES
 ```
@@ -54,16 +54,16 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
 Set these variables before running the test:
 
 ```bash
-PYTHON_SCRIPT_FILE=$(pwd)/cri/cri.py
+PYTHON_SCRIPT_FILE=$(pwd)/clusterloader2/cri/cri.py
 NODE_COUNT=10
 MAX_PODS=30
 REPEATS=1
 OPERATION_TIMEOUT="3m"
 LOAD_TYPE="memory"
 POD_STARTUP_LATENCY_THRESHOLD="15s"
-CL2_CONFIG_DIR=$(pwd)/cri/config
+CL2_CONFIG_DIR=$(pwd)/clusterloader2/cri/config
 CL2_IMAGE="ghcr.io/azure/clusterloader2:v20241016"
-CL2_REPORT_DIR=$(pwd)/cri/results
+CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 CLOUD=aks # set to aws to run against aws
 SCRAPE_KUBELETS=True
 # NODE_PER_STEP=5
