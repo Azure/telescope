@@ -43,15 +43,15 @@ stages:
           matrix:
             5k-on-demand:
               cpu_per_node: 2
-              node_count: $(NODE_COUNT)
-              pod_count: $(POD_COUNT)
+              node_count: $(_NODE_COUNT)
+              pod_count: $(_POD_COUNT)
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: $(VM_SIZE)
+              vm_size: $(VM_SKU)
               capacity_type: on-demand
           max_parallel: 1
           timeout_in_minutes: 500
@@ -82,15 +82,15 @@ stages:
           matrix:
             5k-spot:
               cpu_per_node: 2
-              node_count: $(NODE_COUNT)
-              pod_count: $(POD_COUNT)
+              node_count: $(_NODE_COUNT)
+              pod_count: $(_POD_COUNT)
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: $(VM_SIZE)
+              vm_size: $(VM_SKU)
               capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 500
