@@ -126,39 +126,6 @@ steps:
 
   {{end}}
 
-  - name: Starting measurement Pod Curl Command
-    measurements:
-    - Identifier: PodPeriodicCommand
-      Method: PodPeriodicCommand
-      Params:
-        action: start # start/gather 
-        labelSelector: group = {{$groupName}}
-        interval: 30s
-        container: deployment-churn
-        limit: {{$nodes}} # randomly picks up to 3 pods that match labelSelector
-        failOnCommandError: true
-        failOnExecError: true
-        failOnTimeout: true
-        commands:
-        - name: CustPodCurl
-          command: ["/bin/sh", "-c", "curl -c 3 172.25.0.29"] # ["/bin/sh", "-c", "ping -c 3 172.25.0.11"]
-          timeout: 5s
-
-  - name: Wait for Pod Curl Command to execute
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        duration: 40s # Longer than the interval to ensure at least one execution
-
-  - name: Ending measurement Pod Curl Command
-    measurements:
-    - Identifier: PodPeriodicCommand
-      Method: PodPeriodicCommand
-      Params:
-        action: gather # start/gather 
-        labelSelector: group = {{$groupName}}
-
   - name: Starting measurement for Delete Deployment
     measurements:
     - Identifier: WaitForDeletedDeployment
