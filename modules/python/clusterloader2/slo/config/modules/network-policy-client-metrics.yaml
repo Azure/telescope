@@ -12,12 +12,6 @@ steps:
         unit: s
         enableViolations: true
         queries:
-          - name: http_requests_total
-            query: sum(increase(http_requests_total{service="np-soak-client-metrics-svc"}[%v:]))
-          - name: http_requests_success
-            query: sum(increase(http_requests_success{service="np-soak-client-metrics-svc"}[%v:]))
-          - name: http_requests_fail
-            query: sum(increase(http_requests_fail{service="np-soak-client-metrics-svc"}[%v:]))
           - name: http_requests_latency_le_0.01s
             query: sum(increase(http_request_latency_seconds_bucket{le="0.01"}[%v:]))
           - name: http_requests_latency_le_0.025s
@@ -34,3 +28,43 @@ steps:
             query: sum(increase(http_request_latency_seconds_bucket{le="5"}[%v:]))
           - name: http_requests_latency_le_10s
             query: sum(increase(http_request_latency_seconds_bucket{le="10"}[%v:]))
+    - Identifier: HttpRequestsTotal
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Total number of HTTP Requests Total
+        metricVersion: v1
+        unit: count
+        dimensions:
+        - port
+        enableViolations: true
+        queries:
+        - name: http_requests_total
+          query: sum(sum_over_time(http_requests_total[%v:])) by (port)
+    - Identifier: HttpRequestsFail
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Total number of HTTP Requests Fail
+        metricVersion: v1
+        unit: count
+        dimensions:
+        - port
+        enableViolations: true
+        queries:
+        - name: http_requests_fail
+          query: sum(sum_over_time(http_requests_fail[%v:])) by (port)
+    - Identifier: HttpRequestsSuccess
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Total number of HTTP Requests Success
+        metricVersion: v1
+        unit: count
+        dimensions:
+        - port
+        enableViolations: true
+        queries:
+        - name: http_requests_success
+          query: sum(sum_over_time(http_requests_success[%v:])) by (port)
+    

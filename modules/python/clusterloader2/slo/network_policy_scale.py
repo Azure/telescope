@@ -14,6 +14,11 @@ def configure_clusterloader2(
     test_duration_secs,
     cilium_enabled,
     cilium_envoy_enabled,
+    l7_enabled,
+    repeats,
+    netpol_test,
+    restart_deletion_enabled,
+    l3_l4_port_enabled,
     override_file,
 ):
     # Ensure the directory for override_file exists
@@ -32,6 +37,10 @@ def configure_clusterloader2(
         file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
         file.write("PROMETHEUS_SCRAPE_KUBE_PROXY: false\n")
 
+        # Disable non related tests in measurements.yaml
+        file.write("# Disable non related tests in measurements.yaml\n")
+        file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
+
         if cilium_enabled:
             file.write("# Cilium config\n")
             file.write("CL2_CILIUM_ENABLED: true\n")
@@ -39,10 +48,32 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
 
+        if netpol_test == "enforcement-latency":
+            file.write("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true\n")
+            file.write("CL2_CLIENT_METRICS_GATHERING: false\n")
+            file.write("CL2_SOAK_TEST: false\n")
+
+        if netpol_test == "soak":
+            file.write("CL2_SOAK_TEST: true\n")
+            file.write("CL2_CLIENT_POD_MONITOR: true\n")
+            file.write("CL2_CLIENT_METRICS_GATHERING: true\n")
+            file.write("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: false\n")
+
         if cilium_envoy_enabled:
             file.write("# Cilium Envoy config\n")
             file.write("CL2_CILIUM_ENVOY_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_ENVOY: true\n")
+
+        if l3_l4_port_enabled:
+            file.write("CL2_NET_POLICY_L3_L4_ENABLED: true\n")
+            file.write("CL2_RESOURCEGATHERING_ENABLED: false\n")
+
+        if l7_enabled:
+            file.write("CL2_NET_POLICY_L7_ENABLED: true\n")
+            file.write("CL2_NET_POLICY_L3_L4_ENABLED: false\n")
+
+        if restart_deletion_enabled:
+            file.write("CL2_RESTART_DELETION_ENABLED: true\n")
 
         # test config
         # add "s" at the end of test_duration_secs
@@ -58,11 +89,8 @@ def configure_clusterloader2(
         file.write(f"CL2_WORKERS_PER_CLIENT: {workers_per_client}\n")
         file.write(f"CL2_NUMBER_OF_GROUPS: {number_of_groups}\n")
         file.write(f"CL2_NETWORK_POLICY_TYPE: {netpol_type}\n")
-        file.write("CL2_CLIENT_METRICS_GATHERING: true\n")
+        file.write(f"CL2_REPEATS: {repeats}\n")
 
-        # Disable non related tests in measurements.yaml
-        file.write("# Disable non related tests in measurements.yaml\n")
-        file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
 
     with open(override_file, "r", encoding="utf-8") as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -97,7 +125,6 @@ def collect_clusterloader2(
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
-    provider = json.loads(cloud_info)["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
@@ -113,7 +140,7 @@ def collect_clusterloader2(
         "group": None,
         "measurement": None,
         "result": None,
-        "cloud_info": provider,
+        "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
         "test_type": test_type,
@@ -214,11 +241,43 @@ def main():
         help="Whether cilium envoy is enabled. Must be either True or False",
     )
     parser_configure.add_argument(
+        "--l7_enabled",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether l7 is enabled. Must be either True or False",
+    )
+    parser_configure.add_argument(
+        "--l3_l4_port_enabled",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether l3-l4 port is enabled. Must be either True or False",
+    )
+    parser_configure.add_argument(
+        "--repeats", type=int, required=True, help="number of repeats"
+    )
+    parser_configure.add_argument(
+        "--netpol_test",
+        type=str,
+        required=True,
+        choices=["soak", "enforcement-latency"],
+        help="Type of network policy test",
+    )
+    parser_configure.add_argument(
+        "--restart_deletion_enabled",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether restart deletion is enabled. Must be either True or False",
+    )
+    parser_configure.add_argument(
         "--cl2_override_file",
         type=str,
         required=True,
         help="Path to the overrides of CL2 config file",
     )
+
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -279,6 +338,11 @@ def main():
             args.test_duration_secs,
             args.cilium_enabled,
             args.cilium_envoy_enabled,
+            args.l7_enabled,
+            args.repeats,
+            args.netpol_test,
+            args.restart_deletion_enabled,
+            args.l3_l4_port_enabled,
             args.cl2_override_file,
         )
     elif args.command == "execute":
