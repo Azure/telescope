@@ -246,12 +246,6 @@ steps:
         action: gather
   {{end}}
 {{end}}
-  - name: Sleep Before Gathering Measurements
-    measurements:
-    - Identifier: Sleep
-      Method: Sleep
-      Params:
-        duration: 5m # Adjust the duration as needed
   - module:
       path: /modules/measurements.yaml
       params:
