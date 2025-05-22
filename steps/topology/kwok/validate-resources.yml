@@ -13,6 +13,6 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/topology/kwok/kwok-command/create.yml
   - template: /steps/topology/kwok/kwok-command/validate.yml
-  - template: /steps/engine/clusterloader2/controller/validate.yml
+  - template: /steps/engine/clusterloader2/kwok/validate.yml
     parameters:
       desired_nodes: 5

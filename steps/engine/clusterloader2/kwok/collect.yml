@@ -29,6 +29,6 @@ steps:
     env:
       CLOUD: ${{ parameters.cloud }}
       RUN_URL: $(RUN_URL)
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/controller/controller.py
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/controller/report
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kwok/kwok.py
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kwok/report
     displayName: "Collect Results"

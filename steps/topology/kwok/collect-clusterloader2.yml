@@ -10,7 +10,7 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/engine/clusterloader2/controller/collect.yml
+- template: /steps/engine/clusterloader2/kwok/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
