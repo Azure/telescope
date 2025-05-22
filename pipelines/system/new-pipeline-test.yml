@@ -109,7 +109,7 @@ stages:
         cd $TERRAFORM_WORKING_DIRECTORY
 
         # Run Terraform TerraformCommand.VERSION command
-        terraform TerraformCommand.VERSION
+        terraform version
       displayName: Run Terraform Version Command
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
@@ -122,7 +122,7 @@ stages:
         cd $TERRAFORM_WORKING_DIRECTORY
 
         # Run Terraform TerraformCommand.INIT command
-        terraform TerraformCommand.INIT
+        terraform init
       displayName: Run Terraform Init Command
       env:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
