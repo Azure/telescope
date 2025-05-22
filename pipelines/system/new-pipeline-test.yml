@@ -134,7 +134,7 @@ stages:
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        for region in $(echo "["eastus2"]" | jq -r '.[]'); do
+        for region in $(echo '["eastus2"]' | jq -r '.[]'); do
             echo "Processing region: $region"
 
             if terraform workspace list | grep -q "$region"; then
