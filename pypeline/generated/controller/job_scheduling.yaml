@@ -57,20 +57,13 @@ stages:
         echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"
       displayName: Set Terraform Working Directory
     - script: |-
-        set -eu
+        echo $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
 
-        echo "##vso[task.setvariable variable=MULTI_REGION]false"
-        echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/azure.tfvars"}}"
-      displayName: Set Terraform Input File
-      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - script: |-
-        echo $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
-
-        if [ -d "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data" ]; then
-            echo "Terraform user data path exists: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
-            echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+        if [ -d "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data" ]; then
+            echo "Terraform user data path exists: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
+            echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
         else:
-            echo "Terraform user data path does not exist: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+            echo "Terraform user data path does not exist: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
         fi
       displayName: Set User Data Path
     - script: |-
@@ -78,12 +71,15 @@ stages:
         if [[ "${DEBUG,,}" =~ "true" ]]; then
             set -x
         fi
-        echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_VARIABLES": {"run_id": "$(RUN_ID)", "region": "eastus2", "aks_sku_tier": "$AKS_SKU_TIER", "aks_kubernetes_version": "$KUBERNETES_VERSION", "aks_network_policy": "$NETWORK_POLICY", "aks_network_dataplane": "$NETWORK_DATAPLANE", "k8s_machine_type": "$K8S_MACHINE_TYPE", "k8s_os_disk_type": "$K8S_OS_DISK_TYPE", "aks_custom_headers": ["$AKS_CLI_CUSTOM_HEADERS"], "aks_cli_system_node_pool": "$SYSTEM_NODE_POOL", "aks_cli_user_node_pool": "$USER_NODE_POOL"}}}"
+        echo "Regional Configuration {"\"eastus2\"": {"\"TERRAFORM_INPUT_FILE\"": "\"$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/terraform-inputs/azure.tfvars\"", "\"TERRAFORM_INPUT_VARIABLES\"": "{\"run_id\": \"$(RUN_ID)\", \"region\": \"eastus2\", \"aks_sku_tier\": \"$AKS_SKU_TIER\", \"aks_kubernetes_version\": \"$KUBERNETES_VERSION\", \"aks_network_policy\": \"$NETWORK_POLICY\", \"aks_network_dataplane\": \"$NETWORK_DATAPLANE\", \"k8s_machine_type\": \"$K8S_MACHINE_TYPE\", \"k8s_os_disk_type\": \"$K8S_OS_DISK_TYPE\", \"aks_custom_headers\": [\"$AKS_CLI_CUSTOM_HEADERS\"], \"aks_cli_system_node_pool\": \"$SYSTEM_NODE_POOL\", \"aks_cli_user_node_pool\": \"$USER_NODE_POOL\"}"}}"
+        echo "##vso[task.setvariable variable=MULTI_REGION]false"
+        echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{"\"eastus2\"": {"\"TERRAFORM_INPUT_FILE\"": "\"$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/terraform-inputs/azure.tfvars\"", "\"TERRAFORM_INPUT_VARIABLES\"": "{\"run_id\": \"$(RUN_ID)\", \"region\": \"eastus2\", \"aks_sku_tier\": \"$AKS_SKU_TIER\", \"aks_kubernetes_version\": \"$KUBERNETES_VERSION\", \"aks_network_policy\": \"$NETWORK_POLICY\", \"aks_network_dataplane\": \"$NETWORK_DATAPLANE\", \"k8s_machine_type\": \"$K8S_MACHINE_TYPE\", \"k8s_os_disk_type\": \"$K8S_OS_DISK_TYPE\", \"aks_custom_headers\": [\"$AKS_CLI_CUSTOM_HEADERS\"], \"aks_cli_system_node_pool\": \"$SYSTEM_NODE_POOL\", \"aks_cli_user_node_pool\": \"$USER_NODE_POOL\"}"}}"
         echo "Regional configuration set successfully."
       displayName: Set Terraform Input Variables
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
         set -e
+        echo "Terraform Regional Config: $TERRAFORM_REGIONAL_CONFIG"
 
         terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "eastus2" '.[$region].TERRAFORM_INPUT_FILE')
 
@@ -316,7 +312,7 @@ stages:
     steps: []
     dependsOn:
     - validate
-  - job: tear down
+  - job: tearDown
     displayName: Tear down resources
     steps:
     - script: |-
