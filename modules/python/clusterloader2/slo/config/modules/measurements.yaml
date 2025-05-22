@@ -210,6 +210,8 @@ steps:
           metricName: ETCD number of proposals applied #TODO - check if this is correct gauge metric
           metricVersion: v1
           unit: count
+          dimensions:
+          - resource
           enableViolations: true
           queries:
           - name: ETCD total size database rate change
