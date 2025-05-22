@@ -16,6 +16,9 @@ parameters:
 - name: credential_type
   type: string
   default: 'managed_identity'
+- name: condition
+  type: string
+  default: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
 
 steps:
 - script: |
@@ -81,7 +84,7 @@ steps:
       terraform ${{ parameters.command }} ${{ parameters.arguments }}
     fi
   displayName: "Run Terraform ${{ parameters.command }} Command"
-  condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+  condition: ${{ parameters.condition }}
   retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
   env:
     REGIONS: ${{ convertToJson(parameters.regions) }}
