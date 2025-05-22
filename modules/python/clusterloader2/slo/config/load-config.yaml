@@ -129,29 +129,29 @@ steps:
         action: start
         duration: 10m
 
-  # Delete Daemonsets
-  - module:
-      path: /modules/reconcile-deployment.yaml
-      params:
-        actionName: "delete"
-        tuningSet: RandomizedDeletionTimeLimited
-        operationTimeout: {{$operationTimeout}}
-        Group: {{$groupName}}
-        daemonsets: 0
-        surge: {{$ds_surge}}
-        replicas: {{$nodes}}
+  # # Delete Daemonsets
+  # - module:
+  #     path: /modules/reconcile-deployment.yaml
+  #     params:
+  #       actionName: "delete"
+  #       tuningSet: RandomizedDeletionTimeLimited
+  #       operationTimeout: {{$operationTimeout}}
+  #       Group: {{$groupName}}
+  #       daemonsets: 0
+  #       surge: {{$ds_surge}}
+  #       replicas: {{$nodes}}
 
-  - module:
-      path: /modules/reconcile-namespace.yaml
-      params:
-        actionName: "delete"
-        namespaces: 0
-        tuningSet: RandomizedSaturationTimeLimited
-        operationTimeout: {{$operationTimeout}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
-        namespaceType: restart
+  # - module:
+  #     path: /modules/reconcile-namespace.yaml
+  #     params:
+  #       actionName: "delete"
+  #       namespaces: 0
+  #       tuningSet: RandomizedSaturationTimeLimited
+  #       operationTimeout: {{$operationTimeout}}
+  #       CpuRequest: {{$latencyPodCpu}}m
+  #       MemoryRequest: {{$latencyPodMemory}}M
+  #       Group: {{$groupName}}
+  #       namespaceType: restart
 
 {{if $CILIUM_METRICS_ENABLED}}
   - module:
