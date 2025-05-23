@@ -70,17 +70,18 @@ steps:
         Params:
           duration: 60s
 
-{{range $i := Loop $repeats}}
-  {{range $j := Loop $steps}}
-
-  - name: Starting Pod Startup Latency Measurements {{$j}}
+  - name: Starting Pod Startup Latency Measurements
     measurements:
-    - Identifier: PodStartupLatency_{{$j}}
+    - Identifier: PodStartupLatency
       Method: PodStartupLatency
       Params:
         action: start
         labelSelector: group = {{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
+
+{{range $i := Loop $repeats}}
+  {{range $j := Loop $steps}}
+
   - name: Starting deployement measurements {{$j}}
     measurements:
       - Identifier: WaitForRunningLatencyDeployments_{{$j}}
@@ -116,13 +117,6 @@ steps:
         Params:
           action: gather
           refreshInterval: 15s
-  - name: Ending Pod Startup Latency Measurements {{$j}}
-    measurements:
-    - Identifier: PodStartupLatency_{{$j}}
-      Method: PodStartupLatency
-      Params:
-        action: gather
-        labelSelector: group = {{$groupName}}
 
   {{end}}
 
@@ -173,4 +167,10 @@ steps:
 
 {{end}}
 
-
+  - name: Ending Pod Startup Latency Measurements
+    measurements:
+    - Identifier: PodStartupLatency
+      Method: PodStartupLatency
+      Params:
+        action: gather
+        labelSelector: group = {{$groupName}}
