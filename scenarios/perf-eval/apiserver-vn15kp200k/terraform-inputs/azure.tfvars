@@ -8,7 +8,7 @@ aks_cli_config_list = [
     role               = "client"
     aks_name           = "vn15k-p200k"
     sku_tier           = "standard"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.31"
 
     default_node_pool = {
       name       = "default"
@@ -19,17 +19,17 @@ aks_cli_config_list = [
       {
         name       = "vn"
         node_count = 250
-        vm_size    = "Standard_D8s_v3"
+        vm_size    = "Standard_D16s_v3"
       },
       {
         name       = "vn2"
         node_count = 50
-        vm_size    = "Standard_D8s_v3"
+        vm_size    = "Standard_D16s_v3"
       },
       {
         name       = "runner"
         node_count = 5
-        vm_size    = "Standard_D16s_v3"
+        vm_size    = "Standard_D8s_v3"
       }
     ]
   }
