@@ -32,7 +32,9 @@ spec:
         app: fortio
         role: load
         restart: {{.deploymentLabel}}
+        {{if ne $uniqueLabel ""}}
         uniqueLabelPerDeployment: "{{$uniqueLabel}}{{.Index}}"
+        {{end}}
     spec:
       nodeSelector:
         scale-test: "true"
