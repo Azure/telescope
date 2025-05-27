@@ -20,7 +20,7 @@ stages:
           matrix:
             h100_gpu_node_pool:
               gpu_node_pool: true
-              pool_name: h100gpunodepool
+              pool_name: h100nodepool
               vm_size: Standard_NC40ads_H100_v5
               create_node_count: 0
               scale_node_count: 2
