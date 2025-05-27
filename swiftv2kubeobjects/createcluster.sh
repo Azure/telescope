@@ -13,7 +13,8 @@ NODEPOOL_SIZE=0
 #az login
 # create RG
 echo "Create RG"
-az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=2032-12-31 skipGC="swift v2 perf" gc_skip="true"
+date=$(date -d "+1 week" +"%Y-%m-%d")
+az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 # create user assigned NAT gateway
 # echo "create public ips"
@@ -87,7 +88,8 @@ az aks create -n ${CLUSTER} -g ${RG} \
         --yes
         
 SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --query id)
-az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=2032-12-31 skipGC="swift v2 perf" gc_skip="true"
+date=$(date -d "+1 week" +"%Y-%m-%d")
+az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 # create usernodepools
 
