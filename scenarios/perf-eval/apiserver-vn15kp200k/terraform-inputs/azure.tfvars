@@ -22,11 +22,6 @@ aks_cli_config_list = [
         vm_size    = "Standard_D16s_v3"
       },
       {
-        name       = "vn2"
-        node_count = 50
-        vm_size    = "Standard_D16s_v3"
-      },
-      {
         name       = "runner"
         node_count = 5
         vm_size    = "Standard_D8s_v3"
