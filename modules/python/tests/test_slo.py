@@ -3,10 +3,13 @@ import sys
 import unittest
 from unittest.mock import patch, MagicMock
 
-# Add modules directory to Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Setup path for the module under test
+test_dir = os.path.dirname(os.path.abspath(__file__))
+modules_dir = os.path.abspath(os.path.join(test_dir, '..'))
+if modules_dir not in sys.path:
+    sys.path.insert(0, modules_dir)
 
-# Mock external modules to avoid dependency issues
+# Mock modules before importing the module under test
 sys.modules['docker'] = MagicMock()
 sys.modules['clients.docker_client'] = MagicMock()
 sys.modules['clients.kubernetes_client'] = MagicMock()
@@ -25,6 +28,7 @@ from clusterloader2.slo.slo import (
 )
 
 class TestSlo(unittest.TestCase):
+    """Tests for the slo.py module. These tests use mocks to avoid external dependencies."""
 
     def test_calculate_config_default(self):
         """Test calculate_config with default parameters"""
@@ -116,7 +120,7 @@ class TestSlo(unittest.TestCase):
         )
         self.assertEqual(cpu_request, expected_cpu_request)
 
-    @patch('clusterloader2.slo.slo.run_cl2_command')
+    @patch("clusterloader2.slo.slo.run_cl2_command")
     def test_execute_clusterloader2(self, mock_run_cl2_command):
         """Test execute_clusterloader2 function"""
         cl2_image = "test-image:latest"
@@ -140,7 +144,7 @@ class TestSlo(unittest.TestCase):
             scrape_containerd=scrape_containerd
         )
 
-    @patch('clusterloader2.slo.slo.configure_clusterloader2')
+    @patch("clusterloader2.slo.slo.configure_clusterloader2")
     def test_main_configure(self, mock_configure):
         """Test main function with configure command"""
         test_args = [
@@ -155,7 +159,7 @@ class TestSlo(unittest.TestCase):
                 4, 10, 5, 110, 3, "10m", "azure", False, False, False, False, False, 0, 0, False, "/tmp/override.yaml"
             )
 
-    @patch('clusterloader2.slo.slo.validate_clusterloader2')
+    @patch("clusterloader2.slo.slo.validate_clusterloader2")
     def test_main_validate(self, mock_validate):
         """Test main function with validate command"""
         test_args = ["main.py", "validate", "10", "600"]
@@ -163,7 +167,7 @@ class TestSlo(unittest.TestCase):
             main()
             mock_validate.assert_called_once_with(10, 600)
 
-    @patch('clusterloader2.slo.slo.execute_clusterloader2')
+    @patch("clusterloader2.slo.slo.execute_clusterloader2")
     def test_main_execute(self, mock_execute):
         """Test main function with execute command"""
         test_args = [
@@ -178,13 +182,13 @@ class TestSlo(unittest.TestCase):
                 "/tmp/kubeconfig", "azure", True
             )
 
-    @patch('clusterloader2.slo.slo.collect_clusterloader2')
+    @patch("clusterloader2.slo.slo.collect_clusterloader2")
     def test_main_collect(self, mock_collect):
         """Test main function with collect command"""
         test_args = [
             "main.py", "collect",
             "4", "10", "110", "3", "/tmp/report",
-            "{\"cloud\":\"azure\"}", "test-run-123", "http://example.com/run/123",
+            '{"cloud":"azure"}', "test-run-123", "http://example.com/run/123",
             "False", "False", "False",
             "/tmp/results/output.json", "test-type", "2023-01-01T00:00:00Z"
         ]
@@ -192,10 +196,11 @@ class TestSlo(unittest.TestCase):
             main()
             mock_collect.assert_called_once_with(
                 4, 10, 110, 3, "/tmp/report",
-                "{\"cloud\":\"azure\"}", "test-run-123", "http://example.com/run/123",
+                '{"cloud":"azure"}', "test-run-123", "http://example.com/run/123",
                 False, False, False,
                 "/tmp/results/output.json", "test-type", "2023-01-01T00:00:00Z"
             )
+
 
 if __name__ == '__main__':
     unittest.main()
