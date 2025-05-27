@@ -12,3 +12,4 @@ steps:
 - template: /steps/engine/raw/k8s/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
+    region: ${{ parameters.regions[0] }}

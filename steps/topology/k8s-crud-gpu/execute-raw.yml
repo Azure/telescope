@@ -10,16 +10,14 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/engine/raw/execute.yml
+- template: /steps/engine/raw/k8s/execute.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     vm_size: $(VM_SIZE)
     create_node_count: $(CREATE_NODE_COUNT)
     scale_node_count: $(SCALE_NODE_COUNT)
-    node_pool_type: $(NODE_POOL_TYPE)
-    node_pool_num: $(NODE_POOL_NUM)
-    batch_size: $(BATCH_SIZE)
-    pool_name_prefix: $(POOL_NAME_PREFIX)
+    scale_step_up_count: $(SCALE_STEP_UP_COUNT)
+    pool_name: $(POOL_NAME)
     step_time_out: $(STEP_TIME_OUT)
     result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
-
+    gpu_node_pool: $(GPU_NODE_POOL)

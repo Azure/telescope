@@ -9,7 +9,11 @@ aks_cli_config_list = [
     aks_name                      = "gpu-aks-cluster"
     sku_tier                      = "standard"
     use_aks_preview_cli_extension = true
-    default_node_pool             = null
+    default_node_pool = {
+      name       = "system"
+      node_count = 2
+      vm_size    = "Standard_D4s_v4"
+    }
 
     optional_parameters = [
       {
@@ -19,10 +23,6 @@ aks_cli_config_list = [
       {
         name  = "network-plugin-mode"
         value = "overlay"
-      },
-      {
-        name  = "pod-cidr"
-        value = "10.240.0.0/12"
       }
     ]
   }
