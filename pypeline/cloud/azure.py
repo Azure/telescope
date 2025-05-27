@@ -40,7 +40,7 @@ class Azure(Cloud):
                         """.strip(
                             "\n"
                         )
-                    )
+                    ),
                 ),
             ]
         elif self.credential_type == CredentialType.SERVICE_CONNECTION:
@@ -78,8 +78,7 @@ class Azure(Cloud):
                         """.strip(
                             "\n"
                         )
-                    )
-
+                    ),
                 ),
             ]
 

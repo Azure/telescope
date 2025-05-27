@@ -72,7 +72,9 @@ def set_input_file(
     scenario_name: str,
     scenario_type: str,
 ) -> Script:
-    config = generate_regional_config(cloud, regions, input_file_mapping,scenario_name,scenario_type)
+    config = generate_regional_config(
+        cloud, regions, input_file_mapping, scenario_name, scenario_type
+    )
     regional_config = config["regional_config"]
     multi_region = config["multi_region"]
 
@@ -277,7 +279,9 @@ class Terraform(Resource):
                 self.scenario_name,
                 self.scenario_type,
             ),
-            set_user_data_path(self.user_data_path,self.scenario_name, self.scenario_type),
+            set_user_data_path(
+                self.user_data_path, self.scenario_name, self.scenario_type
+            ),
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
             create_resource_group(self.cloud, self.regions[0]),
