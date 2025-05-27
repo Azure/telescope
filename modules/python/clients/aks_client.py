@@ -427,15 +427,6 @@ class AKSClient:
                     )
                     return node_pool
 
-            # Check if auto-scaling is enabled
-            if (
-                hasattr(node_pool, "enable_auto_scaling")
-                and node_pool.enable_auto_scaling
-            ):
-                logger.warning(
-                    f"Node pool {node_pool_name} has auto-scaling enabled. Setting count may have no effect."
-                )
-
             # Store VM size for metrics
             self.vm_size = node_pool.vm_size
 

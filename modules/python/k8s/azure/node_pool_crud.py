@@ -12,10 +12,10 @@ import logging
 import sys
 import time
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# pylint: disable=wrong-import-position
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Configure logging
 setup_logging()
