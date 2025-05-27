@@ -49,7 +49,7 @@ class Cloud(ABC):
         pass
 
     @abstractmethod
-    def delete_resource_group(self) -> str:
+    def delete_resources(self) -> str:
         pass
 
     @abstractmethod

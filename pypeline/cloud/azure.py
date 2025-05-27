@@ -133,7 +133,7 @@ class Azure(Cloud):
             """
         ).strip()
 
-    def delete_resource_group(self) -> str:
+    def delete_resources(self) -> str:
         return dedent(
             """
             echo "Deleting resources and removing state file before retrying"

@@ -198,7 +198,7 @@ def generate_apply_or_destroy_script(
     if (
         TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
     ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
-        error_handling_script = indent(cloud.delete_resource_group(), " " * 16)
+        error_handling_script = indent(cloud.delete_resources(), " " * 16)
 
     return dedent(
         f"""
