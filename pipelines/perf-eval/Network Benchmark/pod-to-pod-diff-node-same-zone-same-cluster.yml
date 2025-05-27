@@ -16,12 +16,18 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: pod-diff-node-vnet
+  SCENARIO_NAME: pod-diff-node-same-zone
 
 parameters:
+  - name: azure_machine_types
+    type: object
+    default: [Standard_D16_v3, Standard_D16_v5]
   - name: azure_machine_types_new_sku
     type: object
     default: [Standard_D48s_v6]
+  - name: aws_machine_types
+    type: object
+    default: [m4.4xlarge, m6i.4xlarge]
   - name: aws_machine_types_new_sku
     type: object
     default: [m7i.12xlarge]
@@ -30,10 +36,10 @@ parameters:
     default: [azure, cilium]
   - name: host_networks
     type: object
-    default: [true, false]
+    default: ["true", "false"]
 
 stages:
-  - stage: azure_eastus2_new_sku
+  - stage: azure_eastus2_v3_v5
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -46,11 +52,45 @@ stages:
           engine: iperf3
           engine_input:
             iperf3_command_array:
-              - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 0 --port 20003|direct|pod"
-              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 0 --port 20003|direct|pod"
-              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 0 --port 20003|direct|pod"
+              - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+          matrix:
+            ${{ each machine_type in parameters.azure_machine_types }}:
+              ${{ each network in parameters.host_networks }}:
+                ${{ each dataplane in parameters.network_dataplanes }}:
+                  ${{ machine_type }}_${{ dataplane }}_${{ network }}:
+                    k8s_machine_type: ${{ machine_type }}
+                    network_dataplane: ${{ dataplane }}
+                    host_network: ${{ network }}
+                    configure_mtu: "false"
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_v6
+    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          topology: pod-to-pod/diff-nodes
+          engine: iperf3
+          engine_input:
+            iperf3_command_array:
+              - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.azure_machine_types_new_sku }}:
@@ -60,11 +100,13 @@ stages:
                     k8s_machine_type: ${{ machine_type }}
                     network_dataplane: ${{ dataplane }}
                     host_network: ${{ network }}
+                    configure_mtu: "true"
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: aws_eastus2_new_sku
+
+  - stage: aws_eastus2_m4_m6i
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
@@ -81,11 +123,47 @@ stages:
           engine: iperf3
           engine_input:
             iperf3_command_array:
-              - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 0 --port 20003|direct|pod"
-              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 0 --port 20003|direct|pod"
-              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 0 --port 20003|direct|pod"
-              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 0 --port 20003|direct|pod"
+              - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+          matrix:
+            ${{ each machine_type in parameters.aws_machine_types }}:
+              ${{ each network in parameters.host_networks }}:
+                ${{ machine_type }}_${{ network }}:
+                  k8s_machine_type: ${{ machine_type }}
+                  host_network: ${{ network }}
+                  configure_mtu: "false"
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_eastus2_m7i
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
+        and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: pod-to-pod/diff-nodes
+          engine: iperf3
+          engine_input:
+            iperf3_command_array:
+              - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types_new_sku }}:
@@ -94,6 +172,7 @@ stages:
                   k8s_machine_type: ${{ machine_type }}
                   host_network: ${{ network }}
                   ena_express: "true"
+                  configure_mtu: "true"
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
