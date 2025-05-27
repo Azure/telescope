@@ -22,11 +22,11 @@ network_config_list = [
 
 aks_cli_config_list = [
   {
-    role        = "safeguards"
-    aks_name    = "safeguards"
-    dns_prefix  = "slo"
-    subnet_name = "slo-subnet-1"
-    sku_tier    = "Standard"
+    role                 = "safeguards"
+    aks_name             = "safeguards"
+    dns_prefix           = "slo"
+    subnet_name          = "slo-subnet-1"
+    sku_tier             = "Standard"
     azure_policy_enabled = true
     network_profile = {
       network_plugin      = "azure"
