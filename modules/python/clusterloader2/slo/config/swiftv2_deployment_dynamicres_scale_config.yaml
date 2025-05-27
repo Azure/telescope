@@ -69,9 +69,9 @@ steps:
         Method: Sleep
         Params:
           duration: 60s
-  - name: Starting Pod Startup Latency Measurements {{$j}}
+  - name: Starting Pod Startup Latency Measurements
     measurements:
-    - Identifier: PodStartupLatency_{{$j}}
+    - Identifier: PodStartupLatency
       Method: PodStartupLatency
       Params:
         action: start
@@ -198,9 +198,9 @@ steps:
 
 {{end}}
 
-  - name: Ending Pod Startup Latency Measurements {{$j}}
+  - name: Ending Pod Startup Latency Measurements
     measurements:
-    - Identifier: PodStartupLatency_{{$j}}
+    - Identifier: PodStartupLatency
       Method: PodStartupLatency
       Params:
         action: gather
