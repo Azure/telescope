@@ -1,8 +1,7 @@
-import unittest
-import json
 import os
 import sys
-from unittest.mock import patch, mock_open, MagicMock, call
+import unittest
+from unittest.mock import patch, MagicMock
 
 # Add modules directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -19,14 +18,14 @@ sys.modules['utils.logger_config'].get_logger = MagicMock()
 sys.modules['utils.logger_config'].setup_logging = MagicMock()
 
 # Import the module under test
+# pylint: disable=wrong-import-position
 from clusterloader2.slo.slo import (
-    calculate_config, configure_clusterloader2, validate_clusterloader2,
-    execute_clusterloader2, collect_clusterloader2, main,
+    calculate_config, execute_clusterloader2, main,
     CPU_REQUEST_LIMIT_MILLI, DEFAULT_NODES_PER_NAMESPACE, DEFAULT_PODS_PER_NODE
 )
 
 class TestSlo(unittest.TestCase):
-    
+
     def test_calculate_config_default(self):
         """Test calculate_config with default parameters"""
         cpu_per_node = 4
@@ -36,11 +35,11 @@ class TestSlo(unittest.TestCase):
         service_test = False
         cnp_test = False
         ccnp_test = False
-        
+
         throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
             cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test
         )
-        
+
         # Verify default calculations
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, min(node_count, DEFAULT_NODES_PER_NAMESPACE))
@@ -50,7 +49,7 @@ class TestSlo(unittest.TestCase):
             CPU_REQUEST_LIMIT_MILLI
         )
         self.assertEqual(cpu_request, expected_cpu_request)
-    
+
     def test_calculate_config_service_test(self):
         """Test calculate_config with service_test=True"""
         cpu_per_node = 4
@@ -60,11 +59,11 @@ class TestSlo(unittest.TestCase):
         service_test = True
         cnp_test = False
         ccnp_test = False
-        
-        throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
+
+        _, _, pods_per_node, cpu_request = calculate_config(
             cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test
         )
-        
+
         # Verify service_test affects pods_per_node
         self.assertEqual(pods_per_node, max_pods)
         expected_cpu_request = max(
@@ -72,7 +71,7 @@ class TestSlo(unittest.TestCase):
             CPU_REQUEST_LIMIT_MILLI
         )
         self.assertEqual(cpu_request, expected_cpu_request)
-    
+
     def test_calculate_config_cnp_test(self):
         """Test calculate_config with cnp_test=True"""
         cpu_per_node = 4
@@ -82,11 +81,11 @@ class TestSlo(unittest.TestCase):
         service_test = False
         cnp_test = True
         ccnp_test = False
-        
-        throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
+
+        _, _, pods_per_node, cpu_request = calculate_config(
             cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test
         )
-        
+
         # Verify cnp_test affects pods_per_node
         self.assertEqual(pods_per_node, max_pods)
         expected_cpu_request = max(
@@ -94,7 +93,7 @@ class TestSlo(unittest.TestCase):
             CPU_REQUEST_LIMIT_MILLI
         )
         self.assertEqual(cpu_request, expected_cpu_request)
-    
+
     def test_calculate_config_ccnp_test(self):
         """Test calculate_config with ccnp_test=True"""
         cpu_per_node = 4
@@ -104,11 +103,11 @@ class TestSlo(unittest.TestCase):
         service_test = False
         cnp_test = False
         ccnp_test = True
-        
-        throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
+
+        _, _, pods_per_node, cpu_request = calculate_config(
             cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test
         )
-        
+
         # Verify ccnp_test affects pods_per_node
         self.assertEqual(pods_per_node, max_pods)
         expected_cpu_request = max(
@@ -116,7 +115,7 @@ class TestSlo(unittest.TestCase):
             CPU_REQUEST_LIMIT_MILLI
         )
         self.assertEqual(cpu_request, expected_cpu_request)
-    
+
     @patch('clusterloader2.slo.slo.run_cl2_command')
     def test_execute_clusterloader2(self, mock_run_cl2_command):
         """Test execute_clusterloader2 function"""
@@ -127,20 +126,20 @@ class TestSlo(unittest.TestCase):
         kubeconfig = "/tmp/kubeconfig"
         provider = "azure"
         scrape_containerd = True
-        
+
         # Call the function
         execute_clusterloader2(
             cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file,
             kubeconfig, provider, scrape_containerd
         )
-        
+
         # Verify run_cl2_command was called with correct parameters
         mock_run_cl2_command.assert_called_once_with(
             kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,
             cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
             scrape_containerd=scrape_containerd
         )
-    
+
     @patch('clusterloader2.slo.slo.configure_clusterloader2')
     def test_main_configure(self, mock_configure):
         """Test main function with configure command"""
@@ -155,7 +154,7 @@ class TestSlo(unittest.TestCase):
             mock_configure.assert_called_once_with(
                 4, 10, 5, 110, 3, "10m", "azure", False, False, False, False, False, 0, 0, False, "/tmp/override.yaml"
             )
-    
+
     @patch('clusterloader2.slo.slo.validate_clusterloader2')
     def test_main_validate(self, mock_validate):
         """Test main function with validate command"""
@@ -163,7 +162,7 @@ class TestSlo(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_validate.assert_called_once_with(10, 600)
-    
+
     @patch('clusterloader2.slo.slo.execute_clusterloader2')
     def test_main_execute(self, mock_execute):
         """Test main function with execute command"""
@@ -178,7 +177,7 @@ class TestSlo(unittest.TestCase):
                 "test-image:latest", "/tmp/config", "/tmp/report", "config.yaml",
                 "/tmp/kubeconfig", "azure", True
             )
-    
+
     @patch('clusterloader2.slo.slo.collect_clusterloader2')
     def test_main_collect(self, mock_collect):
         """Test main function with collect command"""
