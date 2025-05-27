@@ -16,6 +16,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
+from utils.logger_config import get_logger, setup_logging
 
 from .kubernetes_client import KubernetesClient
 from typing import Dict, List, Optional, Any
