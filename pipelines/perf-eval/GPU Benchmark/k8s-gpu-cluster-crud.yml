@@ -6,7 +6,6 @@ variables:
   USE_LATEST_GA_K8S_VERSION: true
   OWNER: aks
 
-
 stages:
   - stage: azure_gpu_test
     dependsOn: []

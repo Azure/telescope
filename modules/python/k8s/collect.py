@@ -1,11 +1,19 @@
+"""
+Collect and process benchmark results.
+
+This module collects JSON result files from a specified directory and processes them
+into a consolidated results file. It handles cluster data and operation information
+from Kubernetes benchmark runs and formats them for further analysis.
+"""
+
 import os
 import json
 import glob
 import sys
 from datetime import datetime
-from pathlib import Path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.logger_config import get_logger, setup_logging
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 # Configure logging
 setup_logging()
@@ -13,6 +21,18 @@ logger = get_logger(__name__)
 
 
 def get_env_vars(name: str):
+    """
+    Get environment variable value.
+
+    Args:
+        name: The name of the environment variable
+
+    Returns:
+        The value of the environment variable
+
+    Raises:
+        RuntimeError: If the environment variable is not set
+    """
     var = os.environ.get(name, None)
     if var is None:
         raise RuntimeError(f"Environment variable `{name}` not set")
@@ -20,40 +40,47 @@ def get_env_vars(name: str):
 
 
 def create_result_dir(path):
+    """
+    Create result directory if it doesn't exist.
+
+    Args:
+        path: The directory path to create
+    """
     if not os.path.exists(path):
-        logger.info(f"Creating result directory: `{path}`")
+        logger.info("Creating result directory: `%s`", path)
         os.makedirs(path)
 
 
 def main():
-    RESULT_DIR = get_env_vars("RESULT_DIR")
-    RUN_URL = get_env_vars("RUN_URL")
-    RUN_ID = get_env_vars("RUN_ID")
-    REGION = get_env_vars("REGION")
-    logger.info(f"environment variable REGION: `{REGION}`")
-    logger.info(f"environment variable RESULT_DIR: `{RESULT_DIR}`")
-    logger.info(f"environment variable RUN_URL: `{RUN_URL}`")
+    """Main function to process benchmark results."""
+    result_dir = get_env_vars("RESULT_DIR")
+    run_url = get_env_vars("RUN_URL")
+    run_id = get_env_vars("RUN_ID")
+    region = get_env_vars("REGION")
+    logger.info("environment variable REGION: `%s`", region)
+    logger.info("environment variable RESULT_DIR: `%s`", result_dir)
+    logger.info("environment variable RUN_URL: `%s`", run_url)
 
-    create_result_dir(RESULT_DIR)
+    create_result_dir(result_dir)
 
-    for filepath in glob.glob(f"{RESULT_DIR}/*.json"):
-        filename = Path(filepath).name
-        logger.info(f"Processing file: `{filepath}`")
-        content = json.load(open(filepath, "r"))
-        logger.debug(f"Content: {content}")
+    for filepath in glob.glob(f"{result_dir}/*.json"):
+        logger.info("Processing file: `%s`", filepath)
+        with open(filepath, "r", encoding="utf-8") as file:
+            content = json.load(file)
+        logger.debug("Content: %s", content)
         result = {
             "timestamp": datetime.now().isoformat(),
-            "region": REGION,
+            "region": region,
             "cluster_info": json.dumps(content.get("cluster_data")),
             "operation_info": json.dumps(content.get("operation_info")),
-            "run_id": RUN_ID,
-            "run_url": RUN_URL,
+            "run_id": run_id,
+            "run_url": run_url,
         }
         result_json = json.dumps(result)
-        logger.debug(f"Result: {result_json}")
-        with open(f"{RESULT_DIR}/results.json", "a") as f:
-            f.write(result_json)
-        logger.info(f"Result written to: `{RESULT_DIR}/results.json`")
+        logger.debug("Result: %s", result_json)
+        with open(f"{result_dir}/results.json", "a", encoding="utf-8") as file:
+            file.write(result_json)
+        logger.info("Result written to: `%s/results.json`", result_dir)
 
 
 if __name__ == "__main__":
