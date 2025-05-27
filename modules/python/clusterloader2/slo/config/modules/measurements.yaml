@@ -14,6 +14,14 @@
 {{$PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT := DefaultParam .CL2_PROBE_MEASUREMENTS_CHECK_PROBES_READY_TIMEOUT "15m"}}
 {{$ENABLE_TERMINATED_WATCHES_MEASUREMENT := DefaultParam .CL2_ENABLE_TERMINATED_WATCHES_MEASUREMENT true}}
 
+# API Availability
+{{$ENABLE_API_AVAILABILITY_MEASUREMENT := DefaultParam .CL2_ENABLE_API_AVAILABILITY_MEASUREMENT true}}
+
+{{$API_AVAILABILITY_PERCENTAGE_THRESHOLD := DefaultParam .CL2_API_AVAILABILITY_PERCENTAGE_THRESHOLD 99.5}}
+{{$API_AVAILABILITY_MEASUREMENT_IPS_CONFIGURED := DefaultParam .CL2_API_AVAILABILITY_MEASUREMENT_IPS_CONFIGURED false}}
+{{$API_AVAILABILITY_MEASUREMENT_USE_INTERNAL_IPS := DefaultParam .CL2_API_AVAILABILITY_MEASUREMENT_USE_INTERNAL_IPS false}}
+{{$API_AVAILABILITY_MEASUREMENT_USE_PUBLIC_IPS := DefaultParam .CL2_API_AVAILABILITY_MEASUREMENT_USE_PUBLIC_IPS false}}
+
 steps:
   - name: {{$action}} Additional Measurements
     measurements:
@@ -36,6 +44,34 @@ steps:
           action: {{$action}}
           enableViolations: {{$ENABLE_VIOLATIONS_FOR_NETWORK_PROGRAMMING_LATENCIES}}
           threshold: {{$NETWORK_PROGRAMMING_LATENCY_THRESHOLD}}
+    {{end}}
+    {{if $ENABLE_API_AVAILABILITY_MEASUREMENT}}
+      - Identifier: APIAvailability
+        Method: APIAvailability
+        Params:
+          action: {{$action}}
+          pollFrequency: "5s"
+          hostPollTimeoutSeconds: 5
+          threshold: {{$API_AVAILABILITY_PERCENTAGE_THRESHOLD}}
+          {{if $API_AVAILABILITY_MEASUREMENT_IPS_CONFIGURED}}
+          useHostInternalIPs: {{$API_AVAILABILITY_MEASUREMENT_USE_INTERNAL_IPS}}
+          useHostPublicIPs: {{$API_AVAILABILITY_MEASUREMENT_USE_PUBLIC_IPS}}
+          {{end}}
+      - Identifier: SLOMeasurement
+        Method: SLOMeasurement
+        Params:
+          action: {{$action}}
+          checkProbesReadyTimeout: 15m
+          replicasPerProbe: 3
+      - Identifier: TestMetrics
+        Method: TestMetrics
+        Params:
+          action: {{$action}}
+          clusterOOMsIgnoredProcesses: ""
+          clusterOOMsTrackerEnabled: true
+          enableRestartCountCheck: true
+          restartCountThresholdOverrides: ""
+          systemPodMetricsEnabled: true
     {{end}}
     {{if $ENABLE_IN_CLUSTER_NETWORK_LATENCY}}
       - Identifier: InClusterNetworkLatency
