@@ -60,17 +60,17 @@ stages:
         set -eu
 
         echo "##vso[task.setvariable variable=MULTI_REGION]false"
-        echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/azure.tfvars"}}"
+        echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_FILE": "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/terraform-inputs/azure.tfvars"}}"
       displayName: Set Terraform Input File
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
-        echo $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data
+        echo $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data
 
-        if [ -d "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data" ]; then
-            echo "Terraform user data path exists: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
-            echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+        if [ -d "$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data" ]; then
+            echo "Terraform user data path exists: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
+            echo "##vso[task.setvariable variable=TERRAFORM_USER_DATA_PATH]$(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
         else:
-            echo "Terraform user data path does not exist: $(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+            echo "Terraform user data path does not exist: $(Pipeline.Workspace)/s/scenarios/perf-eval/job-scheduling/scripts/user_data"
         fi
       displayName: Set User Data Path
     - script: |-
@@ -316,7 +316,7 @@ stages:
     steps: []
     dependsOn:
     - validate
-  - job: tear down
+  - job: tearDown
     displayName: Tear down resources
     steps:
     - script: |-

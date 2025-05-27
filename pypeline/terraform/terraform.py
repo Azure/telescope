@@ -18,7 +18,11 @@ class TerraformCommand(Enum):
 
 
 def generate_regional_config(
-    cloud: str, regions: str, input_file_mapping: dict
+    cloud: str,
+    regions: str,
+    input_file_mapping: dict,
+    scenario_name: str,
+    scenario_type: str,
 ) -> dict:
     regional_config = {}
     multi_region = len(regions) > 1
@@ -28,9 +32,9 @@ def generate_regional_config(
             regional_input_file_path = input_file_mapping[region]
             terraform_input_file = f"$(Pipeline.Workspace)/s/{regional_input_file_path}"
         elif not multi_region:
-            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/{cloud}.tfvars"
+            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud}.tfvars"
         else:
-            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/{cloud}-{region}.tfvars"
+            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud}-{region}.tfvars"
 
         regional_config[region] = {"TERRAFORM_INPUT_FILE": terraform_input_file}
 
@@ -61,8 +65,14 @@ def set_working_directory(cloud: str, modules_dir: str) -> Script:
     )
 
 
-def set_input_file(cloud: str, regions: str, input_file_mapping: dict) -> Script:
-    config = generate_regional_config(cloud, regions, input_file_mapping)
+def set_input_file(
+    cloud: str,
+    regions: str,
+    input_file_mapping: dict,
+    scenario_name: str,
+    scenario_type: str,
+) -> Script:
+    config = generate_regional_config(cloud, regions, input_file_mapping,scenario_name,scenario_type)
     regional_config = config["regional_config"]
     multi_region = config["multi_region"]
 
@@ -82,11 +92,13 @@ def set_input_file(cloud: str, regions: str, input_file_mapping: dict) -> Script
     )
 
 
-def set_user_data_path(user_data_path: str) -> Script:
+def set_user_data_path(
+    user_data_path: str, scenario_name: str, scenario_type: str
+) -> Script:
     if user_data_path:
         terraform_user_data_path = f"$(Pipeline.Workspace)/s/{user_data_path}"
     else:
-        terraform_user_data_path = "$(Pipeline.Workspace)/s/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/scripts/user_data"
+        terraform_user_data_path = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/scripts/user_data"
 
     return Script(
         display_name="Set User Data Path",
@@ -245,6 +257,8 @@ def create_resource_group(cloud: Cloud, region: str) -> Script:
 class Terraform(Resource):
     cloud: Cloud
     regions: list[str]
+    scenario_name: str
+    scenario_type: str = "perf-eval"
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     modules_dir: str = ""
     input_file_mapping: List = field(default_factory=list)
@@ -257,9 +271,13 @@ class Terraform(Resource):
         return [
             set_working_directory(self.cloud.provider.value, self.modules_dir),
             set_input_file(
-                self.cloud.provider.value, self.regions, self.input_file_mapping
+                self.cloud.provider.value,
+                self.regions,
+                self.input_file_mapping,
+                self.scenario_name,
+                self.scenario_type,
             ),
-            set_user_data_path(self.user_data_path),
+            set_user_data_path(self.user_data_path,self.scenario_name, self.scenario_type),
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
             create_resource_group(self.cloud, self.regions[0]),
