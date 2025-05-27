@@ -20,16 +20,14 @@ network_config_list = [
   }
 ]
 
-aks_config_list = [
+aks_cli_config_list = [
   {
-    role        = "slo"
-    aks_name    = "slo"
+    role        = "safeguards"
+    aks_name    = "safeguards"
     dns_prefix  = "slo"
     subnet_name = "slo-subnet-1"
     sku_tier    = "Standard"
-    safeguards_profile = {
-      level = "Warning"
-    }
+    azure_policy_enabled = true
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
@@ -46,6 +44,12 @@ aks_config_list = [
       only_critical_addons_enabled = false
       temporary_name_for_rotation  = "defaulttmp"
     }
+    optional_parameters = [
+      {
+        name  = "safeguards-level"
+        value = "Warn"
+      }
+    ]
     extra_node_pool = [
       {
         name                 = "prompool"
@@ -76,6 +80,6 @@ aks_config_list = [
         max_pods             = 110
       }
     ]
-    kubernetes_version = "1.30"
+    kubernetes_version = "1.31"
   }
 ]
