@@ -13,7 +13,7 @@ stages:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
-          regions:             
+          regions:
             - australiaeast
           topology: k8s-crud-gpu
           engine: raw

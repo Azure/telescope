@@ -10,13 +10,11 @@ import unittest
 from unittest import mock
 import tempfile
 import shutil
-
+from k8s.collect import get_env_vars, create_result_dir, main
 # Add the python directory to the path to import modules correctly
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-# pylint: disable=wrong-import-position
-from k8s.collect import get_env_vars, create_result_dir, main
 
 
 class TestCollect(unittest.TestCase):

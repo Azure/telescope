@@ -2,18 +2,17 @@
 """
 Unit tests for NodePoolCRUD class
 """
-
 import os
 import sys
 import unittest
 from unittest import mock
+from k8s.azure.node_pool_crud import NodePoolCRUD
+
 
 # Add the python directory to the path to import modules correctly
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-
-from k8s.azure.node_pool_crud import NodePoolCRUD
 
 
 class TestNodePoolCRUD(unittest.TestCase):
