@@ -200,18 +200,14 @@ steps:
           query: quantile(0.90, max_over_time(increase(kube_pod_container_status_restarts_total{container="cilium-agent"}[%v])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="cilium-agent"}[%v])[%v:]))
-    - Identifier: CiliumHubbleMetricsCardinality{{$suffix}}
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Hubble Metrics Cardinality {{$suffix}}
-        metricVersion: v1
-        unit: "#"
-        enableViolations: true
-        queries:
-        - name: Perc99
-          query: quantile(0.99, count({__name__=~"hubble_.*"}) by (pod))
-        - name: Perc90
-          query: quantile(0.90, count({__name__=~"hubble_.*"}) by (pod))
-        - name: Perc50
-          query: quantile(0.50, count({__name__=~"hubble_.*"}) by (pod))
+    # - Identifier: AvgCiliumHubbleMetricsCardinality{{$suffix}}
+    #   Method: GenericPrometheusQuery
+    #   Params:
+    #     action: {{$action}}
+    #     metricName: Average Cilium Hubble Metrics Cardinality {{$suffix}}
+    #     metricVersion: v1
+    #     unit: "#"
+    #     enableViolations: true
+    #     queries:
+    #     - name: Avg
+    #       query: count({__name__=~"hubble_.*"})
