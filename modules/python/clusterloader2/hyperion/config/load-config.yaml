@@ -47,7 +47,7 @@ name: load-config-hyperion
 
 namespace:
   number: {{$namespaces}}
-  prefix: slo
+  prefix: hyperion
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
   enableExistingNamespaces: false

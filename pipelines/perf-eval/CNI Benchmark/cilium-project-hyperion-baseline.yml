@@ -45,7 +45,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: cilium-hyperion-project
+          topology: hyperion
           matrix:
             azure_cilium:
               cpu_per_node: 4
@@ -59,7 +59,7 @@ stages:
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
-              cl2_config_file: load-config-hyperion.yaml
+              cl2_config_file: load-config.yaml
               override_default_pods_per_node: True
               service_test: False
           max_parallel: 2
