@@ -104,7 +104,6 @@ steps:
         action: gather
 {{end}}
 
-
   - module:
       path: /modules/measurements.yaml
       params:
