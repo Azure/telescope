@@ -78,9 +78,6 @@ eks_config_list = [{
       max_size       = 3
       desired_size   = 3
       capacity_type  = "ON_DEMAND"
-      labels = {
-        "virtual" = "true"
-      }
       taints = [
         {
           key    = "virtual"
@@ -88,6 +85,9 @@ eks_config_list = [{
           effect = "NO_SCHEDULE"
         }
       ]
+      labels = {
+        "virtual" = "true"
+      }
     }
   ]
 

@@ -27,10 +27,8 @@ aks_config_list = [
         name        = "virtualnodes"
         node_count  = 3
         vm_size     = "Standard_D8_v3"
-        node_taints = ["virtual=true:NoSchedule"]
-        node_labels = { "virtual" = "true" }
+        node_labels = { "nosch" = "true" }
       }
     ]
-    kubernetes_version = "1.32"
   }
 ]
