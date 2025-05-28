@@ -181,6 +181,7 @@ class NodePoolCRUD:
         # Determine if we're scaling up or down
         scaling_up = current_count < target_count
         operation_type = "scale_up" if scaling_up else "scale_down"
+        wait_time = 30 # Default wait time between scale steps
 
         # Calculate the steps
         if scaling_up:
@@ -218,9 +219,9 @@ class NodePoolCRUD:
                 return False
 
             # Wait between steps if not the last step
-            if step != steps[-1] and self.step_timeout > 0:
-                logger.info(f"Waiting {self.step_timeout}s before next scaling operation...")
-                time.sleep(self.step_timeout)
+            if step != steps[-1] and wait_time > 0:
+                logger.info(f"Waiting {wait_time}s before next scaling operation...")
+                time.sleep(wait_time)
 
         logger.info(
             f"Progressive scaling from {current_count} to {target_count} completed successfully"
