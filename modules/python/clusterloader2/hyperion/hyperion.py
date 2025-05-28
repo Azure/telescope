@@ -29,7 +29,7 @@ def calculate_config(cpu_per_node, pods_per_node, provider):
 
 def configure_clusterloader2(
     cpu_per_node,
-    node_count,
+    nodes_per_namespace,
     pods_per_node,
     repeats,
     operation_timeout,
@@ -42,7 +42,7 @@ def configure_clusterloader2(
     throughput, cpu_request = calculate_config(cpu_per_node, pods_per_node, provider)
 
     with open(override_file, 'w', encoding='utf-8') as file:
-        file.write(f"CL2_NODES: {node_count}\n")
+        file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {throughput}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
@@ -68,20 +68,21 @@ def configure_clusterloader2(
 
     file.close()
 
-def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
+def validate_clusterloader2(nodes_per_namespace, no_of_namespaces, operation_timeout_in_minutes=10):
     kube_client = KubernetesClient()
     ready_node_count = 0
+    total_node_count = npodes_per_namespace * no_of_namespaces
     timeout = time.time() + (operation_timeout_in_minutes * 60)
     while time.time() < timeout:
         ready_nodes = kube_client.get_ready_nodes()
         ready_node_count = len(ready_nodes)
         print(f"Currently {ready_node_count} nodes are ready.")
-        if ready_node_count == node_count:
+        if ready_node_count == total_node_count:
             break
-        print(f"Waiting for {node_count} nodes to be ready.")
+        print(f"Waiting for {total_node_count} nodes to be ready.")
         time.sleep(10)
-    if ready_node_count != node_count:
-        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+    if ready_node_count != total_node_count:
+        raise Exception(f"Only {ready_node_count} nodes are ready, expected {total_node_count} nodes!")
 
 def execute_clusterloader2(
     cl2_image,
@@ -96,7 +97,7 @@ def execute_clusterloader2(
 
 def collect_clusterloader2(
     cpu_per_node,
-    node_count,
+    nodes_per_namespace,
     no_of_namespaces,
     pods_per_node,
     replicas_per_deployment,
@@ -118,13 +119,13 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    pod_count = ((node_count * pods_per_node) // replicas_per_deployment) * no_of_namespaces * replicas_per_deployment
+    pod_count = ((nodes_per_namespace * pods_per_node) // replicas_per_deployment) * no_of_namespaces * replicas_per_deployment
 
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "cpu_per_node": cpu_per_node,
-        "node_count": node_count,
+        "nodes_per_namespace": nodes_per_namespace,
         "no_of_namespaces": no_of_namespaces,
         "pod_count": pod_count,
         "replicas_per_deployment": replicas_per_deployment,
@@ -180,7 +181,7 @@ def main():
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
     parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
-    parser_configure.add_argument("node_count", type=int, help="Number of nodes")
+    parser_configure.add_argument("nodes_per_namespace", type=int, help="Number of nodes per namespace")
     parser_configure.add_argument("pods_per_node", type=int, nargs='?', default=0, help="Maximum number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
@@ -193,8 +194,9 @@ def main():
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
+    parser_validate.add_argument("nodes_per_namespace", type=int, help="Number of desired nodes per namespace")
     parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
+    parser_validate.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -208,7 +210,7 @@ def main():
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
-    parser_collect.add_argument("node_count", type=int, help="Number of nodes per namespace")
+    parser_collect.add_argument("nodes_per_namespace", type=int, help="Number of nodes per namespace")
     parser_collect.add_argument("no_of_namespaces", type=int, help="Number of namespaces")
     parser_collect.add_argument("pods_per_node", type=int, nargs='?', default=0, help="Number of pods per node")
     parser_collect.add_argument("replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployments")
@@ -226,17 +228,17 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.cpu_per_node, args.node_count, args.pods_per_node,
+        configure_clusterloader2(args.cpu_per_node, args.nodes_per_namespace, args.pods_per_node,
                                  args.repeats, args.operation_timeout, args.provider,
                                  args.cilium_enabled, args.no_of_namespaces, args.replicas_per_deployment,
                                  args.cl2_override_file)
     elif args.command == "validate":
-        validate_clusterloader2(args.node_count, args.operation_timeout)
+        validate_clusterloader2(args.nodes_per_namespace, args.no_of_namespaces, args.operation_timeout)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.no_of_namespaces, args.pods_per_node, args.replicas_per_deployment, args.repeats,
+        collect_clusterloader2(args.cpu_per_node, args.nodes_per_namespace, args.no_of_namespaces, args.pods_per_node, args.replicas_per_deployment, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp)
 
