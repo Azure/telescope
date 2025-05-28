@@ -39,9 +39,6 @@ spec:
           requests:
             cpu: {{$CpuRequest}}
             memory: {{$MemoryRequest}}
-            acn.azure.com/vnet-nic: "1"
-          limits:
-            acn.azure.com/vnet-nic: "1"
       # Add not-ready/unreachable tolerations for 15 minutes so that node
       # failure doesn't trigger pod deletion.
       tolerations:
@@ -57,3 +54,10 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: "kubernetes.io/hostname"
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            group: {{.Group}}
