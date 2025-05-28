@@ -71,7 +71,7 @@ def configure_clusterloader2(
 def validate_clusterloader2(nodes_per_namespace, no_of_namespaces, operation_timeout_in_minutes=10):
     kube_client = KubernetesClient()
     ready_node_count = 0
-    total_node_count = npodes_per_namespace * no_of_namespaces
+    total_node_count = nodes_per_namespace * no_of_namespaces
     timeout = time.time() + (operation_timeout_in_minutes * 60)
     while time.time() < timeout:
         ready_nodes = kube_client.get_ready_nodes()
