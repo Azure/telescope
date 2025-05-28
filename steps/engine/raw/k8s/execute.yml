@@ -23,7 +23,7 @@ steps:
       --vm-size "$VM_SIZE"
       --step-timeout "$STEP_TIME_OUT"
       --result-dir "$RESULT_DIR"
-      --step-size "$SCALE_STEP_SIZE"
+      --scale-step-size "$SCALE_STEP_SIZE"
     )
 
     # Conditionally add gpu-node
