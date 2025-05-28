@@ -10,7 +10,7 @@ name: load-config
 {{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}«
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
