@@ -116,6 +116,7 @@ class AKSClient:
             logger.error(error_msg)
             raise ValueError(error_msg)
         self.result_dir = result_dir
+        self.operation_timeout_minutes = operation_timeout_minutes
 
         # Initialize Kubernetes client if provided or if kubeconfig is available
         try:
@@ -312,7 +313,7 @@ class AKSClient:
             try:
                 ready_nodes = self.k8s_client.wait_for_nodes_ready(
                     node_count=node_count,
-                    operation_timeout_in_minutes=operation_timeout_minutes,
+                    operation_timeout_in_minutes=self.operation_timeout_minutes,
                     label_selector=label_selector,
                 )
                 logger.info(

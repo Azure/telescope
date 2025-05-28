@@ -50,6 +50,7 @@ class NodePoolCRUD:
 
         # Get the cluster name when initializing
         self.cluster_name = self.aks_client.get_cluster_name()
+        self.step_timeout = step_timeout
 
     def create_node_pool(
         self, node_pool_name, vm_size, node_count=1, gpu_node_pool=False
@@ -125,7 +126,6 @@ class NodePoolCRUD:
                     current_count=current_count,
                     target_count=node_count,
                     scale_step_size=scale_step_size,
-                    wait_time=wait_time,
                     operation_type=operation_type,
                     gpu_node_pool=gpu_node_pool,
                 )
@@ -218,9 +218,9 @@ class NodePoolCRUD:
                 return False
 
             # Wait between steps if not the last step
-            if step != steps[-1] and wait_time > 0:
-                logger.info(f"Waiting {wait_time}s before next scaling operation...")
-                time.sleep(wait_time)
+            if step != steps[-1] and self.step_timeout > 0:
+                logger.info(f"Waiting {self.step_timeout}s before next scaling operation...")
+                time.sleep(self.step_timeout)
 
         logger.info(
             f"Progressive scaling from {current_count} to {target_count} completed successfully"
@@ -407,7 +407,6 @@ def handle_node_pool_operation(node_pool_crud, args):
                 target_count=args.target_count,
                 progressive=args.progressive,
                 scale_step_size=args.scale_step_size,
-                wait_time=args.step_wait_time,
                 gpu_node_pool=args.gpu_node_pool,
             )
         else:
@@ -607,7 +606,6 @@ def handle_node_pool_all(node_pool_crud, args):
             target_count=args.target_count,
             progressive=args.progressive if hasattr(args, "progressive") else False,
             scale_step_size=args.scale_step_size if hasattr(args, "scale_step_size") else 1,
-            wait_time=args.step_wait_time if hasattr(args, "step_wait_time") else 30,
             gpu_node_pool=args.gpu_node_pool
             if hasattr(args, "gpu_node_pool")
             else False,
@@ -634,7 +632,7 @@ if __name__ == "__main__":
         logger.error(f"Exiting with code: {exit_code}")
         sys.exit(exit_code)
     except ImportError as import_error:
-        ERROR_MSG = f"Import Error: {import_error}"       
+        ERROR_MSG = f"Import Error: {import_error}"
         logger.critical(ERROR_MSG)
 
         ERROR_TRACE = traceback.format_exc()

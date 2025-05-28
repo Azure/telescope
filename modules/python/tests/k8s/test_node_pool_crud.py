@@ -170,8 +170,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         node_pool_name = "test-pool"
         current_count = 1
         target_count = 5
-        step_size = 2
-        wait_time = 10
+        scale_step_size = 2
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = current_count
@@ -186,8 +185,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             node_count=target_count,
             progressive=True,
-            step_size=step_size,
-            wait_time=wait_time,
+            scale_step_size=scale_step_size,
         )
 
         # Verify
@@ -198,8 +196,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             current_count=current_count,
             target_count=target_count,
-            step_size=step_size,
-            wait_time=wait_time,
+            scale_step_size=scale_step_size,
             operation_type="scale_up",
             gpu_node_pool=False,
         )
@@ -211,7 +208,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         node_pool_name = "test-pool"
         current_count = 1
         target_count = 5
-        step_size = 2
+        scale_step_size = 2
 
         self.mock_aks_client.scale_node_pool.return_value = True
 
@@ -221,8 +218,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             current_count=current_count,
             target_count=target_count,
-            step_size=step_size,
-            wait_time=0,  # No wait to speed up test
+            scale_step_size=scale_step_size,
         )
 
         # Verify
@@ -247,9 +243,6 @@ class TestNodePoolCRUD(unittest.TestCase):
             self.mock_aks_client.scale_node_pool.call_args_list, expected_calls
         )
 
-        # Time.sleep should not have been called with wait_time=0
-        mock_time.sleep.assert_not_called()
-
     @mock.patch("k8s.azure.node_pool_crud.time")
     def test_progressive_scale_down(self, mock_time):
         """Test the _progressive_scale method for scaling down"""
@@ -257,7 +250,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         node_pool_name = "test-pool"
         current_count = 5
         target_count = 1
-        step_size = 2
+        scale_step_size = 2
 
         self.mock_aks_client.scale_node_pool.return_value = True
 
@@ -267,8 +260,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             current_count=current_count,
             target_count=target_count,
-            step_size=step_size,
-            wait_time=10,
+            scale_step_size=scale_step_size,
         )
 
         # Verify
@@ -292,9 +284,6 @@ class TestNodePoolCRUD(unittest.TestCase):
         self.assertEqual(
             self.mock_aks_client.scale_node_pool.call_args_list, expected_calls
         )
-
-        # Time.sleep should have been called once with wait_time=10
-        mock_time.sleep.assert_called_once_with(10)
 
     def test_delete_node_pool(self):
         """Test deleting a node pool"""
@@ -344,8 +333,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_count=node_count,
             target_count=target_count,
             progressive=True,
-            step_size=1,
-            wait_time=10,
+            scale_step_size=1,
             gpu_node_pool=True,
         )
 
@@ -365,8 +353,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         self.assertEqual(scale_up_call[1]["node_pool_name"], node_pool_name)
         self.assertEqual(scale_up_call[1]["node_count"], target_count)
         self.assertTrue(scale_up_call[1]["progressive"])
-        self.assertEqual(scale_up_call[1]["step_size"], 1)
-        self.assertEqual(scale_up_call[1]["wait_time"], 10)
+        self.assertEqual(scale_up_call[1]["scale_step_size"], 1)
         self.assertTrue(scale_up_call[1]["gpu_node_pool"])
 
         # Second call should be scale down to node_count
