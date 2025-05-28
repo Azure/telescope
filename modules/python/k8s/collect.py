@@ -6,17 +6,15 @@ into a consolidated results file. It handles cluster data and operation informat
 from Kubernetes benchmark runs and formats them for further analysis.
 """
 
+import sys
 import os
 import json
 import glob
-import sys
-from datetime import datetime
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from datetime import datetime
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
-
-# Add the parent directory to the Python path so we can import utils
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Configure logging
 setup_logging()
@@ -36,7 +34,7 @@ def create_result_dir(path):
 
 
 def main():
-    """Main function to process benchmark results."""
+    """Main function to process Cluster Crud benchmark results."""
     result_dir = get_env_vars("RESULT_DIR")
     run_url = get_env_vars("RUN_URL")
     run_id = get_env_vars("RUN_ID")
@@ -52,10 +50,11 @@ def main():
         with open(filepath, "r", encoding="utf-8") as file:
             content = json.load(file)
         logger.debug("Content: %s", content)
+
         result = {
             "timestamp": datetime.now().isoformat(),
             "region": region,
-            "cluster_info": json.dumps(content.get("cluster_data")),
+            "cluster_info": json.dumps(content.get("operation_info", {}).get("cluster_info", {})),
             "operation_info": json.dumps(content.get("operation_info")),
             "run_id": run_id,
             "run_url": run_url,

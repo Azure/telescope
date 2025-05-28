@@ -12,6 +12,7 @@ steps:
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect
 
   displayName: 'Collect K8s CRUD Operations data for ${{ parameters.cloud }}'
+  workingDirectory: modules/python
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/k8s/collect.py
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
