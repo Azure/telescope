@@ -242,6 +242,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         self.assertEqual(
             self.mock_aks_client.scale_node_pool.call_args_list, expected_calls
         )
+        self.assertEqual(mock_time.sleep.call_count, 1)
 
     @mock.patch("k8s.azure.node_pool_crud.time")
     def test_progressive_scale_down(self, mock_time):
@@ -284,6 +285,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         self.assertEqual(
             self.mock_aks_client.scale_node_pool.call_args_list, expected_calls
         )
+        self.assertEqual(mock_time.sleep.call_count, 1)
 
     def test_delete_node_pool(self):
         """Test deleting a node pool"""
