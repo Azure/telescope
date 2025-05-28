@@ -7,34 +7,20 @@ name: load-config-hyperion
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-# TODO(jshr-w): This should eventually use >1 namespace.
 {{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
-{{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodes $podsPerNode}}
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}}
-{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $deploymentSize}}
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}«
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}} #todo look into this
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
-{{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
-# Service test
-{{$BIG_GROUP_SIZE := DefaultParam .BIG_GROUP_SIZE 4000}}
-{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}}
+{{$REPLICAS_PER_DEPLOYMENTS := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENTS 20}}
 
-# TODO(jshr-w): Add some flexibility to BIG_GROUP_SIZE (e.g. upstream uses 250)
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 0}}
-{{if (gt $podsPerNamespace $BIG_GROUP_SIZE)}}
-{{$bigDeploymentsPerNamespace := DefaultParam .bigDeploymentsPerNamespace 1}}
-{{end}}
-
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
-{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
+{{$deploymentsPerNamespace := DivideInt $totalPods $REPLICAS_PER_DEPLOYMENTS}}
 
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
@@ -64,7 +50,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentPods={{$smallDeploymentPods}},  smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, bigGroupSize={{$BIG_GROUP_SIZE}}, smallGroupSize={{$SMALL_GROUP_SIZE}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
+  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, replicasPerDeployment={{$REPLICAS_PER_DEPLOYMENTS}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -85,13 +71,6 @@ steps:
         action: start
 {{end}}
 
-{{if $SCRAPE_CONTAINERD}}
-  - module:
-      path: /modules/containerd-measurements.yaml
-      params:
-        action: start
-{{end}}
-
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -99,10 +78,8 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+        replicasPerDeployment: {{$REPLICAS_PER_DEPLOYMENTS}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
@@ -115,10 +92,8 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
-        bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: 0
-        smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: 0
+        replicasPerDeployment: {{$REPLICAS_PER_DEPLOYMENTS}}
+        deploymentsPerNamespace: 0
         deploymentLabel: restart
         Group: {{$groupName}}
 
@@ -129,19 +104,6 @@ steps:
         action: gather
 {{end}}
 
-{{if $SCRAPE_CONTAINERD}}
-  - name: Wait for last scrape
-    measurements:
-      - Identifier: Sleep
-        Method: Sleep
-        Params:
-          duration: 10m
-
-  - module:
-      path: /modules/containerd-measurements.yaml
-      params:
-        action: gather
-{{end}}
 
   - module:
       path: /modules/measurements.yaml

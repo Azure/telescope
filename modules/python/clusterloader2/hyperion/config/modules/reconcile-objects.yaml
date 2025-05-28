@@ -9,13 +9,8 @@
 {{$operationTimeout := .operationTimeout}}
 
 # Deployments
-{{$bigDeploymentSize := .bigDeploymentSize}}
-{{$bigDeploymentsPerNamespace := .bigDeploymentsPerNamespace}}
-{{$smallDeploymentSize := .smallDeploymentSize}}
-{{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
-
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
+{{$replicasPerDeployment := .replicasPerDeployment}}
+{{$deploymentsPerNamespace := .deploymentsPerNamespace}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -38,32 +33,14 @@ steps:
   - namespaceRange:
       min: 1
       max: {{$namespaces}}
-    replicasPerNamespace: {{$bigDeploymentsPerNamespace}}
+    replicasPerNamespace: {{$deploymentsPerNamespace}}
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: big-deployment
+    - basename: deployment
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
-        Replicas: {{$bigDeploymentSize}}
-        SvcName: big-service
-        Group: {{.Group}}
-        deploymentLabel: {{.deploymentLabel}}
-  - namespaceRange:
-      min: 1
-      max: {{$namespaces}}
-    replicasPerNamespace: {{$smallDeploymentsPerNamespace}}
-    tuningSet: {{$tuningSet}}
-    objectBundle:
-    - basename: small-deployment
-      objectTemplatePath: deployment_template.yaml
-      templateFillMap:
-        Replicas: {{$smallDeploymentSize}}
-  {{if or $cnp_test $ccnp_test}}
-        cnp_test: {{$cnp_test}}
-        ccnp_test: {{$ccnp_test}}
-  {{else}}
-        SvcName: small-service
-  {{end}}
+        Replicas: {{$replicasPerDeployment}}
+        SvcName: service
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 
