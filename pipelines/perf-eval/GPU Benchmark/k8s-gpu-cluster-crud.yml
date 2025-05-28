@@ -25,6 +25,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
+              step_time_out: 600
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
