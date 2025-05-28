@@ -15,6 +15,7 @@ and troubleshooting.
 import os
 import time
 import logging
+import json
 from typing import Dict, Optional, Any
 
 # Third party imports
@@ -346,9 +347,9 @@ class AKSClient:
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
                     "nodepool_info",
-                    self.get_node_pool(node_pool_name, cluster_name).as_json(),
+                    json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict()),
                 )
-                op.add_metadata("cluster_info", self.get_cluster_data(cluster_name).as_json())
+                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name).as_dict()))
 
                 return True
 
@@ -488,9 +489,9 @@ class AKSClient:
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
                     "nodepool_info",
-                    self.get_node_pool(node_pool_name, cluster_name).as_json(),
+                    json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict()),
                 )
-                op.add_metadata("cluster_info", self.get_cluster_data(cluster_name).as_json())
+                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name).as_dict()))
 
                 return True
 
@@ -685,9 +686,9 @@ class AKSClient:
                     # Add additional metadata to this step's operation
                     op.add_metadata(
                         "nodepool_info",
-                        self.get_node_pool(node_pool_name, cluster_name).as_json(),
+                        json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict()),
                     )
-                    op.add_metadata("cluster_info", self.get_cluster_data(cluster_name).as_json())
+                    op.add_metadata("cluster_info", json.dumps(json.dumps(self.get_cluster_data(cluster_name).as_dict())))
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
                     )
@@ -727,9 +728,9 @@ class AKSClient:
                         op.add_metadata("node_pool_name", node_pool_name)
                         op.add_metadata(
                             "nodepool_info",
-                            self.get_node_pool(node_pool_name, cluster_name).as_json(),
+                            json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict())
                         )
-                        op.add_metadata("cluster_info", self.get_cluster_data(cluster_name).as_json())
+                        op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name).as_dict()))
 
                 except Exception as e:
                     logger.error(f"Error at step {step}: {str(e)}")
