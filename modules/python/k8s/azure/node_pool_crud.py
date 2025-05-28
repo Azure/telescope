@@ -204,9 +204,9 @@ class NodePoolCRUD:
 
         # Execute scaling operation for each step
         for step_index, step in enumerate(steps):
-            is_final_target = (step == target_count)
+            is_final_target = step == target_count
             previous_count = current_count if step_index == 0 else steps[step_index - 1]
-            
+
             logger.info(
                 f"Scaling from {previous_count} to {step} nodes (step {step_index + 1}/{len(steps)})"
             )

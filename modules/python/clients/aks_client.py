@@ -465,9 +465,9 @@ class AKSClient:
                 pod_logs = None
                 # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                 # and only when reaching the final target (not intermediate steps)
-                if (gpu_node_pool and 
-                    operation_type == "scale_up" and 
-                    node_count > 0 and 
+                if (gpu_node_pool and
+                    operation_type == "scale_up" and
+                    node_count > 0 and
                     is_final_target):
                     logger.info(
                         f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"

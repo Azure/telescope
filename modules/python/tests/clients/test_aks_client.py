@@ -409,7 +409,7 @@ class TestAKSClient(unittest.TestCase):
             label_selector=f"agentpool={node_pool_name}",
         )
         self.assertEqual(mock_node_pool.count, node_count)
-        
+
         # Check that NVIDIA verification was performed
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
@@ -455,7 +455,7 @@ class TestAKSClient(unittest.TestCase):
             label_selector=f"agentpool={node_pool_name}",
         )
         self.assertEqual(mock_node_pool.count, node_count)
-        
+
         # Check that NVIDIA verification was NOT performed for intermediate step
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
 
@@ -501,7 +501,7 @@ class TestAKSClient(unittest.TestCase):
             label_selector=f"agentpool={node_pool_name}",
         )
         self.assertEqual(mock_node_pool.count, node_count)
-        
+
         # Check that NVIDIA verification was NOT performed for scale-down
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
 
