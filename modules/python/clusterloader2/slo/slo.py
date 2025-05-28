@@ -33,7 +33,6 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
 
     if cnp_test or ccnp_test:
         pods_per_node = max_pods
-
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
@@ -303,8 +302,8 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.no_of_namespaces, args.max_pods, args.small_group_size, args.repeats,
-                               collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
+                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test,
                                args.result_file, args.test_type, args.start_timestamp)
 
