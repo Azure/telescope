@@ -1,4 +1,4 @@
-name: load-config-hyperion
+name: load-config
 
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
