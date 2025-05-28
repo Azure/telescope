@@ -33,14 +33,16 @@ logging.getLogger("msal").setLevel(logging.ERROR)
 class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
 
-    def __init__(self, resource_group, kube_config_file=None, result_dir=None, step_timeout=600):
+    def __init__(
+        self, resource_group, kube_config_file=None, result_dir=None, step_timeout=600
+    ):
         """Initialize with Azure resource identifiers"""
         self.resource_group = resource_group
         self.aks_client = AKSClient(
             resource_group=resource_group,
             kube_config_file=kube_config_file,
             result_dir=result_dir,
-            operation_timeout_minutes=step_timeout/60,  # Convert seconds to minutes
+            operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
         )
 
         if not self.aks_client:
@@ -98,7 +100,6 @@ class NodePoolCRUD:
         Args:
             node_pool_name: Name of the node pool
             node_count: Desired node count
-            operation_type: Type of scaling operation (scale, scale_up, scale_down)
             progressive: Whether to scale progressively in steps (default: False)
             scale_step_size: Number of nodes to add/remove in each step if progressive (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
@@ -107,135 +108,27 @@ class NodePoolCRUD:
             The scaled node pool object or False if scaling failed
         """
         try:
-            # Get current node pool info for logging
-            current_pool = self.aks_client.get_node_pool(node_pool_name)
-            current_count = current_pool.count
-            logger.info(f"Current node count: {current_count}, target: {node_count}")
-
-            if current_count < node_count:
-                operation_type = "scale_up"
-            elif current_count > node_count:
-                operation_type = "scale_down"
-            else:
-                return current_pool
-
-            # If progressive scaling is requested
-            if progressive and current_count != node_count:
-                return self._progressive_scale(
-                    node_pool_name=node_pool_name,
-                    current_count=current_count,
-                    target_count=node_count,
-                    scale_step_size=scale_step_size,
-                    operation_type=operation_type,
-                    gpu_node_pool=gpu_node_pool,
-                )
-
-            # Otherwise, perform direct scaling
             logger.info(
-                f"{operation_type.replace('_', ' ').title()} node pool '{node_pool_name}' from {current_count} to {node_count} nodes"
+                f"Scaling node pool '{node_pool_name}' to {node_count} nodes (Progressive: {progressive})"
             )
+
             result = self.aks_client.scale_node_pool(
                 node_pool_name=node_pool_name,
                 node_count=node_count,
-                operation_type=operation_type,
                 gpu_node_pool=gpu_node_pool,
-                is_final_target=True,  # Direct scaling is always the final target
+                progressive=progressive,
+                scale_step_size=scale_step_size,
             )
 
-            logger.info(
-                f"Node pool '{node_pool_name}' {operation_type.replace('_', ' ')}d to {node_count} nodes successfully"
-            )
+            if result is not None:
+                logger.info(
+                    f"Node pool '{node_pool_name}' scaled to {node_count} nodes successfully"
+                )
 
             return result
         except Exception as e:
-            logger.error(
-                f"Failed to {operation_type.replace('_', ' ')} node pool '{node_pool_name}': {str(e)}"
-            )
+            logger.error(f"Failed to scale node pool '{node_pool_name}': {str(e)}")
             return False
-
-    def _progressive_scale(
-        self,
-        node_pool_name,
-        current_count,
-        target_count,
-        scale_step_size=1,
-        operation_type="scale",
-        gpu_node_pool=False,
-    ):
-        """
-        Scale a node pool progressively with specified step size
-
-        Args:
-            node_pool_name: Name of the node pool
-            current_count: Starting node count
-            target_count: Final desired node count
-            scale_step_size: Number of nodes to add/remove in each step (default: 1)
-            operation_type: Type of scaling operation (scale_up or scale_down)
-
-        Returns:
-            The final node pool object or False if scaling failed
-        """
-        logger.info(
-            f"Starting progressive scaling for node pool '{node_pool_name}' from {current_count} to {target_count} nodes (step size: {scale_step_size})"
-        )
-
-        # Determine if we're scaling up or down
-        scaling_up = current_count < target_count
-        operation_type = "scale_up" if scaling_up else "scale_down"
-        wait_time = 30 # Default wait time between scale steps
-
-        # Calculate the steps
-        if scaling_up:
-            steps = range(current_count + scale_step_size, target_count + 1, scale_step_size)
-        else:
-            steps = range(current_count - scale_step_size, target_count - 1, -scale_step_size)
-
-        # Ensure the final step is exactly the target count
-        if steps and steps[-1] != target_count:
-            steps = list(steps)
-            if target_count not in steps:
-                steps.append(target_count)
-
-        # If there are no intermediate steps, just add the target directly
-        if not steps:
-            steps = [target_count]
-
-        result = None
-
-        # Execute scaling operation for each step
-        for step_index, step in enumerate(steps):
-            is_final_target = step == target_count
-            previous_count = current_count if step_index == 0 else steps[step_index - 1]
-
-            logger.info(
-                f"Scaling from {previous_count} to {step} nodes (step {step_index + 1}/{len(steps)})"
-            )
-
-            result = self.aks_client.scale_node_pool(
-                node_pool_name=node_pool_name,
-                node_count=step,
-                operation_type=operation_type,
-                gpu_node_pool=gpu_node_pool,
-                is_final_target=is_final_target,
-            )
-
-            if result is None:
-                logger.error(f"Progressive scaling failed at step {step}")
-                return False
-
-            logger.info(
-                f"Step {step_index + 1}/{len(steps)}: {previous_count}→{step} nodes completed"
-            )
-
-            # Wait between steps if not the last step
-            if step != steps[-1] and wait_time > 0:
-                logger.info(f"Waiting {wait_time}s before next scaling operation...")
-                time.sleep(wait_time)
-
-        logger.info(
-            f"Progressive scaling from {current_count} to {target_count} completed successfully"
-        )
-        return result
 
     def delete_node_pool(self, node_pool_name):
         """
@@ -585,7 +478,6 @@ def main():
             kube_config_file=args.kube_config,
             result_dir=args.result_dir,
             step_timeout=args.step_timeout,
-
         )
 
         # Execute the function associated with the selected command
@@ -615,7 +507,9 @@ def handle_node_pool_all(node_pool_crud, args):
             node_count=args.node_count,
             target_count=args.target_count,
             progressive=args.progressive if hasattr(args, "progressive") else False,
-            scale_step_size=args.scale_step_size if hasattr(args, "scale_step_size") else 1,
+            scale_step_size=args.scale_step_size
+            if hasattr(args, "scale_step_size")
+            else 1,
             gpu_node_pool=args.gpu_node_pool
             if hasattr(args, "gpu_node_pool")
             else False,

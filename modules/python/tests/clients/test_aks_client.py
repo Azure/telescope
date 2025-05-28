@@ -4,12 +4,9 @@ Unit tests for AKSClient class
 """
 
 import os
-import json
 import sys
 import unittest
 from unittest import mock
-
-from azure.core.exceptions import HttpResponseError
 
 # Add the python directory to the path to import modules correctly
 sys.path.append(
@@ -30,11 +27,15 @@ class TestAKSClient(unittest.TestCase):
             "clients.aks_client.ManagedIdentityCredential"
         )
         self.k8s_client_patcher = mock.patch("clients.aks_client.KubernetesClient")
+        self.operation_context_patcher = mock.patch(
+            "clients.aks_client.OperationContext"
+        )
 
         # Start patches
         mock_cs_client = self.cs_client_patcher.start()
         mock_mi_cred = self.mi_cred_patcher.start()
         mock_k8s_client = self.k8s_client_patcher.start()
+        self.mock_operation_context = self.operation_context_patcher.start()
 
         # Setup mock credential
         self.mock_credential = mock_mi_cred.return_value
@@ -52,6 +53,13 @@ class TestAKSClient(unittest.TestCase):
         # Create test directory for result files
         self.test_result_dir = "/tmp/test_results"
         os.makedirs(self.test_result_dir, exist_ok=True)
+
+        # Setup mock operation context
+        self.mock_operation = mock.MagicMock()
+        self.mock_operation_context.return_value.__enter__.return_value = (
+            self.mock_operation
+        )
+        self.mock_operation_context.return_value.__exit__.return_value = None
 
         # Setup AKS client
         self.aks_client = AKSClient(
@@ -76,6 +84,12 @@ class TestAKSClient(unittest.TestCase):
             os.rmdir(self.test_result_dir)
         except OSError:
             pass
+
+        # Stop patches
+        self.operation_context_patcher.stop()
+        self.cs_client_patcher.stop()
+        self.mi_cred_patcher.stop()
+        self.k8s_client_patcher.stop()
 
     def test_get_cluster_name_provided(self):
         """Test get_cluster_name when name is already provided"""
@@ -181,9 +195,6 @@ class TestAKSClient(unittest.TestCase):
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
         )
-
-        # Check that metrics recording happened
-        self.assertIn("_record_metrics", self.aks_client.__class__.__dict__)
 
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_gpu(self, mock_time):
@@ -323,50 +334,6 @@ class TestAKSClient(unittest.TestCase):
         )
         mock_operation.result.assert_called_once()
 
-    def test_record_metrics(self):
-        """Test the _record_metrics method for operation data capture"""
-        # Setup
-        operation = "create_node_pool"
-        node_pool_name = "test-pool"
-        duration = 50.0
-        success = True
-        node_count = 3
-
-        self.mock_managed_clusters.get.side_effect = HttpResponseError(
-            message="Not found"
-        )
-
-        # Execute
-        # pylint: disable=protected-access
-        self.aks_client._record_metrics(
-            operation=operation,
-            node_pool_name=node_pool_name,
-            duration=duration,
-            success=success,
-            node_count=node_count,
-        )
-
-        # Verify - check that a file was created
-        files = [
-            f
-            for f in os.listdir(self.test_result_dir)
-            if f.startswith("azure_create_node_pool_")
-        ]
-        self.assertEqual(len(files), 1)
-
-        # Verify the content of the file
-        with open(
-            os.path.join(self.test_result_dir, files[0]), "r", encoding="utf-8"
-        ) as f:
-            data = json.load(f)
-
-        self.assertEqual(data["operation_info"]["operation"], operation)
-        self.assertEqual(data["operation_info"]["duration_seconds"], duration)
-        self.assertEqual(data["operation_info"]["success"], success)
-        self.assertEqual(data["operation_info"]["node_pool_name"], node_pool_name)
-        self.assertEqual(data["operation_info"]["node_count"], node_count)
-        self.assertEqual(data["operation_info"]["vm_size"], "Standard_DS2_v2")
-
     @mock.patch("clients.aks_client.time")
     def test_scale_gpu_node_pool_up_final_target(self, mock_time):
         """Test scaling a GPU node pool up to final target with NVIDIA verification"""
@@ -397,7 +364,6 @@ class TestAKSClient(unittest.TestCase):
             node_pool_name=node_pool_name,
             node_count=node_count,
             gpu_node_pool=True,
-            is_final_target=True,
         )
 
         # Verify
@@ -420,41 +386,59 @@ class TestAKSClient(unittest.TestCase):
         node_pool_name = "gpu-pool"
         node_count = 3
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        mock_time.time.side_effect = [
+            100,
+            150,
+            200,
+            250,
+        ]  # Start and end times including progressive scaling
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
         mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
         self.mock_agent_pools.get.return_value = mock_node_pool
 
-        mock_operation = mock.MagicMock()
-        self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
+        # Two operations for two scaling steps
+        mock_operation1 = mock.MagicMock()
+        mock_operation2 = mock.MagicMock()
+        self.mock_agent_pools.begin_create_or_update.side_effect = [
+            mock_operation1,
+            mock_operation2,
+        ]
 
-        ready_nodes = [mock.MagicMock(), mock.MagicMock(), mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+        # Create mock for each scaling step's nodes
+        ready_nodes1 = [mock.MagicMock(), mock.MagicMock()]  # First step to 2 nodes
+        ready_nodes2 = [
+            mock.MagicMock(),
+            mock.MagicMock(),
+            mock.MagicMock(),
+        ]  # Second step to 3 nodes
+        self.mock_k8s.wait_for_nodes_ready.side_effect = [ready_nodes1, ready_nodes2]
 
         # Add nvidia-smi verification mock
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
             return_value="GPU 0: Tesla V100"
         )
 
-        # Execute
+        # Execute with progressive scaling
         result = self.aks_client.scale_node_pool(
             node_pool_name=node_pool_name,
             node_count=node_count,
             gpu_node_pool=True,
-            is_final_target=False,  # This is an intermediate step
+            progressive=True,  # Set progressive to true to indicate this is an intermediate step
+            scale_step_size=1,  # Use explicit step size
         )
 
         # Verify
         self.assertTrue(result)
-        self.mock_agent_pools.begin_create_or_update.assert_called_once()
-        self.mock_k8s.wait_for_nodes_ready.assert_called_once_with(
-            node_count=node_count,
-            operation_timeout_in_minutes=10,
-            label_selector=f"agentpool={node_pool_name}",
-        )
-        self.assertEqual(mock_node_pool.count, node_count)
+        # For progressive scaling, begin_create_or_update should be called twice (once for each step)
+        self.assertEqual(self.mock_agent_pools.begin_create_or_update.call_count, 2)
+
+        # Check that NVIDIA verification was NOT performed at any point
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+
+        # Verify
+        self.assertTrue(result)
 
         # Check that NVIDIA verification was NOT performed for intermediate step
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
@@ -489,7 +473,6 @@ class TestAKSClient(unittest.TestCase):
             node_pool_name=node_pool_name,
             node_count=node_count,
             gpu_node_pool=True,
-            is_final_target=True,  # Even if final target, scale-down shouldn't verify
         )
 
         # Verify
