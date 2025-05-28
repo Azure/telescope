@@ -6,8 +6,8 @@ owner          = "aks"
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "client"
-    dns_prefix  = "client"
+    aks_name    = "job-scheduling"
+    dns_prefix  = "job-scheduling"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
     network_profile = {
