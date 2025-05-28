@@ -115,6 +115,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_count=node_count,
             operation_type="scale_up",
             gpu_node_pool=False,
+            is_final_target=True,
         )
 
     def test_scale_node_pool_down(self):
@@ -142,6 +143,7 @@ class TestNodePoolCRUD(unittest.TestCase):
             node_count=node_count,
             operation_type="scale_down",
             gpu_node_pool=False,
+            is_final_target=True,
         )
 
     def test_scale_node_pool_no_change(self):
@@ -231,12 +233,14 @@ class TestNodePoolCRUD(unittest.TestCase):
                 node_count=3,
                 operation_type="scale_up",
                 gpu_node_pool=False,
+                is_final_target=False,
             ),
             mock.call(
                 node_pool_name=node_pool_name,
                 node_count=5,
                 operation_type="scale_up",
                 gpu_node_pool=False,
+                is_final_target=True,
             ),
         ]
         self.assertEqual(
@@ -274,12 +278,14 @@ class TestNodePoolCRUD(unittest.TestCase):
                 node_count=3,
                 operation_type="scale_down",
                 gpu_node_pool=False,
+                is_final_target=False,
             ),
             mock.call(
                 node_pool_name=node_pool_name,
                 node_count=1,
                 operation_type="scale_down",
                 gpu_node_pool=False,
+                is_final_target=True,
             ),
         ]
         self.assertEqual(

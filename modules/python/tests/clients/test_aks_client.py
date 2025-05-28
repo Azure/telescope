@@ -367,6 +367,144 @@ class TestAKSClient(unittest.TestCase):
         self.assertEqual(data["operation_info"]["node_count"], node_count)
         self.assertEqual(data["operation_info"]["vm_size"], "Standard_DS2_v2")
 
+    @mock.patch("clients.aks_client.time")
+    def test_scale_gpu_node_pool_up_final_target(self, mock_time):
+        """Test scaling a GPU node pool up to final target with NVIDIA verification"""
+        # Setup
+        node_pool_name = "gpu-pool"
+        node_count = 3
+
+        mock_time.time.side_effect = [100, 150]  # Start and end times
+
+        mock_node_pool = mock.MagicMock()
+        mock_node_pool.count = 1  # Current count
+        mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        self.mock_agent_pools.get.return_value = mock_node_pool
+
+        mock_operation = mock.MagicMock()
+        self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
+
+        ready_nodes = [mock.MagicMock(), mock.MagicMock(), mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        # Add nvidia-smi verification mock
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
+            return_value="GPU 0: Tesla V100"
+        )
+
+        # Execute
+        result = self.aks_client.scale_node_pool(
+            node_pool_name=node_pool_name,
+            node_count=node_count,
+            gpu_node_pool=True,
+            is_final_target=True,
+        )
+
+        # Verify
+        self.assertTrue(result)
+        self.mock_agent_pools.begin_create_or_update.assert_called_once()
+        self.mock_k8s.wait_for_nodes_ready.assert_called_once_with(
+            node_count=node_count,
+            operation_timeout_in_minutes=10,
+            label_selector=f"agentpool={node_pool_name}",
+        )
+        self.assertEqual(mock_node_pool.count, node_count)
+        
+        # Check that NVIDIA verification was performed
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
+
+    @mock.patch("clients.aks_client.time")
+    def test_scale_gpu_node_pool_up_intermediate_step(self, mock_time):
+        """Test scaling a GPU node pool up (intermediate step) without NVIDIA verification"""
+        # Setup
+        node_pool_name = "gpu-pool"
+        node_count = 3
+
+        mock_time.time.side_effect = [100, 150]  # Start and end times
+
+        mock_node_pool = mock.MagicMock()
+        mock_node_pool.count = 1  # Current count
+        mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        self.mock_agent_pools.get.return_value = mock_node_pool
+
+        mock_operation = mock.MagicMock()
+        self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
+
+        ready_nodes = [mock.MagicMock(), mock.MagicMock(), mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        # Add nvidia-smi verification mock
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
+            return_value="GPU 0: Tesla V100"
+        )
+
+        # Execute
+        result = self.aks_client.scale_node_pool(
+            node_pool_name=node_pool_name,
+            node_count=node_count,
+            gpu_node_pool=True,
+            is_final_target=False,  # This is an intermediate step
+        )
+
+        # Verify
+        self.assertTrue(result)
+        self.mock_agent_pools.begin_create_or_update.assert_called_once()
+        self.mock_k8s.wait_for_nodes_ready.assert_called_once_with(
+            node_count=node_count,
+            operation_timeout_in_minutes=10,
+            label_selector=f"agentpool={node_pool_name}",
+        )
+        self.assertEqual(mock_node_pool.count, node_count)
+        
+        # Check that NVIDIA verification was NOT performed for intermediate step
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+
+    @mock.patch("clients.aks_client.time")
+    def test_scale_gpu_node_pool_down_no_verification(self, mock_time):
+        """Test scaling a GPU node pool down does not perform NVIDIA verification"""
+        # Setup
+        node_pool_name = "gpu-pool"
+        node_count = 1
+
+        mock_time.time.side_effect = [100, 150]  # Start and end times
+
+        mock_node_pool = mock.MagicMock()
+        mock_node_pool.count = 3  # Current count
+        mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        self.mock_agent_pools.get.return_value = mock_node_pool
+
+        mock_operation = mock.MagicMock()
+        self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
+
+        ready_nodes = [mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        # Add nvidia-smi verification mock
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
+            return_value="GPU 0: Tesla V100"
+        )
+
+        # Execute
+        result = self.aks_client.scale_node_pool(
+            node_pool_name=node_pool_name,
+            node_count=node_count,
+            gpu_node_pool=True,
+            is_final_target=True,  # Even if final target, scale-down shouldn't verify
+        )
+
+        # Verify
+        self.assertTrue(result)
+        self.mock_agent_pools.begin_create_or_update.assert_called_once()
+        self.mock_k8s.wait_for_nodes_ready.assert_called_once_with(
+            node_count=node_count,
+            operation_timeout_in_minutes=10,
+            label_selector=f"agentpool={node_pool_name}",
+        )
+        self.assertEqual(mock_node_pool.count, node_count)
+        
+        # Check that NVIDIA verification was NOT performed for scale-down
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

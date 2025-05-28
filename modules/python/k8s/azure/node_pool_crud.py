@@ -139,6 +139,7 @@ class NodePoolCRUD:
                 node_count=node_count,
                 operation_type=operation_type,
                 gpu_node_pool=gpu_node_pool,
+                is_final_target=True,  # Direct scaling is always the final target
             )
 
             logger.info(
@@ -202,9 +203,12 @@ class NodePoolCRUD:
         result = None
 
         # Execute scaling operation for each step
-        for step in steps:
+        for step_index, step in enumerate(steps):
+            is_final_target = (step == target_count)
+            previous_count = current_count if step_index == 0 else steps[step_index - 1]
+            
             logger.info(
-                f"Scaling from {current_count if step == steps[0] else steps[steps.index(step) - 1]} to {step} nodes"
+                f"Scaling from {previous_count} to {step} nodes (step {step_index + 1}/{len(steps)})"
             )
 
             result = self.aks_client.scale_node_pool(
@@ -212,11 +216,16 @@ class NodePoolCRUD:
                 node_count=step,
                 operation_type=operation_type,
                 gpu_node_pool=gpu_node_pool,
+                is_final_target=is_final_target,
             )
 
             if result is None:
                 logger.error(f"Progressive scaling failed at step {step}")
                 return False
+
+            logger.info(
+                f"Step {step_index + 1}/{len(steps)}: {previous_count}→{step} nodes completed"
+            )
 
             # Wait between steps if not the last step
             if step != steps[-1] and wait_time > 0:

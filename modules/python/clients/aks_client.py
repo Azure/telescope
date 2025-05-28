@@ -379,6 +379,7 @@ class AKSClient:
         node_pool_label: Optional[str] = None,
         operation_type: str = "scale",
         gpu_node_pool: bool = False,
+        is_final_target: bool = True,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -392,6 +393,9 @@ class AKSClient:
                             If None, will use agentpool={node_pool_name}
             operation_type: Type of scaling operation for metrics (default: "scale")
                           Can be "scale_up" or "scale_down" for more specific metrics
+            gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
+            is_final_target: Whether this scaling operation represents the final target
+                           in a progressive scaling sequence (default: True)
 
         Returns:
             The scaled node pool object
@@ -459,10 +463,14 @@ class AKSClient:
                 end_time = time.time()
                 duration = end_time - start_time
                 pod_logs = None
-                # Verify NVIDIA drivers if this is a GPU node pool and we're scaling up
-                if gpu_node_pool and node_count > 0:
+                # Verify NVIDIA drivers only for GPU node pools during scale-up operations
+                # and only when reaching the final target (not intermediate steps)
+                if (gpu_node_pool and 
+                    operation_type == "scale_up" and 
+                    node_count > 0 and 
+                    is_final_target):
                     logger.info(
-                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after scaling"
+                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                 self._record_metrics(
