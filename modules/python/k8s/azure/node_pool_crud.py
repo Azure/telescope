@@ -533,7 +533,6 @@ if __name__ == "__main__":
             logger.info("Operation completed successfully")
         else:
             logger.error(f"Operation failed with exit code: {exit_code}")
-        logger.error(f"Exiting with code: {exit_code}")
         sys.exit(exit_code)
     except ImportError as import_error:
         ERROR_MSG = f"Import Error: {import_error}"
