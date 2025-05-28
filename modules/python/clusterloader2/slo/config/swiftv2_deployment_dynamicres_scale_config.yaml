@@ -107,7 +107,7 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-dynamic
+              pniName: pod-network-instance-dynamic-0
   - name: Ending deployement measurements {{$j}}
     measurements:
       - Identifier: WaitForRunningLatencyDeployments_{{$j}}
