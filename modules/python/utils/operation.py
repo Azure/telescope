@@ -144,7 +144,7 @@ class Operation:
             operation_info = {
                 "operation_info": self.to_json(),
             }
-            f.write(operation_info)
+            f.write(json.dumps(operation_info))
 
     def __str__(self) -> str:
         """

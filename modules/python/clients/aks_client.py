@@ -645,6 +645,18 @@ class AKSClient:
                         parameters=node_pool,
                     )
 
+                    # Use agentpool=node_pool_name as default label if not specified
+                    label_selector = f"agentpool={node_pool_name}"
+
+                    _ = self.k8s_client.wait_for_nodes_ready(
+                        node_count=step,
+                        operation_timeout_in_minutes=self.operation_timeout_minutes,
+                        label_selector=label_selector,
+                    )
+                    logger.info(
+                        f"All {step} nodes in pool {node_pool_name} are ready"
+                    )
+
                     if result is None:
                         logger.error(f"Progressive scaling failed at step {step}")
                         op.add_metadata("failed_at_step", step)
