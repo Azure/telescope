@@ -58,6 +58,7 @@ class AKSClient:
         kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
         kubernetes_client: Optional[KubernetesClient] = None,  # pylint: disable=unused-argument
         result_dir: Optional[str] = None,
+        operation_timeout_minutes: int = 10,  # Timeout for each step in seconds
     ):
         """
         Initialize the AKS client.
@@ -254,7 +255,6 @@ class AKSClient:
         vm_size: str,
         node_count: int = 1,
         cluster_name: Optional[str] = None,
-        operation_timeout_minutes: int = 10,
         node_pool_label: Optional[str] = None,
         gpu_node_pool: bool = False,
     ) -> Any:
@@ -267,7 +267,6 @@ class AKSClient:
             node_count: The number of nodes to create (default: 1)
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
-            operation_timeout_minutes: Timeout in minutes to wait for node readiness (default: 10)
             node_pool_label: Label selector to identify nodes in this node pool (default: None)
                             If None, will use agentpool={node_pool_name}
 
@@ -376,7 +375,6 @@ class AKSClient:
         node_pool_name: str,
         node_count: int,
         cluster_name: Optional[str] = None,
-        operation_timeout_minutes: int = 10,
         node_pool_label: Optional[str] = None,
         operation_type: str = "scale",
         gpu_node_pool: bool = False,
@@ -389,7 +387,6 @@ class AKSClient:
             node_count: The desired number of nodes
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
-            operation_timeout_minutes: Timeout in minutes to wait for node readiness (default: 10)
             node_pool_label: Label selector to identify nodes in this node pool (default: None)
                             If None, will use agentpool={node_pool_name}
             operation_type: Type of scaling operation for metrics (default: "scale")
@@ -451,7 +448,7 @@ class AKSClient:
             try:
                 ready_nodes = self.k8s_client.wait_for_nodes_ready(
                     node_count=node_count,
-                    operation_timeout_in_minutes=operation_timeout_minutes,
+                    operation_timeout_in_minutes=self.operation_timeout_minutes,
                     label_selector=label_selector,
                 )
                 logger.info(

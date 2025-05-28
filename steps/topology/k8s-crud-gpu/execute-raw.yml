@@ -16,7 +16,7 @@ steps:
     vm_size: $(VM_SIZE)
     create_node_count: $(CREATE_NODE_COUNT)
     scale_node_count: $(SCALE_NODE_COUNT)
-    scale_step_up_count: $(SCALE_STEP_UP_COUNT)
+    scale_step_up_count: $(SCALE_STEP_SIZE)
     pool_name: $(POOL_NAME)
     step_time_out: $(STEP_TIME_OUT)
     result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)

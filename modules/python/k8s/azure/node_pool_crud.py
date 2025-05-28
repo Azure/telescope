@@ -11,6 +11,7 @@ import os
 import logging
 import sys
 import time
+import traceback
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
@@ -32,13 +33,14 @@ logging.getLogger("msal").setLevel(logging.ERROR)
 class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
 
-    def __init__(self, resource_group, kube_config_file=None, result_dir=None):
+    def __init__(self, resource_group, kube_config_file=None, result_dir=None, step_timeout=600):
         """Initialize with Azure resource identifiers"""
         self.resource_group = resource_group
         self.aks_client = AKSClient(
             resource_group=resource_group,
             kube_config_file=kube_config_file,
             result_dir=result_dir,
+            operation_timeout_minutes=step_timeout/60,  # Convert seconds to minutes
         )
 
         if not self.aks_client:
@@ -86,8 +88,7 @@ class NodePoolCRUD:
         node_pool_name,
         node_count,
         progressive=False,
-        step_size=1,
-        wait_time=30,
+        scale_step_size=1,
         gpu_node_pool=False,
     ):
         """
@@ -98,8 +99,7 @@ class NodePoolCRUD:
             node_count: Desired node count
             operation_type: Type of scaling operation (scale, scale_up, scale_down)
             progressive: Whether to scale progressively in steps (default: False)
-            step_size: Number of nodes to add/remove in each step if progressive (default: 1)
-            wait_time: Time to wait between steps if progressive (default: 30s)
+            scale_step_size: Number of nodes to add/remove in each step if progressive (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
 
         Returns:
@@ -124,7 +124,7 @@ class NodePoolCRUD:
                     node_pool_name=node_pool_name,
                     current_count=current_count,
                     target_count=node_count,
-                    step_size=step_size,
+                    scale_step_size=scale_step_size,
                     wait_time=wait_time,
                     operation_type=operation_type,
                     gpu_node_pool=gpu_node_pool,
@@ -157,8 +157,7 @@ class NodePoolCRUD:
         node_pool_name,
         current_count,
         target_count,
-        step_size=1,
-        wait_time=30,
+        scale_step_size=1,
         operation_type="scale",
         gpu_node_pool=False,
     ):
@@ -169,15 +168,14 @@ class NodePoolCRUD:
             node_pool_name: Name of the node pool
             current_count: Starting node count
             target_count: Final desired node count
-            step_size: Number of nodes to add/remove in each step (default: 1)
-            wait_time: Time to wait between steps in seconds (default: 30)
+            scale_step_size: Number of nodes to add/remove in each step (default: 1)
             operation_type: Type of scaling operation (scale_up or scale_down)
 
         Returns:
             The final node pool object or False if scaling failed
         """
         logger.info(
-            f"Starting progressive scaling for node pool '{node_pool_name}' from {current_count} to {target_count} nodes (step size: {step_size})"
+            f"Starting progressive scaling for node pool '{node_pool_name}' from {current_count} to {target_count} nodes (step size: {scale_step_size})"
         )
 
         # Determine if we're scaling up or down
@@ -186,9 +184,9 @@ class NodePoolCRUD:
 
         # Calculate the steps
         if scaling_up:
-            steps = range(current_count + step_size, target_count + 1, step_size)
+            steps = range(current_count + scale_step_size, target_count + 1, scale_step_size)
         else:
-            steps = range(current_count - step_size, target_count - 1, -step_size)
+            steps = range(current_count - scale_step_size, target_count - 1, -scale_step_size)
 
         # Ensure the final step is exactly the target count
         if steps and steps[-1] != target_count:
@@ -257,8 +255,7 @@ class NodePoolCRUD:
         node_count=None,
         target_count=None,
         progressive=False,
-        step_size=1,
-        wait_time=30,
+        scale_step_size=1,
         gpu_node_pool=False,
     ):
         """
@@ -271,8 +268,7 @@ class NodePoolCRUD:
             node_count: Number of nodes to create (for create operation, default: 0)
             target_count: Target node count for scaling operations
             progressive: Whether to scale progressively in steps (default: False)
-            step_size: Number of nodes to add/remove in each step if progressive (default: 1)
-            wait_time: Time to wait between steps if progressive (default: 30s)
+            scale_step_size: Number of nodes to add/remove in each step if progressive (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
 
         Returns:
@@ -315,8 +311,7 @@ class NodePoolCRUD:
                 node_pool_name=node_pool_name,
                 node_count=target_count,
                 progressive=progressive,
-                step_size=step_size,
-                wait_time=wait_time,
+                scale_step_size=scale_step_size,
                 gpu_node_pool=gpu_node_pool,
             )
             results["scale_up"] = scale_up_result
@@ -338,8 +333,7 @@ class NodePoolCRUD:
                 node_pool_name=node_pool_name,
                 node_count=node_count,
                 progressive=progressive,
-                step_size=step_size,
-                wait_time=wait_time,
+                scale_step_size=scale_step_size,
                 gpu_node_pool=gpu_node_pool,
             )
             results["scale_down"] = scale_down_result
@@ -400,8 +394,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 node_pool_name=args.node_pool_name,
                 node_count=args.target_count,
                 progressive=args.progressive,
-                step_size=args.step_size,
-                wait_time=args.step_wait_time,
+                scale_step_size=args.scale_step_size,
                 gpu_node_pool=args.gpu_node_pool,
             )
         elif command == "delete":
@@ -413,7 +406,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 node_count=args.node_count,
                 target_count=args.target_count,
                 progressive=args.progressive,
-                step_size=args.step_size,
+                scale_step_size=args.scale_step_size,
                 wait_time=args.step_wait_time,
                 gpu_node_pool=args.gpu_node_pool,
             )
@@ -480,7 +473,7 @@ def main():
         "--progressive", action="store_true", help="Scale progressively in steps"
     )
     scale_parser.add_argument(
-        "--step-size",
+        "scale-step-size",
         type=int,
         default=1,
         help="Number of nodes to add/remove in each step during progressive scaling",
@@ -532,7 +525,7 @@ def main():
         help="Scale progressively in steps (for scaling operations)",
     )
     all_parser.add_argument(
-        "--step-size",
+        "--scale-step-size",
         type=int,
         default=1,
         help="Number of nodes to add/remove in each step (for progressive scaling)",
@@ -582,6 +575,8 @@ def main():
             resource_group=args.run_id,
             kube_config_file=args.kube_config,
             result_dir=args.result_dir,
+            step_timeout=args.step_timeout,
+
         )
 
         # Execute the function associated with the selected command
@@ -611,7 +606,7 @@ def handle_node_pool_all(node_pool_crud, args):
             node_count=args.node_count,
             target_count=args.target_count,
             progressive=args.progressive if hasattr(args, "progressive") else False,
-            step_size=args.step_size if hasattr(args, "step_size") else 1,
+            scale_step_size=args.scale_step_size if hasattr(args, "scale_step_size") else 1,
             wait_time=args.step_wait_time if hasattr(args, "step_wait_time") else 30,
             gpu_node_pool=args.gpu_node_pool
             if hasattr(args, "gpu_node_pool")
@@ -631,31 +626,24 @@ def handle_node_pool_all(node_pool_crud, args):
 
 if __name__ == "__main__":
     try:
-        print("Starting node_pool_crud.py...")
         exit_code = main()
         if exit_code == 0:
-            print("Operation completed successfully")
+            logger.info("Operation completed successfully")
         else:
-            print(f"Operation failed with exit code: {exit_code}")
-        print(f"Exiting with code: {exit_code}")
+            logger.error(f"Operation failed with exit code: {exit_code}")
+        logger.error(f"Exiting with code: {exit_code}")
         sys.exit(exit_code)
     except ImportError as import_error:
-        ERROR_MSG = f"Import Error: {import_error}"
-        print(ERROR_MSG)
+        ERROR_MSG = f"Import Error: {import_error}"       
         logger.critical(ERROR_MSG)
-        import traceback
 
         ERROR_TRACE = traceback.format_exc()
-        print(ERROR_TRACE)
         logger.critical(ERROR_TRACE)
         sys.exit(1)
     except Exception as general_error:
         ERROR_MSG = f"Unexpected error: {general_error}"
-        print(ERROR_MSG)
         logger.critical(ERROR_MSG)
-        import traceback
 
         ERROR_TRACE = traceback.format_exc()
-        print(ERROR_TRACE)
         logger.critical(ERROR_TRACE)
         sys.exit(1)

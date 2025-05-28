@@ -23,14 +23,14 @@ steps:
       --vm-size "$VM_SIZE"
       --step-timeout "$STEP_TIME_OUT"
       --result-dir "$RESULT_DIR"
-      --step-size "$SCALE_STEP_UP_COUNT"
+      --step-size "$SCALE_STEP_SIZE"
     )
 
     # Conditionally add gpu-node
     if [[ "$GPU_NODE_POOL" == "True" ]]; then
       ARGS+=(--gpu-node-pool)
     fi
-    if [[ "$SCALE_STEP_UP_COUNT" != "$SCALE_NODE_COUNT" ]]
+    if [[ "$SCALE_STEP_SIZE" != "$SCALE_NODE_COUNT" ]]
     then
       ARGS+=(--progressive)
     fi
@@ -44,10 +44,10 @@ steps:
     VM_SIZE: ${{ parameters.vm_size }}
     CREATE_NODE_COUNT: ${{ parameters.create_node_count }}
     SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}
-    SCALE_STEP_UP_COUNT: ${{ parameters.scale_step_up_count }}
+    SCALE_STEP_SIZE: ${{ parameters.scale_step_up_count }}
     POOL_NAME: ${{ parameters.pool_name }}
     CLOUD: ${{ parameters.cloud }}
-    STEP_TIME_OUT: 600
+    STEP_TIME_OUT: ${{ parameters.step_time_out }}
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
     AZURE_MI_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
