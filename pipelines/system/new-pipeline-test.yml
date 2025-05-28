@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "30 1 */2 * *" # Every 2 days at 1:30 AM
-    displayName: "1:30 AM every 2 days"
+  - cron: "0 16 * * 4"
+    displayName: "4:00 PM on Thursdays"
     branches:
       include:
         - main
@@ -25,9 +25,9 @@ stages:
           topology: kwok
           matrix:
             default:
-              node_count: 50 # 2k kwok nodes
-              job_throughput: 50 # qps
-              job_count: 1000
+              node_count: 2000 # 2k kwok nodes
+              job_throughput: 800 # qps
+              job_count: 20000
               scale_timeout: "1h"
               cl2_config_file: config.yaml
           max_parallel: 1
@@ -48,9 +48,9 @@ stages:
           topology: kwok
           matrix:
             default:
-              node_count: 50
-              job_throughput: 50
-              job_count: 1000
+              node_count: 2000
+              job_throughput: 800
+              job_count: 20000
               scale_timeout: "1h"
               cl2_config_file: config.yaml
           max_parallel: 1
