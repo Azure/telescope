@@ -6,8 +6,8 @@ owner          = "aks"
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "job-scheduling"
-    dns_prefix  = "job-scheduling"
+    aks_name    = "client"
+    dns_prefix  = "client"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
     network_profile = {
@@ -27,8 +27,10 @@ aks_config_list = [
         name        = "virtualnodes"
         node_count  = 3
         vm_size     = "Standard_D8_v3"
-        node_labels = { "nosch" = "true" }
+        node_taints = ["virtual=true:NoSchedule"]
+        node_labels = { "virtual" = "true" }
       }
     ]
+    kubernetes_version = "1.32"
   }
 ]

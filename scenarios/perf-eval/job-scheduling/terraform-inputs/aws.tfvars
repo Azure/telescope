@@ -69,7 +69,6 @@ eks_config_list = [{
       max_size       = 2
       desired_size   = 2
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true" }
     },
     {
       name           = "virtualnodes"
@@ -79,7 +78,16 @@ eks_config_list = [{
       max_size       = 3
       desired_size   = 3
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true" }
+      labels = {
+        "virtual" = "true"
+      }
+      taints = [
+        {
+          key    = "virtual"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
     }
   ]
 
@@ -88,4 +96,5 @@ eks_config_list = [{
       name = "coredns"
     }
   ]
+  kubernetes_version = "1.32"
 }]

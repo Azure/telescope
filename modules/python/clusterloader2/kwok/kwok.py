@@ -1,12 +1,19 @@
 import argparse
 import json
 import os
-import time
 from datetime import datetime, timezone
 
 from clients.kubernetes_client import KubernetesClient
-from clusterloader2.utils import (get_measurement, parse_xml_to_json,
-                                  run_cl2_command, str2bool)
+from clusterloader2.utils import (
+    get_measurement,
+    parse_xml_to_json,
+    run_cl2_command,
+    str2bool,
+)
+from utils.logger_config import get_logger, setup_logging
+
+setup_logging()
+logger = get_logger(__name__)
 
 
 def configure_clusterloader2(
@@ -24,30 +31,15 @@ def configure_clusterloader2(
         file.write(f"CL2_JOBS: {job_count}\n")
         file.write(f"CL2_LOAD_TEST_THROUGHPUT: {job_throughput}\n")
 
-    # Print the generated configuration for debugging
     with open(cl2_override_file, "r", encoding="utf-8") as file:
-        print(f"Content of file {cl2_override_file}:\n{file.read()}")
+        logger.info(f"Content of file {cl2_override_file}:\n{file.read()}")
 
 
 def validate_clusterloader2(
     node_count: int, operation_timeout_in_minutes: int = 10
 ) -> None:
     kube_client = KubernetesClient()
-    ready_node_count = 0
-    timeout = time.time() + (operation_timeout_in_minutes * 60)
-    while time.time() < timeout:
-        ready_nodes = kube_client.get_ready_nodes()
-        ready_node_count = len(ready_nodes)
-        print(f"Currently {ready_node_count} nodes are ready.")
-        if ready_node_count >= node_count:
-            print(f"All {node_count} nodes are ready.")
-            break
-        print(f"Waiting for {node_count} nodes to be ready.")
-        time.sleep(10)
-    if ready_node_count < node_count:
-        raise Exception(
-            f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!"
-        )
+    kube_client.wait_for_nodes_ready(node_count, operation_timeout_in_minutes)
 
 
 def execute_clusterloader2(
@@ -78,18 +70,18 @@ def process_cl2_reports(cl2_report_dir, template):
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, "r", encoding="utf-8") as file:
-            print(f"Processing {file_path}")
+            logger.info(f"Processing {file_path}")
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
-            print(measurement, group_name)
+            logger.info(measurement, group_name)
             data = json.loads(file.read())
 
             if "dataItems" in data:
                 items = data["dataItems"]
                 if not items:
-                    print(f"No data items found in {file_path}")
-                    print(f"Data:\n{data}")
+                    logger.info(f"No data items found in {file_path}")
+                    logger.info(f"Data:\n{data}")
                     continue
                 for item in items:
                     result = template.copy()
