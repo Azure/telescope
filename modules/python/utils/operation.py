@@ -38,6 +38,7 @@ class Operation:
         self.start_timestamp = None
         self.end_timestamp = None
         self.duration = None
+        self.unit = "seconds"
         self.success = True
         self.error_message = None
         self.error_traceback = None

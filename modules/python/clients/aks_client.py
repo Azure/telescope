@@ -408,77 +408,77 @@ class AKSClient:
                 f"Node pool {node_pool_name} already has {node_count} nodes. No scaling needed."
             )
             return node_pool
-        # Create operation context to track the operation
-        with OperationContext(operation_type, "azure", metadata, result_dir=self.result_dir) as op:
-            try:
-                # Store VM size for metrics
-                self.vm_size = node_pool.vm_size
-                op.name = operation_type
-                op.add_metadata("vm_size", self.vm_size)
-                op.add_metadata("current_count", current_count)
+        
+        # If progressive scaling is requested
+        if progressive:
+            return self._progressive_scale(
+                node_pool_name=node_pool_name,
+                current_count=current_count,
+                target_count=node_count,
+                scale_step_size=scale_step_size,
+                operation_type=operation_type,
+                cluster_name=cluster_name,
+                gpu_node_pool=gpu_node_pool,
+                node_pool=node_pool
+            )
+        else:
+            # Create operation context to track the operation
+            with OperationContext(operation_type, "azure", metadata, result_dir=self.result_dir) as op:
+                try:
+                    # Store VM size for metrics
+                    self.vm_size = node_pool.vm_size
+                    op.name = operation_type
+                    op.add_metadata("vm_size", self.vm_size)
+                    op.add_metadata("current_count", current_count)
 
-                # If progressive scaling is requested
-                if progressive:
-                    return self._progressive_scale(
-                        node_pool_name=node_pool_name,
-                        current_count=current_count,
-                        target_count=node_count,
-                        scale_step_size=scale_step_size,
-                        operation_type=operation_type,
-                        cluster_name=cluster_name,
-                        gpu_node_pool=gpu_node_pool,
-                        node_pool=node_pool
+                    # For direct scaling, update the node count
+                    node_pool.count = node_count
+
+                    logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
+                    self.aks_client.agent_pools.begin_create_or_update(
+                        resource_group_name=self.resource_group,
+                        resource_name=cluster_name,
+                        agent_pool_name=node_pool_name,
+                        parameters=node_pool,
                     )
 
-                # For direct scaling, update the node count
-                node_pool.count = node_count
-
-                logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=node_pool,
-                )
-
-                logger.info(
-                    f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
-                )
-
-                # Use agentpool=node_pool_name as default label if not specified
-                label_selector = f"agentpool={node_pool_name}"
-
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
-                )
-                logger.info(
-                    f"All {node_count} nodes in pool {node_pool_name} are ready"
-                )
-
-                pod_logs = None
-                # Verify NVIDIA drivers only for GPU node pools during scale-up operations
-                # and only when reaching the final target (not intermediate steps)
-                if gpu_node_pool and operation_type == "scale_up" and node_count > 0:
                     logger.info(
-                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                        f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
                     )
-                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
-                    op.add_metadata("nvidia_driver_logs", pod_logs)
-                # Record node readiness info
-                op.add_metadata("ready_nodes", len(ready_nodes))
-                op.add_metadata("node_pool_name", node_pool_name)
-                op.add_metadata("nodepool_info", self.get_node_pool(node_pool_name, cluster_name).as_dict())
 
+                    # Use agentpool=node_pool_name as default label if not specified
+                    label_selector = f"agentpool={node_pool_name}"
 
-                return True
+                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                        node_count=node_count,
+                        operation_timeout_in_minutes=self.operation_timeout_minutes,
+                        label_selector=label_selector,
+                    )
+                    logger.info(
+                        f"All {node_count} nodes in pool {node_pool_name} are ready"
+                    )
 
-            except Exception as k8s_err:
-                error_msg = str(k8s_err)
-                logger.error(f"Error scaling node pool {node_pool_name}: {error_msg}")
-                # The OperationContext will automatically record failure when exiting
-                raise
+                    pod_logs = None
+                    # Verify NVIDIA drivers only for GPU node pools during scale-up operations
+                    # and only when reaching the final target (not intermediate steps)
+                    if gpu_node_pool and operation_type == "scale_up" and node_count > 0:
+                        logger.info(
+                            f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                        )
+                        pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                        op.add_metadata("nvidia_driver_logs", pod_logs)
+                    # Record node readiness info
+                    op.add_metadata("ready_nodes", len(ready_nodes))
+                    op.add_metadata("node_pool_name", node_pool_name)
+                    op.add_metadata("nodepool_info", self.get_node_pool(node_pool_name, cluster_name).as_dict())
+
+                    return True
+
+                except Exception as k8s_err:
+                    error_msg = str(k8s_err)
+                    logger.error(f"Error scaling node pool {node_pool_name}: {error_msg}")
+                    # The OperationContext will automatically record failure when exiting
+                    raise
 
     def delete_node_pool(
         self, node_pool_name: str, cluster_name: Optional[str] = None
@@ -576,62 +576,60 @@ class AKSClient:
         Returns:
             The final node pool object or False if scaling failed
         """
-        # Prepare operation metadata for progressive scaling
-        metadata = {
-            "node_pool_name": node_pool_name,
-            "current_count": current_count,
-            "target_count": target_count,
-            "scale_step_size": scale_step_size,
-            "cluster_name": cluster_name or self.get_cluster_name(),
-            "gpu_node_pool": gpu_node_pool,
-        }
 
-        # Create operation context for the progressive scaling operation
-        with OperationContext("progressive_" + operation_type, "azure", metadata, result_dir=self.result_dir) as op:
-            logger.info(
-                f"Starting progressive scaling for node pool '{node_pool_name}' from {current_count} to {target_count} nodes (step size: {scale_step_size})"
+        # Determine if we're scaling up or down
+        scaling_up = current_count < target_count
+        operation_type = "scale_up" if scaling_up else "scale_down"
+        
+        logger.info(
+            f"Starting progressive scaling for node pool '{node_pool_name}' from {current_count} to {target_count} nodes (step size: {scale_step_size})"
+        )
+        
+        wait_time = 30  # Default wait time between scale steps
+
+        # Calculate the steps
+        if scaling_up:
+            steps = range(
+                current_count + scale_step_size, target_count + 1, scale_step_size
+            )
+        else:
+            steps = range(
+                current_count - scale_step_size, target_count - 1, -scale_step_size
             )
 
-            # Determine if we're scaling up or down
-            scaling_up = current_count < target_count
-            operation_type = "scale_up" if scaling_up else "scale_down"
-            op.name = (
-                "progressive_" + operation_type
-            )  # Update the operation name
-            wait_time = 30  # Default wait time between scale steps
+        # Ensure the final step is exactly the target count
+        if steps and steps[-1] != target_count:
+            steps = list(steps)
+            if target_count not in steps:
+                steps.append(target_count)
 
-            # Calculate the steps
-            if scaling_up:
-                steps = range(
-                    current_count + scale_step_size, target_count + 1, scale_step_size
-                )
-            else:
-                steps = range(
-                    current_count - scale_step_size, target_count - 1, -scale_step_size
-                )
+        # If there are no intermediate steps, just add the target directly
+        if not steps:
+            steps = [target_count]
+            
+        logger.info(f"Planned scaling steps: {list(steps)}")
 
-            # Ensure the final step is exactly the target count
-            if steps and steps[-1] != target_count:
-                steps = list(steps)
-                if target_count not in steps:
-                    steps.append(target_count)
+        result = None
+        completed_steps = []
 
-            # If there are no intermediate steps, just add the target directly
-            if not steps:
-                steps = [target_count]
-
-            # Record the steps planned
-            op.add_metadata("scaling_steps", list(steps))
-
-            result = None
-            completed_steps = []
-
-            # Execute scaling operation for each step
-            for step_index, step in enumerate(steps):
-                previous_count = (
-                    current_count if step_index == 0 else steps[step_index - 1]
-                )
-
+        # Execute scaling operation for each step
+        for step_index, step in enumerate(steps):
+            previous_count = (
+                current_count if step_index == 0 else steps[step_index - 1]
+            )
+            
+            # Create step-specific metadata
+            step_metadata = {
+                "node_pool_name": node_pool_name,
+                "current_count": previous_count,
+                "target_count": step,
+                "scale_step_size": scale_step_size,
+                "cluster_name": cluster_name or self.get_cluster_name(),
+                "gpu_node_pool": gpu_node_pool,
+            }
+            
+            # Create operation context for this specific step
+            with OperationContext(operation_type, "azure", step_metadata, result_dir=self.result_dir) as op:
                 logger.info(
                     f"Scaling from {previous_count} to {step} nodes (step {step_index + 1}/{len(steps)})"
                 )
@@ -648,7 +646,7 @@ class AKSClient:
                     # Use agentpool=node_pool_name as default label if not specified
                     label_selector = f"agentpool={node_pool_name}"
 
-                    _ = self.k8s_client.wait_for_nodes_ready(
+                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
                         node_count=step,
                         operation_timeout_in_minutes=self.operation_timeout_minutes,
                         label_selector=label_selector,
@@ -659,11 +657,14 @@ class AKSClient:
 
                     if result is None:
                         logger.error(f"Progressive scaling failed at step {step}")
-                        op.add_metadata("failed_at_step", step)
-                        op.add_metadata("completed_steps", completed_steps)
+                        op.add_metadata("error", "Scaling operation returned None")
                         return None
 
-                    # Record completed step
+                    # Add additional metadata to this step's operation
+                    op.add_metadata("nodepool_info", self.get_node_pool(node_pool_name, cluster_name).as_dict())
+                    op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
+                    
+                    # Update our tracking of completed steps
                     completed_steps.append(step)
 
                     logger.info(
@@ -677,16 +678,30 @@ class AKSClient:
                         )
                         time.sleep(wait_time)
 
+                    if step == target_count:
+                        pod_logs = None
+                        # Verify NVIDIA drivers only for GPU node pools during scale-up operations
+                        # and only when reaching the final target (not intermediate steps)
+                        if gpu_node_pool and operation_type == "scale_up" and target_count > 0:
+                            logger.info(
+                                f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                            )
+                            pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                            op.add_metadata("nvidia_driver_logs", pod_logs)
+                        # Record node readiness info
+                        op.add_metadata("ready_nodes", len(ready_nodes))
+                        op.add_metadata("node_pool_name", node_pool_name)
+                        op.add_metadata("nodepool_info", self.get_node_pool(node_pool_name, cluster_name).as_dict())
+
                 except Exception as e:
                     logger.error(f"Error at step {step}: {str(e)}")
-                    op.add_metadata("failed_at_step", step)
-                    op.add_metadata("completed_steps", completed_steps)
                     op.add_metadata("error", str(e))
                     raise
 
             logger.info(
                 f"Progressive scaling from {current_count} to {target_count} completed successfully"
             )
-            op.add_metadata("completed_steps", completed_steps)
-            # Return True on successful completion, not the result of the operation
+            
+
+            # Return True on successful completion
             return True
