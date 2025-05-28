@@ -706,7 +706,7 @@ class AKSClient:
                         )
                         time.sleep(wait_time)
 
-                    if step == target_count:
+                    if step + 1 == target_count:
                         pod_logs = None
                         # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                         # and only when reaching the final target (not intermediate steps)
