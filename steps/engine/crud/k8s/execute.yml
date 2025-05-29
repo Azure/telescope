@@ -16,6 +16,7 @@ steps:
     ARGS=(
       "$PYTHON_SCRIPT_FILE"
       all
+      --cloud "$CLOUD"
       --run-id "$RUN_ID"
       --node-pool-name "$POOL_NAME"
       --node-count "$CREATE_NODE_COUNT"
@@ -40,7 +41,7 @@ steps:
   displayName: 'Execute K8s CRUD Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/k8s/${{ parameters.cloud }}/node_pool_crud.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/crud.py
     VM_SIZE: ${{ parameters.vm_size }}
     CREATE_NODE_COUNT: ${{ parameters.create_node_count }}
     SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}

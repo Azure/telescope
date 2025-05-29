@@ -22,7 +22,7 @@ class TestNodePoolCRUD(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         # Setup mock AKSClient
-        self.aks_client_patcher = mock.patch("k8s.azure.node_pool_crud.AKSClient")
+        self.aks_client_patcher = mock.patch("crud.azure.node_pool_crud.AKSClient")
         mock_aks_client_cls = self.aks_client_patcher.start()
         self.mock_aks_client = mock_aks_client_cls.return_value
         self.mock_aks_client.get_cluster_name.return_value = "fake-cluster"
@@ -172,7 +172,7 @@ class TestNodePoolCRUD(unittest.TestCase):
         # Verify
         self.assertFalse(result)
 
-    @mock.patch("k8s.azure.node_pool_crud.time")
+    @mock.patch("crud.azure.node_pool_crud.time")
     def test_all_operations(self, mock_time):
         """Test the all method which performs all operations in sequence"""
         # Setup

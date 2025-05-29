@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for crud.py module (collect functionality)
+Unit tests for crud.py module (collect functionality and node pool operations)
 """
 
 import os
@@ -18,8 +18,8 @@ sys.path.append(
 )
 
 
-class TestCollect(unittest.TestCase):
-    """Tests for the crud.py module (collect functionality)"""
+class TestCrud(unittest.TestCase):
+    """Tests for the crud.py module (collect functionality and node pool operations)"""
 
     def setUp(self):
         """Set up test environment"""
@@ -120,13 +120,7 @@ class TestCollect(unittest.TestCase):
 
         # Read the combined results
         with open(result_file, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        # Split content by line and parse JSON
-        lines = content.strip().split("\n")
-        self.assertEqual(len(lines), 1)
-
-        result = json.loads(lines[0])
+            result = json.load(f)
 
         # Check result
         self.assertEqual(result["region"], "eastus")
@@ -137,7 +131,7 @@ class TestCollect(unittest.TestCase):
 
         self.assertEqual(operation_info1["operation"], "create_node_pool")
 
-    @mock.patch("k8s.collect.get_env_vars")
+    @mock.patch("crud.crud.get_env_vars")
     def test_main_missing_env_vars(self, mock_get_env_vars):
         """Test main function when an environment variable is missing"""
         # Setup
