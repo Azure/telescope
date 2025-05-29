@@ -708,7 +708,7 @@ class AKSClient:
                         )
                         time.sleep(wait_time)
 
-                    if step + 1 == target_count:
+                    if step == target_count:
                         pod_logs = None
                         # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                         # and only when reaching the final target (not intermediate steps)
@@ -738,9 +738,9 @@ class AKSClient:
                     op.add_metadata("error", str(e))
                     raise
 
-            logger.info(
-                f"Progressive scaling from {current_count} to {target_count} completed successfully"
-            )
+        logger.info(
+            f"Progressive scaling from {current_count} to {target_count} completed successfully"
+        )
 
             # Return True on successful completion
-            return True
+        return True
