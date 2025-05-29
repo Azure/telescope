@@ -68,7 +68,7 @@ stages:
           ssh_key_enabled: false
   - stage: gcp_eastus1
     dependsOn: []
-    condition: and(succeeded(), eq(variables['Build.Reason'], 'Manual'))   dependsOn: []
+    condition: eq(variables['Build.Reason'], 'Manual')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
