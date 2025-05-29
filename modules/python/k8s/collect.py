@@ -6,13 +6,16 @@ into a consolidated results file. It handles cluster data and operation informat
 from Kubernetes benchmark runs and formats them for further analysis.
 """
 
-import sys
-import os
-import json
 import glob
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import json
+import os
+import sys
 from datetime import datetime
+
+# Add the parent directory to sys.path to allow imports from sibling packages
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# pylint: disable=wrong-import-position
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
 

@@ -7,8 +7,8 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 """
 
 import argparse
-import os
 import logging
+import os
 import sys
 import time
 import traceback
@@ -22,12 +22,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 setup_logging()
 logger = get_logger(__name__)
 # Suppress noisy Azure SDK logs
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
-    logging.ERROR
-)
-logging.getLogger("azure.identity").setLevel(logging.ERROR)
-logging.getLogger("azure.core.pipeline").setLevel(logging.ERROR)
-logging.getLogger("msal").setLevel(logging.ERROR)
+get_logger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
+get_logger("azure.identity").setLevel(logging.ERROR)
+get_logger("azure.core.pipeline").setLevel(logging.ERROR)
+get_logger("msal").setLevel(logging.ERROR)
 
 
 class NodePoolCRUD:

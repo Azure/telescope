@@ -12,18 +12,18 @@ Operations are tracked using the Operation and OperationContext classes for metr
 and troubleshooting.
 """
 
+import json
+import logging
 import os
 import time
-import logging
-import json
 from typing import Dict, Optional, Any
 
 # Third party imports
-from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
-from azure.mgmt.containerservice import ContainerServiceClient
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.core.pipeline.policies import RetryPolicy, RetryMode
 from azure.core.pipeline.transport import RequestsTransport
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
+from azure.mgmt.containerservice import ContainerServiceClient
 
 # Local imports
 from utils.logger_config import get_logger, setup_logging
@@ -36,12 +36,12 @@ setup_logging()
 logger = get_logger(__name__)
 
 # Suppress noisy Azure SDK logs
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
+get_logger("azure.core.pipeline.policies.http_logging_policy").setLevel(
     logging.ERROR
 )
-logging.getLogger("azure.identity").setLevel(logging.ERROR)
-logging.getLogger("azure.core.pipeline").setLevel(logging.ERROR)
-logging.getLogger("msal").setLevel(logging.ERROR)
+get_logger("azure.identity").setLevel(logging.ERROR)
+get_logger("azure.core.pipeline").setLevel(logging.ERROR)
+get_logger("msal").setLevel(logging.ERROR)
 
 
 class AKSClient:
