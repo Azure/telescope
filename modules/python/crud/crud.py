@@ -22,6 +22,9 @@ from utils.common import get_env_vars
 from utils.operation import OperationContext
 from utils.logger_config import get_logger, setup_logging
 
+# Configure logging
+setup_logging()
+logger = get_logger(__name__)
 
 def get_node_pool_crud_class(cloud_provider):
     """
@@ -46,10 +49,6 @@ def get_node_pool_crud_class(cloud_provider):
     else:
         raise ValueError(f"Unsupported cloud provider: {cloud_provider}. "
                         f"Supported providers are: azure, aws, gcp")
-
-# Configure logging
-setup_logging()
-logger = get_logger(__name__)
 
 
 def collect_benchmark_results():
