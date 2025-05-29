@@ -5,14 +5,12 @@ Unit tests for crud.py module (collect functionality and node pool operations)
 
 import os
 import json
-import sys
 import unittest
 from unittest import mock
 import tempfile
 import shutil
 from crud.crud import create_result_dir, collect_benchmark_results
 from utils.common import get_env_vars
-
 
 
 class TestCrud(unittest.TestCase):

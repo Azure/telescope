@@ -58,7 +58,6 @@ class AKSClient:
         cluster_name: Optional[str] = None,
         use_managed_identity: bool = False,
         kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
-        kubernetes_client: Optional[KubernetesClient] = None,  # pylint: disable=unused-argument
         result_dir: Optional[str] = None,
         operation_timeout_minutes: int = 10,  # Timeout for each step in seconds
     ):
@@ -74,8 +73,6 @@ class AKSClient:
             use_managed_identity: Whether to use managed identity for authentication.
                                  If False, will fall back to DefaultAzureCredential.
             kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
-            kubernetes_client: Optional pre-configured KubernetesClient instance.
-                              If not provided, one will be created using kube_config_file.
         """
         # Get subscription ID from environment if not provided
         self.subscription_id = subscription_id or os.getenv("AZURE_MI_SUBSCRIPTION_ID")
@@ -122,16 +119,7 @@ class AKSClient:
 
         # Initialize Kubernetes client if provided or if kubeconfig is available
         try:
-            if kubernetes_client:
-                self.k8s_client = kubernetes_client
-            elif kube_config_file and os.path.exists(kube_config_file):
-                logger.info(f"Using kubeconfig file: {kube_config_file}")
-                self.k8s_client = KubernetesClient(config_file=kube_config_file)
-            else:
-                logger.warning(
-                    "No Kubernetes client provided and kubeconfig file not found. "
-                    "Kubernetes operations will not be available."
-                )
+            self.k8s_client = KubernetesClient(config_file=kube_config_file)
             logger.info("Kubernetes client initialized successfully")
         except Exception as e:
             logger.warning(f"Failed to initialize Kubernetes client: {str(e)}")
@@ -353,13 +341,11 @@ class AKSClient:
                 op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
-                    "nodepool_info",
-                    json.dumps(
-                        self.get_node_pool(node_pool_name, cluster_name).as_dict()
-                    ),
+                    "nodepool_info",                   
+                        self.get_node_pool(node_pool_name, cluster_name).as_dict(),
                 )
                 op.add_metadata(
-                    "cluster_info", json.dumps(self.get_cluster_data(cluster_name))
+                    "cluster_info", self.get_cluster_data(cluster_name)
                 )
 
                 return True
@@ -491,13 +477,11 @@ class AKSClient:
                 op.add_metadata("ready_nodes", len(ready_nodes))
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
-                    "nodepool_info",
-                    json.dumps(
+                    "nodepool_info",                   
                         self.get_node_pool(node_pool_name, cluster_name).as_dict()
-                    ),
                 )
                 op.add_metadata(
-                    "cluster_info", json.dumps(self.get_cluster_data(cluster_name))
+                    "cluster_info", self.get_cluster_data(cluster_name)
                 )
 
                 return True
@@ -571,7 +555,7 @@ class AKSClient:
                 # Add node pool name to operation metadata
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
-                    "cluster_info", json.dumps(self.get_cluster_data(cluster_name))
+                    "cluster_info",self.get_cluster_data(cluster_name)
                 )
 
                 return True
@@ -693,13 +677,11 @@ class AKSClient:
 
                     # Add additional metadata to this step's operation
                     op.add_metadata(
-                        "nodepool_info",
-                        json.dumps(
+                        "nodepool_info",                      
                             self.get_node_pool(node_pool_name, cluster_name).as_dict()
-                        ),
                     )
                     op.add_metadata(
-                        "cluster_info", json.dumps(self.get_cluster_data(cluster_name))
+                        "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
@@ -732,21 +714,6 @@ class AKSClient:
                             )
                             op.add_metadata("nvidia_driver_logs", pod_logs)
 
-                        # Record node readiness info
-                        op.add_metadata("ready_nodes", len(ready_nodes))
-                        op.add_metadata("node_pool_name", node_pool_name)
-                        op.add_metadata(
-                            "nodepool_info",
-                            json.dumps(
-                                self.get_node_pool(
-                                    node_pool_name, cluster_name
-                                ).as_dict()
-                            ),
-                        )
-                        op.add_metadata(
-                            "cluster_info",
-                            json.dumps(self.get_cluster_data(cluster_name)),
-                        )
 
                 except Exception as e:
                     logger.error(f"Error at step {step}: {str(e)}")

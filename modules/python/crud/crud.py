@@ -15,10 +15,12 @@ import json
 import os
 import sys
 import traceback
+import time
 from datetime import datetime, timezone
 
-from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
+from azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 from utils.common import get_env_vars, save_info_to_file
+from utils.operation import OperationContext
 from utils.logger_config import get_logger, setup_logging
 
 
@@ -81,10 +83,8 @@ def collect_benchmark_results():
         logger.info("Processing file: `%s`", filepath)
         with open(filepath, "r", encoding="utf-8") as file:
             content = json.load(file)
-        cluster_data = content.get("cluster_data")
         timestamp = datetime.now(timezone.utc).isoformat() + "Z"
         result = {
-            "cluster_data": json.dumps(cluster_data),
             "timestamp": timestamp,
             "region": region,
             "operation_info": json.dumps(content.get("operation_info")),
@@ -330,6 +330,19 @@ def node_pool_operations_main():
             result_dir=args.result_dir,
             step_timeout=args.step_timeout,
         )
+        # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
+        if args.gpu_node_pool:
+            logger.info("GPU node pool is enabled")
+            with OperationContext(
+                "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir
+            ) as op:
+                node_pool_crud.aks_client.k8s_client.install_gpu_device_plugin()
+                valid = node_pool_crud.aks_client.k8s_client.verify_gpu_device_plugin()
+                if not valid:
+                    logger.error("GPU device plugin verification failed")
+                    exit (1)
+                logger.info("GPU device plugin installed and verified successfully")
+
 
         # Execute the function associated with the selected command
         operation_result = args.func(node_pool_crud, args)

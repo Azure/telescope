@@ -116,6 +116,7 @@ class Operation:
             "error_message": self.error_message,
             "error_traceback": self.error_traceback,
             "metadata": self.metadata,
+            "unit": self.unit,
         }
 
     def to_json(self, indent: int = 2) -> str:
@@ -143,7 +144,7 @@ class Operation:
 
         with open(file_path, "w", encoding="utf-8") as f:
             operation_info = {
-                "operation_info": self.to_json(),
+                "operation_info": self.to_dict(),
             }
             f.write(json.dumps(operation_info))
 
