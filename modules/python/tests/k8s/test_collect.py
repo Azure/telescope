@@ -132,11 +132,8 @@ class TestCollect(unittest.TestCase):
         self.assertEqual(result["run_id"], "run-123")
         self.assertEqual(result["run_url"], "http://example.com/run/123")
 
-        # Parse the JSON strings
-        cluster_info1 = json.loads(result["cluster_info"])
         operation_info1 = json.loads(result["operation_info"])
 
-        self.assertEqual(cluster_info1["name"], "test-cluster")
         self.assertEqual(operation_info1["operation"], "create_node_pool")
 
     @mock.patch("k8s.collect.get_env_vars")

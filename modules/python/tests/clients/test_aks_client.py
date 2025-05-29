@@ -72,6 +72,9 @@ class TestAKSClient(unittest.TestCase):
 
         # Set VM size for metrics testing
         self.aks_client.vm_size = "Standard_DS2_v2"
+        
+        # Mock get_cluster_data globally to return serializable dict
+        self.aks_client.get_cluster_data = mock.MagicMock(return_value={"name": "fake-cluster"})
 
     def tearDown(self):
         """Clean up after tests"""
@@ -101,6 +104,7 @@ class TestAKSClient(unittest.TestCase):
         self.aks_client.cluster_name = None
         mock_cluster = mock.MagicMock()
         mock_cluster.name = "discovered-cluster"
+        mock_cluster.as_dict.return_value = {"name": "discovered-cluster"}
         self.mock_managed_clusters.list_by_resource_group.return_value = [mock_cluster]
 
         # Execute
@@ -135,6 +139,9 @@ class TestAKSClient(unittest.TestCase):
             "location": "eastus",
         }
         self.mock_managed_clusters.get.return_value = mock_cluster
+
+        # Remove the global mock for this test to test the actual method
+        del self.aks_client.get_cluster_data
 
         # Execute
         result = self.aks_client.get_cluster_data()
@@ -179,6 +186,23 @@ class TestAKSClient(unittest.TestCase):
         ready_nodes = [mock.MagicMock(), mock.MagicMock()]
         self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
+        # Mock the node pool that will be retrieved after creation
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {
+            "name": node_pool_name,
+            "vm_size": vm_size,
+            "count": node_count
+        }
+        
+        # Mock get_node_pool to return the created node pool with as_dict method
+        original_get_node_pool = self.aks_client.get_node_pool
+        def mock_get_node_pool_side_effect(name, cluster=None):
+            if name == node_pool_name:
+                return mock_created_node_pool
+            return original_get_node_pool(name, cluster)
+        
+        self.aks_client.get_node_pool = mock.MagicMock(side_effect=mock_get_node_pool_side_effect)
+
         # Execute
         result = self.aks_client.create_node_pool(
             node_pool_name=node_pool_name,
@@ -217,6 +241,23 @@ class TestAKSClient(unittest.TestCase):
             return_value="GPU 0: Tesla V100"
         )
 
+        # Mock the node pool that will be retrieved after creation
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {
+            "name": node_pool_name,
+            "vm_size": vm_size,
+            "count": node_count
+        }
+        
+        # Mock get_node_pool to return the created node pool with as_dict method
+        original_get_node_pool = self.aks_client.get_node_pool
+        def mock_get_node_pool_side_effect(name, cluster=None):
+            if name == node_pool_name:
+                return mock_created_node_pool
+            return original_get_node_pool(name, cluster)
+        
+        self.aks_client.get_node_pool = mock.MagicMock(side_effect=mock_get_node_pool_side_effect)
+
         # Execute
         result = self.aks_client.create_node_pool(
             node_pool_name=node_pool_name,
@@ -249,6 +290,7 @@ class TestAKSClient(unittest.TestCase):
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
         mock_node_pool.vm_size = "Standard_DS2_v2"
+        mock_node_pool.as_dict.return_value = {"count": 1, "vm_size": "Standard_DS2_v2"}
         self.mock_agent_pools.get.return_value = mock_node_pool
 
         mock_operation = mock.MagicMock()
@@ -256,6 +298,12 @@ class TestAKSClient(unittest.TestCase):
 
         ready_nodes = [mock.MagicMock(), mock.MagicMock(), mock.MagicMock()]
         self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        # Mock get_cluster_data to return a dictionary for JSON serialization
+        self.aks_client.get_cluster_data = mock.MagicMock(return_value={"name": "fake-cluster"})
+        
+        # Mock get_node_pool to return the node pool with as_dict method
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
 
         # Execute
         result = self.aks_client.scale_node_pool(
@@ -284,13 +332,20 @@ class TestAKSClient(unittest.TestCase):
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
         mock_node_pool.vm_size = "Standard_DS2_v2"
+        mock_node_pool.as_dict.return_value = {"count": 3, "vm_size": "Standard_DS2_v2"}
         self.mock_agent_pools.get.return_value = mock_node_pool
+
+        # Mock get_cluster_data to return a dictionary for JSON serialization
+        self.aks_client.get_cluster_data = mock.MagicMock(return_value={"name": "fake-cluster"})
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock()]
         self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        # Mock get_node_pool to return the node pool with as_dict method
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
 
         # Execute
         result = self.aks_client.scale_node_pool(
@@ -317,7 +372,12 @@ class TestAKSClient(unittest.TestCase):
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.vm_size = "Standard_DS2_v2"
+        mock_node_pool.count = 1
+        mock_node_pool.as_dict.return_value = {"vm_size": "Standard_DS2_v2", "count": 1}
         self.mock_agent_pools.get.return_value = mock_node_pool
+
+        # Mock get_cluster_data to return a dictionary for JSON serialization
+        self.aks_client.get_cluster_data = mock.MagicMock(return_value={"name": "fake-cluster"})
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_delete.return_value = mock_operation
@@ -346,7 +406,14 @@ class TestAKSClient(unittest.TestCase):
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
         mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        mock_node_pool.as_dict.return_value = {"count": 1, "vm_size": "Standard_NC6s_v3"}
         self.mock_agent_pools.get.return_value = mock_node_pool
+
+        # Mock get_cluster_data to return a dictionary for JSON serialization
+        self.aks_client.get_cluster_data = mock.MagicMock(return_value={"name": "fake-cluster"})
+        
+        # Mock get_node_pool to return the node pool with as_dict method
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
@@ -380,8 +447,8 @@ class TestAKSClient(unittest.TestCase):
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
     @mock.patch("clients.aks_client.time")
-    def test_scale_gpu_node_pool_up_intermediate_step(self, mock_time):
-        """Test scaling a GPU node pool up (intermediate step) without NVIDIA verification"""
+    def test_scale_gpu_node_pool_up_progressive_final_step(self, mock_time):
+        """Test progressive scaling of a GPU node pool with NVIDIA verification on final step"""
         # Setup
         node_pool_name = "gpu-pool"
         node_count = 3
@@ -396,7 +463,11 @@ class TestAKSClient(unittest.TestCase):
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
         mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        mock_node_pool.as_dict.return_value = {"count": 1, "vm_size": "Standard_NC6s_v3"}
         self.mock_agent_pools.get.return_value = mock_node_pool
+
+        # Mock get_node_pool to return the node pool with as_dict method
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
 
         # Two operations for two scaling steps
         mock_operation1 = mock.MagicMock()
@@ -425,7 +496,7 @@ class TestAKSClient(unittest.TestCase):
             node_pool_name=node_pool_name,
             node_count=node_count,
             gpu_node_pool=True,
-            progressive=True,  # Set progressive to true to indicate this is an intermediate step
+            progressive=True,  # Progressive scaling to final target
             scale_step_size=1,  # Use explicit step size
         )
 
@@ -434,14 +505,8 @@ class TestAKSClient(unittest.TestCase):
         # For progressive scaling, begin_create_or_update should be called twice (once for each step)
         self.assertEqual(self.mock_agent_pools.begin_create_or_update.call_count, 2)
 
-        # Check that NVIDIA verification was NOT performed at any point
-        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
-
-        # Verify
-        self.assertTrue(result)
-
-        # Check that NVIDIA verification was NOT performed for intermediate step
-        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+        # Check that NVIDIA verification was performed only once (on the final step)
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes2)
 
     @mock.patch("clients.aks_client.time")
     def test_scale_gpu_node_pool_down_no_verification(self, mock_time):
@@ -455,7 +520,11 @@ class TestAKSClient(unittest.TestCase):
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
         mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        mock_node_pool.as_dict.return_value = {"count": 3, "vm_size": "Standard_NC6s_v3"}
         self.mock_agent_pools.get.return_value = mock_node_pool
+
+        # Mock get_node_pool to return the node pool with as_dict method
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation

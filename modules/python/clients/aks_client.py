@@ -709,21 +709,20 @@ class AKSClient:
                         time.sleep(wait_time)
 
                     if step == target_count:
-                        pod_logs = None
                         # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                         # and only when reaching the final target (not intermediate steps)
                         if (
                             gpu_node_pool
                             and operation_type == "scale_up"
-                            and target_count > 0
+                            and step > 0
                         ):
+                            pod_logs = None
                             logger.info(
                                 f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
                             )
-                            pod_logs = self.k8s_client.verify_nvidia_smi_on_node(
-                                ready_nodes
-                            )
+                            pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                             op.add_metadata("nvidia_driver_logs", pod_logs)
+                        
                         # Record node readiness info
                         op.add_metadata("ready_nodes", len(ready_nodes))
                         op.add_metadata("node_pool_name", node_pool_name)
