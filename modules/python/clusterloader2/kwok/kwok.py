@@ -36,10 +36,10 @@ def configure_clusterloader2(
 
 
 def validate_clusterloader2(
-    node_count: int, operation_timeout_in_minutes: int = 10
+    node_count: int, operation_timeout_in_minutes: int = 10, label: str = ""
 ) -> None:
     kube_client = KubernetesClient()
-    kube_client.wait_for_nodes_ready(node_count, operation_timeout_in_minutes)
+    kube_client.wait_for_nodes_ready(node_count, operation_timeout_in_minutes, label)
 
 
 def execute_clusterloader2(
@@ -181,6 +181,13 @@ def main():
         default=600,
         help="Operation timeout to wait for nodes to be ready",
     )
+    parser_validate.add_argument(
+        "--label",
+        type=str,
+        default="",
+        help="Label to filter nodes",
+    )
+
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")

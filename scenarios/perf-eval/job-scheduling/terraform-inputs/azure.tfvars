@@ -21,14 +21,14 @@ aks_config_list = [
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
+      node_labels                  = { "default" = "true" }
     }
     extra_node_pool = [
       {
         name        = "virtualnodes"
         node_count  = 3
         vm_size     = "Standard_D8_v3"
-        node_taints = ["virtual=true:NoSchedule"]
-        node_labels = { "virtual" = "true" }
+        node_labels = { "default" = "true" }
       }
     ]
   }
