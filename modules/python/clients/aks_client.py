@@ -12,7 +12,6 @@ Operations are tracked using the Operation and OperationContext classes for metr
 and troubleshooting.
 """
 
-import json
 import logging
 import os
 import time

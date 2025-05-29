@@ -15,11 +15,10 @@ import json
 import os
 import sys
 import traceback
-import time
 from datetime import datetime, timezone
 
 from azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
-from utils.common import get_env_vars, save_info_to_file
+from utils.common import get_env_vars
 from utils.operation import OperationContext
 from utils.logger_config import get_logger, setup_logging
 
@@ -53,18 +52,6 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-def create_result_dir(path):
-    """
-    Create result directory if it doesn't exist.
-
-    Args:
-        path: The directory path to create
-    """
-    if not os.path.exists(path):
-        logger.info("Creating result directory: `%s`", path)
-        os.makedirs(path)
-
-
 def collect_benchmark_results():
     """Main function to process Cluster Crud benchmark results."""
     result_dir = get_env_vars("RESULT_DIR")
@@ -74,8 +61,6 @@ def collect_benchmark_results():
     logger.info("environment variable REGION: `%s`", region)
     logger.info("environment variable RESULT_DIR: `%s`", result_dir)
     logger.info("environment variable RUN_URL: `%s`", run_url)
-
-    create_result_dir(result_dir)
 
     for filepath in glob.glob(f"{result_dir}/*.json"):
         if os.path.basename(filepath) == "results.json":
@@ -92,8 +77,11 @@ def collect_benchmark_results():
             "run_url": run_url,
         }
         logger.debug("Result: %s", json.dumps(result))
-        save_info_to_file(result, os.path.join(result_dir, "results.json"))
+        result_json = json.dumps(result)
+        with open(f"{result_dir}/results.json", "a", encoding="utf-8") as file:
+            file.write(result_json + "\n")
         logger.info("Result written to: `%s/results.json`", result_dir)
+    return 0
 
 
 def handle_node_pool_operation(node_pool_crud, args):
@@ -174,8 +162,15 @@ def handle_node_pool_all(node_pool_crud, args):
 
 def node_pool_operations_main():
     """Main entry point for node pool operations"""
-    parser = argparse.ArgumentParser(description="Perform AKS node pool operations")
+    parser = argparse.ArgumentParser(description="Perform AKS node pool operations and collect benchmark results.")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # Collect benchmark results command (standalone, doesn't use common_parser)
+    collect_parser = subparsers.add_parser(
+        "collect",
+        help="Collect and process benchmark results from JSON files in the result directory",
+    )
+    collect_parser.set_defaults(func=collect_benchmark_results)
 
     # Common arguments for all commands
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -295,33 +290,37 @@ def node_pool_operations_main():
         parser.print_help()
         return 1
 
-    # Validate required arguments are present
-    if args.command in ["create", "scale", "delete", "all"] and not args.node_pool_name:
+    # Handle collect command separately since it doesn't need node pool operations
+    if args.command == "collect":
+        return args.func()
+
+    # Validate required arguments are present for node pool operations
+    if args.command in ["create", "scale", "delete", "all"] and not hasattr(args, 'node_pool_name'):
         logger.error("--node-pool-name is required")
         return 1
 
-    if args.command == "create" and not args.vm_size:
+    if args.command == "create" and not hasattr(args, 'vm_size'):
         logger.error("--vm-size is required for create command")
         return 1
 
-    if args.command == "scale" and args.target_count is None:
+    if args.command == "scale" and not hasattr(args, 'target_count'):
         logger.error("--target-count is required for scale command")
         return 1
 
     if args.command == "all":
-        if not args.vm_size:
+        if not hasattr(args, 'vm_size'):
             logger.error("--vm-size is required for all command")
             return 1
-        if args.node_count is None:
+        if not hasattr(args, 'node_count'):
             logger.error("--node-count is required for all command")
             return 1
-        if args.target_count is None:
+        if not hasattr(args, 'target_count'):
             logger.error("--target-count is required for all command")
             return 1
 
     try:
         # Get the appropriate NodePoolCRUD class for the specified cloud provider
-        NodePoolCRUD = get_node_pool_crud_class(args.cloud)
+        NodePoolCRUD = get_node_pool_crud_class(args.cloud) # pylint: disable=invalid-name
         logger.info(f"Using NodePoolCRUD class for cloud provider: {args.cloud}")
         # Create a single NodePoolCRUD instance to be used across all operations
         node_pool_crud = NodePoolCRUD(
@@ -340,7 +339,8 @@ def node_pool_operations_main():
                 valid = node_pool_crud.aks_client.k8s_client.verify_gpu_device_plugin()
                 if not valid:
                     logger.error("GPU device plugin verification failed")
-                    exit (1)
+                    op.success = False
+                    sys.exit(1)
                 logger.info("GPU device plugin installed and verified successfully")
 
 
@@ -366,37 +366,31 @@ def node_pool_operations_main():
 
 def main():
     """
-    Main entry point that determines whether to run benchmark collection or node pool operations.
-    
-    If no command line arguments are provided, runs benchmark collection.
-    Otherwise, runs node pool operations.
+    Main entry point that determines whether to run benchmark collection or node pool operations.    
     """
-    if len(sys.argv) == 1:
-        # No arguments provided, run benchmark collection
-        collect_benchmark_results()
-    else:
-        # Arguments provided, run node pool operations
-        try:
-            exit_code = node_pool_operations_main()
-            if exit_code == 0:
-                logger.info("Operation completed successfully")
-            else:
-                logger.error(f"Operation failed with exit code: {exit_code}")
-            sys.exit(exit_code)
-        except ImportError as import_error:
-            error_msg = f"Import Error: {import_error}"
-            logger.critical(error_msg)
 
-            error_trace = traceback.format_exc()
-            logger.critical(error_trace)
-            sys.exit(1)
-        except Exception as general_error:
-            error_msg = f"Unexpected error: {general_error}"
-            logger.critical(error_msg)
+    # Arguments provided, run node pool operations and collect benchmark results
+    try:
+        exit_code = node_pool_operations_main()
+        if exit_code == 0:
+            logger.info("Operation completed successfully")
+        else:
+            logger.error(f"Operation failed with exit code: {exit_code}")
+        sys.exit(exit_code)
+    except ImportError as import_error:
+        error_msg = f"Import Error: {import_error}"
+        logger.critical(error_msg)
 
-            error_trace = traceback.format_exc()
-            logger.critical(error_trace)
-            sys.exit(1)
+        error_trace = traceback.format_exc()
+        logger.critical(error_trace)
+        sys.exit(1)
+    except Exception as general_error:
+        error_msg = f"Unexpected error: {general_error}"
+        logger.critical(error_msg)
+
+        error_trace = traceback.format_exc()
+        logger.critical(error_trace)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
