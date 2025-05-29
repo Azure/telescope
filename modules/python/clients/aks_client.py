@@ -349,7 +349,7 @@ class AKSClient:
                     "nodepool_info",
                     json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict()),
                 )
-                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name).as_dict()))
+                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name)))
 
                 return True
 
@@ -491,7 +491,7 @@ class AKSClient:
                     "nodepool_info",
                     json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict()),
                 )
-                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name).as_dict()))
+                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name)))
 
                 return True
 
@@ -565,6 +565,7 @@ class AKSClient:
 
                 # Add node pool name to operation metadata
                 op.add_metadata("node_pool_name", node_pool_name)
+                op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name)))
 
                 return True
 
@@ -688,7 +689,7 @@ class AKSClient:
                         "nodepool_info",
                         json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict()),
                     )
-                    op.add_metadata("cluster_info", json.dumps(json.dumps(self.get_cluster_data(cluster_name).as_dict())))
+                    op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name)))
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
                     )
@@ -730,7 +731,7 @@ class AKSClient:
                             "nodepool_info",
                             json.dumps(self.get_node_pool(node_pool_name, cluster_name).as_dict())
                         )
-                        op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name).as_dict()))
+                        op.add_metadata("cluster_info", json.dumps(self.get_cluster_data(cluster_name)))
 
                 except Exception as e:
                     logger.error(f"Error at step {step}: {str(e)}")
