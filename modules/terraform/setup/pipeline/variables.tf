@@ -25,8 +25,7 @@ variable "azure_devops_config" {
   validation {
     condition = alltrue([
       contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SUBSCRIPTION_ID"),
-      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SERVICE_CONNECTION"),
-      contains([for v in var.azure_devops_config.variables : v.name], "AWS_SERVICE_CONNECTION")
+      contains([for v in var.azure_devops_config.variables : v.name], "AZURE_SERVICE_CONNECTION")
     ])
     error_message = "The following variables are required: AZURE_SUBSCRIPTION_ID, AZURE_SERVICE_CONNECTION, AWS_SERVICE_CONNECTION"
   }

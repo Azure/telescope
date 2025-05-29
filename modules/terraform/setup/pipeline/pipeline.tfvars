@@ -4,27 +4,32 @@ azure_devops_config = {
   variables = [
     {
       name  = "AZURE_SUBSCRIPTION_ID"
-      value = "00000000-0000-0000-0000-000000000000"
-    },
-    {
-      name  = "AWS_SERVICE_CONNECTION"
-      value = "AWS-for-Telescope"
+      value = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
     },
     {
       name  = "AZURE_SERVICE_CONNECTION"
-      value = "Azure-for-Telescope"
-  }]
+      value = "Azure-for-Telescope-internal"
+    },
+    {
+      name  = "AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME"
+      value = "telescopedata"
+    },
+    {
+      name  = "SKIP_RESOURCE_MANAGEMENT"
+      value = "false"
+    }
+  ]
   pipeline_config = {
-    name = "API Server Benchmark with 10 Nodes 100 Pods"
+    name = "Deployment Safeguards Perf test"
     path = "\\"
     repository = {
       repo_type               = "GitHub"
       repository_name         = "Azure/telescope"
-      branch_name             = "main"
-      yml_path                = "pipelines/perf-eval/apiserver-benchmark-virtualnodes10-pods100.yml"
-      service_connection_name = "Github-for-Telescope"
+      branch_name             = "nikelle/safeguards-perf-test"
+      yml_path                = "pipelines/Safeguards Benchmark/safeguards-benchmark.yml"
+      service_connection_name = "telescope (1)"
     }
-    agent_pool_name = "Azure Pipelines"
+    agent_pool_name = "AKS-Telescope-Ubuntu-EastUS2"
   }
-  service_connections = ["AWS-for-Telescope", "Azure-for-Telescope"]
+  service_connections = ["Azure-for-Telescope-internal"]
 }

@@ -1,0 +1,46 @@
+trigger: none
+
+schedules:
+  - cron: "0 0 * * *" # Once a day at midnight
+    displayName: Daily midnight trigger
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: safeguards
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: azure/telescope
+      ref: refs/heads/main
+      endpoint: Azure (42)
+
+pool:
+  name: "1ES-Telescope-Ubuntu-EastUS"
+
+stages:
+  - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml@templates # must keep as is
+        parameters:
+          cloud: azure # e.g. azure, aws
+          regions: # list of regions
+            - eastus2 # e.g. eastus
+          terraform_input_file_mapping: # Optional: mapping of terraform input files to regions
+            - region1: "scenarios/perf-eval/safeguards/terraform-inputs/azure.tfvars" 
+          topology: service-churn # we're testing a bunch of pods being created and deleted 
+          engine: clusterloader2 
+          matrix: # list of test parameters to customize the provisioned resources
+            v5_with_accel_net:
+              machine_type: Standard_D16_v5
+              accelerated_networking: "true"
+          max_parallel: 1 # required
+          credential_type: managed_identity # Optional: default is managed_identity
+          ssh_key_enabled: false # Optional: Enable SSH key for VMs (default is true)
+          timeout_in_minutes: 120 # if not specified, default is 60
