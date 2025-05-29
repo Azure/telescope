@@ -40,5 +40,5 @@ packages = ["iperf3", "clients", "utils", "clusterloader2", "pipelines", "kowk"]
 telescope-iperf3 = "iperf3.iperf3_pod:main"
 telescope-cl2-autoscale = "clusterloader2.autoscale.autoscale:main"
 telescope-cl2-cri = "clusterloader2.cri.cri:main"
-telescope-pipeline = "pipelines.pipelines.main"
+telescope-pipeline = "pipelines.pipelines:main"
 telescope-kowk = "kowk.kowk:main"
