@@ -78,7 +78,7 @@ stages:
           engine: kperf
           topology: kperf
           matrix:
-            exempt:
+            workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
