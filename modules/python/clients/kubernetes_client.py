@@ -595,7 +595,7 @@ class KubernetesClient:
 
         except Exception as e:
             logger.error(
-                f"Error verifying NVIDIA drivers on node {node_name}: {str(e)}"
+                f"Error verifying NVIDIA drivers: {str(e)}"
             )
             return False
 

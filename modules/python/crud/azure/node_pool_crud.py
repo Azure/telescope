@@ -152,6 +152,7 @@ class NodePoolCRUD:
         progressive=False,
         scale_step_size=1,
         gpu_node_pool=False,
+        step_wait_time=30,
     ):
         """
         Unified method to perform all node pool operations: create, scale-up, scale-down, delete
@@ -165,11 +166,11 @@ class NodePoolCRUD:
             progressive: Whether to scale progressively in steps (default: False)
             scale_step_size: Number of nodes to add/remove in each step if progressive (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
+            step_wait_time: Time to wait between operations (default: 30 seconds)
 
         Returns:
             True if all operations succeeded, False if any operation failed
         """
-        operations_gap = 30  # Default gap between operations
         errors = []
         results = {
             "create": False,
@@ -195,8 +196,8 @@ class NodePoolCRUD:
                 errors.append(error_msg)
                 return False
 
-            logger.info(f"Waiting {operations_gap} seconds before scaling up...")
-            time.sleep(operations_gap)
+            logger.info(f"Waiting {step_wait_time} seconds before scaling up...")
+            time.sleep(step_wait_time)
 
             # 2. Scale up
             logger.info(
@@ -217,8 +218,8 @@ class NodePoolCRUD:
                 errors.append(error_msg)
                 # Continue to scale down and delete to clean up resources
 
-            logger.info(f"Waiting {operations_gap} seconds before scaling down...")
-            time.sleep(operations_gap)
+            logger.info(f"Waiting {step_wait_time} seconds before scaling down...")
+            time.sleep(step_wait_time)
 
             # 3. Scale down (back to original count)
             logger.info(
@@ -239,8 +240,8 @@ class NodePoolCRUD:
                 errors.append(error_msg)
                 # Continue to delete to clean up resources
 
-            logger.info(f"Waiting {operations_gap} seconds before deleting...")
-            time.sleep(operations_gap)
+            logger.info(f"Waiting {step_wait_time} seconds before deleting...")
+            time.sleep(step_wait_time)
 
             # 4. Delete node pool
             logger.info(f"Deleting node pool '{node_pool_name}'")

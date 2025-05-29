@@ -19,23 +19,24 @@ from datetime import datetime, timezone
 
 from azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 from utils.common import get_env_vars
-from utils.operation import OperationContext
 from utils.logger_config import get_logger, setup_logging
+from operation import OperationContext
 
 # Configure logging
 setup_logging()
 logger = get_logger(__name__)
 
+
 def get_node_pool_crud_class(cloud_provider):
     """
     Dynamically import and return the appropriate NodePoolCRUD class based on cloud provider.
-    
+
     Args:
         cloud_provider (str): The cloud provider ("azure", "aws", "gcp")
-        
+
     Returns:
         class: The NodePoolCRUD class for the specified cloud provider
-        
+
     Raises:
         ImportError: If the cloud provider implementation is not available
         ValueError: If the cloud provider is not supported
@@ -44,11 +45,15 @@ def get_node_pool_crud_class(cloud_provider):
         try:
             return AzureNodePoolCRUD
         except ImportError as e:
-            raise ImportError(f"Azure NodePoolCRUD implementation not found: {e}") from e
+            raise ImportError(
+                f"Azure NodePoolCRUD implementation not found: {e}"
+            ) from e
     # Todo : Implement AWS and GCP NodePoolCRUD classes
     else:
-        raise ValueError(f"Unsupported cloud provider: {cloud_provider}. "
-                        f"Supported providers are: azure, aws, gcp")
+        raise ValueError(
+            f"Unsupported cloud provider: {cloud_provider}. "
+            f"Supported providers are: azure, aws, gcp"
+        )
 
 
 def collect_benchmark_results():
@@ -115,6 +120,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 progressive=args.progressive,
                 scale_step_size=args.scale_step_size,
                 gpu_node_pool=args.gpu_node_pool,
+                step_wait_time=args.step_wait_time,
             )
         else:
             logger.error(f"Unsupported command: {command}")
@@ -159,9 +165,13 @@ def handle_node_pool_all(node_pool_crud, args):
         return 1
 
 
-def node_pool_operations_main():
-    """Main entry point for node pool operations"""
-    parser = argparse.ArgumentParser(description="Perform AKS node pool operations and collect benchmark results.")
+def main():
+    """
+    Main entry point that determines whether to run benchmark collection or node pool operations.
+    """
+    parser = argparse.ArgumentParser(
+        description="Perform node pool operations and collect benchmark results."
+    )
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Collect benchmark results command (standalone, doesn't use common_parser)
@@ -174,7 +184,12 @@ def node_pool_operations_main():
     # Common arguments for all commands
     common_parser = argparse.ArgumentParser(add_help=False)
     # only suport Azure, Aws, GCP here
-    common_parser.add_argument("--cloud", choices=["azure", "aws", "gcp"], required=True, help="Cloud provider should be Azure, Aws or GCP")
+    common_parser.add_argument(
+        "--cloud",
+        choices=["azure", "aws", "gcp"],
+        required=True,
+        help="Cloud provider should be Azure, Aws or GCP",
+    )
     common_parser.add_argument("--run-id", required=True, help="Unique run identifier")
     common_parser.add_argument(
         "--result-dir", default=".", help="Directory to save results"
@@ -217,7 +232,7 @@ def node_pool_operations_main():
         "--progressive", action="store_true", help="Scale progressively in steps"
     )
     scale_parser.add_argument(
-        "scale-step-size",
+        "--scale-step-size",
         type=int,
         default=1,
         help="Number of nodes to add/remove in each step during progressive scaling",
@@ -282,45 +297,54 @@ def node_pool_operations_main():
     )
     all_parser.set_defaults(func=handle_node_pool_operation)
 
-    args = parser.parse_args()
-
-    if not hasattr(args, "func"):
-        logger.error("No command specified")
-        parser.print_help()
-        return 1
-
-    # Handle collect command separately since it doesn't need node pool operations
-    if args.command == "collect":
-        return args.func()
-
-    # Validate required arguments are present for node pool operations
-    if args.command in ["create", "scale", "delete", "all"] and not hasattr(args, 'node_pool_name'):
-        logger.error("--node-pool-name is required")
-        return 1
-
-    if args.command == "create" and not hasattr(args, 'vm_size'):
-        logger.error("--vm-size is required for create command")
-        return 1
-
-    if args.command == "scale" and not hasattr(args, 'target_count'):
-        logger.error("--target-count is required for scale command")
-        return 1
-
-    if args.command == "all":
-        if not hasattr(args, 'vm_size'):
-            logger.error("--vm-size is required for all command")
-            return 1
-        if not hasattr(args, 'node_count'):
-            logger.error("--node-count is required for all command")
-            return 1
-        if not hasattr(args, 'target_count'):
-            logger.error("--target-count is required for all command")
-            return 1
-
+    # Arguments provided, run node pool operations and collect benchmark results
     try:
+        args = parser.parse_args()
+
+        if not hasattr(args, "func"):
+            logger.error("No command specified")
+            parser.print_help()
+            sys.exit(1)
+
+        # Handle collect command separately since it doesn't need node pool operations
+        if args.command == "collect":
+            exit_code = args.func()
+            if exit_code == 0:
+                logger.info("Collect operation completed successfully")
+            else:
+                logger.error(f"Collect operation failed with exit code: {exit_code}")
+            sys.exit(exit_code)
+
+        # Validate required arguments are present for node pool operations
+        if args.command in ["create", "scale", "delete", "all"] and not hasattr(
+            args, "node_pool_name"
+        ):
+            logger.error("--node-pool-name is required")
+            sys.exit(1)
+
+        if args.command == "create" and not hasattr(args, "vm_size"):
+            logger.error("--vm-size is required for create command")
+            sys.exit(1)
+
+        if args.command == "scale" and not hasattr(args, "target_count"):
+            logger.error("--target-count is required for scale command")
+            sys.exit(1)
+
+        if args.command == "all":
+            if not hasattr(args, "vm_size"):
+                logger.error("--vm-size is required for all command")
+                sys.exit(1)
+            if not hasattr(args, "node_count"):
+                logger.error("--node-count is required for all command")
+                sys.exit(1)
+            if not hasattr(args, "target_count"):
+                logger.error("--target-count is required for all command")
+                sys.exit(1)
+
         # Get the appropriate NodePoolCRUD class for the specified cloud provider
-        NodePoolCRUD = get_node_pool_crud_class(args.cloud) # pylint: disable=invalid-name
+        NodePoolCRUD = get_node_pool_crud_class(args.cloud)  # pylint: disable=invalid-name
         logger.info(f"Using NodePoolCRUD class for cloud provider: {args.cloud}")
+
         # Create a single NodePoolCRUD instance to be used across all operations
         node_pool_crud = NodePoolCRUD(
             resource_group=args.run_id,
@@ -328,6 +352,7 @@ def node_pool_operations_main():
             result_dir=args.result_dir,
             step_timeout=args.step_timeout,
         )
+
         # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
         if args.gpu_node_pool:
             logger.info("GPU node pool is enabled")
@@ -342,51 +367,34 @@ def node_pool_operations_main():
                     sys.exit(1)
                 logger.info("GPU device plugin installed and verified successfully")
 
-
         # Execute the function associated with the selected command
         operation_result = args.func(node_pool_crud, args)
         if operation_result is None:
             # For backward compatibility, treat None as success
             logger.info("Operation '%s' completed successfully", args.command)
-            return 0
-        if isinstance(operation_result, bool):
+            exit_code = 0
+        elif isinstance(operation_result, bool):
             # Convert boolean to exit code
-            return 0 if operation_result else 1
-        # Return the explicit exit code
-        return operation_result
+            exit_code = 0 if operation_result else 1
+        else:
+            # Return the explicit exit code
+            exit_code = operation_result
 
-    except (ImportError, ValueError) as e:
-        logger.error(f"Cloud provider configuration error: {str(e)}")
-        return 1
-    except Exception as e:
-        logger.error(f"Error executing command: {str(e)}")
-        return 1
-
-
-def main():
-    """
-    Main entry point that determines whether to run benchmark collection or node pool operations.    
-    """
-
-    # Arguments provided, run node pool operations and collect benchmark results
-    try:
-        exit_code = node_pool_operations_main()
         if exit_code == 0:
             logger.info("Operation completed successfully")
         else:
             logger.error(f"Operation failed with exit code: {exit_code}")
         sys.exit(exit_code)
+
     except ImportError as import_error:
         error_msg = f"Import Error: {import_error}"
         logger.critical(error_msg)
-
         error_trace = traceback.format_exc()
         logger.critical(error_trace)
         sys.exit(1)
     except Exception as general_error:
         error_msg = f"Unexpected error: {general_error}"
         logger.critical(error_msg)
-
         error_trace = traceback.format_exc()
         logger.critical(error_trace)
         sys.exit(1)

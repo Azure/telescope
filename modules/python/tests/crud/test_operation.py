@@ -11,7 +11,7 @@ import shutil
 from datetime import datetime, timezone
 from unittest import mock
 
-from utils.operation import Operation, OperationContext
+from crud.operation import Operation, OperationContext
 
 
 class TestOperation(unittest.TestCase):
