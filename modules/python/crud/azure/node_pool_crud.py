@@ -8,15 +8,12 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 
 import argparse
 import logging
-import os
 import sys
 import time
 import traceback
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Configure logging
 setup_logging()

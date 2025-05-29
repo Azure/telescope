@@ -7,7 +7,7 @@ import os
 import sys
 import unittest
 from unittest import mock
-from k8s.azure.node_pool_crud import NodePoolCRUD
+from crud.azure.node_pool_crud import NodePoolCRUD
 
 
 # Add the python directory to the path to import modules correctly

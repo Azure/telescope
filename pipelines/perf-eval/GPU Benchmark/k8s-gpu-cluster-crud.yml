@@ -16,7 +16,7 @@ stages:
           regions:
             - $(REGION)
           topology: k8s-crud-gpu
-          engine: raw
+          engine: crud
           matrix:
             h100_gpu_node_pool:
               gpu_node_pool: true
