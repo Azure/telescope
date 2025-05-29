@@ -24,7 +24,7 @@ steps:
 - script: |
     set -e
 
-    if [[ "${{ parameter.skip_resource_deletion }}" == "true" ]]; then
+    if [[ "${{ parameters.skip_resource_deletion }}" == "true" ]]; then
       echo "##vso[task.logissue type=error;] SKIP_RESOURCE_DELETION is true. Please delete resource manually.
     terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" | tee terraform_${{ parameters.command }}.log"
       exit 1
