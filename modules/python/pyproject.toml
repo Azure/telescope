@@ -34,7 +34,13 @@ Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
 [tool.hatch.build.targets.wheel]
-packages = ["iperf3", "clients", "utils"]
+packages = ["iperf3", "clients", "utils", "clusterloader2", "pipelines"]
 
 [project.scripts]
 telescope-iperf3 = "iperf3.iperf3_pod:main"
+telescope-cl2-autoscale = "clusterloader2.autoscale.autoscale:main"
+telescope-cl2-cri = "clusterloader2.cri.cri:main"
+telescope-cl2-slo = "clusterloader2.slo.slo:main"
+telescope-cl2-network-policy = "clusterloader2.slo.network_policy_scale:main"
+telescope-cl2-network-load = "clusterloader2.network-load.network_load:main"
+pipline-validation = "pipelines.pipelines.main"
