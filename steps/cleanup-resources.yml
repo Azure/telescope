@@ -23,7 +23,7 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
-    skip_resource_deletion: ${{ SKIP_RESOURCE_DELETION }}
+    skip_resource_deletion: "${SKIP_RESOURCE_DELETION}"
 
 - script: |
     set -eu
