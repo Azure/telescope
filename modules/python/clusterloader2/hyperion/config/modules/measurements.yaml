@@ -144,7 +144,7 @@ steps:
           enableViolations: true
           queries:
           - name: data
-            query: sum(rate(apiserver_watch_events_total)[%v:])) by (resource)
+            query: sum(rate(apiserver_watch_events_total[%v:])) by (resource)
       - Identifier: apiserver_watch_duration_seconds_bucket
         Method: GenericPrometheusQuery
         Params:
