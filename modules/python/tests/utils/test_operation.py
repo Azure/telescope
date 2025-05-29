@@ -169,6 +169,7 @@ class TestOperation(unittest.TestCase):
             "error_message": None,
             "error_traceback": None,
             "metadata": {"test_key": "test_value"},
+            "unit": "seconds",
         }
         self.assertEqual(result, expected)
 
@@ -207,7 +208,7 @@ class TestOperation(unittest.TestCase):
                 saved_data = json.load(f)
 
             self.assertIn("operation_info", saved_data)
-            operation_info = json.loads(saved_data["operation_info"])
+            operation_info = saved_data["operation_info"]  # It's now a dict, not a JSON string
             self.assertEqual(operation_info["name"], "test_operation")
             self.assertEqual(operation_info["duration"], 90.0)
 
@@ -451,7 +452,7 @@ class TestOperationContext(unittest.TestCase):
         with open(os.path.join(self.temp_dir, files[0]), "r", encoding="utf-8") as f:
             saved_data = json.load(f)
 
-        operation_info = json.loads(saved_data["operation_info"])
+        operation_info = saved_data["operation_info"]  # It's now a dict, not a JSON string
         metadata = operation_info["metadata"]
 
         self.assertEqual(metadata["initial_key"], "initial_value")
