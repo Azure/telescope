@@ -31,3 +31,8 @@ variable "labels" {
   type        = map(string)
   description = "Labels to apply to all resources"
 }
+
+variable "run_id" {
+  type        = string
+  description = "Unique identifier for the run"
+}
