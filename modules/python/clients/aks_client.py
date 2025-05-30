@@ -27,7 +27,7 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
-from utils.operation import OperationContext
+from crud.operation import OperationContext
 from .kubernetes_client import KubernetesClient
 
 # Configure logging
