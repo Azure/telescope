@@ -27,7 +27,6 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
-from crud.operation import OperationContext
 from .kubernetes_client import KubernetesClient
 
 # Configure logging
@@ -49,6 +48,17 @@ class AKSClient:
     methods for managing AKS node pools (create, scale, delete).
     It also validates node readiness using Kubernetes API.
     """
+
+    def _get_operation_context(self):
+        """
+        Import and return the OperationContext class on demand to avoid circular imports.
+
+        Returns:
+            The OperationContext class
+        """
+        from crud.operation import OperationContext
+
+        return OperationContext
 
     def __init__(
         self,
@@ -290,7 +300,7 @@ class AKSClient:
         }
 
         # Create operation context to track the operation
-        with OperationContext(
+        with self._get_operation_context()(
             "create_node_pool", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
@@ -426,7 +436,7 @@ class AKSClient:
             )
 
         # Create operation context to track the operation
-        with OperationContext(
+        with self._get_operation_context()(
             operation_type, "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
@@ -533,7 +543,7 @@ class AKSClient:
             metadata["vm_size"] = None
 
         # Create operation context to track the operation
-        with OperationContext(
+        with self._get_operation_context()(
             "delete_node_pool", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
@@ -643,7 +653,7 @@ class AKSClient:
             }
 
             # Create operation context for this specific step
-            with OperationContext(
+            with self._get_operation_context()(
                 operation_type, "azure", step_metadata, result_dir=self.result_dir
             ) as op:
                 logger.info(
