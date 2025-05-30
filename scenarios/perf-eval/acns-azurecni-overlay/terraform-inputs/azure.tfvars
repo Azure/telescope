@@ -34,6 +34,10 @@ aks_cli_config_list = [
       {
         name  = "enable-acns"
         value = ""
+      },
+      {
+        name  = "zones"
+        value = "1 2 3"
       }
     ]
 
@@ -42,6 +46,7 @@ aks_cli_config_list = [
       node_count           = 5
       auto_scaling_enabled = false
       vm_size              = "Standard_D4_v3"
+      zones                = ["1", "2", "3"]
     }
     extra_node_pool = [
       {
@@ -49,6 +54,7 @@ aks_cli_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D64_v3"
+        zones                = ["1", "2", "3"]
         optional_parameters = [
           {
             name  = "labels"
@@ -62,6 +68,7 @@ aks_cli_config_list = [
         auto_scaling_enabled = false
         max_pods             = 250
         vm_size              = "Standard_D4_v3"
+        zones                = ["1", "2", "3"]
         optional_parameters = [
           {
             name  = "labels"
