@@ -16,7 +16,6 @@ steps:
     echo "Terraform Working Directory: $terraform_working_directory"
 
   displayName: 'Set Terraform Working Directory'
-  condition: not(and(eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:
     CLOUD: ${{ parameters.cloud }}
     MODULES_DIR: ${{ parameters.modules_dir }}

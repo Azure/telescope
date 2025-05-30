@@ -81,7 +81,6 @@ steps:
       terraform ${{ parameters.command }} ${{ parameters.arguments }}
     fi
   displayName: "Run Terraform ${{ parameters.command }} Command"
-  condition: not(and(eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main')))
   retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
   env:
     REGIONS: ${{ convertToJson(parameters.regions) }}

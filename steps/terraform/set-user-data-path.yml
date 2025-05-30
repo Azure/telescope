@@ -20,6 +20,5 @@ steps:
     fi
 
   displayName: 'Set Terraform User Data Path'
-  condition: not(and(eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:
     USER_DATA_PATH: ${{ parameters.user_data_path }}
