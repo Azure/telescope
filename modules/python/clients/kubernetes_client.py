@@ -244,7 +244,7 @@ class KubernetesClient:
             ready_nodes = self.get_ready_nodes(label_selector=label_selector)
             ready_node_count = len(ready_nodes)
             logger.info(f"Currently {ready_node_count} nodes are ready.")
-            if ready_node_count >= node_count:
+            if ready_node_count == node_count:
                 return ready_nodes
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
