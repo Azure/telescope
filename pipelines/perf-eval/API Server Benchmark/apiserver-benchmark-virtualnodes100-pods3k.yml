@@ -64,3 +64,27 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
+  - stage: gcp_eastus1
+    dependsOn: []
+    condition: eq(variables['Build.Reason'], 'Manual')
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: gcp
+          regions:
+            - us-east1
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "true"
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.3.3
+            benchmark_subcmd: node100_job1_pod3k
+            benchmark_subcmd_args: "--total 36000"
+          max_parallel: 2
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
