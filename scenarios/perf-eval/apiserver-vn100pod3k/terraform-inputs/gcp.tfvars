@@ -1,5 +1,5 @@
 scenario_type = "perf-eval"
-scenario_name = "apiserver-vn100-p3k"
+scenario_name = "apiserver-vn100pod3k"
 owner         = "aks"
 network_config_list = [
   {
@@ -35,7 +35,7 @@ network_config_list = [
 gke_config_list = [
   {
     role        = "client"
-    name        = "vn100-p3k"
+    name        = "vn100p3k"
     vpc_name    = "client-vpc"
     subnet_name = "client-subnet"
     default_node_pool = {
