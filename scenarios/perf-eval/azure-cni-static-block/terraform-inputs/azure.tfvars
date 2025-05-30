@@ -77,7 +77,7 @@ aks_cli_config_list = [
       },
       {
         name                        = "userpool0"
-        node_count                  = 0
+        node_count                  = 50
         vm_size                     = "Standard_D4_v3"
         optional_parameters = [
           {
@@ -112,7 +112,7 @@ aks_cli_config_list = [
       },
       {
         name                          = "userpool1"
-        node_count                    = 0
+        node_count                    = 50
         vm_size                       = "Standard_D4_v3"
         optional_parameters = [
           {
