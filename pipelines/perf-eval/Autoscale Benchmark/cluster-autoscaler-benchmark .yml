@@ -218,9 +218,7 @@ stages:
           ssh_key_enabled: false
   - stage: azure_eastus2_5k_scale
     condition: |
-        or(
-          eq(variables['Build.Reason'], 'Manual')
-        )
+        eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     variables:
       - group: CAS-5K-Config
