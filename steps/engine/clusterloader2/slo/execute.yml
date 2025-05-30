@@ -37,4 +37,5 @@ steps:
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
+      SCRAPE_CONTAINERD: ${{ parameters.engine_input.scrape_containerd }}
     displayName: "Run Benchmark"
