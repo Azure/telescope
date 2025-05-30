@@ -27,7 +27,7 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
 - **Description:** ID of the subnet where the AKS cluster will be deployed.
 - **Type:** String
 - **Default:** ""
-
+  
 ### `vnet_id`
 
 - **Description:** ID of the virtual network where the AKS cluster will be deployed.
