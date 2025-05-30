@@ -17,10 +17,10 @@ import sys
 import traceback
 from datetime import datetime, timezone
 
-from azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 from utils.common import get_env_vars
 from utils.logger_config import get_logger, setup_logging
-from operation import OperationContext
+from crud.operation import OperationContext
+from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 
 # Configure logging
 setup_logging()
@@ -183,7 +183,7 @@ def main():
 
     # Common arguments for all commands
     common_parser = argparse.ArgumentParser(add_help=False)
-    # only suport Azure, Aws, GCP here
+    # only support Azure, Aws, GCP here
     common_parser.add_argument(
         "--cloud",
         choices=["azure", "aws", "gcp"],

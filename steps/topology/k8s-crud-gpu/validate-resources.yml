@@ -1,0 +1,13 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+- name: engine
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: gpu
+    region: ${{ parameters.regions[0] }}

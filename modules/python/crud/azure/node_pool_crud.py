@@ -42,8 +42,8 @@ class NodePoolCRUD:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Get the cluster name when initializing
-        self.cluster_name = self.aks_client.get_cluster_name()
+        # Defer cluster name lookup until needed (for cases where cluster doesn't exist yet)
+        self.cluster_name = None
         self.step_timeout = step_timeout
 
     def create_node_pool(
