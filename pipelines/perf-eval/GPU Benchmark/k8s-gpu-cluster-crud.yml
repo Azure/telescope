@@ -1,0 +1,33 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-gpu-cluster-crud
+  USE_LATEST_GA_K8S_VERSION: true
+  OWNER: aks
+
+stages:
+  - stage: azure_gpu_test
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(REGION)
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            h100_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: h100nodepool
+              vm_size: Standard_NC40ads_H100_v5
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
