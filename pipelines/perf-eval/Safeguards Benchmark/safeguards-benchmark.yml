@@ -35,7 +35,7 @@ stages:
           terraform_input_file_mapping: # Optional: mapping of terraform input files to regions
             - region1: "scenarios/perf-eval/safeguards/terraform-inputs/azure.tfvars" 
           topology: service-churn # we're testing a bunch of pods being created and deleted 
-          engine: clusterloader2 
+          engine: kwok
           matrix: # list of test parameters to customize the provisioned resources
             v5_with_accel_net:
               machine_type: Standard_D16_v5
