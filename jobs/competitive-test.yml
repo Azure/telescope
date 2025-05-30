@@ -91,7 +91,7 @@ jobs:
       credential_type: ${{ parameters.credential_type }}
 
 - job: ${{ parameters.cloud }}_full
-  condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+  condition: or(and(eq(variables['Build.Reason'], 'Manual'),ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
   strategy:
     maxParallel: ${{ parameters.max_parallel }}
     matrix:
