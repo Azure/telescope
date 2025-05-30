@@ -221,7 +221,7 @@ stages:
         eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     variables:
-      - group: CAS-5K-Config
+      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
