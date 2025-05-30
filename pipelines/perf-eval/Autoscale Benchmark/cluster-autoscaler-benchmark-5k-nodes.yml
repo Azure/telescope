@@ -1,0 +1,51 @@
+trigger: none
+schedules:
+  # Azure Large Scale(5000) Schedule
+  - cron: "0 19 * * *"
+    displayName: "Every day at 7:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cluster-autoscaler
+
+stages:
+  - stage: azure_eastus2_5k_scale
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    variables:
+      - group: CAS-5K-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-5k.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: cluster-autoscaler
+          matrix:
+            5k-on-demand:
+              cpu_per_node: 2
+              node_count: 4995
+              pod_count: 4995
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"    # not evaluate for now
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 500
+          credential_type: service_connection
+          ssh_key_enabled: false
