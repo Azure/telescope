@@ -11,7 +11,7 @@ steps:
     parameters:
       role: cni-static-block
       region: ${{ parameters.regions[0] }}
-  - template: /steps/engine/clusterloader2/cilium/scale-cluster.yml
+  - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
       role: cni-static-block
       region: ${{ parameters.regions[0] }}
