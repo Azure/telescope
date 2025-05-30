@@ -13,7 +13,5 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/slo/validate.yml
     parameters:
-      role: cni-static-block
-      region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: 500
-      enable_autoscale: "false"
+      desired_nodes: 500
+      validation_timeout_in_minutes: 30
