@@ -54,7 +54,7 @@ aks_cli_config_list = [
       },
       {
         name                 = "traffic"
-        node_count           = 5
+        node_count           = 1000
         auto_scaling_enabled = false
         max_pods             = 250
         vm_size              = "Standard_D4_v3"
