@@ -23,9 +23,16 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
+    skip_resource_deletion: "${SKIP_RESOURCE_DELETION}"
 
 - script: |
     set -eu
+
+    if [[ "${SKIP_RESOURCE_DELETION}" == "true" ]]; then
+      echo "##vso[task.logissue type=error;] SKIP_RESOURCE_DELETION is set. Please delete resource group manually.
+    az group delete --name $RUN_ID --yes"
+      exit 1
+    fi
 
     echo "Delete resource group $RUN_ID"
     az group delete --name $RUN_ID --yes
