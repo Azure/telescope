@@ -31,7 +31,7 @@ aks_config_list = [
         min_count            = 1
         max_count            = 995
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v4"
+        vm_size              = "Standard_D2s_v4"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       },
@@ -41,7 +41,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v4"
+        vm_size              = "Standard_D2s_v4"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       },
@@ -51,7 +51,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v4"
+        vm_size              = "Standard_D2s_v4"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       },
@@ -61,7 +61,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v4"
+        vm_size              = "Standard_D2s_v4"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       },
@@ -71,7 +71,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v4"
+        vm_size              = "Standard_D2s_v4"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
       }
