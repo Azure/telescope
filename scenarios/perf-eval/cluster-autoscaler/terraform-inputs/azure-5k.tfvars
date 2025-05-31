@@ -64,7 +64,7 @@ aks_config_list = [
         vm_size              = "Standard_D2ds_v4"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
-      }
+      },
       {
         name                 = "userpool5"
         node_count           = 0
