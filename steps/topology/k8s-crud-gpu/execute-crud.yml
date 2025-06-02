@@ -21,3 +21,4 @@ steps:
     step_time_out: $(STEP_TIME_OUT)
     result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     gpu_node_pool: $(GPU_NODE_POOL)
+    step_wait_time: $(STEP_WAIT_TIME)

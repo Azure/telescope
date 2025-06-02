@@ -16,6 +16,11 @@ variables:
 stages:
   - stage: azure_gpu_test
     dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every 6 hours'),
+        eq(variables['Build.Reason'], 'Manual')
+      )    
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -34,15 +39,15 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
-            # t4_gpu_node_pool:
-            #   gpu_node_pool: true
-            #   pool_name: t4nodepool
-            #   vm_size: Standard_NC4as_T4_v3
-            #   create_node_count: 0
-            #   scale_node_count: 2
-            #   scale_step_size: 1
-            #   step_time_out: 600
-            #   step_wait_time: 30
+            t4_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: t4nodepool
+              vm_size: Standard_NC4as_T4_v3
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
