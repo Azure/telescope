@@ -28,7 +28,7 @@ steps:
 - script: |
     set -eu
 
-    if [[ "${SKIP_RESOURCE_DELETION}" == "true" && "${Build.Reason}" == "Manual"]]; then
+    if [[ "${SKIP_RESOURCE_DELETION}" == "true" && "$BUILD_REASON" == "Manual"]]; then
       echo "##vso[task.logissue type=error;] SKIP_RESOURCE_DELETION is set. Please delete resource group manually.
     az group delete --name $RUN_ID --yes"
       exit 1
@@ -38,6 +38,8 @@ steps:
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+  env:
+    BUILD_REASON: $(Build.Reason)
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/collect-terraform-operation-metadata.yml
