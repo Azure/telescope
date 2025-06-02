@@ -20,7 +20,7 @@ stages:
       or(
         eq(variables['Build.CronSchedule.DisplayName'], 'Every 6 hours'),
         eq(variables['Build.Reason'], 'Manual')
-      )    
+      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

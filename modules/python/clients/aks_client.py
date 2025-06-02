@@ -56,7 +56,7 @@ class AKSClient:
         Returns:
             The OperationContext class
         """
-        from crud.operation import OperationContext
+        from crud.operation import OperationContext # pylint: disable=import-outside-toplevel
 
         return OperationContext
 
