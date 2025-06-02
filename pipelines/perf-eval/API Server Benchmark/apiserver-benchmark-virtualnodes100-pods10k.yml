@@ -37,6 +37,29 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
+  - stage: gcp_eastus1
+    dependsOn: []
+    condition: eq(variables['Build.Reason'], 'Manual')
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: gcp
+          regions:
+            - us-east1
+          engine: kperf
+          topology: kperf
+          matrix:
+            podsize-20k:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.3.3
+            benchmark_subcmd: node100_pod10k
+            benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
+          max_parallel: 2
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
   - stage: azure_eastus2_l4
     dependsOn: []
     variables:
