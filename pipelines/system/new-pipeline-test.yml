@@ -15,6 +15,8 @@ stages:
             - eastus # e.g. eastus2
           topology: azure-cni-static-block # e.g. cluster-autoscaler
           engine: clusterloader2 # e.g. clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
           matrix: # list of test parameters to customize the provisioned resources
             azure_cni_static_block:
               cpu_per_node: 4
