@@ -17,10 +17,10 @@ import sys
 import traceback
 from datetime import datetime, timezone
 
-from azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
+from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 from utils.common import get_env_vars
 from utils.logger_config import get_logger, setup_logging
-from operation import OperationContext
+from crud.operation import OperationContext
 
 # Configure logging
 setup_logging()
