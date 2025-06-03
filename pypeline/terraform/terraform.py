@@ -212,7 +212,7 @@ def generate_apply_or_destroy_script(
     if (
         TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
     ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
-        
+
         # Todo : replace this with error handling script
         error_handling_script = indent("", " " * 16)
     return dedent(
@@ -245,9 +245,6 @@ def generate_apply_or_destroy_script(
         done
         """
     ).strip()
-
-
-
 
 
 # TODO: Add delete_resource_group function and validate_resource_group function

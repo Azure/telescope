@@ -7,6 +7,7 @@ from benchmark import Cloud, CloudProvider
 from pipeline import Script, Step, Task
 from terraform.resource_group import ResourceGroup
 
+
 class CredentialType(Enum):
     MANAGED_IDENTITY = "managed_identity"
     SERVICE_CONNECTION = "service_connection"
@@ -19,7 +20,9 @@ class Azure(Cloud):
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     azure_service_connection: str = "$(AZURE_SERVICE_CONNECTION)"
     azure_mi_client_id: str = "$(AZURE_MI_CLIENT_ID)"
-    resource_group: ResourceGroup = field(default_factory=lambda: ResourceGroup(region="eastus2"))
+    resource_group: ResourceGroup = field(
+        default_factory=lambda: ResourceGroup(region="eastus2")
+    )
 
     @property
     def provider(self) -> CloudProvider:
@@ -122,4 +125,3 @@ class Azure(Cloud):
                 "user_node_pool", "$USER_NODE_POOL"
             ),
         }
-

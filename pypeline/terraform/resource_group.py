@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from textwrap import dedent
+
 from benchmark import CloudProvider, Resource
 from pipeline import Script
 
 
 def create_resource_group(
-    provider: CloudProvider,region: str, scenario_name: str, scenario_type: str
+    region: str, scenario_name: str, scenario_type: str
 ) -> Script:
     return Script(
         display_name="Create Resource Group",
@@ -44,8 +45,9 @@ class ResourceGroup(Resource):
 
     def setup(self, scenario_name: str, scenario_type: str) -> list[Script]:
         if self.provider == CloudProvider.AZURE:
-            return create_resource_group(self.provider, self.region, scenario_name, scenario_type)
-        
+            return create_resource_group(
+                self.provider, self.region, scenario_name, scenario_type
+            )
 
     def validate(self) -> list[Script]:
         pass
