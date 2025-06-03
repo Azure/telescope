@@ -41,7 +41,7 @@ def delete_resource_group(region: str) -> Script:
 @dataclass
 class ResourceGroup(Resource):
     region: str
-    provider: CloudProvider = CloudProvider.AZURE
+    provider: CloudProvider
 
     def setup(self, scenario_name: str, scenario_type: str) -> list[Script]:
         if self.provider == CloudProvider.AZURE:
