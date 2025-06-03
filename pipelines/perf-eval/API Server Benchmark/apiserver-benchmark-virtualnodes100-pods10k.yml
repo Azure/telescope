@@ -149,7 +149,7 @@ stages:
             runner_image: ghcr.io/azure/kperf:0.3.3
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
-          max_parallel: 1
+          max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
