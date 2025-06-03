@@ -1,11 +1,11 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from textwrap import dedent
 
 from benchmark import Cloud, CloudProvider
 from pipeline import Script, Step, Task
-
+from terraform.resource_group import ResourceGroup
 
 class CredentialType(Enum):
     MANAGED_IDENTITY = "managed_identity"
@@ -19,6 +19,7 @@ class Azure(Cloud):
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     azure_service_connection: str = "$(AZURE_SERVICE_CONNECTION)"
     azure_mi_client_id: str = "$(AZURE_MI_CLIENT_ID)"
+    resource_group: ResourceGroup = field(default_factory=lambda: ResourceGroup(region="eastus2"))
 
     @property
     def provider(self) -> CloudProvider:
@@ -122,22 +123,3 @@ class Azure(Cloud):
             ),
         }
 
-    def create_resource_group(self, region: str) -> str:
-        return dedent(
-            f"""
-            set -eu
-            echo "Create resource group $RUN_ID in region {region}"
-            az group create --name $RUN_ID --location {region} \\
-            --tags "run_id=$RUN_ID" "scenario=${{SCENARIO_TYPE}}-${{SCENARIO_NAME}}" "owner=${{OWNER}}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${{DELETION_DUE_TIME}}" "SkipAKSCluster=1"
-            """
-        ).strip()
-
-    def delete_resource_group(self) -> str:
-        return dedent(
-            """
-            echo "Deleting resources and removing state file before retrying"
-            ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
-            az resource delete --ids $ids --verbose
-            rm -r terraform.tfstate.d/$region
-            """
-        ).strip("")

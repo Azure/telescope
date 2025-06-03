@@ -103,7 +103,7 @@ stages:
         set -eu
         echo "Create resource group $RUN_ID in region eastus2"
         az group create --name $RUN_ID --location eastus2 \
-        --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
+        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
       displayName: Create Resource Group
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
@@ -213,11 +213,6 @@ stages:
             # Handle errors
             if [[ $exit_code -ne 0 ]]; then
                 echo "Terraform apply failed for region: $region"
-
-                echo "Deleting resources and removing state file before retrying"
-                ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
-                az resource delete --ids $ids --verbose
-                rm -r terraform.tfstate.d/$region
 
                 exit 1
             fi

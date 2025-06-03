@@ -212,8 +212,9 @@ def generate_apply_or_destroy_script(
     if (
         TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
     ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
-        error_handling_script = indent(cloud.delete_resource_group(), " " * 16)
-
+        
+        # Todo : replace this with error handling script
+        error_handling_script = indent("", " " * 16)
     return dedent(
         f"""
         set -e
@@ -246,12 +247,7 @@ def generate_apply_or_destroy_script(
     ).strip()
 
 
-def create_resource_group(cloud: Cloud, region: str) -> Script:
-    return Script(
-        display_name="Create Resource Group",
-        script=cloud.create_resource_group(region),
-        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
-    )
+
 
 
 # TODO: Add delete_resource_group function and validate_resource_group function
@@ -284,7 +280,7 @@ class Terraform(Resource):
             ),
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
-            create_resource_group(self.cloud, self.regions[0]),
+            self.cloud.resource_group.setup(self.scenario_name, self.scenario_type),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),
