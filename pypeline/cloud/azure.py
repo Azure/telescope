@@ -20,6 +20,7 @@ class Azure(Cloud):
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     azure_service_connection: str = "$(AZURE_SERVICE_CONNECTION)"
     azure_mi_client_id: str = "$(AZURE_MI_CLIENT_ID)"
+    # TODO: optimize this initiation in another PR
     resource_group: ResourceGroup = field(
         default_factory=lambda: ResourceGroup(
             region="eastus2", provider=CloudProvider.AZURE
