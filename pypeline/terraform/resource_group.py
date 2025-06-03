@@ -41,17 +41,16 @@ def delete_resource_group(region: str) -> Script:
 @dataclass
 class ResourceGroup(Resource):
     region: str
-    provider: CloudProvider
+    scenario_name: str
+    scenario_type: str = "perf-eval"
 
-    def setup(self, scenario_name: str, scenario_type: str) -> list[Script]:
-        if self.provider == CloudProvider.AZURE:
-            return create_resource_group(
-                self.provider, self.region, scenario_name, scenario_type
-            )
+    def setup(self) -> list[Script]:
+        return [
+            create_resource_group(self.region, self.scenario_name, self.scenario_type)
+        ]
 
     def validate(self) -> list[Script]:
-        pass
+        return []
 
     def tear_down(self) -> list[Script]:
-        if self.provider == CloudProvider.AZURE:
-            return delete_resource_group(self.region)
+        return [delete_resource_group(self.region)]

@@ -277,7 +277,6 @@ class Terraform(Resource):
             ),
             set_input_variables(self.cloud, self.regions, self.input_variables),
             get_deletion_info(self.regions[0]),
-            self.cloud.resource_group.setup(self.scenario_name, self.scenario_type),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),

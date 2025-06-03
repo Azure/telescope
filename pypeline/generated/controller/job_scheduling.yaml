@@ -53,6 +53,13 @@ stages:
         az account show
       displayName: Azure Login
     - script: |-
+        set -eu
+        echo "Create resource group $RUN_ID in region eastus2"
+        az group create --name $RUN_ID --location eastus2 \
+        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
+      displayName: Create Resource Group
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    - script: |-
         echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$(Pipeline.Workspace)/s/modules/terraform/azure"
         echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"
       displayName: Set Terraform Working Directory
@@ -98,13 +105,6 @@ stages:
         echo "Owner: $owner"
         echo "##vso[task.setvariable variable=OWNER]$owner"
       displayName: Get Deletion Due Time and Owner
-      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - script: |-
-        set -eu
-        echo "Create resource group $RUN_ID in region eastus2"
-        az group create --name $RUN_ID --location eastus2 \
-        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
-      displayName: Create Resource Group
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
         set -e
@@ -334,5 +334,13 @@ stages:
 
         echo "SSH keys deleted successfully."
       displayName: Delete SSH Keys
+    - script: |2
+
+        echo "Deleting resources and removing state file before retrying"
+        ids=$(az resource list --location eastus2 --resource-group $RUN_ID --query [*].id -o tsv)
+        az resource delete --ids $ids --verbose
+        rm -r terraform.tfstate.d/eastus2
+      displayName: Delete Resource Group
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     dependsOn:
     - run
