@@ -120,7 +120,7 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_high_cpu_cores
+  - stage: azure_eastus2_higher_cpu_cores
     dependsOn: []
     variables:
       - group: API-Server-Higher-CPU-Cores
