@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "job-scheduling"
-deletion_delay = "3h"
+deletion_delay = "1h"
 owner          = "aks"
 
 network_config_list = [
