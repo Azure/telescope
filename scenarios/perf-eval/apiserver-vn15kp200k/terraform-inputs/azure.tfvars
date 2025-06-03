@@ -23,7 +23,7 @@ aks_cli_config_list = [
       },
       {
         name       = "vn2"
-        node_count = 50
+        node_count = 20
         vm_size    = "Standard_D16s_v3"
       },
       {
