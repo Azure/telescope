@@ -5,9 +5,9 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role               = "client"
-    aks_name           = "vn100-p10k"
-    sku_tier           = "standard"
+    role     = "client"
+    aks_name = "vn100-p10k"
+    sku_tier = "standard"
 
     default_node_pool = {
       name       = "default"

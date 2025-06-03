@@ -34,10 +34,10 @@ network_config_list = [
 
 gke_config_list = [
   {
-    role        = "client"
-    name        = "vn100p10k"
-    vpc_name    = "client-vpc"
-    subnet_name = "client-subnet"
+    role               = "client"
+    name               = "vn100p10k"
+    vpc_name           = "client-vpc"
+    subnet_name        = "client-subnet"
     kubernetes_version = "1.32"
 
     default_node_pool = {
