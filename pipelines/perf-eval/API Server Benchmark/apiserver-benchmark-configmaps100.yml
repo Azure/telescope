@@ -1,11 +1,5 @@
 trigger: none
-schedules:
-  - cron: "0 12 * * *"
-    displayName: "Every Day at Noon"
-    branches:
-      include:
-        - xinwei/kperf-configmaps
-    always: true
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: apiserver-cm100
@@ -31,7 +25,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/xinweiwei24/kperf:20250430
+            runner_image: ghcr.io/azure/kperf:0.3.3
             benchmark_subcmd: list_configmaps
             benchmark_subcmd_args: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100"
           max_parallel: 1
