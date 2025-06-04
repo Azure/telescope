@@ -1,25 +1,30 @@
-trigger: none
-
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: apiserver-vn10pod100
+  SKIP_RESOURCE_DELETION: true
+
 
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_eastus2_default
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
+          cloud: azure
+          regions:
+            - eastus2
+          engine: kperf
+          topology: kperf
+          matrix:
+            workload-low:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "true"
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.2.0
+            benchmark_subcmd: node10_job1_pod100
+            benchmark_subcmd_args: "--total 100"
+          max_parallel: 2
+          timeout_in_minutes: 360
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
