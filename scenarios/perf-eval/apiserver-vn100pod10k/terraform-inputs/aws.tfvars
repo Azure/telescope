@@ -99,6 +99,6 @@ eks_config_list = [{
     }
   ]
 
-  kubernetes_version = "1.31"
+  kubernetes_version = "1.32"
 }]
 
