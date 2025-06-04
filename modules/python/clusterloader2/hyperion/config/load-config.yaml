@@ -13,7 +13,7 @@ name: load-config
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
 {{$NO_OF_NAMESPACES := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
-{{$NO_OF_PODS := DefaultParam .CL2_NO_OF_PODS 5000}}
+{{$NO_OF_PODS := DefaultParam .CL2_NO_OF_PODS 500}}
 {{$NO_OF_REPLICAS_PER_DEPLOYMENT := DefaultParam .CL2_NO_OF_REPLICAS_PER_DEPLOYMENT 20}}
 
 {{$podsPerNamespace := DivideInt $NO_OF_PODS $NO_OF_NAMESPACES}}

@@ -132,7 +132,7 @@ def main():
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
     parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
-    parser_configure.add_argument("no_of_pods", type=int, nargs='?', default=0, help="Maximum total number of pods")
+    parser_configure.add_argument("no_of_pods", type=int, nargs='?', default=500, help="Maximum total number of pods")
     parser_configure.add_argument("no_of_replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployment")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
@@ -140,12 +140,6 @@ def main():
     parser_configure.add_argument("cilium_enabled", type=str2bool, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
-
-    # Sub-command for validate_clusterloader2
-    parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument("nodes_per_namespace", type=int, help="Number of desired nodes per namespace")
-    parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
-    parser_validate.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -178,8 +172,7 @@ def main():
     if args.command == "configure":
         configure_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
                                  args.repeats, args.operation_timeout,
-                                 args.cilium_enabled,
-                                 args.cl2_override_file)
+                                 args.cilium_enabled, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
