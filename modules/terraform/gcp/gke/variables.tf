@@ -4,7 +4,7 @@ variable "gke_config" {
     name               = string
     vpc_name           = string
     subnet_name        = string
-    kubernetes_version = optional(string)
+    kubernetes_version = optional(string, null)
     default_node_pool = object({
       name         = string
       node_count   = number
