@@ -81,7 +81,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
-  
+
   dynamic "web_app_routing" {
     for_each = try(var.aks_config.web_app_routing != null ? [var.aks_config.web_app_routing] : [])
     content {
