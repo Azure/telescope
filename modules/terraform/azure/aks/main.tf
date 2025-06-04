@@ -85,7 +85,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   dynamic "web_app_routing" {
     for_each = try(var.aks_config.web_app_routing != null ? [var.aks_config.web_app_routing] : [])
     content {
-      dns_zone_ids = var.aks_config.web_app_routing.dns_zone_ids
+      dns_zone_ids = web_app_routing.value.dns_zone_ids
     }
   }
 }
