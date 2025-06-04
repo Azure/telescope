@@ -82,6 +82,14 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: start
 
+  - name: WAITING Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 5m
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
