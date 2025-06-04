@@ -150,9 +150,9 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
-    parser_configure.add_argument("no_of_pods", type=int, nargs='?', default=0, help="Maximum total number of pods")
-    parser_configure.add_argument("no_of_replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployment")
+    parser_collect.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
+    parser_collect.add_argument("no_of_pods", type=int, nargs='?', default=0, help="Maximum total number of pods")
+    parser_collect.add_argument("no_of_replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployment")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
@@ -166,7 +166,6 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"args.command {args.command} no_of_pods {args.no_of_pods}, no_of_replicas_per_deployment {args.no_of_replicas_per_deployment}, repeats {args.repeats}, operation_timeout {args.operation_timeout}, cilium_enabled {args.cilium_enabled}, cl2_override_file {args.cl2_override_file}")
     if args.command == "configure":
         configure_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
                                  args.repeats, args.operation_timeout,
