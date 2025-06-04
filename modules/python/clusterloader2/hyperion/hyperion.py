@@ -50,7 +50,6 @@ def execute_clusterloader2(
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True)
 
 def collect_clusterloader2(
-    cpu_per_node,
     no_of_namespaces,
     no_of_pods,
     no_of_replicas_per_deployment,
@@ -75,7 +74,6 @@ def collect_clusterloader2(
     # TODO: Expose optional parameter to include test details
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        "cpu_per_node": cpu_per_node,
         "no_of_namespaces": no_of_namespaces,
         "no_of_pods": no_of_pods,
         "no_of_replicas_per_deployment": no_of_replicas_per_deployment,
@@ -151,7 +149,6 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
     parser_configure.add_argument("no_of_pods", type=int, nargs='?', default=0, help="Maximum total number of pods")
     parser_configure.add_argument("no_of_replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployment")
@@ -176,7 +173,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
+        collect_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
                                args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp)
 

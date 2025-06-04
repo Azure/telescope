@@ -45,7 +45,6 @@ stages:
           topology: hyperion
           matrix:
             azure_cilium:
-              cpu_per_node: 4
               no_of_namespaces: ${{ parameters.no_of_namespaces }}
               no_of_pods: ${{ parameters.no_of_pods }}
               no_replicas_per_deployment: ${{ parameters.no_of_replicas_per_deployment }}
