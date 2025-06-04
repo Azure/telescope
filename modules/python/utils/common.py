@@ -46,3 +46,18 @@ def save_info_to_file(info, file_path):
     logger.info(f"Writing data to {file_path}")
     with open(file_path, "w", encoding='utf-8') as f:
         json.dump(info, f, indent=2)
+
+def get_env_vars(name: str):
+    """
+    Get environment variable value.
+    Args:
+        name: The name of the environment variable
+    Returns:
+        The value of the environment variable
+    Raises:
+        RuntimeError: If the environment variable is not set
+    """
+    var = os.environ.get(name, None)
+    if var is None:
+        raise RuntimeError(f"Environment variable `{name}` not set")
+    return var
