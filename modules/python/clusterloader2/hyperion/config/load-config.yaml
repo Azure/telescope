@@ -25,8 +25,8 @@ name: load-config
 # Operations make an independent choice about the time to start uniformly at random from the associated time period.
 {{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$DELETE_TEST_THROUGHPUT := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $LOAD_TEST_THROUGHPUT}}
-{{$saturationTime := DivideInt $totalPods $LOAD_TEST_THROUGHPUT}}
-{{$deletionTime := DivideInt $totalPods $DELETE_TEST_THROUGHPUT}}
+{{$saturationTime := DivideInt $NO_OF_PODS $LOAD_TEST_THROUGHPUT}}
+{{$deletionTime := DivideInt $NO_OF_PODS $DELETE_TEST_THROUGHPUT}}
 
 namespace:
   number: {{$NO_OF_NAMESPACES}}
