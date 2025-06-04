@@ -14,7 +14,7 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: cilium_identitymanagementoperator
+  - stage: cilium_improved
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -29,10 +29,10 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: $(NODES)
-              node_per_step: $(NODES)
-              max_pods: $(PODS_PER_NODE)
-              repeats: $(NO_REPEATS)
+              node_count: 10
+              node_per_step: 10
+              max_pods: 100
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -41,16 +41,16 @@ stages:
               cl2_config_file: load-config.yaml
               name: idmgmt_operator
               scrape_node_exporter: true
-              small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
-              big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
-              proportion_in_big_num: $(PROPORTION_IN_BIG_DEPLOYMENTS)
-              proportion_in_big_denom: $(PROPORTION_IN_BIG_DEPLOYMENTS_DENOM)
+              # small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
+              # big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
+              # proportion_in_big_num: $(PROPORTION_IN_BIG_DEPLOYMENTS)
+              # proportion_in_big_denom: $(PROPORTION_IN_BIG_DEPLOYMENTS_DENOM)
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
           rg: $(OPERATOR_RG)
-  - stage: cilium_identitymanagementagent
+  - stage: cilium_default
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -65,10 +65,10 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              node_count: $(NODES)
-              node_per_step: $(NODES)
-              max_pods: $(PODS_PER_NODE)
-              repeats: $(NO_REPEATS)
+              node_count: 10
+              node_per_step: 10
+              max_pods: 100
+              repeats: 1
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium
@@ -77,9 +77,9 @@ stages:
               cl2_config_file: load-config.yaml
               name: idmgmt_agent
               scrape_node_exporter: true
-              small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
-              big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
-              proportion_in_big_num: $(PROPORTION_IN_BIG_DEPLOYMENTS)
+              # small_group_size: $(SMALL_DEPLOYMENT_REPLICAS)
+              # big_group_size: $(BIG_DEPLOYMENT_REPLICAS)
+              # proportion_in_big_num: $(PROPORTION_IN_BIG_DEPLOYMENTS)
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection

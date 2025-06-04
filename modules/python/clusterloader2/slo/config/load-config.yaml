@@ -18,22 +18,22 @@ name: load-config
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
-{{$nodes := DefaultParam .CL2_NODES 1000}} # 500
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}} # 500
+{{$nodes := DefaultParam .CL2_NODES 1000}} # 10
+{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}} # 10
 {{$namespaces := DivideInt $nodes $nodesPerNamespace}} # 1
 
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 1 * 500 * 100 = 50,000
-{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 50000 / 1 = 50,000
+{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}} # 1 * 10 * 100 = 1000
+{{$podsPerNamespace := DivideInt $totalPods $namespaces}} # 1000 / 1 = 1000
 
-{{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}} # 3
-{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}} # 4
+{{$BIG_GROUP_SIZE := DefaultParam .CL2_BIG_GROUP_SIZE 4000}} 
+{{$SMALL_GROUP_SIZE := DefaultParam .CL2_SMALL_GROUP_SIZE 20}}
 
-{{$NUM_OF_BIG_GROUPS := DefaultParam .CL2_NUM_OF_BIG_GROUPS 1 }} # 10000
-{{$bigDeploymentsPerNamespace := $NUM_OF_BIG_GROUPS }} # 10000
-{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $NUM_OF_BIG_GROUPS $BIG_GROUP_SIZE)}} # 50000 - (10000 * 3) = 20000
-{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}} # 20000 / 4 = 5000
-{{$totalDeploymentsPerNamespace := AddInt $smallDeploymentsPerNamespace $bigDeploymentsPerNamespace}}
-{{$expectedIdentities := MultiplyInt 2 $namespaces $totalDeploymentsPerNamespace}}
+{{$NUM_OF_BIG_GROUPS := DefaultParam .CL2_NUM_OF_BIG_GROUPS 1 }} # 0
+{{$bigDeploymentsPerNamespace := $NUM_OF_BIG_GROUPS }} # 0
+{{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $NUM_OF_BIG_GROUPS $BIG_GROUP_SIZE)}} # 1000 - (0 * 4000) = 1000
+{{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}} # 1000 / 20 = 50
+{{$totalDeploymentsPerNamespace := AddInt $smallDeploymentsPerNamespace $bigDeploymentsPerNamespace}} # 500 + 0 = 500
+{{$expectedIdentities := MultiplyInt 2 $namespaces $totalDeploymentsPerNamespace}} # 2 * 1 * 500 = 1000
 
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
@@ -90,34 +90,34 @@ steps:
 {{end}}
 
 {{range $i := Loop $repeats}}
-{{if $SERVICE_TEST}}
-  - module:
-      path: /modules/services.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
-        bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
-{{end}}
+# {{if $SERVICE_TEST}}
+#   - module:
+#       path: /modules/services.yaml
+#       params:
+#         actionName: "Creating"
+#         namespaces: {{$namespaces}}
+#         smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
+#         bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
+# {{end}}
 
-{{if $CNP_TEST}}
-  - module:
-      path: /modules/ciliumnetworkpolicy.yaml
-      params:
-        actionName: "Creating"
-        namespaces: {{$namespaces}}
-        Group: {{$groupName}}
-        cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
-{{end}}
+# {{if $CNP_TEST}}
+#   - module:
+#       path: /modules/ciliumnetworkpolicy.yaml
+#       params:
+#         actionName: "Creating"
+#         namespaces: {{$namespaces}}
+#         Group: {{$groupName}}
+#         cnpsPerNamespace: {{$CNPS_PER_NAMESPACE}}
+# {{end}}
 
-{{if $CCNP_TEST}}
-  - module:
-      path: /modules/ciliumclusternetworkpolicy.yaml
-      params:
-        actionName: "Creating"
-        Group: {{$groupName}}
-        ccnps: {{$CCNPS}}
-{{end}}
+# {{if $CCNP_TEST}}
+#   - module:
+#       path: /modules/ciliumclusternetworkpolicy.yaml
+#       params:
+#         actionName: "Creating"
+#         Group: {{$groupName}}
+#         ccnps: {{$CCNPS}}
+# {{end}}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -126,15 +126,15 @@ steps:
         namespaces: {{$namespaces}}
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
-    {{if or $CCNP_TEST $CNP_TEST}}
-        bigDeploymentSize: 0
-        bigDeploymentsPerNamespace: 0
-        cnp_test: {{$CNP_TEST}}
-        ccnp_test: {{$CCNP_TEST}}
-    {{else}}
+    # {{if or $CCNP_TEST $CNP_TEST}}
+    #     bigDeploymentSize: 0
+    #     bigDeploymentsPerNamespace: 0
+    #     cnp_test: {{$CNP_TEST}}
+    #     ccnp_test: {{$CCNP_TEST}}
+    # {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
         bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-    {{end}}
+    # {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
         smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
@@ -144,12 +144,37 @@ steps:
         svcTest: {{$SERVICE_TEST}}
         identityChurnTest: {$IDENTITY_CHURN_TEST}
 
+  # - module:
+  #     path: /modules/reconcile-objects.yaml
+  #     params:
+  #       actionName: "restart"
+  #       namespaces: {{$namespaces}}
+  #       tuningSet: Sequence
+  #       operationTimeout: {{$operationTimeout}}
+  #   {{if or $CCNP_TEST $CNP_TEST}}
+  #       bigDeploymentSize: 0
+  #       bigDeploymentsPerNamespace: 0
+  #       cnp_test: {{$CNP_TEST}}
+  #       ccnp_test: {{$CCNP_TEST}}
+  #   {{else}}
+  #       bigDeploymentSize: {{$BIG_GROUP_SIZE}}
+  #       bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+  #   {{end}}
+  #       smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
+  #       smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+  #       CpuRequest: {{$latencyPodCpu}}m
+  #       MemoryRequest: {{$latencyPodMemory}}M
+  #       Group: {{$groupName}}
+  #       deploymentLabel: restart
+  #       svcTest: {{$SERVICE_TEST}}
+  #       identityChurnTest: {$IDENTITY_CHURN_TEST}
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
-        actionName: "restart"
+        actionName: "delete"
         namespaces: {{$namespaces}}
-        tuningSet: Sequence
+        tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
     {{if or $CCNP_TEST $CNP_TEST}}
         bigDeploymentSize: 0
@@ -158,39 +183,14 @@ steps:
         ccnp_test: {{$CCNP_TEST}}
     {{else}}
         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-        bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
+        bigDeploymentsPerNamespace: 0
     {{end}}
         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-        smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
-        CpuRequest: {{$latencyPodCpu}}m
-        MemoryRequest: {{$latencyPodMemory}}M
-        Group: {{$groupName}}
+        smallDeploymentsPerNamespace: 0
         deploymentLabel: restart
+        Group: {{$groupName}}
         svcTest: {{$SERVICE_TEST}}
         identityChurnTest: {$IDENTITY_CHURN_TEST}
-
-#   - module:
-#       path: /modules/reconcile-objects.yaml
-#       params:
-#         actionName: "delete"
-#         namespaces: {{$namespaces}}
-#         tuningSet: RandomizedDeletionTimeLimited
-#         operationTimeout: {{$operationTimeout}}
-#     {{if or $CCNP_TEST $CNP_TEST}}
-#         bigDeploymentSize: 0
-#         bigDeploymentsPerNamespace: 0
-#         cnp_test: {{$CNP_TEST}}
-#         ccnp_test: {{$CCNP_TEST}}
-#     {{else}}
-#         bigDeploymentSize: {{$BIG_GROUP_SIZE}}
-#         bigDeploymentsPerNamespace: 0
-#     {{end}}
-#         smallDeploymentSize: {{$SMALL_GROUP_SIZE}}
-#         smallDeploymentsPerNamespace: 0
-#         deploymentLabel: restart
-#         Group: {{$groupName}}
-#         svcTest: {{$SERVICE_TEST}}
-#         identityChurnTest: {$IDENTITY_CHURN_TEST}
 
 # {{if $SERVICE_TEST}}
 #   - module:
