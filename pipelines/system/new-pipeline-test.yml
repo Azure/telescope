@@ -56,7 +56,7 @@ stages:
         set -eu
         echo "Create resource group $RUN_ID in region eastus2"
         az group create --name $RUN_ID --location eastus2 \
-        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=aks" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
+        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=aks" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=1h" "SkipAKSCluster=1"
       displayName: Create Resource Group
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
