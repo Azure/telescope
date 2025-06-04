@@ -22,14 +22,15 @@ def create_resource_group(
     )
 
 
-def delete_resource_group(region: str) -> Script:
+def delete_resource_group() -> Script:
     return Script(
         display_name="Delete Resource Group",
         script=dedent(
             f"""
-            echo "Deleting resources and removing state file before retrying"
-            ids=$(az resource list --location {region} --resource-group $RUN_ID --query [*].id -o tsv)
-            az resource delete --ids $ids --verbose
+            set -eu
+
+            echo "Delete resource group $RUN_ID"
+            az group delete --name $RUN_ID --yes
             """
         ).strip(""),
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
@@ -59,4 +60,4 @@ class ResourceGroup(Resource):
         return []
 
     def tear_down(self) -> list[Script]:
-        return [delete_resource_group(self.region)]
+        return [delete_resource_group()]

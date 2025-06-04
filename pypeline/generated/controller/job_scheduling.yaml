@@ -319,10 +319,10 @@ stages:
       displayName: Delete SSH Keys
     - script: |2
 
-        echo "Deleting resources and removing state file before retrying"
-        ids=$(az resource list --location eastus2 --resource-group $RUN_ID --query [*].id -o tsv)
-        az resource delete --ids $ids --verbose
-        rm -r terraform.tfstate.d/eastus2
+        set -eu
+
+        echo "Delete resource group $RUN_ID"
+        az group delete --name $RUN_ID --yes
       displayName: Delete Resource Group
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     dependsOn:
