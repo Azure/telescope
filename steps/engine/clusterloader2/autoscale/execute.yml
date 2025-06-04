@@ -13,11 +13,23 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-      $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
-      $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
-      $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR}
+      --cpu_per_node=$CPU_PER_NODE \
+      --node_count=$NODE_COUNT \
+      --pod_count=$POD_COUNT \
+      --scale_up_timeout=$SCALE_UP_TIMEOUT \
+      --scale_down_timeout=$SCALE_DOWN_TIMEOUT \
+      --loop_count=$LOOP_COUNT \
+      --node_label_selector="$NODE_LABEL_SELECTOR" \
+      --node_selector="$NODE_SELECTOR" \
+      --cl2_override_file=${CL2_CONFIG_DIR}/overrides.yaml \
+      --warmup_deployment=${WARMUP_DEPLOYMENT:-false} \
+      --cl2_config_dir=${CL2_CONFIG_DIR}
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
+      --cl2_image=${CL2_IMAGE} \
+      --cl2_config_dir=${CL2_CONFIG_DIR} \
+      --cl2_report_dir=$CL2_REPORT_DIR \
+      --kubeconfig=${HOME}/.kube/config \
+      --provider=$CLOUD
   workingDirectory: modules/python
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:

@@ -20,12 +20,30 @@ steps:
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-        $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP ${MAX_PODS:-0} \
-        $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED ${SCRAPE_CONTAINERD:-False} \
-        $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
+        --cpu_per_node=$CPU_PER_NODE \
+        --node_count=$NODE_COUNT \
+        --node_per_step=$NODE_PER_STEP \
+        --max_pods=${MAX_PODS:-0} \
+        --repeats=$REPEATS \
+        --operation_timeout=$SCALE_TIMEOUT \
+        --provider=$CLOUD \
+        --cilium_enabled=$CILIUM_ENABLED \
+        --scrape_containerd=${SCRAPE_CONTAINERD:-False} \
+        --service_test=$SERVICE_TEST \
+        --cnp_test=${CNP_TEST:-False} \
+        --ccnp_test=${CCNP_TEST:-False} \
+        --num_cnps=${NUM_CNPS:-0} \
+        --num_ccnps=${NUM_CCNPS:-0} \
+        --dualstack=${DUALSTACK:-False} \
+        --cl2_override_file=${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
-        ${HOME}/.kube/config $CLOUD ${SCRAPE_CONTAINERD:-False}
+        --cl2_image=${CL2_IMAGE} \
+        --cl2_config_dir=${CL2_CONFIG_DIR} \
+        --cl2_report_dir=$CL2_REPORT_DIR \
+        --cl2_config_file=$CL2_CONFIG_FILE \
+        --kubeconfig=${HOME}/.kube/config \
+        --provider=$CLOUD \
+        --scrape_containerd=${SCRAPE_CONTAINERD:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
