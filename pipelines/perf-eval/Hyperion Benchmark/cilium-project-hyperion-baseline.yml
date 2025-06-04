@@ -11,21 +11,18 @@ parameters:
   - name: no_of_namespaces
     type: number
     default: 35
-  - name: nodes_per_namespace
-    type: number
-    default: 142
-  - name: pods_per_node
+  - name: no_of_pods
     type: number
     default: 41
+  - name: no_of_replicas_per_deployment
+    type: number
+    default: 630
   - name: repeats
     type: number
     default: 1
   - name: scale_timeout
     type: string
     default: "60m"
-  - name: replicas_per_deployment
-    type: number
-    default: 630
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -49,12 +46,11 @@ stages:
           matrix:
             azure_cilium:
               cpu_per_node: 4
-              nodes_per_namespace: ${{ parameters.nodes_per_namespace }}
-              pods_per_node: ${{ parameters.pods_per_node }}
+              no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              no_of_pods: ${{ parameters.no_of_pods }}
+              no_replicas_per_deployment: ${{ parameters.no_of_replicas_per_deployment }}
               repeats: ${{ parameters.repeats }}
               scale_timeout: ${{ parameters.scale_timeout }}
-              no_of_namespaces: ${{ parameters.no_of_namespaces }}
-              replicas_per_deployment: ${{ parameters.replicas_per_deployment }}
               cilium_enabled: True
               cl2_config_file: load-config.yaml
           max_parallel: 2

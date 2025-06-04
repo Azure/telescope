@@ -1,16 +1,10 @@
 name: load-config
 
 # Config options for test parameters
-{{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
-{{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
-{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$repeats := DefaultParam .CL2_REPEATS 1}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
-{{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
-
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
-{{$totalPods := MultiplyInt $namespaces $nodesPerNamespace $podsPerNode}}
 
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -18,9 +12,12 @@ name: load-config
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
 
-{{$REPLICAS_PER_DEPLOYMENTS := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENTS 20}}
+{{$NO_OF_NAMESPACES := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
+{{$NO_OF_PODS := DefaultParam .CL2_NO_OF_PODS 5000}}
+{{$NO_OF_REPLICAS_PER_DEPLOYMENTS := DefaultParam .CL2_NO_OF_REPLICAS_PER_DEPLOYMENTS 20}}
 
-{{$deploymentsPerNamespace := DivideInt $totalPods $REPLICAS_PER_DEPLOYMENTS}}
+{{$podsPerNamespace := DivideInt $NO_OF_PODS $NO_OF_NAMESPACES}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $NO_OF_REPLICAS_PER_DEPLOYMENTS}}
 
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
@@ -50,7 +47,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, replicasPerDeployment={{$REPLICAS_PER_DEPLOYMENTS}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
+  - name: Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENTS={{$NO_OF_REPLICAS_PER_DEPLOYMENTS}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, replicasPerDeployment={{$REPLICAS_PER_DEPLOYMENTS}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -75,10 +72,10 @@ steps:
       path: /modules/reconcile-objects.yaml
       params:
         actionName: "create"
-        namespaces: {{$namespaces}}
+        namespaces: {{$NO_OF_NAMESPACES}}
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
-        replicasPerDeployment: {{$REPLICAS_PER_DEPLOYMENTS}}
+        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENTS}}
         deploymentsPerNamespace: {{$deploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
@@ -89,10 +86,10 @@ steps:
       path: /modules/reconcile-objects.yaml
       params:
         actionName: "delete"
-        namespaces: {{$namespaces}}
+        namespaces: {{$NO_OF_NAMESPACES}}
         tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
-        replicasPerDeployment: {{$REPLICAS_PER_DEPLOYMENTS}}
+        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENTS}}
         deploymentsPerNamespace: 0
         deploymentLabel: restart
         Group: {{$groupName}}
