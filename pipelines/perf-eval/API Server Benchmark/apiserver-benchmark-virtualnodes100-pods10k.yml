@@ -50,6 +50,7 @@ stages:
           topology: kperf
           matrix:
             podsize-20k:
+              disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
@@ -141,7 +142,7 @@ stages:
               warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
             podsize-20k-exempt:
               kubernetes_version: "1.33.0"
-              disable_warmup: "true"
+              disable_warmup: "false"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
               warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
