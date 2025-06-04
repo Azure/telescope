@@ -119,31 +119,6 @@ def set_user_data_path(
     )
 
 
-def get_deletion_info(region: str) -> Script:
-    return Script(
-        display_name="Get Deletion Due Time and Owner",
-        script=dedent(
-            f"""
-            set -e
-
-            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "{region}" '.[$region].TERRAFORM_INPUT_FILE')
-
-            deletion_delay=$(grep 'deletion_delay' "$terraform_input_file" | awk -F'=' '{{gsub(/^[ \\t]+|[ \\t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}}')
-            echo "Deletion Delay: $deletion_delay hr"
-
-            deletion_due_time=$(date -u -d "+${{deletion_delay}} hour" +'%Y-%m-%dT%H:%M:%SZ')
-            echo "Deletion Due Time: $deletion_due_time"
-            echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
-
-            owner=$(grep 'owner' "$terraform_input_file" | awk -F'=' '{{gsub(/^[ \\t]+|[ \\t]+$/, "", $2); print $2}}' | sed 's/^"//;s/"$//')
-            echo "Owner: $owner"
-            echo "##vso[task.setvariable variable=OWNER]$owner"
-            """,
-        ).strip(),
-        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
-    )
-
-
 def set_input_variables(
     cloud: Cloud, regions: list[str], input_variables: dict
 ) -> Script:
@@ -253,6 +228,8 @@ class Terraform(Resource):
     cloud: Cloud
     regions: list[str]
     scenario_name: str
+    deletion_delay: int
+    owner: str = "aks"
     scenario_type: str = "perf-eval"
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     modules_dir: str = ""
@@ -276,7 +253,6 @@ class Terraform(Resource):
                 self.user_data_path, self.scenario_name, self.scenario_type
             ),
             set_input_variables(self.cloud, self.regions, self.input_variables),
-            get_deletion_info(self.regions[0]),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),

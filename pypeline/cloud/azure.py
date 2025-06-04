@@ -7,7 +7,6 @@ from benchmark import Cloud, CloudProvider
 from pipeline import Script, Step, Task
 
 
-
 class CredentialType(Enum):
     MANAGED_IDENTITY = "managed_identity"
     SERVICE_CONNECTION = "service_connection"
