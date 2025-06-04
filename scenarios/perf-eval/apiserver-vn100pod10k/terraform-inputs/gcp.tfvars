@@ -43,7 +43,7 @@ gke_config_list = [
     default_node_pool = {
       name         = "default",
       machine_type = "n1-standard-8",
-      node_count   = 2
+      node_count   = 1
     }
     extra_node_pools = [
       {
