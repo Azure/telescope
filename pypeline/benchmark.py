@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 import yaml
-
 from pipeline import Job, Pipeline, Stage, Step, customize_yaml
 
 

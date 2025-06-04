@@ -30,14 +30,12 @@ def delete_resource_group(region: str) -> Script:
             echo "Deleting resources and removing state file before retrying"
             ids=$(az resource list --location {region} --resource-group $RUN_ID --query [*].id -o tsv)
             az resource delete --ids $ids --verbose
-            rm -r terraform.tfstate.d/{region}
             """
         ).strip(""),
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
     )
 
 
-# This is for handling cloud resources at terraform
 @dataclass
 class ResourceGroup(Resource):
     region: str
