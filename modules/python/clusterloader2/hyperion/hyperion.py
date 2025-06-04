@@ -176,7 +176,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployments,
+        configure_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
                                  args.repeats, args.operation_timeout,
                                  args.cilium_enabled,
                                  args.cl2_override_file)
@@ -184,7 +184,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployments,
+        collect_clusterloader2(args.cpu_per_node, args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
                                args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp)
 

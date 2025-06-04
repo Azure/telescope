@@ -13,7 +13,7 @@ parameters:
     default: 35
   - name: no_of_pods
     type: number
-    default: 41
+    default: 200000
   - name: no_of_replicas_per_deployment
     type: number
     default: 630

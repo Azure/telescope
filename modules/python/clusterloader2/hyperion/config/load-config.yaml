@@ -14,10 +14,10 @@ name: load-config
 
 {{$NO_OF_NAMESPACES := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 {{$NO_OF_PODS := DefaultParam .CL2_NO_OF_PODS 5000}}
-{{$NO_OF_REPLICAS_PER_DEPLOYMENTS := DefaultParam .CL2_NO_OF_REPLICAS_PER_DEPLOYMENTS 20}}
+{{$NO_OF_REPLICAS_PER_DEPLOYMENT := DefaultParam .CL2_NO_OF_REPLICAS_PER_DEPLOYMENT 20}}
 
 {{$podsPerNamespace := DivideInt $NO_OF_PODS $NO_OF_NAMESPACES}}
-{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $NO_OF_REPLICAS_PER_DEPLOYMENTS}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $NO_OF_REPLICAS_PER_DEPLOYMENT}}
 
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
@@ -47,7 +47,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENTS={{$NO_OF_REPLICAS_PER_DEPLOYMENTS}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, replicasPerDeployment={{$REPLICAS_PER_DEPLOYMENTS}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
+  - name: Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, replicasPerDeployment={{$REPLICAS_PER_DEPLOYMENTS}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -75,7 +75,7 @@ steps:
         namespaces: {{$NO_OF_NAMESPACES}}
         tuningSet: RandomizedSaturationTimeLimited
         operationTimeout: {{$operationTimeout}}
-        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENTS}}
+        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENT}}
         deploymentsPerNamespace: {{$deploymentsPerNamespace}}
         CpuRequest: {{$latencyPodCpu}}m
         MemoryRequest: {{$latencyPodMemory}}M
@@ -89,7 +89,7 @@ steps:
         namespaces: {{$NO_OF_NAMESPACES}}
         tuningSet: RandomizedDeletionTimeLimited
         operationTimeout: {{$operationTimeout}}
-        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENTS}}
+        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENT}}
         deploymentsPerNamespace: 0
         deploymentLabel: restart
         Group: {{$groupName}}
