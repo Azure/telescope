@@ -3,13 +3,15 @@ locals {
 }
 
 resource "google_container_cluster" "gke" {
-  name       = "${var.gke_config.name}-${replace(var.run_id, "/^([a-zA-Z0-9]+)-.*/", "$1")}"
-  network    = var.vpc_id
-  subnetwork = var.subnet_id
+  name               = "${var.gke_config.name}-${replace(var.run_id, "/^([a-zA-Z0-9]+)-.*/", "$1")}"
+  network            = var.vpc_id
+  subnetwork         = var.subnet_id
+  min_master_version = var.gke_config.kubernetes_version
 
   node_pool {
     name       = var.gke_config.default_node_pool.name
     node_count = var.gke_config.default_node_pool.node_count
+    version    = var.gke_config.kubernetes_version
 
     node_config {
       machine_type = var.gke_config.default_node_pool.machine_type
@@ -27,6 +29,7 @@ resource "google_container_node_pool" "node_pool" {
   name       = each.key
   cluster    = google_container_cluster.gke.id
   node_count = each.value.node_count
+  version    = var.gke_config.kubernetes_version
   node_config {
     machine_type = each.value.machine_type
     disk_size_gb = 50
