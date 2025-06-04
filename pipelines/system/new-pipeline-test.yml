@@ -53,6 +53,13 @@ stages:
         az account show
       displayName: Azure Login
     - script: |-
+        set -eu
+        echo "Create resource group $RUN_ID in region eastus2"
+        az group create --name $RUN_ID --location eastus2 \
+        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=aks" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
+      displayName: Create Resource Group
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    - script: |-
         echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$(Pipeline.Workspace)/s/modules/terraform/azure"
         echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"
       displayName: Set Terraform Working Directory
@@ -82,3 +89,42 @@ stages:
         echo "Regional configuration set successfully."
       displayName: Set Terraform Input Variables
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    - script: |-
+        set -e
+
+        # Navigate to the Terraform working directory
+        cd $TERRAFORM_WORKING_DIRECTORY
+
+        for region in $(echo "['eastus2']" | jq -r '.[]'); do
+            echo "Processing region: $region"
+
+            if terraform workspace list | grep -q "$region"; then
+                terraform workspace select $region
+            else:
+                terraform workspace new $region
+                terraform workspace select $region
+            fi
+
+            # Retrieve input file and variables
+            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+
+            # Run Terraform version command
+            set +e
+            terraform version --auto-approve  -var-file $terraform_input_file -var json_input="$terraform_input_variables"
+            exit_code=$?
+            set -e
+
+            # Handle errors
+            if [[ $exit_code -ne 0 ]]; then
+                echo "Terraform version failed for region: $region"
+
+                exit 1
+            fi
+
+        done
+      displayName: Run Terraform Version Command
+      env:
+        ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+      retryCountOnTaskFailure: 3
