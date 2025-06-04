@@ -132,5 +132,8 @@ variable "aks_config" {
       skip_nodes_with_local_storage    = optional(bool, true)
       skip_nodes_with_system_pods      = optional(bool, true)
     }))
+    web_app_routing = optional(object({
+      dns_zone_ids   = list(string)
+    }), null)
   })
 }

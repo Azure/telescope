@@ -81,6 +81,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
+  
+  dynamic "web_app_routing" {
+    for_each = try(var.aks_config.web_app_routing != null ? [var.aks_config.web_app_routing] : [])
+    content {
+      dns_zone_ids = var.aks_config.web_app_routing.dns_zone_ids
+    }
+  }
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {

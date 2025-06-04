@@ -185,6 +185,9 @@ variable "aks_config_list" {
     workload_identity_enabled = optional(bool, false)
     kubernetes_version        = optional(string, null)
     edge_zone                 = optional(string, null)
+    web_app_routing = optional(object({
+      dns_zone_ids   = list(string)
+    }), null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")
