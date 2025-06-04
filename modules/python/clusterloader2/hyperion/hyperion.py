@@ -166,9 +166,7 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"args.command {args.command} no_of_pods {args.no_of_pods}, no_of_replicas_per_deployment {args.no_of_replicas_per_deployment},
-                                 repeats {args.repeats}, operation_timeout {args.operation_timeout},
-                                 cilium_enabled {args.cilium_enabled}, cl2_override_file {args.cl2_override_file}")
+    print(f"args.command {args.command} no_of_pods {args.no_of_pods}, no_of_replicas_per_deployment {args.no_of_replicas_per_deployment}, repeats {args.repeats}, operation_timeout {args.operation_timeout}, cilium_enabled {args.cilium_enabled}, cl2_override_file {args.cl2_override_file}")
     if args.command == "configure":
         configure_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployment,
                                  args.repeats, args.operation_timeout,
