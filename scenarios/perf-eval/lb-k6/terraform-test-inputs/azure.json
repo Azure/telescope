@@ -1,6 +1,0 @@
-{
-    "run_id"                           : "1749063991",
-    "region"                           : "eastus2",
-    "machine_type"                     : "Standard_D4s_v3",
-    "accelerated_networking"           : true
-}
