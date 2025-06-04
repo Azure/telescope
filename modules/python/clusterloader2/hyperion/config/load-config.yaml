@@ -29,7 +29,7 @@ name: load-config
 {{$deletionTime := DivideInt $totalPods $DELETE_TEST_THROUGHPUT}}
 
 namespace:
-  number: {{$namespaces}}
+  number: {{$NO_OF_NAMESPACES}}
   prefix: hyperion
   deleteStaleNamespaces: true
   deleteAutomanagedNamespaces: true
