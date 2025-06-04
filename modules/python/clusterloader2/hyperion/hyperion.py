@@ -130,7 +130,6 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
-    parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
     parser_configure.add_argument("no_of_pods", type=int, nargs='?', default=500, help="Maximum total number of pods")
     parser_configure.add_argument("no_of_replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployment")
