@@ -8,21 +8,18 @@ from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measure
 from clients.kubernetes_client import KubernetesClient
 
 def configure_clusterloader2(
-    cpu_per_node,
     no_of_namespaces,
     no_of_pods,
     no_of_replicas_per_deployment,
     repeats,
     operation_timeout,
-    provider,
     cilium_enabled,
     override_file):
 
     with open(override_file, 'w', encoding='utf-8') as file:
-        file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_NO_OF_NAMESPACES: {no_of_namespaces}\n")
         file.write(f"CL2_NO_OF_PODS: {no_of_pods}\n")
-        file.write(f"CL2_NO_OF_REPLICAS_PER_DEPLOYMENT: {replicas_per_deployment}\n")
+        file.write(f"CL2_NO_OF_REPLICAS_PER_DEPLOYMENT: {no_of_replicas_per_deployment}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
@@ -144,7 +141,6 @@ def main():
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
     parser_configure.add_argument("cilium_enabled", type=str2bool, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
-    
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -182,8 +178,8 @@ def main():
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.cpu_per_node, args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployments,
-                                 args.repeats, args.operation_timeout, args.provider,
+        configure_clusterloader2(args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployments,
+                                 args.repeats, args.operation_timeout,
                                  args.cilium_enabled,
                                  args.cl2_override_file)
     elif args.command == "execute":
@@ -191,7 +187,7 @@ def main():
                                args.kubeconfig, args.provider)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.no_of_namespaces, args.no_of_pods, args.no_of_replicas_per_deployments,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
+                               args.repeats, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp)
 
 if __name__ == "__main__":
