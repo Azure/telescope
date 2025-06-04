@@ -129,8 +129,8 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
-    parser_configure.add_argument("no_of_namespaces", type=int, nargs='?', default=1, help="Number of namespaces to create")
-    parser_configure.add_argument("no_of_pods", type=int, nargs='?', default=500, help="Maximum total number of pods")
+    parser_configure.add_argument("no_of_namespaces", type=int, help="Number of namespaces to create")
+    parser_configure.add_argument("no_of_pods", type=int, help="Maximum total number of pods")
     parser_configure.add_argument("no_of_replicas_per_deployment", type=int, nargs='?', default=20, help="Number of replicas per deployment")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
