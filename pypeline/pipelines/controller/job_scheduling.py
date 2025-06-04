@@ -12,25 +12,28 @@ from terraform.terraform import Terraform
 
 def main():
     # TODO : Refactor, make function to generate layout
-    azure_eastus2 = Azure(region="eastus2")
+    az_regions = ["eastus2"]
+    az_scenario_name = "job-scheduling"
+    az_deleteion_delay = "1h"
+    azure_cloud = Azure(region=az_regions[0])
     job_scheduling = Benchmark(
         name="job_scheduling",
         layouts=[
             Layout(
                 display_name="azureeastus2",
-                cloud=azure_eastus2,
+                cloud=azure_cloud,
                 setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
                     ResourceGroup(
-                        region="eastus2",
-                        scenario_name="job-scheduling",
-                        deletion_delay="1h",
+                        region=az_regions[0],
+                        scenario_name=az_scenario_name,
+                        deletion_delay=az_deleteion_delay,
                     ),
                     Terraform(
-                        cloud=azure_eastus2,
-                        regions=["eastus2"],
-                        scenario_name="job-scheduling",
-                        deletion_delay="1h",
+                        cloud=azure_cloud,
+                        regions=az_regions,
+                        scenario_name=az_scenario_name,
+                        deletion_delay=az_deleteion_delay,
                     ),
                     Python3(),
                     SSH(cloud="azure"),
