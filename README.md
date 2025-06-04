@@ -37,9 +37,6 @@ Telescope offers three primary reusable components:
 2. **Python modules** for seamless integration with testing and measurement tools.
 3. **Data Analytics** including Blob Storage, Event Hub, and Data Explorer for continuous monitoring.
 
-## Setup
-[Read more](modules/terraform/setup/README.md)
-
 ## Contributing
 
 [Read more](docs/contributing/readme.md)
