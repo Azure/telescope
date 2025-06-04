@@ -1,19 +1,19 @@
 from dataclasses import dataclass
 from textwrap import dedent
 
-from benchmark import Resource
+from benchmark import CloudProvider, Resource
 from pipeline import Script, Step
 
 
-def generate_ssh_key(cloud: str) -> Script:
+def generate_ssh_key(cloud: CloudProvider) -> Script:
     return Script(
         display_name="Generate SSH Key",
         script=dedent(
             f"""
             set -eu
 
-            ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/{cloud}/private_key.pem"
-            public_key_path="$(Pipeline.Workspace)/s/modules/terraform/{cloud}/private_key.pem.pub"
+            ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/{cloud.value}/private_key.pem"
+            public_key_path="$(Pipeline.Workspace)/s/modules/terraform/{cloud.value}/private_key.pem.pub"
             ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N "" > /dev/null 2>&1
             chmod 600 $ssh_key_path
 
@@ -105,7 +105,7 @@ def remove_ssh_key() -> list[Step]:
 
 @dataclass
 class SSH(Resource):
-    cloud: str
+    cloud: CloudProvider
 
     def setup(self) -> list[Step]:
         return [generate_ssh_key(self.cloud), download_ssh_key()]

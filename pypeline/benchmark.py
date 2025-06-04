@@ -48,14 +48,6 @@ class Cloud(ABC):
     def generate_input_variables(self, region: str, input_variables: dict) -> dict:
         pass
 
-    @abstractmethod
-    def delete_resource_group(self) -> str:
-        pass
-
-    @abstractmethod
-    def create_resource_group(self) -> str:
-        pass
-
 
 @dataclass
 class Layout:

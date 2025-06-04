@@ -119,31 +119,6 @@ def set_user_data_path(
     )
 
 
-def get_deletion_info(region: str) -> Script:
-    return Script(
-        display_name="Get Deletion Due Time and Owner",
-        script=dedent(
-            f"""
-            set -e
-
-            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "{region}" '.[$region].TERRAFORM_INPUT_FILE')
-
-            deletion_delay=$(grep 'deletion_delay' "$terraform_input_file" | awk -F'=' '{{gsub(/^[ \\t]+|[ \\t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}}')
-            echo "Deletion Delay: $deletion_delay hr"
-
-            deletion_due_time=$(date -u -d "+${{deletion_delay}} hour" +'%Y-%m-%dT%H:%M:%SZ')
-            echo "Deletion Due Time: $deletion_due_time"
-            echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
-
-            owner=$(grep 'owner' "$terraform_input_file" | awk -F'=' '{{gsub(/^[ \\t]+|[ \\t]+$/, "", $2); print $2}}' | sed 's/^"//;s/"$//')
-            echo "Owner: $owner"
-            echo "##vso[task.setvariable variable=OWNER]$owner"
-            """,
-        ).strip(),
-        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
-    )
-
-
 def set_input_variables(
     cloud: Cloud, regions: list[str], input_variables: dict
 ) -> Script:
@@ -212,8 +187,9 @@ def generate_apply_or_destroy_script(
     if (
         TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
     ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
-        error_handling_script = indent(cloud.delete_resource_group(), " " * 16)
 
+        # Todo : replace this with error handling script
+        error_handling_script = indent("", " " * 16)
     return dedent(
         f"""
         set -e
@@ -246,14 +222,6 @@ def generate_apply_or_destroy_script(
     ).strip()
 
 
-def create_resource_group(cloud: Cloud, region: str) -> Script:
-    return Script(
-        display_name="Create Resource Group",
-        script=cloud.create_resource_group(region),
-        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
-    )
-
-
 # TODO: Add delete_resource_group function and validate_resource_group function
 @dataclass
 class Terraform(Resource):
@@ -283,8 +251,6 @@ class Terraform(Resource):
                 self.user_data_path, self.scenario_name, self.scenario_type
             ),
             set_input_variables(self.cloud, self.regions, self.input_variables),
-            get_deletion_info(self.regions[0]),
-            create_resource_group(self.cloud, self.regions[0]),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),

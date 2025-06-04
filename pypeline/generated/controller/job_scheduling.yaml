@@ -53,6 +53,13 @@ stages:
         az account show
       displayName: Azure Login
     - script: |-
+        set -eu
+        echo "Create resource group $RUN_ID in region eastus2"
+        az group create --name $RUN_ID --location eastus2 \
+        --tags "run_id=$RUN_ID" "scenario=perf-eval-job-scheduling" "owner=aks" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=1h" "SkipAKSCluster=1"
+      displayName: Create Resource Group
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    - script: |-
         echo "##vso[task.setvariable variable=TERRAFORM_WORKING_DIRECTORY]$(Pipeline.Workspace)/s/modules/terraform/azure"
         echo "Terraform Working Directory: $(Pipeline.Workspace)/s/modules/terraform/azure"
       displayName: Set Terraform Working Directory
@@ -81,30 +88,6 @@ stages:
         echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{"eastus2": {"TERRAFORM_INPUT_VARIABLES": {"run_id": "$(RUN_ID)", "region": "eastus2", "aks_sku_tier": "$AKS_SKU_TIER", "aks_kubernetes_version": "$KUBERNETES_VERSION", "aks_network_policy": "$NETWORK_POLICY", "aks_network_dataplane": "$NETWORK_DATAPLANE", "k8s_machine_type": "$K8S_MACHINE_TYPE", "k8s_os_disk_type": "$K8S_OS_DISK_TYPE", "aks_custom_headers": ["$AKS_CLI_CUSTOM_HEADERS"], "aks_cli_system_node_pool": "$SYSTEM_NODE_POOL", "aks_cli_user_node_pool": "$USER_NODE_POOL"}}}"
         echo "Regional configuration set successfully."
       displayName: Set Terraform Input Variables
-      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - script: |-
-        set -e
-
-        terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "eastus2" '.[$region].TERRAFORM_INPUT_FILE')
-
-        deletion_delay=$(grep 'deletion_delay' "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}')
-        echo "Deletion Delay: $deletion_delay hr"
-
-        deletion_due_time=$(date -u -d "+${deletion_delay} hour" +'%Y-%m-%dT%H:%M:%SZ')
-        echo "Deletion Due Time: $deletion_due_time"
-        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
-
-        owner=$(grep 'owner' "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//')
-        echo "Owner: $owner"
-        echo "##vso[task.setvariable variable=OWNER]$owner"
-      displayName: Get Deletion Due Time and Owner
-      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
-    - script: |-
-        set -eu
-        echo "Create resource group $RUN_ID in region eastus2"
-        az group create --name $RUN_ID --location eastus2 \
-        --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
-      displayName: Create Resource Group
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
         set -e
@@ -213,11 +196,6 @@ stages:
             # Handle errors
             if [[ $exit_code -ne 0 ]]; then
                 echo "Terraform apply failed for region: $region"
-
-                echo "Deleting resources and removing state file before retrying"
-                ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
-                az resource delete --ids $ids --verbose
-                rm -r terraform.tfstate.d/$region
 
                 exit 1
             fi
@@ -339,5 +317,13 @@ stages:
 
         echo "SSH keys deleted successfully."
       displayName: Delete SSH Keys
+    - script: |2
+
+        set -eu
+
+        echo "Delete resource group $RUN_ID"
+        az group delete --name $RUN_ID --yes
+      displayName: Delete Resource Group
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     dependsOn:
     - run
