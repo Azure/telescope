@@ -2,10 +2,21 @@ import unittest
 import os
 import json
 import tempfile
-from utils.common import extract_parameter, save_info_to_file
+from utils.common import extract_parameter, save_info_to_file, get_env_vars
 
 
 class TestCommon(unittest.TestCase):
+    def setUp(self):
+        """Set up test environment"""
+        # Store original environment to restore later
+        self.original_env = dict(os.environ)
+
+    def tearDown(self):
+        """Clean up after tests"""
+        # Restore original environment
+        os.environ.clear()
+        os.environ.update(self.original_env)
+
     def test_extract_parameter_with_space(self):
         # Test with default parameters (space between parameter and value)
         command = "--time 60 --other-param value"
@@ -64,6 +75,52 @@ class TestCommon(unittest.TestCase):
             save_info_to_file(test_data, file_path)
 
         self.assertTrue("Directory does not exist" in str(context.exception))
+
+    def test_get_env_vars_success(self):
+        """Test get_env_vars when environment variable exists"""
+        # Setup
+        os.environ["TEST_VAR"] = "test_value"
+
+        # Execute
+        result = get_env_vars("TEST_VAR")
+
+        # Verify
+        self.assertEqual(result, "test_value")
+
+    def test_get_env_vars_missing(self):
+        """Test get_env_vars when environment variable is missing"""
+        # Setup - ensure the variable doesn't exist
+        if "MISSING_VAR" in os.environ:
+            del os.environ["MISSING_VAR"]
+
+        # Execute and verify
+        with self.assertRaises(RuntimeError) as context:
+            get_env_vars("MISSING_VAR")
+
+        self.assertIn("Environment variable `MISSING_VAR` not set", str(context.exception))
+
+    def test_get_env_vars_empty_value(self):
+        """Test get_env_vars when environment variable is set to empty string"""
+        # Setup
+        os.environ["EMPTY_VAR"] = ""
+
+        # Execute
+        result = get_env_vars("EMPTY_VAR")
+
+        # Verify - empty string is still a valid value
+        self.assertEqual(result, "")
+
+    def test_get_env_vars_none_value(self):
+        """Test get_env_vars when environment variable is explicitly removed"""
+        # Setup - set and then remove the variable
+        os.environ["TEMP_VAR"] = "temp_value"
+        del os.environ["TEMP_VAR"]
+
+        # Execute and verify
+        with self.assertRaises(RuntimeError) as context:
+            get_env_vars("TEMP_VAR")
+
+        self.assertIn("Environment variable `TEMP_VAR` not set", str(context.exception))
 
 
 if __name__ == '__main__':

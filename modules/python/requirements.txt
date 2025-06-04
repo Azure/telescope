@@ -3,3 +3,5 @@ kubernetes==31.0.0
 pylint==3.3.4
 coverage==7.6.12
 numpy==2.2.5
+azure-mgmt-containerservice==34.2.0
+azure-identity==1.23.0
