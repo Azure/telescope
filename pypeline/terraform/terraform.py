@@ -228,8 +228,6 @@ class Terraform(Resource):
     cloud: Cloud
     regions: list[str]
     scenario_name: str
-    deletion_delay: str
-    owner: str = "aks"
     scenario_type: str = "perf-eval"
     credential_type: CredentialType = CredentialType.SERVICE_CONNECTION
     modules_dir: str = ""
