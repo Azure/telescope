@@ -26,7 +26,7 @@ parameters:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-project-hyperion-baseline
+  SCENARIO_NAME: project-hyperion
   SCENARIO_VERSION: main
   OWNER: aks
 
