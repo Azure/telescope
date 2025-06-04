@@ -21,12 +21,16 @@ def main():
                 cloud=azure_eastus2,
                 setup=Setup(run_id=os.getenv("RUN_ID")),
                 resources=[
-                    ResourceGroup(region="eastus2", scenario_name="job-scheduling"),
+                    ResourceGroup(
+                        region="eastus2",
+                        scenario_name="job-scheduling",
+                        deletion_delay="1h",
+                    ),
                     Terraform(
                         cloud=azure_eastus2,
                         regions=["eastus2"],
                         scenario_name="job-scheduling",
-                        deletion_delay=2,
+                        deletion_delay="1h",
                     ),
                     Python3(),
                     SSH(cloud="azure"),
