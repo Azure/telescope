@@ -24,7 +24,7 @@ parameters:
     default: [Standard_D16_v3, Standard_D16_v5]
   - name: azure_machine_types_new_sku
     type: object
-    default: [Standard_D48s_v6]
+    default: [Standard_D48s_v3, Standard_D48s_v6]
   - name: aws_machine_types
     type: object
     default: [m4.4xlarge, m6i.4xlarge]
@@ -73,7 +73,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_v6
+  - stage: azure_eastus2_v3_v6
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -100,8 +100,8 @@ stages:
                     k8s_machine_type: ${{ machine_type }}
                     network_dataplane: ${{ dataplane }}
                     host_network: ${{ network }}
-                    configure_mtu: "true"
-          max_parallel: 1
+                    configure_mtu: ${{ eq(machine_type, 'Standard_D48s_v6') }}
+          max_parallel: 2
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false

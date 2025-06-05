@@ -63,10 +63,11 @@ variable "network_config_list" {
 
 variable "gke_config_list" {
   type = list(object({
-    role        = string
-    name        = string
-    vpc_name    = string
-    subnet_name = string
+    role               = string
+    name               = string
+    vpc_name           = string
+    subnet_name        = string
+    kubernetes_version = optional(string)
     default_node_pool = object({
       name         = string
       node_count   = number
