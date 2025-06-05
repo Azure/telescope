@@ -98,7 +98,7 @@ class Node(KWOK):
                 ) from e
 
         print(f"Validation completed for {self.node_count} KWOK nodes.")
-    
+
     def _generate_node_ip(self, index, base_ip=(10, 0, 0, 10)):
         """Generate a valid IPv4 address, rolling over octets as needed."""
         a, b, c, d = base_ip
@@ -113,7 +113,7 @@ class Node(KWOK):
         if any(x > 255 for x in (a, b, c, d)):
             raise ValueError("Exceeded valid IPv4 address range.")
         return f"{a}.{b}.{c}.{d}"
-    
+
     def tear_down(self):
         for i in range(self.node_count):
             node_name = f"kwok-node-{i}"
