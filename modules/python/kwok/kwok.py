@@ -90,6 +90,7 @@ class Node(KWOK):
             try:
                 self._validate_node_status(node)
                 self._validate_node_resources(node)
+                self._validate_node_schedulable(node)
             except Exception as e:
                 raise RuntimeError(
                     f"Validation failed for node {node.metadata.name}: {e}"
@@ -116,7 +117,15 @@ class Node(KWOK):
                 f"Node {node.metadata.name} is NOT Ready."
                 f"Condition: {ready_condition.status if ready_condition else 'No Ready condition found'}"
             )
-
+    
+    def _validate_node_schedulable(self, node):
+        if node.spec.unschedulable:
+            raise RuntimeError(
+                f"Node {node.metadata.name} is unschedulable. "
+                "This may affect scheduling of pods on this node."
+            )
+        else:
+            print(f"Node {node.metadata.name} is schedulable.")
     def _validate_node_resources(self, node):
         allocatable = (
             node.status.allocatable if node.status and node.status.allocatable else {}
