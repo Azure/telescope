@@ -8,7 +8,7 @@ aks_cli_config_list = [
     role               = "client"
     aks_name           = "vn15k-p200k"
     sku_tier           = "standard"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.31"
 
     default_node_pool = {
       name       = "default"
