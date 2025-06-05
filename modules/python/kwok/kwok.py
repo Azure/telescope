@@ -62,7 +62,7 @@ class Node(KWOK):
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
             for i in range(self.node_count):
-                replacements = {"node_name": f"kwok-node-{i}"}
+                replacements = {"node_name": f"kwok-node-{i}", "node_ip": f"10.0.0{i}"}
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
