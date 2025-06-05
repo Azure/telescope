@@ -62,7 +62,8 @@ class Node(KWOK):
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
             for i in range(self.node_count):
-                replacements = {"node_name": f"kwok-node-{i}", "node_ip": f"10.0.0.{i}"}
+                node_ip = self._generate_node_ip(i)
+                replacements = {"node_name": f"kwok-node-{i}", "node_ip": node_ip}
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
@@ -97,7 +98,22 @@ class Node(KWOK):
                 ) from e
 
         print(f"Validation completed for {self.node_count} KWOK nodes.")
-
+    
+    def _generate_node_ip(self, index, base_ip=(10, 0, 0, 10)):
+        """Generate a valid IPv4 address, rolling over octets as needed."""
+        a, b, c, d = base_ip
+        total = d + index
+        c += total // 256
+        d = total % 256
+        b += c // 256
+        c = c % 256
+        a += b // 256
+        b = b % 256
+        # Optionally, add a check to avoid exceeding 255.255.255.255
+        if any(x > 255 for x in (a, b, c, d)):
+            raise ValueError("Exceeded valid IPv4 address range.")
+        return f"{a}.{b}.{c}.{d}"
+    
     def tear_down(self):
         for i in range(self.node_count):
             node_name = f"kwok-node-{i}"
