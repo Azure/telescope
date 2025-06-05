@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 import tempfile
 import shutil
-from crud.crud import create_result_dir, collect_benchmark_results
+from crud.main import collect_benchmark_results
 from utils.common import get_env_vars
 
 
@@ -56,33 +56,6 @@ class TestCrud(unittest.TestCase):
 
         self.assertIn("Environment variable `TEST_VAR` not set", str(context.exception))
 
-    def test_create_result_dir_new(self):
-        """Test create_result_dir when directory doesn't exist"""
-        # Setup
-        test_path = os.path.join(self.test_dir, "new_dir")
-        self.assertFalse(os.path.exists(test_path))
-
-        # Execute
-        create_result_dir(test_path)
-
-        # Verify
-        self.assertTrue(os.path.exists(test_path))
-        self.assertTrue(os.path.isdir(test_path))
-
-    def test_create_result_dir_existing(self):
-        """Test create_result_dir when directory already exists"""
-        # Setup
-        test_path = os.path.join(self.test_dir, "existing_dir")
-        os.makedirs(test_path)
-        self.assertTrue(os.path.exists(test_path))
-
-        # Execute
-        create_result_dir(test_path)
-
-        # Verify - should still exist and be a directory
-        self.assertTrue(os.path.exists(test_path))
-        self.assertTrue(os.path.isdir(test_path))
-
     def test_main_with_json_files(self):
         """Test main function with JSON files to process"""
         # Setup
@@ -126,7 +99,7 @@ class TestCrud(unittest.TestCase):
 
         self.assertEqual(operation_info1["operation"], "create_node_pool")
 
-    @mock.patch("crud.crud.get_env_vars")
+    @mock.patch("crud.main.get_env_vars")
     def test_main_missing_env_vars(self, mock_get_env_vars):
         """Test main function when an environment variable is missing"""
         # Setup

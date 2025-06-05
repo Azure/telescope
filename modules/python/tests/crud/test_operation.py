@@ -43,7 +43,7 @@ class TestOperation(unittest.TestCase):
         self.assertEqual(op.name, "test_op")
         self.assertEqual(op.metadata, metadata)
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_start(self, mock_datetime):
         """Test operation start method"""
         # Setup
@@ -59,7 +59,7 @@ class TestOperation(unittest.TestCase):
         mock_now.strftime.assert_called_once_with("%Y-%m-%dT%H:%M:%SZ")
         self.assertEqual(self.test_operation.start_timestamp, "2023-01-01T12:00:00Z")
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_end_success(self, mock_datetime):
         """Test operation end method with success"""
         # Setup
@@ -81,7 +81,7 @@ class TestOperation(unittest.TestCase):
         self.assertTrue(self.test_operation.success)
         self.assertIsNone(self.test_operation.error_message)
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_end_with_error(self, mock_datetime):
         """Test operation end method with error"""
         # Setup
@@ -106,7 +106,7 @@ class TestOperation(unittest.TestCase):
         self.assertEqual(self.test_operation.error_message, "Test error")
         self.assertIsNotNone(self.test_operation.error_traceback)
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_end_duration_calculation_error(self, mock_datetime):
         """Test operation end when duration calculation fails"""
         # Setup
@@ -292,7 +292,7 @@ class TestOperationContext(unittest.TestCase):
         self.assertEqual(context.result_dir, self.temp_dir)
         self.assertEqual(context.cloud, "azure")
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_context_success(self, mock_datetime):
         """Test OperationContext with successful operation"""
         # Setup
@@ -326,7 +326,7 @@ class TestOperationContext(unittest.TestCase):
         self.assertTrue(files[0].startswith("azure_test_operation_"))
         self.assertTrue(files[0].endswith(".json"))
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_context_failure(self, mock_datetime):
         """Test OperationContext with failed operation"""
         # Setup
@@ -372,8 +372,8 @@ class TestOperationContext(unittest.TestCase):
         self.assertTrue(op.success)
         self.assertEqual(len(os.listdir(self.temp_dir)), 0)
 
-    @mock.patch("utils.operation.datetime")
-    @mock.patch("utils.operation.logger")
+    @mock.patch("crud.operation.datetime")
+    @mock.patch("crud.operation.logger")
     def test_operation_context_save_error(self, mock_logger, mock_datetime):
         """Test OperationContext when file saving fails"""
         # Setup
@@ -422,7 +422,7 @@ class TestOperationContext(unittest.TestCase):
         self.assertTrue(filename.startswith("azure_"))
         self.assertTrue(filename.endswith(".json"))
 
-    @mock.patch("utils.operation.datetime")
+    @mock.patch("crud.operation.datetime")
     def test_operation_context_metadata_persistence(self, mock_datetime):
         """Test that metadata is properly saved in OperationContext"""
         # Setup

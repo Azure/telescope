@@ -1,0 +1,24 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- template: /steps/engine/crud/k8s/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    vm_size: $(VM_SIZE)
+    create_node_count: $(CREATE_NODE_COUNT)
+    scale_node_count: $(SCALE_NODE_COUNT)
+    scale_step_up_count: $(SCALE_STEP_SIZE)
+    pool_name: $(POOL_NAME)
+    step_time_out: $(STEP_TIME_OUT)
+    result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    gpu_node_pool: $(GPU_NODE_POOL)
+    step_wait_time: $(STEP_WAIT_TIME)
