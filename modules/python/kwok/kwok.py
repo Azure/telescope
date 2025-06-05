@@ -62,7 +62,8 @@ class Node(KWOK):
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
             for i in range(self.node_count):
-                replacements = {"node_name": f"kwok-node-{i}"}
+                node_ip = self._generate_node_ip(i)
+                replacements = {"node_name": f"kwok-node-{i}", "node_ip": node_ip}
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
@@ -90,12 +91,28 @@ class Node(KWOK):
             try:
                 self._validate_node_status(node)
                 self._validate_node_resources(node)
+                self._validate_node_schedulable(node)
             except Exception as e:
                 raise RuntimeError(
                     f"Validation failed for node {node.metadata.name}: {e}"
                 ) from e
 
         print(f"Validation completed for {self.node_count} KWOK nodes.")
+
+    def _generate_node_ip(self, index, base_ip=(10, 0, 0, 10)):
+        """Generate a valid IPv4 address, rolling over octets as needed."""
+        a, b, c, d = base_ip
+        total = d + index
+        c += total // 256
+        d = total % 256
+        b += c // 256
+        c = c % 256
+        a += b // 256
+        b = b % 256
+        # Optionally, add a check to avoid exceeding 255.255.255.255
+        if any(x > 255 for x in (a, b, c, d)):
+            raise ValueError("Exceeded valid IPv4 address range.")
+        return f"{a}.{b}.{c}.{d}"
 
     def tear_down(self):
         for i in range(self.node_count):
@@ -116,6 +133,14 @@ class Node(KWOK):
                 f"Node {node.metadata.name} is NOT Ready."
                 f"Condition: {ready_condition.status if ready_condition else 'No Ready condition found'}"
             )
+
+    def _validate_node_schedulable(self, node):
+        if node.spec.unschedulable:
+            raise RuntimeError(
+                f"Node {node.metadata.name} is unschedulable. "
+                "This may affect scheduling of pods on this node."
+            )
+        print(f"Node {node.metadata.name} is schedulable.")
 
     def _validate_node_resources(self, node):
         allocatable = (
