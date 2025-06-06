@@ -1,4 +1,11 @@
 trigger: none
+schedules:
+  - cron: "0 3 */2 * *"
+    displayName: "Every 2 Days at 3 AM"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
