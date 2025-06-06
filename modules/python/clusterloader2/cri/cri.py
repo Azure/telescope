@@ -110,7 +110,7 @@ def verify_measurement():
             filtered_metrics = "\n".join(
                 line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
             )
-            logger.info("##[section]Metrics for node:", node_name) # pylint: disable=logging-too-many-args
+            logger.info(f"##[section]Metrics for node: {node_name}") # pylint: disable=logging-too-many-args
             logger.info(filtered_metrics) # pylint: disable=logging-too-many-args
 
         except k8s_client.ApiException as e:
@@ -163,7 +163,7 @@ def collect_clusterloader2(
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
-            logger.info(measurement, group_name)
+            logger.info(f"Processing measurement: {measurement}, group: {group_name}")
             data = json.loads(file.read())
 
             if measurement == "ResourceUsageSummary":
