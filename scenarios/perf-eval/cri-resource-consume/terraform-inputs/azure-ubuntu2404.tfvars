@@ -3,8 +3,6 @@ scenario_name  = "cri-resource-consume"
 deletion_delay = "2h"
 owner          = "aks"
 
-aks_config_list = []
-
 aks_cli_config_list = [
   {
     role               = "client"
