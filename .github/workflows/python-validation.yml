@@ -42,14 +42,17 @@ jobs:
             pylint $file_changes
           fi
       - name: Install kwokctl
+        if: always()
         run: |
           curl -LO https://github.com/kubernetes-sigs/kwok/releases/latest/download/kwokctl-linux-amd64
           chmod +x kwokctl-linux-amd64
           sudo mv kwokctl-linux-amd64 /usr/local/bin/kwokctl
 
       - name: Create KWOK cluster
+        if: always()
         run: kwokctl create cluster --name kwok-test
       - name: Run Python Tests with Coverage
+        if: always()
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: pytest --cov=. --cov-report=term-missing --cov-fail-under=68
       - name: Delete KWOK cluster

@@ -57,7 +57,7 @@ class AKSClient:
         """
         from crud.operation import OperationContext # pylint: disable=import-outside-toplevel
 
-        return OperationContext    
+        return OperationContext
 
     def __init__(
         self,
