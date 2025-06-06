@@ -126,6 +126,14 @@ variable "network_config_list" {
   default = []
 }
 
+variable "dns_zones" {
+  description = "List of DNS zones to create"
+  type = list(object({
+    name = string
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -186,7 +194,7 @@ variable "aks_config_list" {
     kubernetes_version        = optional(string, null)
     edge_zone                 = optional(string, null)
     web_app_routing = optional(object({
-      dns_zone_ids = list(string)
+      dns_zone_names = list(string)
     }), null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)

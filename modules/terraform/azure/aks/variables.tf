@@ -30,6 +30,12 @@ variable "subnets" {
   default     = {}
 }
 
+variable "dns_zones" {
+  description = "Map of DNS zones created, where the key is the zone name and the value is the zone ID"
+  type        = map(string)
+  default     = {}
+}
+
 variable "k8s_machine_type" {
   description = "Value to replace AKS nodes vm_size"
   type        = string
@@ -133,7 +139,7 @@ variable "aks_config" {
       skip_nodes_with_system_pods      = optional(bool, true)
     }))
     web_app_routing = optional(object({
-      dns_zone_ids = list(string)
+      dns_zone_names = list(string)
     }), null)
   })
 }
