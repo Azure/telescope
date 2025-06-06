@@ -1,0 +1,45 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: zfs-local
+parameters:
+  recordsize: "128k"
+  compression: "off"
+  dedup: "off"
+  fstype: "zfs"
+  poolname: "zfspv-pool"
+provisioner: zfs.csi.openebs.io
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: node.kubernetes.io/instance-type
+        values:
+          - Standard_HB120-16rs_v2
+          - Standard_HB120-32rs_v2
+          - Standard_HB120-64rs_v2
+          - Standard_HB120-96rs_v2
+          - Standard_HB120rs_v2
+          - Standard_HB120-16rs_v3
+          - Standard_HB120-32rs_v3
+          - Standard_HB120-64rs_v3
+          - Standard_HB120-96rs_v3
+          - Standard_HB120rs_v3
+          - Standard_HB176-24rs_v4
+          - Standard_HB176-48rs_v4
+          - Standard_HB176-96rs_v4
+          - Standard_HB176-144rs_v4
+          - Standard_HB176rs_v4
+          - Standard_HX176-24rs
+          - Standard_HX176-48rs
+          - Standard_HX176-96rs
+          - Standard_HX176-144rs
+          - Standard_HX176rs
+          - Standard_NC24ads_A100_v4
+          - Standard_NC48ads_A100_v4
+          - Standard_NC96ads_A100_v4
+          - Standard_ND96isr_H100_v5
+          - Standard_NC40ads_H100_v5
+          - Standard_NC80adis_H100_v5
+          - Standard_NCC40ads_H100_v5
+          - Standard_ND96isr_H200_v5
+          - Standard_ND96isr_MI300X_v5
+          - Standard_ND96amsr_A100_v4

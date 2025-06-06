@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: zfs-fio-block
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    agentpool: user
+  containers:
+    - name: zfs-fio
+      image: ubuntu:22.04
+      command:
+        - bash
+        - -c
+        - |
+          apt update
+          apt install -y fio
+          fio --name=bandwidth_test --filename=/dev/nvme0n1 --rw=write --size=2T --bs=1M --iodepth=32 --direct=1 --numjobs=16 --runtime=60 --time_based --group_reporting
+      volumeDevices:
+        - name: block-mount
+          devicePath: /dev/nvme0n1
+      securityContext:
+        capabilities:
+          add: ["SYS_ADMIN"]
+        privileged: true
+  volumes:
+    - name: block-mount
+      persistentVolumeClaim:
+        claimName: block-claim

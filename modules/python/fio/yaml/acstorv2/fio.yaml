@@ -1,0 +1,34 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: acstor-fio
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    agentpool: user
+  containers:
+    - name: acstor-fio
+      image: ubuntu:22.04
+      command:
+        - bash
+        - -c
+        - |
+          apt update
+          apt install -y fio
+          fio --name=bandwidth_test --filename=/mnt/data/testfile --rw=write --size=2T --bs=1M --iodepth=32 --direct=1 --numjobs=16 --runtime=60 --time_based --group_reporting
+      volumeMounts:
+        - mountPath: /mnt/data
+          name: acstor-mount
+  volumes:
+    - name: acstor-mount
+      ephemeral:
+        volumeClaimTemplate:
+          metadata:
+            labels:
+              type: my-ephemeral-volume
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: cns-nvmedisk 
+            resources:
+              requests:
+                storage: 960193626112

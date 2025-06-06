@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zfs-host-setup
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: zfs-host-setup
+  template:
+    metadata:
+      labels:
+        name: zfs-host-setup
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.kubernetes.io/instance-type
+                    operator: In
+                    values:
+                      - Standard_HB120-16rs_v2
+                      - Standard_HB120-32rs_v2
+                      - Standard_HB120-64rs_v2
+                      - Standard_HB120-96rs_v2
+                      - Standard_HB120rs_v2
+                      - Standard_HB120-16rs_v3
+                      - Standard_HB120-32rs_v3
+                      - Standard_HB120-64rs_v3
+                      - Standard_HB120-96rs_v3
+                      - Standard_HB120rs_v3
+                      - Standard_HB176-24rs_v4
+                      - Standard_HB176-48rs_v4
+                      - Standard_HB176-96rs_v4
+                      - Standard_HB176-144rs_v4
+                      - Standard_HB176rs_v4
+                      - Standard_HX176-24rs
+                      - Standard_HX176-48rs
+                      - Standard_HX176-96rs
+                      - Standard_HX176-144rs
+                      - Standard_HX176rs
+                      - Standard_NC24ads_A100_v4
+                      - Standard_NC48ads_A100_v4
+                      - Standard_NC96ads_A100_v4
+                      - Standard_ND96isr_H100_v5
+                      - Standard_NC40ads_H100_v5
+                      - Standard_NC80adis_H100_v5
+                      - Standard_NCC40ads_H100_v5
+                      - Standard_ND96isr_H200_v5
+                      - Standard_ND96isr_MI300X_v5
+                      - Standard_ND96amsr_A100_v4
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: zfs-host-setup
+          image: ubuntu:22.04
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+              export NUMBER_OF_NVME=$(($(ls /dev/nvme*n1 | wc -l) - 1))
+              echo "Starting ZFS setup on node $(hostname)..."
+
+              echo "Updating package repository on the host..."
+              chroot /host apt update
+
+              echo "Installing required packages on the host..."
+              chroot /host apt install -y gdisk zfsutils-linux kmod
+
+              echo "Checking if ZFS pool 'zfspv-pool' already exists on the host..."
+              if chroot /host zpool list | grep -q zfspv-pool; then
+                echo "ZFS pool 'zfspv-pool' already exists. Skipping disk setup."
+              else
+                echo "ZFS pool does not exist. Proceeding with disk setup on the host..."
+                for disk in $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1"); do
+                  echo "Preparing disk $disk..."
+                  if [ -e $disk ]; then
+                    chroot /host sgdisk --zap-all $disk
+                    chroot /host sgdisk --new=1:0:0 $disk
+                  else
+                    echo "Disk $disk not found. Skipping."
+                  fi
+                done
+
+                echo "Loading ZFS kernel module on the host..."
+                chroot /host modprobe zfs
+
+                echo "Creating ZFS pool 'zfspv-pool' on the host..."
+                chroot /host zpool create zfspv-pool $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1") || echo "Failed to create ZFS pool."
+              fi
+
+              echo "ZFS setup complete. Keeping pod running..."
+              sleep inf
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+      tolerations:
+        - key: sku
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
