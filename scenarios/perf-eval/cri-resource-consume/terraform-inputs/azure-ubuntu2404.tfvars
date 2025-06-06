@@ -3,15 +3,12 @@ scenario_name  = "cri-resource-consume"
 deletion_delay = "2h"
 owner          = "aks"
 
-aks_config_list = []
-
 aks_cli_config_list = [
   {
-    role                          = "client"
-    aks_name                      = "cri-resource-consume"
-    sku_tier                      = "standard"
-    kubernetes_version            = "1.32"
-    use_aks_preview_private_build = true
+    role               = "client"
+    aks_name           = "cri-resource-consume"
+    sku_tier           = "standard"
+    kubernetes_version = "1.32"
     default_node_pool = {
       name       = "default"
       node_count = 3
@@ -32,7 +29,7 @@ aks_cli_config_list = [
       {
         name       = "userpool0",
         node_count = 10,
-        vm_size    = "Standard_D16ds_v5",
+        vm_size    = "Standard_D16ds_v6",
         optional_parameters = [
           {
             name  = "node-osdisk-type"

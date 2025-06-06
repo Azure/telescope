@@ -149,5 +149,5 @@ eks_config_list = [{
     }
   ]
   eks_addons         = [{ name = "vpc-cni" }]
-  kubernetes_version = "1.30"
+  kubernetes_version = "1.32"
 }]
