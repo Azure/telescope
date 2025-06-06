@@ -7,11 +7,10 @@ aks_config_list = []
 
 aks_cli_config_list = [
   {
-    role                          = "client"
-    aks_name                      = "cri-resource-consume"
-    sku_tier                      = "standard"
-    kubernetes_version            = "1.32"
-    use_aks_preview_private_build = true
+    role               = "client"
+    aks_name           = "cri-resource-consume"
+    sku_tier           = "standard"
+    kubernetes_version = "1.32"
     default_node_pool = {
       name       = "default"
       node_count = 3
