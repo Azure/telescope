@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: In
+                values:
+                - kwok
+      # A taint was added to an automatically created Node.
+      # You can remove taints of Node or add this tolerations.
+      tolerations:
+      - key: "kwok.x-k8s.io/node"
+        operator: "Equal"
+        value: "fake"
+        effect: "NoSchedule"
+      containers:
+      - image: busybox
+        name: {{.Name}}
+        command: ["sh", "-c", "echo Job is running; sleep 5; echo Job done!"]
