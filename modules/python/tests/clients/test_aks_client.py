@@ -22,8 +22,9 @@ class TestAKSClient(unittest.TestCase):
             "clients.aks_client.ManagedIdentityCredential"
         )
         self.k8s_client_patcher = mock.patch("clients.aks_client.KubernetesClient")
+        # Mock the dynamic import of OperationContext
         self.operation_context_patcher = mock.patch(
-            "clients.aks_client.OperationContext"
+            "crud.operation.OperationContext"
         )
 
         # Start patches
