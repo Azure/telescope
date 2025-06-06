@@ -49,12 +49,9 @@ jobs:
 
       - name: Create KWOK cluster
         run: kwokctl create cluster --name kwok-test
-      - name: Run Python Unit Tests
+      - name: Run Python Tests with Coverage
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: coverage run -m unittest discover
-      - name: Generate Coverage Report
-        working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: coverage report -m
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=68
       - name: Delete KWOK cluster
         if: always()
         run: kwokctl delete cluster --name kwok-test
