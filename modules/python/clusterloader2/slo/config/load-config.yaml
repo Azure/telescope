@@ -2,6 +2,7 @@ name: load-config
 
 # Config options for test type
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+{{$NETWORK_TEST := DefaultParam .CL2_NETWORK_TEST false}}
 {{$CNP_TEST := DefaultParam .CL2_CNP_TEST false}}
 {{$CCNP_TEST := DefaultParam .CL2_CCNP_TEST false}}
 
@@ -14,7 +15,7 @@ name: load-config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
 
 # TODO(jshr-w): This should eventually use >1 namespace.
-{{$namespaces := 1}}
+{{$namespaces := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
@@ -27,6 +28,7 @@ name: load-config
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
 
 {{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+{{$SCRAPE_KUBELETS := DefaultParam .CL2_SCRAPE_KUBELETS false}}
 {{$SCRAPE_CONTAINERD := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 
 # Service test
@@ -75,7 +77,7 @@ tuningSets:
       timeLimit: {{$deletionTime}}s
 
 steps:
-  - name: Log - namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, bigGroupSize={{$BIG_GROUP_SIZE}}, smallGroupSize={{$SMALL_GROUP_SIZE}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
+  - name: Log - namespaces={{$namespaces}}, nodes={{$nodes}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, bigDeploymentsPerNamespace={{$bigDeploymentsPerNamespace}}, smallDeploymentsPerNamespace={{$smallDeploymentsPerNamespace}}, bigGroupSize={{$BIG_GROUP_SIZE}}, smallGroupSize={{$SMALL_GROUP_SIZE}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -94,6 +96,20 @@ steps:
       path: /modules/cilium-measurements.yaml
       params:
         action: start
+{{end}}
+
+{{if $NETWORK_TEST}}
+  - module:
+        path: /modules/network-policy/net-policy-metrics.yaml
+        params:
+          action: start
+
+{{if $SCRAPE_KUBELETS}}
+  - module:
+         path: /modules/npm-measurements.yaml
+         params:
+           action: start
+{{end}}
 {{end}}
 
 {{if $SCRAPE_CONTAINERD}}
@@ -133,6 +149,15 @@ steps:
         ccnps: {{$CCNPS}}
 {{end}}
 
+{{if $NETWORK_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        setup: true
+        run: true
+        testType: "pod-creation"
+{{end}}
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
@@ -155,6 +180,26 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
+
+{{if $NETWORK_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+        usePolicyCreationMetrics: false
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "pod-creation"
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        run: true
+        testType: "policy-creation"
+{{end}}
 
   - module:
       path: /modules/reconcile-objects.yaml
@@ -252,3 +297,23 @@ steps:
       params:
         action: gather
         group: {{$groupName}}
+
+{{if $NETWORK_TEST}}
+  - module:
+      path: modules/network-policy/net-policy-metrics.yaml
+      params:
+        action: gather
+
+{{if $SCRAPE_KUBELETS}}
+  - module:
+      path: /modules/npm-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: modules/network-policy/net-policy-enforcement-latency.yaml
+      params:
+        complete: true
+        testType: "policy-creation"
+{{end}}
