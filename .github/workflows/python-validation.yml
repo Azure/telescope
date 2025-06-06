@@ -34,7 +34,7 @@ jobs:
         id: changed-files
         run: |
           # Get list of changed files
-          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
+          file_changes=$(git diff --name-only --diff-filter=d origin/main HEAD -- '*.py')
           echo "Files changed: $file_changes"
           if [ -z "$file_changes" ]; then
             echo "No Python files were changed."
@@ -54,7 +54,7 @@ jobs:
       - name: Run Python Tests with Coverage
         if: always()
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=68
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70%
       - name: Delete KWOK cluster
         if: always()
         run: kwokctl delete cluster --name kwok-test

@@ -116,7 +116,9 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
 
     @mock.patch("crud.main.logger")
     @mock.patch("crud.main.AzureNodePoolCRUD")
-    def test_handle_node_pool_operation_unknown_command(self, mock_azure_crud, mock_logger):
+    def test_handle_node_pool_operation_unknown_command(
+        self, mock_azure_crud, mock_logger
+    ):
         """Test handle_node_pool_operation with unknown command"""
         # Setup
         mock_args = mock.MagicMock()
@@ -137,14 +139,14 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_parser = mock.MagicMock()
         mock_parser_class.return_value = mock_parser
         mock_parser.parse_args.side_effect = ValueError("Test error")
-        
+
         # Execute
         with mock.patch("sys.argv", ["crud.py", "--cloud", "azure", "create"]):
             with mock.patch("sys.exit") as mock_exit:
                 main()
                 # Verify exit was called with error code
                 mock_exit.assert_called_once_with(1)
-        
+
         # Verify error was logged
         mock_logger.critical.assert_called()
 
