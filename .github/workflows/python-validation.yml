@@ -54,6 +54,7 @@ jobs:
       - name: Run Python Tests with Coverage
         if: always()
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        # TODO: Update Validation to check 70% coverage for each test file
         run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70
       - name: Delete KWOK cluster
         if: always()
