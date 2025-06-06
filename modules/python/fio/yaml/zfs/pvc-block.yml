@@ -1,0 +1,12 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: block-claim
+spec:
+  volumeMode: Block
+  storageClassName: zfspv-block
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 800Gi

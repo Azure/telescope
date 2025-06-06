@@ -1,0 +1,15 @@
+clusterConfig:
+  configYaml: |-
+    apiVersion: containerstorage.azure.com/v1 
+    kind: ClusterConfig 
+    enableInstallerStrictMode: true 
+    enableElasticSan: true 
+    enableNvmeDisk: true 
+    enableStriping: true 
+    enableEphemeralBypassAnnotation: true 
+    agentImage: mcr.microsoft.com/cns/agent:2.0.0-alpha.nvidia.4 
+    agentTolerations: 
+    - key: "sku" 
+      operator: "Equal" 
+      value: "gpu" 
+      effect: "NoSchedule"

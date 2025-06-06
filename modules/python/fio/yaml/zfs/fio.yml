@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: zfs-fio
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    agentpool: gpu
+  containers:
+    - name: zfs-fio
+      image: ubuntu:22.04
+      command:
+        - bash
+        - -c
+        - |
+          apt update
+          apt install -y fio
+          fio --name=bandwidth_test --filename=/mnt/data/testfile --rw=write --size=2T --bs=1M --iodepth=32 --direct=1 --numjobs=16 --runtime=60 --time_based --group_reporting
+      volumeMounts:
+        - mountPath: /mnt/data
+          name: zfs-mount
+  volumes:
+    - name: zfs-mount
+      persistentVolumeClaim:
+        claimName: zfs-pvc
