@@ -18,7 +18,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest6"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
                 groups: 1000
@@ -51,7 +51,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest6"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
                 groups: 1000
@@ -84,7 +84,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest6"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
                 groups: 1000
@@ -117,7 +117,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest6"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
                 groups: 1000
@@ -150,7 +150,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest6"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
                 groups: 1000
@@ -183,7 +183,7 @@ stages:
         topology: network-policy-scale
         engine: clusterloader2
         engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest6"
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
                 cl2_config_file: network-policy-scale-config.yaml
