@@ -100,7 +100,7 @@ stages:
                 restart_deletion_enabled: False
                 l7_enabled: False
                 l3_l4_port_enabled: True
-                test_type: "l3-l4debug-soaking"
+                test_type: "l3-l4default-soak"
                 cl2_config_file: network-policy-scale-config.yaml
         max_parallel: 1
         timeout_in_minutes: 720 # 12 hours
