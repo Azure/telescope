@@ -186,6 +186,10 @@ stages:
             image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
         matrix:
             azure_cilium:
+                netpol_test: $(PIPELINE_NETPOL_TEST)
+                restart_deletion_enabled: $(PIPELINE_RESTART_DELETION_ENABLED)
+                l3_l4_port_enabled: $(PIPELINE_L3_L4_PORT_ENABLED)
+                test_type: $(PIPELINE_TEST_TYPE)
                 cl2_config_file: network-policy-scale-config.yaml
         max_parallel: 1
         timeout_in_minutes: 720 # 12 hours
