@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "apiserver-vn100pod10k"
-deletion_delay = "20h"
+scenario_name  = "job-scheduling"
+deletion_delay = "1h"
 owner          = "aks"
 
 network_config_list = [
@@ -57,7 +57,7 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "vn100-p10k"
+  eks_name    = "job-scheduling"
   vpc_name    = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
@@ -65,31 +65,25 @@ eks_config_list = [{
       name           = "idle"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.large"]
-      min_size       = 1
-      max_size       = 1
-      desired_size   = 1
+      min_size       = 2
+      max_size       = 2
+      desired_size   = 2
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+      labels = {
+        "default" = "true"
+      }
     },
     {
       name           = "virtualnodes"
       ami_type       = "AL2_x86_64"
       instance_types = ["m4.2xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
-    },
-    {
-      name           = "runner"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.4xlarge"]
       min_size       = 3
       max_size       = 3
       desired_size   = 3
       capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+      labels = {
+        "default" = "true"
+      }
     }
   ]
 
@@ -98,7 +92,5 @@ eks_config_list = [{
       name = "coredns"
     }
   ]
-
   kubernetes_version = "1.32"
 }]
-
