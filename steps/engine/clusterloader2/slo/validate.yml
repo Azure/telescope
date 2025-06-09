@@ -10,7 +10,8 @@ steps:
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
-        $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES
+        --node_count=$DESIRED_NODES \
+        --operation_timeout=$VALIDATION_TIMEOUT_IN_MINUTES
     workingDirectory: modules/python
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
     displayName: "Validate node count"
