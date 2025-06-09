@@ -99,7 +99,7 @@ module "aks" {
   k8s_os_disk_type    = local.k8s_os_disk_type
   network_dataplane   = local.aks_network_dataplane
   network_policy      = local.aks_network_policy
-  dns_zones           = try(module.dns_zone.dns_zone_ids, null)
+  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
 }
 
 module "aks-cli" {

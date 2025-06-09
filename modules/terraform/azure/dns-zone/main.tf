@@ -1,4 +1,4 @@
-local {
+locals {
   dns_zones = { for zone in var.dns_zones : zone.name => zone }
 }
 
