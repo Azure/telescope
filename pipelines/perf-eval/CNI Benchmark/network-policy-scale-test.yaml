@@ -1,4 +1,11 @@
 trigger: none
+schedules:
+  - cron: "0 11,23 * * *"
+    displayName: "11:00 AM & PM Daily"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
     SCENARIO_TYPE: perf-eval
@@ -8,6 +15,7 @@ variables:
 
 stages:
 - stage: default_soak_test
+  condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
   dependsOn: []
   jobs:
   - template: /jobs/competitive-test.yml
@@ -74,6 +82,7 @@ stages:
         credential_type: service_connection
         ssh_key_enabled: false
 - stage: l3_l4_cnps_soak
+  condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
   dependsOn: []
   jobs:
   - template: /jobs/competitive-test.yml
@@ -107,6 +116,7 @@ stages:
         credential_type: service_connection
         ssh_key_enabled: false
 - stage: l3_l4_cnps_enforcement_latency_test
+  condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
   dependsOn: []
   jobs:
   - template: /jobs/competitive-test.yml
@@ -140,6 +150,7 @@ stages:
         credential_type: service_connection
         ssh_key_enabled: false
 - stage: l7_soak_test
+  condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
   dependsOn: []
   jobs:
   - template: /jobs/competitive-test.yml
@@ -173,6 +184,7 @@ stages:
         credential_type: service_connection
         ssh_key_enabled: false
 - stage: manual_testing
+  condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
   dependsOn: []
   jobs:
   - template: /jobs/competitive-test.yml
