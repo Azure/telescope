@@ -122,7 +122,7 @@ aks_cli_config_list = [
           },
           {
             name  = "node-taints",
-            value = "dedicated-test=true:NoSchedule dedicated-test=true:NoExecute"
+            value = "dedicated-test=true:NoSchedule,dedicated-test=true:NoExecute"
           },
           {
             name  = "zones",
@@ -141,7 +141,7 @@ aks_cli_config_list = [
           },
           {
             name  = "node-taints",
-            value = "dedicated-test=true:NoSchedule dedicated-test=true:NoExecute"
+            value = "dedicated-test=true:NoSchedule,dedicated-test=true:NoExecute"
           },
           {
             name  = "zones",
