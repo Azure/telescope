@@ -34,11 +34,10 @@ Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
 [tool.hatch.build.targets.wheel]
-packages = ["iperf3", "clients", "utils", "clusterloader2", "pipelines", "kowk"]
+packages = ["iperf3", "clients", "utils", "clusterloader2", "kowk"]
 
 [project.scripts]
 telescope-iperf3 = "iperf3.iperf3_pod:main"
 telescope-cl2-autoscale = "clusterloader2.autoscale.autoscale:main"
 telescope-cl2-cri = "clusterloader2.cri.cri:main"
-telescope-pipeline = "pipelines.pipelines:main"
-telescope-kowk = "kowk.kowk:main"
+telescope-kwok = "kwok.kwok:main"
