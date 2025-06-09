@@ -11,6 +11,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: network-policy-scale
+  SCENARIO_VERSION: cnpScale
   OWNER: aks
 
 stages:
