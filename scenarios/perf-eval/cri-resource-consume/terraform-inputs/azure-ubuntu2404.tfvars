@@ -23,6 +23,10 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "prometheus=true"
+          },
+          {
+            name  = "os-sku"
+            value = "Ubuntu2404"
           }
         ]
       },
@@ -74,6 +78,10 @@ aks_cli_config_list = [
       {
         name  = "dns-service-ip"
         value = "192.168.0.10"
+      },
+      {
+        name  = "os-sku"
+        value = "Ubuntu2404"
       }
     ]
   }

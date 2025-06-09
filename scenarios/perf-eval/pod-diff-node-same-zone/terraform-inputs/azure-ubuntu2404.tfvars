@@ -117,6 +117,10 @@ aks_cli_config_list = [
         vm_size    = "Standard_D48s_v6",
         optional_parameters = [
           {
+            name  = "os-sku"
+            value = "Ubuntu2404"
+          },
+          {
             name  = "labels"
             value = "client=true test=true"
           },
@@ -135,6 +139,10 @@ aks_cli_config_list = [
         node_count = 1,
         vm_size    = "Standard_D48s_v6",
         optional_parameters = [
+          {
+            name  = "os-sku"
+            value = "Ubuntu2404"
+          },
           {
             name  = "labels"
             value = "server=true test=true"
@@ -174,6 +182,10 @@ aks_cli_config_list = [
       {
         name  = "dns-service-ip"
         value = "192.168.0.10"
+      },
+      {
+        name  = "os-sku"
+        value = "Ubuntu2404"
       }
     ]
   }
