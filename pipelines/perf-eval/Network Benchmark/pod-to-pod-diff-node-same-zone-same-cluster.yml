@@ -131,6 +131,7 @@ stages:
             ${{ each network in parameters.host_networks }}:
               Standard_D48s_v6_azure_${{ network }}:
                 host_network: ${{ network }}
+                configure_mtu: "true"
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
