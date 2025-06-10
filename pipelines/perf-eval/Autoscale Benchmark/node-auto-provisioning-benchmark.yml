@@ -39,6 +39,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
+  SKIP_RESOURCE_MANAGEMENT: true
 
 stages:
   - stage: azure_eastus2_small_scale
@@ -51,6 +52,7 @@ stages:
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
+          skip_resource_management: ${{ variables.SKIP_RESOURCE_MANAGEMENT }}
           cloud: azure
           regions:
             - eastus2
