@@ -1,0 +1,36 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: ab-testing-cilium-parameters
+  OWNER: aks
+
+stages:
+  - stage: test
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: cilium-usercluster
+          matrix:
+            azure_cilium:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 1000
+              max_pods: 110
+              repeats: 1
+              scale_timeout: "30m"
+              cilium_enabled: True
+              network_policy: cilium
+              network_dataplane: cilium
+              service_test: False
+              cl2_config_file: load-config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
