@@ -310,6 +310,7 @@ class AKSClient:
                     "vm_size": vm_size,
                     "os_type": "Linux",
                     "mode": "User",
+                    "os_disk_type": "Managed"
                 }
 
                 logger.info(
