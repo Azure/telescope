@@ -55,6 +55,7 @@ steps:
 - script: |
     python3 --version && pip3 --version
     jq --version
+    kubectl version --client
   displayName: "Check Dependencies"
 
 - script: |

@@ -1,0 +1,108 @@
+name: load-config
+
+# Config options for test parameters
+{{$repeats := DefaultParam .CL2_REPEATS 1}}
+{{$groupName := DefaultParam .CL2_GROUP_NAME "service-discovery"}}
+
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+
+{{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
+{{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}} #todo look into this
+
+{{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
+
+{{$NO_OF_NAMESPACES := DefaultParam .CL2_NO_OF_NAMESPACES 1}}
+{{$NO_OF_PODS := DefaultParam .CL2_NO_OF_PODS 500}}
+{{$NO_OF_REPLICAS_PER_DEPLOYMENT := DefaultParam .CL2_NO_OF_REPLICAS_PER_DEPLOYMENT 20}}
+
+{{$podsPerNamespace := DivideInt $NO_OF_PODS $NO_OF_NAMESPACES}}
+{{$deploymentsPerNamespace := DivideInt $podsPerNamespace $NO_OF_REPLICAS_PER_DEPLOYMENT}}
+
+# QPS
+# We use RandomizedTimeLimitedLoad for load QPS.
+# Specifically, we aim to create/delete LOAD_TEST_THROUGHPUT/DELETE_TEST_THROUGHPUT pods per second, on average.
+# Operations make an independent choice about the time to start uniformly at random from the associated time period.
+{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$DELETE_TEST_THROUGHPUT := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $LOAD_TEST_THROUGHPUT}}
+{{$saturationTime := DivideInt $NO_OF_PODS $LOAD_TEST_THROUGHPUT}}
+{{$deletionTime := DivideInt $NO_OF_PODS $DELETE_TEST_THROUGHPUT}}
+
+namespace:
+  number: {{$NO_OF_NAMESPACES}}
+  prefix: hyperion
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: RandomizedSaturationTimeLimited
+    RandomizedTimeLimitedLoad:
+      timeLimit: {{$saturationTime}}s
+  - name: RandomizedDeletionTimeLimited
+    RandomizedTimeLimitedLoad:
+      timeLimit: {{$deletionTime}}s
+
+steps:
+  - name: Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: start
+        group: {{$groupName}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: start
+{{end}}
+
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "create"
+        namespaces: {{$NO_OF_NAMESPACES}}
+        tuningSet: RandomizedSaturationTimeLimited
+        operationTimeout: {{$operationTimeout}}
+        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENT}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        CpuRequest: {{$latencyPodCpu}}m
+        MemoryRequest: {{$latencyPodMemory}}M
+        Group: {{$groupName}}
+        deploymentLabel: start
+
+  - module:
+      path: /modules/reconcile-objects.yaml
+      params:
+        actionName: "delete"
+        namespaces: {{$NO_OF_NAMESPACES}}
+        tuningSet: RandomizedDeletionTimeLimited
+        operationTimeout: {{$operationTimeout}}
+        replicasPerDeployment: {{$NO_OF_REPLICAS_PER_DEPLOYMENT}}
+        deploymentsPerNamespace: 0
+        deploymentLabel: restart
+        Group: {{$groupName}}
+
+{{if $CILIUM_METRICS_ENABLED}}
+  - module:
+      path: /modules/cilium-measurements.yaml
+      params:
+        action: gather
+{{end}}
+
+  - module:
+      path: /modules/measurements.yaml
+      params:
+        action: gather
+        group: {{$groupName}}

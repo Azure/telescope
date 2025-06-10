@@ -1,0 +1,58 @@
+trigger: none
+schedules:
+  - cron: "0 5,10,15,20 * * *"
+    displayName: "4 runs daily, avoid 12 AM"
+    branches:
+      include:
+        - main
+    always: true
+
+parameters:
+  - name: no_of_namespaces
+    type: number
+    default: 35
+  - name: no_of_pods
+    type: number
+    default: 200000
+  - name: no_of_replicas_per_deployment
+    type: number
+    default: 630
+  - name: repeats
+    type: number
+    default: 1
+  - name: scale_timeout
+    type: string
+    default: "60m"
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: project-hyperion
+  SCENARIO_VERSION: main
+  OWNER: aks
+
+stages:
+  - stage: azure_canada_central_project_hyperion_baseline
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241022"
+          topology: hyperion
+          matrix:
+            azure_cilium:
+              no_of_namespaces: ${{ parameters.no_of_namespaces }}
+              no_of_pods: ${{ parameters.no_of_pods }}
+              no_of_replicas_per_deployment: ${{ parameters.no_of_replicas_per_deployment }}
+              repeats: ${{ parameters.repeats }}
+              scale_timeout: ${{ parameters.scale_timeout }}
+              cilium_enabled: True
+              cl2_config_file: load-config.yaml
+          max_parallel: 2
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

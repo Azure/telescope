@@ -29,7 +29,7 @@ steps:
     set -x
 
     errors_number=$(jq -r '.result.errors | length' ${TEST_RESULTS_DIR}/tmp_results.json)
-    error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' ${TEST_RESULTS_DIR}/tmp_results.json)
+    error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' ${TEST_RESULTS_DIR}/tmp_results.json)
     if [[ "${errors_number}" != "0" && "${error_rate_too_high}" == "true" ]]; then
 
       cat ${TEST_RESULTS_DIR}/tmp_results.json \

@@ -41,10 +41,20 @@ jobs:
           else
             pylint $file_changes
           fi
+      - name: Install kwokctl
+        run: |
+          curl -LO https://github.com/kubernetes-sigs/kwok/releases/latest/download/kwokctl-linux-amd64
+          chmod +x kwokctl-linux-amd64
+          sudo mv kwokctl-linux-amd64 /usr/local/bin/kwokctl
 
+      - name: Create KWOK cluster
+        run: kwokctl create cluster --name kwok-test
       - name: Run Python Unit Tests
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: coverage run -m unittest discover
       - name: Generate Coverage Report
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
         run: coverage report -m
+      - name: Delete KWOK cluster
+        if: always()
+        run: kwokctl delete cluster --name kwok-test
