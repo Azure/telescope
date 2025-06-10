@@ -30,7 +30,7 @@ steps:
     )
 
     # Conditionally add gpu-node
-    if [[ "$GPU_NODE_POOL" == "True" ]]; then
+    if [[ "${GPU_NODE_POOL,,}" == "true" ]]; then
       ARGS+=(--gpu-node-pool)
     fi
     if [[ "$SCALE_STEP_SIZE" != "$SCALE_NODE_COUNT" ]]
