@@ -1,196 +1,25 @@
 trigger: none
 
 variables:
-    SCENARIO_TYPE: perf-eval
-    SCENARIO_NAME: network-policy-scale
-    OWNER: aks
+  SCENARIO_TYPE: <scenario-type>
+  SCENARIO_NAME: <scenario-name>
 
 stages:
-- stage: default_soak_test
-  dependsOn: []
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-        cloud: azure
-        regions:
-        - $(LOCATION)
-        topology: network-policy-scale
-        engine: clusterloader2
-        engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
-        matrix:
-            azure_cilium:
-                groups: 1000
-                clients_per_group: 20
-                servers_per_group: 20
-                workers_per_client: 2
-                repeats: 1
-                networkpolicy_type: cnp
-                test_run_duration_secs: 10000
-                cilium_enabled: True
-                cilium_envoy_enabled: False
-                netpol_test: "soak"
-                restart_deletion_enabled: False
-                l7_enabled: False
-                l3_l4_port_enabled: False
-                test_type: "default-soak"
-                cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 1
-        timeout_in_minutes: 720 # 12 hours
-        credential_type: service_connection
-        ssh_key_enabled: false
-- stage: l3_l4_cnps_restart_deletion_enabled
-  dependsOn: []
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-        cloud: azure
-        regions:
-        - $(LOCATION)
-        topology: network-policy-scale
-        engine: clusterloader2
-        engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
-        matrix:
-            azure_cilium:
-                groups: 1000
-                clients_per_group: 20
-                servers_per_group: 20
-                workers_per_client: 2
-                repeats: 1
-                networkpolicy_type: cnp
-                test_run_duration_secs: 14400
-                cilium_enabled: True
-                cilium_envoy_enabled: False
-                netpol_test: "soak"
-                restart_deletion_enabled: True
-                l7_enabled: False
-                l3_l4_port_enabled: True
-                test_type: "l3-l4restart-deletion-enabled-test"
-                cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 1
-        timeout_in_minutes: 720 # 12 hours
-        credential_type: service_connection
-        ssh_key_enabled: false
-- stage: l3_l4_cnps_soak
-  dependsOn: []
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-        cloud: azure
-        regions:
-        - $(LOCATION)
-        topology: network-policy-scale
-        engine: clusterloader2
-        engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
-        matrix:
-            azure_cilium:
-                groups: 1000
-                clients_per_group: 20
-                servers_per_group: 20
-                workers_per_client: 2
-                repeats: 1
-                networkpolicy_type: cnp
-                test_run_duration_secs: 25200
-                cilium_enabled: True
-                cilium_envoy_enabled: False
-                netpol_test: "soak"
-                restart_deletion_enabled: False
-                l7_enabled: False
-                l3_l4_port_enabled: True
-                test_type: "l3-l4default-soak"
-                cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 1
-        timeout_in_minutes: 720 # 12 hours
-        credential_type: service_connection
-        ssh_key_enabled: false
-- stage: l3_l4_cnps_enforcement_latency_test
-  dependsOn: []
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-        cloud: azure
-        regions:
-        - $(LOCATION)
-        topology: network-policy-scale
-        engine: clusterloader2
-        engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
-        matrix:
-            azure_cilium:
-                groups: 1000
-                clients_per_group: 1
-                servers_per_group: 5
-                workers_per_client: 2
-                repeats: 1
-                networkpolicy_type: cnp
-                test_run_duration_secs: 10000
-                cilium_enabled: True
-                cilium_envoy_enabled: False
-                netpol_test: "enforcement-latency"
-                restart_deletion_enabled: False
-                l7_enabled: False
-                l3_l4_port_enabled: True
-                test_type: "l3-l4enforcement-latency-test"
-                cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 1
-        timeout_in_minutes: 720 # 12 hours
-        credential_type: service_connection
-        ssh_key_enabled: false
-- stage: l7_soak_test
-  dependsOn: []
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-        cloud: azure
-        regions:
-        - $(LOCATION)
-        topology: network-policy-scale
-        engine: clusterloader2
-        engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
-        matrix:
-            azure_cilium:
-                groups: 1000
-                clients_per_group: 20
-                servers_per_group: 20
-                workers_per_client: 2
-                repeats: 1
-                networkpolicy_type: cnp
-                test_run_duration_secs: 10000
-                cilium_enabled: True
-                cilium_envoy_enabled: True
-                netpol_test: "soak"
-                restart_deletion_enabled: False
-                l7_enabled: True
-                l3_l4_port_enabled: False
-                test_type: "l7-soak-test"
-                cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 1
-        timeout_in_minutes: 720 # 12 hours
-        credential_type: service_connection
-        ssh_key_enabled: false
-- stage: manual_testing
-  dependsOn: []
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-        cloud: azure
-        regions:
-        - $(LOCATION)
-        topology: network-policy-scale
-        engine: clusterloader2
-        engine_input:
-            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
-        matrix:
-            azure_cilium:
-                netpol_test: $(PIPELINE_NETPOL_TEST)
-                restart_deletion_enabled: $(PIPELINE_RESTART_DELETION_ENABLED)
-                l3_l4_port_enabled: $(PIPELINE_L3_L4_PORT_ENABLED)
-                test_type: $(PIPELINE_TEST_TYPE)
-                cl2_config_file: network-policy-scale-config.yaml
-        max_parallel: 1
-        timeout_in_minutes: 720 # 12 hours
-        credential_type: service_connection
-        ssh_key_enabled: false
+  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml # must keep as is
+        parameters:
+          cloud: <cloud> # e.g. azure, aws
+          regions: # list of regions
+            - region1 # e.g. eastus2
+          topology: <topology> # e.g. cluster-autoscaler
+          engine: <engine> # e.g. clusterloader2
+          matrix: # list of test parameters to customize the provisioned resources
+            <case-name>:
+              <key1>: <value1>
+              <key2>: <value2>
+          max_parallel: <number of concurrent jobs> # required
+          credential_type: service_connection # required
+          ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
