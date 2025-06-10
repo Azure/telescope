@@ -10,8 +10,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
-  USE_LATEST_GA_K8S_VERSION: true
-  OWNER: aks
 
 stages:
   - stage: azure_H100_t4_gpu_test
