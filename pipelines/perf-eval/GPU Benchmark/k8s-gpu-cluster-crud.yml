@@ -14,7 +14,7 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure_H100_gpu_test
+  - stage: azure_H100_t4_gpu_test
     dependsOn: []
     condition: |
       or(
@@ -26,7 +26,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - $(REGION)
+            - australiaeast
           topology: k8s-crud-gpu
           engine: crud
           matrix:
@@ -34,36 +34,6 @@ stages:
               gpu_node_pool: true
               pool_name: h100nodepool
               vm_size: Standard_NC40ads_H100_v5
-              create_node_count: 0
-              scale_node_count: 2
-              scale_step_size: 1
-              step_time_out: 600
-              step_wait_time: 30
-          max_parallel: 1
-          credential_type: service_connection
-          ssh_key_enabled: false
-          timeout_in_minutes: 180
-
-  - stage: azure_T4_gpu_test
-    dependsOn: []
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every 6 hours'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - $(REGION)
-          topology: k8s-crud-gpu
-          engine: crud
-          matrix:
-            t4_gpu_node_pool:
-              gpu_node_pool: true
-              pool_name: t4nodepool
-              vm_size: Standard_NC4as_T4_v3
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
