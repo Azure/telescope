@@ -6,6 +6,38 @@ from kubernetes import client, config
 from kwok.kwok import Node
 
 
+def make_mock_node(
+    name,
+    ready=True,
+    allocatable=None,
+    capacity=None,
+    unschedulable=False,
+    taints=None,
+    annotations=None,
+):
+    node = MagicMock()
+    node.metadata = MagicMock(
+        annotations=annotations or {"kwok.x-k8s.io/node": "fake"},
+        name=name
+    )
+    node.status = MagicMock(
+        conditions=[MagicMock(type="Ready", status="True" if ready else "False")],
+        allocatable=allocatable,
+        capacity=capacity,
+    )
+    node.spec = MagicMock(
+        unschedulable=unschedulable,
+        taints=taints or [
+            MagicMock(
+                effect="NoSchedule",
+                key="kwok.x-k8s.io/node",
+                value="fake"
+            )
+        ]
+    )
+    return node
+
+
 class TestNodeIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -68,130 +100,99 @@ class TestNodeIntegration(unittest.TestCase):
         except Exception as e:
             self.fail(f"Node deletion failed: {e}")
 
+    class TestNodeValidation(unittest.TestCase):
+        def setUp(self):
+            """
+            Set up the environment for each test.
+            """
+            self.mock_k8s_client = MagicMock()
+            self.node = Node(node_count=2, k8s_client=self.mock_k8s_client)
 
-class TestNodeValidation(unittest.TestCase):
-    def setUp(self):
-        """
-        Set up the environment for each test.
-        """
-        self.mock_k8s_client = MagicMock()
-        self.node = Node(node_count=2, k8s_client=self.mock_k8s_client)
+        def test_validate_success(self):
+            """
+            Test that validation succeeds when the correct number of KWOK nodes is present.
+            """
+            mock_nodes = [
+                make_mock_node(
+                    name=f"kwok-node-{i}",
+                    ready=True,
+                    allocatable={"cpu": "2", "memory": "4Gi"},
+                    capacity={"cpu": "2", "memory": "4Gi"},
+                )
+                for i in range(2)
+            ]
+            self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
-    def test_validate_success(self):
-        """
-        Test that validation succeeds when the correct number of KWOK nodes is present.
-        """
-        # Mock the nodes returned by the Kubernetes client
-        mock_nodes = [
-            MagicMock(
-                metadata=MagicMock(
-                    annotations={"kwok.x-k8s.io/node": "fake"}, name=f"kwok-node-{i}"
-                ),
-                status=MagicMock(
-                    conditions=[MagicMock(type="Ready", status="True")],
+            try:
+                self.node.validate()
+                print("Validation succeeded.")
+            except RuntimeError as e:
+                self.fail(f"Validation failed unexpectedly: {e}")
+
+        def test_validate_insufficient_nodes(self):
+            """
+            Test that validation fails when fewer KWOK nodes are present than expected.
+            """
+            mock_nodes = [
+                make_mock_node(
+                    name=f"kwok-node-{i}",
+                    ready=True,
+                    allocatable={"cpu": "2", "memory": "4Gi"},
+                    capacity={"cpu": "2", "memory": "4Gi"},
+                )
+                for i in range(1)  # Only one node, but node_count=2
+            ]
+            self.mock_k8s_client.get_nodes.return_value = mock_nodes
+
+            with self.assertRaises(RuntimeError) as context:
+                self.node.validate()
+            self.assertIn("Expected at least 2 KWOK nodes", str(context.exception))
+
+        def test_validate_node_not_ready(self):
+            """
+            Test that validation fails when a node's status is not "Ready".
+            """
+            mock_nodes = [
+                make_mock_node(
+                    name="kwok-node-0",
+                    ready=False,
                     allocatable={"cpu": "2", "memory": "4Gi"},
                     capacity={"cpu": "2", "memory": "4Gi"},
                 ),
-            )
-            for i in range(2)
-        ]
-        self.mock_k8s_client.get_nodes.return_value = mock_nodes
-
-        try:
-            self.node.validate()
-            print("Validation succeeded.")
-        except RuntimeError as e:
-            self.fail(f"Validation failed unexpectedly: {e}")
-
-    def test_validate_insufficient_nodes(self):
-        """
-        Test that validation fails when fewer KWOK nodes are present than expected.
-        """
-        # Mock fewer nodes than expected
-        mock_nodes = [
-            MagicMock(
-                metadata=MagicMock(
-                    annotations={"kwok.x-k8s.io/node": "fake"}, name="kwok-node-0"
-                ),
-                status=MagicMock(
-                    conditions=[MagicMock(type="Ready", status="True")],
+                make_mock_node(
+                    name="kwok-node-1",
+                    ready=True,
                     allocatable={"cpu": "2", "memory": "4Gi"},
                     capacity={"cpu": "2", "memory": "4Gi"},
                 ),
-            )
-        ]
-        self.mock_k8s_client.get_nodes.return_value = mock_nodes
+            ]
+            self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
-        # verify if validation raises an error for insufficient nodes
-        with self.assertRaises(RuntimeError) as context:
-            self.node.validate()
-        self.assertIn("Expected at least 2 KWOK nodes", str(context.exception))
+            with self.assertRaises(RuntimeError):
+                self.node.validate()
 
-    def test_validate_node_not_ready(self):
-        """
-        Test that validation fails when a node's status is not "Ready".
-        """
-        # Mock two nodes, one of which is not ready
-        mock_nodes = [
-            MagicMock(
-                metadata=MagicMock(
-                    annotations={"kwok.x-k8s.io/node": "fake"}, name="kwok-node-0"
-                ),
-                status=MagicMock(
-                    conditions=[MagicMock(type="Ready", status="True")],
+        def test_validate_missing_resources(self):
+            """
+            Test that validation fails when a node is missing resource information.
+            """
+            mock_nodes = [
+                make_mock_node(
+                    name="kwok-node-0",
+                    ready=True,
                     allocatable=None,
                     capacity=None,
                 ),
-            ),
-            MagicMock(
-                metadata=MagicMock(
-                    annotations={"kwok.x-k8s.io/node": "fake"}, name="kwok-node-1"
-                ),
-                status=MagicMock(
-                    conditions=[MagicMock(type="Ready", status="True")],
+                make_mock_node(
+                    name="kwok-node-1",
+                    ready=True,
                     allocatable={"cpu": "2", "memory": "4Gi"},
                     capacity={"cpu": "2", "memory": "4Gi"},
                 ),
-            ),
-        ]
-        self.mock_k8s_client.get_nodes.return_value = mock_nodes
+            ]
+            self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
-        # verify if validation raises an error for the node that is not ready
-        with self.assertRaises(RuntimeError):
-            self.node.validate()
-
-    def test_validate_missing_resources(self):
-        """
-        Test that validation fails when a node is missing resource information.
-        """
-        # Mock two nodes, one of which is missing resource information
-        mock_nodes = [
-            MagicMock(
-                metadata=MagicMock(
-                    annotations={"kwok.x-k8s.io/node": "fake"}, name="kwok-node-0"
-                ),
-                status=MagicMock(
-                    conditions=[MagicMock(type="Ready", status="True")],
-                    allocatable=None,
-                    capacity=None,
-                ),
-            ),
-            MagicMock(
-                metadata=MagicMock(
-                    annotations={"kwok.x-k8s.io/node": "fake"}, name="kwok-node-1"
-                ),
-                status=MagicMock(
-                    conditions=[MagicMock(type="Ready", status="True")],
-                    allocatable={"cpu": "2", "memory": "4Gi"},
-                    capacity={"cpu": "2", "memory": "4Gi"},
-                ),
-            ),
-        ]
-        self.mock_k8s_client.get_nodes.return_value = mock_nodes
-
-        # Verify if validation raises an error for the node with missing resources
-        with self.assertRaises(RuntimeError):
-            self.node.validate()
+            with self.assertRaises(RuntimeError):
+                self.node.validate()
 
 
 if __name__ == "__main__":
