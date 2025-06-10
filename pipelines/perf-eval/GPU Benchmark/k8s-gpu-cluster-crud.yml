@@ -56,7 +56,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - $(REGION)
           topology: k8s-crud-gpu
           engine: crud
           matrix:
