@@ -56,69 +56,26 @@ parameters:
   default: true
 
 jobs:
-- ${{ if and(eq(parameters.skip_resource_management, true), ne(variables['Build.Reason'], 'Schedule'), ne(variables['Build.SourceBranchName'], 'main')) }}:
-  - job: ${{ parameters.cloud }}_byo
-    strategy:
-      maxParallel: ${{ parameters.max_parallel }}
-      matrix:
-        ${{ parameters.matrix }}
-    timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
-    steps:
-    - template: /steps/setup-tests.yml
-      parameters:
-        cloud: ${{ parameters.cloud }}
-        region: ${{ parameters.regions[0] }}
-        run_id: ${{ parameters.run_id }}
-        test_modules_dir: ${{ parameters.test_modules_dir }}
-        retry_attempt_count: ${{ parameters.retry_attempt_count }}
-        credential_type: ${{ parameters.credential_type }}
-        ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
-    - template: /steps/validate-resources.yml
-      parameters:
-        cloud: ${{ parameters.cloud }}
-        regions: ${{ parameters.regions }}
-        topology: ${{ parameters.topology }}
-        engine: ${{ parameters.engine }}
-    - template: /steps/execute-tests.yml
-      parameters:
-        cloud: ${{ parameters.cloud }}
-        topology: ${{ parameters.topology }}
-        engine: ${{ parameters.engine }}
-        regions: ${{ parameters.regions }}
-        engine_input: ${{ parameters.engine_input }}
-    - template: /steps/publish-results.yml
-      parameters:
-        cloud: ${{ parameters.cloud }}
-        topology: ${{ parameters.topology }}
-        engine: ${{ parameters.engine }}
-        regions: ${{ parameters.regions }}
-        engine_input: ${{ parameters.engine_input }}
-        credential_type: ${{ parameters.credential_type }}
-
-- ${{ else }}:
-  - job: ${{ parameters.cloud }}_e2e
-    strategy:
-      maxParallel: ${{ parameters.max_parallel }}
-      matrix:
-        ${{ parameters.matrix }}
-    timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
-    steps:
-    - script: printenv | sort
-      displayName: "Print all environment variables"
+- job: ${{ parameters.cloud }}
+  strategy:
+    maxParallel: ${{ parameters.max_parallel }}
+    matrix:
+      ${{ parameters.matrix }}
+  timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
+  steps:
+  - template: /steps/setup-tests.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.regions[0] }}
+      run_id: ${{ parameters.run_id }}
+      test_modules_dir: ${{ parameters.test_modules_dir }}
+      retry_attempt_count: ${{ parameters.retry_attempt_count }}
+      credential_type: ${{ parameters.credential_type }}
+      ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
+  - ${{ if or(eq(parameters.skip_resource_management, false), eq(variables['Build.SourceBranchName'], 'main')) }}:
     - script: |
-        echo "SKIP_RESOURCE_MANAGEMENT = ${{ variables['SKIP_RESOURCE_MANAGEMENT'] }}"
-        echo "Build.Reason = ${{ variables['Build.Reason'] }}"
-        echo "Build.SourceBranchName = ${{ variables['Build.SourceBranchName'] }}"
-      displayName: "Print selected variables"
-    - template: /steps/setup-tests.yml
-      parameters:
-        cloud: ${{ parameters.cloud }}
-        region: ${{ parameters.regions[0] }}
-        run_id: ${{ parameters.run_id }}
-        test_modules_dir: ${{ parameters.test_modules_dir }}
-        retry_attempt_count: ${{ parameters.retry_attempt_count }}
-        credential_type: ${{ parameters.credential_type }}
-        ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
+        echo "SKIP_RESOURCE_MANAGEMENT is false or Build.SourceBranchName is main, proceeding with resource management steps."
+      displayName: "Provision Resource steps"
     # - template: /steps/provision-resources.yml
     #   parameters:
     #     cloud: ${{ parameters.cloud }}
@@ -129,27 +86,28 @@ jobs:
     #     terraform_input_varibles: ${{ parameters.terraform_input_variables }}
     #     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     #     credential_type: ${{ parameters.credential_type }}
-    # - template: /steps/validate-resources.yml
-    #   parameters:
-    #     cloud: ${{ parameters.cloud }}
-    #     regions: ${{ parameters.regions }}
-    #     topology: ${{ parameters.topology }}
-    #     engine: ${{ parameters.engine }}
-    # - template: /steps/execute-tests.yml
-    #   parameters:
-    #     cloud: ${{ parameters.cloud }}
-    #     topology: ${{ parameters.topology }}
-    #     engine: ${{ parameters.engine }}
-    #     regions: ${{ parameters.regions }}
-    #     engine_input: ${{ parameters.engine_input }}
-    # - template: /steps/publish-results.yml
-    #   parameters:
-    #     cloud: ${{ parameters.cloud }}
-    #     topology: ${{ parameters.topology }}
-    #     engine: ${{ parameters.engine }}
-    #     regions: ${{ parameters.regions }}
-    #     engine_input: ${{ parameters.engine_input }}
-    #     credential_type: ${{ parameters.credential_type }}
+  - template: /steps/validate-resources.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      regions: ${{ parameters.regions }}
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+  - template: /steps/execute-tests.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+      regions: ${{ parameters.regions }}
+      engine_input: ${{ parameters.engine_input }}
+  - template: /steps/publish-results.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+      regions: ${{ parameters.regions }}
+      engine_input: ${{ parameters.engine_input }}
+      credential_type: ${{ parameters.credential_type }}
+  - ${{ if or(eq(parameters.skip_resource_management, false), eq(variables['Build.SourceBranchName'], 'main')) }}: 
     - template: /steps/cleanup-resources.yml
       parameters:
         cloud: ${{ parameters.cloud }}
