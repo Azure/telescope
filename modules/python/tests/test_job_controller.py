@@ -8,6 +8,7 @@ from unittest.mock import patch
 from clusterloader2.job_controller.job_controller import JobSchedulingBenchmark
 
 
+# pylint: disable=protected-access
 class TestJobSchedulingBenchmark(unittest.TestCase):
     def test_configure_clusterloader2(self):
         # Create a temporary file for the override file
@@ -105,12 +106,13 @@ class TestJobControllerParser(unittest.TestCase):
         parser = JobSchedulingBenchmark.create_parser()
         # The parser should have subcommands: configure, validate, execute, collect
         subparsers_action = next(
-            action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
         )
         subcommand_names = set(subparsers_action.choices.keys())
         self.assertEqual(
-            subcommand_names,
-            {"configure", "validate", "execute", "collect"}
+            subcommand_names, {"configure", "validate", "execute", "collect"}
         )
 
         # Test that configure subparser has expected arguments
