@@ -208,7 +208,7 @@ stages:
               restart_deletion_enabled: $(PIPELINE_RESTART_DELETION_ENABLED)
               l3_l4_port_enabled: $(PIPELINE_L3_L4_PORT_ENABLED)
               test_type: $(PIPELINE_TEST_TYPE)
-              repeats: $(PIPELINE_REPEATS)
+              repeats: $(PIPELINE_ITERATIONS)
               cl2_config_file: network-policy-scale-config.yaml
           max_parallel: 1
           timeout_in_minutes: 720 # 12 hours
