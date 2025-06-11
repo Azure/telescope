@@ -72,7 +72,7 @@ def collect_benchmark_results():
         logger.info("Processing file: `%s`", filepath)
         with open(filepath, "r", encoding="utf-8") as file:
             content = json.load(file)
-        timestamp = datetime.now(timezone.utc).isoformat() + "Z"
+        timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         result = {
             "timestamp": timestamp,
             "region": region,
