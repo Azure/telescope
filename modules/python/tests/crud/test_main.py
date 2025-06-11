@@ -369,7 +369,10 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             json.dump(test_data2, f)
 
         mock_glob.return_value = [test_file1, test_file2]
-        mock_datetime.now.return_value.isoformat.return_value = "2023-01-01T00:00:00"
+        # Mock datetime.now(timezone.utc).strftime() properly
+        mock_datetime_instance = mock.MagicMock()
+        mock_datetime_instance.strftime.return_value = "2023-01-01T00:00:00Z"
+        mock_datetime.now.return_value = mock_datetime_instance
 
         # Execute
         result = collect_benchmark_results()
