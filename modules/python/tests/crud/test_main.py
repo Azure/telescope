@@ -349,12 +349,13 @@ class TestCollectBenchmarkResults(unittest.TestCase):
     ):
         """Test successful collection of benchmark results"""
         # Setup
-        mock_get_env_vars.side_effect = lambda var: {
+        env_vars = {
             "RESULT_DIR": self.test_dir,
             "RUN_URL": "https://example.com/run/123",
             "RUN_ID": "test-run-123",
             "REGION": "eastus",
-        }.get(var)
+        }
+        mock_get_env_vars.side_effect = env_vars.get
 
         # Create test JSON files
         test_file1 = os.path.join(self.test_dir, "test1.json")
@@ -389,16 +390,16 @@ class TestCollectBenchmarkResults(unittest.TestCase):
     @mock.patch("crud.main.get_env_vars")
     @mock.patch("crud.main.glob.glob")
     def test_collect_benchmark_results_skip_results_json(
-        self, mock_glob, mock_get_env_vars
-    ):
+        self, mock_glob, mock_get_env_vars        ):
         """Test that results.json is skipped during collection"""
         # Setup
-        mock_get_env_vars.side_effect = lambda var: {
+        env_vars = {
             "RESULT_DIR": self.test_dir,
             "RUN_URL": "https://example.com/run/123",
             "RUN_ID": "test-run-123",
             "REGION": "eastus",
-        }.get(var)
+        }
+        mock_get_env_vars.side_effect = env_vars.get
 
         # Create test files including results.json
         test_file = os.path.join(self.test_dir, "test.json")
@@ -427,12 +428,13 @@ class TestCollectBenchmarkResults(unittest.TestCase):
     def test_collect_benchmark_results_no_files(self, mock_glob, mock_get_env_vars):
         """Test collection when no JSON files are found"""
         # Setup
-        mock_get_env_vars.side_effect = lambda var: {
+        env_vars = {
             "RESULT_DIR": self.test_dir,
             "RUN_URL": "https://example.com/run/123",
             "RUN_ID": "test-run-123",
             "REGION": "eastus",
-        }.get(var)
+        }
+        mock_get_env_vars.side_effect = env_vars.get
 
         mock_glob.return_value = []
 
