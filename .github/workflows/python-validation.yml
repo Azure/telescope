@@ -51,11 +51,84 @@ jobs:
       - name: Create KWOK cluster
         if: always()
         run: kwokctl create cluster --name kwok-test
-      - name: Run Python Tests with Coverage
+      - name: Run Python Tests with Per-File Coverage Check
         if: always()
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        # TODO: Update Validation to check 70% coverage for each test file
-        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70
+        run: |
+          # Get list of changed Python files in the modules/python directory
+          changed_py_files=$(git diff --name-only --diff-filter=d origin/main HEAD -- 'modules/python/**/*.py' | sed 's|modules/python/||g' | grep -E '\.(py)$' || true)
+          
+          echo "Changed Python files in modules/python/:"
+          echo "$changed_py_files"
+          
+          if [ -z "$changed_py_files" ]; then
+            echo "No Python files were changed in modules/python directory."
+            exit 0
+          fi
+          
+          # Initialize variables for tracking results
+          all_files_passed=true
+          failed_files=""
+          passed_files=""
+          
+          # Run tests with coverage for all files first to ensure tests pass
+          echo "Running all tests to ensure they pass..."
+          pytest --cov=. --cov-report=term-missing
+          
+          # Check coverage for each changed file individually
+          echo "Checking per-file coverage requirements (70% minimum)..."
+          echo "=================================================="
+          
+          for file in $changed_py_files; do
+            if [ -f "$file" ]; then
+              echo "Checking coverage for: $file"
+              
+              # Run coverage for specific file and capture output
+              coverage_output=$(pytest --cov="$file" --cov-report=term-missing --cov-fail-under=70 2>&1 || true)
+              
+              # Extract coverage percentage from the output
+              coverage_pct=$(echo "$coverage_output" | grep -E "TOTAL.*[0-9]+%" | awk '{print $(NF-1)}' | sed 's/%//' || echo "0")
+              
+              # Check if coverage meets threshold
+              if echo "$coverage_output" | grep -q "FAILED.*coverage"; then
+                echo "❌ FAILED: $file - Coverage: ${coverage_pct}% (below 70% threshold)"
+                all_files_passed=false
+                failed_files="$failed_files\n  - $file (${coverage_pct}%)"
+              else
+                echo "✅ PASSED: $file - Coverage: ${coverage_pct}%"
+                passed_files="$passed_files\n  - $file (${coverage_pct}%)"
+              fi
+              echo "----------------------------------------"
+            else
+              echo "⚠️  File not found: $file (may have been deleted)"
+            fi
+          done
+          
+          # Print summary
+          echo ""
+          echo "Coverage Check Summary:"
+          echo "======================"
+          
+          if [ -n "$passed_files" ]; then
+            echo "✅ Files that passed (≥70% coverage):"
+            echo -e "$passed_files"
+          fi
+          
+          if [ -n "$failed_files" ]; then
+            echo ""
+            echo "❌ Files that failed (<70% coverage):"
+            echo -e "$failed_files"
+          fi
+          
+          # Exit with error if any file failed coverage check
+          if [ "$all_files_passed" = false ]; then
+            echo ""
+            echo "❌ Coverage check failed: Some files do not meet the 70% coverage requirement."
+            exit 1
+          else
+            echo ""
+            echo "✅ All changed files meet the 70% coverage requirement!"
+          fi
       - name: Delete KWOK cluster
         if: always()
         run: kwokctl delete cluster --name kwok-test
