@@ -95,7 +95,7 @@ def get_measurement(file_path):
         return NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX, group_name
     return None, None
 
-def process_cl2_reports(self,cl2_report_dir, template):
+def process_cl2_reports(cl2_report_dir, template):
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)

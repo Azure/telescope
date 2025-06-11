@@ -85,12 +85,12 @@ class JobControllerBase(ABC):
 
         return parser
 
-    def write_cl2_override_file(self, config):
-        with open(self.cl2_override_file, "w", encoding="utf-8") as file:
+    def write_cl2_override_file(self, cl2_override_file, config):
+        with open(cl2_override_file, "w", encoding="utf-8") as file:
             file.writelines(f"{k}: {v}\n" for k, v in config.items())
 
-        with open(self.cl2_override_file, "r", encoding="utf-8") as file:
-            logger.info(f"Content of file {self.cl2_override_file}:\n{file.read()}")
+        with open(cl2_override_file, "r", encoding="utf-8") as file:
+            logger.info(f"Content of file {cl2_override_file}:\n{file.read()}")
 
 
 @dataclass
@@ -100,7 +100,6 @@ class JobSchedulingBenchmark(JobControllerBase):
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
-    operation_timeout_in_minutes: int = 600
     label: str = ""
     cl2_image: str = ""
     cl2_config_dir: str = ""
@@ -124,7 +123,7 @@ class JobSchedulingBenchmark(JobControllerBase):
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
         }
-        self.write_cl2_override_file(config)
+        self.write_cl2_override_file(self.cl2_override_file, config)
 
     def validate_clusterloader2(self):
         kube_client = KubernetesClient()
@@ -209,7 +208,7 @@ class JobSchedulingBenchmark(JobControllerBase):
     def add_validate_subparser_arguments(parser):
         parser.add_argument("--node_count", type=int, help="Number of desired nodes")
         parser.add_argument(
-            "--operation_timeout_in_minutes",
+            "--operation_timeout",
             type=int,
             default=600,
             help="Operation timeout to wait for nodes to be ready",
