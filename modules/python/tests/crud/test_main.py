@@ -9,16 +9,7 @@ import os
 import tempfile
 import shutil
 import json
-import json
 
-from crud.main import (
-    get_node_pool_crud_class,
-    handle_node_pool_operation,
-    main,
-    check_for_progressive_scaling,
-    collect_benchmark_results,
-    handle_node_pool_all,
-)
 from crud.main import (
     get_node_pool_crud_class,
     handle_node_pool_operation,
@@ -86,15 +77,11 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_scale(self, mock_azure_crud):
         """Test handle_node_pool_operation for scale command with progressive scaling"""
-        """Test handle_node_pool_operation for scale command with progressive scaling"""
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 5
-        mock_args.scale_step_size = (
-            1  # scale_step_size != target_count, so progressive=True
-        )
         mock_args.scale_step_size = (
             1  # scale_step_size != target_count, so progressive=True
         )
@@ -112,37 +99,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             node_pool_name="test-np",
             node_count=5,
             progressive=True,  # Should be True because scale_step_size != target_count
-            progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
-            gpu_node_pool=False,
-        )
-
-    @mock.patch("crud.main.AzureNodePoolCRUD")
-    def test_handle_node_pool_operation_scale_non_progressive(self, mock_azure_crud):
-        """Test handle_node_pool_operation for scale command without progressive scaling"""
-        # Setup - when scale_step_size equals target_count, progressive should be False
-        mock_args = mock.MagicMock()
-        mock_args.command = "scale"
-        mock_args.node_pool_name = "test-np"
-        mock_args.target_count = 3
-        mock_args.scale_step_size = (
-            3  # scale_step_size == target_count, so progressive=False
-        )
-        mock_args.gpu_node_pool = False
-
-        # Configure mock to return success
-        mock_azure_crud.scale_node_pool.return_value = True
-
-        # Execute
-        result = handle_node_pool_operation(mock_azure_crud, mock_args)
-
-        # Verify
-        self.assertEqual(result, 0)  # 0 means success
-        mock_azure_crud.scale_node_pool.assert_called_once_with(
-            node_pool_name="test-np",
-            node_count=3,
-            progressive=False,  # Should be False because scale_step_size == target_count
-            scale_step_size=3,
             gpu_node_pool=False,
         )
 
