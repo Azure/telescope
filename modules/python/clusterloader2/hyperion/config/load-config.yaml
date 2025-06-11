@@ -41,10 +41,10 @@ tuningSets:
       parallelismLimit: 1
   - name: RandomizedSaturationTimeLimited
     RandomizedTimeLimitedLoad:
-      timeLimit: {{$saturationTime}}s
+      timeLimit: 20
   - name: RandomizedDeletionTimeLimited
     RandomizedTimeLimitedLoad:
-      timeLimit: {{$deletionTime}}s
+      timeLimit: 20
 
 steps:
   - name: Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
