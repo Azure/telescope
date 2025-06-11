@@ -3,7 +3,6 @@ variables {
   scenario_name  = "dns_zone_test"
   deletion_delay = "2h"
   owner          = "aks"
-  
   json_input = {
     "run_id" : "123456789",
     "region" : "eastus",

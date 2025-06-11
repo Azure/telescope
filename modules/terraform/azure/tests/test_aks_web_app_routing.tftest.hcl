@@ -3,7 +3,6 @@ variables {
   scenario_name  = "aks_web_app_routing_test"
   deletion_delay = "2h"
   owner          = "aks"
-  
   json_input = {
     "run_id" : "123456789",
     "region" : "eastus",
@@ -141,7 +140,7 @@ run "aks_web_app_routing_invalid_dns_zone_reference" {
         }
         extra_node_pool = []
         web_app_routing = {
-          dns_zone_names = ["nonexistent.example.com"]  # This DNS zone doesn't exist
+          dns_zone_names = ["nonexistent.example.com"] # This DNS zone doesn't exist
         }
       }
     ]
@@ -189,7 +188,7 @@ run "aks_web_app_routing_partial_dns_zone_usage" {
         }
         extra_node_pool = []
         web_app_routing = {
-          dns_zone_names = ["admin.example.com"]  # Only using one of the three DNS zones
+          dns_zone_names = ["admin.example.com"] # Only using one of the three DNS zones
         }
       }
     ]
@@ -242,7 +241,7 @@ run "aks_web_app_routing_empty_dns_zone_names" {
         }
         extra_node_pool = []
         web_app_routing = {
-          dns_zone_names = []  # Empty DNS zone names list
+          dns_zone_names = [] # Empty DNS zone names list
         }
       }
     ]

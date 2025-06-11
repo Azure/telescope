@@ -92,7 +92,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 }
 
 resource "azurerm_role_assignment" "dns_zone_contributor" {
-  count                = try(length(local.dns_zone_ids), 0)
+  count                = try(length(var.aks_config.web_app_routing.dns_zone_names), 0)
   role_definition_name = "DNS Zone Contributor"
   scope                = local.dns_zone_ids[count.index]
   principal_id         = azurerm_kubernetes_cluster.aks.web_app_routing[0].web_app_routing_identity[0].object_id
