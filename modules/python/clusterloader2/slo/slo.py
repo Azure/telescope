@@ -9,6 +9,7 @@ from clients.kubernetes_client import KubernetesClient
 
 DEFAULT_PODS_PER_NODE = 40
 
+
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
