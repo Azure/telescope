@@ -23,7 +23,6 @@ locals {
   network_config_map = { for network in var.network_config_list : network.role => network }
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
-
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -75,6 +74,14 @@ module "virtual_network" {
   tags                = local.tags
 }
 
+module "dns_zones" {
+
+  source              = "./dns-zone"
+  resource_group_name = local.run_id
+  dns_zones           = var.dns_zones
+  tags                = local.tags
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
@@ -90,6 +97,7 @@ module "aks" {
   k8s_os_disk_type    = local.k8s_os_disk_type
   network_dataplane   = local.aks_network_dataplane
   network_policy      = local.aks_network_policy
+  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
 }
 
 module "aks-cli" {

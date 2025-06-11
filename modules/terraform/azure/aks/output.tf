@@ -17,3 +17,8 @@ output "aks_cluster_nood_pools" {
   description = "Used for unit tests"
   value       = azurerm_kubernetes_cluster_node_pool.aks_node_pools
 }
+
+output "dns_zone_contributor_role_assignments" {
+  description = "DNS Zone Contributor role assignments for web app routing"
+  value       = azurerm_role_assignment.dns_zone_contributor
+}
