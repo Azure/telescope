@@ -21,7 +21,7 @@ RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
 
 
-def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
+def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=False,
                     enable_exec_service=False, scrape_kubelets=False,
                     scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False):
     docker_client = DockerClient()
