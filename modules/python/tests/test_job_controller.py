@@ -36,11 +36,11 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
     def test_validate_clusterloader2(self, mock_wait_for_nodes_ready):
         benchmark = JobSchedulingBenchmark(
             node_count=2,
-            operation_timeout="5m",
+            operation_timeout_in_minutes=600,
             label="role=worker",
         )
         benchmark.validate_clusterloader2()
-        mock_wait_for_nodes_ready.assert_called_once_with(2, "5m", "role=worker")
+        mock_wait_for_nodes_ready.assert_called_once_with(2, 600, "role=worker")
 
     @patch("clusterloader2.job_controller.job_controller.run_cl2_command")
     def test_execute_clusterloader2(self, mock_run_cl2_command):
