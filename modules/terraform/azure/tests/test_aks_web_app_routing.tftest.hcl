@@ -51,10 +51,10 @@ variables {
 run "aks_web_app_routing_enabled" {
   command = plan
 
-  # Verify AKS cluster is created with web app routing
+  # Verify DNS Zone Contributor role assignments are created (indicates web app routing is enabled)
   assert {
-    condition     = length(module.aks["test-1"].aks_cluster.web_app_routing) > 0
-    error_message = "Web app routing should be enabled on AKS cluster"
+    condition     = length(module.aks["test-1"].dns_zone_contributor_role_assignments) == 2
+    error_message = "DNS Zone Contributor role assignments should be created when web app routing is enabled"
   }
 }
 
@@ -100,8 +100,8 @@ run "aks_web_app_routing_disabled" {
 
   # Verify web app routing is not enabled when not configured
   assert {
-    condition     = length(module.aks["test-2"].aks_cluster.web_app_routing) == 0
-    error_message = "Web app routing should not be enabled when not configured"
+    condition     = length(module.aks["test-2"].dns_zone_contributor_role_assignments) == 0
+    error_message = "DNS Zone Contributor role assignments should not be created when web app routing is not configured"
   }
 }
 
@@ -202,8 +202,8 @@ run "aks_web_app_routing_partial_dns_zone_usage" {
 
   # Verify AKS has web app routing enabled
   assert {
-    condition     = length(module.aks["test-6"].aks_cluster.web_app_routing) > 0
-    error_message = "AKS cluster should have web app routing enabled with partial DNS zone usage"
+    condition     = length(module.aks["test-6"].dns_zone_contributor_role_assignments) == 1
+    error_message = "AKS cluster should have web app routing enabled with partial DNS zone usage (1 role assignment)"
   }
 }
 
