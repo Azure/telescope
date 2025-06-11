@@ -23,7 +23,7 @@ name: load-config
 # We use RandomizedTimeLimitedLoad for load QPS.
 # Specifically, we aim to create/delete LOAD_TEST_THROUGHPUT/DELETE_TEST_THROUGHPUT pods per second, on average.
 # Operations make an independent choice about the time to start uniformly at random from the associated time period.
-{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$LOAD_TEST_THROUGHPUT := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 20}}
 {{$DELETE_TEST_THROUGHPUT := DefaultParam .CL2_DELETE_TEST_THROUGHPUT $LOAD_TEST_THROUGHPUT}}
 {{$saturationTime := DivideInt $NO_OF_PODS $LOAD_TEST_THROUGHPUT}}
 {{$deletionTime := DivideInt $NO_OF_PODS $DELETE_TEST_THROUGHPUT}}
@@ -41,10 +41,10 @@ tuningSets:
       parallelismLimit: 1
   - name: RandomizedSaturationTimeLimited
     RandomizedTimeLimitedLoad:
-      timeLimit: {{$NO_OF_PODS}}s
+      timeLimit: {{$saturationTime}}s
   - name: RandomizedDeletionTimeLimited
     RandomizedTimeLimitedLoad:
-      timeLimit: {{$NO_OF_PODS}}s
+      timeLimit: {{$deletionTime}}s
 
 steps:
   - name: Log - NO_OF_NAMESPACES={{$NO_OF_NAMESPACES}}, NO_OF_PODS={{$NO_OF_PODS}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, podsPerNamespace={{$podsPerNamespace}},  deploymentsPerNamespace={{$deploymentsPerNamespace}}, NO_OF_REPLICAS_PER_DEPLOYMENT={{$NO_OF_REPLICAS_PER_DEPLOYMENT}}, repeats={{$repeats}}, $saturationTime={{$saturationTime}}, $deletionTime={{$deletionTime}}
@@ -81,16 +81,6 @@ steps:
         MemoryRequest: {{$latencyPodMemory}}M
         Group: {{$groupName}}
         deploymentLabel: start
-
-  - name: Wait for Pods
-    measurements:
-    - Identifier: WaitForRunningPods
-      Method: WaitForRunningPods
-      Params:
-        labelSelector: "slo=true"
-        namespace: ""
-        desiredPodCount: {{$NO_OF_PODS}}
-        timeout: 10m
 
   - module:
       path: /modules/reconcile-objects.yaml
