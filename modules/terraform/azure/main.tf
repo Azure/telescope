@@ -78,7 +78,6 @@ module "dns_zones" {
 
   source              = "./dns-zone"
   resource_group_name = local.run_id
-  location            = local.region
   dns_zones           = var.dns_zones
   tags                = local.tags
 }
