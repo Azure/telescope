@@ -97,6 +97,7 @@ class JobControllerBase(ABC):
 class JobSchedulingBenchmark(JobControllerBase):
     node_count: int = 0
     operation_timeout: str = ""
+    operation_timeout_in_minutes: int = 600
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
@@ -128,7 +129,7 @@ class JobSchedulingBenchmark(JobControllerBase):
     def validate_clusterloader2(self):
         kube_client = KubernetesClient()
         kube_client.wait_for_nodes_ready(
-            self.node_count, self.operation_timeout, self.label
+            self.node_count, self.operation_timeout_in_minutes, self.label
         )
 
     def execute_clusterloader2(self):
@@ -208,7 +209,7 @@ class JobSchedulingBenchmark(JobControllerBase):
     def add_validate_subparser_arguments(parser):
         parser.add_argument("--node_count", type=int, help="Number of desired nodes")
         parser.add_argument(
-            "--operation_timeout",
+            "--operation_timeout_in_minutes",
             type=int,
             default=600,
             help="Operation timeout to wait for nodes to be ready",
