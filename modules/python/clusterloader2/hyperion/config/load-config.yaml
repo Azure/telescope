@@ -82,6 +82,30 @@ steps:
         Group: {{$groupName}}
         deploymentLabel: start
 
+  - name: Verify Number Of Running Pods
+      measurements:
+      - Identifier: VerifyRunningPods
+        Method: ExecuteCommand
+        Params:
+          command: |
+            #!/bin/bash
+            set -e
+            
+            # Query total number of running pods across all namespaces
+            RUNNING_PODS=$(kubectl get pods --all-namespaces -l deploymentLabel=start --field-selector=status.phase=Running --no-headers | wc -l)
+            EXPECTED_PODS={{$NO_OF_PODS}}
+            
+            echo "Verifying pods: Found $RUNNING_PODS running pods, expected $EXPECTED_PODS pods"
+            
+            # Compare with expected number
+            if [ "$RUNNING_PODS" -lt "$EXPECTED_PODS" ]; then
+              echo "ERROR: Number of running pods ($RUNNING_PODS) is less than expected ($EXPECTED_PODS)"
+              exit 1
+            fi
+            
+            echo "Pod verification successful: $RUNNING_PODS running pods found"
+          timeout: 2m
+
   - module:
       path: /modules/reconcile-objects.yaml
       params:
