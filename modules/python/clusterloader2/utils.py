@@ -95,6 +95,38 @@ def get_measurement(file_path):
         return NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX, group_name
     return None, None
 
+def process_cl2_reports(self,cl2_report_dir, template):
+    content = ""
+    for f in os.listdir(cl2_report_dir):
+        file_path = os.path.join(cl2_report_dir, f)
+        with open(file_path, "r", encoding="utf-8") as file:
+            logger.info(f"Processing {file_path}")
+            measurement, group_name = get_measurement(file_path)
+            if not measurement:
+                continue
+            logger.info(measurement, group_name)
+            data = json.loads(file.read())
+
+            if "dataItems" in data:
+                items = data["dataItems"]
+                if not items:
+                    logger.info(f"No data items found in {file_path}")
+                    logger.info(f"Data:\n{data}")
+                    continue
+                for item in items:
+                    result = template.copy()
+                    result["group"] = group_name
+                    result["measurement"] = measurement
+                    result["result"] = item
+                    content += json.dumps(result) + "\n"
+            else:
+                result = template.copy()
+                result["group"] = group_name
+                result["measurement"] = measurement
+                result["result"] = data
+                content += json.dumps(result) + "\n"
+    return content
+
 
 def parse_xml_to_json(file_path, indent=0):
     with open(file_path, 'r', encoding='utf-8') as file:
