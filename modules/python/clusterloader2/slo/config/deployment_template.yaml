@@ -37,10 +37,7 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
-      - env:
-        - name: ENV_VAR
-          value: a
-        image: {{$Image}}
+      - image: {{$Image}}
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
         ports:
