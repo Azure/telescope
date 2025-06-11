@@ -56,6 +56,8 @@ steps:
     python3 --version && pip3 --version
     jq --version
     kubectl version --client
+    az version
+    aws --version
   displayName: "Check Dependencies"
 
 - script: |
