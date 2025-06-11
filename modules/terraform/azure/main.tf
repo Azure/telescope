@@ -22,7 +22,7 @@ locals {
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
-  all_subnets   = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,

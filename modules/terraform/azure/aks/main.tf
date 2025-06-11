@@ -4,7 +4,7 @@ locals {
   extra_pool_map       = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
   role_assignment_list = var.aks_config.role_assignment_list
   subnets              = var.subnets
-  dns_zone_ids = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
+  dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
