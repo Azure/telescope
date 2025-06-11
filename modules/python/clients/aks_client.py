@@ -84,10 +84,10 @@ class AKSClient:
             kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
         """
         # Get subscription ID from environment if not provided
-        self.subscription_id = subscription_id or os.getenv("AZURE_MI_SUBSCRIPTION_ID")
+        self.subscription_id = subscription_id or os.getenv("AZURE_SUBSCRIPTION_ID")
         if not self.subscription_id:
             raise ValueError(
-                "Subscription ID is required. Provide it directly or set AZURE_MI_SUBSCRIPTION_ID environment variable."
+                "Subscription ID is required. Provide it directly or set AZURE_SUBSCRIPTION_ID environment variable."
             )
 
         self.resource_group = resource_group

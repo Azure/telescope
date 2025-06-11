@@ -33,10 +33,6 @@ steps:
     if [[ "${GPU_NODE_POOL,,}" == "true" ]]; then
       ARGS+=(--gpu-node-pool)
     fi
-    if [[ "$SCALE_STEP_SIZE" != "$SCALE_NODE_COUNT" ]]
-    then
-      ARGS+=(--progressive)
-    fi
 
     # Run the command
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "${ARGS[@]}"
