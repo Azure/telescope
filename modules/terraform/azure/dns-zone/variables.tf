@@ -3,11 +3,6 @@ variable "resource_group_name" {
   type        = string
 }
 
-variable "location" {
-  description = "Value of the location"
-  type        = string
-}
-
 variable "dns_zones" {
   description = "List of DNS zones to create"
   type = list(object({
