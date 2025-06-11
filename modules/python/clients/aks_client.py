@@ -52,6 +52,7 @@ class AKSClient:
     def _get_operation_context(self):
         """
         Import and return the OperationContext class on demand to avoid circular imports.
+
         Returns:
             The OperationContext class
         """
@@ -83,10 +84,10 @@ class AKSClient:
             kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
         """
         # Get subscription ID from environment if not provided
-        self.subscription_id = subscription_id or os.getenv("AZURE_MI_SUBSCRIPTION_ID")
+        self.subscription_id = subscription_id or os.getenv("AZURE_SUBSCRIPTION_ID")
         if not self.subscription_id:
             raise ValueError(
-                "Subscription ID is required. Provide it directly or set AZURE_MI_SUBSCRIPTION_ID environment variable."
+                "Subscription ID is required. Provide it directly or set AZURE_SUBSCRIPTION_ID environment variable."
             )
 
         self.resource_group = resource_group
@@ -309,6 +310,7 @@ class AKSClient:
                     "vm_size": vm_size,
                     "os_type": "Linux",
                     "mode": "User",
+                    "os_disk_type": "Managed"
                 }
 
                 logger.info(

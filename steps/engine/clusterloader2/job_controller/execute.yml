@@ -33,9 +33,9 @@ steps:
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kwok/kwok.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kwok/config
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/config
       CL2_CONFIG_FILE: ${CL2_CONFIG_DIR}/config.yaml
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kwok/report
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/report
     displayName: "Run Benchmark"

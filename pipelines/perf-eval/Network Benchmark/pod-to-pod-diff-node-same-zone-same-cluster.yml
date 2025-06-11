@@ -106,6 +106,37 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
+  - stage: azure_eastus2_v6
+    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-ubuntu2404.tfvars"
+          topology: pod-to-pod/diff-nodes
+          engine: iperf3
+          engine_input:
+            iperf3_command_array:
+              - "1|tcp|5000|1|--time 60 --bandwidth 5000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|5000|2|--time 60 --bandwidth 5000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+          matrix:
+            ${{ each network in parameters.host_networks }}:
+              Standard_D48s_v6_azure_${{ network }}:
+                host_network: ${{ network }}
+                configure_mtu: "true"
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: aws_eastus2_m4_m6i
     condition: |
       or(
