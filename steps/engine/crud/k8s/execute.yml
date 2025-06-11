@@ -54,4 +54,3 @@ steps:
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
     STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
-    AZURE_MI_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
