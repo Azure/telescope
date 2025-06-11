@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import tempfile
@@ -97,6 +98,62 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
         finally:
             os.close(fd)
             os.remove(tmp_path)
+
+
+class TestJobControllerParser(unittest.TestCase):
+    def test_create_parser(self):
+        parser = JobSchedulingBenchmark.create_parser()
+        # The parser should have subcommands: configure, validate, execute, collect
+        subparsers_action = next(
+            action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+        )
+        subcommand_names = set(subparsers_action.choices.keys())
+        self.assertEqual(
+            subcommand_names,
+            {"configure", "validate", "execute", "collect"}
+        )
+
+        # Test that configure subparser has expected arguments
+        configure_parser = subparsers_action.choices["configure"]
+        configure_args = [a.dest for a in configure_parser._actions if a.dest != "help"]
+        self.assertIn("node_count", configure_args)
+        self.assertIn("operation_timeout", configure_args)
+        self.assertIn("cl2_override_file", configure_args)
+        self.assertIn("job_count", configure_args)
+        self.assertIn("job_throughput", configure_args)
+
+        # Test that validate subparser has expected arguments
+        validate_parser = subparsers_action.choices["validate"]
+        validate_args = [a.dest for a in validate_parser._actions if a.dest != "help"]
+        self.assertIn("node_count", validate_args)
+        self.assertIn("operation_timeout", validate_args)
+        self.assertIn("label", validate_args)
+
+        # Test that execute subparser has expected arguments
+        execute_parser = subparsers_action.choices["execute"]
+        execute_args = [a.dest for a in execute_parser._actions if a.dest != "help"]
+        self.assertIn("cl2_image", execute_args)
+        self.assertIn("cl2_config_dir", execute_args)
+        self.assertIn("cl2_report_dir", execute_args)
+        self.assertIn("cl2_config_file", execute_args)
+        self.assertIn("kubeconfig", execute_args)
+        self.assertIn("provider", execute_args)
+        self.assertIn("prometheus_enabled", execute_args)
+        self.assertIn("scrape_containerd", execute_args)
+
+        # Test that collect subparser has expected arguments
+        collect_parser = subparsers_action.choices["collect"]
+        collect_args = [a.dest for a in collect_parser._actions if a.dest != "help"]
+        self.assertIn("node_count", collect_args)
+        self.assertIn("cl2_report_dir", collect_args)
+        self.assertIn("cloud_info", collect_args)
+        self.assertIn("run_id", collect_args)
+        self.assertIn("run_url", collect_args)
+        self.assertIn("result_file", collect_args)
+        self.assertIn("test_type", collect_args)
+        self.assertIn("start_timestamp", collect_args)
+        self.assertIn("job_count", collect_args)
+        self.assertIn("job_throughput", collect_args)
 
 
 if __name__ == "__main__":
