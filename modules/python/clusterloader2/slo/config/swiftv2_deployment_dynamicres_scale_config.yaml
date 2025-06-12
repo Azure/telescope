@@ -14,7 +14,7 @@ name: deployment-churn
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
 {{$namespaces := DivideInt $nodesPerStep $nodesPerNamespace}}
-{{$deploymentQPS := DivideFloat $loadTestThroughput $deploymentSize}}
+{{$deploymentQPS := DefaultParam .CL2_NODES_PER_STEP 100}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 
