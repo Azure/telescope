@@ -119,6 +119,41 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
+  - stage: l3_l4_cnps_soak_3k
+    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          topology: network-policy-scale
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
+          matrix:
+            azure_cilium:
+              groups: 3000
+              clients_per_group: 20
+              servers_per_group: 20
+              workers_per_client: 2
+              repeats: 1
+              networkpolicy_type: cnp
+              test_run_duration_secs: 28800
+              cilium_enabled: True
+              cilium_envoy_enabled: False
+              netpol_test: "soak"
+              restart_deletion_enabled: False
+              l7_enabled: False
+              l3_l4_port_enabled: True
+              test_type: "l3-l4test-baseline-3k"
+              cl2_config_file: network-policy-scale-config.yaml
+          max_parallel: 1
+          timeout_in_minutes: 720 # 12 hours
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: l3_l4_cnps_enforcement_latency_test
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 AM & PM Daily')
     dependsOn: []
