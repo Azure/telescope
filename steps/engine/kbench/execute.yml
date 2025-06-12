@@ -1,0 +1,27 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
+        $KBENCH_TESTNAMES $RESULTS_DIR ${HOME}/.kube/config
+    workingDirectory: modules/python
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      KBENCH_TESTNAMES: ${{ parameters.engine_input.kbench_testnames }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kbench/execute.py
+      RESULTS_DIR: $(Pipeline.Workspace)/s/modules/python/kbench/results
+    displayName: "Run Benchmark"

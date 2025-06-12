@@ -1,0 +1,87 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: kbench-cri
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: azure_ubuntu_eastus2
+    condition: ne(variables['SKIP_AKS_UBUNTU'], 'true')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/kbench-cri/terraform-inputs/aks-ubuntu.tfvars"
+          engine: kbench
+          engine_input:
+            kbench_testnames: variables['KBENCH_TESTNAMES']
+          topology: kbench-cp
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_azlinux3_eastus2
+    condition: ne(variables['SKIP_AKS_AZLINUX3'], 'true')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/kbench-cri/terraform-inputs/aks-azure-linux3.tfvars"
+          engine: kbench
+          engine_input:
+            kbench_testnames: variables['KBENCH_TESTNAMES']
+          topology: kbench-cp
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_amzlinux2023_eastus
+    condition: ne(variables['SKIP_EKS_AMZLINUX2023'], 'true')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-1
+          terraform_input_file_mapping:
+            - us-east-1: "scenarios/perf-eval/kbench-cri/terraform-inputs/eks-amazon-linux2023.tfvars"
+          engine: kbench
+          engine_input:
+            kbench_testnames: variables['KBENCH_TESTNAMES']
+          topology: kbench-cp
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_bottlerocket_eastus
+    condition: ne(variables['SKIP_EKS_BOTTLEROCKET'], 'true')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-1
+          terraform_input_file_mapping:
+            - us-east-1: "scenarios/perf-eval/kbench-cri/terraform-inputs/eks-bottlerocket.tfvars"
+          engine: kbench
+          engine_input:
+            kbench_testnames: variables['KBENCH_TESTNAMES']
+          topology: kbench-cp
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
