@@ -1,0 +1,37 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - script: |
+      echo "Set the start time for test execution"
+      startTimestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      echo "Start: $startTimestamp"
+      echo "##vso[task.setvariable variable=HYPERION_START_TIME]$startTimestamp"
+    displayName: set up timestamp variable
+
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        $NO_OF_NAMESPACES $NO_OF_PODS $NO_OF_REPLICAS_PER_DEPLOYMENT \
+        $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED \
+        ${CL2_CONFIG_DIR}/overrides.yaml
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
+        ${HOME}/.kube/config $CLOUD
+    workingDirectory: modules/python
+    env:
+      CLOUD: aks
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/hyperion/hyperion.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/hyperion/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/hyperion/results
+    displayName: "Run Benchmark"
