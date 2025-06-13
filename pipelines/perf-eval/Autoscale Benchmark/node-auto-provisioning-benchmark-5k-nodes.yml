@@ -46,7 +46,7 @@ stages:
               node_count: $(_NODE_COUNT)
               pod_count: $(_POD_COUNT)
               scale_up_timeout: "150m"
-              scale_down_timeout: "1s"    # not evaluate for now
+              scale_down_timeout: "150m"    # not evaluate for now
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
@@ -54,6 +54,6 @@ stages:
               vm_size: $(VM_SKU)
               capacity_type: on-demand
           max_parallel: 1
-          timeout_in_minutes: 350
+          timeout_in_minutes: 500
           credential_type: service_connection
           ssh_key_enabled: false
