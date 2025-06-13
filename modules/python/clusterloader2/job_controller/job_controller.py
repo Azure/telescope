@@ -1,17 +1,13 @@
 import argparse
 import json
 import os
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from clients.kubernetes_client import KubernetesClient
-from clusterloader2.utils import (
-    parse_xml_to_json,
-    process_cl2_reports,
-    run_cl2_command,
-    str2bool,
-)
+from clusterloader2.base import ClusterLoader2Base
+from clusterloader2.utils import (parse_xml_to_json, process_cl2_reports,
+                                  run_cl2_command, str2bool)
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
@@ -19,82 +15,7 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class JobControllerBase(ABC):
-    @abstractmethod
-    def configure_clusterloader2(self):
-        pass
-
-    @abstractmethod
-    def validate_clusterloader2(self):
-        pass
-
-    @abstractmethod
-    def execute_clusterloader2(self):
-        pass
-
-    @abstractmethod
-    def collect_clusterloader2(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def add_validate_subparser_arguments(parser: argparse.ArgumentParser):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def add_execute_subparser_arguments(parser: argparse.ArgumentParser):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def add_collect_subparser_arguments(parser: argparse.ArgumentParser):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def add_configure_subparser_arguments(parser: argparse.ArgumentParser):
-        pass
-
-    @classmethod
-    def create_parser(cls) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description="ClusterLoader2 Job Controller")
-        subparsers = parser.add_subparsers(dest="command")
-
-        # Sub-command for configure_clusterloader2
-        parser_configure = subparsers.add_parser(
-            "configure", help="Configure ClusterLoader2"
-        )
-        cls.add_configure_subparser_arguments(parser_configure)
-
-        # Sub-command for validate_clusterloader2
-        parser_validate = subparsers.add_parser(
-            "validate", help="Validate cluster setup"
-        )
-        cls.add_validate_subparser_arguments(parser_validate)
-
-        # Sub-command for execute_clusterloader2
-        parser_execute = subparsers.add_parser(
-            "execute", help="Execute ClusterLoader2 tests"
-        )
-        cls.add_execute_subparser_arguments(parser_execute)
-
-        # Sub-command for collect_clusterloader2
-        parser_collect = subparsers.add_parser("collect", help="Collect test results")
-        cls.add_collect_subparser_arguments(parser_collect)
-
-        return parser
-
-    def write_cl2_override_file(self, cl2_override_file, config):
-        with open(cl2_override_file, "w", encoding="utf-8") as file:
-            file.writelines(f"{k}: {v}\n" for k, v in config.items())
-
-        with open(cl2_override_file, "r", encoding="utf-8") as file:
-            logger.info(f"Content of file {cl2_override_file}:\n{file.read()}")
-
-
-@dataclass
-class JobSchedulingBenchmark(JobControllerBase):
+class JobController(ClusterLoader2Base):
     node_count: int = 0
     operation_timeout: str = ""
     operation_timeout_in_minutes: int = 600
@@ -124,7 +45,7 @@ class JobSchedulingBenchmark(JobControllerBase):
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
         }
-        self.write_cl2_override_file(self.cl2_override_file, config)
+        self.write_cl2_override_file(logger,self.cl2_override_file, config)
 
     def validate_clusterloader2(self):
         kube_client = KubernetesClient()
@@ -159,7 +80,6 @@ class JobSchedulingBenchmark(JobControllerBase):
         else:
             raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-        # Initialize the template
         template = {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "node_count": self.node_count,
@@ -277,47 +197,23 @@ class JobSchedulingBenchmark(JobControllerBase):
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
 
-
-@dataclass
-class BenchmarkRegistry:
-    loaders = {
-        "job_scheduling": JobSchedulingBenchmark,
-    }
-
-
 def main():
-    # The first positional argument is the loader name
-    parser = argparse.ArgumentParser(description="ClusterLoader2 Job Controller")
-    parser.add_argument(
-        "loader",
-        type=str,
-        choices=BenchmarkRegistry.loaders.keys(),
-        help="Type of benchmark loader to use",
-    )
-    # Parse only the loader argument and leave the rest
-    args, remaining_argv = parser.parse_known_args()
-    loader_name = args.loader
-
-    benchmark_registry = BenchmarkRegistry()
-
-    # Get the loader class
-    loader_class = benchmark_registry.loaders[loader_name]
-    loader_parser = loader_class.create_parser()
-    loader_args = loader_parser.parse_args(remaining_argv)
+    loader_parser = JobController.create_parser()
+    loader_args = loader_parser.parse_args()
     args_dict = vars(loader_args)
     command = args_dict.pop("command")
 
     # instantiate the loader with parsed arguments
-    benchmark = loader_class(**vars(loader_args))
+    load_test = JobController(**vars(loader_args))
     # Dispatch to the correct method
     if command == "configure":
-        benchmark.configure_clusterloader2()
+        load_test.configure_clusterloader2()
     elif command == "validate":
-        benchmark.validate_clusterloader2()
+        load_test.validate_clusterloader2()
     elif command == "execute":
-        benchmark.execute_clusterloader2()
+        load_test.execute_clusterloader2()
     elif command == "collect":
-        benchmark.collect_clusterloader2()
+        load_test.collect_clusterloader2()
     else:
         loader_parser.print_help()
 

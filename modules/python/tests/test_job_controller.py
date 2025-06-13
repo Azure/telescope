@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from clusterloader2.job_controller.job_controller import JobSchedulingBenchmark
+from clusterloader2.job_controller.job_controller import JobController
 
 
 # pylint: disable=protected-access
@@ -14,7 +14,7 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
         # Create a temporary file for the override file
         fd, tmp_path = tempfile.mkstemp()
         try:
-            benchmark = JobSchedulingBenchmark(
+            benchmark = JobController(
                 node_count=3,
                 operation_timeout="10m",
                 cl2_override_file=tmp_path,
@@ -34,7 +34,7 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
 
     @patch("clients.kubernetes_client.KubernetesClient.wait_for_nodes_ready")
     def test_validate_clusterloader2(self, mock_wait_for_nodes_ready):
-        benchmark = JobSchedulingBenchmark(
+        benchmark = JobController(
             node_count=2,
             operation_timeout_in_minutes=600,
             label="role=worker",
@@ -44,7 +44,7 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
 
     @patch("clusterloader2.job_controller.job_controller.run_cl2_command")
     def test_execute_clusterloader2(self, mock_run_cl2_command):
-        benchmark = JobSchedulingBenchmark(
+        benchmark = JobController(
             kubeconfig="kubeconfig.yaml",
             cl2_image="cl2-image",
             cl2_config_dir="config_dir",
@@ -80,7 +80,7 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
 
         fd, tmp_path = tempfile.mkstemp()
         try:
-            benchmark = JobSchedulingBenchmark(
+            benchmark = JobController(
                 cl2_report_dir="report_dir",
                 cloud_info=json.dumps({"cloud": "aws"}),
                 run_id="run123",
@@ -103,7 +103,7 @@ class TestJobSchedulingBenchmark(unittest.TestCase):
 
 class TestJobControllerParser(unittest.TestCase):
     def test_create_parser(self):
-        parser = JobSchedulingBenchmark.create_parser()
+        parser = JobController.create_parser()
         # The parser should have subcommands: configure, validate, execute, collect
         subparsers_action = next(
             action

@@ -15,7 +15,7 @@ steps:
       echo "Collecting results -- "
       set -eo pipefail
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE job_scheduling collect \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
         --node_count $NODE_COUNT \
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
