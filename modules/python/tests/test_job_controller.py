@@ -9,7 +9,7 @@ from clusterloader2.job_controller.job_controller import JobController
 
 
 # pylint: disable=protected-access
-class TestJobSchedulingBenchmark(unittest.TestCase):
+class TestJobControllerBenchmark(unittest.TestCase):
     def test_configure_clusterloader2(self):
         # Create a temporary file for the override file
         fd, tmp_path = tempfile.mkstemp()
