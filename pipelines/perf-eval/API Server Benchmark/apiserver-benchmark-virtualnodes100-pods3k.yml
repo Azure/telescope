@@ -30,7 +30,7 @@ stages:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.3.3
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_job1_pod3k
             benchmark_subcmd_args: "--total 36000"
           max_parallel: 2
@@ -57,7 +57,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "false"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.3.3
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_job1_pod3k
             benchmark_subcmd_args: "--total 36000"
           max_parallel: 2
@@ -81,7 +81,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.3.3
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_job1_pod3k
             benchmark_subcmd_args: "--total 36000"
           max_parallel: 2
