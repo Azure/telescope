@@ -27,6 +27,11 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
                 test_duration_secs=10,
                 cilium_enabled=False,
                 cilium_envoy_enabled=False,
+                l7_enabled=False,
+                repeats=0,
+                netpol_test="soak",
+                restart_deletion_enabled=False,
+                l3_l4_port_enabled=False,
                 override_file=tmp_path,
             )
 
@@ -37,13 +42,18 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
             self.assertIn("CL2_DURATION: 10s", content)
             self.assertIn("CL2_NUMBER_OF_CLIENTS_PER_GROUP: 3", content)
             self.assertIn("CL2_NETWORK_POLICY_TYPE: k8s", content)
+            self.assertIn("CL2_SOAK_TEST: true", content)
             # Assert that Cilium config sections are not present
             self.assertNotIn("CL2_CILIUM_ENABLED: true", content)
             self.assertNotIn("CL2_CILIUM_ENVOY_ENABLED: true", content)
+            self.assertNotIn("CL2_NET_POLICY_L7_ENABLED: true", content)
+            self.assertNotIn("CL2_REPEATS: 1", content)
+            self.assertNotIn("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true", content)
+            self.assertNotIn("CL2_RESTART_DELETION_ENABLED: true", content)
         finally:
             os.remove(tmp_path)
 
-    def test_with_cilium_configs(self):
+    def test_with_cilium_configs_l7(self):
         # Create a temporary file for the override file
         with tempfile.NamedTemporaryFile(
             delete=False, mode="w+", encoding="utf-8"
@@ -61,6 +71,11 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
                 test_duration_secs=20,
                 cilium_enabled=True,
                 cilium_envoy_enabled=True,
+                l7_enabled=True,
+                repeats=0,
+                netpol_test="soak",
+                restart_deletion_enabled=False,
+                l3_l4_port_enabled=False,
                 override_file=tmp_path,
             )
 
@@ -76,6 +91,58 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
             self.assertIn("CL2_CILIUM_ENVOY_ENABLED: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_ENVOY: true", content)
+            self.assertIn("CL2_NET_POLICY_L7_ENABLED: true", content)
+            self.assertIn("CL2_REPEATS: 0", content)
+            self.assertIn("CL2_SOAK_TEST: true", content)
+            self.assertNotIn("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true", content)
+            self.assertNotIn("CL2_RESTART_DELETION_ENABLED: true", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_with_cilium_configs_l3_l4(self):
+        # Create a temporary file for the override file
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            # Call function with Cilium-related flags enabled.
+            configure_clusterloader2(
+                number_of_groups=1,
+                clients_per_group=2,
+                servers_per_group=3,
+                workers_per_client=4,
+                netpol_type="cnp",
+                test_duration_secs=20,
+                cilium_enabled=True,
+                cilium_envoy_enabled=False,
+                l7_enabled=False,
+                repeats=2,
+                netpol_test="soak",
+                restart_deletion_enabled=True,
+                l3_l4_port_enabled=True,
+                override_file=tmp_path,
+            )
+
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Assert that test config lines appear
+            self.assertIn("CL2_DURATION: 20s", content)
+            self.assertIn("CL2_NUMBER_OF_GROUPS: 1", content)
+            self.assertIn("CL2_NETWORK_POLICY_TYPE: cnp", content)
+            # Assert that Cilium config sections are present
+            self.assertIn("CL2_CILIUM_ENABLED: true", content)
+            self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
+            self.assertIn("CL2_REPEATS: 2", content)
+            self.assertIn("CL2_SOAK_TEST: true", content)
+            self.assertIn("CL2_RESTART_DELETION_ENABLED: true", content)
+            self.assertIn("CL2_NET_POLICY_L3_L4_ENABLED: true", content)
+            self.assertNotIn("CL2_CILIUM_ENVOY_ENABLED: true", content)
+            self.assertNotIn("CL2_NET_POLICY_L7_ENABLED: true", content)
+            self.assertNotIn("CL2_CILIUM_ENVOY_ENABLED: true", content)
+            self.assertNotIn("CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST: true", content)
         finally:
             os.remove(tmp_path)
 

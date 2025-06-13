@@ -257,3 +257,41 @@ steps:
         - name: Max BPF Map Pressure
           query: max_over_time(max(cilium_bpf_map_pressure) by (map_name)[%v:]) * 100
           threshold: 90
+    - Identifier: CiliumMinBPFMapPressure
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Min BPF Map Pressure
+        metricVersion: v1
+        unit: "%"
+        dimensions:
+        - map_name
+        queries:
+        - name: Min BPF Map Pressure
+          query: min_over_time(min(cilium_bpf_map_pressure) by (map_name)[%v:]) * 100
+    - Identifier: MaxCiliumPoliciesLoadedCount
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Max number of Cilium Policies Loaded
+        metricVersion: v1
+        unit: policies
+        enableViolations: true
+        queries:
+        - name: max number of cilium policies loaded over time
+          query: max(max_over_time(cilium_policy[%v:]))
+    - Identifier: CiliumBPFMapsMaxMemoryUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Maps Max Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.50, max_over_time(cilium_bpf_maps_virtual_memory_max_bytes[%v:]) / 1024 / 1024)
