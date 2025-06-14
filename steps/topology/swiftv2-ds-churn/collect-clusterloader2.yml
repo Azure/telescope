@@ -15,12 +15,6 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
-- template: /steps/engine/clusterloader2/swiftv2/scale-cluster.yml
-  parameters:
-    role: slo
-    region: ${{ parameters.regions[0] }}
-    nodes_per_nodepool: 0
-    enable_autoscale: "false"
 - script: |
     run_id=$(Build.BuildId)-$(System.JobId)
     echo "Run ID: $run_id"
