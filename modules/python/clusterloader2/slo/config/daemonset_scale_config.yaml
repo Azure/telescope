@@ -45,13 +45,13 @@ namespace:
 tuningSets:
   - name: DeploymentCreatePNIQps
     qpsLoad:
-      qps: {{$deploymentQPS}}
+      qps: 5
   - name: DeploymentCreateQps
     qpsLoad:
-      qps: {{$deploymentQPS}}
+      qps: 50
   - name: DeploymentDeleteQps
     qpsLoad:
-      qps: {{$deploymentQPS}}
+      qps: 5
 
 steps:
   - name: Log - namespaces=1, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
