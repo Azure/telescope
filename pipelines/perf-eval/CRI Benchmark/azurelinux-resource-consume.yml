@@ -61,7 +61,7 @@ stages:
               repeats: 1
               operation_timeout: 11m
               load_type: cpu
-          max_parallel: 3
+          max_parallel: 6
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false

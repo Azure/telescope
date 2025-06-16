@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "azurelinux-resource-consume"
-deletion_delay = "2h"
+deletion_delay = "240h"
 owner          = "aks"
 
 network_config_list = [
