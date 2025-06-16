@@ -1,7 +1,7 @@
 * @alyssa1303 @anson627 @sumanthreddy29 @rafael-mendes-pereira
 
 # CCP pipelines
-"/pipelines/perf-eval/API Server Benchmark/" @fuweid @xinWeiWei24 @vittoriasalim @wonderyl
-"/pipelines/perf-eval/Scheduler Benchmark/" @fuweid @xinWeiWei24 @vittoriasalim @wonderyl
+/pipelines/perf-eval/API\ Server\ Benchmark/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl
+/pipelines/perf-eval/Scheduler\ Benchmark/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl
 /scenarios/perf-eval/apiserver-*/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl
 /scenarios/perf-eval/job-scheduling/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl
