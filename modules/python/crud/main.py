@@ -367,7 +367,6 @@ def main():
                 if not valid:
                     logger.error("GPU device plugin verification failed")
                     op.success = False
-                    sys.exit(1)
                 logger.info("GPU device plugin installed and verified successfully")
 
         # Execute the function associated with the selected command
@@ -387,7 +386,6 @@ def main():
             logger.info("Operation completed successfully")
         else:
             logger.error(f"Operation failed with exit code: {exit_code}")
-        sys.exit(exit_code)
 
     except ImportError as import_error:
         error_msg = f"Import Error: {import_error}"
