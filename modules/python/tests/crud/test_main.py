@@ -570,10 +570,9 @@ class TestMainFunctionIntegration(unittest.TestCase):
         # Verify it was called with exit code 1 at least once
         self.assertIn(mock.call(1), mock_exit.call_args_list)
 
-    @mock.patch("sys.exit")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_complete_create_operation(
-        self, mock_azure_crud_class, mock_exit
+        self, mock_azure_crud_class
     ):
         """Test complete create operation flow"""
         # Setup
@@ -602,13 +601,11 @@ class TestMainFunctionIntegration(unittest.TestCase):
         # Verify
         mock_azure_crud_class.assert_called_once()
         mock_node_pool_crud.create_node_pool.assert_called_once()
-        mock_exit.assert_called_once_with(0)
 
-    @mock.patch("sys.exit")
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_operation_returns_none(
-        self, mock_azure_crud_class, mock_operation_context, mock_exit  # pylint: disable=unused-argument
+        self, mock_azure_crud_class, mock_operation_context  # pylint: disable=unused-argument
     ):
         """Test main function when operation returns None (backward compatibility)"""
         # Setup
@@ -632,14 +629,13 @@ class TestMainFunctionIntegration(unittest.TestCase):
         with mock.patch("sys.argv", test_args):
             main()  # Use the imported main function
 
-        # Verify exit code 0 for None return (backward compatibility)
-        mock_exit.assert_called_once_with(0)
+        # Operation should complete successfully (no exit call in normal flow)
 
-    @mock.patch("sys.exit")
+    @mock.patch("crud.main.logger")
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_operation_returns_boolean_false(
-        self, mock_azure_crud_class, mock_operation_context, mock_exit  # pylint: disable=unused-argument
+        self, mock_azure_crud_class, mock_operation_context, mock_logger  # pylint: disable=unused-argument
     ):
         """Test main function when operation returns False"""
         # Setup
@@ -663,8 +659,8 @@ class TestMainFunctionIntegration(unittest.TestCase):
         with mock.patch("sys.argv", test_args):
             main()  # Use the imported main function
 
-        # Verify exit code 1 for False return
-        mock_exit.assert_called_once_with(1)
+        # Verify error is logged but no sys.exit in normal flow
+        mock_logger.error.assert_called_with("Operation failed with exit code: 1")
 
     @mock.patch("sys.exit")
     @mock.patch("crud.main.logger")
@@ -707,11 +703,10 @@ class TestMainFunctionIntegration(unittest.TestCase):
         mock_logger.critical.assert_called()
         mock_exit.assert_called_once_with(1)
 
-    @mock.patch("sys.exit")
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_gpu_node_pool_enabled(
-        self, mock_azure_crud_class, mock_operation_context, mock_exit
+        self, mock_azure_crud_class, mock_operation_context
     ):
         """Test main function with GPU node pool enabled"""
         # Setup
@@ -749,13 +744,12 @@ class TestMainFunctionIntegration(unittest.TestCase):
         # Verify GPU device plugin was installed and verified
         mock_k8s_client.install_gpu_device_plugin.assert_called_once()
         mock_k8s_client.verify_gpu_device_plugin.assert_called_once()
-        mock_exit.assert_called_once_with(0)
 
-    @mock.patch("sys.exit")
+    @mock.patch("crud.main.logger")
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_gpu_verification_fails(
-        self, mock_azure_crud_class, mock_operation_context, mock_exit
+        self, mock_azure_crud_class, mock_operation_context, mock_logger
     ):
         """Test main function when GPU verification fails"""
         # Setup
@@ -792,10 +786,8 @@ class TestMainFunctionIntegration(unittest.TestCase):
         # Verify GPU verification failed and operation was marked as failed
         mock_k8s_client.verify_gpu_device_plugin.assert_called_once()
         self.assertFalse(mock_op.success)
-        # Function may call sys.exit multiple times due to error handling flow
-        self.assertTrue(mock_exit.called)
-        # Verify it was called with exit code 1 at least once
-        self.assertIn(mock.call(1), mock_exit.call_args_list)
+        # Verify error was logged
+        mock_logger.error.assert_any_call("GPU device plugin verification failed")
 
 
 class TestGetNodePoolCRUDClassErrorHandling(unittest.TestCase):

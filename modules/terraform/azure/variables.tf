@@ -126,6 +126,14 @@ variable "network_config_list" {
   default = []
 }
 
+variable "dns_zones" {
+  description = "List of DNS zones to create"
+  type = list(object({
+    name = string
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -204,6 +212,9 @@ variable "aks_config_list" {
       skip_nodes_with_local_storage    = optional(bool, true)
       skip_nodes_with_system_pods      = optional(bool, true)
     }))
+    web_app_routing = optional(object({
+      dns_zone_names = list(string)
+    }), null)
   }))
   default = []
 }
