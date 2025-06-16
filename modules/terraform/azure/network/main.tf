@@ -17,6 +17,15 @@ locals {
   ])
   nic_association_map = { for nic in local.expanded_nic_association_map : nic.nic_name => nic }
   tags                = merge(var.tags, { "role" = var.network_config.role })
+
+#   NRMS-NSG-Rule-101_1.3 : Allow 443 from Virtual Network
+# NRMS-NSG-Rule-103_1.4 : Allow all traffic from corp net
+# NRMS-NSG-Rule-104_1.3 : Allow all traffic from CorpNetSaw
+# NRMS-NSG-Rule-105_1.3 : Block Port "1433","1434","3306","4333","5432","6379","7000","7001","7199","9042","9160","9300","16379","26379","27017" from Internet
+# NRMS-NSG-Rule-106_1.3 : Block Port "22","3389" from Internet
+# NRMS-NSG-Rule-107_1.3 : Block Port "23","135","445","5985","5986" from Internet
+# NRMS-NSG-Rule-108_1.3 : Block Port "13","17","19","53","69","111","123","512","514","593","873","1900","5353","11211" from Internet
+# NRMS-NSG-Rule-109_1.3 : Block Port "119","137","138","139","161","162","389","636","2049","2301","2381","3268","5800","5900" from Internet
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -93,6 +102,13 @@ module "nsr" {
   destination_port_range      = each.value.destination_port_range
   source_address_prefix       = each.value.source_address_prefix
   destination_address_prefix  = each.value.destination_address_prefix
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = azurerm_network_security_group.nsg[0].name
+}
+
+module "nrms_security_rules" {
+  source   = "./nrms-security-rules"
+
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.nsg[0].name
 }
