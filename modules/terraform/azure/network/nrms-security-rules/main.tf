@@ -3,8 +3,8 @@ locals {
   nrms_rules = {
     # High Priority Allow Rules
     "NRMS-Rule-101" = {
-      name                       = "NRMS-Rule-103"
-      priority                   = 103
+      name                       = "NRMS-Rule-101"
+      priority                   = 101
       direction                  = "Inbound"
       access                     = "Allow"
       protocol                   = "Tcp"
@@ -15,8 +15,8 @@ locals {
       description                = "Allow 443 from Virtual Network"
     }
     "NRMS-Rule-103" = {
-      name                       = "NRMS-Rule-104"
-      priority                   = 104
+      name                       = "NRMS-Rule-103"
+      priority                   = 103
       direction                  = "Inbound"
       access                     = "Allow"
       protocol                   = "*"
@@ -27,8 +27,8 @@ locals {
       description                = "Allow all traffic from CorpNetPublic"
     }
     "NRMS-Rule-104" = {
-      name                       = "NRMS-Rule-105"
-      priority                   = 105
+      name                       = "NRMS-Rule-104"
+      priority                   = 104
       direction                  = "Inbound"
       access                     = "Allow"
       protocol                   = "*"
@@ -41,8 +41,8 @@ locals {
     
     # Database and Service Blocking Rules
     "NRMS-Rule-105" = {
-      name                         = "NRMS-Rule-106"
-      priority                     = 106
+      name                         = "NRMS-Rule-105"
+      priority                     = 105
       direction                    = "Inbound"
       access                       = "Deny"
       protocol                     = "*"
@@ -53,8 +53,8 @@ locals {
       description                  = "Block database ports from Internet"
     }
     "NRMS-Rule-106" = {
-      name                       = "NRMS-Rule-107"
-      priority                   = 107
+      name                       = "NRMS-Rule-106"
+      priority                   = 106
       direction                  = "Inbound"
       access                     = "Deny"
       protocol                   = "Tcp"
@@ -65,8 +65,8 @@ locals {
       description                = "Block SSH and RDP from Internet"
     }
     "NRMS-Rule-107" = {
-      name                       = "NRMS-Rule-108"
-      priority                   = 108
+      name                       = "NRMS-Rule-107"
+      priority                   = 107
       direction                  = "Inbound"
       access                     = "Deny"
       protocol                   = "Tcp"
@@ -77,8 +77,8 @@ locals {
       description                = "Block management ports from Internet"
     }
     "NRMS-Rule-108" = {
-      name                       = "NRMS-Rule-109"
-      priority                   = 109
+      name                       = "NRMS-Rule-108"
+      priority                   = 108
       direction                  = "Inbound"
       access                     = "Deny"
       protocol                   = "*"
@@ -89,8 +89,8 @@ locals {
       description                = "Block network service ports from Internet"
     }
     "NRMS-Rule-109" = {
-      name                       = "NRMS-Rule-110"
-      priority                   = 110
+      name                       = "NRMS-Rule-109"
+      priority                   = 109
       direction                  = "Inbound"
       access                     = "Deny"
       protocol                   = "*"
