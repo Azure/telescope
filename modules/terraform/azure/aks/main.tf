@@ -4,6 +4,7 @@ locals {
   extra_pool_map       = { for pool in var.aks_config.extra_node_pool : pool.name => pool }
   role_assignment_list = var.aks_config.role_assignment_list
   subnets              = var.subnets
+  dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -81,6 +82,20 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
+
+  dynamic "web_app_routing" {
+    for_each = var.aks_config.web_app_routing != null && local.dns_zone_ids != null ? [var.aks_config.web_app_routing] : []
+    content {
+      dns_zone_ids = local.dns_zone_ids
+    }
+  }
+}
+
+resource "azurerm_role_assignment" "dns_zone_contributor" {
+  count                = try(length(var.aks_config.web_app_routing.dns_zone_names), 0)
+  role_definition_name = "DNS Zone Contributor"
+  scope                = local.dns_zone_ids[count.index]
+  principal_id         = azurerm_kubernetes_cluster.aks.web_app_routing[0].web_app_routing_identity[0].object_id
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {
