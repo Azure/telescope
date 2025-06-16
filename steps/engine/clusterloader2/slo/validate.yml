@@ -11,8 +11,12 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
         $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES
+      if [ $? -ne 0 ]; then
+        echo "##vso[task.setvariable variable=VALIDATION_FAILED;isOutput=true]true"
+        exit 1
+      fi
     workingDirectory: modules/python
-    timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
+    timeoutInMinutes: 15
     displayName: "Validate node count"
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
