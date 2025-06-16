@@ -1,17 +1,15 @@
 parameters:
 - name: cloud
   type: string
-  default: ''
-- name: engine_input
+- name: regions
   type: object
   default: {}
-- name: regions
+- name: engine_input
   type: object
   default: {}
 
 steps:
-- template: /steps/engine/clusterloader2/kwok/execute.yml
+- template: /steps/engine/crud/k8s/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
-    engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}

@@ -72,7 +72,7 @@ def collect_benchmark_results():
         logger.info("Processing file: `%s`", filepath)
         with open(filepath, "r", encoding="utf-8") as file:
             content = json.load(file)
-        timestamp = datetime.now(timezone.utc).isoformat() + "Z"
+        timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         result = {
             "timestamp": timestamp,
             "region": region,
@@ -105,7 +105,7 @@ def handle_node_pool_operation(node_pool_crud, args):
             result = node_pool_crud.scale_node_pool(
                 node_pool_name=args.node_pool_name,
                 node_count=args.target_count,
-                progressive=args.progressive,
+                progressive=check_for_progressive_scaling(args),
                 scale_step_size=args.scale_step_size,
                 gpu_node_pool=args.gpu_node_pool,
             )
@@ -117,7 +117,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 vm_size=args.vm_size,
                 node_count=args.node_count,
                 target_count=args.target_count,
-                progressive=args.progressive,
+                progressive=check_for_progressive_scaling(args),
                 scale_step_size=args.scale_step_size,
                 gpu_node_pool=args.gpu_node_pool,
                 step_wait_time=args.step_wait_time,
@@ -145,7 +145,7 @@ def handle_node_pool_all(node_pool_crud, args):
             vm_size=args.vm_size,
             node_count=args.node_count,
             target_count=args.target_count,
-            progressive=args.progressive if hasattr(args, "progressive") else False,
+            progressive=check_for_progressive_scaling(args),
             scale_step_size=args.scale_step_size
             if hasattr(args, "scale_step_size")
             else 1,
@@ -164,6 +164,15 @@ def handle_node_pool_all(node_pool_crud, args):
         logger.error(f"Error during all operations sequence: {str(e)}")
         return 1
 
+
+def check_for_progressive_scaling(args):
+    """
+    Check if we need to perform progressive scaling based on the scale step size and target count.
+    
+    """
+    if hasattr(args, "scale_step_size") and args.scale_step_size != args.target_count:
+        return True
+    return False
 
 def main():
     """
@@ -228,9 +237,7 @@ def main():
     scale_parser.add_argument(
         "--target-count", type=int, required=True, help="Target node count"
     )
-    scale_parser.add_argument(
-        "--progressive", action="store_true", help="Scale progressively in steps"
-    )
+
     scale_parser.add_argument(
         "--scale-step-size",
         type=int,
@@ -278,11 +285,7 @@ def main():
         required=True,
         help="Target node count for scale-up operation",
     )
-    all_parser.add_argument(
-        "--progressive",
-        action="store_true",
-        help="Scale progressively in steps (for scaling operations)",
-    )
+
     all_parser.add_argument(
         "--scale-step-size",
         type=int,

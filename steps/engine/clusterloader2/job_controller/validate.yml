@@ -18,5 +18,5 @@ steps:
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       VALIDATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/kwok/kwok.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
       NODE_LABEL: "default"

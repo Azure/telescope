@@ -22,7 +22,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250423"
-      topology: kwok
+      topology: job_controller
       matrix:
         default:
           node_count: 2000 # 2k kwok nodes
@@ -45,7 +45,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250423"
-      topology: kwok
+      topology: job_controller
       matrix:
         default:
           node_count: 2000

@@ -98,47 +98,95 @@ network_config_list = [
   }
 ]
 
-aks_config_list = [
+aks_cli_config_list = [
   {
-    role        = "pod2pod"
-    aks_name    = "pod-diff-node"
-    dns_prefix  = "pod2pod"
-    subnet_name = "pod2pod-subnet-1"
-    sku_tier    = "Standard"
-    network_profile = {
-      network_plugin      = "azure"
-      network_plugin_mode = "overlay"
-      pod_cidr            = "10.128.0.0/9"
-      service_cidr        = "192.168.0.0/16"
-      dns_service_ip      = "192.168.0.10"
-    }
+    role               = "pod2pod"
+    aks_name           = "pod-diff-node"
+    sku_tier           = "standard"
+    kubernetes_version = "1.32"
+    subnet_name        = "pod2pod-subnet-1"
     default_node_pool = {
-      name                         = "default"
-      node_count                   = 1
-      auto_scaling_enabled         = false
-      vm_size                      = "Standard_D16_v3"
-      os_disk_type                 = "Managed"
-      only_critical_addons_enabled = true
-      temporary_name_for_rotation  = "defaulttmp"
+      name       = "default"
+      node_count = 1
+      vm_size    = "Standard_D48s_v6"
     }
     extra_node_pool = [
       {
-        name        = "client"
-        vm_size     = "Standard_D16_v3"
-        node_count  = 1
-        node_labels = { "client" = "true", "test" = "true" }
-        node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
-        zones       = ["2"]
+        name       = "client",
+        node_count = 1,
+        vm_size    = "Standard_D48s_v6",
+        optional_parameters = [
+          {
+            name  = "os-sku"
+            value = "Ubuntu2404"
+          },
+          {
+            name  = "labels"
+            value = "client=true test=true"
+          },
+          {
+            name  = "node-taints",
+            value = "dedicated-test=true:NoSchedule,dedicated-test=true:NoExecute"
+          },
+          {
+            name  = "zones",
+            value = "2"
+          }
+        ]
       },
       {
-        name        = "server"
-        vm_size     = "Standard_D16_v3"
-        node_count  = 1
-        node_labels = { "server" = "true", "test" = "true" }
-        node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
-        zones       = ["2"]
+        name       = "server",
+        node_count = 1,
+        vm_size    = "Standard_D48s_v6",
+        optional_parameters = [
+          {
+            name  = "os-sku"
+            value = "Ubuntu2404"
+          },
+          {
+            name  = "labels"
+            value = "server=true test=true"
+          },
+          {
+            name  = "node-taints",
+            value = "dedicated-test=true:NoSchedule,dedicated-test=true:NoExecute"
+          },
+          {
+            name  = "zones",
+            value = "2"
+          }
+        ]
+      },
+    ]
+    optional_parameters = [
+      {
+        name  = "network-plugin"
+        value = "azure"
+      },
+      {
+        name  = "network-plugin-mode"
+        value = "overlay"
+      },
+      {
+        name  = "node-init-taints"
+        value = "CriticalAddonsOnly=true:NoSchedule"
+      },
+      {
+        name  = "pod-cidr"
+        value = "10.128.0.0/9"
+      },
+      {
+        name  = "service-cidr"
+        value = "192.168.0.0/16"
+      },
+      {
+        name  = "dns-service-ip"
+        value = "192.168.0.10"
+      },
+      {
+        name  = "os-sku"
+        value = "Ubuntu2404"
       }
     ]
-    kubernetes_version = "1.32"
   }
 ]
