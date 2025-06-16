@@ -41,6 +41,7 @@ jobs:
           else
             pylint $file_changes
           fi
+          echo "changed_files=$file_changes" >> $GITHUB_OUTPUT
       - name: Install kwokctl
         if: always()
         run: |
@@ -51,83 +52,80 @@ jobs:
       - name: Create KWOK cluster
         if: always()
         run: kwokctl create cluster --name kwok-test
-      - name: Run Python Tests with Per-File Coverage Check
+      - name: Run Python Tests with Coverage
         if: always()
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: |
-          # Get list of changed Python files in the modules/python directory
-          changed_py_files=$(git diff --name-only --diff-filter=d origin/main HEAD -- 'modules/python/**/*.py' | sed 's|modules/python/||g' | grep -E '\.(py)$' || true)
-          
-          echo "Changed Python files in modules/python/:"
-          echo "$changed_py_files"
-          
-          if [ -z "$changed_py_files" ]; then
-            echo "No Python files were changed in modules/python directory."
-            exit 0
-          fi
-          
-          # Initialize variables for tracking results
-          all_files_passed=true
+        run: python -m pytest --cov=. --cov-report=term-missing
+      - name: Run Python Tests with Per-File Coverage Check for Changed Files
+        # This step runs tests with coverage for each changed file in the modules/python directory
+        if: always()
+        working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        run: |         
+          # Get changed Python files under modules/python
+          changed_py_files=$(git diff --name-only --diff-filter=d origin/main HEAD -- '**/*.py' \
+          | grep -v '__init__.py' \
+          | sed 's|modules/python/||g' \
+          | grep -E '\.py$' || true)
+
+          [ -z "$changed_py_files" ] && echo "No Python files changed in modules/python/" && exit 0
+
+          echo "🔍 Checking coverage for changed Python files (threshold: 70%)..."
+
+          all_passed=true
           failed_files=""
-          passed_files=""
-          
-          # Run tests with coverage for all files first to ensure tests pass
-          echo "Running all tests to ensure they pass..."
-          pytest --cov=. --cov-report=term-missing
-          
-          # Check coverage for each changed file individually
-          echo "Checking per-file coverage requirements (70% minimum)..."
-          echo "=================================================="
-          
+
           for file in $changed_py_files; do
-            if [ -f "$file" ]; then
-              echo "Checking coverage for: $file"
-              
-              # Run coverage for specific file and capture output
-              coverage_output=$(pytest --cov="$file" --cov-report=term-missing --cov-fail-under=70 2>&1 || true)
-              
-              # Extract coverage percentage from the output
-              coverage_pct=$(echo "$coverage_output" | grep -E "TOTAL.*[0-9]+%" | awk '{print $(NF-1)}' | sed 's/%//' || echo "0")
-              
-              # Check if coverage meets threshold
-              if echo "$coverage_output" | grep -q "FAILED.*coverage"; then
-                echo "❌ FAILED: $file - Coverage: ${coverage_pct}% (below 70% threshold)"
-                all_files_passed=false
-                failed_files="$failed_files\n  - $file (${coverage_pct}%)"
-              else
-                echo "✅ PASSED: $file - Coverage: ${coverage_pct}%"
-                passed_files="$passed_files\n  - $file (${coverage_pct}%)"
-              fi
-              echo "----------------------------------------"
-            else
-              echo "⚠️  File not found: $file (may have been deleted)"
+            module_name=$(echo "$file" | sed 's|/|.|g' | sed 's|\.py$||')
+            test_file="tests/$(dirname "$file")/test_$(basename "$file")"
+
+            if [ ! -f "$test_file" ]; then
+              echo "⚠️  No test file found for $file (expected: $test_file)"
+              continue
             fi
+
+            echo "➡️  Logic: $file | Test: $test_file | Module Name: $module_name"
+            
+            # Run pytest with coverage and capture all output
+            output=$(python -m pytest "$test_file" --cov="$module_name" --cov-report=term-missing 2>&1 || true)
+            echo "$output"
+            
+            # Extract coverage percentage more reliably
+            pct=$(echo "$output" | grep -E "TOTAL.*[0-9]+%" | tail -n1 | grep -oE '[0-9]+%' | sed 's/%//')
+            
+            # Check for test failures first
+            if echo "$output" | grep -q "FAILED"; then
+              failed_count=$(echo "$output" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
+              echo "⚠️  $file - ${failed_count} test(s) failed"
+            fi
+            
+            # Check if coverage is below 70%
+            if [ -n "$pct" ] && [ "$pct" -lt 70 ]; then
+              echo "❌ $file - ${pct}% (FAILED - below 70% threshold)"
+              all_passed=false
+              failed_files+="$file (${pct}%)\n"
+            elif [ -n "$pct" ]; then
+              echo "✅ $file - ${pct}% (PASSED)"
+            else
+              echo "⚠️  $file - Could not determine coverage percentage"
+              # Check if there were any test failures without coverage
+              if echo "$output" | grep -q "FAILED"; then
+                echo "❌ $file - Test failures detected (no coverage data)"
+                all_passed=false
+                failed_files+="$file (test failures)\n"
+              else
+                echo "ℹ️  $file - No test failures but no coverage data found"
+              fi
+            fi
+
+            echo "----------------------------------------"
           done
-          
-          # Print summary
-          echo ""
-          echo "Coverage Check Summary:"
-          echo "======================"
-          
-          if [ -n "$passed_files" ]; then
-            echo "✅ Files that passed (≥70% coverage):"
-            echo -e "$passed_files"
-          fi
-          
-          if [ -n "$failed_files" ]; then
-            echo ""
-            echo "❌ Files that failed (<70% coverage):"
-            echo -e "$failed_files"
-          fi
-          
-          # Exit with error if any file failed coverage check
-          if [ "$all_files_passed" = false ]; then
-            echo ""
-            echo "❌ Coverage check failed: Some files do not meet the 70% coverage requirement."
+
+          if [ "$all_passed" = false ]; then
+            echo -e "\n🚫 Coverage check failed for:\n$failed_files"
+            echo "Some files did not meet the 70% coverage threshold or had test failures."
             exit 1
           else
-            echo ""
-            echo "✅ All changed files meet the 70% coverage requirement!"
+            echo -e "\n✅ All files meet coverage threshold (70%)."
           fi
       - name: Delete KWOK cluster
         if: always()
