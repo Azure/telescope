@@ -3,8 +3,12 @@ locals {
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  subnets_map                  = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
-  network_security_group_name  = var.network_config.network_security_group_name
+  # subnets_map                  = { for subnet in azurerm_subnet.subnets : subnet.name => subnet }
+  subnets_map = {
+    for subnet_id in azurerm_virtual_network.vnet.subnet.*.id :
+    split("/", subnet_id)[10] => subnet_id
+  }
+  network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
       for i in range(var.nic_count_override > 0 ? var.nic_count_override : nic.count) : {
@@ -42,6 +46,16 @@ resource "azurerm_virtual_network" "vnet" {
   location            = var.location
   resource_group_name = var.resource_group_name
   tags                = local.tags
+
+  dynamic "subnet" {
+    for_each = local.input_subnet_map
+    content {
+      name             = subnet.value.name
+      address_prefixes = [subnet.value.address_prefix]
+      security_group   = azurerm_network_security_group.nsg[0].id
+    }
+  }
+
   depends_on = [
     azurerm_network_security_group.nsg,
     module.nsr
@@ -49,33 +63,33 @@ resource "azurerm_virtual_network" "vnet" {
   ]
 }
 
-resource "azurerm_subnet" "subnets" {
-  for_each = local.input_subnet_map
+# resource "azurerm_subnet" "subnets" {
+#   for_each = local.input_subnet_map
 
-  name                                          = each.value.name
-  resource_group_name                           = var.resource_group_name
-  virtual_network_name                          = azurerm_virtual_network.vnet.name
-  address_prefixes                              = [each.value.address_prefix]
-  service_endpoints                             = each.value.service_endpoints != null ? each.value.service_endpoints : []
-  private_link_service_network_policies_enabled = each.value.pls_network_policies_enabled != null ? each.value.pls_network_policies_enabled : true
-  dynamic "delegation" {
-    for_each = each.value.delegations != null ? each.value.delegations : []
-    content {
-      name = delegation.value.name
-      service_delegation {
-        name    = delegation.value.service_delegation_name
-        actions = delegation.value.service_delegation_actions
-      }
-    }
-  }
-}
+#   name                                          = each.value.name
+#   resource_group_name                           = var.resource_group_name
+#   virtual_network_name                          = azurerm_virtual_network.vnet.name
+#   address_prefixes                              = [each.value.address_prefix]
+#   service_endpoints                             = each.value.service_endpoints != null ? each.value.service_endpoints : []
+#   private_link_service_network_policies_enabled = each.value.pls_network_policies_enabled != null ? each.value.pls_network_policies_enabled : true
+#   dynamic "delegation" {
+#     for_each = each.value.delegations != null ? each.value.delegations : []
+#     content {
+#       name = delegation.value.name
+#       service_delegation {
+#         name    = delegation.value.service_delegation_name
+#         actions = delegation.value.service_delegation_actions
+#       }
+#     }
+#   }
+# }
 
-resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
-  for_each = local.network_security_group_name != "" ? local.subnets_map : {}
+# resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
+#   for_each = local.network_security_group_name != "" ? local.subnets_map : {}
 
-  subnet_id                 = each.value.id
-  network_security_group_id = azurerm_network_security_group.nsg[0].id
-}
+#   subnet_id                 = each.value.id
+#   network_security_group_id = azurerm_network_security_group.nsg[0].id
+# }
 
 resource "azurerm_network_interface" "nic" {
   for_each = local.nic_association_map
@@ -88,7 +102,7 @@ resource "azurerm_network_interface" "nic" {
 
   ip_configuration {
     name                          = each.value.ip_configuration_name
-    subnet_id                     = local.subnets_map[each.value.subnet_name].id
+    subnet_id                     = local.subnets_map[each.value.subnet_name]
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name] : null
   }
