@@ -44,8 +44,8 @@ resource "azurerm_virtual_network" "vnet" {
   tags                = local.tags
   depends_on = [
     azurerm_network_security_group.nsg,
-    module.nsr,
-    module.nrms_security_rules
+    module.nsr
+    # module.nrms_security_rules
   ]
 }
 
@@ -111,12 +111,12 @@ module "nsr" {
   network_security_group_name = azurerm_network_security_group.nsg[0].name
 }
 
-module "nrms_security_rules" {
-  source = "./nrms-security-rules"
+# module "nrms_security_rules" {
+#   source = "./nrms-security-rules"
 
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.nsg[0].name
-}
+#   resource_group_name         = var.resource_group_name
+#   network_security_group_name = azurerm_network_security_group.nsg[0].name
+# }
 
 module "nat_gateway" {
   source   = "./nat-gateway"
