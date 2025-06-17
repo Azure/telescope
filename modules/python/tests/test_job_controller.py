@@ -103,7 +103,7 @@ class TestJobControllerBenchmark(unittest.TestCase):
 
 class TestJobControllerParser(unittest.TestCase):
     def test_create_parser(self):
-        parser = JobController.create_parser()
+        parser = JobController.create_parser(description="Job Controller CLI")
         # The parser should have subcommands: configure, validate, execute, collect
         subparsers_action = next(
             action
