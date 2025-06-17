@@ -5,8 +5,12 @@ from datetime import datetime, timezone
 
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.base import ClusterLoader2Base
-from clusterloader2.utils import (parse_xml_to_json, process_cl2_reports,
-                                  run_cl2_command, str2bool)
+from clusterloader2.utils import (
+    parse_xml_to_json,
+    process_cl2_reports,
+    run_cl2_command,
+    str2bool,
+)
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
@@ -44,7 +48,7 @@ class JobController(ClusterLoader2Base):
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
         }
-        self.write_cl2_override_file(logger,self.cl2_override_file, config)
+        self.write_cl2_override_file(logger, self.cl2_override_file, config)
 
     def validate_clusterloader2(self):
         kube_client = KubernetesClient()
@@ -196,8 +200,11 @@ class JobController(ClusterLoader2Base):
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
 
+
 def main():
-    loader_parser = JobController.create_parser()
+    loader_parser = JobController.create_parser(
+        description="ClusterLoader2 Job Controller CLI"
+    )
     loader_args = loader_parser.parse_args()
     args_dict = vars(loader_args)
     command = args_dict.pop("command")

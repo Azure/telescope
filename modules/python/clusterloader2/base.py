@@ -1,8 +1,13 @@
 import argparse
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 
+@dataclass
 class ClusterLoader2Base(ABC):
+    # TODO: Optimize and add all shared values when all tests are implemented
+    # e.g: https://docs.python.org/3/library/dataclasses.html#inheritance
+
     @abstractmethod
     def configure_clusterloader2(self):
         pass
@@ -40,8 +45,8 @@ class ClusterLoader2Base(ABC):
         pass
 
     @classmethod
-    def create_parser(cls) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description="ClusterLoader2 Job Controller")
+    def create_parser(cls, description) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(description=description)
         subparsers = parser.add_subparsers(dest="command")
 
         # Sub-command for configure_clusterloader2
