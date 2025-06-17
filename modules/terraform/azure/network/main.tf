@@ -28,6 +28,14 @@ locals {
 # NRMS-NSG-Rule-109_1.3 : Block Port "119","137","138","139","161","162","389","636","2049","2301","2381","3268","5800","5900" from Internet
 }
 
+resource "azurerm_network_security_group" "nsg" {
+  count               = local.network_security_group_name != "" ? 1 : 0
+  name                = local.network_security_group_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = local.tags
+}
+
 resource "azurerm_virtual_network" "vnet" {
   name                = local.vnet_name
   address_space       = [var.network_config.vnet_address_space]
@@ -55,14 +63,6 @@ resource "azurerm_subnet" "subnets" {
       }
     }
   }
-}
-
-resource "azurerm_network_security_group" "nsg" {
-  count               = local.network_security_group_name != "" ? 1 : 0
-  name                = local.network_security_group_name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tags                = local.tags
 }
 
 resource "azurerm_subnet_network_security_group_association" "subnet-nsg-associations" {
