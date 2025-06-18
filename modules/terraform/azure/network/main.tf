@@ -22,14 +22,6 @@ locals {
   tags                = merge(var.tags, { "role" = var.network_config.role })
 }
 
-resource "azurerm_network_security_group" "nsg" {
-  count               = local.network_security_group_name != "" ? 1 : 0
-  name                = local.network_security_group_name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tags                = local.tags
-}
-
 resource "azurerm_virtual_network" "vnet" {
   name                = local.vnet_name
   address_space       = [var.network_config.vnet_address_space]
@@ -40,9 +32,21 @@ resource "azurerm_virtual_network" "vnet" {
   dynamic "subnet" {
     for_each = local.input_subnet_map
     content {
-      name             = subnet.value.name
-      address_prefixes = [subnet.value.address_prefix]
-      security_group   = azurerm_network_security_group.nsg[0].id
+      name                                          = subnet.value.name
+      address_prefixes                              = [subnet.value.address_prefix]
+      service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
+      private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
+      dynamic "delegation" {
+        for_each = subnet.value.delegations != null ? subnet.value.delegations : []
+        content {
+          name = delegation.value.name
+          service_delegation {
+            name    = delegation.value.service_delegation_name
+            actions = delegation.value.service_delegation_actions
+          }
+        }
+      }
+      security_group = azurerm_network_security_group.nsg[0].id
     }
   }
 
@@ -50,6 +54,14 @@ resource "azurerm_virtual_network" "vnet" {
     azurerm_network_security_group.nsg,
     module.nsr
   ]
+}
+
+resource "azurerm_network_security_group" "nsg" {
+  count               = local.network_security_group_name != "" ? 1 : 0
+  name                = local.network_security_group_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = local.tags
 }
 
 resource "azurerm_network_interface" "nic" {
