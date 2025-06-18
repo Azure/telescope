@@ -4,8 +4,8 @@ locals {
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
   subnets_map = {
-    for subnet_id in azurerm_virtual_network.vnet.subnet.*.id :
-    split("/", subnet_id)[10] => subnet_id
+    for subnet_id in azurerm_virtual_network.vnet.subnet[*].id :
+    split("/", subnet_id)[length(split("/", subnet_id)) - 1] => subnet_id
   }
   network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
@@ -46,7 +46,7 @@ resource "azurerm_virtual_network" "vnet" {
           }
         }
       }
-      security_group = azurerm_network_security_group.nsg[0].id
+      security_group = local.network_security_group_name != "" ? azurerm_network_security_group.nsg[0].id : null
     }
   }
 
