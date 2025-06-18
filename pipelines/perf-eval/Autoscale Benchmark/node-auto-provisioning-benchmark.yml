@@ -35,6 +35,13 @@ schedules:
       include:
         - main
     always: true
+  # Aws Large Scale(1000) Schedule
+  - cron: "0 12 1,15 * *"
+    displayName: "Every 15 days at 12 PM"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -265,6 +272,54 @@ stages:
               pod_count: 500
               scale_up_timeout: "40m"
               scale_down_timeout: "40m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: m5.large
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+
+  - stage: aws_apsoutheast2_large_scale
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every 15 days at 12 PM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - ap-southeast-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            large-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: m5.large
+              capacity_type: on-demand
+            large-scale-spot:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 1
