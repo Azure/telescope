@@ -44,10 +44,10 @@ resource "azurerm_virtual_network" "vnet" {
       name                                          = subnet.value.name
       address_prefixes                              = [subnet.value.address_prefix]
       security_group                                = azurerm_network_security_group.nsg[0].id
-      service_endpoints                             = each.value.service_endpoints != null ? each.value.service_endpoints : []
-      private_link_service_network_policies_enabled = each.value.pls_network_policies_enabled != null ? each.value.pls_network_policies_enabled : true
+      service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
+      private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
       dynamic "delegation" {
-        for_each = each.value.delegations != null ? each.value.delegations : []
+        for_each = subnet.value.delegations != null ? subnet.value.delegations : []
         content {
           name = delegation.value.name
           service_delegation {
