@@ -77,11 +77,11 @@ stages:
               disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
-            podsize-20k-exempt:
-              kubernetes_version: "1.33.0"
-              disable_warmup: "true"
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: "--padding-bytes=16384"
+            # podsize-20k-exempt:
+            #   kubernetes_version: "1.33.0"
+            #   disable_warmup: "true"
+            #   flowcontrol: "exempt:5"
+            #   extra_benchmark_subcmd_args: "--padding-bytes=16384"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.3.3
             benchmark_subcmd: node100_pod10k

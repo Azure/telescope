@@ -44,10 +44,10 @@ stages:
               k8s_machine_type: Standard_D16s_v3
               k8s_os_disk_type: Managed
               replica_count: 1
-            Standard_D16ds_v6:
-              k8s_machine_type: Standard_D16ds_v6
-              k8s_os_disk_type: Managed
-              replica_count: 1
+            # Standard_D16ds_v6:
+            #   k8s_machine_type: Standard_D16ds_v6
+            #   k8s_os_disk_type: Managed
+            #   replica_count: 1
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
