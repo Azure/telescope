@@ -4,8 +4,8 @@ locals {
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
   subnets_map = {
-    for subnet_id in azurerm_virtual_network.vnet.subnet[*].id :
-    split("/", subnet_id)[length(split("/", subnet_id)) - 1] => subnet_id
+    for subnet in azurerm_virtual_network.vnet.subnet :
+    split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
   }
   network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
@@ -75,7 +75,7 @@ resource "azurerm_network_interface" "nic" {
 
   ip_configuration {
     name                          = each.value.ip_configuration_name
-    subnet_id                     = local.subnets_map[each.value.subnet_name]
+    subnet_id                     = local.subnets_map[each.value.subnet_name].id
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name] : null
   }
