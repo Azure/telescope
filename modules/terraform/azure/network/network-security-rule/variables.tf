@@ -6,6 +6,10 @@ variable "name" {
 variable "priority" {
   description = "Priority for the network security rule."
   type        = number
+  validation {
+    condition     = var.priority >= 120 && var.priority <= 4096
+    error_message = "Priority must be between 120 and 4096."
+  }
 }
 
 variable "direction" {
