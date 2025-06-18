@@ -10,8 +10,8 @@ output "nics" {
 output "subnets" {
   description = "Map of subnet names to subnet objects"
   value = {
-    for subnet in azurerm_virtual_network.vnet.subnet :
-    split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
+    for subnet_id in azurerm_virtual_network.vnet.subnet[*].id :
+    split("/", subnet_id)[length(split("/", subnet_id)) - 1] => subnet_id
   }
 }
 
