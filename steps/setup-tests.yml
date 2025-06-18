@@ -65,6 +65,7 @@ steps:
     if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     fi
+    pip install setuptools==80.8.0 --force-reinstall
 
     sudo apt-get -y install bc
   displayName: "Install Dependencies"
