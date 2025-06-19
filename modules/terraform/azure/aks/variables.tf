@@ -98,6 +98,7 @@ variable "aks_config" {
       subnet_name          = optional(string, null)
       node_count           = number
       vm_size              = string
+      os_type              = optional(string, null)
       os_sku               = optional(string, "Ubuntu")
       os_disk_type         = optional(string, "Managed")
       os_disk_size_gb      = optional(number, null)
@@ -142,4 +143,13 @@ variable "aks_config" {
       dns_zone_names = list(string)
     }), null)
   })
+
+  validation {
+    condition = alltrue([
+      for node_pool in var.aks_config.extra_node_pool :
+      node_pool.os_type == "Windows" ? length(node_pool.name) <= 6 : true
+    ])
+
+    error_message = "Windows agent pool name can not be longer than 6 characters"
+  }
 }

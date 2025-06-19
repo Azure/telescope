@@ -176,6 +176,7 @@ variable "aks_config_list" {
       subnet_name          = optional(string)
       node_count           = number
       vm_size              = string
+      os_type              = optional(string)
       os_sku               = optional(string)
       os_disk_type         = optional(string)
       os_disk_size_gb      = optional(number, null)
