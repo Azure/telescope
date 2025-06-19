@@ -1,0 +1,30 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: fio-raw
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    agentpool: user
+  containers:
+    - name: fio-raw
+      image: ubuntu:22.04
+      command:
+        - bash
+        - -c
+        - |
+          apt update
+          apt install -y fio
+          fio --name=bandwidth_test --filename=/dev/nvme0n1 --rw=write --size=2T --bs=1M --iodepth=32 --direct=1 --numjobs=16 --runtime=60 --time_based --group_reporting
+      volumeMounts:
+      - name: device
+        mountPath: /dev
+      securityContext:
+        capabilities:
+          add: ["SYS_ADMIN"]
+        privileged: true
+  volumes:
+  - name: device
+    hostPath:
+      path: /dev
+      type: Directory
