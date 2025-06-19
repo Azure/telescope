@@ -1,0 +1,21 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+- name: scrape_containerd
+  type: boolean
+  default: false
+
+steps:
+- template: /steps/engine/clusterloader2/slo/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}
+    scrape_containerd: ${{ parameters.scrape_containerd }}

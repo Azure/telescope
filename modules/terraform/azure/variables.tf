@@ -227,6 +227,9 @@ variable "aks_cli_config_list" {
 
     managed_identity_name         = optional(string, null)
     subnet_name                   = optional(string, null)
+    node_subnet_name              = optional(string, null)
+    pod_subnet_name               = optional(string, null)
+    pod_ip_allocation_mode        = optional(string, null)
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)

@@ -7,6 +7,9 @@ parameters:
     default: {}
   - name: region
     type: string
+  - name: scrape_containerd
+    type: boolean
+    default: false
 
 steps:
   - script: |
@@ -23,6 +26,14 @@ steps:
         $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP ${MAX_PODS:-0} \
         $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED ${SCRAPE_CONTAINERD:-False} \
         $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
+      echo "Configuration completed successfully."
+      echo "Starting the benchmark execution... with the following parameters:"
+      echo "CL2_IMAGE: $CL2_IMAGE"
+      echo "CL2_CONFIG_DIR: $CL2_CONFIG_DIR"
+      echo "CL2_REPORT_DIR: $CL2_REPORT_DIR" 
+      echo "CL2_CONFIG_FILE: $CL2_CONFIG_FILE"
+      echo "CLOUD: $CLOUD"
+      echo "SCRAPE_CONTAINERD: $SCRAPE_CONTAINERD"
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
         ${HOME}/.kube/config $CLOUD ${SCRAPE_CONTAINERD:-False}
@@ -37,4 +48,5 @@ steps:
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/results
+      SCRAPE_CONTAINERD: ${{ parameters.scrape_containerd }}
     displayName: "Run Benchmark"

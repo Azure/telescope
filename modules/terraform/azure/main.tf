@@ -109,4 +109,8 @@ module "aks-cli" {
   aks_cli_config      = each.value
   tags                = local.tags
   subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
+  subnets             = try(local.all_subnets, null)
+  node_subnet_id      = try(local.all_subnets[each.value.node_subnet_name], null)
+  pod_subnet_id       = try(local.all_subnets[each.value.pod_subnet_name], null)
+  pod_ip_allocation_mode  = each.value.pod_ip_allocation_mode
 }
