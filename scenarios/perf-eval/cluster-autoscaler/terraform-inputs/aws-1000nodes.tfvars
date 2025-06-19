@@ -69,7 +69,7 @@ network_config_list = [
 
 eks_config_list = [{
   role                      = "cas"
-  eks_name                  = "cluster-autoscaler"
+  eks_name                  = "cluster-autoscaler-1k"
   enable_cluster_autoscaler = true
   vpc_name                  = "cas-vpc"
   policy_arns               = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
