@@ -47,6 +47,14 @@ variables {
           os_disk_size_gb = 1024
           vm_size         = "Standard_L8s_v3"
           zones           = ["1"]
+        },
+        {
+          name         = "user"
+          node_count   = 1
+          os_type      = "Windows"
+          os_sku       = "Windows2022"
+          os_disk_type = "Ephemeral"
+          vm_size      = "Standard_D16ds_v4"
         }
       ]
     }
@@ -70,6 +78,11 @@ run "valid_aks_machine_type_override_all" {
   assert {
     condition     = module.aks["test"].aks_cluster_nood_pools["client"].vm_size == var.json_input["k8s_machine_type"]
     error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].vm_size}"
+  }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["user"].vm_size == var.json_input["k8s_machine_type"]
+    error_message = "Expected: ${var.json_input["k8s_machine_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["user"].vm_size}"
   }
 }
 
@@ -99,6 +112,11 @@ run "valid_aks_machine_type_no_override" {
     condition     = module.aks["test"].aks_cluster_nood_pools["client"].vm_size == var.aks_config_list[0].extra_node_pool[1].vm_size
     error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[1].vm_size} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].vm_size}"
   }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["user"].vm_size == var.aks_config_list[0].extra_node_pool[2].vm_size
+    error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[2].vm_size} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["user"].vm_size}"
+  }
 }
 
 run "valid_aks_os_disk_type_override_all" {
@@ -118,6 +136,11 @@ run "valid_aks_os_disk_type_override_all" {
   assert {
     condition     = module.aks["test"].aks_cluster_nood_pools["client"].os_disk_type == var.json_input["k8s_os_disk_type"]
     error_message = "Expected: ${var.json_input["k8s_os_disk_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].os_disk_type}"
+  }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["user"].os_disk_type == var.json_input["k8s_os_disk_type"]
+    error_message = "Expected: ${var.json_input["k8s_os_disk_type"]} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["user"].os_disk_type}"
   }
 }
 
@@ -147,6 +170,11 @@ run "valid_aks_os_disk_type_no_override" {
     condition     = module.aks["test"].aks_cluster_nood_pools["client"].os_disk_type == var.aks_config_list[0].extra_node_pool[1].os_disk_type
     error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[1].os_disk_type} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].os_disk_type}"
   }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["user"].os_disk_type == var.aks_config_list[0].extra_node_pool[2].os_disk_type
+    error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[2].os_disk_type} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["user"].os_disk_type}"
+  }
 }
 
 run "valid_aks_os_disk_size_gb" {
@@ -160,5 +188,24 @@ run "valid_aks_os_disk_size_gb" {
   assert {
     condition     = module.aks["test"].aks_cluster_nood_pools["client"].os_disk_size_gb == var.aks_config_list[0].extra_node_pool[1].os_disk_size_gb
     error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[1].os_disk_size_gb} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["client"].os_disk_size_gb}"
+  }
+}
+
+run "valid_aks_os_type" {
+  command = plan
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["client"].os_type == "Linux"
+    error_message = "Expected: Linux \n Actual: ${module.aks["test"].aks_cluster_nood_pools["client"].os_type}"
+  }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["server"].os_type == "Linux"
+    error_message = "Expected: Linux \n Actual: ${module.aks["test"].aks_cluster_nood_pools["server"].os_type}"
+  }
+
+  assert {
+    condition     = module.aks["test"].aks_cluster_nood_pools["user"].os_type == var.aks_config_list[0].extra_node_pool[2].os_type
+    error_message = "Expected: ${var.aks_config_list[0].extra_node_pool[2].os_type} \n Actual:  ${module.aks["test"].aks_cluster_nood_pools["user"].os_type}"
   }
 }
