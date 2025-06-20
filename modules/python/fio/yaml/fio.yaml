@@ -29,7 +29,7 @@ spec:
       containers:
         - name: fio
           image: telescope.azurecr.io/perf-eval/fio:3.40
-          command: ["sleep infinity"]
+          command: ["sh", "-c", "sleep infinity"]
           securityContext:
             privileged: true
           volumeMounts:

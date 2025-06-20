@@ -9,7 +9,7 @@ with patch("clients.kubernetes_client.config.load_kube_config") as mock_load_kub
     mock_load_kube_config.return_value = None
 
     from fio.fio import (
-        configure, execute, collect, FILE_SIZE
+        configure, execute, collect
     )
 
 class TestFio(unittest.TestCase):
@@ -141,6 +141,8 @@ class TestFio(unittest.TestCase):
         iodepth = 16
         method = "read"
         runtime = 60
+        numjobs = 1
+        file_size = "10G"
         result_dir = "/tmp/results"
 
         # Mock time operations
@@ -158,7 +160,7 @@ class TestFio(unittest.TestCase):
         mock_kubernetes_client.get_pods_by_namespace.return_value = [mock_pod]
 
         # Execute test
-        execute(block_size, iodepth, method, runtime, result_dir)
+        execute(block_size, iodepth, method, runtime, numjobs, file_size, result_dir)
 
         # Verify directory creation
         mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
@@ -170,10 +172,9 @@ class TestFio(unittest.TestCase):
 
         # Verify expected commands were executed
         expected_base_command = (
-            f"fio --name=benchtest --size={FILE_SIZE} "
-            f"--filename=/data/benchtest --direct=1 --ioengine=libaio "
-            f"--time_based --rw={method} --bs={block_size} --iodepth={iodepth} "
-            f"--runtime={runtime} --output-format=json"
+            f"fio --name=benchtest --size={file_size} --filename=/data/benchtest --direct=1 "
+            f"--rw={method} --bs={block_size} --iodepth={iodepth} --runtime={runtime} --numjobs={numjobs} "
+            "--ioengine=libaio --time_based --output-format=json --group_reporting"
         )
         expected_setup_command = f"{expected_base_command} --create_only=1"
 
@@ -190,7 +191,7 @@ class TestFio(unittest.TestCase):
                 pod_name="test-pod",
                 container_name="fio",
                 command=expected_base_command,
-                dest_path=f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
+                dest_path=f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
             )
         ])
 
@@ -202,14 +203,15 @@ class TestFio(unittest.TestCase):
             "block_size": block_size,
             "iodepth": iodepth,
             "method": method,
-            "file_size": FILE_SIZE,
+            "file_size": file_size,
             "runtime": runtime,
+            "numjobs": numjobs,
             "storage_name": "fio",
             "start_time": 100,
             "end_time": 200
         }
 
-        metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
+        metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json"
         mock_open_file.assert_called_once_with(metadata_path, "w", encoding="utf-8")
         mock_open_file().write.assert_called_once_with(json.dumps(expected_metadata))
 
@@ -222,6 +224,8 @@ class TestFio(unittest.TestCase):
         block_size = "4k"
         iodepth = 16
         method = "read"
+        numjobs = 1
+        file_size = "10G"
         result_dir = "/tmp/results"
         run_url = "http://test.com/run"
         cloud_info = {"cloud": "azure"}
@@ -263,8 +267,9 @@ class TestFio(unittest.TestCase):
             "block_size": block_size,
             "iodepth": iodepth,
             "method": method,
-            "file_size": FILE_SIZE,
+            "file_size": file_size,
             "runtime": 60,
+            "numjobs": numjobs,
             "storage_name": "fio",
             "start_time": time.time(),
             "end_time": time.time() + 60
@@ -276,12 +281,22 @@ class TestFio(unittest.TestCase):
             json.dumps(mock_metadata)
         ]
 
-        # Execute test
-        collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info)
+        # Collect test
+        collect(
+            vm_size,
+            block_size,
+            iodepth,
+            method,
+            numjobs,
+            file_size,
+            result_dir,
+            run_url,
+            cloud_info,
+        )
 
         # Verify file operations
-        mock_open_file.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json", "r", encoding="utf-8")
-        mock_open_file.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json", "r", encoding="utf-8")
+        mock_open_file.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json", "r", encoding="utf-8")
+        mock_open_file.assert_any_call(f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json", "r", encoding="utf-8")
         mock_open_file.assert_any_call(f"{result_dir}/results.json", "a", encoding="utf-8")
 
         # Verify written content
