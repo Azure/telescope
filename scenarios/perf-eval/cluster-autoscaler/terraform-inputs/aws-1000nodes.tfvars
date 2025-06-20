@@ -12,19 +12,19 @@ network_config_list = [
     subnet = [
       {
         name                    = "cas-subnet-1"
-        cidr_block              = "10.0.0.0/16"
+        cidr_block              = "10.0.0.0/18"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "cas-subnet-2"
-        cidr_block              = "10.1.0.0/17"
+        cidr_block              = "10.0.64.0/18"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       },
       {
         name                    = "cas-subnet-3"
-        cidr_block              = "10.1.128.0/17"
+        cidr_block              = "10.0.128.0/18"
         zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
@@ -129,7 +129,7 @@ eks_config_list = [{
     }
   ]
   eks_addons         = []
-  kubernetes_version = "1.31"
+  kubernetes_version = "1.32"
   auto_scaler_profile = {
     scale_down_delay_after_add     = "1m"
     scale_down_delay_after_failure = "1m"
