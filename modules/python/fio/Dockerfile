@@ -2,7 +2,8 @@ FROM mcr.microsoft.com/azurelinux/base/core:3.0
 
 # Install dependencies required for building FIO
 RUN tdnf update -y
-RUN tdnf install -y build-essential git openssl-devel ca-certificates tar wget util-linux
+RUN tdnf install -y build-essential git openssl-devel ca-certificates tar wget util-linux \
+    libaio-devel zlib-devel librdmacm-devel libibverbs-devel libnuma-devel python3-devel
 
 # Download and build FIO 3.40
 WORKDIR /tmp

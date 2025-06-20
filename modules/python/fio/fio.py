@@ -138,31 +138,31 @@ def main():
 
     # Sub-command for execute_attach_detach
     parser_execute = subparsers.add_parser("execute", help="Execute fio benchmark")
-    parser_execute.add_argument("block_size", type=str, help="Block size")
-    parser_execute.add_argument("iodepth", type=int, help="IO depth")
-    parser_execute.add_argument("method", type=str, help="Method")
-    parser_execute.add_argument("runtime", type=int, help="Runtime in seconds")
-    parser_execute.add_argument("numjobs", type=int, help="Number of jobs")
-    parser_execute.add_argument("file_size", type=str, help="File size")
+    parser_execute.add_argument("--block_size", type=str, help="Block size")
+    parser_execute.add_argument("--iodepth", type=int, help="IO depth")
+    parser_execute.add_argument("--method", type=str, help="Method")
+    parser_execute.add_argument("--runtime", type=int, help="Runtime in seconds")
+    parser_execute.add_argument("--numjobs", type=int, help="Number of jobs")
+    parser_execute.add_argument("--file_size", type=str, help="File size")
     parser_execute.add_argument(
-        "result_dir", type=str, help="Directory to store results"
+        "--result_dir", type=str, help="Directory to store results"
     )
 
     # Sub-command for collect_attach_detach
     parser_collect = subparsers.add_parser(
         "collect", help="Collect attach detach test results"
     )
-    parser_collect.add_argument("vm_size", type=str, help="VM size")
-    parser_collect.add_argument("block_size", type=str, help="Block size")
-    parser_collect.add_argument("iodepth", type=int, help="IO depth")
-    parser_collect.add_argument("method", type=str, help="Method")
-    parser_collect.add_argument("numjobs", type=int, help="Number of jobs")
-    parser_collect.add_argument("file_size", type=str, help="File size")
+    parser_collect.add_argument("--vm_size", type=str, help="VM size")
+    parser_collect.add_argument("--block_size", type=str, help="Block size")
+    parser_collect.add_argument("--iodepth", type=int, help="IO depth")
+    parser_collect.add_argument("--method", type=str, help="Method")
+    parser_collect.add_argument("--numjobs", type=int, help="Number of jobs")
+    parser_collect.add_argument("--file_size", type=str, help="File size")
     parser_collect.add_argument(
-        "result_dir", type=str, help="Directory to store results"
+        "--result_dir", type=str, help="Directory to store results"
     )
-    parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
+    parser_collect.add_argument("--run_url", type=str, help="Run URL")
+    parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
 
     args = parser.parse_args()
     if args.command == "validate":
