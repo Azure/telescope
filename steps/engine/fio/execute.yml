@@ -1,5 +1,5 @@
 parameters:
-  fio_properties: {} # format: block_size|iodepth|method|runtime
+  fio_properties: {} # format: block_size|iodepth|method|runtime|numjobs|file_size
 
 steps:
 - ${{ each property in parameters.fio_properties }}:
@@ -11,8 +11,18 @@ steps:
       iodepth=${fio_params[1]}
       method=${fio_params[2]}
       runtime=${fio_params[3]}
+      numjobs=${fio_params[4]}
+      file_size=${fio_params[5]}
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        $block_size $iodepth $method $runtime $RESULT_DIR
+        --block_size $block_size \
+        --iodepth $iodepth \
+        --method $method \
+        --runtime $runtime \
+        --numjobs $numjobs \
+        --file_size $file_size \
+        --result_dir $RESULT_DIR
+
     workingDirectory: modules/python
     displayName: "Execute fio ${{ property }}"
     env:

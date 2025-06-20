@@ -11,7 +11,6 @@ setup_logging()
 logger = get_logger(__name__)
 
 KUBERNETES_CLIENT = KubernetesClient()
-FILE_SIZE = 10*1024*1024*1024
 
 def validate(node_count, operation_timeout_in_minutes=10):
     KUBERNETES_CLIENT.wait_for_nodes_ready(node_count, operation_timeout_in_minutes)
@@ -30,19 +29,25 @@ def configure(yaml_path, replicas, operation_timeout_in_minutes=10):
         logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
         logger.info(f"Checking logs for pod {pod_name}:\n{logs}")
 
-def execute(block_size, iodepth, method, runtime, result_dir):
+
+def execute(block_size, iodepth, method, runtime, numjobs, file_size, result_dir):
     os.makedirs(result_dir, exist_ok=True)
     logger.info(f"Result directory: {result_dir}")
 
-    pods = KUBERNETES_CLIENT.get_pods_by_namespace(namespace="default", label_selector="test=fio")
+    pods = KUBERNETES_CLIENT.get_pods_by_namespace(
+        namespace="default", label_selector="test=fio"
+    )
     pod_name = pods[0].metadata.name
     mount_path = pods[0].spec.containers[0].volume_mounts[0].mount_path
-    logger.info(f"Executing fio benchmark on pod {pod_name} with mount path {mount_path}")
+    logger.info(
+        f"Executing fio benchmark on pod {pod_name} with mount path {mount_path}"
+    )
 
-    file_path=f"{mount_path}/benchtest"
-    base_command = f"fio --name=benchtest --size={FILE_SIZE} --filename={file_path} --direct=1 --ioengine=libaio --time_based \
---rw={method} --bs={block_size} --iodepth={iodepth} --runtime={runtime} --output-format=json"
-    result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
+    file_path = f"{mount_path}/benchtest"
+    base_command = f"fio --name=benchtest --size={file_size} --filename={file_path} --direct=1 \
+--rw={method} --bs={block_size} --iodepth={iodepth} --runtime={runtime} --numjobs={numjobs} \
+--ioengine=libaio --time_based --output-format=json --group_reporting"
+    result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
     setup_command = f"{base_command} --create_only=1"
     logger.info(f"Run setup command: {setup_command}")
     execute_with_retries(
@@ -65,13 +70,14 @@ def execute(block_size, iodepth, method, runtime, result_dir):
         dest_path=result_path,
     )
     end_time = time.time()
-    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
+    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json"
     metadata = {
         "block_size": block_size,
         "iodepth": iodepth,
         "method": method,
-        "file_size": FILE_SIZE,
+        "file_size": file_size,
         "runtime": runtime,
+        "numjobs": numjobs,
         "storage_name": "fio",
         "start_time": start_time,
         "end_time": end_time,
@@ -81,11 +87,11 @@ def execute(block_size, iodepth, method, runtime, result_dir):
     logger.info(f"Metadata saved to {metadata_path}:\n{metadata}")
 
 
-def collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info):
-    raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
+def collect(vm_size, block_size, iodepth, method, numjobs, file_size, result_dir, run_url, cloud_info):
+    raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
     with open(raw_result_path, "r", encoding="utf-8") as f:
         raw_result = json.load(f)
-    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
+    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json"
     with open(metadata_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
 
@@ -136,15 +142,25 @@ def main():
     parser_execute.add_argument("iodepth", type=int, help="IO depth")
     parser_execute.add_argument("method", type=str, help="Method")
     parser_execute.add_argument("runtime", type=int, help="Runtime in seconds")
-    parser_execute.add_argument("result_dir", type=str, help="Directory to store results")
+    parser_execute.add_argument("numjobs", type=int, help="Number of jobs")
+    parser_execute.add_argument("file_size", type=str, help="File size")
+    parser_execute.add_argument(
+        "result_dir", type=str, help="Directory to store results"
+    )
 
     # Sub-command for collect_attach_detach
-    parser_collect = subparsers.add_parser("collect", help="Collect attach detach test results")
+    parser_collect = subparsers.add_parser(
+        "collect", help="Collect attach detach test results"
+    )
     parser_collect.add_argument("vm_size", type=str, help="VM size")
     parser_collect.add_argument("block_size", type=str, help="Block size")
     parser_collect.add_argument("iodepth", type=int, help="IO depth")
     parser_collect.add_argument("method", type=str, help="Method")
-    parser_collect.add_argument("result_dir", type=str, help="Directory to store results")
+    parser_collect.add_argument("numjobs", type=int, help="Number of jobs")
+    parser_collect.add_argument("file_size", type=str, help="File size")
+    parser_collect.add_argument(
+        "result_dir", type=str, help="Directory to store results"
+    )
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
 
@@ -154,10 +170,27 @@ def main():
     elif args.command == "configure":
         configure(args.yaml_path, args.replicas, args.operation_timeout)
     elif args.command == "execute":
-        execute(args.block_size, args.iodepth, args.method, args.runtime, args.result_dir)
+        execute(
+            args.block_size,
+            args.iodepth,
+            args.method,
+            args.runtime,
+            args.numjobs,
+            args.file_size,
+            args.result_dir,
+        )
     elif args.command == "collect":
-        collect(args.vm_size, args.block_size, args.iodepth, args.method,
-                args.result_dir, args.run_url, args.cloud_info)
+        collect(
+            args.vm_size,
+            args.block_size,
+            args.iodepth,
+            args.method,
+            args.numjobs,
+            args.file_size,
+            args.result_dir,
+            args.run_url,
+            args.cloud_info,
+        )
 
 if __name__ == "__main__":
     main()

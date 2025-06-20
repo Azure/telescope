@@ -35,10 +35,10 @@ stages:
           engine: fio
           engine_input:
             fio_command_array:
-              - "4k|32|randread|180"
-              - "4k|32|randwrite|180"
-              - "256k|8|randread|180"
-              - "256k|8|randwrite|180"
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
           matrix:
             Standard_D16s_v3:
               k8s_machine_type: Standard_D16s_v3
@@ -72,10 +72,10 @@ stages:
           engine: fio
           engine_input:
             fio_command_array:
-              - "4k|32|randread|180"
-              - "4k|32|randwrite|180"
-              - "256k|8|randread|180"
-              - "256k|8|randwrite|180"
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
           matrix:
             Standard_D16s_v3_Ephemeral:
               k8s_machine_type: Standard_D16s_v3
@@ -107,10 +107,10 @@ stages:
           engine: fio
           engine_input:
             fio_command_array:
-              - "4k|32|randread|180"
-              - "4k|32|randwrite|180"
-              - "256k|8|randread|180"
-              - "256k|8|randwrite|180"
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
           matrix:
             m7i.4xlarge:
               k8s_machine_type: m7i.4xlarge
