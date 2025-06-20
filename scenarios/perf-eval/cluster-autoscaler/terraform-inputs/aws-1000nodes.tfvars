@@ -129,7 +129,7 @@ eks_config_list = [{
     }
   ]
   eks_addons         = []
-  kubernetes_version = "1.32"
+  kubernetes_version = "1.31"
   auto_scaler_profile = {
     scale_down_delay_after_add     = "1m"
     scale_down_delay_after_failure = "1m"
