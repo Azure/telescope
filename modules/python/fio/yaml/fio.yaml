@@ -28,20 +28,8 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: fio
-          image: telescope.azurecr.io/perf-eval/fio:v1.3.11
-          command: ["/bin/sh"]
-          args:
-            - "-c"
-            - |
-              tdnf install -y util-linux > /dev/null;
-              fio --version;
-              lsblk;
-              sleep infinity
-          readinessProbe:
-            exec:
-              command: ["/bin/sh", "-c", "lsblk"]
-            initialDelaySeconds: 5
-            periodSeconds: 5
+          image: telescope.azurecr.io/perf-eval/fio:3.40
+          command: ["sh", "-c", "sleep infinity"]
           securityContext:
             privileged: true
           volumeMounts:
