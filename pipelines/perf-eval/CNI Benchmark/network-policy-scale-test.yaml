@@ -99,9 +99,9 @@ stages:
             image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
           matrix:
             azure_cilium:
-              groups: 1000
-              clients_per_group: 20
-              servers_per_group: 20
+              groups: 200
+              clients_per_group: 100
+              servers_per_group: 100
               workers_per_client: 2
               repeats: 1
               networkpolicy_type: cnp
@@ -112,7 +112,7 @@ stages:
               restart_deletion_enabled: False
               l7_enabled: False
               l3_l4_port_enabled: True
-              test_type: "l3-l4default-soak"
+              test_type: "l3-l4default-soak-increase-replicas"
               cl2_config_file: network-policy-scale-config.yaml
           max_parallel: 1
           timeout_in_minutes: 720 # 12 hours
