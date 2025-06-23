@@ -31,11 +31,11 @@ steps:
       --run_id $RUN_ID \
       --run_url $RUN_URL \
       --result_file $TEST_RESULTS_FILE \
-      --test_type $NETWORKPOLICY_TYPE
+      --test_type $TEST_TYPE
   workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network-policy-scale.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network_policy_scale.py
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/network-policy-scale-report
   displayName: "Collect Results"

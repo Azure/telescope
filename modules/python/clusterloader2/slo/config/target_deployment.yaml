@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+    svc: {{.SvcName}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: policy-load-{{.Name}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 20%
+  template:
+    metadata:
+      labels:
+        name: policy-load-{{.Name}}
+        group: {{.Group}}
+        svc: {{.SvcName}}
+        restart: {{.deploymentLabel}}
+        net-pol-test: {{.TargetLabelValue}}
+    spec:
+      nodeSelector:
+        slo: "true"
+      hostNetwork: false
+      containers:
+      - image: acnpublic.azurecr.io/scaletest/nginx:latest
+        name: nginx-server
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 10m
+            memory: 25Mi
+      tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "slo"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
