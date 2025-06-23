@@ -12,7 +12,7 @@ schedules:
     branches:
       include:
         - main
-    always: true    
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
@@ -47,7 +47,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 180
-          
+
   - stage: azure_ND_A100_gpu_test
     dependsOn: []
     condition: |
