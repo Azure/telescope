@@ -25,14 +25,13 @@ steps:
     credential_type: ${{ parameters.credential_type }}
 - script: |
     set -eu
-    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RUN_ID%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fdelgpod'" /dev/null
-  displayName: "Delete SAL"
-  condition: and(eq(variables['CREATESWIFTV2'], 'true'), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
-# - script: |
-#     set -eu
-#     script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RUN_ID%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fdelgpod'" /dev/null
-#   displayName: "Delete SAL Ping"
-#   condition: and(eq(variables['SWIFTV2PING'], 'true'), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+    for attempt in $(seq 1 5); do
+      echo "Attempting to execute subnetdelegator DELETE command: $attempt/5"
+      script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RUN_ID%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$2Fcustvnet%2Fsubnets%2F$2Fdelgpod'" /dev/null && break || echo "Command failed, retrying..."
+      sleep 30
+    done
+  displayName: "Delete SAL Ping"
+  condition: and(eq(variables['CREATESWIFTV2PING'], 'true'), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
 - script: |
     set -eu
     echo "Delete resource group $RUN_ID"

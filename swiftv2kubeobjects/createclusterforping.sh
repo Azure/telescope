@@ -65,16 +65,41 @@ done
 # az network vnet create --resource-group $RG --name $custVnetName --location $LOCATION --address-prefix $vnetAddressSpaceCIDR
 # custSubnetName="delgpod"
 # az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $vnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
-TESTRG=swiftv2-runners-$RUNNERLOCATION
-custVnetName=swiftvnet-$RUNNERLOCATION
+custVnetName=custvnet
 custSubnetName="scaledel"
+custSubnetACISubnet="custaci"
+custVnetAddressSpaceCIDR="172.16.0.0/12"
 custVnetSubnetPodsCIDR="172.26.0.0/16"
-az network vnet subnet create --resource-group $TESTRG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $custVnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
+custVnetACICIDR="172.27.0.0/16"
+az network vnet create -n ${custVnetName} -g ${RG} --address-prefixes ${custVnetAddressSpaceCIDR} -l ${LOCATION}
+az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $custVnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
 for attempt in $(seq 1 5); do
     echo "Attempting to execute subnetdelegator command: $attempt/5"
-    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$TESTRG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null && break || echo "Command failed, retrying..."
+    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null && break || echo "Command failed, retrying..."
     sleep 30
 done
+
+# create ACI container app in the customer vnet
+echo "create ACI container app in the customer vnet"
+az container create \
+  --resource-group $RG \
+  --name myContainerGroup \
+  --image nginx \
+  --vnet $custVnetName \
+  --subnet $custSubnetACISubnet \
+  --ports 80 \
+  --location ${LOCATION} \
+  --protocol TCP
+
+ACI_IP=$(az container show \
+  --resource-group $RG \
+  --name myContainerGroup \
+  --query "ipAddress.ip" \
+  --output tsv)
+
+echo "ACI is running at IP: $ACI_IP"
+
+echo "##vso[task.setvariable variable=ACI_IP]$ACI_IP"
 
 # script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null
 # create cluster
