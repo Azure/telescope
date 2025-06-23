@@ -112,7 +112,7 @@ stages:
               restart_deletion_enabled: False
               l7_enabled: False
               l3_l4_port_enabled: True
-              test_type: "l3-l4default-soak-increase-replicas"
+              test_type: "test"
               cl2_config_file: network-policy-scale-config.yaml
           max_parallel: 1
           timeout_in_minutes: 720 # 12 hours
@@ -182,7 +182,7 @@ stages:
               restart_deletion_enabled: False
               l7_enabled: False
               l3_l4_port_enabled: True
-              test_type: "l3-l4enforcement-latency-test"
+              test_type: "test"
               cl2_config_file: network-policy-scale-config.yaml
           max_parallel: 1
           timeout_in_minutes: 720 # 12 hours
