@@ -99,9 +99,9 @@ stages:
             image: "ghcr.io/sanamsarath/clusterloader2:vtest7"
           matrix:
             azure_cilium:
-              groups: 200
-              clients_per_group: 100
-              servers_per_group: 100
+              groups: 1000
+              clients_per_group: 20
+              servers_per_group: 20
               workers_per_client: 2
               repeats: 1
               networkpolicy_type: cnp
