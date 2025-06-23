@@ -94,7 +94,7 @@ aks_cli_config_list = [
           },
           {
             name  = "enable-cluster-autoscaler"
-            value = ""
+            value = "true"
           },
           {
             name  = "min-count"
@@ -129,7 +129,7 @@ aks_cli_config_list = [
           },
           {
             name  = "enable-cluster-autoscaler"
-            value = ""
+            value = "true"
           },
           {
             name  = "min-count"
