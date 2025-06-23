@@ -7,6 +7,12 @@ schedules:
       include:
         - main
     always: true
+  - cron: "30 */6 * * *"
+    displayName: "At 30 minute past every 6th hour"
+    branches:
+      include:
+        - main
+    always: true    
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
@@ -41,11 +47,12 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 180
+          
   - stage: azure_ND_A100_gpu_test
     dependsOn: []
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every 6 hours'),
+        eq(variables['Build.CronSchedule.DisplayName'], 'At 30 minute past every 6th hour'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
@@ -59,10 +66,10 @@ stages:
           matrix:
             a100_gpu_node_pool:
               gpu_node_pool: true
-              pool_name: a100nodepool
+              pool_name: A100nodepool
               vm_size: Standard_ND96asr_v4
               create_node_count: 0
-              scale_node_count: 1
+              scale_node_count: 2
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
