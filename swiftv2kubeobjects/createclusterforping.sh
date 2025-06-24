@@ -92,7 +92,10 @@ az container create \
     --ports 80 \
     --location ${LOCATION} \
     --protocol TCP \
-    --os-type Linux
+    --os-type Linux \
+    --cpu 1 \
+    --memory 1.5
+
 
 ACI_IP=$(az container show \
   --resource-group $RG \
