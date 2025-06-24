@@ -58,6 +58,7 @@ steps:
     kubectl version --client
     az version
     aws --version
+    helm version
   displayName: "Check Dependencies"
 
 - script: |
