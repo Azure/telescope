@@ -65,7 +65,7 @@ run "valid_vpc_config_default" {
       eks_managed_node_groups = [
         {
           name           = "my_scenario-ng"
-          ami_type       = "AL2_x86_64"
+          ami_type       = "AL2023_x86_64_STANDARD"
           instance_types = ["m4.large"]
           min_size       = 5
           max_size       = 5
@@ -103,7 +103,7 @@ run "valid_vpc_config_set" {
       eks_managed_node_groups = [
         {
           name           = "my_scenario-ng"
-          ami_type       = "AL2_x86_64"
+          ami_type       = "AL2023_x86_64_STANDARD"
           instance_types = ["m5a.xlarge"]
           min_size       = 5
           max_size       = 5
@@ -143,7 +143,7 @@ run "valid_karpenter_set" {
       eks_managed_node_groups = [
         {
           name           = "my_scenario-ng"
-          ami_type       = "AL2_x86_64"
+          ami_type       = "AL2023_x86_64_STANDARD"
           instance_types = ["m5a.xlarge"]
           min_size       = 5
           max_size       = 5
@@ -181,7 +181,7 @@ run "valid_add_after_before_compute" {
       eks_managed_node_groups = [
         {
           name           = "my_scenario-ng"
-          ami_type       = "AL2_x86_64"
+          ami_type       = "AL2023_x86_64_STANDARD"
           instance_types = ["m5a.xlarge"]
           min_size       = 5
           max_size       = 5

@@ -59,7 +59,7 @@ variables {
     eks_managed_node_groups = [
       {
         name           = "default"
-        ami_type       = "AL2_x86_64"
+        ami_type       = "AL2023_x86_64_STANDARD"
         instance_types = ["m4.large"]
         min_size       = 1
         max_size       = 2
@@ -67,7 +67,7 @@ variables {
       },
       {
         name           = "userpool"
-        ami_type       = "AL2_x86_64"
+        ami_type       = "AL2023_x86_64_STANDARD"
         instance_types = ["m4.large"]
         min_size       = 5
         max_size       = 5
