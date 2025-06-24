@@ -82,14 +82,14 @@ done
 # create ACI container app in the customer vnet
 echo "create ACI container app in the customer vnet"
 az container create \
-  --resource-group $RG \
-  --name myContainerGroup \
-  --image nginx \
-  --vnet $custVnetName \
-  --subnet $custSubnetACISubnet \
-  --ports 80 \
-  --location ${LOCATION} \
-  --protocol TCP
+    --resource-group $RG \
+    --name myContainerGroup \
+    --image nginx \
+    --vnet $custVnetName \
+    --subnet $custSubnetACISubnet \
+    --ports 80 \
+    --location ${LOCATION} \
+    --protocol TCP
 
 ACI_IP=$(az container show \
   --resource-group $RG \
