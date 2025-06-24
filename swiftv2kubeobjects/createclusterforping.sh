@@ -91,7 +91,8 @@ az container create \
     --subnet $custSubnetACISubnet \
     --ports 80 \
     --location ${LOCATION} \
-    --protocol TCP
+    --protocol TCP \
+    --os-type Linux
 
 ACI_IP=$(az container show \
   --resource-group $RG \
