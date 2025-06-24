@@ -133,7 +133,7 @@ echo "create cluster"
 vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
 nodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNameNodes}']" | jq -r '.[].id')
 podSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNamePods}']" | jq -r '.[].id')
-az rest --method get --url /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$TESTRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01
+az rest --method get --url /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2025-04-01
 az aks create -n ${CLUSTER} -g ${RG} \
         -s Standard_D8_v3 -c 5 \
         --os-sku Ubuntu \
@@ -186,9 +186,9 @@ done
 # export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
 # export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/delgpod?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
-export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $TESTRG --query resourceGuid --output tsv)
-export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $TESTRG --query id --output tsv)
-export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$TESTRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $RG --query resourceGuid --output tsv)
+export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
+export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 while true; do
 STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv)
