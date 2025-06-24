@@ -20,11 +20,11 @@ stages:
           matrix: # list of test parameters to customize the provisioned resources
             azure_cni_static_block:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 100
-              max_pods: 110
+              node_count: 1500
+              node_per_step: 300
+              max_pods: 70
               repeats: 1
-              scale_timeout: "30m"
+              scale_timeout: "15m"
               cilium_enabled: False
               scrape_containerd: True
               network_dataplane: azure
@@ -46,4 +46,4 @@ stages:
           max_parallel: 3 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 300 # if not specified, default is 60
+          timeout_in_minutes: 720 # if not specified, default is 60

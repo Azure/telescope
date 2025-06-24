@@ -32,6 +32,8 @@ steps:
       echo "CL2_CONFIG_DIR: $CL2_CONFIG_DIR"
       echo "CL2_REPORT_DIR: $CL2_REPORT_DIR" 
       echo "CL2_CONFIG_FILE: $CL2_CONFIG_FILE"
+      echo "NODE_PER_STEP: $NODE_PER_STEP"
+      echo "NODE_COUNT: $NODE_COUNT"
       echo "CLOUD: $CLOUD"
       echo "SCRAPE_CONTAINERD: $SCRAPE_CONTAINERD"
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \

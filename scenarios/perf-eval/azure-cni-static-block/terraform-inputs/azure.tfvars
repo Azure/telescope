@@ -102,7 +102,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "800"
           },
           {
             name  = "node-taints"
@@ -137,7 +137,42 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "500"
+            value = "800"
+          },
+          {
+            name  = "node-taints"
+            value = "slo=true:NoSchedule"
+          }
+        ]
+      },
+      {
+        name                          = "userpool2"
+        node_count                    = 50
+        vm_size                       = "Standard_D4_v3"
+        optional_parameters = [
+          {
+            name  = "pod-ip-allocation-mode"
+            value = "StaticBlock"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "slo=true"
+          },
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "800"
           },
           {
             name  = "node-taints"
