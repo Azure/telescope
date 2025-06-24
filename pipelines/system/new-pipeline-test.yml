@@ -24,7 +24,7 @@ stages:
               node_per_step: 300
               max_pods: 70
               repeats: 1
-              scale_timeout: "15m"
+              scale_timeout: "25m"
               cilium_enabled: False
               scrape_containerd: True
               network_dataplane: azure

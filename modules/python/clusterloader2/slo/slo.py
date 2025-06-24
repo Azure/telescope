@@ -24,7 +24,7 @@ CPU_CAPACITY = {
 # TODO: Remove aks once CL2 update provider name to be azure
 
 def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test):
-    throughput = 100
+    throughput = 500
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
     pods_per_node = DEFAULT_PODS_PER_NODE

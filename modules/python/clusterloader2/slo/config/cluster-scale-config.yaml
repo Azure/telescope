@@ -39,7 +39,7 @@ tuningSets:
       qps: {{$deploymentQPS}}
 
 steps:
-  - name: Log - totalNodes={{$totalNodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - totalNodes={{$totalNodes}}, namespaces={{$namespaces}}, nodesPerNamespace={{$nodesPerNamespace}}, podsPerNode={{$podsPerNode}}, totalPods={{$totalPods}}, podsPerNamespace={{$podsPerNamespace}}, deploymentsPerNamespace={{$deploymentsPerNamespace}}, deploymentSize={{$deploymentSize}}, deploymentQPS={{$deploymentQPS}}, steps={{$steps}}, repeats={{$repeats}}, latencyPodCpu={{$latencyPodCpu}}m, latencyPodMemory={{$latencyPodMemory}}M, podStartupLatencyThreshold={{$podStartupLatencyThreshold}}, groupName={{$groupName}}, operationTimeout={{$operationTimeout}}, CILIUM_METRICS_ENABLED={{$CILIUM_METRICS_ENABLED}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
