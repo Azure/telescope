@@ -81,6 +81,8 @@ done
 
 # create ACI container app in the customer vnet
 echo "create ACI container app in the customer vnet"
+az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetACISubnet --address-prefixes $custVnetACICIDR
+
 az container create \
     --resource-group $RG \
     --name myContainerGroup \
