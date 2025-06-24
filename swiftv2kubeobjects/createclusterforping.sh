@@ -85,23 +85,22 @@ az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --n
 
 az network public-ip create \
   --resource-group $RG \
-  --name natPublicIP \
+  --name natpublicip \
   --sku Standard \
   --location $LOCATION \
   --allocation-method Static
 
 az network nat gateway create \
   --resource-group $RG \
-  --name myNatGateway \
+  --name natgateway \
   --location $LOCATION \
-  --public-ip-addresses natPublicIP \
-  --sku Standard
+  --public-ip-addresses natpublicip 
 
 az network vnet subnet update \
   --resource-group $RG \
   --vnet-name $custVnetName \
   --name $custSubnetACISubnet \
-  --nat-gateway myNatGateway
+  --nat-gateway natgateway
 
 
 az container create \
