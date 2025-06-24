@@ -1,7 +1,7 @@
-* @Azure/telescope-admins
+* @alyssa1303 @anson627 @sumanthreddy29 @rafael-mendes-pereira
 
 # CCP pipelines
-/pipelines/perf-eval/API\ Server\ Benchmark/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @Azure/telescope-admins
-/pipelines/perf-eval/Scheduler\ Benchmark/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @Azure/telescope-admins
-/scenarios/perf-eval/apiserver-*/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @Azure/telescope-admins
-/scenarios/perf-eval/job-scheduling/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @Azure/telescope-admins
+/pipelines/perf-eval/API\ Server\ Benchmark/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @alyssa1303 @anson627 @sumanthreddy29 @rafael-mendes-pereira
+/pipelines/perf-eval/Scheduler\ Benchmark/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @alyssa1303 @anson627 @sumanthreddy29 @rafael-mendes-pereira
+/scenarios/perf-eval/apiserver-*/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @alyssa1303 @anson627 @sumanthreddy29 @rafael-mendes-pereira
+/scenarios/perf-eval/job-scheduling/ @fuweid @xinWeiWei24 @vittoriasalim @wonderyl @alyssa1303 @anson627 @sumanthreddy29 @rafael-mendes-pereira
