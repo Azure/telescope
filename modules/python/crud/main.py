@@ -17,7 +17,6 @@ import sys
 import traceback
 from datetime import datetime, timezone
 
-from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 from crud.operation import OperationContext
 from utils.common import get_env_vars
 from utils.logger_config import get_logger, setup_logging
@@ -43,12 +42,25 @@ def get_node_pool_crud_class(cloud_provider):
     """
     if cloud_provider == "azure":
         try:
+            from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
             return AzureNodePoolCRUD
         except ImportError as e:
             raise ImportError(
                 f"Azure NodePoolCRUD implementation not found: {e}"
             ) from e
-    # Todo : Implement AWS and GCP NodePoolCRUD classes
+    elif cloud_provider == "aws":
+        try:
+            from crud.aws.node_pool_crud import NodePoolCRUD as AWSNodePoolCRUD
+            return AWSNodePoolCRUD
+        except ImportError as e:
+            raise ImportError(
+                f"AWS NodePoolCRUD implementation not found: {e}"
+            ) from e
+    elif cloud_provider == "gcp":
+        # TODO: Implement GCP NodePoolCRUD class
+        raise ValueError(
+            f"GCP NodePoolCRUD implementation not yet available"
+        )
     else:
         raise ValueError(
             f"Unsupported cloud provider: {cloud_provider}. "
@@ -222,7 +234,8 @@ def main():
     )
     create_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
     create_parser.add_argument(
-        "--vm-size", default="Standard_DS2_v2", help="VM size for node pool"
+        "--vm-size", required=True, 
+        help="VM size for node pool (e.g., Standard_DS2_v2 for Azure, t3.medium for AWS)"
     )
     create_parser.add_argument(
         "--node-count", type=int, default=1, help="Number of nodes to create"
@@ -270,7 +283,7 @@ def main():
         "--vm-size",
         required=True,
         default="Standard_DS2_v2",
-        help="VM size for node pool (for create operation)",
+        help="VM size for node pool (e.g., Standard_DS2_v2 for Azure, t3.medium for AWS) - for create operation",
     )
     all_parser.add_argument(
         "--node-count",
@@ -349,12 +362,27 @@ def main():
         logger.info(f"Using NodePoolCRUD class for cloud provider: {args.cloud}")
 
         # Create a single NodePoolCRUD instance to be used across all operations
-        node_pool_crud = NodePoolCRUD(
-            resource_group=args.run_id,
-            kube_config_file=args.kube_config,
-            result_dir=args.result_dir,
-            step_timeout=args.step_timeout,
-        )
+        if args.cloud == "azure":
+            node_pool_crud = NodePoolCRUD(
+                resource_group=args.run_id,
+                kube_config_file=args.kube_config,
+                result_dir=args.result_dir,
+                step_timeout=args.step_timeout,
+            )
+        elif args.cloud == "aws":
+            # For AWS, use environment variables or default values for configuration
+            region = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
+            
+            node_pool_crud = NodePoolCRUD(
+                run_id=args.run_id,
+                region=region,
+                kube_config_file=args.kube_config,
+                result_dir=args.result_dir,
+                step_timeout=args.step_timeout,
+            )
+        else:
+            logger.error(f"NodePoolCRUD instantiation not implemented for cloud provider: {args.cloud}")
+            sys.exit(1)
 
         # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
         if args.gpu_node_pool:
@@ -362,12 +390,27 @@ def main():
             with OperationContext(
                 "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir
             ) as op:
-                node_pool_crud.aks_client.k8s_client.install_gpu_device_plugin()
-                valid = node_pool_crud.aks_client.k8s_client.verify_gpu_device_plugin()
-                if not valid:
-                    logger.error("GPU device plugin verification failed")
+                # Get the appropriate client based on cloud provider
+                if args.cloud == "azure":
+                    k8s_client = node_pool_crud.aks_client.k8s_client
+                elif args.cloud == "aws":
+                    k8s_client = node_pool_crud.eks_client.k8s_client
+                else:
+                    logger.error(f"GPU plugin installation not supported for cloud provider: {args.cloud}")
                     op.success = False
-                logger.info("GPU device plugin installed and verified successfully")
+                    sys.exit(1)
+                
+                if k8s_client:
+                    k8s_client.install_gpu_device_plugin()
+                    valid = k8s_client.verify_gpu_device_plugin()
+                    if not valid:
+                        logger.error("GPU device plugin verification failed")
+                        op.success = False
+                    else:
+                        logger.info("GPU device plugin installed and verified successfully")
+                else:
+                    logger.warning("Kubernetes client not available - skipping GPU plugin installation")
+                    logger.info("Make sure to install GPU device plugin manually if needed")
 
         # Execute the function associated with the selected command
         operation_result = args.func(node_pool_crud, args)
