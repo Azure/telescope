@@ -83,10 +83,31 @@ done
 echo "create ACI container app in the customer vnet"
 az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetACISubnet --address-prefixes $custVnetACICIDR
 
+az network public-ip create \
+  --resource-group $RG \
+  --name natPublicIP \
+  --sku Standard \
+  --location $LOCATION \
+  --allocation-method Static
+
+az network nat gateway create \
+  --resource-group $RG \
+  --name myNatGateway \
+  --location $LOCATION \
+  --public-ip-addresses natPublicIP \
+  --sku Standard
+
+az network vnet subnet update \
+  --resource-group $RG \
+  --vnet-name $custVnetName \
+  --name $custSubnetACISubnet \
+  --nat-gateway myNatGateway
+
+
 az container create \
     --resource-group $RG \
     --name customercontainer \
-    --image mcr.microsoft.com/oss/nginx/nginx:latest \
+    --image nginx \
     --vnet $custVnetName \
     --subnet $custSubnetACISubnet \
     --ports 80 \
