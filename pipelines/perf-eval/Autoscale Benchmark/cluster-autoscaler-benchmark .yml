@@ -74,7 +74,7 @@ stages:
               scale_down_timeout: "15m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
-              loop_count: 5
+              loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
           max_parallel: 1
@@ -180,7 +180,7 @@ stages:
               scale_down_timeout: "30m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
-              loop_count: 5
+              loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
           max_parallel: 1
