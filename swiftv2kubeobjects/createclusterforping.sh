@@ -86,7 +86,7 @@ az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --n
 az container create \
     --resource-group $RG \
     --name customercontainer \
-    --image nginx \
+    --image --image mcr.microsoft.com/oss/nginx/nginx:latest \
     --vnet $custVnetName \
     --subnet $custSubnetACISubnet \
     --ports 80 \
