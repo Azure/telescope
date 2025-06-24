@@ -85,7 +85,7 @@ az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --n
 
 az container create \
     --resource-group $RG \
-    --name myContainerGroup \
+    --name customercontainer \
     --image nginx \
     --vnet $custVnetName \
     --subnet $custSubnetACISubnet \
@@ -96,7 +96,7 @@ az container create \
 
 ACI_IP=$(az container show \
   --resource-group $RG \
-  --name myContainerGroup \
+  --name customercontainer \
   --query "ipAddress.ip" \
   --output tsv)
 
