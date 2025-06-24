@@ -32,7 +32,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.3.3
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
@@ -59,7 +59,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.3.3
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
@@ -83,7 +83,7 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.3.3
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2

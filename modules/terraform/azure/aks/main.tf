@@ -106,6 +106,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {
   node_count            = each.value.node_count
   vm_size               = coalesce(var.k8s_machine_type, each.value.vm_size)
   vnet_subnet_id        = try(local.subnets[each.value.subnet_name], null)
+  os_type               = each.value.os_type
   os_sku                = each.value.os_sku
   os_disk_type          = coalesce(var.k8s_os_disk_type, each.value.os_disk_type)
   os_disk_size_gb       = each.value.os_disk_size_gb
