@@ -66,7 +66,7 @@ stages:
           matrix:
             a100_gpu_node_pool:
               gpu_node_pool: true
-              pool_name: A100nodepool
+              pool_name: a100nodepool
               vm_size: Standard_ND96asr_v4
               create_node_count: 0
               scale_node_count: 2
