@@ -4,11 +4,8 @@ metadata:
    name: pn100
    finalizers: 
    - finalizers.acn.azure.com/dnc-operations
-   # labels:
-   #    kubernetes.azure.com/override-subnet-token: 5a8211fd-76fd-48f2-a977-37eb015899a2
-
 spec:
-   networkID: ${vnetGuid}
-   subnetResourceID: ${subnetResourceId}
-   subnetGUID: ${subnetGUID}
+   networkID: ${custVnetGUID}
+   subnetResourceID: ${custSubnetResourceId}
+   subnetGUID: ${custSubnetGUID}
    deviceType: acn.azure.com/vnet-nic

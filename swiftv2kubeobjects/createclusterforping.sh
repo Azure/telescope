@@ -102,9 +102,9 @@ custScaleDelSubnet="scaledel"
 custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
 custRG="sv2-perf-infra-customer"
 
-export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $custRG --query resourceGuid --output tsv)
-export containerSubnetResourceId=$(az network vnet subnet show --name $custScaleDelSubnet --vnet-name $custVnetName --resource-group $custRG --query id --output tsv)
-export subnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/$custRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+export custVnetGUID=$(az network vnet show --name $custVnetName --resource-group $custRG --query resourceGuid --output tsv)
+export custSubnetResourceId=$(az network vnet subnet show --name $custScaleDelSubnet --vnet-name $custVnetName --resource-group $custRG --query id --output tsv)
+export custSubnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/$custRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 while true; do
 STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv)
