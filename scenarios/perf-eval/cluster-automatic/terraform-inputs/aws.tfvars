@@ -62,19 +62,19 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role        = "automatic"
-  eks_name    = "automatic"
-  vpc_name    = "automatic-vpc"
+  role     = "automatic"
+  eks_name = "automatic"
+  vpc_name = "automatic-vpc"
   policy_arns = [
-    "AmazonEKSClusterPolicy", 
-    "AmazonEKSVPCResourceController", 
-    "AmazonEKSWorkerNodePolicy", 
-    "AmazonEKS_CNI_Policy", 
-    "AmazonEC2ContainerRegistryReadOnly", 
+    "AmazonEKSClusterPolicy",
+    "AmazonEKSVPCResourceController",
+    "AmazonEKSWorkerNodePolicy",
+    "AmazonEKS_CNI_Policy",
+    "AmazonEC2ContainerRegistryReadOnly",
     "AmazonSSMManagedInstanceCore"
   ]
-  auto_mode   = true
+  auto_mode               = true
   eks_managed_node_groups = []
-  eks_addons         = [{ name = "vpc-cni" }]
-  kubernetes_version = "1.32"
+  eks_addons              = [{ name = "vpc-cni" }]
+  kubernetes_version      = "1.32"
 }]
