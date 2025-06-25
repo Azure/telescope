@@ -13,3 +13,4 @@ steps:
   - template: /steps/engine/fio/execute.yml
     parameters:
       fio_properties: ${{ parameters.engine_input.fio_command_array }}
+      storage_name: $(STORAGE_NAME)
