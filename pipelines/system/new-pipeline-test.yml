@@ -29,10 +29,46 @@ stages:
               scrape_containerd: True
               network_dataplane: azure
               service_test: False
-              cl2_config_file: cluster-scale-config.yaml
+              cl2_config_file: load-config.yaml
             azure_cni_static_block_n300_p18K:
               cpu_per_node: 4
               node_count: 300
+              node_per_step: 100
+              max_pods: 70
+              repeats: 1
+              scale_timeout: "25m"
+              cilium_enabled: False
+              scrape_containerd: True
+              network_dataplane: azure
+              service_test: False
+              cl2_config_file: load-config.yaml
+            azure_cni_static_block_n600_p36K:
+              cpu_per_node: 4
+              node_count: 600
+              node_per_step: 200
+              max_pods: 70
+              repeats: 1
+              scale_timeout: "25m"
+              cilium_enabled: False
+              scrape_containerd: True
+              network_dataplane: azure
+              service_test: False
+              cl2_config_file: load-config.yaml
+            azure_cni_static_block_n1000_p60K:
+              cpu_per_node: 4
+              node_count: 1000
+              node_per_step: 200
+              max_pods: 70
+              repeats: 1
+              scale_timeout: "25m"
+              cilium_enabled: False
+              scrape_containerd: True
+              network_dataplane: azure
+              service_test: False
+              cl2_config_file: load-config.yaml
+            azure_cni_static_block_n1500_p90K:
+              cpu_per_node: 4
+              node_count: 1500
               node_per_step: 300
               max_pods: 70
               repeats: 1
@@ -41,43 +77,7 @@ stages:
               scrape_containerd: True
               network_dataplane: azure
               service_test: False
-              cl2_config_file: cluster-scale-config.yaml
-            azure_cni_static_block_n600_p36K:
-              cpu_per_node: 4
-              node_count: 600
-              node_per_step: 600
-              max_pods: 70
-              repeats: 1
-              scale_timeout: "25m"
-              cilium_enabled: False
-              scrape_containerd: True
-              network_dataplane: azure
-              service_test: False
-              cl2_config_file: cluster-scale-config.yaml
-            azure_cni_static_block_n1000_p60K:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
-              max_pods: 70
-              repeats: 1
-              scale_timeout: "25m"
-              cilium_enabled: False
-              scrape_containerd: True
-              network_dataplane: azure
-              service_test: False
-              cl2_config_file: cluster-scale-config.yaml
-            azure_cni_static_block_n1500_p90K:
-              cpu_per_node: 4
-              node_count: 1500
-              node_per_step: 1500
-              max_pods: 70
-              repeats: 1
-              scale_timeout: "25m"
-              cilium_enabled: False
-              scrape_containerd: True
-              network_dataplane: azure
-              service_test: False
-              cl2_config_file: cluster-scale-config.yaml
+              cl2_config_file: load-config.yaml
             # azure_cni_static_block_cilium:
             #   cpu_per_node: 4
             #   node_count: 1000
