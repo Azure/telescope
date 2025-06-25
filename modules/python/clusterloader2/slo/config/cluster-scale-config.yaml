@@ -91,6 +91,14 @@ steps:
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
 
+  - name: Log - Sleeping for 1 min after deployment creation {{$j}} of {{$steps}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1m
+
   - name: Wait for nodes to be ready
     measurements:
       - Identifier: ConfirmNodeCount
@@ -102,6 +110,14 @@ steps:
           labelSelector: slo = true
           timeout: {{$operationTimeout}}
           refreshInterval: 1m
+
+  - name: Log - Sleeping for 1 min after waiting for node Ready {{$j}} of {{$steps}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1m
 
   - name: Waiting for latency pods to be running
     measurements:
