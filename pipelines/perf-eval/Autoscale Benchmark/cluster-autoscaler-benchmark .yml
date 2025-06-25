@@ -224,7 +224,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: aws_useast2_large_scale
+  - stage: aws_apsoutheast2_large_scale
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], 'Every 15 days at 12 PM'),
@@ -236,7 +236,7 @@ stages:
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            - ap-southeast-2
           terraform_input_file_mapping:
             - us-east-2: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/aws-1000nodes.tfvars"
           engine: clusterloader2

@@ -44,7 +44,7 @@ resource "terraform_data" "install_autoscaler" {
       aws eks --region ${var.region} update-kubeconfig --name "${var.cluster_name}"
 			envsubst  < "${path.module}/autoscaler.yml" | kubectl apply -f -
 
-      kubectl get deployments -n kube-system
+      kubectl wait --for=condition=Ready pod -l app=cluster-autoscaler -n kube-system --timeout=180s
 
       EOT
     environment = {
