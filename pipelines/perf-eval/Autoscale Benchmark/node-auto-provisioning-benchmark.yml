@@ -286,7 +286,7 @@ stages:
   - stage: aws_apsoutheast2_large_scale
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every 15 days at 12 PM'),
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every 15 days at 12 AM'),
         eq(variables['Build.Reason'], 'Manual')
       )
     dependsOn: []
