@@ -44,6 +44,7 @@ class KubernetesClient:
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
         self.storage = client.StorageV1Api()
+        self.batch = client.BatchV1Api()
 
     def get_app_client(self):
         return self.app
@@ -171,26 +172,6 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error processing template file {template_path}: {str(e)}") from e
 
-    def create_deployment(self, template, namespace="default"):
-        """
-        Create a Deployment in the specified namespace using the provided YAML template.
-
-        :param template: YAML template for the Deployment.
-        :param namespace: Namespace where the Deployment will be created.
-        :return: Name of the created Deployment.
-        """
-        try:
-            deployment_obj = yaml.safe_load(template)
-            response = self.app.create_namespaced_deployment(
-                body=deployment_obj,
-                namespace=namespace
-            )
-            return response.metadata.name
-        except yaml.YAMLError as e:
-            raise Exception(f"Error parsing deployment template: {str(e)}") from e
-        except Exception as e:
-            raise Exception(f"Error creating deployment {template}: {str(e)}") from e
-
     def create_node(self, template):
         """
         Create a Node in the Kubernetes cluster using the provided YAML template.
@@ -280,6 +261,47 @@ class KubernetesClient:
             raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
         return pods
 
+    def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
+        """
+        Waits for a specific job to complete its execution within a specified timeout.
+        Raises an exception if the job does not complete within the timeout.
+
+        :param job_name: The name of the job to wait for.
+        :param namespace: The namespace where the job is located (default: "default").
+        :param timeout: The timeout in seconds to wait for the job to complete (default: 300 seconds).
+        :return: None
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                job = self.batch.read_namespaced_job(name=job_name, namespace=namespace)
+                if job.status.succeeded is not None and job.status.succeeded > 0:
+                    logger.info(
+                        f"Job '{job_name}' in namespace '{namespace}' has completed successfully."
+                    )
+                    return job.metadata.name
+                elif job.status.failed is not None and job.status.failed > 0:
+                    raise Exception(
+                        f"Job '{job_name}' in namespace '{namespace}' has failed."
+                    )
+                logger.info(
+                    f"Job '{job_name}' in namespace '{namespace}' is still running with status:\n{job.status}"
+                )
+            except client.rest.ApiException as e:
+                if e.status == 404:
+                    raise Exception(
+                        f"Job '{job_name}' not found in namespace '{namespace}'."
+                    ) from e
+                raise e
+            sleep_time = 30
+            logger.info(
+                f"Waiting {sleep_time} seconds before checking job status again."
+            )
+            time.sleep(sleep_time)
+        raise Exception(
+            f"Job '{job_name}' in namespace '{namespace}' did not complete within {timeout} seconds."
+        )
+
     def get_pod_logs(self, pod_name, namespace="default", container=None, tail_lines=None):
         """
         Get logs from a specific pod in the given namespace.
@@ -295,8 +317,9 @@ class KubernetesClient:
                 name=pod_name,
                 namespace=namespace,
                 container=container,
-                tail_lines=tail_lines
-            )
+                tail_lines=tail_lines,
+                _preload_content=False  # Avoid breaking data format
+            ).data
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 

@@ -343,20 +343,6 @@ class TestKubernetesClient(unittest.TestCase):
         mock_open_file.assert_called_once_with(template_path, "r", encoding="utf-8")
         self.assertEqual(result, expected_output)
 
-    @patch('clients.kubernetes_client.KubernetesClient.create_deployment')
-    def test_create_deployment(self, mock_create_deployment):
-        template = "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: test-deployment"
-        namespace = "default"
-
-        # Mock the V1Deployment object
-        mock_deployment = V1Deployment(metadata=V1ObjectMeta(name="test-deployment"))
-        mock_create_deployment.return_value = mock_deployment
-
-        deployment = self.client.create_deployment(template, namespace)
-
-        mock_create_deployment.assert_called_once_with(template, namespace)
-        self.assertEqual(deployment.metadata.name, "test-deployment")
-
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_nodes')
     def test_wait_for_nodes_ready(self, mock_get_ready_nodes):
         mock_get_ready_nodes.side_effect = [[], ["node1", "node2"]]
