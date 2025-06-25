@@ -95,7 +95,7 @@ steps:
 - script: |
     bash swiftv2kubeobjects/runCustomerSetup.sh
   displayName: "SetupCustomerResources"
-  condition: eq(variables['CREATECUSTOMERRESOURCES'], 'true')
+  condition: eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true')
   name: SetupCustomerResources
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
