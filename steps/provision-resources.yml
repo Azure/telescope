@@ -93,10 +93,10 @@ steps:
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
 - script: |
-    bash swiftv2kubeobjects/createcluster.sh
-  displayName: "SetupAKSMTCluster"
-  condition: eq(variables['CREATESWIFTV2'], 'true')
-  name: SetupAKSMTCluster
+    bash swiftv2kubeobjects/runCustomerSetup.sh
+  displayName: "SetupCustomerResources"
+  condition: eq(variables['CREATECUSTOMERRESOURCES'], 'true')
+  name: SetupCustomerResources
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
   displayName: "SetupAKSMTClusterPING"

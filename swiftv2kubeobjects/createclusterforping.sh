@@ -1,14 +1,12 @@
 # #!/bin/bash
 
 set -ex
-#RG="$USER-swiftv2-$RANDOM-$(date +"%Y%m%d%H%M%S")"
-RG=$RUN_ID #Eastus2
-#RG=chlochen-swiftv2-scale-$LOCATION
+
+RG=$RUN_ID 
 CLUSTER="large"
-SUBSCRIPTION="TODO"
+SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
 K8S_VER=1.30
-NODEPOOLS=1 # Per 500 nodes
-NODEPOOL_SIZE=0
+NODEPOOLS=1 
 
 #az login
 # create RG
@@ -53,87 +51,18 @@ natGatewayID=$(az network nat gateway list -g ${RG} | jq -r '.[].id')
 az network vnet subnet create -n ${vnetSubnetNameNodes} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetNodesCIDR} --nat-gateway ${natGatewayID} -g ${RG}
 az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetPodsCIDR} --nat-gateway $NAT_GW_NAME -g ${RG}
 
-# az role assignment create --assignee d0fdeb79-ee9b-464c-ae0f-ba72d307208d --role "Network Contributor" --scope /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$vnetName
+# az role assignment create --assignee d0fdeb79-ee9b-464c-ae0f-ba72d307208d --role "Network Contributor" --scope /subscriptions/${SUBSCRIPTION}/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$vnetName
 for attempt in $(seq 1 5); do
-    echo "Attempting to execute subnetdelegator command: $attempt/5"
-    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename'" /dev/null && break || echo "Command failed, retrying..."
+    echo "Attempting to set stampcreatorservicename using subnetdelegator command: $attempt/5"
+    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F${SUBSCRIPTION}%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename'" /dev/null && break || echo "Command failed, retrying..."
     sleep 30
 done
 
-# # create customer vnet
-# custVnetName="custvnet"
-# az network vnet create --resource-group $RG --name $custVnetName --location $LOCATION --address-prefix $vnetAddressSpaceCIDR
-# custSubnetName="delgpod"
-# az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $vnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
-custVnetName=custvnet
-custSubnetName="scaledel"
-custSubnetACISubnet="custaci"
-custVnetAddressSpaceCIDR="172.16.0.0/12"
-custVnetSubnetPodsCIDR="172.26.0.0/16"
-custVnetACICIDR="172.27.0.0/16"
-az network vnet create -n ${custVnetName} -g ${RG} --address-prefixes ${custVnetAddressSpaceCIDR} -l ${LOCATION}
-az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetName --address-prefixes $custVnetSubnetPodsCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
-for attempt in $(seq 1 5); do
-    echo "Attempting to execute subnetdelegator command: $attempt/5"
-    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null && break || echo "Command failed, retrying..."
-    sleep 30
-done
-
-# create ACI container app in the customer vnet
-echo "create ACI container app in the customer vnet"
-az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custSubnetACISubnet --address-prefixes $custVnetACICIDR
-
-az network public-ip create \
-  --resource-group $RG \
-  --name natpublicip \
-  --sku Standard \
-  --location $LOCATION \
-  --allocation-method Static
-
-az network nat gateway create \
-  --resource-group $RG \
-  --name natgateway \
-  --location $LOCATION \
-  --public-ip-addresses natpublicip 
-
-az network vnet subnet update \
-  --resource-group $RG \
-  --vnet-name $custVnetName \
-  --name $custSubnetACISubnet \
-  --nat-gateway natgateway
-
-
-az container create \
-    --resource-group $RG \
-    --name customercontainer \
-    --image nginx \
-    --vnet $custVnetName \
-    --subnet $custSubnetACISubnet \
-    --ports 80 \
-    --location ${LOCATION} \
-    --protocol TCP \
-    --os-type Linux \
-    --cpu 1 \
-    --memory 1.5
-
-
-ACI_IP=$(az container show \
-  --resource-group $RG \
-  --name customercontainer \
-  --query "ipAddress.ip" \
-  --output tsv)
-
-echo "ACI is running at IP: $ACI_IP"
-
-echo "##vso[task.setvariable variable=ACI_IP]$ACI_IP"
-
-# script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custSubnetName'" /dev/null
 # create cluster
 echo "create cluster"
 vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
 nodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNameNodes}']" | jq -r '.[].id')
 podSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNamePods}']" | jq -r '.[].id')
-az rest --method get --url /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2025-04-01
 az aks create -n ${CLUSTER} -g ${RG} \
         -s Standard_D8_v3 -c 5 \
         --os-sku Ubuntu \
@@ -159,40 +88,26 @@ SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --quer
 date=$(date -d "+1 week" +"%Y-%m-%d")
 az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
-for i in $(seq 1 ${NODEPOOLS}); do
-    for attempt in $(seq 1 5); do
-        echo "creating usernodepools: $attempt/15"
-        az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
-        sleep 60
-    done
-done 
-
-for i in $(seq 1 ${NODEPOOLS}); do
-    az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool${i}"
+for attempt in $(seq 1 5); do
+    echo "creating usernodepools: $attempt/5"
+    az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
+    sleep 15
 done
-# scale nodepools
-# for i in $(seq 1 ${NODEPOOLS}); do
-#         az aks nodepool scale --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -c ${NODEPOOL_SIZE}
-#         sleep 300
-# done
 
-# uncomment if using for 'cluster churn' scenario
-# for i in $(seq 1 ${NODEPOOLS}); do
-#         az aks nodepool update --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} --enable-cluster-autoscaler --min-count 0 --max-count 500
-# done
+az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool${i}"
 
-# # add prometheus nodepool
-# export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $RG --query resourceGuid --output tsv)
-# export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
-# export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/delgpod?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+# customer vnet (created using runCustomerSetup.sh manually)
+custVnetName=custvnet
+custScaleDelSubnet="scaledel"
+custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
+custRG="sv2-perf-infra-customer"
 
-export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $RG --query resourceGuid --output tsv)
-export subnetResourceId=$(az network vnet subnet show --name $custSubnetName --vnet-name $custVnetName --resource-group $RG --query id --output tsv)
-export subnetGUID=$(az rest --method get --url "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custSubnetName?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+export vnetGuid=$(az network vnet show --name $custVnetName --resource-group $custRG --query resourceGuid --output tsv)
+export containerSubnetResourceId=$(az network vnet subnet show --name $custScaleDelSubnet --vnet-name $custVnetName --resource-group $custRG --query id --output tsv)
+export subnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/$custRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 while true; do
 STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv)
-
     if [[ $STATUS == "Succeeded" ]]; then
         echo "Cluster is ready"
         break
@@ -201,19 +116,11 @@ STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningS
     fi
 done
 
-# for attempt in $(seq 1 5); do
-#     echo "creating prom nodepool: $attempt/15"
-#     az aks nodepool add --cluster-name ${CLUSTER} --name promnodepool --resource-group ${RG} -c 1 -s Standard_D64_v3 --os-sku Ubuntu --labels prometheus=true --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} && break || echo "usernodepool creation attemped failed"
-#     sleep 60
-# done
-
-# az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name promnodepool
-
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
 envsubst < swiftv2kubeobjects/pn.yaml | kubectl apply -f -
 
-sleep 60
+sleep 15
 
 if kubectl get pn pn100 -o yaml | grep 'status: Ready' > /dev/null; then
     echo "PN is ready"

@@ -31,7 +31,7 @@ steps:
       sleep 30
     done
   displayName: "Delete SAL Ping"
-  condition: and(eq(variables['CREATESWIFTV2PING'], 'true'), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+  condition: and(eq(variables['CREATECUSTOMERRESOURCES'], 'true'), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
 - script: |
     set -eu
     echo "Delete resource group $RUN_ID"

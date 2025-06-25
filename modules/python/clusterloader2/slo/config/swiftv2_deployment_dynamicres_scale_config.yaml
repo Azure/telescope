@@ -133,7 +133,8 @@ steps:
         failOnTimeout: true
         commands:
         - name: CustPodCurl
-          command: ["/bin/sh", "-c", "curl -c 3 ${{$ACI_IP}}"] # ["/bin/sh", "-c", "ping -c 3 172.25.0.11"]
+          # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
+          command: ["/bin/sh", "-c", "curl --retry 3 --retry-delay 1 --max-time 5 172.27.0.30"]
           timeout: 5s
 
   - name: Wait for Pod Curl Command to execute
