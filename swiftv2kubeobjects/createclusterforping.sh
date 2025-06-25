@@ -88,14 +88,6 @@ SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --quer
 date=$(date -d "+1 week" +"%Y-%m-%d")
 az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
-for attempt in $(seq 1 5); do
-    echo "creating usernodepools: $attempt/5"
-    az aks nodepool add --cluster-name ${CLUSTER} --name "userpool${i}" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
-    sleep 15
-done
-
-az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool${i}"
-
 # customer vnet (created using runCustomerSetup.sh manually)
 custVnetName=custvnet
 custScaleDelSubnet="scaledel"
@@ -106,15 +98,13 @@ export custVnetGUID=$(az network vnet show --name $custVnetName --resource-group
 export custSubnetResourceId=$(az network vnet subnet show --name $custScaleDelSubnet --vnet-name $custVnetName --resource-group $custRG --query id --output tsv)
 export custSubnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/$custRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
-while true; do
 STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv)
     if [[ $STATUS == "Succeeded" ]]; then
         echo "Cluster is ready"
         break
     else
-        sleep 30
+        exit 1
     fi
-done
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 

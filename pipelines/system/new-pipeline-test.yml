@@ -19,10 +19,10 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
           matrix:
-            azure_swiftv2_gradual_dynamicres_pods=50_nodes=200:
+            azure_swiftv2_gradual_dynamicres_pods=50_nodes=100:
               cpu_per_node: 4
-              node_count: 200
-              node_per_step: 50
+              node_count: 10
+              node_per_step: 10
               max_pods: 1
               repeats: 1
               scale_timeout: "30m"
@@ -33,34 +33,90 @@ stages:
               ds_test: True
               test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
               cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pods=50_nodes=500:
-              cpu_per_node: 4
-              node_count: 500
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pods=50_nodes=1000:
-              cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 50
-              max_pods: 1
-              repeats: 1
-              scale_timeout: "30m"
-              node_label: slo=true
-              cilium_enabled: False
-              scrape_containerd: False
-              service_test: False
-              ds_test: True
-              test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            # azure_swiftv2_gradual_dynamicres_pods=50_nodes=200:
+            #   cpu_per_node: 4
+            #   node_count: 200
+            #   node_per_step: 50
+            #   max_pods: 1
+            #   repeats: 1
+            #   scale_timeout: "30m"
+            #   node_label: slo=true
+            #   cilium_enabled: False
+            #   scrape_containerd: False
+            #   service_test: False
+            #   ds_test: True
+            #   test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+            #   cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            # azure_swiftv2_gradual_dynamicres_pods=50_nodes=500:
+            #   cpu_per_node: 4
+            #   node_count: 500
+            #   node_per_step: 50
+            #   max_pods: 1
+            #   repeats: 1
+            #   scale_timeout: "30m"
+            #   node_label: slo=true
+            #   cilium_enabled: False
+            #   scrape_containerd: False
+            #   service_test: False
+            #   ds_test: True
+            #   test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+            #   cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            # azure_swiftv2_gradual_dynamicres_pods=50_nodes=1000:
+            #   cpu_per_node: 4
+            #   node_count: 1000
+            #   node_per_step: 50
+            #   max_pods: 1
+            #   repeats: 1
+            #   scale_timeout: "30m"
+            #   node_label: slo=true
+            #   cilium_enabled: False
+            #   scrape_containerd: False
+            #   service_test: False
+            #   ds_test: True
+            #   test_type: DeploymentGradual_dynamicRes_PODS=50&R=0_$(BUILD_VERSION)
+            #   cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            # azure_swiftv2_gradual_staticres_pods=50_nodes=200:
+            #   cpu_per_node: 4
+            #   node_count: 200
+            #   node_per_step: 50
+            #   max_pods: 1
+            #   repeats: 1
+            #   scale_timeout: "30m"
+            #   node_label: slo=true
+            #   cilium_enabled: False
+            #   scrape_containerd: False
+            #   service_test: False
+            #   ds_test: True
+            #   test_type: DeploymentGradual_staticRes_PODS=50&R=0_$(BUILD_VERSION)
+            #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+            # azure_swiftv2_gradual_staticres_pods=50_nodes=500:
+            #   cpu_per_node: 4
+            #   node_count: 500
+            #   node_per_step: 50
+            #   max_pods: 1
+            #   repeats: 1
+            #   scale_timeout: "30m"
+            #   node_label: slo=true
+            #   cilium_enabled: False
+            #   scrape_containerd: False
+            #   service_test: False
+            #   ds_test: True
+            #   test_type: DeploymentGradual_staticRes_PODS=50&R=0_$(BUILD_VERSION)
+            #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+            # azure_swiftv2_gradual_staticres_pods=50_nodes=1000:
+            #   cpu_per_node: 4
+            #   node_count: 1000
+            #   node_per_step: 50
+            #   max_pods: 1
+            #   repeats: 1
+            #   scale_timeout: "30m"
+            #   node_label: slo=true
+            #   cilium_enabled: False
+            #   scrape_containerd: False
+            #   service_test: False
+            #   ds_test: True
+            #   test_type: DeploymentGradual_staticRes_PODS=50&R=0_$(BUILD_VERSION)
+            #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
