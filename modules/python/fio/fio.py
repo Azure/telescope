@@ -1,91 +1,98 @@
 import argparse
-import time
 import json
 import os
+import subprocess
 from datetime import datetime, timezone
+import yaml
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
-from utils.retries import execute_with_retries
 
 setup_logging()
 logger = get_logger(__name__)
 
 KUBERNETES_CLIENT = KubernetesClient()
-FILE_SIZE = 10*1024*1024*1024
 
 def validate(node_count, operation_timeout_in_minutes=10):
     KUBERNETES_CLIENT.wait_for_nodes_ready(node_count, operation_timeout_in_minutes)
 
-def configure(yaml_path, replicas, operation_timeout_in_minutes=10):
-    deployment_template = KUBERNETES_CLIENT.create_template(
-        yaml_path, {"REPLICAS": replicas}
+def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_name, kustomize_dir, result_dir):
+    fio_command = [
+    "fio",
+    "--name=benchtest",
+    "--direct=1",
+    f"--size={file_size}",
+    "--filename=/mnt/data/benchtest",
+    f"--rw={method}",
+    f"--bs={block_size}",
+    f"--iodepth={iodepth}",
+    f"--runtime={runtime}",
+    f"--numjobs={numjobs}",
+    "--ioengine=libaio",
+    "--time_based",
+    "--output-format=json",
+    "--group_reporting"
+    ]
+    patch = {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {"name": "fio"},
+        "spec": {
+            "template": {
+                "spec": {"containers": [{"name": "fio", "command": fio_command}]}
+            }
+        },
+    }
+    patch_file = f"{kustomize_dir}/base/command.yaml"
+    with open(patch_file, "w", encoding="utf-8") as f:
+        yaml.dump(patch, f)
+
+    create_command = f"kustomize build {kustomize_dir}/overlays/{storage_name}/deployment | kubectl apply -f -"
+    logger.info(f"Running command: {create_command}")
+    subprocess.run(create_command, shell=True, check=True, capture_output=True)
+
+    os.makedirs(result_dir, exist_ok=True)
+    pods = KUBERNETES_CLIENT.wait_for_job_completed(
+        job_name="fio",
+        timeout=runtime+120,
     )
-    deployment_name = KUBERNETES_CLIENT.create_deployment(deployment_template)
-    logger.info(f"Deployment {deployment_name} created successfully!")
-    pods = KUBERNETES_CLIENT.wait_for_pods_ready(
-        label_selector="test=fio", pod_count=replicas, operation_timeout_in_minutes=operation_timeout_in_minutes
+    result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
+    pods = KUBERNETES_CLIENT.get_pods_by_namespace(
+        namespace="default", label_selector="job-name=fio"
     )
+    if not pods:
+        raise RuntimeError("No pods found for the fio job.")
     for pod in pods:
         pod_name = pod.metadata.name
         logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
-        logger.info(f"Checking logs for pod {pod_name}:\n{logs}")
+        parsed_logs = json.loads(logs)
+        logger.info(f"Checking logs for pod {pod_name}:\n{parsed_logs}")
+        with open(result_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(parsed_logs))
+        logger.info(f"Results saved to {result_path}")
 
-def execute(block_size, iodepth, method, runtime, result_dir):
-    os.makedirs(result_dir, exist_ok=True)
-    logger.info(f"Result directory: {result_dir}")
+    delete_command = f"kustomize build {kustomize_dir}/overlays/{storage_name}/deployment | kubectl delete -f -"
+    logger.info(f"Running command: {delete_command}")
+    subprocess.run(delete_command, shell=True, check=True, capture_output=True)
 
-    pods = KUBERNETES_CLIENT.get_pods_by_namespace(namespace="default", label_selector="test=fio")
-    pod_name = pods[0].metadata.name
-    mount_path = pods[0].spec.containers[0].volume_mounts[0].mount_path
-    logger.info(f"Executing fio benchmark on pod {pod_name} with mount path {mount_path}")
-
-    file_path=f"{mount_path}/benchtest"
-    base_command = f"fio --name=benchtest --size={FILE_SIZE} --filename={file_path} --direct=1 --ioengine=libaio --time_based \
---rw={method} --bs={block_size} --iodepth={iodepth} --runtime={runtime} --output-format=json"
-    result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
-    setup_command = f"{base_command} --create_only=1"
-    logger.info(f"Run setup command: {setup_command}")
-    execute_with_retries(
-        KUBERNETES_CLIENT.run_pod_exec_command,
-        pod_name=pod_name,
-        container_name="fio",
-        command=setup_command,
-    )
-    sleep_time = 30
-    logger.info(f"Wait for {sleep_time} seconds to clean any potential throttle/cache")
-    time.sleep(sleep_time)
-
-    logger.info(f"Run fio command: {base_command}")
-    start_time = time.time()
-    execute_with_retries(
-        KUBERNETES_CLIENT.run_pod_exec_command,
-        pod_name=pod_name,
-        container_name="fio",
-        command=base_command,
-        dest_path=result_path,
-    )
-    end_time = time.time()
-    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
+    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json"
     metadata = {
         "block_size": block_size,
         "iodepth": iodepth,
         "method": method,
-        "file_size": FILE_SIZE,
+        "file_size": file_size,
         "runtime": runtime,
-        "storage_name": "fio",
-        "start_time": start_time,
-        "end_time": end_time,
+        "numjobs": numjobs,
+        "storage_name": storage_name,
     }
     with open(metadata_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(metadata))
     logger.info(f"Metadata saved to {metadata_path}:\n{metadata}")
 
-
-def collect(vm_size, block_size, iodepth, method, result_dir, run_url, cloud_info):
-    raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}.json"
+def collect(vm_size, block_size, iodepth, method, numjobs, file_size, result_dir, run_url, cloud_info):
+    raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
     with open(raw_result_path, "r", encoding="utf-8") as f:
         raw_result = json.load(f)
-    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-metadata.json"
+    metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json"
     with open(metadata_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
 
@@ -124,40 +131,63 @@ def main():
     parser_validate.add_argument("node_count", type=int, help="Number of nodes")
     parser_validate.add_argument("operation_timeout", type=int, help="Timeout for the operation in seconds")
 
-    # Sub-command for configure
-    parser_configure = subparsers.add_parser("configure", help="Configure fio benchmark")
-    parser_configure.add_argument("yaml_path", type=str, help="Path to the YAML file")
-    parser_configure.add_argument("replicas", type=int, help="Number of replicas")
-    parser_configure.add_argument("operation_timeout", type=int, help="Timeout for the operation in seconds")
-
     # Sub-command for execute_attach_detach
     parser_execute = subparsers.add_parser("execute", help="Execute fio benchmark")
-    parser_execute.add_argument("block_size", type=str, help="Block size")
-    parser_execute.add_argument("iodepth", type=int, help="IO depth")
-    parser_execute.add_argument("method", type=str, help="Method")
-    parser_execute.add_argument("runtime", type=int, help="Runtime in seconds")
-    parser_execute.add_argument("result_dir", type=str, help="Directory to store results")
+    parser_execute.add_argument("--block_size", type=str, help="Block size")
+    parser_execute.add_argument("--iodepth", type=int, help="IO depth")
+    parser_execute.add_argument("--method", type=str, help="Method")
+    parser_execute.add_argument("--runtime", type=int, help="Runtime in seconds")
+    parser_execute.add_argument("--numjobs", type=int, help="Number of jobs")
+    parser_execute.add_argument("--file_size", type=str, help="File size")
+    parser_execute.add_argument("--storage_name", type=str, help="Storage name")
+    parser_execute.add_argument("--kustomize_dir", type=str, help="Directory for kustomize")
+    parser_execute.add_argument(
+        "--result_dir", type=str, help="Directory to store results"
+    )
 
     # Sub-command for collect_attach_detach
-    parser_collect = subparsers.add_parser("collect", help="Collect attach detach test results")
-    parser_collect.add_argument("vm_size", type=str, help="VM size")
-    parser_collect.add_argument("block_size", type=str, help="Block size")
-    parser_collect.add_argument("iodepth", type=int, help="IO depth")
-    parser_collect.add_argument("method", type=str, help="Method")
-    parser_collect.add_argument("result_dir", type=str, help="Directory to store results")
-    parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
+    parser_collect = subparsers.add_parser(
+        "collect", help="Collect attach detach test results"
+    )
+    parser_collect.add_argument("--vm_size", type=str, required=False, help="VM size")
+    parser_collect.add_argument("--block_size", type=str, help="Block size")
+    parser_collect.add_argument("--iodepth", type=int, help="IO depth")
+    parser_collect.add_argument("--method", type=str, help="Method")
+    parser_collect.add_argument("--numjobs", type=int, help="Number of jobs")
+    parser_collect.add_argument("--file_size", type=str, help="File size")
+    parser_collect.add_argument(
+        "--result_dir", type=str, help="Directory to store results"
+    )
+    parser_collect.add_argument("--run_url", type=str, help="Run URL")
+    parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
 
     args = parser.parse_args()
     if args.command == "validate":
         validate(args.node_count, args.operation_timeout)
-    elif args.command == "configure":
-        configure(args.yaml_path, args.replicas, args.operation_timeout)
     elif args.command == "execute":
-        execute(args.block_size, args.iodepth, args.method, args.runtime, args.result_dir)
+        execute(
+            args.block_size,
+            args.iodepth,
+            args.method,
+            args.runtime,
+            args.numjobs,
+            args.file_size,
+            args.storage_name,
+            args.kustomize_dir,
+            args.result_dir,
+        )
     elif args.command == "collect":
-        collect(args.vm_size, args.block_size, args.iodepth, args.method,
-                args.result_dir, args.run_url, args.cloud_info)
+        collect(
+            args.vm_size,
+            args.block_size,
+            args.iodepth,
+            args.method,
+            args.numjobs,
+            args.file_size,
+            args.result_dir,
+            args.run_url,
+            args.cloud_info,
+        )
 
 if __name__ == "__main__":
     main()

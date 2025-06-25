@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fio
+  labels:
+    test: fio
+spec:
+  template:
+    metadata:
+      labels:
+        test: fio
+    spec:
+      restartPolicy: Never
+      hostNetwork: true
+      nodeSelector:
+        fio-dedicated: "true"
+      tolerations:
+        - key: "fio-dedicated"
+          operator: "Equal"
+          value: "true"
+          effect: "NoExecute"
+        - key: "fio-dedicated"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+        - name: fio
+          image: telescope.azurecr.io/perf-eval/fio:3.40
+          securityContext:
+            privileged: true
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
