@@ -36,8 +36,8 @@ schedules:
         - main
     always: true
   # Aws Large Scale(1000) Schedule
-  - cron: "0 12 1,15 * *"
-    displayName: "Every 15 days at 12 PM"
+  - cron: "0 0 1,15 * *"
+    displayName: "Every 15 days at 12 AM"
     branches:
       include:
         - main
