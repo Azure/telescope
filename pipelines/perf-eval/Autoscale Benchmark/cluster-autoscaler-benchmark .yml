@@ -238,7 +238,7 @@ stages:
           regions:
             - ap-southeast-2
           terraform_input_file_mapping:
-            - us-east-2: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/aws-1000nodes.tfvars"
+            - ap-southeast-2: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/aws-1000nodes.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
