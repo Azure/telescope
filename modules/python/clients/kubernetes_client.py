@@ -280,7 +280,7 @@ class KubernetesClient:
                         f"Job '{job_name}' in namespace '{namespace}' has completed successfully."
                     )
                     return job.metadata.name
-                elif job.status.failed is not None and job.status.failed > 0:
+                if job.status.failed is not None and job.status.failed > 0:
                     raise Exception(
                         f"Job '{job_name}' in namespace '{namespace}' has failed."
                     )

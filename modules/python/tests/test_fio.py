@@ -1,21 +1,143 @@
 import unittest
+import unittest.mock
 import json
-import time
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock, mock_open, call
-from kubernetes.client import V1Pod, V1ObjectMeta, V1PodStatus, V1PodCondition
-
-with patch("clients.kubernetes_client.config.load_kube_config") as mock_load_kube_config:
-    mock_load_kube_config.return_value = None
-
-    from fio.fio import (
-        configure, execute, collect
-    )
+from unittest.mock import patch, MagicMock, mock_open
+from fio.fio import validate, execute, collect, main
 
 class TestFio(unittest.TestCase):
     def setUp(self):
         self.mock_kubernetes_client = MagicMock()
         self.mock_logger = MagicMock()
+
+    @patch("clients.kubernetes_client.KubernetesClient.wait_for_nodes_ready")
+    def test_validate(self, mock_wait_for_nodes_ready):
+        node_count = 3
+        operation_timeout = 10
+        validate(node_count, operation_timeout)
+        mock_wait_for_nodes_ready.assert_called_once_with(node_count, operation_timeout)
+
+    @patch("fio.fio.KUBERNETES_CLIENT")
+    @patch("fio.fio.yaml.dump")
+    @patch("fio.fio.os.makedirs")
+    @patch("subprocess.run")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_execute_success(
+        self, mock_open_file, mock_run, mock_makedirs, mock_yaml_dump, mock_k8s_client
+    ):
+        # Test parameters
+        block_size = "4k"
+        iodepth = 16
+        method = "read"
+        runtime = 60
+        numjobs = 1
+        file_size = "10G"
+        storage_name = "fio"
+        kustomize_dir = "/tmp/kustomize"
+        result_dir = "/tmp/results"
+
+        # Mock the kubernetes client methods
+        mock_pod = MagicMock()
+        mock_pod.metadata.name = "fio-pod-12345"
+        mock_k8s_client.wait_for_job_completed.return_value = "fio"
+        mock_k8s_client.get_pods_by_namespace.return_value = [mock_pod]
+        mock_k8s_client.get_pod_logs.return_value = '{"result": "success"}'
+
+        # Mock subprocess.run to simulate command execution
+        mock_run.return_value = MagicMock(returncode=0, stdout=b'{"result": "success"}')
+
+        # Call the execute function
+        execute(
+            block_size,
+            iodepth,
+            method,
+            runtime,
+            numjobs,
+            file_size,
+            storage_name,
+            kustomize_dir,
+            result_dir,
+        )
+
+        # Verify the yaml patch was written
+        mock_yaml_dump.assert_called_once()
+
+        # Verify subprocess.run was called twice (create and delete)
+        self.assertEqual(mock_run.call_count, 2)
+
+        # Verify the create command
+        create_call = mock_run.call_args_list[0]
+        self.assertTrue("kustomize build" in create_call[0][0])
+        self.assertTrue("kubectl apply" in create_call[0][0])
+
+        # Verify the delete command
+        delete_call = mock_run.call_args_list[1]
+        self.assertTrue("kustomize build" in delete_call[0][0])
+        self.assertTrue("kubectl delete" in delete_call[0][0])
+
+        # Verify the result directory was created
+        mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
+
+        # Verify the Kubernetes client was used to wait for job completion
+        mock_k8s_client.wait_for_job_completed.assert_called_once_with(
+            job_name="fio",
+            timeout=runtime + 120,
+        )
+
+        # Verify the pods were retrieved by namespace
+        mock_k8s_client.get_pods_by_namespace.assert_called_once_with(
+            namespace="default", label_selector="job-name=fio"
+        )
+
+        # Verify pod logs were retrieved
+        mock_k8s_client.get_pod_logs.assert_called_once_with("fio-pod-12345")
+
+        # Verify files were written (result file and metadata file)
+        self.assertEqual(
+            mock_open_file.call_count, 3
+        )  # patch file + result file + metadata file
+
+    @patch("fio.fio.KUBERNETES_CLIENT")
+    @patch("fio.fio.yaml.dump")
+    @patch("fio.fio.os.makedirs")
+    @patch("subprocess.run")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_execute_failure_with_no_pods(
+        self, mock_open_file, mock_run, mock_makedirs, mock_yaml_dump, mock_k8s_client # pylint: disable=unused-argument
+    ):
+        # Test parameters
+        block_size = "4k"
+        iodepth = 16
+        method = "read"
+        runtime = 60
+        numjobs = 1
+        file_size = "10G"
+        storage_name = "fio"
+        kustomize_dir = "/tmp/kustomize"
+        result_dir = "/tmp/results"
+
+        # Mock subprocess.run to simulate command execution
+        mock_run.return_value = MagicMock(returncode=0, stdout=b'{"result": "success"}')
+
+        # Mock the kubernetes client methods to return no pods
+        mock_k8s_client.wait_for_job_completed.return_value = "fio"
+        mock_k8s_client.get_pods_by_namespace.return_value = []
+
+        # Call the execute function and expect an exception
+        with self.assertRaises(RuntimeError) as context:
+            execute(
+                block_size,
+                iodepth,
+                method,
+                runtime,
+                numjobs,
+                file_size,
+                storage_name,
+                kustomize_dir,
+                result_dir,
+            )
+
+        self.assertEqual(str(context.exception), "No pods found for the fio job.")
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('fio.fio.datetime')
@@ -72,9 +194,7 @@ class TestFio(unittest.TestCase):
             "file_size": file_size,
             "runtime": 60,
             "numjobs": numjobs,
-            "storage_name": "fio",
-            "start_time": time.time(),
-            "end_time": time.time() + 60
+            "storage_name": "fio"
         }
 
         # Setup mock file reads
@@ -124,12 +244,96 @@ class TestFio(unittest.TestCase):
         }
 
         written_content = mock_open_file().write.call_args[0][0]
-        self.assertEqual(json.loads(written_content), expected_result)
+        # Remove the newline that's added in the actual function
+        written_json = written_content.rstrip('\n')
+        self.assertEqual(json.loads(written_json), expected_result)
 
         # Verify logging
         mock_logger.info.assert_called_with(
             f"Results collected and saved to {result_dir}/results.json:\n{json.dumps(expected_result, indent=2)}"
         )
+
+    @patch("fio.fio.validate")
+    @patch("argparse.ArgumentParser.parse_args")
+    def test_main_validate_command(self, mock_parse_args, mock_validate):
+        """Test main function with validate command"""
+        # Mock argparse to simulate command line arguments
+        mock_args = MagicMock()
+        mock_args.command = "validate"
+        mock_args.node_count = 3
+        mock_args.operation_timeout = 600
+        mock_parse_args.return_value = mock_args
+
+        main()
+
+        mock_validate.assert_called_once_with(3, 600)
+
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("fio.fio.execute")
+    def test_main_execute_command(self, mock_execute, mock_parse_args):
+        """Test main function with execute command"""
+        # Mock argparse to simulate command line arguments
+        mock_args = MagicMock()
+        mock_args.command = "execute"
+        mock_args.block_size = "4k"
+        mock_args.iodepth = 16
+        mock_args.method = "read"
+        mock_args.runtime = 60
+        mock_args.numjobs = 1
+        mock_args.file_size = "10G"
+        mock_args.storage_name = "fio"
+        mock_args.kustomize_dir = "/tmp/kustomize"
+        mock_args.result_dir = "/tmp/results"
+        mock_parse_args.return_value = mock_args
+
+        main()
+
+        mock_execute.assert_called_once_with(
+            "4k", 16, "read", 60, 1, "10G", "fio", "/tmp/kustomize", "/tmp/results"
+        )
+
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("fio.fio.collect")
+    def test_main_collect_command(self, mock_collect, mock_parse_args):
+        """Test main function with collect command"""
+        # Mock argparse to simulate command line arguments
+        mock_args = MagicMock()
+        mock_args.command = "collect"
+        mock_args.vm_size = "Standard_D8s_v3"
+        mock_args.block_size = "4k"
+        mock_args.iodepth = 16
+        mock_args.method = "read"
+        mock_args.numjobs = 1
+        mock_args.file_size = "10G"
+        mock_args.result_dir = "/tmp/results"
+        mock_args.run_url = "http://test.com/run"
+        mock_args.cloud_info = '{"cloud": "azure"}'
+        mock_parse_args.return_value = mock_args
+
+        main()
+
+        mock_collect.assert_called_once_with(
+            "Standard_D8s_v3",
+            "4k",
+            16,
+            "read",
+            1,
+            "10G",
+            "/tmp/results",
+            "http://test.com/run",
+            '{"cloud": "azure"}',
+        )
+
+    @patch("argparse.ArgumentParser.parse_args")
+    def test_main_no_command(self, mock_parse_args):
+        """Test main function with no command specified"""
+        # Mock argparse to simulate no command
+        mock_args = MagicMock()
+        mock_args.command = None
+        mock_parse_args.return_value = mock_args
+
+        # Should complete without error when no command is specified
+        main()
 
 if __name__ == '__main__':
     unittest.main()

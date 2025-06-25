@@ -4,7 +4,7 @@ from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
     V1PersistentVolumeClaim, V1PersistentVolumeClaimStatus,
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
-    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition, V1Deployment,
+    V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition,
     V1Service, V1ServiceStatus, V1LoadBalancerStatus, V1LoadBalancerIngress, V1NodeSystemInfo,
     V1PodList
 )
@@ -47,7 +47,6 @@ class TestKubernetesClient(unittest.TestCase):
         node_ready_unschedulable_true = self._create_node(name="node_ready_unschedulable", ready_status="True", unschedulable=True)
         node_ready_shutdown_taint = self._create_node(
             name="node_ready_shutdown_taint", ready_status="True", taints=[V1Taint(key="node.cloudprovider.kubernetes.io/shutdown", effect="NoSchedule")])
-
 
         mock_get_nodes.return_value = [
             node_not_ready,
@@ -374,6 +373,62 @@ class TestKubernetesClient(unittest.TestCase):
 
         self.assertEqual(len(pods), pod_count)
         self.assertEqual(mock_get_ready_pods.call_count, 2)
+
+    @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
+    def test_wait_for_job_completed_success(self, mock_read_namespaced_job):
+        job_name = "test-job"
+        namespace = "default"
+        mock_job = MagicMock()
+        mock_job.status.succeeded = 1
+        mock_job.status.failed = 0
+        mock_job.metadata.name = job_name
+        mock_read_namespaced_job.return_value = mock_job
+
+        result = self.client.wait_for_job_completed(job_name, namespace)
+
+        self.assertEqual(mock_job.status.succeeded, 1)
+        self.assertEqual(mock_job.status.failed, 0)
+        self.assertEqual(result, job_name)
+        mock_read_namespaced_job.assert_called_once_with(
+            name=job_name, namespace=namespace
+        )
+
+    @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
+    def test_wait_for_job_completed_failure(self, mock_read_namespaced_job):
+        job_name = "test-job"
+        namespace = "default"
+        mock_job = MagicMock()
+        mock_job.status.succeeded = 0
+        mock_job.status.failed = 1
+        mock_job.metadata.name = job_name
+        mock_read_namespaced_job.return_value = mock_job
+
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_job_completed(job_name, namespace)
+        self.assertEqual(
+            f"Job '{job_name}' in namespace '{namespace}' has failed.",
+            str(context.exception),
+        )
+        mock_read_namespaced_job.assert_called_once_with(
+            name=job_name, namespace=namespace
+        )
+
+    @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
+    def test_wait_for_job_completed_timeout(self, mock_read_namespaced_job):
+        job_name = "test-job"
+        namespace = "default"
+        timeout = 10
+        mock_read_namespaced_job.return_value = MagicMock(
+            status=MagicMock(succeeded=0, failed=0, conditions=[]),
+            metadata=MagicMock(name=job_name),
+        )
+
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_job_completed(job_name, namespace, timeout)
+        self.assertEqual(
+            f"Job '{job_name}' in namespace '{namespace}' did not complete within {timeout} seconds.",
+            str(context.exception),
+        )
 
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     def test_get_daemonsets_pods_allocated_resources(self, mock_get_pods_by_namespace):
