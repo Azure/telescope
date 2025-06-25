@@ -36,8 +36,8 @@ schedules:
         - main
     always: true
   # Aws Large Scale(1000) Schedule
-  - cron: "0 12 1,15 * *"
-    displayName: "Every 15 days at 12 PM"
+  - cron: "0 1 1,15 * *"
+    displayName: "Every 15 days at 1 AM"
     branches:
       include:
         - main
@@ -227,7 +227,7 @@ stages:
   - stage: aws_apsoutheast2_large_scale
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every 15 days at 12 PM'),
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every 15 days at 1 AM'),
         eq(variables['Build.Reason'], 'Manual')
       )
     dependsOn: []
