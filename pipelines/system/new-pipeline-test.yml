@@ -33,7 +33,7 @@ stages:
             azure_cni_static_block_n300_p18K:
               cpu_per_node: 4
               node_count: 300
-              node_per_step: 300
+              node_per_step: 100
               max_pods: 70
               repeats: 1
               scale_timeout: "25m"
@@ -45,7 +45,7 @@ stages:
             azure_cni_static_block_n600_p36K:
               cpu_per_node: 4
               node_count: 600
-              node_per_step: 600
+              node_per_step: 200
               max_pods: 70
               repeats: 1
               scale_timeout: "25m"
@@ -57,7 +57,7 @@ stages:
             azure_cni_static_block_n1000_p60K:
               cpu_per_node: 4
               node_count: 1000
-              node_per_step: 1000
+              node_per_step: 200
               max_pods: 70
               repeats: 1
               scale_timeout: "25m"
@@ -69,7 +69,7 @@ stages:
             azure_cni_static_block_n1500_p90K:
               cpu_per_node: 4
               node_count: 1500
-              node_per_step: 1500
+              node_per_step: 300
               max_pods: 70
               repeats: 1
               scale_timeout: "25m"
