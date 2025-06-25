@@ -283,7 +283,6 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-
   - stage: aws_useast2_large_scale
     condition: |
       or(
