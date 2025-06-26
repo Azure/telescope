@@ -303,18 +303,24 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
     effect  = "Allow"
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:aud"
       values   = ["sts.amazonaws.com"]
     }
 
-    dynamic "condition" {
-      for_each = local.service_account_map
-      content {
-        test     = "StringLike"
-        variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
-        values   = ["system:serviceaccount:kube-system:${condition.value}"]
-      }
+    # Handle both specific service accounts and default EKS addon service accounts
+    condition {
+      test     = "StringLike"
+      variable = "${replace(aws_iam_openid_connect_provider.oidc_provider.url, "https://", "")}:sub"
+      values = length(local.service_account_map) > 0 ? [
+        for sa in local.service_account_map : "system:serviceaccount:kube-system:${sa}"
+      ] : [
+        "system:serviceaccount:kube-system:aws-node",
+        "system:serviceaccount:kube-system:kube-proxy", 
+        "system:serviceaccount:kube-system:coredns",
+        "system:serviceaccount:kube-system:ebs-csi-controller-sa",
+        "system:serviceaccount:kube-system:efs-csi-controller-sa"
+      ]
     }
 
     principals {
@@ -329,13 +335,14 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 resource "aws_iam_role" "addon_role" {
   count = length(local.eks_addons_map) != 0 ? 1 : 0
 
+  name               = "${local.eks_cluster_name}-addon-role"
   assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy[0].json
 
   depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
 }
 
 resource "aws_iam_role_policy_attachment" "addon_policy_attachments" {
-  for_each = toset(local.addons_policy_arns)
+  for_each = length(local.eks_addons_map) != 0 ? toset(local.addons_policy_arns) : toset([])
 
   policy_arn = "arn:aws:iam::aws:policy/${each.value}"
   role       = aws_iam_role.addon_role[0].name
@@ -348,7 +355,7 @@ resource "aws_eks_addon" "addon" {
   cluster_name             = aws_eks_cluster.eks.name
   addon_name               = each.value.name
   addon_version            = try(each.value.version, null)
-  service_account_role_arn = aws_iam_role.addon_role[0].arn
+  service_account_role_arn = length(local.eks_addons_map) != 0 ? aws_iam_role.addon_role[0].arn : null
   configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
 
   tags = {
@@ -367,7 +374,7 @@ resource "aws_eks_addon" "before_compute" {
   cluster_name             = aws_eks_cluster.eks.name
   addon_name               = each.value.name
   addon_version            = try(each.value.version, null)
-  service_account_role_arn = aws_iam_role.addon_role[0].arn
+  service_account_role_arn = length(local.eks_addons_map) != 0 ? aws_iam_role.addon_role[0].arn : null
   configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
 
   tags = {
