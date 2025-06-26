@@ -96,7 +96,7 @@ run "eks_auto_mode_enabled" {
 
   assert {
     condition     = alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy", "AmazonEKSNetworkingPolicy"] : contains(keys(module.eks["auto_mode_true"].eks_role_policy_attachments), item)])
-    error_message = "EKS Auto Mode should attach both AmazonEKSBlockStoragePolicy and AmazonEKSComputePolicy"
+    error_message = "EKS Auto Mode should attach AmazonEKSBlockStoragePolicy, AmazonEKSComputePolicy, AmazonEKSLoadBalancingPolicy, and AmazonEKSNetworkingPolicy"
   }
 
   expect_failures = [check.deletion_due_time]
