@@ -113,4 +113,6 @@ module "aks-cli" {
   node_subnet_id      = try(local.all_subnets[each.value.node_subnet_name], null)
   pod_subnet_id       = try(local.all_subnets[each.value.pod_subnet_name], null)
   pod_ip_allocation_mode  = each.value.pod_ip_allocation_mode
+  network_dataplane   = local.aks_network_dataplane
+  network_policy      = local.aks_network_policy
 }
