@@ -109,6 +109,7 @@ variable "eks_config_list" {
     policy_arns               = list(string)
     enable_karpenter          = optional(bool, false)
     enable_cluster_autoscaler = optional(bool, false)
+    auto_mode                 = optional(bool, false)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
