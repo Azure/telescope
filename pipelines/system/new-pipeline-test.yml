@@ -66,16 +66,17 @@ stages:
             #   network_dataplane: azure
             #   service_test: False
             #   cl2_config_file: cluster-scale-config.yaml
-            azure_cni_podsubnet_n1500_p90K:
+            azure_cni_podsubnet_cilium_n1000_p40K:
               cpu_per_node: 4
-              node_count: 1500
-              node_per_step: 300
+              node_count: 1000
+              node_per_step: 200
               max_pods: 90
               repeats: 1
               scale_timeout: "25m"
-              cilium_enabled: False
+              cilium_enabled: True
               scrape_containerd: True
-              network_dataplane: azure
+              network_policy: cilium
+              network_dataplane: cilium
               service_test: False
               cl2_config_file: cluster-scale-config.yaml
             # azure_cni_static_block_cilium:
