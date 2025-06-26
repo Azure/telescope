@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fio
+spec:
+  template:
+    spec:
+      containers:
+        - name: fio
+          volumeMounts:
+            - name: data
+              mountPath: /mnt/data
+      volumes:
+        - name: data
+          emptyDir: {}

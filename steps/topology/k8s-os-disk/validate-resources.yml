@@ -13,6 +13,5 @@ steps:
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/${{ parameters.engine }}/validate.yml
     parameters:
-      replica_count: $(REPLICA_COUNT)
       desired_nodes: 3
       operation_timeout_in_minutes: 10

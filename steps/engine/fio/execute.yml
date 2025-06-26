@@ -1,22 +1,36 @@
 parameters:
-  fio_properties: {} # format: block_size|iodepth|method|runtime
+  fio_properties: {} # format: block_size|iodepth|method|runtime|numjobs|file_size
+  storage_name: ''
 
 steps:
-- ${{ each property in parameters.fio_properties }}:
-  - script: |
-      set -eo pipefail
+  - ${{ each property in parameters.fio_properties }}:
+      - script: |
+          set -eo pipefail
 
-      fio_params=(${FIO_PROPERTY//|/ })
-      block_size=${fio_params[0]}
-      iodepth=${fio_params[1]}
-      method=${fio_params[2]}
-      runtime=${fio_params[3]}
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        $block_size $iodepth $method $runtime $RESULT_DIR
-    workingDirectory: modules/python
-    displayName: "Execute fio ${{ property }}"
-    env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
-      RESULT_DIR: $(TEST_RESULTS_DIR)
-      YAML_PATH: $(Pipeline.Workspace)/s/modules/python/fio/yaml/fio.yaml
-      FIO_PROPERTY: ${{ property }}
+          fio_params=(${FIO_PROPERTY//|/ })
+          block_size=${fio_params[0]}
+          iodepth=${fio_params[1]}
+          method=${fio_params[2]}
+          runtime=${fio_params[3]}
+          numjobs=${fio_params[4]}
+          file_size=${fio_params[5]}
+
+          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+            --block_size $block_size \
+            --iodepth $iodepth \
+            --method $method \
+            --runtime $runtime \
+            --numjobs $numjobs \
+            --file_size $file_size \
+            --storage_name $STORAGE_NAME \
+            --kustomize_dir $KUSTOMIZE_DIR \
+            --result_dir $RESULT_DIR
+
+        workingDirectory: modules/python
+        displayName: "Execute fio ${{ property }}"
+        env:
+          PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
+          KUSTOMIZE_DIR: $(Pipeline.Workspace)/s/modules/kustomize/fio
+          RESULT_DIR: $(TEST_RESULTS_DIR)
+          FIO_PROPERTY: ${{ property }}
+          STORAGE_NAME: ${{ parameters.storage_name }}

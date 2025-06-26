@@ -44,6 +44,8 @@ resource "terraform_data" "install_autoscaler" {
       aws eks --region ${var.region} update-kubeconfig --name "${var.cluster_name}"
 			envsubst  < "${path.module}/autoscaler.yml" | kubectl apply -f -
 
+      kubectl wait --for=condition=Ready pod -l app=cluster-autoscaler -n kube-system --timeout=180s
+
       EOT
     environment = {
       IMAGE_TAG                        = local.autoscaler_image_tag
