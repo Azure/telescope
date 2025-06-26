@@ -35,7 +35,7 @@ aks_cli_config_list = [
     subnet_name                   = "nodesubnet"
     node_subnet_name              = "nodesubnet"
     pod_subnet_name               = "podsubnet"
-    pod_ip_allocation_mode        = "StaticBlock"
+    pod_ip_allocation_mode        = "DynamicIndividual"
     kubernetes_version            = "1.32"
     use_aks_preview_private_build = true
     use_aks_preview_cli_extension = true
@@ -51,7 +51,7 @@ aks_cli_config_list = [
       optional_parameters = [
           {
             name  = "pod-ip-allocation-mode"
-            value = "StaticBlock"
+            value = "DynamicIndividual"
           }
         ]
     }
@@ -63,11 +63,11 @@ aks_cli_config_list = [
         optional_parameters = [
           {
             name  = "pod-ip-allocation-mode"
-            value = "StaticBlock"
+            value = "DynamicIndividual"
           },
           {
             name  = "max-pods"
-            value = "110"
+            value = "90"
           },
           {
             name  = "labels"
@@ -82,11 +82,11 @@ aks_cli_config_list = [
         optional_parameters = [
           {
             name  = "pod-ip-allocation-mode"
-            value = "StaticBlock"
+            value = "DynamicIndividual"
           },
           {
             name  = "max-pods"
-            value = "110"
+            value = "90"
           },
           {
             name  = "labels"
@@ -117,11 +117,11 @@ aks_cli_config_list = [
         optional_parameters = [
           {
             name  = "pod-ip-allocation-mode"
-            value = "StaticBlock"
+            value = "DynamicIndividual"
           },
           {
             name  = "max-pods"
-            value = "110"
+            value = "90"
           },
           {
             name  = "labels"
@@ -152,11 +152,11 @@ aks_cli_config_list = [
         optional_parameters = [
           {
             name  = "pod-ip-allocation-mode"
-            value = "StaticBlock"
+            value = "DynamicIndividual"
           },
           {
             name  = "max-pods"
-            value = "110"
+            value = "90"
           },
           {
             name  = "labels"
