@@ -3,6 +3,13 @@
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
 
+{{$EnableNetworkPolicyEnforcementLatencyTest := DefaultParam .EnableNetworkPolicyEnforcementLatencyTest false}}
+{{$TargetLabelValue := DefaultParam .TargetLabelValue "enforcement-latency"}}
+# Run a server pod for network policy enforcement latency test only on every Nth pod.
+# Default run on every pod.
+{{$NetPolServerOnEveryNthPod := 1}}
+{{$RunNetPolicyTest := and $EnableNetworkPolicyEnforcementLatencyTest (eq (Mod .Index $NetPolServerOnEveryNthPod) 0)}}
+
 {{$Image := DefaultParam .Image "mcr.microsoft.com/oss/kubernetes/pause:3.6"}}
 
 apiVersion: apps/v1
@@ -18,7 +25,7 @@ spec:
   replicas: {{.Replicas}}
   selector:
     matchLabels:
-      name: {{.Name}}
+      name: {{if $RunNetPolicyTest}}policy-load-{{end}}{{.Name}}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -27,15 +34,30 @@ spec:
   template:
     metadata:
       labels:
-        name: {{.Name}}
+        name: {{if $RunNetPolicyTest}}policy-load-{{end}}{{.Name}}
         group: {{.Group}}
 {{if .SvcName}}
         svc: {{.SvcName}}-{{.Index}}
 {{end}}
         restart: {{.deploymentLabel}}
+{{if $RunNetPolicyTest}}
+        net-pol-test: {{$TargetLabelValue}}
+{{end}}
     spec:
       nodeSelector:
         slo: "true"
+{{if $RunNetPolicyTest}}
+      hostNetwork: false
+      containers:
+      - image: acnpublic.azurecr.io/scaletest/nginx:latest
+        name: nginx-server
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: {{$CpuRequest}}
+            memory: {{$MemoryRequest}}
+{{else}}
       containers:
       - env:
         - name: ENV_VAR
@@ -43,11 +65,12 @@ spec:
         image: {{$Image}}
         imagePullPolicy: IfNotPresent
         name: {{.Name}}
-        ports:
+        ports: []
         resources:
           requests:
             cpu: {{$CpuRequest}}
             memory: {{$MemoryRequest}}
+{{end}}
       # Add not-ready/unreachable tolerations for 15 minutes so that node
       # failure doesn't trigger pod deletion.
       tolerations:

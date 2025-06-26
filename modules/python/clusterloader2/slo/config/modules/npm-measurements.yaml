@@ -1,0 +1,66 @@
+{{$action := .action}} # start, gather
+# Measurement modules for Azure NPM metrics
+
+steps:
+  - name: {{$action}} NPM Agent Metrics 
+    measurements:
+    - Identifier: NPMAgentsAvgCPUUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: NPM Agent Avg CPU Usage
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+          - name: Perc99
+            query: quantile(0.99, avg_over_time(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod=~"azure-npm-.*"}[1m])[5m:]))
+          - name: Perc90
+            query: quantile(0.90, avg_over_time(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod=~"azure-npm-.*"}[1m])[5m:]))
+          - name: Perc50
+            query: quantile(0.50, avg_over_time(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod=~"azure-npm-.*"}[1m])[5m:]))
+    - Identifier: NPMAgentsMaxCPUUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: NPM Agent Max CPU Usage
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+          - name: Perc99
+            query: quantile(0.99, max_over_time(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod=~"azure-npm-.*"}[1m])[5m:]))
+          - name: Perc90
+            query: quantile(0.90, max_over_time(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod=~"azure-npm-.*"}[1m])[5m:]))
+          - name: Perc50
+            query: quantile(0.50, max_over_time(rate(container_cpu_usage_seconds_total{namespace="kube-system", pod=~"azure-npm-.*"}[1m])[5m:]))
+    - Identifier: NPMAgentsAvgMemUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: NPM Agent Avg Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+          - name: Perc99
+            query: quantile(0.99, avg_over_time(container_memory_usage_bytes{namespace="kube-system", pod=~"azure-npm-.*"}[5m:]) / 1024 / 1024)
+          - name: Perc90
+            query: quantile(0.90, avg_over_time(container_memory_usage_bytes{namespace="kube-system", pod=~"azure-npm-.*"}[5m:]) / 1024 / 1024)
+          - name: Perc50
+            query: quantile(0.50, avg_over_time(container_memory_usage_bytes{namespace="kube-system", pod=~"azure-npm-.*"}[5m:]) / 1024 / 1024)
+    - Identifier: NPMAgentsMaxMemUsage
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: NPM Agent Max Memory Usage
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+          - name: Perc99
+            query: quantile(0.99, max_over_time(container_memory_usage_bytes{namespace="kube-system", pod=~"azure-npm-.*"}[5m:]) / 1024 / 1024)
+          - name: Perc90
+            query: quantile(0.90, max_over_time(container_memory_usage_bytes{namespace="kube-system", pod=~"azure-npm-.*"}[5m:]) / 1024 / 1024)
+          - name: Perc50
+            query: quantile(0.50, max_over_time(container_memory_usage_bytes{namespace="kube-system", pod=~"azure-npm-.*"}[5m:]) / 1024 / 1024)
