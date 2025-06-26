@@ -197,7 +197,15 @@ aks_cli_config_list = [
       {
         name  = "dns-service-ip"
         value = "192.168.0.10"
-      }
+      },
+      {
+        name  = "network-policy"
+        value = "cilium"
+      },
+      {
+        name  = "network-dataplane"
+        value = "cilium"
+      },
     ]
   }
 ]
