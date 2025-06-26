@@ -335,7 +335,6 @@ data "aws_iam_policy_document" "addon_assume_role_policy" {
 resource "aws_iam_role" "addon_role" {
   count = length(local.eks_addons_map) != 0 ? 1 : 0
 
-  name               = "${local.eks_cluster_name}-addon-role"
   assume_role_policy = data.aws_iam_policy_document.addon_assume_role_policy[0].json
 
   depends_on = [data.aws_iam_policy_document.addon_assume_role_policy]
