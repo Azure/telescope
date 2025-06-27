@@ -374,9 +374,10 @@ class KubernetesClient:
         memory_request = 0
         for pod in pods:
             for container in pod.spec.containers:
-                logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+                if container.resources.requests:
+                    logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                    cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                    memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
         return cpu_request, memory_request * 1024 # Convert to KiB
 
     def set_context(self, context_name):
