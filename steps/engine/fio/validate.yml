@@ -1,4 +1,6 @@
 parameters:
+  - name: storage_name
+    type: string
   - name: desired_nodes
     type: string
   - name: operation_timeout_in_minutes
@@ -17,3 +19,19 @@ steps:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.operation_timeout_in_minutes }}
+  - script: |
+      set -euo pipefail
+      set -x
+      kustomize build overlays/zfs-localpv/configuration | kubectl apply -f -
+      helm install zfs-localpv https://openebs.github.io/zfs-localpv/zfs-localpv-2.6.2.tgz -n openebs --create-namespace --skip-crds \
+        --set crds.csi.volumeSnapshots.enabled=false \
+        --set-json zfsNode.tolerations='[{"key": "fio-dedicated", "operator": "Exists"}]' \
+        --set-json zfsController.tolerations='[{"key": "CriticalAddonsOnly", "operator": "Exists"}]'
+
+      kubectl wait --for=condition=Ready pod -l name=zfs-host-setup -n kube-system --timeout=600s
+      kubectl get pods -n kube-system -l name=zfs-host-setup -o wide
+      kubectl wait --for=condition=Ready pod -l role=openebs-zfs -n openebs --timeout=600s
+      kubectl get pods -n openebs -l role=openebs-zfs
+    condition: eq(variables.storage_name, 'zfs-localpv')
+    workingDirectory: modules/kustomize/fio
+    displayName: "Configure zfs-localpv"
