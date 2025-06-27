@@ -159,7 +159,7 @@ stages:
               ds_test: True
               test_type: DeploymentGradual_staticRes_PodsPerStep=50
               cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          max_parallel: 1
-          timeout_in_minutes: 720
+          max_parallel: 2
+          timeout_in_minutes: 72
           credential_type: service_connection
           ssh_key_enabled: false
