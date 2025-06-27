@@ -6,7 +6,6 @@ name: deployment-churn
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
-{{$deploymentQPS := DefaultParam .CL2_DEFAULT_QPS $steps}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "120s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 
@@ -20,13 +19,13 @@ namespace:
 tuningSets:
   - name: DeploymentCreatePNIQps
     qpsLoad:
-      qps: {{$deploymentQPS}}
+      qps: 1
   - name: DeploymentCreateQps
     qpsLoad:
-      qps: {{$deploymentQPS}}
+      qps: 1
 
 steps:
-  - name: Log - steps={{$steps}}, nodes-{{$nodes}}, deploymentQPS={{$deploymentQPS}}
+  - name: Log - steps={{$steps}}, nodes-{{$nodes}}, deploymentQPS=1
     measurements:
     - Identifier: Dummy
       Method: Sleep
