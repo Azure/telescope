@@ -66,6 +66,7 @@ CL2_IMAGE="ghcr.io/azure/clusterloader2:v20241016"
 CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 CLOUD=aks # set to aws to run against aws
 SCRAPE_KUBELETS=True
+OS_TYPE="windows"
 # NODE_PER_STEP=5
 # SCALE_ENABLED=True
 ```
@@ -81,7 +82,7 @@ Run these commands to execute test:
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
     $NODE_COUNT ${NODE_PER_STEP:-$NODE_COUNT} $MAX_PODS $REPEATS $OPERATION_TIMEOUT \
     $LOAD_TYPE ${SCALE_ENABLED:-False} ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
-    $CLOUD ${SCRAPE_KUBELETS:-False} ${CL2_CONFIG_DIR}/overrides.yaml
+    $CLOUD $OS_TYPE ${SCRAPE_KUBELETS:-False} ${CL2_CONFIG_DIR}/overrides.yaml
 
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
     ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD \

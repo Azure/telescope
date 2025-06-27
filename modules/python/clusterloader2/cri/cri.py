@@ -20,7 +20,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    scrape_kubelets, override_file):
+    os_type, scrape_kubelets, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -79,6 +79,7 @@ def override_config_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
+        file.write(f"CL2_OS: {os_type}\n")  # Default to linux, can be overridden if needed
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
 
     file.close()
@@ -208,6 +209,7 @@ def main():
                                  help="Whether scale operation is enabled. Must be either True or False")
     parser_override.add_argument("pod_startup_latency_threshold", type=str, default="15s", help="Pod startup latency threshold")
     parser_override.add_argument("provider", type=str, help="Cloud provider name")
+    parser_override.add_argument("os_type", type=str, choices=["linux", "windows"], default="linux")
     parser_override.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape kubelets")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
@@ -242,7 +244,7 @@ def main():
     if args.command == "override":
         override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
                                        args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
-                                       args.provider, args.scrape_kubelets, args.cl2_override_file)
+                                       args.provider, args.os_type, args.scrape_kubelets, args.cl2_override_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
     elif args.command == "collect":
