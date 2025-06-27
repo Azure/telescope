@@ -114,14 +114,14 @@ steps:
         - name: CustPodCurl
           # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
           command: ["/bin/sh", "-c", "curl --retry 3 --retry-delay 10 --max-time 15 172.27.0.30"]
-          timeout: 30s
+          timeout: 90s
   - name: Wait for curl command to be done -{{$j}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
       Params:
         action: start
-        duration: 15m
+        duration: 120s
   - name: Ending measurement Pod Curl Command -{{$j}}
     measurements:
     - Identifier: PodPeriodicCommand
