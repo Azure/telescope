@@ -31,13 +31,13 @@ steps:
       sleep 30
     done
   displayName: "Delete SAL Ping"
-  condition: and(eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), ne(variables['SKIP_RESOURCE_CLEANUP'], 'true'))
+  condition: and(eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq(variables['CLEANUP_RESOURCES'], 'true'))
 - script: |
     set -eu
     echo "Delete resource group $RUN_ID"
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_CLEANUP'], 'true'))
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/collect-terraform-operation-metadata.yml
