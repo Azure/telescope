@@ -1,4 +1,6 @@
 import unittest
+from kubernetes import client
+from unittest import mock
 from unittest.mock import patch, mock_open, MagicMock
 from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Taint,
@@ -111,6 +113,173 @@ class TestKubernetesClient(unittest.TestCase):
                 ingress=[V1LoadBalancerIngress(ip=external_ip)]))
         )
 
+    def test_get_app_client_returns_app_attribute(self):
+        """
+        Test that get_app_client returns the app attribute from the client.
+        
+        This test verifies that the method simply returns self.app without 
+        any additional processing.
+        """
+        # Execute
+        result = self.client.get_app_client()
+        
+        # Verify - the result should be the same object as client.app
+        self.assertIs(result, self.client.app)
+        
+        # Verify it's the expected type (AppsV1Api)
+        self.assertEqual(type(result).__name__, 'AppsV1Api')
+
+    @patch('kubernetes.client.CoreV1Api.read_node')
+    def test_describe_node(self, mock_read_node):
+        """
+        Test that describe_node calls the Kubernetes API read_node method 
+        with the correct node name and returns the node object.
+
+        This test verifies that the describe_node method properly delegates
+        to the CoreV1Api.read_node method with the provided node name.
+        """
+        # Setup
+        node_name = "test-node-1"
+        mock_node = MagicMock()
+        mock_node.metadata.name = node_name
+        mock_read_node.return_value = mock_node
+
+        # Execute
+        result = self.client.describe_node(node_name)
+
+        # Verify
+        mock_read_node.assert_called_once_with(node_name)
+        self.assertEqual(result, mock_node)
+        self.assertEqual(result.metadata.name, node_name)
+
+    @patch('kubernetes.client.CoreV1Api.list_node')
+    def test_get_nodes_with_label_selector(self, mock_list_node):
+        """
+        Test get_nodes method with label selector only.
+
+        This test verifies that the method correctly passes the label_selector
+        parameter to the Kubernetes API while keeping field_selector as None.
+        """
+        # Setup
+        label_selector = "node-role.kubernetes.io/worker=true"
+        mock_node = MagicMock()
+        mock_node.metadata.name = "worker-node"
+        mock_node.metadata.labels = {"node-role.kubernetes.io/worker": "true"}
+
+        mock_node_list = MagicMock()
+        mock_node_list.items = [mock_node]
+        mock_list_node.return_value = mock_node_list
+
+        # Execute
+        result = self.client.get_nodes(label_selector=label_selector)
+
+        # Verify
+        mock_list_node.assert_called_once_with(
+            label_selector=label_selector,
+            field_selector=None
+        )
+        self.assertEqual(result, [mock_node])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].metadata.name, "worker-node")
+
+    @patch('kubernetes.client.CoreV1Api.list_node')
+    def test_get_nodes_with_field_selector(self, mock_list_node):
+        """
+        Test get_nodes method with field selector only.
+        
+        This test verifies that the method correctly passes the field_selector
+        parameter to the Kubernetes API while keeping label_selector as None.
+        """
+        # Setup
+        field_selector = "spec.unschedulable=false"
+        mock_node = MagicMock()
+        mock_node.metadata.name = "schedulable-node"
+        mock_node.spec.unschedulable = False
+
+        mock_node_list = MagicMock()
+        mock_node_list.items = [mock_node]
+        mock_list_node.return_value = mock_node_list
+
+        # Execute
+        result = self.client.get_nodes(field_selector=field_selector)
+
+        # Verify
+        mock_list_node.assert_called_once_with(
+            label_selector=None,
+            field_selector=field_selector
+        )
+        self.assertEqual(result, [mock_node])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].metadata.name, "schedulable-node")
+
+    @patch('kubernetes.client.CoreV1Api.list_node')
+    def test_get_nodes_with_both_selectors(self, mock_list_node):
+        """
+        Test get_nodes method with both label and field selectors.
+
+        This test verifies that the method correctly passes both selectors
+        to the Kubernetes API and returns the filtered results.
+        """
+        # Setup
+        label_selector = "node-role.kubernetes.io/control-plane="
+        field_selector = "spec.unschedulable=false"
+
+        mock_node = MagicMock()
+        mock_node.metadata.name = "control-plane-node"
+        mock_node.metadata.labels = {"node-role.kubernetes.io/control-plane": ""}
+        mock_node.spec.unschedulable = False
+        
+        mock_node_list = MagicMock()
+        mock_node_list.items = [mock_node]
+        mock_list_node.return_value = mock_node_list
+
+        # Execute
+        result = self.client.get_nodes(
+            label_selector=label_selector, 
+            field_selector=field_selector
+        )
+
+        # Verify
+        mock_list_node.assert_called_once_with(
+            label_selector=label_selector,
+            field_selector=field_selector
+        )
+        self.assertEqual(result, [mock_node])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].metadata.name, "control-plane-node")
+    
+    @patch('kubernetes.client.CoreV1Api.list_node')
+    def test_get_nodes_with_no_selectors(self, mock_list_node):
+        """
+        Test get_nodes method with no label or field selectors.
+        
+        This test verifies that the method calls the Kubernetes API 
+        list_node method with None values for both selectors and 
+        returns the items from the response.
+        """
+        # Setup
+        mock_node1 = MagicMock()
+        mock_node1.metadata.name = "node-1"
+        mock_node2 = MagicMock()
+        mock_node2.metadata.name = "node-2"
+        
+        mock_node_list = MagicMock()
+        mock_node_list.items = [mock_node1, mock_node2]
+        mock_list_node.return_value = mock_node_list
+        
+        # Execute
+        result = self.client.get_nodes()
+        
+        # Verify
+        mock_list_node.assert_called_once_with(
+            label_selector=None, 
+            field_selector=None
+        )
+        self.assertEqual(result, [mock_node1, mock_node2])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].metadata.name, "node-1")
+        self.assertEqual(result[1].metadata.name, "node-2")
+
     @patch("kubernetes.client.CoreV1Api.create_namespace")
     @patch("kubernetes.client.CoreV1Api.read_namespace")
     def test_create_existing_namespace(self, mock_read_namespace, mock_create_namespace):
@@ -121,6 +290,78 @@ class TestKubernetesClient(unittest.TestCase):
         namespace = self.client.create_namespace(name)
         self.assertEqual(namespace.metadata.name, mock_read_namespace.return_value.metadata.name)
         mock_create_namespace.assert_not_called()
+
+    @patch('kubernetes.client.CoreV1Api.read_namespace')
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_create_namespace_other_api_exception_raises(self, mock_create_namespace, mock_read_namespace):
+        """
+        Test create_namespace when read_namespace raises non-404 ApiException.
+        
+        This test verifies that when read_namespace raises an ApiException
+        with status other than 404, the exception is re-raised without
+        attempting to create a new namespace.
+        """
+        # Setup
+        namespace_name = "test-namespace"
+        
+        # Mock 403 Forbidden exception
+        forbidden_exception = client.rest.ApiException(
+            status=403, 
+            reason="Forbidden"
+        )
+        mock_read_namespace.side_effect = forbidden_exception
+        
+        # Execute & Verify
+        with self.assertRaises(client.rest.ApiException) as context:
+            self.client.create_namespace(namespace_name)
+
+        # Verify the exception details
+        self.assertEqual(context.exception.status, 403)
+        self.assertEqual(context.exception.reason, "Forbidden")
+        
+        # Verify read was called but create was not
+        mock_read_namespace.assert_called_once_with(namespace_name)
+        mock_create_namespace.assert_not_called()
+
+    @patch('kubernetes.client.CoreV1Api.read_namespace')
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_create_namespace_not_found_creates_new(self, mock_create_namespace, mock_read_namespace):
+        """
+        Test create_namespace when namespace doesn't exist (404 error).
+        
+        This test verifies that when read_namespace raises a 404 ApiException,
+        the method creates a new namespace using V1Namespace and V1ObjectMeta.
+        """
+        # Setup
+        namespace_name = "test-namespace"
+        
+        # Mock 404 exception when trying to read namespace
+        mock_read_namespace.side_effect = client.rest.ApiException(
+            status=404, 
+            reason="Not Found"
+        )
+        
+        # Mock successful namespace creation
+        mock_created_namespace = MagicMock()
+        mock_created_namespace.metadata.name = namespace_name
+        mock_create_namespace.return_value = mock_created_namespace
+        
+        # Execute
+        result = self.client.create_namespace(namespace_name)
+        
+        # Verify
+        mock_read_namespace.assert_called_once_with(namespace_name)
+        mock_create_namespace.assert_called_once()
+        
+        # Verify the namespace object structure - fix the access pattern
+        call_args = mock_create_namespace.call_args[0][0]  # Get the first positional argument
+        self.assertIsInstance(call_args, client.V1Namespace)
+        self.assertEqual(call_args.metadata.name, namespace_name)
+        self.assertIsInstance(call_args.metadata, client.V1ObjectMeta)
+        
+        # Verify return value
+        self.assertEqual(result, mock_created_namespace)
+        self.assertEqual(result.metadata.name, namespace_name)
 
     @patch('clients.kubernetes_client.KubernetesClient.create_namespace')
     @patch('clients.kubernetes_client.KubernetesClient.delete_namespace')
@@ -138,6 +379,31 @@ class TestKubernetesClient(unittest.TestCase):
         namespace = self.client.delete_namespace(name)
         self.assertEqual(mock_delete_namespace.return_value, namespace)
         mock_delete_namespace.assert_called_once_with(name)
+
+    @patch('kubernetes.client.CoreV1Api.delete_namespace')
+    def test_delete_namespace_success(self, mock_delete_namespace):
+        """
+        Test delete_namespace method successfully deletes a namespace.
+        
+        This test verifies that the method calls the Kubernetes API 
+        delete_namespace method with the correct namespace name and 
+        returns the response from the API call.
+        """
+        # Setup
+        namespace_name = "test-namespace"
+        mock_delete_response = MagicMock()
+        mock_delete_response.metadata.name = namespace_name
+        mock_delete_response.status = "Terminating"
+        mock_delete_namespace.return_value = mock_delete_response
+
+        # Execute
+        client = KubernetesClient()
+        result = client.delete_namespace(namespace_name)
+
+        # Verify
+        mock_delete_namespace.assert_called_once_with(namespace_name)
+        self.assertEqual(result, mock_delete_response)
+        self.assertEqual(result.metadata.name, namespace_name)
 
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     def test_get_ready_pods_by_namespace(self, mock_get_pods_by_namespace):
@@ -167,6 +433,71 @@ class TestKubernetesClient(unittest.TestCase):
         mock_get_pods_by_namespace.assert_called_once_with(namespace=namespace, label_selector="app=nginx", field_selector=None)
         self.assertCountEqual(returned_pods, expected_pods)
 
+    @patch('kubernetes.client.CoreV1Api.list_namespaced_pod')
+    def test_get_ready_pods_covers_is_ready_pod_logic(self, mock_list_pod):
+        """Test that covers _is_ready_pod through public method"""
+        # Setup pods with different conditions to exercise _is_ready_pod logic
+        running_ready_pod = MagicMock()
+        running_ready_pod.status.phase = "Running"
+        running_ready_pod.status.conditions = [
+            MagicMock(type="Ready", status="True")
+        ]
+
+        running_not_ready_pod = MagicMock()
+        running_not_ready_pod.status.phase = "Running"
+        running_not_ready_pod.status.conditions = [
+            MagicMock(type="Ready", status="False")
+        ]
+
+        pending_pod = MagicMock()
+        pending_pod.status.phase = "Pending"
+        pending_pod.status.conditions = []
+
+        mock_pod_list = MagicMock()
+        mock_pod_list.items = [running_ready_pod, running_not_ready_pod, pending_pod]
+        mock_list_pod.return_value = mock_pod_list
+
+        # Execute - this will call _is_ready_pod internally
+        result = self.client.get_ready_pods_by_namespace("test-namespace")
+
+        # Verify - only the ready pod should be returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], running_ready_pod)
+
+    @patch('kubernetes.client.CoreV1Api.list_namespaced_persistent_volume_claim')
+    def test_get_persistent_volume_claims_by_namespace(self, mock_list_pvc):
+        """
+        Test that get_persistent_volume_claims_by_namespace calls the Kubernetes API
+        list_namespaced_persistent_volume_claim method with the correct namespace
+        and returns the items from the response.
+        
+        This test verifies that the method properly delegates to the CoreV1Api
+        and extracts the items from the response object.
+        """
+        # Setup
+        namespace = "test-namespace"
+        mock_pvc1 = MagicMock()
+        mock_pvc1.metadata.name = "pvc-1"
+        mock_pvc1.status.phase = "Bound"
+        
+        mock_pvc2 = MagicMock()
+        mock_pvc2.metadata.name = "pvc-2" 
+        mock_pvc2.status.phase = "Pending"
+        
+        mock_pvc_list = MagicMock()
+        mock_pvc_list.items = [mock_pvc1, mock_pvc2]
+        mock_list_pvc.return_value = mock_pvc_list
+        
+        # Execute
+        result = self.client.get_persistent_volume_claims_by_namespace(namespace)
+        
+        # Verify
+        mock_list_pvc.assert_called_once_with(namespace=namespace)
+        self.assertEqual(result, [mock_pvc1, mock_pvc2])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].metadata.name, "pvc-1")
+        self.assertEqual(result[1].metadata.name, "pvc-2")
+
     @patch('clients.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
     def test_get_bound_persistent_volume_claims_by_namespace(self, mock_get_persistent_volume_claims_by_namespace):
         namespace = "test-namespace"
@@ -184,6 +515,120 @@ class TestKubernetesClient(unittest.TestCase):
         returned_claims = self.client.get_bound_persistent_volume_claims_by_namespace(namespace=namespace)
         self.assertCountEqual(returned_claims, expected_claims)
         mock_get_persistent_volume_claims_by_namespace.assert_called_once_with(namespace=namespace)
+    
+    @patch('clients.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
+    @patch('kubernetes.client.CoreV1Api.delete_namespaced_persistent_volume_claim')
+    def test_delete_persistent_volume_claim_by_namespace_success(
+        self, mock_delete_pvc, mock_get_pvcs
+    ):
+        """
+        Test successful deletion of all PVCs in a namespace.
+        
+        This test verifies that the method retrieves all PVCs from the namespace
+        and successfully deletes each one using the Kubernetes API.
+        """
+        # Setup
+        namespace = "test-namespace"
+        
+        # Create mock PVCs
+        mock_pvc1 = MagicMock()
+        mock_pvc1.metadata.name = "pvc-1"
+        mock_pvc2 = MagicMock()
+        mock_pvc2.metadata.name = "pvc-2"
+        
+        mock_get_pvcs.return_value = [mock_pvc1, mock_pvc2]
+        
+        # Execute
+        self.client.delete_persistent_volume_claim_by_namespace(namespace)
+
+        # Verify
+        mock_get_pvcs.assert_called_once_with(namespace=namespace)
+        self.assertEqual(mock_delete_pvc.call_count, 2)
+        
+        # Verify each PVC deletion call
+        expected_calls = [
+            mock.call("pvc-1", namespace, body=client.V1DeleteOptions()),
+            mock.call("pvc-2", namespace, body=client.V1DeleteOptions())
+        ]
+        mock_delete_pvc.assert_has_calls(expected_calls, any_order=True)
+
+    @patch('clients.kubernetes_client.KubernetesClient.get_persistent_volume_claims_by_namespace')
+    @patch('kubernetes.client.CoreV1Api.delete_namespaced_persistent_volume_claim')
+    @patch('clients.kubernetes_client.logger')
+    def test_delete_persistent_volume_claim_by_namespace_all_failures(
+        self, mock_logger, mock_delete_pvc, mock_get_pvcs
+    ):
+        """
+        Test deletion when all PVC deletions fail.
+
+        This test verifies that the method logs errors for all failed deletions
+        and continues processing all PVCs despite failures.
+        """
+        # Setup
+        namespace = "test-namespace"
+
+        # Create mock PVCs
+        mock_pvc1 = MagicMock()
+        mock_pvc1.metadata.name = "pvc-1"
+        mock_pvc2 = MagicMock()
+        mock_pvc2.metadata.name = "pvc-2"
+
+        mock_get_pvcs.return_value = [mock_pvc1, mock_pvc2]
+
+        # Configure mock to fail on all deletions
+        mock_delete_pvc.side_effect = client.rest.ApiException(
+            status=500, reason="Internal Server Error"
+        )
+
+        # Execute
+        self.client.delete_persistent_volume_claim_by_namespace(namespace)
+        
+        # Verify
+        mock_get_pvcs.assert_called_once_with(namespace=namespace)
+        self.assertEqual(mock_delete_pvc.call_count, 2)
+
+        # Verify errors were logged for both failed deletions
+        self.assertEqual(mock_logger.error.call_count, 2)
+
+        # Verify specific error messages
+        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
+        self.assertTrue(any("Error deleting PVC 'pvc-1'" in call for call in error_calls))
+        self.assertTrue(any("Error deleting PVC 'pvc-2'" in call for call in error_calls))
+
+    @patch('kubernetes.client.StorageV1Api.list_volume_attachment')
+    def test_get_volume_attachments_success(self, mock_list_volume_attachment):
+        """
+        Test get_volume_attachments method returns volume attachments successfully.
+
+        This test verifies that the method calls the Kubernetes StorageV1Api
+        list_volume_attachment method and returns the items from the response.
+        """
+        # Setup
+        mock_attachment1 = MagicMock()
+        mock_attachment1.metadata.name = "pvc-attachment-1"
+        mock_attachment1.spec.attacher = "csi.azuredisk.com"
+        mock_attachment1.status.attached = True
+        
+        mock_attachment2 = MagicMock()
+        mock_attachment2.metadata.name = "pvc-attachment-2"
+        mock_attachment2.spec.attacher = "kubernetes.io/azure-disk"
+        mock_attachment2.status.attached = False
+        
+        mock_attachment_list = MagicMock()
+        mock_attachment_list.items = [mock_attachment1, mock_attachment2]
+        mock_list_volume_attachment.return_value = mock_attachment_list
+
+        # Execute
+        result = self.client.get_volume_attachments()
+
+        # Verify
+        mock_list_volume_attachment.assert_called_once()
+        self.assertEqual(result, [mock_attachment1, mock_attachment2])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].metadata.name, "pvc-attachment-1")
+        self.assertEqual(result[1].metadata.name, "pvc-attachment-2")
+        self.assertTrue(result[0].status.attached)
+        self.assertFalse(result[1].status.attached)
 
     @patch('clients.kubernetes_client.KubernetesClient.get_volume_attachments')
     def test_get_attached_volume_attachments(self, mock_get_volume_attachments):
@@ -343,36 +788,44 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(result, expected_output)
 
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_nodes')
-    def test_wait_for_nodes_ready(self, mock_get_ready_nodes):
+    @patch("time.sleep", return_value=None)
+    def test_wait_for_nodes_ready(self, mock_sleep, mock_get_ready_nodes):
         mock_get_ready_nodes.side_effect = [[], ["node1", "node2"]]
         node_count = 2
-        timeout = 1
+        timeout = 0.01
 
         nodes = self.client.wait_for_nodes_ready(node_count, timeout)
 
         self.assertEqual(mock_get_ready_nodes.call_count, 2)
         self.assertEqual(len(nodes), node_count)
+        mock_sleep.assert_called()
 
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_nodes')
-    def test_wait_for_nodes_ready_exception(self, mock_get_ready_nodes):
+    @patch("time.sleep", return_value=None)
+    def test_wait_for_nodes_ready_exception(self, mock_sleep, mock_get_ready_nodes):
         mock_get_ready_nodes.return_value = ["node1"]
         node_count = 2
-        timeout = 1
+        timeout = 0.01
+        
         with self.assertRaises(Exception) as context:
             self.client.wait_for_nodes_ready(node_count, timeout)
+        
         self.assertIn("Only 1 nodes are ready, expected 2 nodes!", str(context.exception))
+        mock_sleep.assert_called()
 
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_pods_by_namespace')
-    def test_wait_for_pods_ready(self, mock_get_ready_pods):
+    @patch("time.sleep", return_value=None)
+    def test_wait_for_pods_ready(self, mock_sleep, mock_get_ready_pods):
         mock_get_ready_pods.side_effect = [[], ["pod1", "pod2"]]
         pod_count = 2
-        timeout = 1
+        timeout = 0.01
         namespace = "default"
 
         pods = self.client.wait_for_pods_ready(pod_count, timeout, namespace)
 
         self.assertEqual(len(pods), pod_count)
         self.assertEqual(mock_get_ready_pods.call_count, 2)
+        mock_sleep.assert_called()
 
     @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
     def test_wait_for_job_completed_success(self, mock_read_namespaced_job):
@@ -414,10 +867,12 @@ class TestKubernetesClient(unittest.TestCase):
         )
 
     @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
-    def test_wait_for_job_completed_timeout(self, mock_read_namespaced_job):
+    @patch("time.sleep", return_value=None)  # Mock sleep to return immediately
+    def test_wait_for_job_completed_timeout(self, mock_sleep, mock_read_namespaced_job):
         job_name = "test-job"
         namespace = "default"
-        timeout = 10
+        timeout = 0.01  # Very short timeout
+        
         mock_read_namespaced_job.return_value = MagicMock(
             status=MagicMock(succeeded=0, failed=0, conditions=[]),
             metadata=MagicMock(name=job_name),
@@ -425,10 +880,14 @@ class TestKubernetesClient(unittest.TestCase):
 
         with self.assertRaises(Exception) as context:
             self.client.wait_for_job_completed(job_name, namespace, timeout)
+
         self.assertEqual(
             f"Job '{job_name}' in namespace '{namespace}' did not complete within {timeout} seconds.",
             str(context.exception),
         )
+        
+        # Verify sleep was called but didn't actually wait
+        mock_sleep.assert_called()
 
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     def test_get_daemonsets_pods_allocated_resources(self, mock_get_pods_by_namespace):
@@ -703,6 +1162,61 @@ class TestKubernetesClient(unittest.TestCase):
         mock_read_node.assert_called_with("test-node")
         mock_save_info.assert_called_with(
             expected_info, "/tmp/test_pod_node_info.json")
+    
+    @patch("kubernetes.client.AppsV1Api.read_namespaced_daemon_set")
+    @patch("time.sleep")
+    @patch("time.time")
+    def test_verify_gpu_device_plugin_timeout(self, mock_time, mock_sleep, mock_app):
+        """Test GPU device plugin verification timeout"""
+        namespace = "kube-system"
+        timeout = 60
+        
+        # Mock time progression to exceed timeout - provide enough values
+        mock_time.side_effect = [0, 0, 30, 65, 70, 75]  # Provide more values to avoid StopIteration
+        
+        # Mock DaemonSet that never becomes ready
+        mock_daemonset = MagicMock()
+        mock_daemonset.status.number_available = 1
+        mock_daemonset.status.desired_number_scheduled = 2  # Never matches
+        mock_app.return_value = mock_daemonset
+        
+        result = self.client.verify_gpu_device_plugin(namespace, timeout)
+        
+        self.assertFalse(result)
+        mock_app.assert_called()
+        mock_sleep.assert_called()
+
+    @patch("kubernetes.client.AppsV1Api.read_namespaced_daemon_set")
+    def test_verify_gpu_device_plugin_api_exception(self, mock_app):
+        """Test GPU device plugin verification with API exception"""
+        namespace = "kube-system"
+        
+        # Mock API exception - use the correct import path
+        mock_app.side_effect = client.rest.ApiException(
+            status=500, reason="Internal Server Error"
+        )
+
+        with self.assertRaises(client.rest.ApiException):
+            self.client.verify_gpu_device_plugin(namespace)
+
+    @patch("kubernetes.client.AppsV1Api.read_namespaced_daemon_set")
+    def test_verify_gpu_device_plugin_success(self, mock_app):
+        """Test successful GPU device plugin verification"""
+        namespace = "kube-system"
+        
+        # Mock successful DaemonSet
+        mock_daemonset = MagicMock()
+        mock_daemonset.status.number_available = 3
+        mock_daemonset.status.desired_number_scheduled = 3  # Matches - success
+        mock_app.return_value = mock_daemonset
+        
+        result = self.client.verify_gpu_device_plugin(namespace)
+        
+        self.assertTrue(result)
+        mock_app.assert_called_once_with(
+            name="nvidia-device-plugin-daemonset", 
+            namespace=namespace
+        )
 
 
 if __name__ == '__main__':

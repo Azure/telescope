@@ -93,9 +93,6 @@ class KubernetesClient:
         return True
 
     def _is_ready_pod(self, pod):
-        if pod.status.phase != "Running":
-            return False
-
         for condition in pod.status.conditions:
             if condition.type == "Ready" and condition.status == "True":
                 return True
