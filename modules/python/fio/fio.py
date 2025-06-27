@@ -53,7 +53,7 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
     os.makedirs(result_dir, exist_ok=True)
     pods = KUBERNETES_CLIENT.wait_for_job_completed(
         job_name="fio",
-        timeout=runtime+120,
+        timeout=runtime+300,
     )
     result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
     pods = KUBERNETES_CLIENT.get_pods_by_namespace(
