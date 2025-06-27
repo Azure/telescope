@@ -4,24 +4,24 @@ deletion_delay = "2h"
 owner          = "storage"
 network_config_list = [
   {
-    role           = "client"
-    vpc_name       = "client-vpc"
+    role           = "storage"
+    vpc_name       = "disk-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "client-subnet"
+        name                    = "disk-subnet"
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
-        name                    = "client-subnet-2"
+        name                    = "disk-subnet-2"
         cidr_block              = "10.0.1.0/24"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       }
     ]
-    security_group_name = "client-sg"
+    security_group_name = "disk-sg"
     route_tables = [
       {
         name       = "internet-rt"
@@ -30,13 +30,13 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "client-subnet-rt-assoc"
-        subnet_name      = "client-subnet"
+        name             = "disk-subnet-rt-assoc"
+        subnet_name      = "disk-subnet"
         route_table_name = "internet-rt"
       },
       {
-        name             = "client-subnet-rt-assoc-2"
-        subnet_name      = "client-subnet-2"
+        name             = "disk-subnet-rt-assoc-2"
+        subnet_name      = "disk-subnet-2"
         route_table_name = "internet-rt"
       }
     ]
@@ -55,9 +55,9 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role        = "client"
+  role        = "storage"
   eks_name    = "disk-eks"
-  vpc_name    = "client-vpc"
+  vpc_name    = "disk-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
