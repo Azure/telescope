@@ -4,6 +4,7 @@
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$LoadType := DefaultParam .LoadType "memory"}}
 {{$Provider := DefaultParam .Provider "aks"}}
+{{$OS := DefaultParam .OS "linux"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -26,13 +27,17 @@ spec:
       nodeSelector:
         cri-resource-consume: "true"
       containers:
-{{if eq $LoadType "memory"}}
+      {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
-{{if eq $Provider "aks"}}
-        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
-{{else}}
-        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
-{{end}}
+        {{if eq $OS "windows"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
+        {{else}}
+          {{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
+          {{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
+          {{end}}
+        {{end}}
         imagePullPolicy: IfNotPresent
         command:
           - stress
@@ -48,24 +53,30 @@ spec:
         resources:
           requests:
             memory: {{$MemoryRequest}}
-{{end}}
-{{if eq $LoadType "cpu"}}
+      {{end}}
+      {{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
-{{if eq $Provider "aks"}}
-        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.9
-{{else}}
-        image: registry.k8s.io/e2e-test-images/resource-consumer:1.9
-{{end}}
         imagePullPolicy: IfNotPresent
+        {{if eq $OS "windows"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
         command:
-          - ./consume-cpu/consume-cpu
+          - /consume-cpu/consume-cpu.exe
+        {{else}}
+          {{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
+          {{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
+          {{end}}
+        command:
+          - /consume-cpu/consume-cpu
+        {{end}}
         args:
           - --duration-sec=3600
           - {{$CPU}}
         resources:
           requests:
             cpu: {{$CPURequest}}
-{{end}}
+      {{end}}
       tolerations:
       - key: "cri-resource-consume"
         operator: "Equal"
