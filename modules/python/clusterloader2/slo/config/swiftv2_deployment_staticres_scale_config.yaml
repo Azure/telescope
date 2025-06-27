@@ -3,12 +3,10 @@ name: deployment-churn
 {{$nodesPerStep := DefaultParam .CL2_NODES_PER_STEP 100}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 {{$steps := DivideInt $nodes $nodesPerStep}}
-{{ printf "%#v" $steps }}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
-{{$deploymentQPS := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le (ToInt $nodes) 500) 10 100)}}
-{{ printf "%#v" $deploymentQPS }}
+{{$deploymentQPS := DefaultParam .CL2_DEFAULT_QPS $steps}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "120s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 
