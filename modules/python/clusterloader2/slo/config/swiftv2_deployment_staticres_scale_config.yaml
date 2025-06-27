@@ -12,8 +12,8 @@ name: deployment-churn
 namespace:
   number: 1
   prefix: slo
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
+  deleteStaleNamespaces: false
+  deleteAutomanagedNamespaces: false
   enableExistingNamespaces: false
 
 tuningSets:
