@@ -1,0 +1,34 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-gpu-storage
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          topology: k8s-os-disk
+          engine: fio
+          engine_input:
+            fio_command_array:
+              - "128k|16|write|60|16|32G"
+              - "128k|16|read|60|16|32G"
+              - "128k|16|rw|60|16|32G"
+              - "4k|16|randwrite|60|16|32G"
+              - "4k|16|randread|60|16|32G"
+              - "4k|16|randrw|60|16|32G"
+          matrix:
+            zfs-localpv:
+              storage_name: zfs-localpv
+            acstor-v2:
+              storage_name: acstor-v2
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false

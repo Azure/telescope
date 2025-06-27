@@ -27,7 +27,7 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
     f"--iodepth={iodepth}",
     f"--runtime={runtime}",
     f"--numjobs={numjobs}",
-    "--ioengine=libaio",
+    "--ioengine=io_uring",
     "--time_based",
     "--output-format=json",
     "--group_reporting"

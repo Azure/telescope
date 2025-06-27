@@ -1,14 +1,14 @@
 clusterConfig:
   configYaml: |-
-    apiVersion: containerstorage.azure.com/v1 
-    kind: ClusterConfig 
-    enableInstallerStrictMode: true 
-    enableElasticSan: true 
-    enableNvmeDisk: true 
-    enableStriping: true 
-    enableEphemeralBypassAnnotation: true 
-    agentImage: mcr.microsoft.com/cns/agent:2.0.0-alpha.nvidia.4 
-    agentTolerations: 
+    apiVersion: containerstorage.azure.com/v1
+    kind: ClusterConfig
+    enableInstallerStrictMode: true
+    enableElasticSan: true
+    enableNvmeDisk: true
+    enableStriping: true
+    enableEphemeralBypassAnnotation: true
+    agentImage: mcr.microsoft.com/cns/agent:2.0.0-alpha.nvidia.4
+    agentTolerations:
       - key: "fio-dedicated"
         operator: "Equal"
         value: "true"
