@@ -129,7 +129,7 @@ class TestJobControllerParser(unittest.TestCase):
         validate_args = [a.dest for a in validate_parser._actions if a.dest != "help"]
         self.assertIn("node_count", validate_args)
         self.assertIn("operation_timeout_in_minutes", validate_args)
-        self.assertIn("label", validate_args)
+        self.assertIn("node_label", validate_args)
 
         # Test that execute subparser has expected arguments
         execute_parser = subparsers_action.choices["execute"]
