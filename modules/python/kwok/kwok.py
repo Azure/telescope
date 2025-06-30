@@ -31,7 +31,7 @@ class KWOK(ABC):
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
         subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
         subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
-        # TODO: exchange subprocess with k8s_client, will be done in another PR since change is quiet big
+        
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
             subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
