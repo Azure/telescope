@@ -37,7 +37,7 @@ class TestJobControllerBenchmark(unittest.TestCase):
         benchmark = JobController(
             node_count=2,
             operation_timeout_in_minutes=600,
-            label="role=worker",
+            node_label="role=worker",
         )
         benchmark.validate_clusterloader2()
         mock_wait_for_nodes_ready.assert_called_once_with(2, 600, "role=worker")
