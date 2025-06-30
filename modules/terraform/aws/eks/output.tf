@@ -27,3 +27,13 @@ output "eks_node_groups" {
   description = "Used for unit tests"
   value       = aws_eks_node_group.eks_managed_node_groups
 }
+
+output "eks_cluster" {
+  description = "Used for unit tests"
+  value       = aws_eks_cluster.eks
+}
+
+output "eks_role_policy_attachments" {
+  description = "Used for unit tests"
+  value       = aws_iam_role_policy_attachment.policy_attachments
+}

@@ -43,7 +43,14 @@ locals {
 
   eks_addons_map = merge(local._eks_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
 
-  policy_arns = var.eks_config.policy_arns
+  auto_mode_policies = var.eks_config.auto_mode ? [
+    "AmazonEKSBlockStoragePolicy",
+    "AmazonEKSComputePolicy",
+    "AmazonEKSLoadBalancingPolicy",
+    "AmazonEKSNetworkingPolicy"
+  ] : []
+
+  policy_arns = concat(var.eks_config.policy_arns, local.auto_mode_policies)
 
   addons_policy_arns  = flatten([for addon in local.eks_addons_map : addon.policy_arns if can(addon.policy_arns)])
   service_account_map = { for addon in local.eks_addons_map : addon.name => addon.service_account if try(addon.service_account, null) != null }
@@ -85,7 +92,10 @@ data "aws_iam_policy_document" "assume_role" {
       identifiers = ["eks.amazonaws.com", "ec2.amazonaws.com"]
     }
 
-    actions = ["sts:AssumeRole"]
+    actions = [
+      "sts:AssumeRole",
+      "sts:TagSession" # Required for EKS Auto Mode
+    ]
   }
 }
 
@@ -142,6 +152,35 @@ resource "aws_eks_cluster" "eks" {
   }
 
   version = var.eks_config.kubernetes_version
+
+  # Enable EKS Auto Mode (see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster#eks-cluster-with-eks-auto-mode)
+  # When using EKS Auto Mode compute_config.enabled, kubernetes_network_config.elastic_load_balancing.enabled, 
+  # and storage_config.block_storage.enabled must *ALL be set to true.
+  # Enabling EKS Auto Mode also requires that bootstrap_self_managed_addons is set to false.
+
+  bootstrap_self_managed_addons = var.eks_config.auto_mode ? false : true
+  dynamic "compute_config" {
+    for_each = var.eks_config.auto_mode ? { "compute_config" : true } : {}
+    content {
+      enabled = true
+    }
+  }
+  dynamic "storage_config" {
+    for_each = var.eks_config.auto_mode ? { "block_storage" : true } : {}
+    content {
+      block_storage {
+        enabled = true
+      }
+    }
+  }
+  dynamic "kubernetes_network_config" {
+    for_each = var.eks_config.auto_mode ? { "elastic_load_balancing" : true } : {}
+    content {
+      elastic_load_balancing {
+        enabled = true
+      }
+    }
+  }
 
   depends_on = [
     aws_iam_role_policy_attachment.policy_attachments
