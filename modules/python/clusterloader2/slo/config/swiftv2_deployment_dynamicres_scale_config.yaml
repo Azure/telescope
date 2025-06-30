@@ -19,10 +19,10 @@ namespace:
 tuningSets:
   - name: DeploymentCreatePNIQps
     qpsLoad:
-      qps: 1
+      qps: 5
   - name: DeploymentCreateQps
     qpsLoad:
-      qps: 1
+      qps: 100
 
 steps:
   - name: Log - steps={{$steps}}, nodes-{{$nodes}}, deploymentQPS=1
