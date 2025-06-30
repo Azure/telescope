@@ -1,5 +1,13 @@
 trigger: none
 
+schedules:
+  - cron: "15 3,9,15,21 * * *"
+    displayName: "Every 6 hours starting at hour 3"
+    branches:
+      include:
+        - main
+    always: true
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-storage
