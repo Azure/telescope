@@ -14,11 +14,11 @@ and troubleshooting.
 import logging
 import os
 import time
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, List, Any
 
 # Third party imports
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError, WaiterError
+from botocore.exceptions import ClientError
 
 # Local imports
 from utils.logger_config import get_logger, setup_logging
@@ -45,20 +45,14 @@ class EKSClient:
 
     def _get_operation_context(self):
         """Get operation context for tracking"""
-        from crud.operation import OperationContext
-        return OperationContext(
-            cloud_provider="aws",
-            service="eks",
-            resource_group=self.cluster_name,
-            result_dir=self.result_dir,
-        )
+        from crud.operation import OperationContext # pylint: disable=import-outside-toplevel
+
+        return OperationContext
 
     def __init__(
         self,
-        run_id: str,
-        cluster_name: str,
         region: Optional[str] = None,
-        kube_config_file: Optional[str] = None,
+        kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
         result_dir: Optional[str] = None,
         operation_timeout_minutes: float = 20.0
     ):
@@ -72,60 +66,107 @@ class EKSClient:
             result_dir: Directory to store operation results (optional)
             operation_timeout_minutes: Maximum time to wait for operations (default: 20 minutes)
         """
-        self.cluster_name = self.__get_cluster_name(run_id)
+        # self.cluster_name = self.__get_cluster_name(run_id)
         self.region = region or get_env_vars("AWS_DEFAULT_REGION")
         self.kube_config_file = kube_config_file
         self.result_dir = result_dir
         self.operation_timeout_minutes = operation_timeout_minutes
-        self.vm_size = None  # Will be set during operations for compatibility with operation tracking
 
         try:
-            self.eks = boto3.client('eks', region_name=region)
+            self.eks = boto3.client('eks', region_name=self.region)
             # Initialize the EC2 client for the VPC configuration
-            self.ec2 = boto3.client('ec2', region_name=region)
+            self.ec2 = boto3.client('ec2', region_name=self.region)
             # Initialize the IAM client for the role ARN
-            self.iam = boto3.client('iam', region_name=region)
+            self.iam = boto3.client('iam', region_name=self.region)
+            self.run_id = get_env_vars("RUN_ID")
+            self.cluster_name = self._get_cluster_name_by_run_id(self.run_id)
+            logger.info(f"Successfully connected to AWS EKS. Found cluster: {self.cluster_name}")
+            self._load_subnet_ids()
+            self._load_node_role_arn()
 
         except Exception as e:
-            logger.error(f"Failed to initialize EKS client: {e}")
+            logger.error(f"Initialization failed: {e}")
             raise
 
-        # Initialize Kubernetes client if config file is provided
-        self.k8s_client = None
-        if kube_config_file and os.path.exists(kube_config_file):
-            try:
-                self.k8s_client = KubernetesClient(config_file=kube_config_file)
-                logger.info("Kubernetes client initialized successfully")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Kubernetes client: {e}")
+        # Initialize Kubernetes client if provided or if kubeconfig is available
+        try:
+            self.k8s_client = KubernetesClient(config_file=kube_config_file)
+            logger.info("Kubernetes client initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Kubernetes client: {str(e)}")
+            self.k8s_client = None
+        logger.info("EKS client initialized successfully")            
 
-    def __get_cluster_name(self) -> str:
+    def _get_cluster_name_by_run_id(self, run_id: str) -> Optional[str]:
         """
-        Get the cluster name based on the run ID.
+        Find the EKS cluster tagged with a specific run_id.
+
+        Args:
+            run_id (str): The run_id tag value to search for.
+
+        Returns:
+            Optional[str]: The name of the matching cluster or None.
+        """
+        try:
+            all_clusters = self.eks.list_clusters()["clusters"]
+            logger.info(f"Checking {len(all_clusters)} clusters for run_id = {run_id}")
+
+            for cluster_name in all_clusters:
+                details = self.eks.describe_cluster(name=cluster_name)
+                tags = details["cluster"].get("tags", {})
+
+                if tags.get("run_id") == run_id:
+                    logger.info(f"Matched cluster: {cluster_name} with run_id: {run_id}")
+                    return cluster_name
+            raise Exception(f"No EKS cluster found with run_id: {run_id}")
+        except Exception as e:
+            logger.error(f"Error while getting EKS clusters : {e}")
+            raise
+
+    def _load_subnet_ids(self):
+        """
+        Loads the subnet IDs based on the run ID.
 
         Raises:
-            Exception: If no cluster is found with the given run ID.
-
+            Exception: If no subnets are found with the given run ID.
         """
-        next_token = ""
-        clusters = self.eks.list_clusters(maxResults=100, nextToken=next_token)
-        cluster_name = clusters['clusters']
+        response = self.ec2.describe_subnets(Filters=[
+            {'Name': 'tag:run_id', 'Values': [self.run_id]},
+        ])
+        logger.debug(response)
+        self.subnets = [subnet['SubnetId'] for subnet in response['Subnets']]
+        logger.info("Subnets: %s", self.subnets)
+        if self.subnets == []:
+            raise Exception("No subnets found for run_id: " + self.run_id)
 
-        while clusters.get('nextToken'):
-            clusters = self.eks.list_clusters(maxResults=100, nextToken=clusters['nextToken'])
-            cluster_name.extend(clusters['clusters'])
+    def _load_node_role_arn(self):
+        """
+        Loads the node role ARN based on the run ID.
 
-        for name in cluster_name:
-            logger.info("cluster name: %s", name)
-            try:
-                cluster = self.eks.describe_cluster(name=name)
-                if cluster['cluster']['tags']['run_id'] == self.run_id:
-                    return name
-            except Exception as e:
-                logger.error("Failed to describe cluster: %s", e)
-                logger.info("Ignore the error, continue the next")
-        if self.cluster_name == "":
-            raise Exception("No cluster found with run_id: " + self.run_id)
+        Raises:
+            Exception: If no role is found with the given run ID.
+        """
+        response = self.iam.list_roles(
+            MaxItems=100,
+        )
+        roles = response['Roles']
+        while response.get('Marker'):
+            logger.info(response['Marker'])
+            response = self.iam.list_roles(
+                MaxItems=100,
+                Marker=response['Marker']
+            )
+            roles.extend(response['Roles'])
+        logger.debug("All the roles: %s", roles)
+        for role in roles:
+            if role['RoleName'].startswith('terraform'):
+                role_tags = self.iam.list_role_tags(RoleName=role['RoleName'])
+                for tag in role_tags['Tags']:
+                    if tag['Key'] == 'run_id' and tag['Value'] == self.run_id:
+                        self.node_role_arn = role['Arn']
+                        break
+        if self.node_role_arn == "":
+            raise Exception("No role found with run_id: " + self.run_id)
 
     def get_cluster_data(self, cluster_name: Optional[str] = None) -> Dict:
         """
@@ -143,23 +184,23 @@ class EKSClient:
         cluster_name = cluster_name or self.cluster_name
         
         try:
-            response = self.eks_client.describe_cluster(name=cluster_name)
+            response = self.eks.describe_cluster(name=cluster_name)
             cluster = response['cluster']
             
-            return {
-                'name': cluster['name'],
-                'status': cluster['status'],
-                'version': cluster['version'],
-                'endpoint': cluster['endpoint'],
-                'roleArn': cluster['roleArn'],
-                'resourcesVpcConfig': cluster['resourcesVpcConfig'],
-                'region': self.region,
-                'platformVersion': cluster.get('platformVersion'),
-                'createdAt': cluster.get('createdAt'),
-            }
+            # Convert the cluster object to a serializable dictionary
+            cluster_data = (
+                cluster.as_dict() if hasattr(cluster, "as_dict") else dict(cluster)
+            )
+
+            return cluster_data
         except ClientError as e:
-            logger.error(f"Failed to get cluster data for '{cluster_name}': {e}")
-            raise
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                logger.error(
+                    f"Cluster {cluster_name} not found in resource group {self.resource_group}"
+                )
+            else:
+                logger.error(f"Error getting cluster {cluster_name}: {str(e)}")
+            raise        
 
     def get_node_group(
         self, node_group_name: str, cluster_name: Optional[str] = None
@@ -180,7 +221,7 @@ class EKSClient:
         cluster_name = cluster_name or self.cluster_name
         
         try:
-            response = self.eks_client.describe_nodegroup(
+            response = self.eks.describe_nodegroup(
                 clusterName=cluster_name,
                 nodegroupName=node_group_name
             )
@@ -195,32 +236,21 @@ class EKSClient:
     def create_node_group(
         self,
         node_group_name: str,
-        instance_types: List[str],
+        instance_type: str,
         node_count: int = 0,
-        cluster_name: Optional[str] = None,
         gpu_node_group: bool = False,
-        subnet_ids: Optional[List[str]] = None,
-        node_role_arn: Optional[str] = None,
-        ami_type: Optional[str] = None,
         capacity_type: str = "ON_DEMAND",
-        disk_size: int = 20,
-        scaling_config: Optional[Dict] = None,
-    ) -> Dict:
+    ) -> Any:
         """
         Create a new node group in the EKS cluster.
 
         Args:
             node_group_name: The name for the new node group
-            instance_types: List of EC2 instance types for the nodes (e.g., ['t3.medium'])
+            instance_type: EC2 instance type for the node (e.g., 't3.medium')
             node_count: The number of nodes to create (default: 0)
             cluster_name: The name of the EKS cluster (optional)
             gpu_node_group: Whether this is a GPU-enabled node group (default: False)
-            subnet_ids: List of subnet IDs for the node group (optional, will use cluster subnets if not provided)
-            node_role_arn: IAM role ARN for the node group (optional, will try to find one if not provided)
-            ami_type: AMI type for the nodes (optional, will use AL2_x86_64 or AL2_x86_64_GPU based on gpu_node_group)
             capacity_type: Capacity type (ON_DEMAND or SPOT, default: ON_DEMAND)
-            disk_size: Root disk size in GB (default: 20)
-            scaling_config: Custom scaling configuration (optional)
 
         Returns:
             The created node group object
@@ -229,89 +259,93 @@ class EKSClient:
             ValueError: If required parameters are missing
             ClientError: If the AWS API request fails
         """
-        cluster_name = cluster_name or self.cluster_name
-        self.vm_size = instance_types[0]  # Set for operation tracking
+        self.vm_size = instance_type  # Set for operation tracking
 
         # Prepare operation metadata
         metadata = {
-            "cluster_name": cluster_name,
-            "instance_types": instance_types,
+            "cluster_name": self.cluster_name,
+            "instance_type": instance_type,
             "node_count": node_count,
             "gpu_node_group": gpu_node_group,
             "capacity_type": capacity_type,
         }
-
-        # Get cluster information to retrieve subnets and node role if not provided
-        cluster_data = self.get_cluster_data(cluster_name)
-        
-        if not subnet_ids:
-            subnet_ids = cluster_data['resourcesVpcConfig']['subnetIds']
-            logger.info(f"Using cluster subnets: {subnet_ids}")
-
-        if not node_role_arn:
-            node_role_arn = self._get_node_role_arn()
-            logger.info(f"Using node role: {node_role_arn}")
-
-        if not ami_type:
-            ami_type = "AL2_x86_64_GPU" if gpu_node_group else "AL2_x86_64"
-
-        # Prepare scaling configuration
-        if not scaling_config:
-            scaling_config = {
-                'minSize': 0,
-                'maxSize': max(node_count * 2, 10),  # Allow scaling up to 2x initial size or 10, whichever is larger
-                'desiredSize': node_count
-            }
+       
 
         # Start operation tracking
-        operation_context = self._get_operation_context()
-        with operation_context.track_operation("create_node_group", metadata) as operation:
+        with self._get_operation_context()(
+            "create_node_pool", "aws", metadata, result_dir=self.result_dir
+        ) as op:
             try:
                 logger.info(f"Creating node group '{node_group_name}' with {node_count} nodes")
-                logger.info(f"Instance types: {instance_types}, AMI type: {ami_type}")
+                logger.info(f"Instance types: {instance_type}")
 
-                create_params = {
-                    'clusterName': cluster_name,
-                    'nodegroupName': node_group_name,
-                    'scalingConfig': scaling_config,
-                    'instanceTypes': instance_types,
-                    'amiType': ami_type,
-                    'nodeRole': node_role_arn,
-                    'subnets': subnet_ids,
-                    'capacityType': capacity_type,
-                    'diskSize': disk_size,
-                }
-
-                # Add GPU-specific configurations if needed
-                if gpu_node_group:
-                    create_params['taints'] = [
-                        {
-                            'key': 'nvidia.com/gpu',
-                            'value': 'true',
-                            'effect': 'NO_SCHEDULE'
-                        }
-                    ]
-
-                response = self.eks_client.create_nodegroup(**create_params)
+                response = self.eks.create_nodegroup(
+                    clusterName=self.cluster_name,
+                    nodegroupName=node_group_name,
+                    scalingConfig={
+                        'minSize': node_count,
+                        'maxSize': node_count +2,
+                        'desiredSize': node_count
+                    },
+                    subnets=self.subnets,
+                    instanceTypes=[instance_type],
+                    nodeRole=self.node_role_arn,
+                    labels={
+                        "cluster-name": self.cluster_name,
+                        "nodegroup-name": node_group_name,
+                        "run_id": self.run_id,
+                        "scenario": f"{get_env_vars('SCENARIO_TYPE')}-{get_env_vars('SCENARIO_NAME')}",
+                    }
+                )
+                waiter = self.eks.get_waiter('nodegroup_active')
+                waiter.wait(
+                    clusterName=self.cluster_name,
+                    nodegroupName=node_group_name,
+                    WaiterConfig={
+                        'Delay': 1,
+                        'MaxAttempts': 7200 # 2 hours
+                    }
+                )
                 node_group = response['nodegroup']
 
                 logger.info(f"Node group creation initiated. Status: {node_group['status']}")
+                label_selector = f"nodegroup-name={node_group_name}"
 
-                # Wait for the node group to become active
-                self._wait_for_node_group_active(node_group_name, cluster_name)
+                # Wait for nodes to be ready
+                ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                    node_count=node_count,
+                    operation_timeout_in_minutes=self.operation_timeout_minutes,
+                   label_selector=label_selector,
+                )
 
-                # Get the final node group state
-                final_node_group = self.get_node_group(node_group_name, cluster_name)
+                logger.info(f"All {len(ready_nodes)} nodes in node group '{node_group_name}' are ready")
                 
-                operation.add_metadata("final_status", final_node_group['status'])
-                operation.add_metadata("actual_node_count", final_node_group['scalingConfig']['desiredSize'])
+                # Verify NVIDIA drivers if this is a GPU node pool
+                pod_logs = None
+                if gpu_node_group and node_count > 0:
+                    logger.info(
+                        f"Verifying NVIDIA drivers for GPU node pool '{node_group_name}'"
+                    )
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    op.add_metadata("nvidia_driver_logs", pod_logs)
 
-                logger.info(f"Node group '{node_group_name}' created successfully")
-                return final_node_group
+                # Add additional metadata
+                op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
+                op.add_metadata("node_pool_name", node_group_name)
+                op.add_metadata(
+                    "nodepool_info",                   
+                        self.get_node_pool(node_group_name, self.cluster_name).as_dict(),
+                )
+                op.add_metadata(
+                    "cluster_info", self.get_cluster_data(self.cluster_name)
+                )
+                return True
 
             except Exception as e:
-                operation.mark_failed(str(e))
-                logger.error(f"Failed to create node group '{node_group_name}': {e}")
+                # Log the error
+                error_msg = str(e)
+                logger.error(f"Error creating node pool {node_group_name}: {error_msg}")
+                # The OperationContext will automatically record failure when exiting
                 raise
 
     def scale_node_group(
@@ -355,17 +389,26 @@ class EKSClient:
         current_node_group = self.get_node_group(node_group_name, cluster_name)
         current_count = current_node_group['scalingConfig']['desiredSize']
         self.vm_size = current_node_group['instanceTypes'][0]  # Set for operation tracking
-
+        operation_type = "scale"
+        if node_count > current_count:
+            operation_type = "scale_up"
+        elif node_count < current_count:
+            operation_type = "scale_down"
+        else:
+            # No change in node count, return the node pool as is
+            logger.info(
+                f"Node pool {node_group_name} already has {node_count} nodes. No scaling needed."
+            )
         logger.info(f"Scaling node group '{node_group_name}' from {current_count} to {node_count} nodes")
 
         if progressive and abs(node_count - current_count) > scale_step_size:
             return self._progressive_scale(
-                node_group_name, current_count, node_count, scale_step_size, cluster_name, metadata
+                node_group_name, current_count, node_count, scale_step_size, cluster_name, metadata, operation_type
             )
 
-        # Direct scaling
-        operation_context = self._get_operation_context()
-        with operation_context.track_operation("scale_node_group", metadata) as operation:
+        with self._get_operation_context()(
+            operation_type, "azure", metadata, result_dir=self.result_dir
+        ) as op:
             try:
                 scaling_config = current_node_group['scalingConfig'].copy()
                 scaling_config['desiredSize'] = node_count
@@ -375,7 +418,7 @@ class EKSClient:
                     scaling_config['maxSize'] = node_count
                     logger.info(f"Updating maxSize to {node_count}")
 
-                self.eks_client.update_nodegroup_config(
+                self.eks.update_nodegroup_config(
                     clusterName=cluster_name,
                     nodegroupName=node_group_name,
                     scalingConfig=scaling_config
@@ -386,18 +429,18 @@ class EKSClient:
                 # Wait for the scaling operation to complete
                 self._wait_for_node_group_active(node_group_name, cluster_name)
 
-                # Get the final node group state
-                final_node_group = self.get_node_group(node_group_name, cluster_name)
+                op.name = operation_type
+                op.add_metadata("vm_size", self.vm_size)
+                op.add_metadata("current_count", current_count)
                 
-                operation.add_metadata("final_status", final_node_group['status'])
-                operation.add_metadata("actual_node_count", final_node_group['scalingConfig']['desiredSize'])
 
                 logger.info(f"Node group '{node_group_name}' scaled successfully to {node_count} nodes")
-                return final_node_group
+                return True
 
             except Exception as e:
-                operation.mark_failed(str(e))
-                logger.error(f"Failed to scale node group '{node_group_name}': {e}")
+                error_msg = str(e)
+                logger.error(f"Error scaling node pool {node_group_name}: {error_msg}")
+                # The OperationContext will automatically record failure when exiting
                 raise
 
     def delete_node_group(
@@ -439,7 +482,7 @@ class EKSClient:
             try:
                 logger.info(f"Deleting node group '{node_group_name}'")
 
-                self.eks_client.delete_nodegroup(
+                self.eks.delete_nodegroup(
                     clusterName=cluster_name,
                     nodegroupName=node_group_name
                 )
@@ -466,6 +509,7 @@ class EKSClient:
         step_size: int,
         cluster_name: str,
         base_metadata: Dict,
+        operation_type: str
     ) -> Dict:
         """
         Progressively scale a node group in steps.
@@ -483,11 +527,11 @@ class EKSClient:
         """
         logger.info(f"Progressive scaling from {current_count} to {target_count} nodes in steps of {step_size}")
 
-        operation_context = self._get_operation_context()
         metadata = base_metadata.copy()
         metadata["progressive_scaling"] = True
-
-        with operation_context.track_operation("progressive_scale", metadata) as operation:
+        with self._get_operation_context()(
+            operation_type, "azure", metadata, result_dir=self.result_dir
+        ) as op:
             try:
                 steps = []
                 if target_count > current_count:
@@ -506,6 +550,7 @@ class EKSClient:
                 logger.info(f"Progressive scaling steps: {current_count} -> {' -> '.join(map(str, steps))}")
 
                 current_node_group = None
+                label_selector = f"nodegroup-name={node_group_name}"
                 for i, step_count in enumerate(steps):
                     logger.info(f"Progressive scaling step {i + 1}/{len(steps)}: scaling to {step_count} nodes")
                     
@@ -517,18 +562,24 @@ class EKSClient:
                         progressive=False,  # Avoid recursive progressive scaling
                     )
 
+                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                        node_count=step_count,
+                        operation_timeout_in_minutes=self.operation_timeout_minutes,
+                        label_selector=label_selector,
+                    )
+
                     # Small delay between steps
                     if i < len(steps) - 1:
                         time.sleep(10)
 
-                operation.add_metadata("scaling_steps", steps)
-                operation.add_metadata("final_node_count", target_count)
+                    op.add_metadata(
+                        "ready_nodes", len(ready_nodes) if ready_nodes else 0
+                    )
 
                 logger.info(f"Progressive scaling completed. Final count: {target_count}")
                 return current_node_group
 
             except Exception as e:
-                operation.mark_failed(str(e))
                 logger.error(f"Progressive scaling failed: {e}")
                 raise
 
@@ -546,7 +597,7 @@ class EKSClient:
         logger.info(f"Waiting for node group '{node_group_name}' to become active...")
         
         try:
-            waiter = self.eks_client.get_waiter('nodegroup_active')
+            waiter = self.eks.get_waiter('nodegroup_active')
             waiter.wait(
                 clusterName=cluster_name,
                 nodegroupName=node_group_name,
@@ -574,7 +625,7 @@ class EKSClient:
         logger.info(f"Waiting for node group '{node_group_name}' to be deleted...")
         
         try:
-            waiter = self.eks_client.get_waiter('nodegroup_deleted')
+            waiter = self.eks.get_waiter('nodegroup_deleted')
             waiter.wait(
                 clusterName=cluster_name,
                 nodegroupName=node_group_name,
@@ -602,7 +653,7 @@ class EKSClient:
         """
         try:
             # Try to find existing node groups to get the role pattern
-            response = self.eks_client.list_nodegroups(clusterName=self.cluster_name)
+            response = self.eks.list_nodegroups(clusterName=self.cluster_name)
             if response['nodegroups']:
                 # Get the first node group's role as template
                 first_ng = response['nodegroups'][0]

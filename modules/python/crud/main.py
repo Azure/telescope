@@ -59,7 +59,7 @@ def get_node_pool_crud_class(cloud_provider):
     elif cloud_provider == "gcp":
         # TODO: Implement GCP NodePoolCRUD class
         raise ValueError(
-            f"GCP NodePoolCRUD implementation not yet available"
+            "GCP NodePoolCRUD implementation not yet available"
         )
     else:
         raise ValueError(
