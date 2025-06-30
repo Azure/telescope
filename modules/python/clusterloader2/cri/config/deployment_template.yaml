@@ -4,7 +4,7 @@
 {{$CPURequest := DefaultParam .CPURequest "100m"}}
 {{$LoadType := DefaultParam .LoadType "memory"}}
 {{$Provider := DefaultParam .Provider "aks"}}
-{{$OS := DefaultParam .OS "linux"}}
+{{$OSType := DefaultParam .OSType "linux"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -29,16 +29,26 @@ spec:
       containers:
       {{if eq $LoadType "memory"}}
       - name: resource-consumer-memory
-        {{if eq $OS "windows"}}
+        imagePullPolicy: IfNotPresent
+        {{if eq $OSType "windows"}}
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
+        command:
+          - testlimit.exe
+        args:
+          - -accepteula
+          - -d
+          - {{$Memory}}
+          - -e
+          - "0"
+          - "3600"
+          - -c
+          - "1"
         {{else}}
           {{if eq $Provider "aks"}}
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
           {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
           {{end}}
-        {{end}}
-        imagePullPolicy: IfNotPresent
         command:
           - stress
         args:
@@ -50,6 +60,7 @@ spec:
           - "0"
           - --timeout
           - "3600"
+        {{end}}
         resources:
           requests:
             memory: {{$MemoryRequest}}
@@ -57,7 +68,7 @@ spec:
       {{if eq $LoadType "cpu"}}
       - name: resource-consumer-cpu
         imagePullPolicy: IfNotPresent
-        {{if eq $OS "windows"}}
+        {{if eq $OSType "windows"}}
         image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
         command:
           - /consume-cpu/consume-cpu.exe

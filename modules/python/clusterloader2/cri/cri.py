@@ -54,7 +54,14 @@ def override_config_clusterloader2(
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
     memory_request_in_k = int(memory_request_in_ki // 1.024)
-    logger.info(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
+    memory_request_in_m = int(memory_request_in_k // 1000)
+    memory_request = (
+        memory_request_in_m if os_type == "windows" else memory_request_in_k
+    )
+    logger.info(
+        f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}, "
+        f"total pod per node: {pod_count}, os_type: {os_type}"
+    )
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
@@ -62,7 +69,7 @@ def override_config_clusterloader2(
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_k}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request}\n")
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_ki}Ki\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
@@ -79,7 +86,7 @@ def override_config_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
-        file.write(f"CL2_OS: {os_type}\n")  # Default to linux, can be overridden if needed
+        file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
 
     file.close()
