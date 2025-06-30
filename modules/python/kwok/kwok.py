@@ -164,7 +164,7 @@ def main():
         "--node-count",
         type=int,
         default=1,
-        help="Number of virtual nodes to create (only for --mode node).",
+        help="Number of virtual nodes to create",
     )
     parser.add_argument(
         "--node-manifest-path",
