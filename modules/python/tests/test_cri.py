@@ -59,6 +59,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            os_type="linux",
             scrape_kubelets=True,
             override_file="/mock/override.yaml"
         )
@@ -77,6 +78,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call("CL2_OPERATION_TIMEOUT: 2m\n")
         handle.write.assert_any_call("CL2_SCALE_ENABLED: false\n")
         handle.write.assert_any_call("CL2_PROVIDER: aks\n")
+
         handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: true\n")
 
     @patch('clusterloader2.cri.cri.run_cl2_command')
@@ -172,12 +174,12 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
     def test_override_command(self, mock_override):
         test_args = [
             "main.py", "override", "5", "1", "110", "3", "2m", "cpu", "True", "10s",
-            "aws", "False", "/tmp/override.yaml"
+            "aws", "linux", "False", "/tmp/override.yaml"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
