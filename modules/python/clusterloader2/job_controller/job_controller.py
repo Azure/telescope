@@ -138,9 +138,9 @@ class JobController(ClusterLoader2Base):
             help="Operation timeout to wait for nodes to be ready",
         )
         parser.add_argument(
-            "--label",
+            "--node_label",
             type=str,
-            default="",
+            default=None,
             help="Node label selectors to filter nodes (e.g., 'kubernetes.io/role=worker')",
         )
 
