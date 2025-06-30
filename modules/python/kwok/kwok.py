@@ -156,28 +156,9 @@ class Node(KWOK):
         print(f"Node {node.metadata.name} Capacity: {capacity}")
 
 
-# TODO: Implement the logic for KWOK pods
-@dataclass
-class Pod(KWOK):
-    def create(self):
-        pass
-
-    def validate(self):
-        pass
-
-    def tear_down(self):
-        pass
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
-    )
-    parser.add_argument(
-        "--mode",
-        choices=["node", "pod"],
-        required=True,
-        help="KWOK simulation mode: 'node' for virtual nodes, 'pod' for virtual pods.",
     )
     parser.add_argument(
         "--node-count",
@@ -211,25 +192,18 @@ def main():
 
     args = parser.parse_args()
 
-    if args.mode == "node":
-        node = Node(
-            node_manifest_path=args.node_manifest_path,
-            node_count=args.node_count,
-            kwok_release=args.kwok_release,
-            enable_metrics=args.enable_metrics,
-        )
-        if args.action == "create":
-            node.create()
-        elif args.action == "validate":
-            node.validate()
-        elif args.action == "tear_down":
-            node.tear_down()
-    elif args.mode == "pod":
-        # TODO: Implement the logic for KWOK pods
-        pass
-    else:
-        print("Unknown mode specified.", file=sys.stderr)
-        sys.exit(1)
+    node = Node(
+        node_manifest_path=args.node_manifest_path,
+        node_count=args.node_count,
+        kwok_release=args.kwok_release,
+        enable_metrics=args.enable_metrics,
+    )
+    if args.action == "create":
+        node.create()
+    elif args.action == "validate":
+        node.validate()
+    elif args.action == "tear_down":
+        node.tear_down()
 
 
 if __name__ == "__main__":
