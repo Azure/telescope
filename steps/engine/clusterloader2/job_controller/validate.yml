@@ -1,13 +1,13 @@
 parameters:
-  - name: desired_nodes
-    type: number
-  - name: operation_timeout_in_minutes
-    type: number
-    default: 20
+- name: desired_nodes
+  type: number
+- name: operation_timeout_in_minutes
+  type: number
+  default: 20
 steps:
-  - template: /steps/common/validate_node_count.yml@self
-    parameters:
-      desired_nodes: ${{ parameters.desired_nodes }}
-      operation_timeout_in_minutes: ${{ parameters.operation_timeout_in_minutes }}
-      python_script_file: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
-      node_label: "default"
+- template: /steps/common/validate_node_count.yml@self
+  parameters:
+    desired_nodes: ${{ parameters.desired_nodes }}
+    operation_timeout_in_minutes: ${{ parameters.operation_timeout_in_minutes }}
+    python_script_file: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
+    node_label: "default"
