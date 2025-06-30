@@ -1,6 +1,5 @@
 import argparse
 import subprocess
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -31,7 +30,6 @@ class KWOK(ABC):
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
         subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
         subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
-        
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
             subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
