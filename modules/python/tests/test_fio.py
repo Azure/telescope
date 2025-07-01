@@ -80,7 +80,7 @@ class TestFio(unittest.TestCase):
         # Verify the Kubernetes client was used to wait for job completion
         mock_k8s_client.wait_for_job_completed.assert_called_once_with(
             job_name="fio",
-            timeout=runtime + 120,
+            timeout=runtime + 300,
         )
 
         # Verify the pods were retrieved by namespace
