@@ -49,7 +49,7 @@ stages:
               load_type: memory
               scrape_kubelets: True
               os_type: windows
-          max_parallel: 3
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
