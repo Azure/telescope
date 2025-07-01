@@ -5,6 +5,7 @@ Instructions on how to run CRI test manually
 ## Provision resources
 
 Follow one of the below guides to provision resources in corresponding cloud
+
 - [Guide](../../../terraform/azure/README.md) for Azure resources
 - [Guide](../../../terraform/aws/README.md) for AWS resources
 
@@ -26,6 +27,7 @@ TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-in
 ## Validate resources
 
 Get credentials to access cluster
+
 - For AKS:
 
 ```bash
@@ -62,15 +64,17 @@ OPERATION_TIMEOUT="3m"
 LOAD_TYPE="memory"
 POD_STARTUP_LATENCY_THRESHOLD="15s"
 CL2_CONFIG_DIR=$(pwd)/clusterloader2/cri/config
-CL2_IMAGE="ghcr.io/azure/clusterloader2:v20241016"
+CL2_IMAGE="ghcr.io/azure/clusterloader2:v20250513"
 CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 CLOUD=aks # set to aws to run against aws
 SCRAPE_KUBELETS=True
+OS_TYPE="linux"
 # NODE_PER_STEP=5
 # SCALE_ENABLED=True
 ```
 
-**Note**: 
+**Note**:
+
 - `SCRAPE_KUBELETS` is not suggested to used together with scaling when these 2 variables `NODE_PER_STEP` and `SCALE_ENABLED` are set.
 - For scaling test, you should always start with 1 node and set total node count to be desired scale count + 1. For example, when scaling 100 nodes, the `NODE_COUNT` should be set to 101.
 - Different clouds have different number of default daemonsets. So the actual pods deployed in the test will be slightly different across clouds, but total pods per node (including daemonsets) should be the same.
@@ -79,13 +83,25 @@ Run these commands to execute test:
 
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-    $NODE_COUNT ${NODE_PER_STEP:-$NODE_COUNT} $MAX_PODS $REPEATS $OPERATION_TIMEOUT \
-    $LOAD_TYPE ${SCALE_ENABLED:-False} ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
-    $CLOUD ${SCRAPE_KUBELETS:-False} ${CL2_CONFIG_DIR}/overrides.yaml
-
+    --node_count $NODE_COUNT \
+    --node_per_step ${NODE_PER_STEP:-$NODE_COUNT} \
+    --max_pods $MAX_PODS \
+    --repeats $REPEATS \
+    --operation_timeout $OPERATION_TIMEOUT \
+    --load_type $LOAD_TYPE \
+    --scale_enabled ${SCALE_ENABLED:-False} \
+    --pod_startup_latency_threshold ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
+    --provider $CLOUD \
+    --os_type ${OS_TYPE:-linux} \
+    --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+    --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-    ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD \
-    ${SCRAPE_KUBELETS:-False}
+    --cl2_image ${CL2_IMAGE} \
+    --cl2_config_dir ${CL2_CONFIG_DIR} \
+    --cl2_report_dir $CL2_REPORT_DIR \
+    --kubeconfig ${HOME}/.kube/config \
+    --provider $CLOUD \
+    --scrape_kubelets ${SCRAPE_KUBELETS:-False}
 ```
 
 Raw result can be found in folder `CL2_REPORT_DIR`
@@ -104,9 +120,16 @@ Run collect command:
 
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-    $NODE_COUNT $MAX_PODS $REPEATS $LOAD_TYPE \
-    $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE \
-    ${SCRAPE_KUBELETS:-False}
+    --node_count $NODE_COUNT \
+    --max_pods $MAX_PODS \
+    --repeats $REPEATS \
+    --load_type $LOAD_TYPE \
+    --cl2_report_dir $CL2_REPORT_DIR \
+    --cloud_info "$CLOUD_INFO" \
+    --run_id $RUN_ID \
+    --run_url $RUN_URL \
+    --result_file $TEST_RESULTS_FILE \
+    --scrape_kubelets ${SCRAPE_KUBELETS:-False}
 ```
 
 The final result which will be used to upload to storage account will be in this file `TEST_RESULTS_FILE`

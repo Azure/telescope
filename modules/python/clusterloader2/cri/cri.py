@@ -11,16 +11,12 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-DAEMONSETS_PER_NODE_MAP = {
-    "aws": 2,
-    "aks": 6
-}
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    scrape_kubelets, override_file):
+    os_type, scrape_kubelets, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -50,11 +46,20 @@ def override_config_clusterloader2(
     memory_value -= allocated_memory
 
     # Calculate request cpu and memory for each pod
-    pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
+    daemonset_count = client.get_daemonsets_pods_count("kube-system", node.metadata.name)
+    logger.info(f"Node {node.metadata.name} has {daemonset_count} daemonset pods")
+    pod_count = max_pods - daemonset_count
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
     memory_request_in_k = int(memory_request_in_ki // 1.024)
-    logger.info(f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request_in_k}K, total pod per node: {pod_count}")
+    memory_request_in_m = int(memory_request_in_k // 1000)
+    memory_request = (
+        memory_request_in_m if os_type == "windows" else memory_request_in_k
+    )
+    logger.info(
+        f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}, "
+        f"total pod per node: {pod_count}, os_type: {os_type}"
+    )
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
@@ -62,7 +67,7 @@ def override_config_clusterloader2(
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
-        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request_in_k}\n")
+        file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request}\n")
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_ki}Ki\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
@@ -79,6 +84,7 @@ def override_config_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
+        file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
 
     file.close()
@@ -197,57 +203,155 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
-    parser_override.add_argument("node_count", type=int, help="Number of nodes")
-    parser_override.add_argument("node_per_step", type=int, help="Number of nodes to scale per step")
-    parser_override.add_argument("max_pods", type=int, help="Number of maximum pods per node")
-    parser_override.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
-    parser_override.add_argument("operation_timeout", type=str, default="2m", help="Operation timeout")
-    parser_override.add_argument("load_type", type=str, choices=["memory", "cpu"],
-                                 default="memory", help="Type of load to generate")
-    parser_override.add_argument("scale_enabled", type=str2bool, choices=[True, False], default=False,
-                                 help="Whether scale operation is enabled. Must be either True or False")
-    parser_override.add_argument("pod_startup_latency_threshold", type=str, default="15s", help="Pod startup latency threshold")
-    parser_override.add_argument("provider", type=str, help="Cloud provider name")
-    parser_override.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
-                                help="Whether to scrape kubelets")
-    parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_override.add_argument("--node_count", type=int, help="Number of nodes")
+    parser_override.add_argument(
+        "--node_per_step", type=int, help="Number of nodes to scale per step"
+    )
+    parser_override.add_argument(
+        "--max_pods", type=int, help="Number of maximum pods per node"
+    )
+    parser_override.add_argument(
+        "--repeats",
+        type=int,
+        help="Number of times to repeat the resource consumer deployment",
+    )
+    parser_override.add_argument(
+        "--operation_timeout", type=str, default="2m", help="Operation timeout"
+    )
+    parser_override.add_argument(
+        "--load_type",
+        type=str,
+        choices=["memory", "cpu"],
+        default="memory",
+        help="Type of load to generate",
+    )
+    parser_override.add_argument(
+        "--scale_enabled",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether scale operation is enabled. Must be either True or False",
+    )
+    parser_override.add_argument(
+        "--pod_startup_latency_threshold",
+        type=str,
+        default="15s",
+        help="Pod startup latency threshold",
+    )
+    parser_override.add_argument("--provider", type=str, help="Cloud provider name")
+    parser_override.add_argument(
+        "--os_type", type=str, choices=["linux", "windows"], default="linux"
+    )
+    parser_override.add_argument(
+        "--scrape_kubelets",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape kubelets",
+    )
+    parser_override.add_argument(
+        "--cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
+    )
 
     # Sub-command for execute_clusterloader2
-    parser_execute = subparsers.add_parser("execute", help="Execute resource consume operation")
-    parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
-    parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
-    parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
-    parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
-                                help="Whether to scrape kubelets")
+    parser_execute = subparsers.add_parser(
+        "execute", help="Execute resource consume operation"
+    )
+    parser_execute.add_argument("--cl2_image", type=str, help="Name of the CL2 image")
+    parser_execute.add_argument(
+        "--cl2_config_dir", type=str, help="Path to the CL2 config directory"
+    )
+    parser_execute.add_argument(
+        "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
+    )
+    parser_execute.add_argument(
+        "--kubeconfig", type=str, help="Path to the kubeconfig file"
+    )
+    parser_execute.add_argument("--provider", type=str, help="Cloud provider name")
+    parser_execute.add_argument(
+        "--scrape_kubelets",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape kubelets",
+    )
 
     # Sub-command for collect_clusterloader2
-    parser_collect = subparsers.add_parser("collect", help="Collect resource consume data")
-    parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("max_pods", type=int, help="Number of maximum pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the resource consumer deployment")
-    parser_collect.add_argument("load_type", type=str, choices=["memory", "cpu"],
-                                 default="memory", help="Type of load to generate")
-    parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
-    parser_collect.add_argument("run_id", type=str, help="Run ID")
-    parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("scrape_kubelets", type=str2bool, choices=[True, False], default=False,
-                                help="Whether to scrape kubelets")
+    parser_collect = subparsers.add_parser(
+        "collect", help="Collect resource consume data"
+    )
+    parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument(
+        "--max_pods", type=int, help="Number of maximum pods per node"
+    )
+    parser_collect.add_argument(
+        "--repeats",
+        type=int,
+        help="Number of times to repeat the resource consumer deployment",
+    )
+    parser_collect.add_argument(
+        "--load_type",
+        type=str,
+        choices=["memory", "cpu"],
+        default="memory",
+        help="Type of load to generate",
+    )
+    parser_collect.add_argument(
+        "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
+    )
+    parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
+    parser_collect.add_argument("--run_id", type=str, help="Run ID")
+    parser_collect.add_argument("--run_url", type=str, help="Run URL")
+    parser_collect.add_argument(
+        "--result_file", type=str, help="Path to the result file"
+    )
+    parser_collect.add_argument(
+        "--scrape_kubelets",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape kubelets",
+    )
 
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.node_count, args.node_per_step, args.max_pods, args.repeats, args.operation_timeout,
-                                       args.load_type, args.scale_enabled, args.pod_startup_latency_threshold,
-                                       args.provider, args.scrape_kubelets, args.cl2_override_file)
+        override_config_clusterloader2(
+            args.node_count,
+            args.node_per_step,
+            args.max_pods,
+            args.repeats,
+            args.operation_timeout,
+            args.load_type,
+            args.scale_enabled,
+            args.pod_startup_latency_threshold,
+            args.provider,
+            args.os_type,
+            args.scrape_kubelets,
+            args.cl2_override_file,
+        )
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.scrape_kubelets)
+        execute_clusterloader2(
+            args.cl2_image,
+            args.cl2_config_dir,
+            args.cl2_report_dir,
+            args.kubeconfig,
+            args.provider,
+            args.scrape_kubelets,
+        )
     elif args.command == "collect":
-        collect_clusterloader2(args.node_count, args.max_pods, args.repeats, args.load_type,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.scrape_kubelets)
+        collect_clusterloader2(
+            args.node_count,
+            args.max_pods,
+            args.repeats,
+            args.load_type,
+            args.cl2_report_dir,
+            args.cloud_info,
+            args.run_id,
+            args.run_url,
+            args.result_file,
+            args.scrape_kubelets,
+        )
 
 if __name__ == "__main__":
     main()

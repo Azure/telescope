@@ -374,10 +374,23 @@ class KubernetesClient:
         memory_request = 0
         for pod in pods:
             for container in pod.spec.containers:
-                logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+                if container.resources.requests:
+                    logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                    cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                    memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
         return cpu_request, memory_request * 1024 # Convert to KiB
+
+    def get_daemonsets_pods_count(self, namespace, node_name):
+        """
+        Get the count of DaemonSet pods running on a specific node.
+        Args:
+            namespace (str): The namespace where the DaemonSet is located.
+            node_name (str): The name of the node where the pods are running.
+        Returns:
+            int: The count of DaemonSet pods running on a specific node.
+        """
+        pods = self.get_pods_by_namespace(namespace=namespace, field_selector=f"spec.nodeName={node_name}")
+        return len(pods)
 
     def set_context(self, context_name):
         """

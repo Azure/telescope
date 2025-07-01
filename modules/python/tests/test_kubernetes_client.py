@@ -465,6 +465,29 @@ class TestKubernetesClient(unittest.TestCase):
           field_selector="spec.nodeName=node-1"
         )
 
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
+    def test_get_daemonsets_pods_count(self, mock_get_pods_by_namespace):
+        # Create mock pods
+        mock_pod1 = MagicMock()
+        mock_pod1.metadata.name = "test-pod-1"
+        mock_pod2 = MagicMock()
+        mock_pod2.metadata.name = "test-pod-2"
+
+        # Set the return value of the mock client
+        mock_get_pods_by_namespace.return_value = [mock_pod1, mock_pod2]
+
+        # Call the function under test
+        count = self.client.get_daemonsets_pods_count("default", "node-1")
+
+        # Assert the expected count
+        self.assertEqual(count, 2)
+
+        # Verify the mock was called with the correct parameters
+        mock_get_pods_by_namespace.assert_called_once_with(
+            namespace='default',
+            field_selector="spec.nodeName=node-1"
+        )
+
     @patch('kubernetes.config.load_kube_config')
     def test_set_context(self, mock_load_kube_config):
         context_name = "test-context"
