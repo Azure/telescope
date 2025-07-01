@@ -4,7 +4,7 @@ deletion_delay = "2h"
 owner          = "storage"
 aks_config_list = [
   {
-    role       = "client"
+    role       = "storage"
     aks_name   = "disk-aks"
     dns_prefix = "disk"
     sku_tier   = "Standard"
