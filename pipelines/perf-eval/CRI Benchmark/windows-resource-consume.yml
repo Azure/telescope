@@ -31,18 +31,24 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
+              scrape_kubelets: True
+              os_type: windows
             n10-p700-memory:
               node_count: 10
               max_pods: 70
               repeats: 1
               operation_timeout: 7m
               load_type: memory
+              scrape_kubelets: True
+              os_type: windows
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: memory
+              scrape_kubelets: True
+              os_type: windows
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
