@@ -37,7 +37,7 @@ class TestJobControllerBenchmark(unittest.TestCase):
         benchmark = JobController(
             node_count=2,
             operation_timeout_in_minutes=600,
-            label="role=worker",
+            node_label="role=worker",
         )
         benchmark.validate_clusterloader2()
         mock_wait_for_nodes_ready.assert_called_once_with(2, 600, "role=worker")
@@ -129,7 +129,7 @@ class TestJobControllerParser(unittest.TestCase):
         validate_args = [a.dest for a in validate_parser._actions if a.dest != "help"]
         self.assertIn("node_count", validate_args)
         self.assertIn("operation_timeout_in_minutes", validate_args)
-        self.assertIn("label", validate_args)
+        self.assertIn("node_label", validate_args)
 
         # Test that execute subparser has expected arguments
         execute_parser = subparsers_action.choices["execute"]
