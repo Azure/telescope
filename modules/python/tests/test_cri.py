@@ -46,6 +46,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         mock_kubernetes_instance = MagicMock()
         mock_kubernetes_instance.get_nodes.return_value = [node_ready]
         mock_kubernetes_instance.get_daemonsets_pods_allocated_resources.return_value = (100, 204800)
+        mock_kubernetes_instance.get_daemonsets_pods_count.return_value = 6
         mock_kubernetes_client.return_value = mock_kubernetes_instance
 
         # Call the function under test

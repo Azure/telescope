@@ -11,10 +11,6 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-DAEMONSETS_PER_NODE_MAP = {
-    "aws": 2,
-    "aks": 6
-}
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
 
 def override_config_clusterloader2(
@@ -50,7 +46,9 @@ def override_config_clusterloader2(
     memory_value -= allocated_memory
 
     # Calculate request cpu and memory for each pod
-    pod_count = max_pods - DAEMONSETS_PER_NODE_MAP[provider]
+    daemonset_count = client.get_daemonsets_pods_count("kube-system", node.metadata.name)
+    logger.info(f"Node {node.metadata.name} has {daemonset_count} daemonset pods")
+    pod_count = max_pods - daemonset_count
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
     memory_request_in_k = int(memory_request_in_ki // 1.024)
