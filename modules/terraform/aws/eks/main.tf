@@ -143,7 +143,7 @@ resource "aws_iam_role_policy_attachment" "cw_policy_attachment" {
 }
 
 resource "aws_iam_role" "eks_node_pool_role" {
-  count = var.eks_config.auto_mode && (var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system) ? 1 : 0
+  count              = var.eks_config.auto_mode && (var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system) ? 1 : 0
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
@@ -184,7 +184,7 @@ resource "aws_eks_cluster" "eks" {
         var.eks_config.node_pool_general_purpose ? ["general-purpose"] : [],
         var.eks_config.node_pool_system ? ["system"] : []
       )
-      node_role_arn =  var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system ? aws_iam_role.eks_node_pool_role[0].arn : null
+      node_role_arn = var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system ? aws_iam_role.eks_node_pool_role[0].arn : null
     }
   }
   dynamic "storage_config" {
