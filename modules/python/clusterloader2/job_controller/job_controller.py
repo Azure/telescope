@@ -25,7 +25,7 @@ class JobController(ClusterLoader2Base):
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
-    label: str = ""
+    node_label: str = ""
     cl2_image: str = ""
     cl2_config_dir: str = ""
     cl2_report_dir: str = ""
@@ -53,7 +53,7 @@ class JobController(ClusterLoader2Base):
     def validate_clusterloader2(self):
         kube_client = KubernetesClient()
         kube_client.wait_for_nodes_ready(
-            self.node_count, self.operation_timeout_in_minutes, self.label
+            self.node_count, self.operation_timeout_in_minutes, self.node_label
         )
 
     def execute_clusterloader2(self):
@@ -138,9 +138,9 @@ class JobController(ClusterLoader2Base):
             help="Operation timeout to wait for nodes to be ready",
         )
         parser.add_argument(
-            "--label",
+            "--node_label",
             type=str,
-            default="",
+            default=None,
             help="Node label selectors to filter nodes (e.g., 'kubernetes.io/role=worker')",
         )
 
