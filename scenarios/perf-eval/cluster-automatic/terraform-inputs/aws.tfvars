@@ -73,8 +73,10 @@ eks_config_list = [{
     "AmazonEC2ContainerRegistryReadOnly",
     "AmazonSSMManagedInstanceCore"
   ]
-  auto_mode               = true
-  eks_managed_node_groups = []
-  eks_addons              = [{ name = "vpc-cni" }]
-  kubernetes_version      = "1.32"
+  auto_mode                 = true
+  node_pool_general_purpose = true
+  node_pool_system          = true
+  eks_managed_node_groups   = []
+  eks_addons                = [{ name = "vpc-cni" }]
+  kubernetes_version        = "1.32"
 }]
