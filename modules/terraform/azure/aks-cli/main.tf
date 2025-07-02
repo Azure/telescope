@@ -52,6 +52,41 @@ locals {
       "--assign-identity", azurerm_user_assigned_identity.userassignedidentity[0].id,
     )
   )
+
+  default_node_pool_parameters = (
+    var.aks_cli_config.default_node_pool == null ? [] : [
+      "--nodepool-name", var.aks_cli_config.default_node_pool.name,
+      "--node-count", var.aks_cli_config.default_node_pool.node_count,
+      "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
+      "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type
+    ]
+  )
+
+  aks_cli_command = join(" ", concat([
+    "az",
+    "aks",
+    "create",
+    "-g", var.resource_group_name,
+    "-n", var.aks_cli_config.aks_name,
+    "--location", var.location,
+    "--tier", var.aks_cli_config.sku_tier,
+    "--tags", join(" ", local.tags_list),
+    local.aks_custom_headers_flags,
+    "--no-ssh-key",
+    local.kubernetes_version,
+    local.optional_parameters,
+    local.subnet_id_parameter,
+    local.managed_identity_parameter,
+  ], local.default_node_pool_parameters))
+
+  aks_cli_destroy_command = join(" ", [
+    "az",
+    "aks",
+    "delete",
+    "-g", var.resource_group_name,
+    "-n", var.aks_cli_config.aks_name,
+    "--yes",
+  ])
 }
 
 resource "azurerm_user_assigned_identity" "userassignedidentity" {
@@ -107,43 +142,19 @@ resource "terraform_data" "aks_cli" {
   ]
 
   input = {
-    group_name = var.resource_group_name,
-    name       = var.aks_cli_config.aks_name
+    group_name              = var.resource_group_name,
+    name                    = var.aks_cli_config.aks_name,
+    aks_cli_command         = local.aks_cli_command
+    aks_cli_destroy_command = var.aks_cli_command != null ? var.aks_cli_command : local.aks_cli_destroy_command
   }
 
   provisioner "local-exec" {
-    command = join(" ", [
-      "az",
-      "aks",
-      "create",
-      "-g", self.input.group_name,
-      "-n", self.input.name,
-      "--location", var.location,
-      "--tier", var.aks_cli_config.sku_tier,
-      "--tags", join(" ", local.tags_list),
-      local.aks_custom_headers_flags,
-      "--no-ssh-key",
-      local.kubernetes_version,
-      "--nodepool-name", var.aks_cli_config.default_node_pool.name,
-      "--node-count", var.aks_cli_config.default_node_pool.node_count,
-      "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
-      "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
-      local.optional_parameters,
-      local.subnet_id_parameter,
-      local.managed_identity_parameter,
-    ])
+    command = var.aks_cli_command != null ? var.aks_cli_command : self.input.aks_cli_command
   }
 
   provisioner "local-exec" {
-    when = destroy
-    command = join(" ", [
-      "az",
-      "aks",
-      "delete",
-      "-g", self.input.group_name,
-      "-n", self.input.name,
-      "--yes",
-    ])
+    when    = destroy
+    command = self.input.aks_cli_destroy_command
   }
 }
 

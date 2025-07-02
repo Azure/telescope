@@ -109,4 +109,5 @@ module "aks-cli" {
   aks_cli_config      = each.value
   tags                = local.tags
   subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
+  aks_cli_command     = var.aks_cli_command
 }
