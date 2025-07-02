@@ -1217,6 +1217,29 @@ class TestKubernetesClient(unittest.TestCase):
         mock_sleep.assert_called()
 
     @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
+    def test_wait_for_job_completed_success(self, mock_read_job):
+        """Test waiting for job completion when job succeeds."""
+        job_name = "successful-job"
+        namespace = "default"
+
+        mock_metadata = MagicMock()
+        mock_metadata.name = job_name  # Explicitly set the name attribute
+
+        mock_status = MagicMock()
+        mock_status.succeeded = 1
+        mock_status.failed = 0
+
+        mock_job = MagicMock()
+        mock_job.status = mock_status
+        mock_job.metadata = mock_metadata
+
+        mock_read_job.return_value = mock_job
+
+        result = self.client.wait_for_job_completed(job_name, namespace)
+        self.assertEqual(result, job_name)
+        mock_read_job.assert_called_once_with(name=job_name, namespace=namespace)
+
+    @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
     def test_wait_for_job_completed_failure(self, mock_read_namespaced_job):
         """Test waiting for job completion when job has failed."""
         job_name = "test-job"
@@ -1824,9 +1847,35 @@ spec: {}
         with self.assertRaises(Exception) as context:
             self.client.install_gpu_device_plugin()
 
-        self.assertIn("Network error", str(context.exception))  # ✅ This will pass
+        self.assertIn("Network error", str(context.exception))
         mock_requests_get.assert_called_once()
         mock_create_ds.assert_not_called()
+
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
+    def test_get_daemonsets_pods_count(self, mock_get_pods_by_namespace):
+        """
+        Test that get_daemonsets_pods_count returns the correct number of pods scheduled on a node.
+        """
+        # Create mock pods
+        mock_pod1 = MagicMock()
+        mock_pod1.metadata.name = "test-pod-1"
+        mock_pod2 = MagicMock()
+        mock_pod2.metadata.name = "test-pod-2"
+
+        # Set the return value of the mock client
+        mock_get_pods_by_namespace.return_value = [mock_pod1, mock_pod2]
+
+        # Call the function under test
+        count = self.client.get_daemonsets_pods_count("default", "node-1")
+
+        # Assert the expected count
+        self.assertEqual(count, 2)
+
+        # Verify the mock was called with the correct parameters
+        mock_get_pods_by_namespace.assert_called_once_with(
+            namespace='default',
+            field_selector="spec.nodeName=node-1"
+        )
 
 if __name__ == '__main__':
     unittest.main()

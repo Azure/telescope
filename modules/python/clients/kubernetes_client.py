@@ -230,9 +230,7 @@ class KubernetesClient:
                 return ready_nodes
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
-        if ready_node_count != node_count:
-            raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
-        return ready_nodes
+        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
     def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
         """
@@ -254,9 +252,7 @@ class KubernetesClient:
                 return pods
             logger.info(f"Waiting for {pod_count} pods to be ready.")
             time.sleep(10)
-        if len(pods) != pod_count:
-            raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
-        return pods
+        raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
 
     def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
         """
