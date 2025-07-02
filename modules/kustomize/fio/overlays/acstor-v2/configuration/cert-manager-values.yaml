@@ -1,0 +1,17 @@
+cert-manager:
+  installCRDs: true
+  tolerations:
+    - key: "CriticalAddonsOnly"
+      operator: "Exists"
+  webhook:
+    tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+  cainjector:
+    tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+  startupapicheck:
+    tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"

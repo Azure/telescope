@@ -4,7 +4,7 @@ deletion_delay = "2h"
 owner          = "aks"
 aks_config_list = [
   {
-    role       = "gpu"
+    role       = "storage"
     aks_name   = "gpu-storage"
     dns_prefix = "gpu"
     sku_tier   = "Standard"
