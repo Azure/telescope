@@ -11,11 +11,11 @@ aks_cli_config_list = [
     optional_parameters = [
       {
         name  = "sku"
-        value = "automatic"  # Enable automatic
+        value = "automatic" # Enable automatic
       },
       {
         name  = "zones"
-        value = "1 2 3"  # Must add all zones since: Managed cluster 'Automatic' SKU should enable 'AvailabilityZones' feature with recommended values
+        value = "1 2 3" # Must add all zones since: Managed cluster 'Automatic' SKU should enable 'AvailabilityZones' feature with recommended values
       }
     ]
   }
