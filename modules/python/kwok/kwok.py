@@ -1,6 +1,5 @@
 import argparse
 import subprocess
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -31,7 +30,6 @@ class KWOK(ABC):
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
         subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
         subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
-        # TODO: exchange subprocess with k8s_client, will be done in another PR since change is quiet big
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
             subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
@@ -156,34 +154,15 @@ class Node(KWOK):
         print(f"Node {node.metadata.name} Capacity: {capacity}")
 
 
-# TODO: Implement the logic for KWOK pods
-@dataclass
-class Pod(KWOK):
-    def create(self):
-        pass
-
-    def validate(self):
-        pass
-
-    def tear_down(self):
-        pass
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
     )
     parser.add_argument(
-        "--mode",
-        choices=["node", "pod"],
-        required=True,
-        help="KWOK simulation mode: 'node' for virtual nodes, 'pod' for virtual pods.",
-    )
-    parser.add_argument(
         "--node-count",
         type=int,
         default=1,
-        help="Number of virtual nodes to create (only for --mode node).",
+        help="Number of virtual nodes to create",
     )
     parser.add_argument(
         "--node-manifest-path",
@@ -211,25 +190,18 @@ def main():
 
     args = parser.parse_args()
 
-    if args.mode == "node":
-        node = Node(
-            node_manifest_path=args.node_manifest_path,
-            node_count=args.node_count,
-            kwok_release=args.kwok_release,
-            enable_metrics=args.enable_metrics,
-        )
-        if args.action == "create":
-            node.create()
-        elif args.action == "validate":
-            node.validate()
-        elif args.action == "tear_down":
-            node.tear_down()
-    elif args.mode == "pod":
-        # TODO: Implement the logic for KWOK pods
-        pass
-    else:
-        print("Unknown mode specified.", file=sys.stderr)
-        sys.exit(1)
+    node = Node(
+        node_manifest_path=args.node_manifest_path,
+        node_count=args.node_count,
+        kwok_release=args.kwok_release,
+        enable_metrics=args.enable_metrics,
+    )
+    if args.action == "create":
+        node.create()
+    elif args.action == "validate":
+        node.validate()
+    elif args.action == "tear_down":
+        node.tear_down()
 
 
 if __name__ == "__main__":

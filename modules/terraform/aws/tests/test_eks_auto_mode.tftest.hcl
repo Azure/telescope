@@ -51,13 +51,15 @@ variables {
   ]
 
   eks_config_list = [{
-    role                    = "my-role"
-    eks_name                = "auto_mode_true"
-    vpc_name                = "my-vpc"
-    auto_mode               = true
-    policy_arns             = ["AmazonEKS_CNI_Policy"]
-    eks_managed_node_groups = []
-    eks_addons              = []
+    role                      = "my-role"
+    eks_name                  = "auto_mode_true"
+    vpc_name                  = "my-vpc"
+    auto_mode                 = true
+    node_pool_general_purpose = true
+    node_pool_system          = true
+    policy_arns               = ["AmazonEKS_CNI_Policy"]
+    eks_managed_node_groups   = []
+    eks_addons                = []
     }, {
     role                    = "my-role"
     eks_name                = "auto_mode_false"
@@ -82,6 +84,11 @@ run "eks_auto_mode_enabled" {
   assert {
     condition     = module.eks["auto_mode_true"].eks_cluster.compute_config[0].enabled == true
     error_message = "EKS Auto Mode should enable compute_config"
+  }
+
+  assert {
+    condition     = sort(module.eks["auto_mode_true"].eks_cluster.compute_config[0].node_pools) == sort(["general-purpose", "system"])
+    error_message = "Node pools in compute config should contain general-purpose and system"
   }
 
   assert {
