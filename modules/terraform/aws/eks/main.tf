@@ -50,6 +50,11 @@ locals {
     "AmazonEKSNetworkingPolicy"
   ] : []
 
+  node_pools_policies = var.eks_config.auto_mode && (var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system) ? [
+    "AmazonEKSWorkerNodeMinimalPolicy",
+    "AmazonEC2ContainerRegistryPullOnly",
+  ] : []
+
   policy_arns = concat(var.eks_config.policy_arns, local.auto_mode_policies)
 
   addons_policy_arns  = flatten([for addon in local.eks_addons_map : addon.policy_arns if can(addon.policy_arns)])
@@ -137,6 +142,18 @@ resource "aws_iam_role_policy_attachment" "cw_policy_attachment" {
   role       = aws_iam_role.eks_cluster_role.name
 }
 
+resource "aws_iam_role" "eks_node_pool_role" {
+  count              = var.eks_config.auto_mode && (var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system) ? 1 : 0
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "eks_node_pools_policy_attachments" {
+  for_each = toset(local.node_pools_policies)
+
+  policy_arn = "arn:aws:iam::aws:policy/${each.value}"
+  role       = aws_iam_role.eks_node_pool_role[0].name
+}
+
 # Create EKS Cluster
 resource "aws_eks_cluster" "eks" {
   name     = local.eks_cluster_name
@@ -163,6 +180,11 @@ resource "aws_eks_cluster" "eks" {
     for_each = var.eks_config.auto_mode ? { "compute_config" : true } : {}
     content {
       enabled = true
+      node_pools = concat(
+        var.eks_config.node_pool_general_purpose ? ["general-purpose"] : [],
+        var.eks_config.node_pool_system ? ["system"] : []
+      )
+      node_role_arn = var.eks_config.node_pool_general_purpose || var.eks_config.node_pool_system ? aws_iam_role.eks_node_pool_role[0].arn : null
     }
   }
   dynamic "storage_config" {
@@ -183,7 +205,8 @@ resource "aws_eks_cluster" "eks" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.policy_attachments
+    aws_iam_role_policy_attachment.policy_attachments,
+    aws_iam_role_policy_attachment.eks_node_pools_policy_attachments
   ]
 
   tags = {

@@ -41,6 +41,8 @@ variable "eks_config" {
     vpc_name                  = string
     policy_arns               = list(string)
     auto_mode                 = optional(bool, false)
+    node_pool_general_purpose = optional(bool, false)
+    node_pool_system          = optional(bool, false)
     eks_managed_node_groups = list(object({
       name           = string
       ami_type       = string
