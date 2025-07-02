@@ -2,7 +2,6 @@ steps:
   - script: |
       set -eo pipefail
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
-        --mode node \
         --action create \
         --node-count $NODE_COUNT
     workingDirectory: modules/python
