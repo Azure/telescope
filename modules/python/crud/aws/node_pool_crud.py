@@ -55,7 +55,7 @@ class NodePoolCRUD:
         instance_type=None,
         node_count=0, 
         gpu_node_pool=False,
-        capacity_type="ON_DEMAND",
+        capacity_type="SPOT",
     ):
         """
         Create a new node group
@@ -163,7 +163,7 @@ class NodePoolCRUD:
         scale_step_size=1,
         gpu_node_pool=False,
         step_wait_time=30,
-        capacity_type="ON_DEMAND",
+        capacity_type="ON_DEMAND"  # Default capacity type, can be SPOT or ON_DEMAND
     ):
         """
         Unified method to perform all node group operations: create, scale-up, scale-down, delete
@@ -194,13 +194,13 @@ class NodePoolCRUD:
         try:
             # 1. Create node group
             logger.info(f"Starting to create node group '{node_pool_name}'")
-            # create_result = self.create_node_pool(
-            #     node_pool_name=node_pool_name,
-            #     instance_type=vm_size,
-            #     node_count=node_count,
-            #     gpu_node_pool=gpu_node_pool,
-            #     capacity_type=capacity_type,
-            # )
+            create_result = self.create_node_pool(
+                node_pool_name=node_pool_name,
+                instance_type=vm_size,
+                node_count=node_count,
+                gpu_node_pool=gpu_node_pool,
+                capacity_type=capacity_type,
+            )
             create_result = True
             results["create"] = create_result
 

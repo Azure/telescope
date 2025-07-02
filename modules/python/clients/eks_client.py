@@ -18,7 +18,7 @@ from typing import Dict, Optional, List, Any
 
 # Third party imports
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, WaiterError
 
 # Local imports
 from utils.logger_config import get_logger, setup_logging
@@ -239,7 +239,7 @@ class EKSClient:
         instance_type: str,
         node_count: int = 0,
         gpu_node_group: bool = False,
-        capacity_type: str = "ON_DEMAND",
+        capacity_type: str = "SPOT",
     ) -> Any:
         """
         Create a new node group in the EKS cluster.
@@ -290,6 +290,7 @@ class EKSClient:
                     subnets=self.subnets,
                     instanceTypes=[instance_type],
                     nodeRole=self.node_role_arn,
+                    capacityType=capacity_type,
                     labels={
                         "cluster-name": self.cluster_name,
                         "nodegroup-name": node_group_name,
@@ -332,13 +333,13 @@ class EKSClient:
                 # Add additional metadata
                 op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
                 op.add_metadata("node_pool_name", node_group_name)
-                op.add_metadata(
-                    "nodepool_info",                   
-                        self.get_node_pool(node_group_name, self.cluster_name).as_dict(),
-                )
-                op.add_metadata(
-                    "cluster_info", self.get_cluster_data(self.cluster_name)
-                )
+                # op.add_metadata(
+                #     "nodepool_info",                   
+                #         self.get_node_group(node_group_name, self.cluster_name),
+                # )
+                # op.add_metadata(
+                #     "cluster_info", self.get_cluster_data(self.cluster_name)
+                # )
                 return True
 
             except Exception as e:
@@ -477,8 +478,9 @@ class EKSClient:
         except ClientError:
             logger.warning(f"Could not retrieve node group '{node_group_name}' info before deletion")
 
-        operation_context = self._get_operation_context()
-        with operation_context.track_operation("delete_node_group", metadata) as operation:
+        with self._get_operation_context()(
+            "delete_node_group", "azure", metadata, result_dir=self.result_dir
+        ) as operation:
             try:
                 logger.info(f"Deleting node group '{node_group_name}'")
 
@@ -492,12 +494,10 @@ class EKSClient:
                 # Wait for the node group to be deleted
                 self._wait_for_node_group_deleted(node_group_name, cluster_name)
 
-                operation.add_metadata("final_status", "deleted")
                 logger.info(f"Node group '{node_group_name}' deleted successfully")
                 return True
 
             except Exception as e:
-                operation.mark_failed(str(e))
                 logger.error(f"Failed to delete node group '{node_group_name}': {e}")
                 raise
 
