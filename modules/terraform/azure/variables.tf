@@ -254,12 +254,8 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
+    dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
 }
 
-variable "aks_cli_command" {
-  description = "Command to execute for AKS CLI"
-  type        = string
-  default     = null
-}

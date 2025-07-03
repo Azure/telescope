@@ -142,14 +142,12 @@ resource "terraform_data" "aks_cli" {
   ]
 
   input = {
-    group_name              = var.resource_group_name,
-    name                    = var.aks_cli_config.aks_name,
-    aks_cli_command         = local.aks_cli_command
-    aks_cli_destroy_command = var.aks_cli_command != null ? var.aks_cli_command : local.aks_cli_destroy_command
+    aks_cli_command         = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command,
+    aks_cli_destroy_command = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_destroy_command}'" : local.aks_cli_destroy_command
   }
 
   provisioner "local-exec" {
-    command = var.aks_cli_command != null ? var.aks_cli_command : self.input.aks_cli_command
+    command = self.input.aks_cli_command
   }
 
   provisioner "local-exec" {
