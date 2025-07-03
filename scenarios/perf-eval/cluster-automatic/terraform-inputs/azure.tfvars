@@ -1,11 +1,11 @@
 scenario_type  = "perf-eval"
-scenario_name  = "api_cli_test"
+scenario_name  = "cluster-automatic"
 deletion_delay = "72h"
 owner          = "aks"
 aks_cli_config_list = [
   {
-    role                          = "client1"
-    aks_name                      = "test"
+    role                          = "client"
+    aks_name                      = "aks-automatic"
     sku_tier                      = "Standard"
     use_aks_preview_cli_extension = true
     optional_parameters = [
