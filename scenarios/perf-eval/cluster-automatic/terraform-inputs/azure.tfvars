@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "cluster-automatic"
-deletion_delay = "72h"
+deletion_delay = "2h"
 owner          = "aks"
 aks_cli_config_list = [
   {
