@@ -7,11 +7,9 @@ import os
 import unittest
 from unittest import mock
 
-
 from clients.aks_client import AKSClient
 
-
-class TestAKSClient(unittest.TestCase):
+class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-attributes
     """Tests for the AKSClient class"""
 
     def setUp(self):
@@ -520,11 +518,16 @@ class TestAKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        # For progressive scaling, begin_create_or_update should be called twice (once for each step)
-        self.assertEqual(self.mock_agent_pools.begin_create_or_update.call_count, 2)
+        # For progressive scaling, begin_create_or_update should be called twice
+        # (once for each step)
+        self.assertEqual(
+            self.mock_agent_pools.begin_create_or_update.call_count, 2
+        )
 
         # Check that NVIDIA verification was performed only once (on the final step)
-        self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes2)
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(
+            ready_nodes2
+        )
 
     @mock.patch("clients.aks_client.time")
     def test_scale_gpu_node_pool_down_no_verification(self, mock_time):
