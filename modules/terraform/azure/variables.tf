@@ -233,12 +233,12 @@ variable "aks_cli_config_list" {
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
 
-    default_node_pool = object({
+    default_node_pool = optional(object({
       name        = string
       node_count  = number
       vm_size     = string
       vm_set_type = optional(string, "VirtualMachineScaleSets")
-    })
+    }), null)
     extra_node_pool = optional(
       list(object({
         name        = string
@@ -254,6 +254,8 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
+    dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
 }
+
