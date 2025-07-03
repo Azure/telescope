@@ -13,7 +13,6 @@ variables {
     "public_key_path" : "public_key_path",
   }
 
-  aks_cli_command = "echo 'override command'"
   aks_cli_config_list = [
     {
       role                          = "client"
@@ -26,6 +25,7 @@ variables {
         vm_size    = "Standard_D2s_v3"
       }
       optional_parameters = []
+      dry_run             = true
     }
   ]
 }
@@ -69,6 +69,7 @@ run "test_aws_cli_automatic" {
             value = "1 2 3"
           }
         ]
+        dry_run = true
       }
     ]
   }
