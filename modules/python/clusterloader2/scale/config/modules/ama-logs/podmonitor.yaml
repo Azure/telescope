@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ama-logs-metrics
+  namespace: monitoring
+spec:
+  jobLabel: ama-logs-metrics
+  selector:
+    matchLabels:
+      component: ama-logs-agent
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  podMetricsEndpoints:
+  - interval: 30s
+    honorLabels: true
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__address__]
+      action: replace
+      targetLabel: __address__
+      regex: (.+?)(\:\d+)?
+      replacement: $1:9102
+    - sourceLabels: [__meta_kubernetes_pod_container_name]
+      regex: "ama-logs"
+      action: keep
