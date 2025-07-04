@@ -91,7 +91,7 @@ stages:
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        for region in $(echo '["eastus2"]' | jq -r '.[]'); do
+        for region in $(echo '['eastus2']' | jq -r '.[]'); do
             echo "Processing region: $region"
 
             if terraform workspace list | grep -q "$region"; then
@@ -131,7 +131,7 @@ stages:
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        for region in $(echo '["eastus2"]' | jq -r '.[]'); do
+        for region in $(echo '['eastus2']' | jq -r '.[]'); do
             echo "Processing region: $region"
 
             if terraform workspace list | grep -q "$region"; then
@@ -171,7 +171,7 @@ stages:
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        for region in $(echo '["eastus2"]' | jq -r '.[]'); do
+        for region in $(echo '['eastus2']' | jq -r '.[]'); do
             echo "Processing region: $region"
 
             if terraform workspace list | grep -q "$region"; then
@@ -209,3 +209,124 @@ stages:
         ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
       retryCountOnTaskFailure: 3
+    - script: |
+        python3 --version && pip3 --version
+        jq --version
+      displayName: Check Dependencies
+    - script: |
+        set -e
+        if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
+            pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+        fi
+        sudo apt-get -y install bc
+      displayName: Install Dependencies
+    - script: |-
+        set -eu
+
+        ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/azure/private_key.pem"
+        public_key_path="$(Pipeline.Workspace)/s/modules/terraform/azure/private_key.pem.pub"
+        ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N "" > /dev/null 2>&1
+        chmod 600 $ssh_key_path
+
+        echo "SSH Key Path: $ssh_key_path"
+        echo "##vso[task.setvariable variable=SSH_KEY_PATH;]$ssh_key_path"
+        echo "Public Key Path: $public_key_path"
+        echo "##vso[task.setvariable variable=SSH_PUBLIC_KEY_PATH;]$public_key_path"
+      displayName: Generate SSH Key
+    - script: |-
+        set -eu
+
+        echo "Get private key from key vault $AZURE_SSH_KEY_VAULT"
+        az keyvault secret download --id $AZURE_SSH_KEY_VAULT --file $SSH_KEY_PATH
+        chmod 600 $SSH_KEY_PATH
+        cat $SSH_KEY_PATH
+        echo "##vso[task.setvariable variable=SSH_KEY_PATH;]${SSH_KEY_PATH}"
+      displayName: Download SSH Key
+      condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+  - job: validate
+    displayName: Validate resources
+    steps:
+    - script: |-
+        # Check if OWNER has been set to any string value other than an empty string
+        if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set. Please set OWNER to a valid value ('aks', 'compute', 'networking', 'storage') in the pipeline."
+            exit 1
+        fi
+      displayName: Validate OWNER info
+      condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    - script: |-
+        set -e
+
+        # Check if requirements.txt exists
+        echo "Validating installed dependencies..."
+        missing_dependencies=$(pip3 check 2>&1 | grep -i "not found" || true)
+        if [ -n "$missing_dependencies" ]; then
+            echo "Error: Missing dependencies:"
+            echo "$missing_dependencies"
+            exit 1
+        fi
+        echo "All dependencies are installed."
+      displayName: Validate Installed Dependencies
+    - script: |-
+        set -eu
+
+        # Check if the private key file exists
+        if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "Error: SSH private key not found at $SSH_KEY_PATH"
+            exit 1
+        fi
+
+        # Check if the private key has the correct permissions
+        if [ "$(stat -c %a $SSH_KEY_PATH)" != "600" ]; then
+            echo "Error: SSH private key permissions are not set to 600"
+            exit 1
+        fi
+
+        # Check if the public key file exists
+        if [ ! -f "$PUBLIC_KEY_PATH" ]; then
+            echo "Error: SSH public key not found at $SSH_PUBLIC_KEY_PATH"
+            exit 1
+        fi
+
+        echo "SSH key validation passed."
+      displayName: Validate SSH Key
+    dependsOn:
+    - setup
+  - job: run
+    displayName: Run the benchmark
+    steps: []
+    dependsOn:
+    - validate
+  - job: tearDown
+    displayName: Tear down resources
+    steps:
+    - script: |-
+        set -eu
+        # Check if the private key file exists
+        if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "Error: Private SSH key not found at $SSH_KEY_PATH"
+            exit 1
+        fi
+        echo "Deleting private SSH key at $SSH_KEY_PATH"
+        rm -f "$SSH_KEY_PATH"
+
+        # Check if the public key file exists
+        if [ ! -f "$SSH_PUBLIC_KEY_PATH" ]; then
+            echo "Error: Public SSH key not found at $SSH_PUBLIC_KEY_PATH"
+            exit 1
+        fi
+        echo "Deleting public SSH key at $SSH_PUBLIC_KEY_PATH"
+        rm -f "$SSH_PUBLIC_KEY_PATH"
+
+        echo "SSH keys deleted successfully."
+      displayName: Delete SSH Keys
+    - script: |2
+
+        set -eu
+
+        echo "Delete resource group $RUN_ID"
+        az group delete --name $RUN_ID --yes
+      displayName: Delete Resource Group
+      condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+    dependsOn:
+    - run
