@@ -86,7 +86,7 @@ stages:
       condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
     - script: |-
         set -e
-        echo "Regional Config: $TERRAFORM_REGIONAL_CONFIG"
+        echo "Regional Config: "$TERRAFORM_REGIONAL_CONFIG""
 
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
@@ -102,8 +102,8 @@ stages:
             fi
 
             # Retrieve input file and variables
-            terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-            terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
+            terraform_input_file=$(echo "$TERRAFORM_REGIONAL_CONFIG" | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+            terraform_input_variables=$(echo "$TERRAFORM_REGIONAL_CONFIG" | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
 
             # Run Terraform version command
             set +e
