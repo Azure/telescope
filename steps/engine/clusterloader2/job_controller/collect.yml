@@ -1,0 +1,34 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ''
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+    parameters:
+      region: ${{ parameters.region }}
+  - script: |
+      echo "Collecting results -- "
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+        --node_count $NODE_COUNT \
+        --job_throughput $JOB_THROUGHPUT \
+        --job_count $JOB_COUNT \
+        --cl2_report_dir $CL2_REPORT_DIR \
+        --cloud_info "$CLOUD_INFO" \
+        --run_id $RUN_ID \
+        --run_url $RUN_URL \
+        --result_file $TEST_RESULTS_FILE \
+        --test_type $TEST_TYPE
+    workingDirectory: modules/python
+    env:
+      CLOUD: ${{ parameters.cloud }}
+      RUN_URL: $(RUN_URL)
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/report
+    displayName: "Collect Results"

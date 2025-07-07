@@ -9,6 +9,14 @@ parameters:
   type: string
 
 steps:
+- script: |
+    # check if OWNER has been set to any string value other than empty string
+    if [ -z "$OWNER" ]; then
+      echo "##vso[task.logissue type=error;] OWNER is not set. Please set OWNER to a valid value('aks', 'compute', 'networking', 'storage') in the pipeline."
+      exit 1
+    fi
+  displayName: "Validate OWNER info"
+  condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
 - template: /steps/topology/${{ parameters.topology }}/validate-resources.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "telescope-benchmarks"
+version = "0.1.0"
+description = "Tools for running performance benchmarks across cloud providers"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Telescope Project Contributors" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Benchmark",
+]
+dependencies = [
+    "docker==7.1.0",
+    "kubernetes==31.0.0",
+    "pylint==3.3.4",
+    "coverage==7.6.12",
+    "numpy==2.2.5"
+]
+
+[project.urls]
+Source = "https://github.com/Azure/telescope"
+Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok"]
+
+[project.scripts]
+telescope-iperf3 = "iperf3.iperf3_pod:main"
+telescope-cl2-autoscale = "clusterloader2.autoscale.autoscale:main"
+telescope-cl2-cri = "clusterloader2.cri.cri:main"
+telescope-kwok = "kwok.kwok:main"

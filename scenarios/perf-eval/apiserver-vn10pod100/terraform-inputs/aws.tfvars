@@ -10,7 +10,7 @@ network_config_list = [
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
-        name                    = "client-subnet"
+        name                    = "client-subnet-1"
         cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
@@ -31,8 +31,8 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "client-subnet-rt-assoc"
-        subnet_name      = "client-subnet"
+        name             = "client-subnet-rt-assoc-1"
+        subnet_name      = "client-subnet-1"
         route_table_name = "internet-rt"
       },
       {
@@ -63,7 +63,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "idle"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m4.large"]
       min_size       = 1
       max_size       = 1
@@ -73,7 +73,7 @@ eks_config_list = [{
     },
     {
       name           = "virtualnodes"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m4.2xlarge"]
       min_size       = 5
       max_size       = 5
@@ -83,7 +83,7 @@ eks_config_list = [{
     },
     {
       name           = "runner"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m4.4xlarge"]
       min_size       = 3
       max_size       = 3

@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "dataItems": [
+    {
+      "data": {
+        "Envoy Downstream Connections Rate": 0.027266895378350486,
+        "Envoy Downstream Connections Total": 17.150877192982456,
+        "Envoy Http Requests Rate": 18.920213092349318,
+        "Envoy Http Requests Total": 11900.81403508772,
+        "Envoy Upstream Connections Rate": 0.03317435082140964,
+        "Envoy Upstream Connections Total": 20.866666666666664
+      },
+      "unit": "count"
+    }
+  ]
+}

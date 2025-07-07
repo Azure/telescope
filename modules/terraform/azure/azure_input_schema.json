@@ -10,6 +10,9 @@
     "aks_sku_tier": {
       "type": "string"
     },
+    "aks_kubernetes_version": {
+      "type": "string"
+    },
     "aks_network_policy": {
       "type": "string"
     },
@@ -21,6 +24,12 @@
     },
     "aks_cli_user_node_pool": {
       "type": "array"
+    },
+    "k8s_machine_type": {
+      "type": "string"
+    },
+    "k8s_os_disk_type": {
+      "type": "string"
     }
   },
   "required": [

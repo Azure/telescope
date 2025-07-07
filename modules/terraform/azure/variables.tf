@@ -1,12 +1,15 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id                = string
-    region                = string
-    aks_sku_tier          = optional(string, null)
-    aks_network_policy    = optional(string, null)
-    aks_network_dataplane = optional(string, null)
-    aks_custom_headers    = optional(list(string), [])
+    run_id                 = string
+    region                 = string
+    aks_sku_tier           = optional(string, null)
+    aks_kubernetes_version = optional(string, null)
+    aks_network_policy     = optional(string, null)
+    aks_network_dataplane  = optional(string, null)
+    aks_custom_headers     = optional(list(string), [])
+    k8s_machine_type       = optional(string, null)
+    k8s_os_disk_type       = optional(string, null)
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -19,9 +22,22 @@ variable "json_input" {
         node_count  = number
         vm_size     = string
         vm_set_type = string
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
       }))
     )
   })
+
+  validation {
+    condition = (var.json_input.aks_network_policy == null
+      || (try(contains(["azure", "cilium"], var.json_input.aks_network_policy), false)
+      && (var.json_input.aks_network_policy == var.json_input.aks_network_dataplane || var.json_input.aks_network_dataplane == null))
+    )
+    # ref: https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster#network_policy-1
+    error_message = "If aks_network_policy is 'azure' or 'cilium', aks_network_dataplane must match or be null"
+  }
 }
 
 variable "owner" {
@@ -103,9 +119,17 @@ variable "network_config_list" {
     }))
     nat_gateway_associations = optional(list(object({
       nat_gateway_name = string
-      public_ip_name   = string
-      subnet_name      = string
+      public_ip_names  = list(string)
+      subnet_names     = list(string)
     })))
+  }))
+  default = []
+}
+
+variable "dns_zones" {
+  description = "List of DNS zones to create"
+  type = list(object({
+    name = string
   }))
   default = []
 }
@@ -123,6 +147,8 @@ variable "aks_config_list" {
       network_dataplane   = optional(string, null)
       outbound_type       = optional(string, null)
       pod_cidr            = optional(string, null)
+      service_cidr        = optional(string, null)
+      dns_service_ip      = optional(string, null)
     }))
     service_mesh_profile = optional(object({
       mode      = string
@@ -136,6 +162,7 @@ variable "aks_config_list" {
       vm_size                      = string
       os_sku                       = optional(string)
       os_disk_type                 = optional(string)
+      os_disk_size_gb              = optional(number, null)
       only_critical_addons_enabled = bool
       temporary_name_for_rotation  = string
       max_pods                     = optional(number)
@@ -149,8 +176,10 @@ variable "aks_config_list" {
       subnet_name          = optional(string)
       node_count           = number
       vm_size              = string
+      os_type              = optional(string)
       os_sku               = optional(string)
       os_disk_type         = optional(string)
+      os_disk_size_gb      = optional(number, null)
       max_pods             = optional(number)
       ultra_ssd_enabled    = optional(bool, false)
       zones                = optional(list(string), [])
@@ -160,8 +189,33 @@ variable "aks_config_list" {
       max_count            = optional(number, null)
       auto_scaling_enabled = optional(bool, false)
     }))
-    role_assignment_list = optional(list(string), [])
-    kubernetes_version   = optional(string, null)
+    role_assignment_list      = optional(list(string), [])
+    oidc_issuer_enabled       = optional(bool, false)
+    workload_identity_enabled = optional(bool, false)
+    kubernetes_version        = optional(string, null)
+    edge_zone                 = optional(string, null)
+    auto_scaler_profile = optional(object({
+      balance_similar_node_groups      = optional(bool, false)
+      expander                         = optional(string, "random")
+      max_graceful_termination_sec     = optional(string, "600")
+      max_node_provisioning_time       = optional(string, "15m")
+      max_unready_nodes                = optional(number, 3)
+      max_unready_percentage           = optional(number, 45)
+      new_pod_scale_up_delay           = optional(string, "10s")
+      scale_down_delay_after_add       = optional(string, "10m")
+      scale_down_delay_after_delete    = optional(string, "10s")
+      scale_down_delay_after_failure   = optional(string, "3m")
+      scale_down_unneeded              = optional(string, "10m")
+      scale_down_unready               = optional(string, "20m")
+      scale_down_utilization_threshold = optional(string, "0.5")
+      scan_interval                    = optional(string, "10s")
+      empty_bulk_delete_max            = optional(string, "10")
+      skip_nodes_with_local_storage    = optional(bool, true)
+      skip_nodes_with_system_pods      = optional(bool, true)
+    }))
+    web_app_routing = optional(object({
+      dns_zone_names = list(string)
+    }), null)
   }))
   default = []
 }
@@ -172,26 +226,36 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
+    managed_identity_name         = optional(string, null)
+    subnet_name                   = optional(string, null)
+    kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
+    use_aks_preview_private_build = optional(bool, false)
 
-    default_node_pool = object({
+    default_node_pool = optional(object({
       name        = string
       node_count  = number
       vm_size     = string
       vm_set_type = optional(string, "VirtualMachineScaleSets")
-    })
+    }), null)
     extra_node_pool = optional(
       list(object({
         name        = string
         node_count  = number
         vm_size     = string
         vm_set_type = optional(string, "VirtualMachineScaleSets")
+        optional_parameters = optional(list(object({
+          name  = string
+          value = string
+        })), [])
     })), [])
     optional_parameters = optional(list(object({
       name  = string
       value = string
     })), [])
+    dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
 }
+

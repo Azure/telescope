@@ -1,0 +1,121 @@
+trigger: none
+schedules:
+  - cron: "0 10 */2 * *"
+    displayName: "Every Even Day at 10 AM"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 10 * * 1"
+    displayName: "Every Week on Monday at 10 AM"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-os-disk
+
+stages:
+  - stage: azure_westus3_managed
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every Even Day at 10 AM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus3
+          topology: k8s-os-disk
+          engine: fio
+          engine_input:
+            fio_command_array:
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
+          matrix:
+            Standard_D16s_v3:
+              k8s_machine_type: Standard_D16s_v3
+              k8s_os_disk_type: Managed
+              storage_name: os-disk
+            Standard_D16ds_v6:
+              k8s_machine_type: Standard_D16ds_v6
+              k8s_os_disk_type: Managed
+              storage_name: os-disk
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_westus3_ephemeral
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every Even Day at 10 AM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus3
+          terraform_input_file_mapping:
+            - westus3: "scenarios/perf-eval/k8s-os-disk/terraform-inputs/azure-ephemeral.tfvars"
+          topology: k8s-os-disk
+          engine: fio
+          engine_input:
+            fio_command_array:
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
+          matrix:
+            Standard_D16s_v3_Ephemeral:
+              k8s_machine_type: Standard_D16s_v3
+              k8s_os_disk_type: Ephemeral
+              storage_name: os-disk
+            Standard_D16ds_v6_Ephemeral:
+              k8s_machine_type: Standard_D16ds_v6
+              k8s_os_disk_type: Ephemeral
+              storage_name: os-disk
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_westus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every Week on Monday at 10 AM'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-west-2
+          topology: k8s-os-disk
+          engine: fio
+          engine_input:
+            fio_command_array:
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
+          matrix:
+            m7i.4xlarge:
+              k8s_machine_type: m7i.4xlarge
+              storage_name: os-disk
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false

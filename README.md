@@ -2,13 +2,24 @@
 
 # Telescope
 
-Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies. Currently, Telescope supports Azure and AWS, with plans to include GCP in the near future.
+Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies on Azure, AWS and GCP.
 
-The currently available test scenarios are:
-1. Kubernetes API server benchmark using [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
-2. Kubernetes Autoscaling benchmark using [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
+The current supported Kubernetes test scenarios are:
+1. [API Server & ETCD Benchmark](pipelines/perf-eval/API%20Server%20Benchmark)
+2. [Scheduler & Controller Benchmark](pipelines/perf/Schedulear%20Benchmark)
+3. [Autoscaler/Karpenter Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
+4. [Container Network Benchmark](pipelines/perf-eval/CNI%20Benchmark)
+5. [Container Storage Benchmark](pipelines/perf-eval/CSI%20Benchmark/)
+6. [Container Runtime Benchmark](pipelines/perf-eval/CRI%20Benchmark/)
+7. [GPU Benchmark](incoming)
 
-with more coming soon.
+The current integrated test tools are:
+1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
+2. [kwok](https://github.com/kubernetes-sigs/kwok)
+3. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
+4. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
+5. [iperf](https://github.com/esnet/iperf)
+6. [fio](https://github.com/axboe/fio)
 
 ## Design
 ![design](./docs/imgs/design.jpeg)
@@ -24,30 +35,7 @@ Telescope offers three primary reusable components:
 
 1. **Terraform modules** to manage test resource setup and provide reproducibility.
 2. **Python modules** for seamless integration with testing and measurement tools.
-3. **Azure services** including Pipeline, Blob Storage, Event Hub, and Data Explorer for continuous monitoring.
-
-## Quick Start
-1. Setup test framework by running commands as follows:
-```bash
-az login
-aws configure
-
-export AZDO_PERSONAL_ACCESS_TOKEN=<Azure DevOps Personal Access Token>
-export AZDO_ORG_SERVICE_URL=https://dev.azure.com/<Azure DevOps Org Name>
-export AZDO_GITHUB_SERVICE_CONNECTION_PAT=<GitHub Personal Access Token>
-export TF_VAR_resource_group_name=<Resource Group Name>
-export TF_VAR_storage_account_name=<Storage Account Name>
-export TF_VAR_kusto_cluster_name=<Kusto Cluster Name>
-
-cd modules/terraform/setup
-make all
-```
-
-2. Run pipeline or wait for scheduled run on Azure DevOps
-![pipeline](./docs/imgs/pipeline.jpeg)
-
-3. Import [dashboard](./dashboards/example.json) and check test results on Azure Data Explorer
-![results](./docs/imgs/results.jpeg)
+3. **Data Analytics** including Blob Storage, Event Hub, and Data Explorer for continuous monitoring.
 
 ## Contributing
 

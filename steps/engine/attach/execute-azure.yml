@@ -1,0 +1,21 @@
+parameters:
+  cloud: ""
+  result_dir: ""
+  disk_number: 1
+  storage_class: ""
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        $DISK_NUMBER $STORAGE_CLASS $WAIT_TIME $RESULT_DIR
+    displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
+    workingDirectory: modules/python
+    env:
+      CLOUD: ${{ parameters.cloud }}
+      DISK_NUMBER: ${{ parameters.disk_number }}
+      STORAGE_CLASS: ${{ parameters.storage_class }}
+      WAIT_TIME: ${{ parameters.wait_time }}
+      RESULT_DIR: ${{ parameters.result_dir }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py

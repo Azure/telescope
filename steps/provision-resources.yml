@@ -23,9 +23,6 @@ parameters:
 - name: credential_type
   type: string
   default: managed_identity
-- name: subscription
-  type: string
-  default: ''
 
 steps:
 - template: /steps/terraform/set-working-directory.yml
@@ -57,19 +54,21 @@ steps:
     echo "Deletion Due Time: $deletion_due_time"
     echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
 
-    owner=$(grep "owner" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}')
+    owner=$(grep "owner" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//')
     echo "Owner: $owner"
     echo "##vso[task.setvariable variable=OWNER]$owner"
   displayName: "Get Deletion Due Time and Owner"
+  condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     region: ${{ parameters.regions[0] }}
 
 - script: |
     set -eu
     echo "Create resource group $RUN_ID in region $region"
-    az group create --name $RUN_ID --location $region --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}"
+    az group create --name $RUN_ID --location $region \
+      --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1" "SkipASB_Audit=true"
   displayName: "Create Resource Group"
-  condition: ${{ eq(parameters.cloud, 'azure') }}
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
   env:
     region: ${{ parameters.regions[0] }}
 
@@ -78,16 +77,12 @@ steps:
     command: version
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
-    ${{ if ne(parameters.subscription, '') }}:
-      subscription: ${{ parameters.subscription }}
 
 - template: /steps/terraform/run-command.yml
   parameters:
     command: init
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
-    ${{ if ne(parameters.subscription, '') }}:
-      subscription: ${{ parameters.subscription }}
 
 - template: /steps/terraform/run-command.yml
   parameters:
@@ -97,5 +92,3 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
-    ${{ if ne(parameters.subscription, '') }}:
-      subscription: ${{ parameters.subscription }}

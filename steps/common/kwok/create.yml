@@ -1,0 +1,10 @@
+steps:
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
+        --action create \
+        --node-count $NODE_COUNT
+    workingDirectory: modules/python
+    env:
+      KWOK_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kwok/kwok.py
+    displayName: "Create KWOK Nodes"

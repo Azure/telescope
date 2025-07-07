@@ -38,6 +38,8 @@ class TestInferType(unittest.TestCase):
 
     def test_infer_datetime(self):
         self.assertEqual(infer_type('2022-01-01T12:00:00Z'), 'datetime')
+        self.assertEqual(infer_type('2024-12-26T12:14:50.637517'), 'datetime')
+        self.assertEqual(infer_type('2024-12-26T15:02:17.681161609Z'), 'datetime')
         self.assertNotEqual(infer_type('abc'), 'datetime')
         self.assertNotEqual(infer_type('123'), 'datetime')
         self.assertNotEqual(infer_type(123456), 'datetime')

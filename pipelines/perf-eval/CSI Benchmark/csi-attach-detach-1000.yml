@@ -1,0 +1,74 @@
+trigger: none
+schedules:
+  - cron: "0 20 * * *"
+    displayName: "8:00 PM Every Day"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 20 * * 3"
+    displayName: "8:00 PM on Wednesdays"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: storage-attach-detach-1000
+
+stages:
+  - stage: azure_eastus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM Every Day'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 1000
+            storage_class: default
+            wait_time: 300
+          matrix:
+            Standard_D16s_v3_1000pods_40nodes:
+              case_name: Standard_D16s_v3_1000pods_40nodes
+              node_number: 40
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: aws_eastus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM on Wednesdays'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 1000
+            storage_class: ebs-sc
+            wait_time: 300
+          matrix:
+            m7i_2xlarge_1000pods_40nodes:
+              case_name: m7i_2xlarge_1000pods_40nodes
+              node_number: 40
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false

@@ -5,5 +5,20 @@ output "aks_cluster_oidc_issuer" {
 
 output "aks_cluster_kubeconfig_path" {
   description = "Path to the kubeconfig file for the AKS cluster"
-  value       = local_file.kube_config.filename
+  value       = local_file.save_kube_config.filename
+}
+
+output "aks_cluster" {
+  description = "Used for unit tests"
+  value       = azurerm_kubernetes_cluster.aks
+}
+
+output "aks_cluster_nood_pools" {
+  description = "Used for unit tests"
+  value       = azurerm_kubernetes_cluster_node_pool.aks_node_pools
+}
+
+output "dns_zone_contributor_role_assignments" {
+  description = "DNS Zone Contributor role assignments for web app routing"
+  value       = azurerm_role_assignment.dns_zone_contributor
 }

@@ -14,6 +14,9 @@ env:
   AWS_REGION: us-east-1
 jobs:
   terraform-validation:
+    permissions:
+      id-token: write
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
@@ -23,7 +26,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.6
+          terraform_version: 1.10.0
 
       - name: Terraform Format Check
         if: always()
@@ -59,6 +62,26 @@ jobs:
 
       - name: Terraform Lint Check
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
+
+      - name: Terraform AWS Test
+        working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
+        run: terraform test
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_MI }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Terraform Azure Test
+        working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
+        run: terraform test
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
   setup-matrix:
     runs-on: ubuntu-latest
     name: Setup terraform plan matrix for test scenarios
@@ -72,7 +95,7 @@ jobs:
         id: setup-matrix-scenarios
         run: |
           set -eux
-          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | grep -E '(aws|azure)' | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
           matrix_array="[${matrix%,}]"
 
           file_changes=$(git diff --name-only -r origin/main HEAD)
@@ -132,6 +155,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.10.0
+
       - name: Get job id and set env
         run: |
           echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.file_name }}.tfvars" >> "$GITHUB_ENV"
@@ -141,7 +169,7 @@ jobs:
       - name: Create JSON Input
         run: |
           INPUT_JSON_OBJECT=$(jq . ${{ env.TERRAFORM_TEST_INPUT_FILE }})
-          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c .)
+          INPUT_JSON_STRING=$(echo $INPUT_JSON_OBJECT | jq -c '. + {creation_time: (now |  todateiso8601)}')
           echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
 
       - name: Azure login
@@ -166,6 +194,8 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
-        run: terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
+        run: |
+          terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
         env:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLOUD: ${{ matrix.cloud }}

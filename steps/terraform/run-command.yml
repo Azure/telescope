@@ -16,9 +16,9 @@ parameters:
 - name: credential_type
   type: string
   default: 'managed_identity'
-- name: subscription
+- name: skip_resource_deletion
   type: string
-  default: $(AZURE_SUBSCRIPTION_ID)
+  default: "false"
 
 steps:
 - script: |
@@ -36,10 +36,16 @@ steps:
         terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
         terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
 
-        set +e
-        terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input=$terraform_input_variables
+        if [[ "${{ parameters.skip_resource_deletion }}" == "true" && "$BUILD_REASON" == "Manual" ]]; then
+          echo "##vso[task.logissue type=error;] SKIP_RESOURCE_DELETION is true. Please delete resource manually.
+    terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" | tee terraform_${{ parameters.command }}.log"
+          exit 1
+        fi
 
-        if [[ $? -ne 0 ]]; then
+        set +e
+        terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" | tee terraform_${{ parameters.command }}.log
+        exit_code=${PIPESTATUS[0]}
+        if [[ $exit_code -ne 0 ]]; then
           if [[ ${{ parameters.command }} == "apply" && "$CLOUD" == "azure" ]]; then
             echo "Delete resources and remove state file before retrying"
             ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
@@ -89,8 +95,9 @@ steps:
   env:
     REGIONS: ${{ convertToJson(parameters.regions) }}
     CLOUD: ${{ parameters.cloud }}
-    ARM_SUBSCRIPTION_ID: ${{ parameters.subscription }}
+    ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
     ${{ if eq(parameters.credential_type, 'managed_identity') }}:
       ARM_USE_MSI: true
       ARM_TENANT_ID: $(AZURE_MI_TENANT_ID)
       ARM_CLIENT_ID: $(AZURE_MI_CLIENT_ID)
+    BUILD_REASON: $(Build.Reason)

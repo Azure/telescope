@@ -14,6 +14,9 @@ parameters:
 - name: disable_warmup
   type: string
   default: "false"
+- name: warmup_subcmd_args
+  type: string
+  default: "--total 12000"
 - name: region
   type: string
 
@@ -37,23 +40,31 @@ steps:
     set -euo pipefail
     set -x
 
+    is_eks="--eks"
     if [[ "${CLOUD}" != "aws" ]]; then
-      exit 0
+      is_eks=""
     fi
 
     if [[ "${DISABLE_WARMUP}" == "true" ]]; then
       exit 0
     fi
 
-    sudo -E $(command -v runkperf) -v 3 ekswarmup \
+    cmd_name=ekswarmup
+    new_version=$(runkperf ekswarmup -h 2> /dev/null || echo true)
+    if [[ "${new_version}" == "true" ]]; then
+      cmd_name=warmup
+    fi
+
+    sudo -E $(command -v runkperf) -v 3 ${cmd_name} \
       --kubeconfig ~/.kube/config \
-      --runner-image ${RUNNER_IMAGE} \
-      --total 12000
+      --runner-image ${RUNNER_IMAGE} ${is_eks} \
+      ${WARMUP_SUBCMD_ARGS}
   env:
     CLOUD: ${{ parameters.cloud }}
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
     DISABLE_WARMUP: ${{ parameters.disable_warmup }}
-  displayName: "Warmup if cloud is aws"
+    WARMUP_SUBCMD_ARGS: ${{ parameters.warmup_subcmd_args }}
+  displayName: "Warmup"
 - script: |
     set -euo pipefail
     set -x
@@ -61,6 +72,11 @@ steps:
     is_eks=""
     if [[ "${CLOUD}" == "aws" ]]; then
       is_eks="--eks"
+    fi
+
+    new_version=$(runkperf ekswarmup -h 2> /dev/null || echo true)
+    if [[ "${new_version}" == "true" ]]; then
+      is_eks=""
     fi
 
     sudo -E $(command -v runkperf) -v 3 bench ${is_eks} \

@@ -1,0 +1,41 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --node_count $NODE_COUNT \
+        --job_throughput $JOB_THROUGHPUT \
+        --job_count $JOB_COUNT \
+        --operation_timeout $SCALE_TIMEOUT \
+        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        --cl2_image ${CL2_IMAGE} \
+        --cl2_config_dir ${CL2_CONFIG_DIR} \
+        --cl2_report_dir $CL2_REPORT_DIR \
+        --cl2_config_file $CL2_CONFIG_FILE \
+        --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
+        --kubeconfig ${HOME}/.kube/config \
+        --provider $CLOUD
+    workingDirectory: modules/python
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/config
+      CL2_CONFIG_FILE: ${CL2_CONFIG_DIR}/config.yaml
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/report
+    displayName: "Run Benchmark"

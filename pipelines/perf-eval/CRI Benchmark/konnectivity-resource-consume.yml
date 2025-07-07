@@ -1,0 +1,59 @@
+trigger: none
+#schedules:
+#- cron: "0 2-23/4 * * *"
+# displayName: "Every 4 Hour"
+# branches:
+#   include:
+#     - main
+# always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: konnectivity-scale
+  SCENARIO_VERSION: main
+
+stages:
+  - stage: swedencentral
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-autoscale-resource-consume
+          matrix:
+            n100-p3-cpu:
+              node_count: 101
+              max_pods: 20
+              repeats: 1
+              operation_timeout: 15m
+              load_type: cpu
+              node_per_step: 20
+              scale_enabled: true
+              pod_startup_latency_threshold: 200s
+            n500-p5-cpu:
+              node_count: 501
+              max_pods: 20
+              repeats: 1
+              operation_timeout: 30m
+              load_type: cpu
+              node_per_step: 100
+              scale_enabled: true
+              pod_startup_latency_threshold: 1000s
+            n1001-p6-cpu:
+              node_count: 1001
+              max_pods: 20
+              repeats: 1
+              operation_timeout: 30m
+              load_type: cpu
+              node_per_step: 100
+              scale_enabled: true
+              pod_startup_latency_threshold: 2000s
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

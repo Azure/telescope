@@ -2,11 +2,14 @@ locals {
   region                   = lookup(var.json_input, "region", "East US")
   run_id                   = lookup(var.json_input, "run_id", "123456")
   aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
+  aks_kubernetes_version   = lookup(var.json_input, "aks_kubernetes_version", null)
   aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
   aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
+  k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
+  k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
 
   tags = {
     "owner"             = var.owner
@@ -14,22 +17,18 @@ locals {
     "creation_time"     = timestamp()
     "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
     "run_id"            = local.run_id
+    "SkipAKSCluster"    = "1"
   }
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
       {
-        sku_tier = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
-        network_profile = merge(
-          aks.network_profile,
-          {
-            network_policy    = local.aks_network_policy != null ? local.aks_network_policy : aks.network_profile.network_policy
-            network_dataplane = local.aks_network_dataplane != null ? local.aks_network_dataplane : aks.network_profile.network_dataplane
-          }
-        )
+        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
       }
     )
   ] : []
@@ -41,6 +40,7 @@ locals {
       aks,
       {
         sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
         aks_custom_headers = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         default_node_pool  = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool    = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
@@ -74,6 +74,14 @@ module "virtual_network" {
   tags                = local.tags
 }
 
+module "dns_zones" {
+
+  source              = "./dns-zone"
+  resource_group_name = local.run_id
+  dns_zones           = var.dns_zones
+  tags                = local.tags
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
@@ -82,6 +90,14 @@ module "aks" {
   location            = local.region
   aks_config          = each.value
   tags                = local.tags
+  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
+  vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets             = try(local.all_subnets, null)
+  k8s_machine_type    = local.k8s_machine_type
+  k8s_os_disk_type    = local.k8s_os_disk_type
+  network_dataplane   = local.aks_network_dataplane
+  network_policy      = local.aks_network_policy
+  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
 }
 
 module "aks-cli" {
@@ -92,4 +108,5 @@ module "aks-cli" {
   location            = local.region
   aks_cli_config      = each.value
   tags                = local.tags
+  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
 }

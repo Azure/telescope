@@ -1,0 +1,21 @@
+parameters:
+  - name: node_label
+    type: string
+  - name: desired_nodes
+    type: string
+  - name: operation_timeout_in_minutes
+    type: number
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate "$NODE_LABEL" $DESIRED_NODES $OPERATION_TIMEOUT
+    workingDirectory: modules/python
+    timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
+    displayName: "Validate node count"
+    env:
+      NODE_LABEL: ${{ parameters.node_label }}
+      DESIRED_NODES: ${{ parameters.desired_nodes }}
+      OPERATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py

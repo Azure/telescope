@@ -1,0 +1,74 @@
+trigger: none
+schedules:
+  - cron: "0 16 * * *"
+    displayName: "4:00 PM Every Day"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 16 * * 4"
+    displayName: "4:00 PM on Thursdays"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: storage-attach-detach-300
+
+stages:
+  - stage: azure_westus2
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM Every Day'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 300
+            storage_class: default
+            wait_time: 300
+          matrix:
+            Standard_D2s_v3_300pods_300nodes:
+              case_name: Standard_D2s_v3_300pods_300nodes
+              node_number: 300
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: aws_westus
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-west-1
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 300
+            storage_class: ebs-sc
+            wait_time: 300
+          matrix:
+            m7i_large_300pods_300nodes:
+              case_name: m7i_large_300pods_300nodes
+              node_number: 300
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false

@@ -1,0 +1,46 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
+        --node_count $NODE_COUNT \
+        --node_per_step ${NODE_PER_STEP:-$NODE_COUNT} \
+        --max_pods $MAX_PODS \
+        --repeats $REPEATS \
+        --operation_timeout $OPERATION_TIMEOUT \
+        --load_type $LOAD_TYPE \
+        --scale_enabled ${SCALE_ENABLED:-False} \
+        --pod_startup_latency_threshold ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
+        --provider $CLOUD \
+        --os_type ${OS_TYPE:-linux} \
+        --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        --cl2_image ${CL2_IMAGE} \
+        --cl2_config_dir ${CL2_CONFIG_DIR} \
+        --cl2_report_dir $CL2_REPORT_DIR \
+        --kubeconfig ${HOME}/.kube/config \
+        --provider $CLOUD \
+        --scrape_kubelets ${SCRAPE_KUBELETS:-False}
+    workingDirectory: modules/python
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
+    displayName: "Run Benchmark"

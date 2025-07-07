@@ -15,6 +15,7 @@ steps:
         set -x
       fi
 
+      CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
@@ -22,9 +23,17 @@ steps:
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \
                 --arg region $REGION \
+                --arg creation_time $CREATION_TIME \
+                --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
+                --arg ena_express "$ENA_EXPRESS" \
+                --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
                 '{
                 run_id: $run_id,
-                region: $region
+                region: $region,
+                creation_time: $creation_time,
+                k8s_machine_type: $k8s_machine_type,
+                ena_express: $ena_express,
+                user_data_path: $user_data_path,
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)

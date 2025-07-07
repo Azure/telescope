@@ -14,9 +14,6 @@ parameters:
   default: 3
 - name: credential_type
   type: string
-- name: subscription
-  type: string
-  default: ''
 - name: ssh_key_enabled
   type: boolean
 
@@ -37,7 +34,11 @@ steps:
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
     echo "Run URL: $run_url"
     echo "##vso[task.setvariable variable=RUN_URL]$run_url"
-  displayName: "Set Run URL"
+
+    code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
+    echo "Code URL: $code_url"
+    echo "##vso[task.setvariable variable=CODE_URL]$code_url"
+  displayName: "Set Run URL & Code URL"
 
 - script: |
     test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
@@ -54,6 +55,10 @@ steps:
 - script: |
     python3 --version && pip3 --version
     jq --version
+    kubectl version --client
+    az version
+    aws --version
+    helm version
   displayName: "Check Dependencies"
 
 - script: |
@@ -61,14 +66,14 @@ steps:
     if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     fi
-  displayName: "Install Python Dependencies"
+
+    sudo apt-get -y install bc
+  displayName: "Install Dependencies"
 
 - template: /steps/cloud/${{ parameters.cloud }}/login.yml
   parameters:
     region: ${{ parameters.region }}
     credential_type: ${{ parameters.credential_type }}
-    ${{ if ne(parameters.subscription, '') }}:
-      subscription: ${{ parameters.subscription }}
 
 - script: |
     if [ -n "${TEST_MODULES_DIR}" ]; then

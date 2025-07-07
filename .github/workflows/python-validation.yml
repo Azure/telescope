@@ -23,6 +23,39 @@ jobs:
       - name: Python Version Check
         run: python --version
 
-      - name: Run Python Unit Tests
+      - name: Install Python Dependencies
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: python -m unittest discover
+        run: pip install -r requirements.txt
+
+      - name: Fetch all branches
+        run: git fetch --prune --unshallow
+
+      - name: Run Pylint on changed files
+        id: changed-files
+        run: |
+          # Get list of changed files
+          file_changes=$(git diff --name-only --diff-filter=d origin/main HEAD -- '*.py')
+          echo "Files changed: $file_changes"
+          if [ -z "$file_changes" ]; then
+            echo "No Python files were changed."
+          else
+            pylint $file_changes
+          fi
+      - name: Install kwokctl
+        if: always()
+        run: |
+          curl -LO https://github.com/kubernetes-sigs/kwok/releases/latest/download/kwokctl-linux-amd64
+          chmod +x kwokctl-linux-amd64
+          sudo mv kwokctl-linux-amd64 /usr/local/bin/kwokctl
+
+      - name: Create KWOK cluster
+        if: always()
+        run: kwokctl create cluster --name kwok-test
+      - name: Run Python Tests with Coverage
+        if: always()
+        working-directory: ${{ env.PYTHON_MODULES_DIR }}
+        # TODO: Update Validation to check 70% coverage for each test file
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70
+      - name: Delete KWOK cluster
+        if: always()
+        run: kwokctl delete cluster --name kwok-test

@@ -1,0 +1,40 @@
+parameters:
+  cloud: ""
+  result_dir: ""
+
+steps:
+  - script: |
+      envsubst < "$STORAGE_CLASS_FILE" | kubectl apply -f -
+    displayName: "Create StorageClass"
+    env:
+      STORAGE_CLASS: ${{ parameters.storage_class }}
+      STORAGE_CLASS_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/storageclass.${{ parameters.cloud }}.yml
+      OWNER: $(OWNER)
+      RUN_ID: $(RUN_ID)
+      SCENARIO: $(SCENARIO_TYPE)-$(SCENARIO_NAME)
+      DELETION_DUE_TIME: $(DELETION_DUE_TIME)
+
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        $DISK_NUMBER $STORAGE_CLASS $WAIT_TIME $RESULT_DIR
+    displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
+    workingDirectory: modules/python
+    env:
+      CLOUD: ${{ parameters.cloud }}
+      DISK_NUMBER: ${{ parameters.disk_number }}
+      STORAGE_CLASS: ${{ parameters.storage_class }}
+      WAIT_TIME: ${{ parameters.wait_time }}
+      RESULT_DIR: ${{ parameters.result_dir }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py
+
+  - script: |
+      set -eu
+
+      kubectl delete pvc --all
+      kubectl delete pv --all
+      kubectl delete sc --all
+    displayName: "Clean up PVC, PV, StorageClass"
+    timeoutInMinutes: 20
+    condition: always()
