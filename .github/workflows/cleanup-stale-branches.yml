@@ -65,7 +65,7 @@ jobs:
                 # Delete the branch using the configured authentication
                 echo "Deleting stale branch: $BRANCH"
                 git remote set-url origin "$AUTH_URL"
-                # git push origin --delete $BRANCH
+                git push origin --delete $BRANCH
               fi
             done
 
