@@ -1,0 +1,71 @@
+name: Cleanup Stale Branches
+
+on:
+  push:
+    branches:
+      - sumanth/cleanup-stale-branches
+
+env:
+  STALE_DAYS: 328
+  GH_PAT: ${{ secrets.GH_PAT }}
+jobs:
+  cleanup-stale-branches:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # Use PAT instead of the default GITHUB_TOKEN for proper permissions
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0  # Fetch all history for all branches
+
+      - name: Clean up Stale Branches
+        id: cleanup-stale-branches
+        run: |
+            echo "Starting stale branch cleanup that are older than $STALE_DAYS days"
+
+            # Get current date in seconds since epoch
+            CURRENT_DATE=$(date +%s)
+            # Define stale threshold
+            STALE_THRESHOLD=$(($STALE_DAYS * 24 * 60 * 60))
+
+            # Get list of remote branches (excluding main, master, and protected branches)
+            REMOTE_BRANCHES=$(git branch -r | grep -v "origin/HEAD" | grep -v "origin/main" | grep -v "origin/master" | sed 's/origin\///')
+
+            echo "Found remote branches: $REMOTE_BRANCHES"
+
+            # Check each branch
+            for BRANCH in $REMOTE_BRANCHES; do
+              # Skip if branch is protected or should not be deleted
+              if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+                echo "##vso[task.logissue type=warning;]Skipping protected branch: $BRANCH"
+                continue
+              fi
+
+              # Get last commit date for the branch in seconds since epoch
+              LAST_COMMIT_DATE=$(git log -1 --format="%ct" "origin/$BRANCH")
+
+              # Calculate age in seconds
+              BRANCH_AGE=$((CURRENT_DATE - LAST_COMMIT_DATE))
+
+              # Check if branch is stale
+              if [ $BRANCH_AGE -gt $STALE_THRESHOLD ]; then
+                echo "Branch '$BRANCH' is stale (last commit was $(($BRANCH_AGE / 86400)) days ago)"
+                
+                # Configure Git with proper authentication using the PAT
+                git config --global user.name "GitHub Actions"
+                git config --global user.email "actions@github.com"
+                
+                # Create a remote URL with the PAT embedded
+                REPO_URL=$(git config --get remote.origin.url)
+                REPO_NAME=$(echo "$REPO_URL" | sed 's/.*github.com[\/:]//g' | sed 's/\.git$//g')
+                AUTH_URL="https://$GH_PAT@github.com/${REPO_NAME}.git"
+                
+                # Delete the branch using the configured authentication
+                echo "Deleting stale branch: $BRANCH"
+                git remote set-url origin "$AUTH_URL"
+                # git push origin --delete $BRANCH
+              fi
+            done
+
