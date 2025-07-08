@@ -6,7 +6,7 @@ on:
       - sumanth/cleanup-stale-branches
 
 env:
-  STALE_DAYS: 328
+  STALE_DAYS: 300
   GH_PAT: ${{ secrets.GH_PAT }}
 jobs:
   cleanup-stale-branches:
