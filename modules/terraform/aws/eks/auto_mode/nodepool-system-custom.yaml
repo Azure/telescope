@@ -47,4 +47,3 @@ spec:
       - effect: NoSchedule
         key: CriticalAddonsOnly
       terminationGracePeriod: 24h0m0s
-

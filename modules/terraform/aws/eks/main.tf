@@ -461,7 +461,6 @@ resource "terraform_data" "apply_nodeclass_custom" {
   count = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? 1 : 0
 
   provisioner "local-exec" {
-    #interpreter = ["/bin/bash", "-c"]
     command = <<EOT
       set -e
       aws eks update-kubeconfig --region ${var.region} --name ${local.eks_cluster_name}

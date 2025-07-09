@@ -15,12 +15,12 @@ spec:
   networkPolicyEventLogs: Disabled
   role: ${NODE_ROLE_NAME}
   securityGroupSelectorTerms:
-    - tags:
-        run_id: "${RUN_ID}"
+  - tags:
+      run_id: "${RUN_ID}"
   snatPolicy: Random
   subnetSelectorTerms:
-    - tags:
-        run_id: "${RUN_ID}"
+  - tags:
+      run_id: "${RUN_ID}"
   tags:
     owner: "${OWNER}"
     scenario: "${SCENARIO}"

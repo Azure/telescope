@@ -114,7 +114,7 @@ run "eks_auto_mode_enabled" {
   }
 
   assert {
-    condition = can(jsondecode(module.eks["auto_mode_true"].automode_controller_policy[0].policy))
+    condition     = can(jsondecode(module.eks["auto_mode_true"].automode_controller_policy[0].policy))
     error_message = "Auto Mode controller policy should be valid JSON"
   }
 
