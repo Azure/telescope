@@ -37,3 +37,24 @@ output "eks_role_policy_attachments" {
   description = "Used for unit tests"
   value       = aws_iam_role_policy_attachment.policy_attachments
 }
+
+# Auto Mode related outputs
+output "automode_controller_policy" {
+  description = "Auto Mode controller IAM policy. Used for unit tests"
+  value       = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? aws_iam_policy.automode_controller_policy : []
+}
+
+output "automode_controller_policy_attachments" {
+  description = "Auto Mode controller IAM policy attachments. Used for unit tests"
+  value       = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? aws_iam_role_policy_attachment.automode_controller_policy_attachments : []
+}
+
+output "node_pool_entry" {
+  description = "EKS access entry for Auto Mode node pools. Used for unit tests"
+  value       = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? aws_eks_access_entry.node_pool_entry : []
+}
+
+output "node_pool_policy" {
+  description = "EKS access policy association for Auto Mode node pools. Used for unit tests"
+  value       = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? aws_eks_access_policy_association.node_pool_policy : []
+}

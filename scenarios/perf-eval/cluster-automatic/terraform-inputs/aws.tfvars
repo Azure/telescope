@@ -68,15 +68,13 @@ eks_config_list = [{
   policy_arns = [
     "AmazonEKSClusterPolicy",
     "AmazonEKSVPCResourceController",
-    "AmazonEKSWorkerNodePolicy",
     "AmazonEKS_CNI_Policy",
-    "AmazonEC2ContainerRegistryReadOnly",
     "AmazonSSMManagedInstanceCore"
   ]
   auto_mode                 = true
   node_pool_general_purpose = true
   node_pool_system          = true
   eks_managed_node_groups   = []
-  eks_addons                = [{ name = "vpc-cni" }]
+  eks_addons                = []
   kubernetes_version        = "1.32"
 }]
