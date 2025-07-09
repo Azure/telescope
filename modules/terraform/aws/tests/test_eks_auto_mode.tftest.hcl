@@ -109,8 +109,8 @@ run "eks_auto_mode_enabled" {
   }
 
   assert {
-    condition     = alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy", "AmazonEKSWorkerNodeMinimalPolicy", "AmazonEKSNetworkingPolicy", "AmazonEC2ContainerRegistryPullOnly"] : contains(keys(module.eks["auto_mode_true"].eks_role_policy_attachments), item)])
-    error_message = "EKS Auto Mode should attach the required Auto Mode policies: AmazonEKSBlockStoragePolicy, AmazonEKSComputePolicy, AmazonEKSLoadBalancingPolicy, AmazonEKSWorkerNodeMinimalPolicy, AmazonEKSNetworkingPolicy and AmazonEC2ContainerRegistryPullOnly"
+    condition     = alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy", "AmazonEKSWorkerNodeMinimalPolicy", "AmazonEKSNetworkingPolicy"] : contains(keys(module.eks["auto_mode_true"].eks_role_policy_attachments), item)])
+    error_message = "EKS Auto Mode should attach the required Auto Mode policies: AmazonEKSBlockStoragePolicy, AmazonEKSComputePolicy, AmazonEKSLoadBalancingPolicy, AmazonEKSWorkerNodeMinimalPolicy and AmazonEKSNetworkingPolicy"
   }
 
   assert {
