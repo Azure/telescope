@@ -86,9 +86,10 @@ run "eks_auto_mode_enabled" {
     error_message = "EKS Auto Mode should enable compute_config"
   }
 
+  # Test that compute_config node_pools is null (as expected for Auto Mode)
   assert {
-    condition     = sort(module.eks["auto_mode_true"].eks_cluster.compute_config[0].node_pools) == sort(["general-purpose", "system"])
-    error_message = "Node pools in compute config should contain general-purpose and system"
+    condition     = module.eks["auto_mode_true"].eks_cluster.compute_config[0].node_pools == null
+    error_message = "EKS Auto Mode compute_config should have null node_pools as custom NodePools are created separately"
   }
 
   assert {
@@ -101,9 +102,38 @@ run "eks_auto_mode_enabled" {
     error_message = "EKS Auto Mode should enable elastic load balancing"
   }
 
+  # Test that metrics-server addon is created when Auto Mode is enabled
   assert {
-    condition     = alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy", "AmazonEKSNetworkingPolicy"] : contains(keys(module.eks["auto_mode_true"].eks_role_policy_attachments), item)])
-    error_message = "EKS Auto Mode should attach AmazonEKSBlockStoragePolicy, AmazonEKSComputePolicy, AmazonEKSLoadBalancingPolicy, and AmazonEKSNetworkingPolicy"
+    condition     = contains(keys(module.eks["auto_mode_true"].eks_addon.after_compute), "metrics-server")
+    error_message = "EKS Auto Mode should create metrics-server addon"
+  }
+
+  assert {
+    condition     = alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy", "AmazonEKSWorkerNodeMinimalPolicy", "AmazonEKSNetworkingPolicy"] : contains(keys(module.eks["auto_mode_true"].eks_role_policy_attachments), item)])
+    error_message = "EKS Auto Mode should attach the required Auto Mode policies: AmazonEKSBlockStoragePolicy, AmazonEKSComputePolicy, AmazonEKSLoadBalancingPolicy, AmazonEKSWorkerNodeMinimalPolicy and AmazonEKSNetworkingPolicy"
+  }
+
+  assert {
+    condition     = can(jsondecode(module.eks["auto_mode_true"].automode_controller_policy[0].policy))
+    error_message = "Auto Mode controller policy should be valid JSON"
+  }
+
+  # Test that Auto Mode controller policy attachment is created
+  assert {
+    condition     = length(module.eks["auto_mode_true"].automode_controller_policy_attachments) == 1
+    error_message = "Auto Mode controller policy attachment should be created"
+  }
+
+  # Test that EKS access entry is created for Auto Mode
+  assert {
+    condition     = length(module.eks["auto_mode_true"].node_pool_entry) == 1
+    error_message = "Auto Mode EKS access entry should be created"
+  }
+
+  # Test that EKS access policy association is created for Auto Mode
+  assert {
+    condition     = length(module.eks["auto_mode_true"].node_pool_policy) == 1
+    error_message = "EKS access policy association should be created for Auto Mode"
   }
 
   expect_failures = [check.deletion_due_time]
@@ -128,8 +158,29 @@ run "eks_auto_mode_disabled" {
     error_message = "EKS Auto Mode should not enable block storage when disabled"
   }
 
+  # Test that metrics-server addon is not created when Auto Mode is disabled
+  assert {
+    condition     = !contains(keys(module.eks["auto_mode_false"].eks_addon.after_compute), "metrics-server")
+    error_message = "EKS Auto Mode should not create metrics-server addon when disabled"
+  }
 
-  # note: kubernetes_network_config.elastic_load_balancing.enabled is unknown during planing
+  # Test that Auto Mode controller policy is not created when auto mode is disabled
+  assert {
+    condition     = length(module.eks["auto_mode_false"].automode_controller_policy) == 0
+    error_message = "Auto Mode controller policy should not be created when auto mode is disabled"
+  }
+
+  # Test that Auto Mode controller policy attachment is not created when auto mode is disabled
+  assert {
+    condition     = length(module.eks["auto_mode_false"].automode_controller_policy_attachments) == 0
+    error_message = "Auto Mode controller policy attachment should not be created when auto mode is disabled"
+  }
+
+  # Test that Auto Mode policies are not attached when auto mode is disabled
+  assert {
+    condition     = !alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy"] : contains(keys(module.eks["auto_mode_false"].eks_role_policy_attachments), item)])
+    error_message = "Auto Mode specific policies should not be attached when auto mode is disabled"
+  }
 
   expect_failures = [check.deletion_due_time]
 }
