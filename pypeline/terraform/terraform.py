@@ -109,7 +109,7 @@ def set_input(
     for region in regions:
         region_input_variables = cloud.generate_input_variables(region, input_variables)
         regional_config[f'"{region}"']['"TERRAFORM_INPUT_VARIABLES"'] = json.dumps(
-            region_input_variables
+            str(region_input_variables)
         )
 
     # Convert regional configuration to JSON
@@ -126,7 +126,7 @@ def set_input(
             fi
             echo "Regional Configuration {regional_config_str}"
             echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
-            regional_config_str=$(echo {regional_config_str} | jq -c .)
+            regional_config_str=$(echo "{regional_config_str}" | jq -c .)
             echo "Final regional config: $regional_config_str"
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
             
