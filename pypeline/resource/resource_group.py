@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from textwrap import dedent
 
-from benchmark import CloudProvider, Resource
+from benchmark import Resource
 from pipeline import Script
 
 

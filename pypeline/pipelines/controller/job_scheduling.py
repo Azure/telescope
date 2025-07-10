@@ -1,13 +1,13 @@
 import os
 from resource.python3 import Python3
+from resource.resource_group import ResourceGroup
 from resource.setup import Setup
 from resource.ssh import SSH
 
 from benchmark import Benchmark, Layout
 from cloud.azure import Azure
 from engine.clusterloader2 import ClusterLoader2
-from terraform.resource_group import ResourceGroup
-from terraform.terraform import Terraform
+from terraform.aks import AKS
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
                         scenario_name=az_scenario_name,
                         deletion_delay=az_deletion_delay,
                     ),
-                    Terraform(
+                    AKS(
                         cloud=az_cloud,
                         regions=az_regions,
                         scenario_name=az_scenario_name,

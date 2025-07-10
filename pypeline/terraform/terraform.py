@@ -1,11 +1,12 @@
 import json
 import os
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from textwrap import dedent, indent
 from typing import List
 
-from benchmark import Cloud, CloudProvider, Resource
+from benchmark import Cloud, Resource
 from cloud.azure import CredentialType
 from pipeline import Script, Step
 
@@ -18,11 +19,8 @@ class TerraformCommand(Enum):
 
 
 def generate_regional_config(
-    cloud: str,
-    regions: str,
-    input_file_mapping: dict,
-    scenario_name: str,
-    scenario_type: str,
+    cloud: str, regions: str, input_file_mapping: dict,
+    scenario_name: str, scenario_type: str
 ) -> dict:
     regional_config = {}
     multi_region = len(regions) > 1
@@ -32,11 +30,11 @@ def generate_regional_config(
             regional_input_file_path = input_file_mapping[region]
             terraform_input_file = f"$(Pipeline.Workspace)/s/{regional_input_file_path}"
         elif not multi_region:
-            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud}.tfvars"
+            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud.provider.value}.tfvars"
         else:
-            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud}-{region}.tfvars"
+            terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud.provider.value}-{region}.tfvars"
 
-        regional_config[region] = {"TERRAFORM_INPUT_FILE": terraform_input_file}
+        regional_config[f"\"{region}\""] = {"\"TERRAFORM_INPUT_FILE\"": f"\"{terraform_input_file}\""}
 
     return {
         "regional_config": regional_config,
@@ -65,35 +63,6 @@ def set_working_directory(cloud: str, modules_dir: str) -> Script:
     )
 
 
-def set_input_file(
-    cloud: str,
-    regions: str,
-    input_file_mapping: dict,
-    scenario_name: str,
-    scenario_type: str,
-) -> Script:
-    config = generate_regional_config(
-        cloud, regions, input_file_mapping, scenario_name, scenario_type
-    )
-    regional_config = config["regional_config"]
-    multi_region = config["multi_region"]
-
-    regional_config_str = json.dumps(regional_config)
-
-    return Script(
-        display_name="Set Terraform Input File",
-        script=dedent(
-            f"""
-            set -eu
-
-            echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
-            echo "##vso[task.setvariable variable=REGIONAL_CONFIG]{regional_config_str}"
-            """
-        ).strip(),
-        condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
-    )
-
-
 def set_user_data_path(
     user_data_path: str, scenario_name: str, scenario_type: str
 ) -> Script:
@@ -119,29 +88,44 @@ def set_user_data_path(
     )
 
 
-def set_input_variables(
-    cloud: Cloud, regions: list[str], input_variables: dict
+def set_input(
+    cloud: Cloud,
+    regions: list[str],
+    input_variables: dict,
+    input_file_mapping: dict,
+    scenario_name: str,
+    scenario_type: str,
 ) -> Script:
     # Initialize regional configuration
     regional_config = {}
 
+    config = generate_regional_config(
+        cloud, regions, input_file_mapping, scenario_name, scenario_type
+    )
+    regional_config = config["regional_config"]
+    multi_region = config["multi_region"]
+
     # Generate input variables for each region
     for region in regions:
         region_input_variables = cloud.generate_input_variables(region, input_variables)
-        regional_config[region] = {"TERRAFORM_INPUT_VARIABLES": region_input_variables}
+        regional_config[f'"{region}"']['"TERRAFORM_INPUT_VARIABLES"'] = json.dumps(
+            region_input_variables
+        )
 
     # Convert regional configuration to JSON
     regional_config_str = json.dumps(regional_config)
 
     # Generate the script to set pipeline variables
     return Script(
-        display_name="Set Terraform Input Variables",
+        display_name="Set Terraform Input Variables and Input File",
         script=dedent(
             f"""
             set -e
             if [[ \"${{DEBUG,,}}\" =~ \"true\" ]]; then
                 set -x
             fi
+            echo "Regional Configuration {regional_config_str}"
+            echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
             echo "Regional configuration set successfully."
             """
@@ -178,26 +162,22 @@ def generate_generic_script(command: str, arguments: str) -> str:
 
 
 def generate_apply_or_destroy_script(
-    command: TerraformCommand, arguments: str, regions: list[str], cloud: Cloud
+    command: TerraformCommand,
+    arguments: str,
+    regions: list[str],
+    error_handling_script: str,
 ) -> str:
-
     workspace_script = indent(generate_workspace_script(), " " * 12)
-    error_handling_script = ""
 
-    if (
-        TerraformCommand.APPLY == command and cloud.provider == CloudProvider.AZURE
-    ) or (TerraformCommand.DESTROY == command and cloud.provider == CloudProvider.AWS):
-
-        # Todo : replace this with error handling script
-        error_handling_script = indent("", " " * 16)
     return dedent(
         f"""
         set -e
+        echo "Regional Config: $TERRAFORM_REGIONAL_CONFIG"
 
         # Navigate to the Terraform working directory
         cd $TERRAFORM_WORKING_DIRECTORY
 
-        for region in $(echo "{regions}" | jq -r '.[]'); do
+        for region in $(echo '{regions}' | jq -r '.[]'); do
             echo "Processing region: $region"
             {workspace_script}
             # Retrieve input file and variables
@@ -238,19 +218,20 @@ class Terraform(Resource):
     arguments: str = ""
 
     def setup(self) -> list[Step]:
+
         return [
             set_working_directory(self.cloud.provider.value, self.modules_dir),
-            set_input_file(
-                self.cloud.provider.value,
+            set_user_data_path(
+                self.user_data_path, self.scenario_name, self.scenario_type
+            ),
+            set_input(
+                self.cloud,
                 self.regions,
+                self.input_variables,
                 self.input_file_mapping,
                 self.scenario_name,
                 self.scenario_type,
             ),
-            set_user_data_path(
-                self.user_data_path, self.scenario_name, self.scenario_type
-            ),
-            set_input_variables(self.cloud, self.regions, self.input_variables),
             self.run_command(TerraformCommand.VERSION),
             self.run_command(TerraformCommand.INIT),
             self.run_command(TerraformCommand.APPLY),
@@ -267,9 +248,7 @@ class Terraform(Resource):
         command: TerraformCommand,
     ) -> Script:
         if command == TerraformCommand.APPLY or TerraformCommand.DESTROY:
-            script = generate_apply_or_destroy_script(
-                command, self.arguments, self.regions, self.cloud
-            )
+            script = self.generate_terraform_command_script(command)
         else:
             script = generate_generic_script(command, self.arguments)
 
@@ -291,3 +270,7 @@ class Terraform(Resource):
                 ),
             },
         )
+
+    @abstractmethod
+    def generate_terraform_command_script(self, command) -> str:
+        pass
