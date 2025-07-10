@@ -108,9 +108,7 @@ def set_input(
     # Generate input variables for each region
     for region in regions:
         region_input_variables = cloud.generate_input_variables(region, input_variables)
-        regional_config[f'"{region}"']['"TERRAFORM_INPUT_VARIABLES"'] = json.dumps(
-            str(region_input_variables)
-        )
+        regional_config[f'"{region}"']['"TERRAFORM_INPUT_VARIABLES"'] = f"\"{json.dumps(region_input_variables)}\""
 
     # Convert regional configuration to JSON
     regional_config_str = json.dumps(regional_config)
