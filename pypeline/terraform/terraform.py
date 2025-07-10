@@ -126,7 +126,10 @@ def set_input(
             fi
             echo "Regional Configuration {regional_config_str}"
             echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
-            echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
+            regional_config_str=$(echo {regional_config_str} | jq -c .)
+            echo "Final regional config: $regional_config_str"
+            echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
+            
             echo "Regional configuration set successfully."
             """
         ).strip(),
