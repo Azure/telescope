@@ -34,7 +34,7 @@ def generate_regional_config(
         else:
             terraform_input_file = f"$(Pipeline.Workspace)/s/scenarios/{scenario_type}/{scenario_name}/terraform-inputs/{cloud.provider.value}-{region}.tfvars"
 
-        regional_config[f"\"{region}\""] = {"\"TERRAFORM_INPUT_FILE\"": f"\"{terraform_input_file}\""}
+        regional_config[region] = {"TERRAFORM_INPUT_FILE": terraform_input_file}
 
     return {
         "regional_config": regional_config,
@@ -109,7 +109,7 @@ def set_input(
     for region in regions:
         
         region_input_variables = cloud.generate_input_variables(region, input_variables)
-        regional_config[f"\"{region}\""][f"\"TERRAFORM_INPUT_VARIABLES\""] = str(json.dumps(region_input_variables))
+        regional_config[region]["TERRAFORM_INPUT_VARIABLES"] = json.dumps(region_input_variables)
 
     # Convert regional configuration to JSON
     regional_config_str = json.dumps(regional_config)
