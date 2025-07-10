@@ -403,6 +403,7 @@ resource "aws_eks_addon" "addon" {
     aws_iam_role_policy_attachment.addon_policy_attachments,
     aws_eks_node_group.eks_managed_node_groups,
     terraform_data.apply_nodepool_system_custom,
+    terraform_data.apply_nodepool_general_custom,
   ]
 }
 
