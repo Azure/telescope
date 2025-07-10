@@ -109,9 +109,7 @@ def set_input(
     for region in regions:
         
         region_input_variables = cloud.generate_input_variables(region, input_variables)
-        if region not in regional_config:
-            regional_config[region] = {}  # Ensure key exists
-        regional_config[region]["TERRAFORM_INPUT_VARIABLES"] = region_input_variables
+        regional_config[f"\"{region}\""][f"\"TERRAFORM_INPUT_VARIABLES\""] = str(json.dumps(region_input_variables))
 
     # Convert regional configuration to JSON
     regional_config_str = json.dumps(regional_config)
@@ -127,8 +125,12 @@ def set_input(
             fi
             echo "Regional Configuration {regional_config_str}"
             echo "##vso[task.setvariable variable=MULTI_REGION]{str(multi_region).lower()}"
-            regional_config_str=$(echo "{regional_config_str}" | jq -c .)
+            regional_config_str=$(cat <<EOF
+                {regional_config_str}
+            EOF
+            )
             echo "Final regional config: $regional_config_str"
+            
             echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
             
             echo "Regional configuration set successfully."
