@@ -233,9 +233,14 @@ def generate_apply_or_destroy_script(
 
 
 def create_resource_group(cloud: Cloud, region: str) -> Script:
+    if cloud.provider != CloudProvider.AZURE:
+        script_str = cloud.create_resource_group(region)
+    else:
+        script_str = "echo 'Resource group creation is only required for Azure.'"
+
     return Script(
         display_name="Create Resource Group",
-        script=cloud.create_resource_group(region),
+        script=script_str,
         condition="ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')",
     )
 
