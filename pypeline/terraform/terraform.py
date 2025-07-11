@@ -128,7 +128,7 @@ def set_input(
             regional_config_str={regional_config_str}
             echo "Final regional config: $regional_config_str"
             
-            echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]$regional_config_str"
+            echo "##vso[task.setvariable variable=TERRAFORM_REGIONAL_CONFIG]{regional_config_str}"
             
             echo "Regional configuration set successfully."
             """
