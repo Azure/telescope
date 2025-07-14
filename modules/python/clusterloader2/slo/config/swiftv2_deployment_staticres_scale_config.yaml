@@ -33,6 +33,14 @@ steps:
       Params:
         action: start
         duration: 1ms
+  - name: Starting Pod Startup Latency Measurements
+    measurements:
+    - Identifier: PodStartupLatency
+      Method: PodStartupLatency
+      Params:
+        action: start
+        labelSelector: podgroup={{$groupName}}
+        threshold: {{$podStartupLatencyThreshold}}
   {{range $j := Loop $steps}}
   - name: Create PNI -{{$j}}
     phases:
@@ -52,14 +60,6 @@ steps:
         Method: Sleep
         Params:
           duration: 60s
-  - name: Starting Pod Startup Latency Measurements -{{$j}}
-    measurements:
-    - Identifier: PodStartupLatency
-      Method: PodStartupLatency
-      Params:
-        action: start
-        labelSelector: group={{$groupName}}-{{$j}}
-        threshold: {{$podStartupLatencyThreshold}}
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning
@@ -83,6 +83,7 @@ steps:
             templateFillMap:
               Replicas: {{$nodesPerStep}}
               Group: {{$groupName}}-{{$j}}
+              PodGroup: {{$groupName}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
@@ -129,11 +130,11 @@ steps:
       Params:
         action: gather
         labelSelector: group={{$groupName}}-{{$j}}
-  - name: Gather Pod Startup Latency Measurements -{{$j}}
+  {{end}}
+  - name: Gather Pod Startup Latency Measurements
     measurements:
     - Identifier: PodStartupLatency
       Method: PodStartupLatency
       Params:
         action: gather
-        labelSelector: group={{$groupName}}-{{$j}}
-  {{end}}
+        labelSelector: podgroup={{$groupName}}
