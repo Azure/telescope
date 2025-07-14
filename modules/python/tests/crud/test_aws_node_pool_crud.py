@@ -60,7 +60,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         # Execute
         result = self.node_pool_crud.create_node_pool(
             node_pool_name=node_group_name,
-            instance_type=instance_type,
+            vm_size=instance_type,
             node_count=node_count,
         )
 
@@ -96,7 +96,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         # Execute
         result = self.node_pool_crud.create_node_pool(
             node_pool_name=node_group_name,
-            instance_type=instance_type,
+            vm_size=instance_type,
             node_count=node_count,
             gpu_node_pool=True,
         )
@@ -124,7 +124,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         # Execute
         result = self.node_pool_crud.create_node_pool(
             node_pool_name=node_group_name,
-            instance_type=instance_type,
+            vm_size=instance_type,
             node_count=node_count,
         )
 
@@ -360,7 +360,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         # Execute
         result = self.node_pool_crud.create_node_pool(
             node_pool_name=node_group_name,
-            instance_type=instance_type,  # Pass as string
+            vm_size=instance_type,  # Pass as string
             node_count=node_count,
         )
 
@@ -401,7 +401,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         # Execute
         result = node_pool_crud.create_node_pool(
             node_pool_name=node_group_name,
-            instance_type=instance_type,
+            vm_size=instance_type,
             node_count=node_count,
         )
 

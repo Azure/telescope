@@ -55,7 +55,7 @@ class NodePoolCRUD:
 
         Args:
             node_pool_name: Name of the node group
-            instance_type: VM size/instance type
+            vm_size: VM size/instance type
             node_count: Number of nodes to create (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node group (default: False)
 
@@ -186,7 +186,7 @@ class NodePoolCRUD:
             logger.info(f"Starting to create node group '{node_pool_name}'")
             create_result = self.create_node_pool(
                 node_pool_name=node_pool_name,
-                instance_type=vm_size,
+                vm_size=vm_size,
                 node_count=node_count,
                 gpu_node_pool=gpu_node_pool,
             )
