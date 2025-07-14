@@ -8,7 +8,7 @@ override_data {
         "Principal": {
           "Service": ["eks.amazonaws.com", "ec2.amazonaws.com"]
         },
-        "Action": ["sts:AssumeRole"]
+        "Action": ["sts:AssumeRole", "sts:TagSession"]
       }]
     } 
     EOT

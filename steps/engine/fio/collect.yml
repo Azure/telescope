@@ -1,5 +1,5 @@
 parameters:
-  fio_properties: {} # format: block_size|iodepth|method|runtime
+  fio_properties: {} # format: block_size|iodepth|method|runtime|numjobs|file_size
 
 steps:
   - ${{ each property in parameters.fio_properties }}:
@@ -10,10 +10,20 @@ steps:
           block_size=${fio_params[0]}
           iodepth=${fio_params[1]}
           method=${fio_params[2]}
+          runtime=${fio_params[3]}
+          numjobs=${fio_params[4]}
+          file_size=${fio_params[5]}
 
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-            $K8S_MACHINE_TYPE $block_size $iodepth $method \
-            $RESULT_DIR $RUN_URL "$CLOUD_INFO"
+            --vm_size "$K8S_MACHINE_TYPE" \
+            --block_size $block_size \
+            --iodepth $iodepth \
+            --method $method \
+            --numjobs $numjobs \
+            --file_size $file_size \
+            --result_dir $RESULT_DIR \
+            --run_url $RUN_URL \
+            --cloud_info "$CLOUD_INFO"
         workingDirectory: modules/python
         displayName: "Collect fio ${{ property }}"
         env:

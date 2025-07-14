@@ -26,26 +26,19 @@ class NodePoolCRUD:
     def __init__(
         self,
         run_id=None,
-        region=None, 
-        kube_config_file=None, 
-        result_dir=None, 
+        kube_config_file=None,
+        result_dir=None,
         step_timeout=600,
-        aws_access_key_id=None,
-        aws_secret_access_key=None,
-        aws_session_token=None,
+        capacity_type="ON_DEMAND",
     ):
         """Initialize with AWS resource identifiers"""
         self.cluster_name = ""
         self.run_id = run_id
-        self.region = region
+        self.capacity_type = capacity_type
         self.eks_client = EKSClient(
-            region=region,
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
         )
 
         if not self.eks_client:
@@ -56,32 +49,20 @@ class NodePoolCRUD:
         self.step_timeout = step_timeout
 
     def create_node_pool(
-        self, 
-        node_pool_name, 
-        vm_size=None,  # Cloud-agnostic parameter name (same as Azure)
-        instance_types=None,  # AWS-specific parameter for direct usage
-        node_count=1, 
+        self,
+        node_pool_name,
+        instance_type=None,
+        node_count=0,
         gpu_node_pool=False,
-        subnet_ids=None,
-        node_role_arn=None,
-        ami_type=None,
-        capacity_type="ON_DEMAND",
-        disk_size=20,
     ):
         """
         Create a new node group
 
         Args:
             node_pool_name: Name of the node group
-            vm_size: VM size/instance type (cloud-agnostic parameter, used if instance_types not provided)
-            instance_types: List of EC2 instance types for the nodes (AWS-specific, takes precedence over vm_size)
+            instance_type: VM size/instance type
             node_count: Number of nodes to create (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node group (default: False)
-            subnet_ids: List of subnet IDs for the node group (optional)
-            node_role_arn: IAM role ARN for the node group (optional)
-            ami_type: AMI type for the nodes (optional)
-            capacity_type: Capacity type (ON_DEMAND or SPOT, default: ON_DEMAND)
-            disk_size: Root disk size in GB (default: 20)
 
         Returns:
             The created node group object or False if creation failed
@@ -91,26 +72,12 @@ class NodePoolCRUD:
         )
 
         try:
-            # Handle cloud-agnostic parameter conversion
-            if instance_types is None:
-                if vm_size is None:
-                    raise ValueError("Either vm_size or instance_types must be provided")
-                instance_types = [vm_size] if isinstance(vm_size, str) else vm_size
-            
-            # Ensure instance_types is a list
-            if isinstance(instance_types, str):
-                instance_types = [instance_types]
-
             result = self.eks_client.create_node_group(
                 node_group_name=node_pool_name,
-                instance_types=instance_types,
+                instance_type=instance_type,
                 node_count=node_count,
-                gpu_node_pool=gpu_node_pool,
-                subnet_ids=subnet_ids,
-                node_role_arn=node_role_arn,
-                ami_type=ami_type,
-                capacity_type=capacity_type,
-                disk_size=disk_size,
+                gpu_node_group=gpu_node_pool,
+                capacity_type=self.capacity_type,
             )
             logger.info(f"Node group '{node_pool_name}' created successfully")
             return result
@@ -187,18 +154,12 @@ class NodePoolCRUD:
         self,
         node_pool_name,
         vm_size=None,  # Cloud-agnostic parameter name (same as Azure)
-        instance_types=None,  # AWS-specific parameter for direct usage
         node_count=None,
         target_count=None,
         progressive=False,
         scale_step_size=1,
         gpu_node_pool=False,
         step_wait_time=30,
-        subnet_ids=None,
-        node_role_arn=None,
-        ami_type=None,
-        capacity_type="ON_DEMAND",
-        disk_size=20,
     ):
         """
         Unified method to perform all node group operations: create, scale-up, scale-down, delete
@@ -206,19 +167,13 @@ class NodePoolCRUD:
 
         Args:
             node_pool_name: Name of the node group
-            vm_size: VM size/instance type (cloud-agnostic parameter, used if instance_types not provided)
-            instance_types: List of EC2 instance types for nodes (AWS-specific, takes precedence over vm_size)
+            vm_size: VM size/instance type
             node_count: Number of nodes to create (for create operation, default: 0)
             target_count: Target node count for scaling operations
             progressive: Whether to scale progressively in steps (default: False)
             scale_step_size: Number of nodes to add/remove in each step if progressive (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node group (default: False)
             step_wait_time: Time to wait between operations (default: 30 seconds)
-            subnet_ids: List of subnet IDs for the node group (optional)
-            node_role_arn: IAM role ARN for the node group (optional)
-            ami_type: AMI type for the nodes (optional)
-            capacity_type: Capacity type (ON_DEMAND or SPOT, default: ON_DEMAND)
-            disk_size: Root disk size in GB (default: 20)
 
         Returns:
             True if all operations succeeded, False if any operation failed
@@ -232,24 +187,13 @@ class NodePoolCRUD:
         }
 
         try:
-            # Handle cloud-agnostic parameter conversion
-            if instance_types is None:
-                if vm_size is None:
-                    raise ValueError("Either vm_size or instance_types must be provided")
-                instance_types = [vm_size] if isinstance(vm_size, str) else vm_size
-
             # 1. Create node group
             logger.info(f"Starting to create node group '{node_pool_name}'")
             create_result = self.create_node_pool(
                 node_pool_name=node_pool_name,
-                instance_types=instance_types,
+                instance_type=vm_size,
                 node_count=node_count,
                 gpu_node_pool=gpu_node_pool,
-                subnet_ids=subnet_ids,
-                node_role_arn=node_role_arn,
-                ami_type=ami_type,
-                capacity_type=capacity_type,
-                disk_size=disk_size,
             )
             results["create"] = create_result
 
@@ -279,7 +223,6 @@ class NodePoolCRUD:
                 error_msg = f"Scale up operation failed for '{node_pool_name}'"
                 logger.error(error_msg)
                 errors.append(error_msg)
-                # Continue to scale down and delete to clean up resources
 
             logger.info(f"Waiting {step_wait_time} seconds before scaling down...")
             time.sleep(step_wait_time)

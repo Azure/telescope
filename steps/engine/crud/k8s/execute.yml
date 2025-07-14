@@ -27,6 +27,7 @@ steps:
       --result-dir "$RESULT_DIR"
       --scale-step-size "$SCALE_STEP_SIZE"
       --step-wait-time "$STEP_WAIT_TIME"
+      --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"  # Default to ON_DEMAND if not set
     )
 
     # Conditionally add gpu-node
@@ -50,3 +51,5 @@ steps:
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
     STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
+    ${{ if eq(parameters.cloud, 'aws') }}:
+      CAPACITY_TYPE: $(CAPACITY_TYPE)

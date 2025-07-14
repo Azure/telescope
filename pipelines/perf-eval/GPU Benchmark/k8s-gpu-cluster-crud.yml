@@ -77,3 +77,30 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 180
+
+
+  - stage: aws_H100_gpu_test
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            h100_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: h100nodepool
+              vm_size: m5.xlarge
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 1200
+              step_wait_time: 30
+              capacity_type: ON_DEMAND
+          max_parallel: 2
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180

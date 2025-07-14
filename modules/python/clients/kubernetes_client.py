@@ -44,6 +44,7 @@ class KubernetesClient:
         self.api = client.CoreV1Api()
         self.app = client.AppsV1Api()
         self.storage = client.StorageV1Api()
+        self.batch = client.BatchV1Api()
 
     def get_app_client(self):
         return self.app
@@ -92,9 +93,6 @@ class KubernetesClient:
         return True
 
     def _is_ready_pod(self, pod):
-        if pod.status.phase != "Running":
-            return False
-
         for condition in pod.status.conditions:
             if condition.type == "Ready" and condition.status == "True":
                 return True
@@ -171,26 +169,6 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error processing template file {template_path}: {str(e)}") from e
 
-    def create_deployment(self, template, namespace="default"):
-        """
-        Create a Deployment in the specified namespace using the provided YAML template.
-
-        :param template: YAML template for the Deployment.
-        :param namespace: Namespace where the Deployment will be created.
-        :return: Name of the created Deployment.
-        """
-        try:
-            deployment_obj = yaml.safe_load(template)
-            response = self.app.create_namespaced_deployment(
-                body=deployment_obj,
-                namespace=namespace
-            )
-            return response.metadata.name
-        except yaml.YAMLError as e:
-            raise Exception(f"Error parsing deployment template: {str(e)}") from e
-        except Exception as e:
-            raise Exception(f"Error creating deployment {template}: {str(e)}") from e
-
     def create_node(self, template):
         """
         Create a Node in the Kubernetes cluster using the provided YAML template.
@@ -223,10 +201,10 @@ class KubernetesClient:
         """
         try:
             self.api.delete_node(name=node_name, body=client.V1DeleteOptions())
-            print(f"Node '{node_name}' deleted successfully.")
+            logger.info(f"Node '{node_name}' deleted successfully.")
         except client.rest.ApiException as e:
             if e.status == 404:  # Node not found
-                print(f"Node '{node_name}' not found.")
+                logger.info(f"Node '{node_name}' not found.")
             else:
                 raise Exception(f"Error deleting Node '{node_name}': {str(e)}") from e
 
@@ -252,9 +230,7 @@ class KubernetesClient:
                 return ready_nodes
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
-        if ready_node_count != node_count:
-            raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
-        return ready_nodes
+        raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
     def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
         """
@@ -276,9 +252,48 @@ class KubernetesClient:
                 return pods
             logger.info(f"Waiting for {pod_count} pods to be ready.")
             time.sleep(10)
-        if len(pods) != pod_count:
-            raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
-        return pods
+        raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
+
+    def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
+        """
+        Waits for a specific job to complete its execution within a specified timeout.
+        Raises an exception if the job does not complete within the timeout.
+
+        :param job_name: The name of the job to wait for.
+        :param namespace: The namespace where the job is located (default: "default").
+        :param timeout: The timeout in seconds to wait for the job to complete (default: 300 seconds).
+        :return: None
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                job = self.batch.read_namespaced_job(name=job_name, namespace=namespace)
+                if job.status.succeeded is not None and job.status.succeeded > 0:
+                    logger.info(
+                        f"Job '{job_name}' in namespace '{namespace}' has completed successfully."
+                    )
+                    return job.metadata.name
+                if job.status.failed is not None and job.status.failed > 0:
+                    raise Exception(
+                        f"Job '{job_name}' in namespace '{namespace}' has failed."
+                    )
+                logger.info(
+                    f"Job '{job_name}' in namespace '{namespace}' is still running with status:\n{job.status}"
+                )
+            except client.rest.ApiException as e:
+                if e.status == 404:
+                    raise Exception(
+                        f"Job '{job_name}' not found in namespace '{namespace}'."
+                    ) from e
+                raise e
+            sleep_time = 30
+            logger.info(
+                f"Waiting {sleep_time} seconds before checking job status again."
+            )
+            time.sleep(sleep_time)
+        raise Exception(
+            f"Job '{job_name}' in namespace '{namespace}' did not complete within {timeout} seconds."
+        )
 
     def get_pod_logs(self, pod_name, namespace="default", container=None, tail_lines=None):
         """
@@ -291,12 +306,20 @@ class KubernetesClient:
         :return: String containing the pod logs
         """
         try:
-            return self.api.read_namespaced_pod_log(
+            logs_response = self.api.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
                 container=container,
-                tail_lines=tail_lines
+                tail_lines=tail_lines,
+                _preload_content=False  # Avoid breaking data format
             )
+
+            # Handle both bytes and string responses
+            logs_data = logs_response.data
+            if isinstance(logs_data, bytes):
+                return logs_data.decode('utf-8', errors='replace')
+            return str(logs_data)
+
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
@@ -351,10 +374,23 @@ class KubernetesClient:
         memory_request = 0
         for pod in pods:
             for container in pod.spec.containers:
-                logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
-                cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
-                memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
+                if container.resources.requests:
+                    logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                    cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
+                    memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
         return cpu_request, memory_request * 1024 # Convert to KiB
+
+    def get_daemonsets_pods_count(self, namespace, node_name):
+        """
+        Get the count of DaemonSet pods running on a specific node.
+        Args:
+            namespace (str): The namespace where the DaemonSet is located.
+            node_name (str): The name of the node where the pods are running.
+        Returns:
+            int: The count of DaemonSet pods running on a specific node.
+        """
+        pods = self.get_pods_by_namespace(namespace=namespace, field_selector=f"spec.nodeName={node_name}")
+        return len(pods)
 
     def set_context(self, context_name):
         """
@@ -562,7 +598,13 @@ class KubernetesClient:
                     time.sleep(2)
 
                 # Get pod logs
-                pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+                pod_logs_bytes = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+
+                # Decode bytes to string if needed
+                if isinstance(pod_logs_bytes, bytes):
+                    pod_logs = pod_logs_bytes.decode('utf-8', errors='replace')
+                else:
+                    pod_logs = str(pod_logs_bytes)
 
                 logger.info(f"nvidia-smi output: {pod_logs}")
 
@@ -620,8 +662,8 @@ class KubernetesClient:
             logger.error(f"Error installing NVIDIA GPU device plugin: {str(e)}")
             raise e
 
-    # verify device plugin and return logs   for success and error case
-    def verify_gpu_device_plugin(self, namespace="kube-system", timeout=60):
+    # verify device plugin and return logs for success and error case
+    def verify_gpu_device_plugin(self, namespace="kube-system", timeout=100):
         """
         Verify if the NVIDIA GPU device plugin is running correctly.
         This checks if the DaemonSet is available and all pods are running.
@@ -633,10 +675,10 @@ class KubernetesClient:
                 daemonset = self.app.read_namespaced_daemon_set(
                     name="nvidia-device-plugin-daemonset", namespace=namespace
                 )
-                if (
-                    daemonset.status.number_available
-                    == daemonset.status.desired_number_scheduled
-                ):
+                desired = daemonset.status.desired_number_scheduled
+                ready = daemonset.status.number_ready
+                logger.info(f"DaemonSet status: Desired={desired}, Ready={ready}")
+                if desired == ready:
                     logger.info("NVIDIA GPU device plugin is running correctly.")
                     return True
             except client.rest.ApiException as e:
