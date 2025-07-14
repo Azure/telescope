@@ -306,20 +306,13 @@ class KubernetesClient:
         :return: String containing the pod logs
         """
         try:
-            logs_response = self.api.read_namespaced_pod_log(
+            return self.api.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
                 container=container,
                 tail_lines=tail_lines,
                 _preload_content=False  # Avoid breaking data format
-            )
-
-            # Handle both bytes and string responses
-            logs_data = logs_response.data
-            if isinstance(logs_data, bytes):
-                return logs_data.decode('utf-8', errors='replace')
-            return str(logs_data)
-
+            ).data
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
@@ -598,13 +591,7 @@ class KubernetesClient:
                     time.sleep(2)
 
                 # Get pod logs
-                pod_logs_bytes = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
-
-                # Decode bytes to string if needed
-                if isinstance(pod_logs_bytes, bytes):
-                    pod_logs = pod_logs_bytes.decode('utf-8', errors='replace')
-                else:
-                    pod_logs = str(pod_logs_bytes)
+                pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
 
                 logger.info(f"nvidia-smi output: {pod_logs}")
 

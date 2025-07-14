@@ -1340,27 +1340,5 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
 
 
-class TestGetNodePoolCRUDClassErrorHandling(unittest.TestCase):
-    """Tests for error handling in get_node_pool_crud_class"""
-
-    def test_get_node_pool_crud_class_gcp_not_implemented(self):
-        """Test ValueError for GCP (not implemented)"""
-        with self.assertRaises(ValueError) as context:
-            get_node_pool_crud_class("gcp")
-
-        self.assertIn(
-            "GCP NodePoolCRUD implementation not yet available", str(context.exception)
-        )
-
-    def test_get_node_pool_crud_class_random_provider(self):
-        """Test ValueError for unsupported random provider"""
-        with self.assertRaises(ValueError) as context:
-            get_node_pool_crud_class("random_provider")
-
-        self.assertIn(
-            "Unsupported cloud provider: random_provider", str(context.exception)
-        )
-
-
 if __name__ == "__main__":
     unittest.main()

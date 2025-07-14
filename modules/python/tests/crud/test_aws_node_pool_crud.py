@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Unit tests for AWS NodePoolCRUD class
 """
@@ -413,7 +412,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             "instanceTypes": [instance_type],
             "scalingConfig": {"desiredSize": node_count},
         }
-        node_pool_crud.eks_client.create_node_group.return_value = mock_node_group
+        self.mock_eks_client.create_node_group.return_value = mock_node_group
 
         # Execute
         result = node_pool_crud.create_node_pool(
@@ -424,7 +423,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
 
         # Verify
         self.assertIsNotNone(result)
-        node_pool_crud.eks_client.create_node_group.assert_called_once_with(
+        self.mock_eks_client.create_node_group.assert_called_once_with(
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,

@@ -41,10 +41,9 @@ class NodePoolCRUD:
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
         )
 
-        if not self.eks_client:
-            error_msg = "Failed to initialize EKS client."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        # Validate that EKS client was created successfully
+        if self.eks_client is None:
+            raise ValueError("Failed to initialize EKS client")
 
         self.step_timeout = step_timeout
 

@@ -42,18 +42,10 @@ def get_node_pool_crud_class(cloud_provider):
         ValueError: If the cloud provider is not supported
     """
     if cloud_provider == "azure":
-        try:
-            return AzureNodePoolCRUD
-        except ImportError as e:
-            raise ImportError(
-                f"Azure NodePoolCRUD implementation not found: {e}"
-            ) from e
-    elif cloud_provider == "aws":
-        try:
-            return AWSNodePoolCRUD
-        except ImportError as e:
-            raise ImportError(f"AWS NodePoolCRUD implementation not found: {e}") from e
-    elif cloud_provider == "gcp":
+        return AzureNodePoolCRUD
+    if cloud_provider == "aws":
+        return AWSNodePoolCRUD
+    if cloud_provider == "gcp":
         # TODO: Implement GCP NodePoolCRUD class
         raise ValueError("GCP NodePoolCRUD implementation not yet available")
     else:

@@ -8,6 +8,7 @@ The client also validates node readiness after operations using Kubernetes API.
 Operations are tracked using the Operation and OperationContext classes for metrics
 and troubleshooting.
 """
+# pylint: disable=too-many-lines
 
 import logging
 import os
@@ -61,7 +62,7 @@ class EKSClient:
         """
 
         class DateTimeEncoder(json.JSONEncoder):
-            def default(self, obj):
+            def default(self, obj):  # pylint: disable=arguments-renamed
                 if isinstance(obj, datetime):
                     # Format as "2025-07-07T14:44:21Z"
                     return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -103,13 +104,13 @@ class EKSClient:
             self.run_id = get_env_vars("RUN_ID")
             self.cluster_name = self._get_cluster_name_by_run_id(self.run_id)
             logger.info(
-                f"Successfully connected to AWS EKS. Found cluster: {self.cluster_name}"
+                "Successfully connected to AWS EKS. Found cluster: %s", self.cluster_name
             )
             self._load_subnet_ids()
             self._load_node_role_arn()
 
         except Exception as e:
-            logger.error(f"Initialization failed: {e}")
+            logger.error("Initialization failed: %s", e)
             raise
 
         # Initialize Kubernetes client if provided or if kubeconfig is available
@@ -117,7 +118,7 @@ class EKSClient:
             self.k8s_client = KubernetesClient(config_file=kube_config_file)
             logger.info("Kubernetes client initialized successfully")
         except Exception as e:
-            logger.warning(f"Failed to initialize Kubernetes client: {str(e)}")
+            logger.warning("Failed to initialize Kubernetes client: %s", str(e))
             self.k8s_client = None
         logger.info("EKS client initialized successfully")
 
@@ -133,7 +134,7 @@ class EKSClient:
         """
         try:
             all_clusters = self.eks.list_clusters()["clusters"]
-            logger.info(f"Checking {len(all_clusters)} clusters for run_id = {run_id}")
+            logger.info("Checking %d clusters for run_id = %s", len(all_clusters), run_id)
 
             for cluster_name in all_clusters:
                 details = self.eks.describe_cluster(name=cluster_name)
@@ -141,12 +142,12 @@ class EKSClient:
 
                 if tags.get("run_id") == run_id:
                     logger.info(
-                        f"Matched cluster: {cluster_name} with run_id: {run_id}"
+                        "Matched cluster: %s with run_id: %s", cluster_name, run_id
                     )
                     return cluster_name
-            raise Exception(f"No EKS cluster found with run_id: {run_id}")
+            raise Exception("No EKS cluster found with run_id: " + run_id)
         except Exception as e:
-            logger.error(f"Error while getting EKS clusters : {e}")
+            logger.error("Error while getting EKS clusters : %s", e)
             raise
 
     def _load_subnet_ids(self):
@@ -185,11 +186,11 @@ class EKSClient:
                 ng_info = self.get_node_group(first_ng)
                 self.node_role_arn = ng_info["nodeRole"]
                 logger.info(
-                    f"Found node role ARN from existing node group: {self.node_role_arn}"
+                    "Found node role ARN from existing node group: %s", self.node_role_arn
                 )
                 return
         except Exception as e:
-            logger.warning(f"Could not find existing node group role: {e}")
+            logger.warning("Could not find existing node group role: %s", e)
 
     def get_cluster_data(self, cluster_name: Optional[str] = None) -> Dict:
         """
@@ -218,7 +219,7 @@ class EKSClient:
             # Serialize to handle datetime objects
             return self._serialize_aws_response(cluster_data)
         except ClientError as e:
-            logger.error(f"Error getting cluster {cluster_name}: {str(e)}")
+            logger.error("Error getting cluster %s: %s", cluster_name, str(e))
             raise
 
     def get_node_group(
@@ -248,10 +249,10 @@ class EKSClient:
         except ClientError as e:
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
                 logger.error(
-                    f"Node group '{node_group_name}' not found in cluster '{cluster_name}'"
+                    "Node group '%s' not found in cluster '%s'", node_group_name, cluster_name
                 )
             else:
-                logger.error(f"Failed to get node group '{node_group_name}': {e}")
+                logger.error("Failed to get node group '%s': %s", node_group_name, e)
             raise
 
     def create_node_group(
@@ -299,8 +300,8 @@ class EKSClient:
                 logger.info(
                     f"Creating node group '{node_group_name}' with {node_count} nodes"
                 )
-                logger.info(f"Instance types: {instance_type}")
-                logger.info(f"Capacity type: {capacity_type}")
+                logger.info("Instance types: %s", instance_type)
+                logger.info("Capacity type: %s", capacity_type)
 
                 # Prepare node group creation parameters
                 create_params = {
@@ -418,7 +419,7 @@ class EKSClient:
             except Exception as e:
                 # Log the error
                 error_msg = str(e)
-                logger.error(f"Error creating node pool {node_group_name}: {error_msg}")
+                logger.error("Error creating node pool %s: %s", node_group_name, error_msg)
                 # The OperationContext will automatically record failure when exiting
                 raise
 
@@ -498,7 +499,7 @@ class EKSClient:
                 # Ensure maxSize is at least the target count
                 if scaling_config["maxSize"] < node_count:
                     scaling_config["maxSize"] = node_count
-                    logger.info(f"Updating maxSize to {node_count}")
+                    logger.info("Updating maxSize to %d", node_count)
                 op.name = operation_type
                 op.add_metadata("vm_size", self.vm_size)
                 op.add_metadata("current_count", current_count)
@@ -564,7 +565,7 @@ class EKSClient:
 
             except Exception as e:
                 error_msg = str(e)
-                logger.error(f"Error scaling node pool {node_group_name}: {error_msg}")
+                logger.error("Error scaling node pool %s: %s", node_group_name, error_msg)
                 # The OperationContext will automatically record failure when exiting
                 raise
 
@@ -607,7 +608,7 @@ class EKSClient:
             "delete_node_group", "aws", metadata, result_dir=self.result_dir
         ) as op:
             try:
-                logger.info(f"Deleting node group '{node_group_name}'")
+                logger.info("Deleting node group '%s'", node_group_name)
                 op.add_metadata("node_pool_name", node_group_name)
                 op.add_metadata(
                     "nodepool_info",
@@ -628,16 +629,16 @@ class EKSClient:
                     clusterName=cluster_name, nodegroupName=node_group_name
                 )
 
-                logger.info(f"Deletion initiated for node group '{node_group_name}'")
+                logger.info("Deletion initiated for node group '%s'", node_group_name)
 
                 # Wait for the node group to be deleted
                 self._wait_for_node_group_deleted(node_group_name, cluster_name)
 
-                logger.info(f"Node group '{node_group_name}' deleted successfully")
+                logger.info("Node group '%s' deleted successfully", node_group_name)
                 return True
 
             except Exception as e:
-                logger.error(f"Failed to delete node group '{node_group_name}': {e}")
+                logger.error("Failed to delete node group '%s': %s", node_group_name, e)
                 raise
 
     def _progressive_scale(
@@ -735,7 +736,7 @@ class EKSClient:
                 return current_node_group
 
             except Exception as e:
-                logger.error(f"Progressive scaling failed: {e}")
+                logger.error("Progressive scaling failed: %s", e)
                 raise
 
     def _wait_for_node_group_active(self, node_group_name: str, cluster_name: str):
@@ -749,7 +750,7 @@ class EKSClient:
         Raises:
             WaiterError: If the waiter times out or encounters an error
         """
-        logger.info(f"Waiting for node group '{node_group_name}' to become active...")
+        logger.info("Waiting for node group '%s' to become active...", node_group_name)
 
         try:
             waiter = self.eks.get_waiter("nodegroup_active")
@@ -763,7 +764,7 @@ class EKSClient:
                     ),  # 2 attempts per minute
                 },
             )
-            logger.info(f"Node group '{node_group_name}' is now active")
+            logger.info("Node group '%s' is now active", node_group_name)
         except WaiterError as e:
             logger.error(
                 f"Timeout waiting for node group '{node_group_name}' to become active: {e}"
@@ -781,7 +782,7 @@ class EKSClient:
         Raises:
             WaiterError: If the waiter times out or encounters an error
         """
-        logger.info(f"Waiting for node group '{node_group_name}' to be deleted...")
+        logger.info("Waiting for node group '%s' to be deleted...", node_group_name)
 
         try:
             waiter = self.eks.get_waiter("nodegroup_deleted")
@@ -795,39 +796,7 @@ class EKSClient:
                     ),  # 2 attempts per minute
                 },
             )
-            logger.info(f"Node group '{node_group_name}' has been deleted")
-        except WaiterError as e:
-            logger.error(
-                f"Timeout waiting for node group '{node_group_name}' to be deleted: {e}"
-            )
-            raise
-
-    def _wait_for_node_group_deleted(self, node_group_name: str, cluster_name: str):
-        """
-        Wait for a node group to be deleted.
-
-        Args:
-            node_group_name: The name of the node group
-            cluster_name: The name of the EKS cluster
-
-        Raises:
-            WaiterError: If the waiter times out or encounters an error
-        """
-        logger.info(f"Waiting for node group '{node_group_name}' to be deleted...")
-
-        try:
-            waiter = self.eks.get_waiter("nodegroup_deleted")
-            waiter.wait(
-                clusterName=cluster_name,
-                nodegroupName=node_group_name,
-                WaiterConfig={
-                    "Delay": 30,  # Check every 30 seconds
-                    "MaxAttempts": int(
-                        self.operation_timeout_minutes * 2
-                    ),  # 2 attempts per minute
-                },
-            )
-            logger.info(f"Node group '{node_group_name}' has been deleted")
+            logger.info("Node group '%s' has been deleted", node_group_name)
         except WaiterError as e:
             logger.error(
                 f"Timeout waiting for node group '{node_group_name}' to be deleted: {e}"
@@ -888,7 +857,7 @@ class EKSClient:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to find capacity reservation: {str(e)}")
+            logger.error("Failed to find capacity reservation: %s", str(e))
             return None
 
     def _create_launch_template_with_capacity_reservation(
@@ -1035,7 +1004,7 @@ class EKSClient:
             ClientError: If the AWS API request fails
         """
         try:
-            logger.info(f"Deleting launch template {self.launch_template_id}")
+            logger.info("Deleting launch template %s", self.launch_template_id)
             self.ec2.delete_launch_template(LaunchTemplateId=self.launch_template_id)
             logger.info(
                 f"Launch template {self.launch_template_id} deleted successfully"

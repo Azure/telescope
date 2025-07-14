@@ -1687,7 +1687,7 @@ class TestKubernetesClient(unittest.TestCase):
 
         # Mock DaemonSet that never becomes ready
         mock_daemonset = MagicMock()
-        mock_daemonset.status.number_available = 1
+        mock_daemonset.status.number_ready = 1
         mock_daemonset.status.desired_number_scheduled = 2  # Never matches
         mock_app.return_value = mock_daemonset
 
@@ -1717,7 +1717,7 @@ class TestKubernetesClient(unittest.TestCase):
 
         # Mock successful DaemonSet
         mock_daemonset = MagicMock()
-        mock_daemonset.status.number_available = 3
+        mock_daemonset.status.number_ready = 3
         mock_daemonset.status.desired_number_scheduled = 3  # Matches - success
         mock_app.return_value = mock_daemonset
 
