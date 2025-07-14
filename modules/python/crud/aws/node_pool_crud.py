@@ -41,16 +41,12 @@ class NodePoolCRUD:
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
         )
 
-        # Validate that EKS client was created successfully
-        if self.eks_client is None:
-            raise ValueError("Failed to initialize EKS client")
-
         self.step_timeout = step_timeout
 
     def create_node_pool(
         self,
         node_pool_name,
-        instance_type=None,
+        vm_size=None,
         node_count=0,
         gpu_node_pool=False,
     ):
@@ -73,7 +69,7 @@ class NodePoolCRUD:
         try:
             result = self.eks_client.create_node_group(
                 node_group_name=node_pool_name,
-                instance_type=instance_type,
+                instance_type=vm_size,
                 node_count=node_count,
                 gpu_node_group=gpu_node_pool,
                 capacity_type=self.capacity_type,

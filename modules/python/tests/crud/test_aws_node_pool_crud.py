@@ -375,22 +375,6 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             capacity_type="ON_DEMAND",
         )
 
-    def test_initialization_invalid_eks_client(self):
-        """Test NodePoolCRUD initialization when EKS client fails"""
-        # Setup
-        with mock.patch("crud.aws.node_pool_crud.EKSClient") as mock_eks_client_cls:
-            mock_eks_client_cls.return_value = None
-
-            # Execute and Verify
-            with self.assertRaises(ValueError) as context:
-                NodePoolCRUD(
-                    run_id="test-run",
-                    kube_config_file=None,
-                    result_dir=self.test_result_dir,
-                )
-
-            self.assertIn("Failed to initialize EKS client", str(context.exception))
-
     def test_create_node_pool_with_custom_capacity_type(self):
         """Test creating node pool with custom capacity type"""
         # Setup
