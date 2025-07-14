@@ -433,7 +433,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=20
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
             azure_swiftv2_burst_dynamicres_pods=50_nodes=50:
               cpu_per_node: 4
               node_count: 50
@@ -447,7 +447,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=50
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
             azure_swiftv2_burst_dynamicres_pods=100_nodes=100:
               cpu_per_node: 4
               node_count: 100
@@ -461,7 +461,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=100
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
             azure_swiftv2_burst_dynamicres_pods=200_nodes=200:
               cpu_per_node: 4
               node_count: 200
@@ -475,7 +475,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=200
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
             azure_swiftv2_burst_dynamicres_pods=500_nodes=500:
               cpu_per_node: 4
               node_count: 500
@@ -489,7 +489,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=500
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
             azure_swiftv2_burst_dynamicres_pods=750_nodes=750:
               cpu_per_node: 4
               node_count: 750
@@ -503,7 +503,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=750
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
             azure_swiftv2_burst_dynamicres_pods=1000_nodes=1000:
               cpu_per_node: 4
               node_count: 1000
@@ -517,7 +517,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_dynamicRes_PodsPerStep=1000
-              cl2_config_file: swiftv2_deployment_burst_dynamicres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
           # ─────────────────────────────────────────────
           # Burst static resource tests
           # ─────────────────────────────────────────────
@@ -534,7 +534,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=20
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
             azure_swiftv2_burst_staticres_pods=50_nodes=50:
               cpu_per_node: 4
               node_count: 50
@@ -548,7 +548,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=50
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
             azure_swiftv2_burst_staticres_pods=100_nodes=100:
               cpu_per_node: 4
               node_count: 100
@@ -562,7 +562,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=100
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
             azure_swiftv2_burst_staticres_pods=200_nodes=200:
               cpu_per_node: 4
               node_count: 200
@@ -576,7 +576,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=200
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
             azure_swiftv2_burst_staticres_pods=500_nodes=500:
               cpu_per_node: 4
               node_count: 500
@@ -590,7 +590,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=500
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
             azure_swiftv2_burst_staticres_pods=750_nodes=750:
               cpu_per_node: 4
               node_count: 750
@@ -604,7 +604,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=750
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
             azure_swiftv2_burst_staticres_pods=1000_nodes=1000:
               cpu_per_node: 4
               node_count: 1000
@@ -618,7 +618,7 @@ stages:
               service_test: False
               ds_test: True
               test_type: DeploymentBurst_staticRes_PodsPerStep=1000
-              cl2_config_file: swiftv2_deployment_burst_staticres_scale_config.yaml
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
           max_parallel: 1
           timeout_in_minutes: 7200
           credential_type: service_connection
