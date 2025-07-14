@@ -48,11 +48,11 @@ def get_node_pool_crud_class(cloud_provider):
     if cloud_provider == "gcp":
         # TODO: Implement GCP NodePoolCRUD class
         raise ValueError("GCP NodePoolCRUD implementation not yet available")
-    else:
-        raise ValueError(
-            f"Unsupported cloud provider: {cloud_provider}. "
-            f"Supported providers are: azure, aws, gcp"
-        )
+
+    raise ValueError(
+        f"Unsupported cloud provider: {cloud_provider}. "
+        f"Supported providers are: azure, aws, gcp"
+    )
 
 
 def collect_benchmark_results():
