@@ -1,0 +1,28 @@
+# This file is used to define a custom NodeClass for EKS Auto Mode using Karpenter.
+# It includes the same specifications as the original default NodeClass but with custom tags.
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  finalizers:
+  - eks.amazonaws.com/termination
+  name: custom
+spec:
+  ephemeralStorage:
+    iops: 3000
+    size: 80Gi
+    throughput: 125
+  networkPolicy: DefaultAllow
+  networkPolicyEventLogs: Disabled
+  role: ${NODE_ROLE_NAME}
+  securityGroupSelectorTerms:
+  - tags:
+      run_id: "${RUN_ID}"
+  snatPolicy: Random
+  subnetSelectorTerms:
+  - tags:
+      run_id: "${RUN_ID}"
+  tags:
+    owner: "${OWNER}"
+    scenario: "${SCENARIO}"
+    deletion_due_time: "${DELETION_DUE_TIME}"
+    run_id: "${RUN_ID}"
