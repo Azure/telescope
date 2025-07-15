@@ -909,8 +909,7 @@ class EKSClient:
             logger.info(
                 "Creating launch template '%s' for node group '%s'", name, node_group_name
             )
-
-            # Basic launch template data (without instance type - will be specified in node group)
+            # Prepare launch template data
             launch_template_data = {}
             launch_template_data["InstanceType"] = instance_type
             # Add capacity reservation configuration if provided
