@@ -25,6 +25,7 @@ steps:
     aws configure set aws_secret_access_key "$AWS_SECRET_KEY"
     aws configure set default.region "$REGION"
     aws configure list
+    echo "##vso[task.setvariable variable=AWS_DEFAULT_REGION]$REGION"
   displayName: "AWS Login"
   name: aws_login
   env:
