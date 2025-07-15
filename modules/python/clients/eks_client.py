@@ -305,7 +305,7 @@ class EKSClient:
         ) as op:
             try:
                 logger.info(
-                    f"Creating node group '{node_group_name}' with {node_count} nodes"
+                    "Creating node group '%s' with %s nodes", node_group_name, node_count
                 )
                 logger.info("Instance types: %s", instance_type)
                 logger.info("Capacity type: %s", capacity_type)
@@ -333,14 +333,14 @@ class EKSClient:
                     },
                 }
                 logger.info(
-                    f"Creating launch template for node group '{node_group_name}'"
+                    "Creating launch template for node group '%s'", node_group_name
                 )
 
                 # Check for capacity reservation if requested
                 reservation_id = None
                 if capacity_type == "CAPACITY_BLOCK":
                     logger.info(
-                        f"Checking for capacity reservation for node group '{node_group_name}'"
+                        "Checking for capacity reservation for node group '%s'", node_group_name
                     )
 
                     res_id = self._get_capacity_reservation_id(
@@ -352,7 +352,7 @@ class EKSClient:
                     if res_id:
                         reservation_id = res_id
                         logger.info(
-                            f"Found capacity reservation {reservation_id} in AZ {self.subnet_azs}"
+                            "Found capacity reservation %s in AZ %s", reservation_id, self.subnet_azs
                         )
 
                 try:
@@ -386,7 +386,7 @@ class EKSClient:
                             launch_template["id"],
                         )
                 except Exception as e:
-                    logger.error(f"Failed to create launch template: {e}")
+                    logger.error("Failed to create launch template: %s", e)
                     sys.exit(1)
 
                 # Create the node group with the parameters
@@ -396,7 +396,7 @@ class EKSClient:
                 node_group = response["nodegroup"]
 
                 logger.info(
-                    f"Node group creation initiated. Status: {node_group['status']}"
+                    "Node group creation initiated. Status: %s", node_group['status']
                 )
                 label_selector = f"nodegroup-name={node_group_name}"
 
@@ -408,14 +408,14 @@ class EKSClient:
                 )
 
                 logger.info(
-                    f"All {len(ready_nodes)} nodes in node group '{node_group_name}' are ready"
+                    "All %s nodes in node group '%s' are ready", len(ready_nodes), node_group_name
                 )
 
                 # Verify NVIDIA drivers if this is a GPU node pool
                 pod_logs = None
                 if gpu_node_group and node_count > 0:
                     logger.info(
-                        f"Verifying NVIDIA drivers for GPU node pool '{node_group_name}'"
+                        "Verifying NVIDIA drivers for GPU node pool '%s'", node_group_name
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
@@ -489,10 +489,10 @@ class EKSClient:
         else:
             # No change in node count, return the node pool as is
             logger.info(
-                f"Node pool {node_group_name} already has {node_count} nodes. No scaling needed."
+                "Node pool %s already has %s nodes. No scaling needed.", node_group_name, node_count
             )
         logger.info(
-            f"Scaling node group '{node_group_name}' from {current_count} to {node_count} nodes"
+            "Scaling node group '%s' from %s to %s nodes", node_group_name, current_count, node_count
         )
 
         if progressive and abs(node_count - current_count) > scale_step_size:
@@ -534,16 +534,16 @@ class EKSClient:
                 except ClientError as e:
                     if e.response["Error"]["Code"] == "ResourceNotFoundException":
                         logger.error(
-                            f"Node group '{node_group_name}' not found in cluster '{cluster_name}'"
+                            "Node group '%s' not found in cluster '%s'", node_group_name, cluster_name
                         )
                     else:
                         logger.error(
-                            f"Failed to update node group '{node_group_name}': {e}"
+                            "Failed to update node group '%s': %s", node_group_name, e
                         )
                     raise
 
                 logger.info(
-                    f"Scaling operation initiated for node group '{node_group_name}'"
+                    "Scaling operation initiated for node group '%s'", node_group_name
                 )
 
                 # Wait for the scaling operation to complete
@@ -566,7 +566,7 @@ class EKSClient:
                 )
 
                 logger.info(
-                    f"Node group '{node_group_name}' scaled successfully to {node_count} nodes"
+                    "Node group '%s' scaled successfully to %s nodes", node_group_name, node_count
                 )
 
                 pod_logs = None
@@ -574,7 +574,7 @@ class EKSClient:
                 # and only when reaching the final target (not intermediate steps)
                 if gpu_node_group and operation_type == "scale_up" and node_count > 0:
                     logger.info(
-                        f"Verifying NVIDIA drivers for GPU node pool '{node_group_name}' after reaching final target"
+                        "Verifying NVIDIA drivers for GPU node pool '%s' after reaching final target", node_group_name
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
@@ -621,7 +621,7 @@ class EKSClient:
             metadata["ami_type"] = node_group.get("amiType")
         except Exception as e:
             logger.warning(
-                f"Could not retrieve node group '{node_group_name}' info before deletion: {e}"
+                "Could not retrieve node group '%s' info before deletion: %s", node_group_name, e
             )
 
         with self._get_operation_context()(
@@ -641,7 +641,7 @@ class EKSClient:
                 if hasattr(self, "launch_template_id") and self.launch_template_id:
                     # If a launch template was created, delete it
                     logger.info(
-                        f"Deleting launch template {self.launch_template_id} for node group {node_group_name}"
+                        "Deleting launch template %s for node group %s", self.launch_template_id, node_group_name
                     )
                     self._delete_launch_template()
 
@@ -689,7 +689,7 @@ class EKSClient:
             The final node group object
         """
         logger.info(
-            f"Progressive scaling from {current_count} to {target_count} nodes in steps of {step_size}"
+            "Progressive scaling from %s to %s nodes in steps of %s", current_count, target_count, step_size
         )
 
         metadata = base_metadata.copy()
@@ -751,7 +751,7 @@ class EKSClient:
                     )
 
                 logger.info(
-                    f"Progressive scaling completed. Final count: {target_count}"
+                    "Progressive scaling completed. Final count: %s", target_count
                 )
                 return current_node_group
 
@@ -787,7 +787,7 @@ class EKSClient:
             logger.info("Node group '%s' is now active", node_group_name)
         except WaiterError as e:
             logger.error(
-                f"Timeout waiting for node group '{node_group_name}' to become active: {e}"
+                "Timeout waiting for node group '%s' to become active: %s", node_group_name, e
             )
             raise
 
@@ -819,7 +819,7 @@ class EKSClient:
             logger.info("Node group '%s' has been deleted", node_group_name)
         except WaiterError as e:
             logger.error(
-                f"Timeout waiting for node group '{node_group_name}' to be deleted: {e}"
+                "Timeout waiting for node group '%s' to be deleted: %s", node_group_name, e
             )
             raise
 
@@ -840,7 +840,7 @@ class EKSClient:
         try:
             # First, try to find a reservation with our run_id tag
             logger.info(
-                f"Looking for capacity reservations for {instance_type} in {availability_zones}"
+                "Looking for capacity reservations for %s in %s", instance_type, availability_zones
             )
 
             response = self.ec2.describe_capacity_reservations(
@@ -860,19 +860,21 @@ class EKSClient:
                 available_count = reservation["AvailableInstanceCount"]
 
                 logger.info(
-                    f"Found existing capacity reservation with matching run_id: {reservation_id} with {available_count} available instances out of {current_count} total"
+                    "Found existing capacity reservation with matching run_id: %s with %s available instances out of %s total", 
+                    reservation_id, available_count, current_count
                 )
 
                 if available_count < count:
                     logger.warning(
-                        f"Capacity reservation has only {available_count} instances available, but {count} were requested"
+                        "Capacity reservation has only %s instances available, but %s were requested", 
+                        available_count, count
                     )
 
                 return reservation_id
 
             # No existing reservation found
             logger.error(
-                f"No existing capacity reservation found for {instance_type} in {availability_zones}"
+                "No existing capacity reservation found for %s in %s", instance_type, availability_zones
             )
             return None
 
@@ -905,7 +907,7 @@ class EKSClient:
         """
         try:
             logger.info(
-                f"Creating launch template '{name}' for node group '{node_group_name}'"
+                "Creating launch template '%s' for node group '%s'", name, node_group_name
             )
 
             # Basic launch template data (without instance type - will be specified in node group)
@@ -914,7 +916,7 @@ class EKSClient:
             # Add capacity reservation configuration if provided
             if reservation_id and capacity_type == "CAPACITY_BLOCK":
                 logger.info(
-                    f"Adding capacity reservation {reservation_id} to launch template"
+                    "Adding capacity reservation %s to launch template", reservation_id
                 )
 
                 launch_template_data["InstanceMarketOptions"] = {
@@ -934,7 +936,7 @@ class EKSClient:
             except Exception:
                 scenario_name = "unknown"
                 scenario_type = "unknown"
-                # add 2hrs to current time
+                # add 2hrs to current time if DELETION_DUE_TIME is not set
                 deletion_due_time = (datetime.now() + timedelta(hours=2)).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"
                 )
@@ -949,8 +951,12 @@ class EKSClient:
                 {"Key": "instance_type", "Value": instance_type},
                 {"Key": "capacity_type", "Value": capacity_type},
                 {
-                    "Key": "scenario",
-                    "Value": f"{scenario_type}-{scenario_name}",
+                    "Key": "scenario_name",
+                    "Value": scenario_name,
+                },
+                {
+                    "Key": "scenario_type",
+                    "Value": scenario_type,
                 },
                 {
                     "Key": "created_at",
@@ -982,14 +988,14 @@ class EKSClient:
 
             launch_template_id = response["LaunchTemplate"]["LaunchTemplateId"]
             logger.info(
-                f"Created launch template ID: {launch_template_id} for node group {node_group_name}"
+                "Created launch template ID: %s for node group %s", launch_template_id, node_group_name
             )
             self.launch_template_id = launch_template_id
             return launch_template_id
 
         except Exception as e:
             logger.error(
-                f"Failed to create launch template for node group {node_group_name}: {str(e)}"
+                "Failed to create launch template for node group %s: %s", node_group_name, str(e)
             )
             raise
 
@@ -1036,7 +1042,7 @@ class EKSClient:
 
         except Exception as e:
             logger.error(
-                f"Error creating launch template for node group {node_group_name}: {str(e)}"
+                "Error creating launch template for node group %s: %s", node_group_name, str(e)
             )
             sys.exit(1)
 
@@ -1057,11 +1063,11 @@ class EKSClient:
             logger.info("Deleting launch template %s", self.launch_template_id)
             self.ec2.delete_launch_template(LaunchTemplateId=self.launch_template_id)
             logger.info(
-                f"Launch template {self.launch_template_id} deleted successfully"
+                "Launch template %s deleted successfully", self.launch_template_id
             )
             return True
         except ClientError as e:
             logger.error(
-                f"Failed to delete launch template {self.launch_template_id}: {str(e)}"
+                "Failed to delete launch template %s: %s", self.launch_template_id, str(e)
             )
             raise
