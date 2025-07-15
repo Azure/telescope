@@ -40,7 +40,7 @@ steps:
       replicasPerNamespace: 1
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
-      - basename: pod-network-instance-dynamic
+      - basename: pod-network-instance
         objectTemplatePath: pni_dynamic_template.yaml
   - name: Wait for PNI to be created and nodes to be registered
     measurements:
@@ -84,7 +84,7 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-dynamic-0
+              pniName: pod-network-instance-0
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning
