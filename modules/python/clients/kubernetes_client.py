@@ -592,11 +592,15 @@ class KubernetesClient:
 
                 # Get pod logs
                 pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+                if isinstance(pod_logs, bytes):
+                    pod_logs_str = pod_logs.decode('utf-8')
+                else:
+                    pod_logs_str = str(pod_logs)
 
-                logger.info(f"nvidia-smi output: {pod_logs}")
+                logger.info(f"nvidia-smi output: {pod_logs_str}")
 
                 # Check if output contains expected NVIDIA information
-                if "NVIDIA-SMI" in pod_logs and "GPU" in pod_logs:
+                if "NVIDIA-SMI" in pod_logs_str and "GPU" in pod_logs_str:
                     logger.info(f"NVIDIA drivers verified on node {node_name}")
                     verification_successful = True
                 else:
@@ -606,7 +610,7 @@ class KubernetesClient:
                     verification_successful = False
                 all_pod_logs[node_name] = {
                     "pod_name": pod_name,
-                    "logs": pod_logs,
+                    "logs": pod_logs_str,
                     "device_status": verification_successful,
                 }
                 # Clean up the test pod
