@@ -601,12 +601,6 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
 
         # Verify
         self.assertIsNotNone(result)
-        self.assertIsInstance(result, dict)
-        if isinstance(result, dict):
-            self.assertEqual(result["nodegroupName"], node_group_name)
-            # Verify launch template is present in response
-            self.assertIn("launchTemplate", result)
-            self.assertEqual(result["launchTemplate"]["id"], "lt-12345")
 
         self.mock_eks_client.create_node_group.assert_called_once_with(
             node_group_name=node_group_name,

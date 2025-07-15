@@ -374,18 +374,20 @@ class EKSClient:
                         op.add_metadata("capacity_reservation_id", reservation_id)
                     op.add_metadata("launch_template_id", launch_template["id"])
 
-                    logger.info(
-                        f"Using launch template {launch_template['id']}"
-                        + (
-                            f" with capacity reservation {reservation_id}"
-                            if reservation_id
-                            else ""
+                    if reservation_id:
+                        logger.info(
+                            "Using launch template %s with capacity reservation %s",
+                            launch_template["id"],
+                            reservation_id,
                         )
-                    )
+                    else:
+                        logger.info(
+                            "Using launch template %s",
+                            launch_template["id"],
+                        )
                 except Exception as e:
                     logger.error(f"Failed to create launch template: {e}")
                     sys.exit(1)
-
 
                 # Create the node group with the parameters
                 response = self.eks.create_nodegroup(**create_params)
@@ -912,9 +914,9 @@ class EKSClient:
             # Add capacity reservation configuration if provided
             if reservation_id and capacity_type == "CAPACITY_BLOCK":
                 logger.info(
-                    f"Adding capacity reservation {reservation_id} to launch template"                    
+                    f"Adding capacity reservation {reservation_id} to launch template"
                 )
-                
+
                 launch_template_data["InstanceMarketOptions"] = {
                     "MarketType": "capacity-block"
                 }
