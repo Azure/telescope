@@ -68,10 +68,10 @@ network_config_list = [
 ]
 
 eks_config_list = [{
-  role             = "gpu"
-  eks_name         = "gpu-cluster"
-  vpc_name         = "gpu-vpc"
-  policy_arns      = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
+  role        = "gpu"
+  eks_name    = "gpu-cluster"
+  vpc_name    = "gpu-vpc"
+  policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AmazonSSMManagedInstanceCore"]
   eks_managed_node_groups = [
     {
       name           = "default-ng"

@@ -12,8 +12,9 @@ and troubleshooting.
 
 import logging
 import os
+import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 import json
 
@@ -104,7 +105,8 @@ class EKSClient:
             self.run_id = get_env_vars("RUN_ID")
             self.cluster_name = self._get_cluster_name_by_run_id(self.run_id)
             logger.info(
-                "Successfully connected to AWS EKS. Found cluster: %s", self.cluster_name
+                "Successfully connected to AWS EKS. Found cluster: %s",
+                self.cluster_name,
             )
             self._load_subnet_ids()
             self._load_node_role_arn()
@@ -134,7 +136,9 @@ class EKSClient:
         """
         try:
             all_clusters = self.eks.list_clusters()["clusters"]
-            logger.info("Checking %d clusters for run_id = %s", len(all_clusters), run_id)
+            logger.info(
+                "Checking %d clusters for run_id = %s", len(all_clusters), run_id
+            )
 
             for cluster_name in all_clusters:
                 details = self.eks.describe_cluster(name=cluster_name)
@@ -186,7 +190,8 @@ class EKSClient:
                 ng_info = self.get_node_group(first_ng)
                 self.node_role_arn = ng_info["nodeRole"]
                 logger.info(
-                    "Found node role ARN from existing node group: %s", self.node_role_arn
+                    "Found node role ARN from existing node group: %s",
+                    self.node_role_arn,
                 )
                 return
         except Exception as e:
@@ -249,7 +254,9 @@ class EKSClient:
         except ClientError as e:
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
                 logger.error(
-                    "Node group '%s' not found in cluster '%s'", node_group_name, cluster_name
+                    "Node group '%s' not found in cluster '%s'",
+                    node_group_name,
+                    cluster_name,
                 )
             else:
                 logger.error("Failed to get node group '%s': %s", node_group_name, e)
@@ -304,6 +311,7 @@ class EKSClient:
                 logger.info("Capacity type: %s", capacity_type)
 
                 # Prepare node group creation parameters
+                # instanceTypes will be added to launch template
                 create_params = {
                     "clusterName": self.cluster_name,
                     "nodegroupName": node_group_name,
@@ -324,15 +332,17 @@ class EKSClient:
                         "scenario": f"{get_env_vars('SCENARIO_TYPE')}-{get_env_vars('SCENARIO_NAME')}",
                     },
                 }
+                logger.info(
+                    f"Creating launch template for node group '{node_group_name}'"
+                )
 
-                # Check for capacity reservation for GPU nodes if requested
-                if gpu_node_group and capacity_type == "CAPACITY_BLOCK":
+                # Check for capacity reservation if requested
+                reservation_id = None
+                if capacity_type == "CAPACITY_BLOCK":
                     logger.info(
-                        f"Checking for capacity reservation for GPU node group '{node_group_name}'"
+                        f"Checking for capacity reservation for node group '{node_group_name}'"
                     )
 
-                    # Try to find a reservation in any subnet AZ
-                    reservation_id = None
                     res_id = self._get_capacity_reservation_id(
                         instance_type=instance_type,
                         count=node_count,
@@ -345,33 +355,37 @@ class EKSClient:
                             f"Found capacity reservation {reservation_id} in AZ {self.subnet_azs}"
                         )
 
+                try:
+                    launch_template = self._create_launch_template(
+                        node_group_name=node_group_name,
+                        instance_type=instance_type,
+                        reservation_id=reservation_id,  # Will be None if not found
+                        gpu_node_group=gpu_node_group,
+                        capacity_type=capacity_type,
+                    )
+
+                    # Add launch template to node group creation parameters
+                    create_params["launchTemplate"] = {
+                        "id": launch_template["id"],
+                        "version": str(launch_template["version"]),
+                    }
+
                     if reservation_id:
-                        # Use a launch template with capacity reservation specification
-                        try:
-                            # Create a launch template with the capacity reservation
-                            launch_template = self._create_launch_template(
-                                node_group_name=node_group_name,
-                                instance_type=instance_type,
-                                reservation_id=reservation_id,
-                                gpu_node_group=gpu_node_group,
-                            )
+                        op.add_metadata("capacity_reservation_id", reservation_id)
+                    op.add_metadata("launch_template_id", launch_template["id"])
 
-                            # Add launch template to node group creation parameters
-                            create_params["launchTemplate"] = {
-                                "id": launch_template["id"],
-                                "version": str(launch_template["version"]),
-                            }
+                    logger.info(
+                        f"Using launch template {launch_template['id']}"
+                        + (
+                            f" with capacity reservation {reservation_id}"
+                            if reservation_id
+                            else ""
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create launch template: {e}")
+                    sys.exit(1)
 
-                            op.add_metadata("capacity_reservation_id", reservation_id)
-                            op.add_metadata("launch_template_id", launch_template["id"])
-
-                            logger.info(
-                                f"Using launch template {launch_template['id']}  with capacity reservation {reservation_id}"
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to create launch template with capacity reservation: {e}"
-                            )
 
                 # Create the node group with the parameters
                 response = self.eks.create_nodegroup(**create_params)
@@ -419,7 +433,9 @@ class EKSClient:
             except Exception as e:
                 # Log the error
                 error_msg = str(e)
-                logger.error("Error creating node pool %s: %s", node_group_name, error_msg)
+                logger.error(
+                    "Error creating node pool %s: %s", node_group_name, error_msg
+                )
                 # The OperationContext will automatically record failure when exiting
                 raise
 
@@ -565,7 +581,9 @@ class EKSClient:
 
             except Exception as e:
                 error_msg = str(e)
-                logger.error("Error scaling node pool %s: %s", node_group_name, error_msg)
+                logger.error(
+                    "Error scaling node pool %s: %s", node_group_name, error_msg
+                )
                 # The OperationContext will automatically record failure when exiting
                 raise
 
@@ -860,74 +878,101 @@ class EKSClient:
             logger.error("Failed to find capacity reservation: %s", str(e))
             return None
 
-    def _create_launch_template_with_capacity_reservation(
+    def _create_default_launch_template(
         self,
         name: str,
         instance_type: str,
-        reservation_id: str,
         node_group_name: str,
         gpu_node_group: bool = False,
+        capacity_type: str = "ON_DEMAND",
+        reservation_id: Optional[str] = None,
     ) -> str:
         """
-        Creates a launch template with capacity reservation specification.
+        Creates a launch template with standard configuration and all necessary tags.
 
         Args:
             name: Name of the launch template
             instance_type: EC2 instance type
-            reservation_id: Capacity reservation ID to use
             node_group_name: Name of the node group this template is for
             gpu_node_group: Whether this is for a GPU node group
+            capacity_type: Capacity type (ON_DEMAND, SPOT, CAPACITY_BLOCK)
+            reservation_id: Optional capacity reservation ID
 
         Returns:
             The ID of the created launch template
         """
         try:
             logger.info(
-                f"Creating launch template '{name}' with capacity reservation '{reservation_id}' for node group '{node_group_name}'"
+                f"Creating launch template '{name}' for node group '{node_group_name}'"
             )
 
-            # Basic launch template data
-            launch_template_data = {
-                "InstanceType": instance_type,
-                "InstanceMarketOptions": {"MarketType": "capacity-block"},
-                "CapacityReservationSpecification": {
+            # Basic launch template data (without instance type - will be specified in node group)
+            launch_template_data = {}
+            launch_template_data["InstanceType"] = instance_type
+            # Add capacity reservation configuration if provided
+            if reservation_id and capacity_type == "CAPACITY_BLOCK":
+                logger.info(
+                    f"Adding capacity reservation {reservation_id} to launch template"                    
+                )
+                
+                launch_template_data["InstanceMarketOptions"] = {
+                    "MarketType": "capacity-block"
+                }
+                launch_template_data["CapacityReservationSpecification"] = {
                     "CapacityReservationTarget": {
                         "CapacityReservationId": reservation_id
                     }
-                },
-            }
+                }
 
             # Get additional tags for the launch template
             try:
                 scenario_name = get_env_vars("SCENARIO_NAME")
                 scenario_type = get_env_vars("SCENARIO_TYPE")
+                deletion_due_time = get_env_vars("DELETION_DUE_TIME")
             except Exception:
                 scenario_name = "unknown"
                 scenario_type = "unknown"
+                # add 2hrs to current time
+                deletion_due_time = (datetime.now() + timedelta(hours=2)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
 
-            # Add tags for tracking and for associating with the node group
+            # Prepare standard tags
+            tags = [
+                {"Key": "Name", "Value": name},
+                {"Key": "run_id", "Value": self.run_id},
+                {"Key": "cluster_name", "Value": self.cluster_name},
+                {"Key": "node_group_name", "Value": node_group_name},
+                {"Key": "gpu_node_group", "Value": str(gpu_node_group)},
+                {"Key": "instance_type", "Value": instance_type},
+                {"Key": "capacity_type", "Value": capacity_type},
+                {
+                    "Key": "scenario",
+                    "Value": f"{scenario_type}-{scenario_name}",
+                },
+                {
+                    "Key": "created_at",
+                    "Value": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
+                {
+                    "Key": "deletion_due_time",
+                    "Value": deletion_due_time,
+                },
+            ]
+
+            # Add capacity reservation tag if applicable
+            if reservation_id:
+                tags.append({"Key": "capacity_reservation_id", "Value": reservation_id})
+
+            # Create launch template with comprehensive tags
             response = self.ec2.create_launch_template(
                 LaunchTemplateName=name,
-                VersionDescription=f"Version for {instance_type} with reservation {reservation_id} for node group {node_group_name}",
+                VersionDescription=f"Template for {instance_type} node group {node_group_name}"
+                + (f" with reservation {reservation_id}" if reservation_id else ""),
                 TagSpecifications=[
                     {
                         "ResourceType": "launch-template",
-                        "Tags": [
-                            {"Key": "Name", "Value": name},
-                            {"Key": "run_id", "Value": self.run_id},
-                            {"Key": "cluster_name", "Value": self.cluster_name},
-                            {"Key": "node_group_name", "Value": node_group_name},
-                            {"Key": "gpu_node_group", "Value": str(gpu_node_group)},
-                            {"Key": "capacity_reservation_id", "Value": reservation_id},
-                            {
-                                "Key": "scenario",
-                                "Value": f"{scenario_type}-{scenario_name}",
-                            },
-                            {
-                                "Key": "created_at",
-                                "Value": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                            },
-                        ],
+                        "Tags": tags,
                     }
                 ],
                 LaunchTemplateData=launch_template_data,
@@ -950,17 +995,19 @@ class EKSClient:
         self,
         node_group_name: str,
         instance_type: str,
-        reservation_id: str,
+        reservation_id: Optional[str] = None,
         gpu_node_group: bool = False,
+        capacity_type: str = "ON_DEMAND",
     ) -> Dict:
         """
-        Finds an existing launch template or creates a new one with capacity reservation.
+        Creates a launch template with standard configuration and optional capacity reservation.
 
         Args:
             node_group_name: Name of the node group
             instance_type: EC2 instance type
-            reservation_id: Capacity reservation ID to use
+            reservation_id: Optional capacity reservation ID to use
             gpu_node_group: Whether this is for a GPU node group
+            capacity_type: Capacity type (ON_DEMAND, SPOT, CAPACITY_BLOCK)
 
         Returns:
             Dictionary with launch template ID and version
@@ -970,13 +1017,14 @@ class EKSClient:
         template_name = template_name[:128]  # AWS has a limit of 128 chars for names
 
         try:
-            # Create a new launch template
-            launch_template_id = self._create_launch_template_with_capacity_reservation(
-                template_name,
-                instance_type,
-                reservation_id,
-                node_group_name,  # Pass the node group name to the creation method
-                gpu_node_group,
+            # Create launch template using the default method with all tags
+            launch_template_id = self._create_default_launch_template(
+                name=template_name,
+                instance_type=instance_type,
+                node_group_name=node_group_name,
+                gpu_node_group=gpu_node_group,
+                capacity_type=capacity_type,
+                reservation_id=reservation_id,  # Will be None if no reservation found
             )
 
             return {
@@ -986,9 +1034,9 @@ class EKSClient:
 
         except Exception as e:
             logger.error(
-                f"Error finding or creating launch template for node group {node_group_name}: {str(e)}"
+                f"Error creating launch template for node group {node_group_name}: {str(e)}"
             )
-            raise
+            sys.exit(1)
 
     def _delete_launch_template(self) -> bool:
         """

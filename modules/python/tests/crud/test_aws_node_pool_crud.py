@@ -572,6 +572,137 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             self.assertTrue(call[1]["progressive"])
             self.assertEqual(call[1]["scale_step_size"], scale_step_size)
 
+    def test_create_node_group_with_launch_template(self):
+        """Test node group creation always creates launch template"""
+        # Setup
+        node_group_name = "test-nodegroup-lt"
+        instance_type = "t3.medium"
+        node_count = 3
+
+        # Mock successful response with launch template
+        mock_node_group = {
+            "nodegroupName": node_group_name,
+            "status": "ACTIVE",
+            "instanceTypes": [instance_type],
+            "scalingConfig": {"desiredSize": node_count},
+            "launchTemplate": {
+                "id": "lt-12345",
+                "version": "1"
+            }
+        }
+        self.mock_eks_client.create_node_group.return_value = mock_node_group
+
+        # Execute
+        result = self.node_pool_crud.create_node_pool(
+            node_pool_name=node_group_name,
+            vm_size=instance_type,
+            node_count=node_count,
+        )
+
+        # Verify
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, dict)
+        if isinstance(result, dict):
+            self.assertEqual(result["nodegroupName"], node_group_name)
+            # Verify launch template is present in response
+            self.assertIn("launchTemplate", result)
+            self.assertEqual(result["launchTemplate"]["id"], "lt-12345")
+
+        self.mock_eks_client.create_node_group.assert_called_once_with(
+            node_group_name=node_group_name,
+            instance_type=instance_type,
+            node_count=node_count,
+            gpu_node_group=False,
+            capacity_type="ON_DEMAND",
+        )
+
+    def test_create_gpu_node_group_with_capacity_block(self):
+        """Test GPU node group creation with CAPACITY_BLOCK"""
+        # Setup
+        node_group_name = "gpu-capacity-block"
+        instance_type = "p3.2xlarge"
+        node_count = 2
+
+        # Create node pool CRUD with CAPACITY_BLOCK type
+        node_pool_crud = NodePoolCRUD(
+            run_id="test-run",
+            capacity_type="CAPACITY_BLOCK",
+            result_dir=self.test_result_dir,
+        )
+
+        # Mock successful response with capacity reservation
+        mock_node_group = {
+            "nodegroupName": node_group_name,
+            "status": "ACTIVE",
+            "instanceTypes": [instance_type],
+            "scalingConfig": {"desiredSize": node_count},
+            "launchTemplate": {
+                "id": "lt-capacity-block-12345",
+                "version": "1"
+            }
+        }
+        self.mock_eks_client.create_node_group.return_value = mock_node_group
+
+        # Execute
+        result = node_pool_crud.create_node_pool(
+            node_pool_name=node_group_name,
+            vm_size=instance_type,
+            node_count=node_count,
+            gpu_node_pool=True,
+        )
+
+        # Verify
+        self.assertIsNotNone(result)
+        self.mock_eks_client.create_node_group.assert_called_once_with(
+            node_group_name=node_group_name,
+            instance_type=instance_type,
+            node_count=node_count,
+            gpu_node_group=True,
+            capacity_type="CAPACITY_BLOCK",
+        )
+
+    def test_create_node_group_with_launch_template_and_tags(self):
+        """Test that launch templates are created with comprehensive tags"""
+        # Setup
+        node_group_name = "tagged-nodegroup"
+        instance_type = "m5.large"
+        node_count = 2
+
+        # Mock successful response
+        mock_node_group = {
+            "nodegroupName": node_group_name,
+            "status": "ACTIVE",
+            "instanceTypes": [instance_type],
+            "scalingConfig": {"desiredSize": node_count},
+            "launchTemplate": {
+                "id": "lt-tagged-12345",
+                "version": "1"
+            }
+        }
+        self.mock_eks_client.create_node_group.return_value = mock_node_group
+
+        # Execute
+        result = self.node_pool_crud.create_node_pool(
+            node_pool_name=node_group_name,
+            vm_size=instance_type,
+            node_count=node_count,
+        )
+
+        # Verify that creation was successful and launch template was used
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, dict)
+        if isinstance(result, dict):
+            self.assertIn("launchTemplate", result)
+
+        # Verify EKS client was called with correct parameters
+        self.mock_eks_client.create_node_group.assert_called_once_with(
+            node_group_name=node_group_name,
+            instance_type=instance_type,
+            node_count=node_count,
+            gpu_node_group=False,
+            capacity_type="ON_DEMAND",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
