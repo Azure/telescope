@@ -4,7 +4,6 @@ metadata:
   finalizers:
   - finalizers.acn.azure.com/dnc-operations
   name: {{.basename}}
-  # namespace: {{.namespace}}
 spec:
   podNetworkConfigs:
     - podNetwork: pn100
