@@ -387,7 +387,7 @@ class EKSClient:
                         )
                 except Exception as e:
                     logger.error("Failed to create launch template: %s", e)
-                    raise Exception("Failed to create launch template: %s", str(e))
+                    raise Exception(f"Failed to create launch template: {str(e)}") from e
 
                 # Create the node group with the parameters
                 response = self.eks.create_nodegroup(**create_params)
