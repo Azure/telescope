@@ -104,12 +104,12 @@ stages:
           topology: kperf
           matrix:
             podsize-20k:
-              kubernetes_version: "1.32.0"
+              kubernetes_version: "1.33.0"
               disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
             podsize-20k-exempt:
-              kubernetes_version: "1.32.0"
+              kubernetes_version: "1.33.0"
               disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
