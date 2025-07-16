@@ -13,6 +13,7 @@ from clients.eks_client import EKSClient
 # Mock botocore exceptions to avoid import issues in test environment
 class MockClientError(Exception):
     """Mock implementation of boto3 ClientError for testing"""
+
     def __init__(self, error_response, operation_name):
         self.response = error_response
         self.operation_name = operation_name
@@ -21,6 +22,7 @@ class MockClientError(Exception):
 
 class MockWaiterError(Exception):
     """Mock implementation of boto3 WaiterError for testing"""
+
     def __init__(self, name, reason, last_response):
         self.name = name
         self.reason = reason
@@ -48,7 +50,7 @@ class TestEKSClient(unittest.TestCase):
                 "SCENARIO_TYPE": "cri",
                 "DELETION_DUE_TIME": (datetime.now() + timedelta(hours=2)).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"
-                )
+                ),
             },
         )
         self.env_patcher.start()
@@ -1019,18 +1021,20 @@ class TestEKSClient(unittest.TestCase):
             "LaunchTemplate": {
                 "LaunchTemplateId": "lt-123456789",
                 "LaunchTemplateName": "test-launch-template",
-                "DefaultVersionNumber": 1
+                "DefaultVersionNumber": 1,
             }
         }
 
         mock_nodegroup_response = {
             "nodegroup": {
                 "status": "CREATING",
-                "scalingConfig": {"desiredSize": 2, "minSize": 2, "maxSize": 3}
+                "scalingConfig": {"desiredSize": 2, "minSize": 2, "maxSize": 3},
             }
         }
 
-        self.mock_ec2.create_launch_template.return_value = mock_launch_template_response
+        self.mock_ec2.create_launch_template.return_value = (
+            mock_launch_template_response
+        )
         self.mock_eks.create_nodegroup.return_value = mock_nodegroup_response
         self.mock_eks.describe_nodegroup.return_value = {
             "nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 2}}
@@ -1042,9 +1046,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Call the public method which should internally call _create_launch_template
         result = eks_client.create_node_group(
-            node_group_name="test-ng",
-            instance_type="t3.medium",
-            node_count=2
+            node_group_name="test-ng", instance_type="t3.medium", node_count=2
         )
 
         self.assertTrue(result)
@@ -1058,32 +1060,38 @@ class TestEKSClient(unittest.TestCase):
 
         # Mock capacity reservation response
         mock_reservation_response = {
-            "CapacityReservations": [{
-                "CapacityReservationId": "cr-123456789",
-                "InstanceType": "p3.2xlarge",
-                "AvailabilityZone": "us-west-2a",
-                "State": "available",
-                "AvailableInstanceCount": 2
-            }]
+            "CapacityReservations": [
+                {
+                    "CapacityReservationId": "cr-123456789",
+                    "InstanceType": "p3.2xlarge",
+                    "AvailabilityZone": "us-west-2a",
+                    "State": "available",
+                    "AvailableInstanceCount": 2,
+                }
+            ]
         }
 
         mock_launch_template_response = {
             "LaunchTemplate": {
                 "LaunchTemplateId": "lt-gpu-123",
                 "LaunchTemplateName": "test-gpu-launch-template",
-                "DefaultVersionNumber": 1
+                "DefaultVersionNumber": 1,
             }
         }
 
         mock_nodegroup_response = {
             "nodegroup": {
                 "status": "CREATING",
-                "scalingConfig": {"desiredSize": 1, "minSize": 1, "maxSize": 2}
+                "scalingConfig": {"desiredSize": 1, "minSize": 1, "maxSize": 2},
             }
         }
 
-        self.mock_ec2.describe_capacity_reservations.return_value = mock_reservation_response
-        self.mock_ec2.create_launch_template.return_value = mock_launch_template_response
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
+        self.mock_ec2.create_launch_template.return_value = (
+            mock_launch_template_response
+        )
         self.mock_eks.create_nodegroup.return_value = mock_nodegroup_response
         self.mock_eks.describe_nodegroup.return_value = {
             "nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 1}}
@@ -1100,7 +1108,7 @@ class TestEKSClient(unittest.TestCase):
             instance_type="p3.2xlarge",
             node_count=1,
             gpu_node_group=True,
-            capacity_type="CAPACITY_BLOCK"
+            capacity_type="CAPACITY_BLOCK",
         )
 
         self.assertTrue(result)
@@ -1115,7 +1123,7 @@ class TestEKSClient(unittest.TestCase):
         # Mock current node group state
         current_nodegroup = {
             "scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10},
-            "status": "ACTIVE"
+            "status": "ACTIVE",
         }
 
         # Progressive scaling from 2 to 6 with step size 2 creates steps: [4, 6]
@@ -1126,10 +1134,22 @@ class TestEKSClient(unittest.TestCase):
         eks_client.get_node_group = mock.Mock()
         eks_client.get_node_group.side_effect = [
             current_nodegroup,  # Initial call to get current state
-            {"scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Before step 1
-            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # After step 1
-            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Before step 2
-            {"scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Final state
+            {
+                "scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # Before step 1
+            {
+                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # After step 1
+            {
+                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # Before step 2
+            {
+                "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # Final state
         ]
 
         # Mock ready nodes for each step
@@ -1137,14 +1157,13 @@ class TestEKSClient(unittest.TestCase):
         self.mock_k8s.wait_for_nodes_ready.return_value = mock_nodes
 
         # Mock get_cluster_data
-        eks_client.get_cluster_data = mock.Mock(return_value={"cluster": {"status": "ACTIVE"}})
+        eks_client.get_cluster_data = mock.Mock(
+            return_value={"cluster": {"status": "ACTIVE"}}
+        )
 
         # Call progressive scaling (from 2 to 6 nodes with step size 2)
         result = eks_client.scale_node_group(
-            node_group_name="test-ng",
-            node_count=6,
-            progressive=True,
-            scale_step_size=2
+            node_group_name="test-ng", node_count=6, progressive=True, scale_step_size=2
         )
 
         self.assertTrue(result)
@@ -1163,12 +1182,14 @@ class TestEKSClient(unittest.TestCase):
         mock_nodegroup = {
             "scalingConfig": {"desiredSize": 2},
             "amiType": "AL2_x86_64",
-            "status": "ACTIVE"
+            "status": "ACTIVE",
         }
 
         # Mock get_node_group and get_cluster_data
         eks_client.get_node_group = mock.Mock(return_value=mock_nodegroup)
-        eks_client.get_cluster_data = mock.Mock(return_value={"cluster": {"status": "ACTIVE"}})
+        eks_client.get_cluster_data = mock.Mock(
+            return_value={"cluster": {"status": "ACTIVE"}}
+        )
 
         self.mock_eks.describe_nodegroup.return_value = {
             "nodegroup": {"status": "DELETING"}
@@ -1194,7 +1215,7 @@ class TestEKSClient(unittest.TestCase):
         mock_nodegroup_response = {
             "nodegroup": {
                 "status": "CREATING",
-                "scalingConfig": {"desiredSize": 1, "minSize": 1, "maxSize": 2}
+                "scalingConfig": {"desiredSize": 1, "minSize": 1, "maxSize": 2},
             }
         }
 
@@ -1203,16 +1224,14 @@ class TestEKSClient(unittest.TestCase):
         # Mock the transition from CREATING to ACTIVE
         self.mock_eks.describe_nodegroup.side_effect = [
             {"nodegroup": {"status": "CREATING", "scalingConfig": {"desiredSize": 1}}},
-            {"nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 1}}}
+            {"nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 1}}},
         ]
 
         mock_nodes = [{"metadata": {"name": "node-1"}}]
         self.mock_k8s.wait_for_nodes_ready.return_value = mock_nodes
 
         result = eks_client.create_node_group(
-            node_group_name="test-wait-ng",
-            instance_type="t3.medium",
-            node_count=1
+            node_group_name="test-wait-ng", instance_type="t3.medium", node_count=1
         )
 
         self.assertTrue(result)
@@ -1230,12 +1249,14 @@ class TestEKSClient(unittest.TestCase):
             "status": "ACTIVE",
             "createdAt": datetime(2023, 1, 1, 12, 0, 0),
             "modifiedAt": datetime(2023, 1, 1, 13, 0, 0),
-            "scalingConfig": {"desiredSize": 1, "minSize": 1, "maxSize": 2}
+            "scalingConfig": {"desiredSize": 1, "minSize": 1, "maxSize": 2},
         }
 
         # Mock get_node_group and get_cluster_data
         eks_client.get_node_group = mock.Mock(return_value=mock_response_with_datetime)
-        eks_client.get_cluster_data = mock.Mock(return_value={"cluster": {"status": "ACTIVE"}})
+        eks_client.get_cluster_data = mock.Mock(
+            return_value={"cluster": {"status": "ACTIVE"}}
+        )
 
         self.mock_eks.describe_nodegroup.return_value = {
             "nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 1}}
@@ -1245,12 +1266,255 @@ class TestEKSClient(unittest.TestCase):
 
         # Call scale operation which will use serialization for metadata
         result = eks_client.scale_node_group(
-            node_group_name="test-serialize-ng",
-            node_count=1
+            node_group_name="test-serialize-ng", node_count=1
         )
 
         self.assertTrue(result)
         # The serialization happens internally when adding metadata to operation context
+
+    def test_create_launch_template_with_required_tags(self):
+        """Test that launch template creation includes all required tags"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock the EC2 response for launch template creation
+        mock_launch_template_response = {
+            "LaunchTemplate": {
+                "LaunchTemplateId": "lt-tag-test-123",
+                "LaunchTemplateName": "test-tag-launch-template",
+                "DefaultVersionNumber": 1,
+            }
+        }
+
+        mock_nodegroup_response = {
+            "nodegroup": {
+                "status": "CREATING",
+                "scalingConfig": {"desiredSize": 2, "minSize": 2, "maxSize": 3},
+            }
+        }
+
+        self.mock_ec2.create_launch_template.return_value = (
+            mock_launch_template_response
+        )
+        self.mock_eks.create_nodegroup.return_value = mock_nodegroup_response
+        self.mock_eks.describe_nodegroup.return_value = {
+            "nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 2}}
+        }
+
+        # Mock ready nodes
+        mock_nodes = [{"metadata": {"name": f"node-{i}"}} for i in range(2)]
+        self.mock_k8s.wait_for_nodes_ready.return_value = mock_nodes
+
+        # Call create_node_group which internally calls _create_launch_template
+        result = eks_client.create_node_group(
+            node_group_name="test-tag-ng", instance_type="t3.medium", node_count=2
+        )
+
+        # Verify the method succeeded
+        self.assertTrue(result)
+
+        # Verify launch template was created
+        self.mock_ec2.create_launch_template.assert_called_once()
+
+        # Get the actual call arguments to validate tag specifications
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+
+        # Verify that TagSpecifications are present
+        self.assertIn("TagSpecifications", create_lt_call_args)
+        tag_specs = create_lt_call_args["TagSpecifications"]
+
+        # Should have tag specifications for both launch-template and instance
+        self.assertEqual(len(tag_specs), 2)
+
+        # Check launch-template tags
+        lt_tag_spec = next(
+            (spec for spec in tag_specs if spec["ResourceType"] == "launch-template"),
+            None,
+        )
+        self.assertIsNotNone(
+            lt_tag_spec, "Launch template tag specification should be present"
+        )
+
+        lt_tags = {tag["Key"]: tag["Value"] for tag in lt_tag_spec["Tags"]}
+        self.assertIn("Name", lt_tags)
+        self.assertIn("run_id", lt_tags)
+        self.assertIn("cluster_name", lt_tags)
+        self.assertIn("node_group_name", lt_tags)
+        self.assertIn("gpu_node_group", lt_tags)
+        self.assertIn("instance_type", lt_tags)
+        self.assertIn("capacity_type", lt_tags)
+        self.assertIn("scenario_name", lt_tags)
+        self.assertIn("scenario_type", lt_tags)
+        self.assertIn("created_at", lt_tags)
+        self.assertIn("deletion_due_time", lt_tags)
+
+        # Check instance tags
+        instance_tag_spec = next(
+            (spec for spec in tag_specs if spec["ResourceType"] == "instance"), None
+        )
+        self.assertIsNotNone(
+            instance_tag_spec, "Instance tag specification should be present"
+        )
+
+        instance_tags = {tag["Key"]: tag["Value"] for tag in instance_tag_spec["Tags"]}
+        self.assertIn("Name", instance_tags)
+        self.assertIn("run_id", instance_tags)
+        self.assertIn("cluster_name", instance_tags)
+        self.assertIn("node_group_name", instance_tags)
+        self.assertIn("gpu_node_group", instance_tags)
+        self.assertIn("instance_type", instance_tags)
+        self.assertIn("capacity_type", instance_tags)
+        self.assertIn("scenario_name", instance_tags)
+        self.assertIn("scenario_type", instance_tags)
+        self.assertIn("created_at", instance_tags)
+        self.assertIn("deletion_due_time", instance_tags)
+
+        # Verify the Name tag contains the node group name
+        self.assertIn("test-tag-ng", lt_tags["Name"])
+        self.assertIn("test-tag-ng", instance_tags["Name"])
+
+        # Verify specific tag values
+        self.assertEqual(lt_tags["node_group_name"], "test-tag-ng")
+        self.assertEqual(instance_tags["node_group_name"], "test-tag-ng")
+        self.assertEqual(lt_tags["instance_type"], "t3.medium")
+        self.assertEqual(instance_tags["instance_type"], "t3.medium")
+        self.assertEqual(lt_tags["capacity_type"], "ON_DEMAND")
+        self.assertEqual(instance_tags["capacity_type"], "ON_DEMAND")
+        self.assertEqual(lt_tags["gpu_node_group"], "False")
+        self.assertEqual(instance_tags["gpu_node_group"], "False")
+
+    def test_create_launch_template_with_gpu_and_capacity_reservation_tags(self):
+        """Test that launch template creation includes all required tags for GPU node groups with capacity reservations"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock capacity reservation response
+        mock_reservation_response = {
+            "CapacityReservations": [
+                {
+                    "CapacityReservationId": "cr-gpu-123456789",
+                    "InstanceType": "p3.2xlarge",
+                    "AvailabilityZone": "us-west-2a",
+                    "State": "active",
+                    "TotalInstanceCount": 4,
+                    "AvailableInstanceCount": 2,
+                }
+            ]
+        }
+
+        # Mock the EC2 response for launch template creation
+        mock_launch_template_response = {
+            "LaunchTemplate": {
+                "LaunchTemplateId": "lt-gpu-tag-test-123",
+                "LaunchTemplateName": "test-gpu-tag-launch-template",
+                "DefaultVersionNumber": 1,
+            }
+        }
+
+        mock_nodegroup_response = {
+            "nodegroup": {
+                "status": "CREATING",
+                "scalingConfig": {"desiredSize": 2, "minSize": 2, "maxSize": 3},
+            }
+        }
+
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
+        self.mock_ec2.create_launch_template.return_value = (
+            mock_launch_template_response
+        )
+        self.mock_eks.create_nodegroup.return_value = mock_nodegroup_response
+        self.mock_eks.describe_nodegroup.return_value = {
+            "nodegroup": {"status": "ACTIVE", "scalingConfig": {"desiredSize": 2}}
+        }
+
+        # Mock ready nodes and GPU verification
+        mock_nodes = [{"metadata": {"name": f"gpu-node-{i}"}} for i in range(2)]
+        self.mock_k8s.wait_for_nodes_ready.return_value = mock_nodes
+        self.mock_k8s.verify_nvidia_smi_on_node.return_value = {"status": "success"}
+
+        # Call create_node_group for GPU with CAPACITY_BLOCK
+        result = eks_client.create_node_group(
+            node_group_name="test-gpu-tag-ng",
+            instance_type="p3.2xlarge",
+            node_count=2,
+            gpu_node_group=True,
+            capacity_type="CAPACITY_BLOCK",
+        )
+
+        # Verify the method succeeded
+        self.assertTrue(result)
+
+        # Verify launch template was created
+        self.mock_ec2.create_launch_template.assert_called_once()
+
+        # Get the actual call arguments to validate tag specifications
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+
+        # Verify that TagSpecifications are present
+        self.assertIn("TagSpecifications", create_lt_call_args)
+        tag_specs = create_lt_call_args["TagSpecifications"]
+
+        # Should have tag specifications for both launch-template and instance
+        self.assertEqual(len(tag_specs), 2)
+
+        # Check launch-template tags
+        lt_tag_spec = next(
+            (spec for spec in tag_specs if spec["ResourceType"] == "launch-template"),
+            None,
+        )
+        self.assertIsNotNone(
+            lt_tag_spec, "Launch template tag specification should be present"
+        )
+
+        lt_tags = {tag["Key"]: tag["Value"] for tag in lt_tag_spec["Tags"]}
+
+        # Verify all required tags are present
+        required_tags = [
+            "Name",
+            "run_id",
+            "cluster_name",
+            "node_group_name",
+            "gpu_node_group",
+            "instance_type",
+            "capacity_type",
+            "scenario_name",
+            "scenario_type",
+            "created_at",
+            "deletion_due_time",
+            "capacity_reservation_id",
+        ]
+        for tag in required_tags:
+            self.assertIn(
+                tag, lt_tags, f"Tag '{tag}' should be present in launch template tags"
+            )
+
+        # Check instance tags
+        instance_tag_spec = next(
+            (spec for spec in tag_specs if spec["ResourceType"] == "instance"), None
+        )
+        self.assertIsNotNone(
+            instance_tag_spec, "Instance tag specification should be present"
+        )
+
+        instance_tags = {tag["Key"]: tag["Value"] for tag in instance_tag_spec["Tags"]}
+        for tag in required_tags:
+            self.assertIn(
+                tag, instance_tags, f"Tag '{tag}' should be present in instance tags"
+            )
+
+        # Verify specific tag values for GPU and capacity reservation
+        self.assertEqual(lt_tags["gpu_node_group"], "True")
+        self.assertEqual(instance_tags["gpu_node_group"], "True")
+        self.assertEqual(lt_tags["capacity_type"], "CAPACITY_BLOCK")
+        self.assertEqual(instance_tags["capacity_type"], "CAPACITY_BLOCK")
+        self.assertEqual(lt_tags["capacity_reservation_id"], "cr-gpu-123456789")
+        self.assertEqual(instance_tags["capacity_reservation_id"], "cr-gpu-123456789")
+        self.assertEqual(lt_tags["instance_type"], "p3.2xlarge")
+        self.assertEqual(instance_tags["instance_type"], "p3.2xlarge")
+
+    # ... existing tests ...
 
 
 if __name__ == "__main__":

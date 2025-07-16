@@ -387,7 +387,7 @@ class EKSClient:
                         )
                 except Exception as e:
                     logger.error("Failed to create launch template: %s", e)
-                    sys.exit(1)
+                    raise Exception("Failed to create launch template: %s", str(e))
 
                 # Create the node group with the parameters
                 response = self.eks.create_nodegroup(**create_params)
@@ -717,14 +717,14 @@ class EKSClient:
                         steps.append(target_count)
 
                 logger.info(
-                    f"Progressive scaling steps: {current_count} -> {' -> '.join(map(str, steps))}"
+                    "Progressive scaling steps: %s -> %s", current_count, ' -> '.join(map(str, steps))
                 )
 
                 current_node_group = None
                 label_selector = f"nodegroup-name={node_group_name}"
                 for i, step_count in enumerate(steps):
                     logger.info(
-                        f"Progressive scaling step {i + 1}/{len(steps)}: scaling to {step_count} nodes"
+                        "Progressive scaling step %s/%s: scaling to %s nodes", i + 1, len(steps), step_count
                     )
 
                     # Scale to this step
@@ -928,17 +928,13 @@ class EKSClient:
                 }
 
             # Get additional tags for the launch template
-            try:
-                scenario_name = get_env_vars("SCENARIO_NAME")
-                scenario_type = get_env_vars("SCENARIO_TYPE")
-                deletion_due_time = get_env_vars("DELETION_DUE_TIME")
-            except Exception:
-                scenario_name = "unknown"
-                scenario_type = "unknown"
-                # add 2hrs to current time if DELETION_DUE_TIME is not set
-                deletion_due_time = (datetime.now() + timedelta(hours=2)).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                )
+            scenario_name = os.environ.get("SCENARIO_NAME", "unknown")
+            scenario_type = os.environ.get("SCENARIO_TYPE", "unknown")
+            deletion_due_time_env = os.environ.get("DELETION_DUE_TIME")
+            if deletion_due_time_env:
+                deletion_due_time = deletion_due_time_env
+            else:
+                deletion_due_time = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
             # Prepare standard tags
             tags = [
@@ -979,6 +975,10 @@ class EKSClient:
                 TagSpecifications=[
                     {
                         "ResourceType": "launch-template",
+                        "Tags": tags,
+                    },
+                    {
+                        "ResourceType": "instance",
                         "Tags": tags,
                     }
                 ],
