@@ -6,8 +6,6 @@ variables:
 stages:
   - stage: azure_eastus2
     dependsOn: []
-    variables:
-      - group: API-Server-Higher-CPU-Cores
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
