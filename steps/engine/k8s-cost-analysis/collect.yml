@@ -65,6 +65,7 @@ steps:
       workingDirectory: modules/python
       condition: eq(variables.collect_k8s_cost, 'true')
       displayName: "Collect kubernetes cost"
+      continueOnError: true
       env:
         PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/cost_analysis/opencost_live_exporter.py
         RESULT_DIR: $(TEST_RESULTS_DIR)
