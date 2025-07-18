@@ -1,0 +1,19 @@
+parameters:
+- name: variable_name
+  type: string
+  default: 'STEP_START_EPOCH'
+- name: display_name
+  type: string
+  default: 'Record step execution start time'
+
+steps:
+- task: Bash@3
+  displayName: '${{ parameters.display_name }}'
+  continueOnError: true
+  inputs:
+    targetType: 'inline'
+    script: |
+      start_epoch=$(date +%s)
+      echo "Step execution start time: $(date -u)"
+      echo "Start epoch time: $start_epoch"
+      echo "##vso[task.setvariable variable=${{ parameters.variable_name }}]$start_epoch"
