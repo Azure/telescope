@@ -9,7 +9,6 @@ steps:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ALLOCATION_K8S_COST_FILE_PATH)
-      destination_file_name:  ${{ replace(replace(variables['ALLOCATION_K8S_COST_FILE_PATH'], '/', ''), '\\', '') }}
       subfolder: $(SCENARIO_TYPE)/$(SCENARIO_NAME)/k8s-cost-analysis/allocation/$(Build.SourceBranchName)
       container_name: cost
       credential_type: ${{ parameters.credential_type }}
@@ -20,7 +19,6 @@ steps:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ASSETS_K8S_COST_FILE_PATH)
-      destination_file_name: ${{ replace(replace(variables['ASSETS_K8S_COST_FILE_PATH'], '/', ''), '\\', '') }}
       subfolder: $(SCENARIO_TYPE)/$(SCENARIO_NAME)/k8s-cost-analysis/assets/$(Build.SourceBranchName)
       container_name: cost
       credential_type: ${{ parameters.credential_type }}
