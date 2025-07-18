@@ -102,6 +102,7 @@ class JobController(ClusterLoader2Base):
 
         # Process CL2 report files
         content = process_cl2_reports(self.cl2_report_dir, template)
+        print(f"Processed CL2 report content: {content}")
 
         # Write results to the result file
         os.makedirs(os.path.dirname(self.result_file), exist_ok=True)
