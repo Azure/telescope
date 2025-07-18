@@ -41,7 +41,7 @@ steps:
         echo "Running Python cost analysis script..."
         echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
           --window {$window}m \
-          --aggregate container \
+          --aggregate node \
           --run-id $RUN_ID \
           --metadata scenario_name=$SCENARIO_NAME \
           --metadata scenario_stage_name=$SCENARIO_STAGE_NAME \
@@ -51,7 +51,7 @@ steps:
 
         PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
           --window "$window"m \
-          --aggregate container \
+          --aggregate node \
           --run-id "$RUN_ID" \
           --metadata scenario_name="$SCENARIO_NAME" \
           --metadata scenario_stage_name="$SCENARIO_STAGE_NAME" \
