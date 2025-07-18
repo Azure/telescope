@@ -4,6 +4,7 @@ parameters:
 - name: credential_type
   type: string
 
+steps:
 - ${{ if eq(variables['ALLOCATION_K8S_COST_FILE_PATH'], '') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
