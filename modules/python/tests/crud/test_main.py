@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
 """
 Unit tests for crud/main.py module (functions beyond collect_benchmark_results)
 """
+# pylint: disable=too-many-lines
 
 import unittest
 from unittest import mock
@@ -41,6 +41,19 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         """Test retrieving Azure NodePoolCRUD class"""
         cls = get_node_pool_crud_class("azure")
         self.assertEqual(cls.__name__, "NodePoolCRUD")
+
+    def test_get_node_pool_crud_class_aws(self):
+        """Test retrieving AWS NodePoolCRUD class"""
+        cls = get_node_pool_crud_class("aws")
+        self.assertEqual(cls.__name__, "NodePoolCRUD")
+
+    def test_get_node_pool_crud_class_gcp_not_implemented(self):
+        """Test retrieving GCP NodePoolCRUD class (not implemented)"""
+        with self.assertRaises(ValueError) as context:
+            get_node_pool_crud_class("gcp")
+        self.assertIn(
+            "GCP NodePoolCRUD implementation not yet available", str(context.exception)
+        )
 
     def test_get_node_pool_crud_class_unsupported(self):
         """Test retrieving NodePoolCRUD class for unsupported provider"""
@@ -349,12 +362,13 @@ class TestCollectBenchmarkResults(unittest.TestCase):
     ):
         """Test successful collection of benchmark results"""
         # Setup
-        mock_get_env_vars.side_effect = lambda var: {
+        env_vars = {
             "RESULT_DIR": self.test_dir,
             "RUN_URL": "https://example.com/run/123",
             "RUN_ID": "test-run-123",
             "REGION": "eastus",
-        }.get(var)
+        }
+        mock_get_env_vars.side_effect = env_vars.get
 
         # Create test JSON files
         test_file1 = os.path.join(self.test_dir, "test1.json")
@@ -396,12 +410,13 @@ class TestCollectBenchmarkResults(unittest.TestCase):
     ):
         """Test that results.json is skipped during collection"""
         # Setup
-        mock_get_env_vars.side_effect = lambda var: {
+        env_vars = {
             "RESULT_DIR": self.test_dir,
             "RUN_URL": "https://example.com/run/123",
             "RUN_ID": "test-run-123",
             "REGION": "eastus",
-        }.get(var)
+        }
+        mock_get_env_vars.side_effect = env_vars.get
 
         # Create test files including results.json
         test_file = os.path.join(self.test_dir, "test.json")
@@ -430,12 +445,13 @@ class TestCollectBenchmarkResults(unittest.TestCase):
     def test_collect_benchmark_results_no_files(self, mock_glob, mock_get_env_vars):
         """Test collection when no JSON files are found"""
         # Setup
-        mock_get_env_vars.side_effect = lambda var: {
+        env_vars = {
             "RESULT_DIR": self.test_dir,
             "RUN_URL": "https://example.com/run/123",
             "RUN_ID": "test-run-123",
             "REGION": "eastus",
-        }.get(var)
+        }
+        mock_get_env_vars.side_effect = env_vars.get
 
         mock_glob.return_value = []
 
@@ -571,9 +587,7 @@ class TestMainFunctionIntegration(unittest.TestCase):
         self.assertIn(mock.call(1), mock_exit.call_args_list)
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
-    def test_main_complete_create_operation(
-        self, mock_azure_crud_class
-    ):
+    def test_main_complete_create_operation(self, mock_azure_crud_class):
         """Test complete create operation flow"""
         # Setup
         mock_node_pool_crud = mock.MagicMock()
@@ -605,7 +619,9 @@ class TestMainFunctionIntegration(unittest.TestCase):
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_operation_returns_none(
-        self, mock_azure_crud_class, mock_operation_context  # pylint: disable=unused-argument
+        self,
+        mock_azure_crud_class,
+        mock_operation_context,  # pylint: disable=unused-argument
     ):
         """Test main function when operation returns None (backward compatibility)"""
         # Setup
@@ -635,7 +651,10 @@ class TestMainFunctionIntegration(unittest.TestCase):
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_operation_returns_boolean_false(
-        self, mock_azure_crud_class, mock_operation_context, mock_logger  # pylint: disable=unused-argument
+        self,
+        mock_azure_crud_class,
+        mock_operation_context,  # pylint: disable=unused-argument
+        mock_logger,  # pylint: disable=unused-argument
     ):
         """Test main function when operation returns False"""
         # Setup
@@ -789,29 +808,537 @@ class TestMainFunctionIntegration(unittest.TestCase):
         # Verify error was logged
         mock_logger.error.assert_any_call("GPU device plugin verification failed")
 
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_complete_create_operation_aws(self, mock_aws_crud_class):
+        """Test complete create operation flow with AWS"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_aws_crud_class.return_value = mock_node_pool_crud
+        mock_node_pool_crud.create_node_pool.return_value = True
 
-class TestGetNodePoolCRUDClassErrorHandling(unittest.TestCase):
-    """Tests for error handling in get_node_pool_crud_class"""
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "t3.medium",
+            "--node-count",
+            "2",
+        ]
 
-    def test_get_node_pool_crud_class_aws_not_implemented(self):
-        """Test ValueError for AWS (not implemented)"""
-        with self.assertRaises(ValueError) as context:
-            get_node_pool_crud_class("aws")
+        with mock.patch("sys.argv", test_args):
+            main()  # Use the imported main function
 
-        self.assertIn("Unsupported cloud provider: aws", str(context.exception))
+        # Verify
+        mock_aws_crud_class.assert_called_once()
+        mock_node_pool_crud.create_node_pool.assert_called_once()
 
-    def test_get_node_pool_crud_class_gcp_not_implemented(self):
-        """Test ValueError for GCP (not implemented)"""
-        with self.assertRaises(ValueError) as context:
-            get_node_pool_crud_class("gcp")
+    @mock.patch("crud.main.OperationContext")
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_gpu_node_pool_enabled_aws(
+        self, mock_aws_crud_class, mock_operation_context
+    ):
+        """Test main function with GPU node pool enabled for AWS"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_k8s_client = mock.MagicMock()
+        mock_eks_client = mock.MagicMock()
+        mock_eks_client.k8s_client = mock_k8s_client
+        mock_node_pool_crud.eks_client = mock_eks_client
 
-        self.assertIn("Unsupported cloud provider: gcp", str(context.exception))
+        mock_aws_crud_class.return_value = mock_node_pool_crud
+        mock_node_pool_crud.create_node_pool.return_value = True
+        mock_k8s_client.verify_gpu_device_plugin.return_value = True
 
-    def test_get_node_pool_crud_class_random_provider(self):
-        """Test ValueError for unsupported random provider"""
-        with self.assertRaises(ValueError) as context:
-            get_node_pool_crud_class("random_provider")
+        # Setup operation context mock
+        mock_op = mock.MagicMock()
+        mock_operation_context.return_value.__enter__.return_value = mock_op
 
-        self.assertIn(
-            "Unsupported cloud provider: random_provider", str(context.exception)
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "gpu-pool",
+            "--vm-size",
+            "p3.2xlarge",
+            "--gpu-node-pool",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            main()
+
+        # Verify GPU device plugin was installed and verified
+        mock_k8s_client.install_gpu_device_plugin.assert_called_once()
+        mock_k8s_client.verify_gpu_device_plugin.assert_called_once()
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.OperationContext")
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_gpu_verification_fails_aws(
+        self, mock_aws_crud_class, mock_operation_context, mock_logger
+    ):
+        """Test main function when GPU verification fails for AWS"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_k8s_client = mock.MagicMock()
+        mock_eks_client = mock.MagicMock()
+        mock_eks_client.k8s_client = mock_k8s_client
+        mock_node_pool_crud.eks_client = mock_eks_client
+
+        mock_aws_crud_class.return_value = mock_node_pool_crud
+        mock_k8s_client.verify_gpu_device_plugin.return_value = False
+
+        # Setup operation context mock
+        mock_op = mock.MagicMock()
+        mock_operation_context.return_value.__enter__.return_value = mock_op
+
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "gpu-pool",
+            "--vm-size",
+            "p3.2xlarge",
+            "--gpu-node-pool",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            main()
+
+        # Verify GPU verification failed and operation was marked as failed
+        mock_k8s_client.verify_gpu_device_plugin.assert_called_once()
+        self.assertFalse(mock_op.success)
+        # Verify error was logged
+        mock_logger.error.assert_any_call("GPU device plugin verification failed")
+
+    @mock.patch("crud.main.OperationContext")
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_aws_initialization_with_capacity_type(
+        self, mock_aws_crud_class, mock_operation_context  # pylint: disable=unused-argument
+    ):
+        """Test main function AWS initialization with capacity type"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_aws_crud_class.return_value = mock_node_pool_crud
+        mock_node_pool_crud.create_node_pool.return_value = True
+
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "spot-pool",
+            "--vm-size",
+            "t3.medium",
+            "--capacity-type",
+            "SPOT",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            main()
+
+        # Verify AWS NodePoolCRUD was initialized with correct parameters
+        call_args = mock_aws_crud_class.call_args[1]
+        self.assertEqual(call_args["run_id"], "test-run")
+        self.assertEqual(call_args["capacity_type"], "SPOT")
+
+    @mock.patch("crud.main.logger")
+    def test_main_unsupported_cloud_provider(self, mock_logger):
+        """Test main function with unsupported cloud provider"""
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "oracle",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "small",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with mock.patch("sys.exit") as mock_exit:
+                main()
+
+        # Verify error was logged and exit was called
+        mock_logger.critical.assert_called()
+        mock_exit.assert_called_with(1)
+
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_all_operations_aws(self, mock_aws_crud_class):
+        """Test main function with all operations for AWS"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_aws_crud_class.return_value = mock_node_pool_crud
+        mock_node_pool_crud.all.return_value = True
+
+        test_args = [
+            "crud.py",
+            "all",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "t3.medium",
+            "--node-count",
+            "1",
+            "--target-count",
+            "3",
+            "--scale-step-size",
+            "1",
+            "--step-wait-time",
+            "30",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            main()
+
+        # Verify all method was called with correct parameters
+        mock_node_pool_crud.all.assert_called_once()
+        call_args = mock_node_pool_crud.all.call_args[1]
+        self.assertEqual(call_args["node_pool_name"], "test-pool")
+        self.assertEqual(call_args["vm_size"], "t3.medium")
+        self.assertEqual(call_args["node_count"], 1)
+        self.assertEqual(call_args["target_count"], 3)
+        self.assertTrue(call_args["progressive"])
+        self.assertEqual(call_args["scale_step_size"], 1)
+        self.assertEqual(call_args["step_wait_time"], 30)
+
+
+class TestMainParameterValidation(unittest.TestCase):
+    """Tests for parameter validation in main function"""
+
+    @mock.patch("sys.exit")
+    def test_main_missing_node_pool_name_create(self, mock_exit):
+        """Test main function validation when node-pool-name is missing for create"""
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--vm-size",
+            "Standard_D2s_v3",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            # argparse will handle this and call sys.exit
+            main()
+
+        # argparse handles the validation and exits
+        mock_exit.assert_called()
+
+    @mock.patch("sys.exit")
+    def test_main_missing_vm_size_create(self, mock_exit):
+        """Test main function validation when vm-size is missing for create"""
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            # argparse will handle this and call sys.exit
+            main()
+
+        # argparse handles the validation and exits
+        mock_exit.assert_called()
+
+    @mock.patch("sys.exit")
+    def test_main_missing_target_count_scale(self, mock_exit):
+        """Test main function validation when target-count is missing for scale"""
+        test_args = [
+            "crud.py",
+            "scale",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            # argparse will handle this and call sys.exit
+            main()
+
+        # argparse handles the validation and exits
+        mock_exit.assert_called()
+
+    @mock.patch("sys.exit")
+    def test_main_missing_vm_size_all(self, mock_exit):
+        """Test main function validation when vm-size is missing for all command"""
+        test_args = [
+            "crud.py",
+            "all",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--node-count",
+            "1",
+            "--target-count",
+            "3",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            # argparse will handle this and call sys.exit
+            main()
+
+        # argparse handles the validation and exits
+        mock_exit.assert_called()
+
+    @mock.patch("sys.exit")
+    def test_main_missing_node_count_all(self, mock_exit):
+        """Test main function validation when node-count is missing for all command"""
+        test_args = [
+            "crud.py",
+            "all",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "Standard_D2s_v3",
+            "--target-count",
+            "3",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            # argparse will handle this and call sys.exit
+            main()
+
+        # argparse handles the validation and exits
+        mock_exit.assert_called()
+
+    @mock.patch("sys.exit")
+    def test_main_missing_target_count_all(self, mock_exit):
+        """Test main function validation when target-count is missing for all command"""
+        test_args = [
+            "crud.py",
+            "all",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "Standard_D2s_v3",
+            "--node-count",
+            "1",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            # argparse will handle this and call sys.exit
+            main()
+
+        # argparse handles the validation and exits
+        mock_exit.assert_called()
+
+    @mock.patch("sys.exit")
+    @mock.patch("crud.main.logger")
+    def test_main_aws_initialization_error(self, mock_logger, mock_exit):
+        """Test main function when GCP NodePoolCRUD initialization is not implemented"""
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "gcp",  # This should trigger the 'not implemented' path
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "n1-standard-1",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            main()
+
+        # Should log critical error and exit
+        mock_logger.critical.assert_called()
+        mock_exit.assert_called_with(1)
+
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_k8s_client_not_available_aws(self, mock_aws_crud_class):
+        """Test main function when k8s client is not available for AWS GPU setup"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_eks_client = mock.MagicMock()
+        mock_eks_client.k8s_client = None  # k8s client not available
+        mock_node_pool_crud.eks_client = mock_eks_client
+
+        mock_aws_crud_class.return_value = mock_node_pool_crud
+        mock_node_pool_crud.create_node_pool.return_value = True
+
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "gpu-pool",
+            "--vm-size",
+            "p3.2xlarge",
+            "--gpu-node-pool",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with mock.patch("crud.main.logger") as mock_logger:
+                main()
+
+        # Should log warning about k8s client not available
+        mock_logger.warning.assert_called_with(
+            "Kubernetes client not available - skipping GPU plugin installation"
         )
+
+
+class TestMainErrorHandlingEdgeCases(unittest.TestCase):
+    """Tests for edge cases in main function error handling"""
+
+    def setUp(self):
+        """Set up test environment"""
+        self.test_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up after tests"""
+        shutil.rmtree(self.test_dir)
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_main_operation_returns_explicit_exit_code(
+        self, mock_azure_crud_class, mock_logger
+    ):
+        """Test main function when operation returns explicit exit code"""
+        # Setup - simulate function returning explicit exit code (integer)
+        mock_node_pool_crud = mock.MagicMock()
+        mock_azure_crud_class.return_value = mock_node_pool_crud
+
+        def mock_handle_operation(crud, args):  # pylint: disable=unused-argument
+            return 42  # Return explicit exit code
+
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "Standard_D2s_v3",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with mock.patch(
+                "crud.main.handle_node_pool_operation", mock_handle_operation
+            ):
+                main()
+
+        # Should log error with the specific exit code
+        mock_logger.error.assert_called_with("Operation failed with exit code: 42")
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_main_operation_returns_true(self, mock_azure_crud_class, mock_logger):
+        """Test main function when operation returns True (success)"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_azure_crud_class.return_value = mock_node_pool_crud
+
+        def mock_handle_operation(crud, args):  # pylint: disable=unused-argument
+            return True  # Return boolean success
+
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "Standard_D2s_v3",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with mock.patch(
+                "crud.main.handle_node_pool_operation", mock_handle_operation
+            ):
+                main()
+
+        # Should log success
+        mock_logger.info.assert_called_with("Operation completed successfully")
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_main_operation_returns_false(self, mock_azure_crud_class, mock_logger):
+        """Test main function when operation returns False (failure)"""
+        # Setup
+        mock_node_pool_crud = mock.MagicMock()
+        mock_azure_crud_class.return_value = mock_node_pool_crud
+
+        def mock_handle_operation(crud, args):  # pylint: disable=unused-argument
+            return False  # Return boolean failure
+
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "Standard_D2s_v3",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with mock.patch(
+                "crud.main.handle_node_pool_operation", mock_handle_operation
+            ):
+                main()
+
+        # Should log error
+        mock_logger.error.assert_called_with("Operation failed with exit code: 1")
+
+
+if __name__ == "__main__":
+    unittest.main()

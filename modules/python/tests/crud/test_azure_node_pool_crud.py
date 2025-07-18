@@ -9,7 +9,7 @@ from unittest import mock
 from crud.azure.node_pool_crud import NodePoolCRUD
 
 
-class TestNodePoolCRUD(unittest.TestCase):
+class TestAzureNodePoolCRUD(unittest.TestCase):
     """Tests for the NodePoolCRUD class"""
 
     def setUp(self):

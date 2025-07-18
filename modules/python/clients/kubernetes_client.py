@@ -592,11 +592,15 @@ class KubernetesClient:
 
                 # Get pod logs
                 pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+                if isinstance(pod_logs, bytes):
+                    pod_logs_str = pod_logs.decode('utf-8')
+                else:
+                    pod_logs_str = str(pod_logs)
 
-                logger.info(f"nvidia-smi output: {pod_logs}")
+                logger.info(f"nvidia-smi output: {pod_logs_str}")
 
                 # Check if output contains expected NVIDIA information
-                if "NVIDIA-SMI" in pod_logs and "GPU" in pod_logs:
+                if "NVIDIA-SMI" in pod_logs_str and "GPU" in pod_logs_str:
                     logger.info(f"NVIDIA drivers verified on node {node_name}")
                     verification_successful = True
                 else:
@@ -606,7 +610,7 @@ class KubernetesClient:
                     verification_successful = False
                 all_pod_logs[node_name] = {
                     "pod_name": pod_name,
-                    "logs": pod_logs,
+                    "logs": pod_logs_str,
                     "device_status": verification_successful,
                 }
                 # Clean up the test pod
@@ -649,8 +653,8 @@ class KubernetesClient:
             logger.error(f"Error installing NVIDIA GPU device plugin: {str(e)}")
             raise e
 
-    # verify device plugin and return logs   for success and error case
-    def verify_gpu_device_plugin(self, namespace="kube-system", timeout=60):
+    # verify device plugin and return logs for success and error case
+    def verify_gpu_device_plugin(self, namespace="kube-system", timeout=100):
         """
         Verify if the NVIDIA GPU device plugin is running correctly.
         This checks if the DaemonSet is available and all pods are running.
@@ -662,10 +666,10 @@ class KubernetesClient:
                 daemonset = self.app.read_namespaced_daemon_set(
                     name="nvidia-device-plugin-daemonset", namespace=namespace
                 )
-                if (
-                    daemonset.status.number_available
-                    == daemonset.status.desired_number_scheduled
-                ):
+                desired = daemonset.status.desired_number_scheduled
+                ready = daemonset.status.number_ready
+                logger.info(f"DaemonSet status: Desired={desired}, Ready={ready}")
+                if desired == ready:
                     logger.info("NVIDIA GPU device plugin is running correctly.")
                     return True
             except client.rest.ApiException as e:
