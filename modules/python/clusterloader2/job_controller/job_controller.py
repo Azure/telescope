@@ -100,6 +100,7 @@ class JobController(ClusterLoader2Base):
             "job_throughput": self.job_throughput,
             "provider": provider,
         }
+        print("template:", template)
 
         # Process CL2 report files
         content = process_cl2_reports(self.cl2_report_dir, template)
