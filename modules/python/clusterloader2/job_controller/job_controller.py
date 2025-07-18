@@ -77,6 +77,7 @@ class JobController(ClusterLoader2Base):
         json_data = json.loads(details)
         testsuites = json_data["testsuites"]
         provider = json.loads(self.cloud_info)["cloud"]
+        print(f"JSON data: {json_data}")
 
         if testsuites:
             status = "success" if testsuites[0]["failures"] == 0 else "failure"
