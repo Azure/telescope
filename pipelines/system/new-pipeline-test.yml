@@ -7,7 +7,6 @@ variables:
 stages:
   - stage: aws_A100_gpu_test
     dependsOn: []
-    condition: and(eq(variables['Build.Reason'], 'Manual'), eq(variables['RUN_AWS'], 'true'))
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
