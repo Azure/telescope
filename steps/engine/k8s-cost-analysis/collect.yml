@@ -28,9 +28,10 @@ steps:
         # Wait for port-forward to be ready
         echo "Waiting for port-forward to be ready..."
         timeout 60 bash -c "until curl -s http://localhost:$FREE_PORT/healthz >/dev/null 2>&1; do sleep 5; done" || { echo "Error: Port-forward failed after 60 seconds"; exit 1; }
-        
-        # Add buffer time for the test duration 
-        window=$((TEST_DURATION_MINUTES + 5))
+
+        # Add buffer time for the test duration in minutes (ignore seconds)
+        test_duration_int=${TEST_DURATION_MINUTES%.*}
+        window=$((test_duration_int + 5))
 
         # Generate output file names with timestamp
         timestamp=$(date +%s)
