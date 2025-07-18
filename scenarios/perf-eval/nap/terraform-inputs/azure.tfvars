@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap"
-deletion_delay = "720h"
+deletion_delay = "2h"
 owner          = "aks"
 
 aks_config_list = []
@@ -13,8 +13,8 @@ aks_cli_config_list = [
     kubernetes_version = "1.31"
     default_node_pool = {
       name       = "system"
-      node_count = 1
-      vm_size    = "Standard_D8ds_v6"
+      node_count = 5
+      vm_size    = "Standard_D4_v5"
     }
     extra_node_pool = []
     optional_parameters = [
@@ -37,10 +37,6 @@ aks_cli_config_list = [
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
-      },
-      {
-        name  = "enable-cost-analysis"
-        value = ""
       }
     ]
   }
