@@ -1,0 +1,61 @@
+trigger: none
+schedules:
+  - cron: "0 0 * * *"
+    displayName: "Daily midnight build"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  STALE_DAYS: 328  # Number of days after which a branch is considered stale
+
+jobs:
+  - job: cleanup_stale_branches
+    continueOnError: false
+    steps:
+      - checkout: self
+        persistCredentials: true
+        fetchDepth: 0
+      - script: |
+          set -eu
+
+          echo "Starting stale branch cleanup that are older than $STALE_DAYS days"
+          git config user.email "Pipeline@test.com"
+          git config user.name "Pipeline Automation"
+
+          # Get current date in seconds since epoch
+          CURRENT_DATE=$(date +%s)
+          # Define stale threshold
+          STALE_THRESHOLD=$(($STALE_DAYS * 24 * 60 * 60))
+
+          # Get list of remote branches (excluding main, master, and protected branches)
+          REMOTE_BRANCHES=$(git branch -r | grep -v "origin/HEAD" | grep -v "origin/main" | grep -v "origin/master" | sed 's/origin\///')
+
+          echo "Found remote branches: $REMOTE_BRANCHES"
+
+          # Check each branch
+          for BRANCH in $REMOTE_BRANCHES; do
+            # Skip if branch is protected or should not be deleted
+            if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+              echo "##vso[task.logissue type=warning;]Skipping protected branch: $BRANCH"
+              continue
+            fi
+
+            # Get last commit date for the branch in seconds since epoch
+            LAST_COMMIT_DATE=$(git log -1 --format="%ct" "origin/$BRANCH")
+
+            # Calculate age in seconds
+            BRANCH_AGE=$((CURRENT_DATE - LAST_COMMIT_DATE))
+
+            # Check if branch is stale
+            if [ $BRANCH_AGE -gt $STALE_THRESHOLD ]; then
+              echo "Branch '$BRANCH' is stale (last commit was $(($BRANCH_AGE / 86400)) days ago)"
+              echo "Deleting stale branch: $BRANCH"
+              git push origin --delete "$BRANCH"
+            fi
+          done
+        env:
+          STALE_DAYS: $(STABLE_DAYS)
+        condition: eq(variables['Build.SourceBranchName'], 'main')
+        displayName: "Cleanup Stale Branches"
