@@ -59,6 +59,11 @@ steps:
           --assets-output "$RESULT_DIR/$ASSETS_K8S_COST_FILE" \
           --port "$FREE_PORT"
     
+        echo "Allocation Costs:"
+        cat "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
+        echo "Assets:"
+        cat "$RESULT_DIR/$ASSETS_K8S_COST_FILE"
+
         echo "Cost analysis collection completed successfully"
         echo "##vso[task.setvariable variable=ALLOCATION_K8S_COST_FILE_PATH]$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
         echo "##vso[task.setvariable variable=ASSETS_K8S_COST_FILE_PATH]$RESULT_DIR/$ASSETS_K8S_COST_FILE"
