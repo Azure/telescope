@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 OpenCost Live Data Exporter
 
@@ -14,19 +13,19 @@ Key advantages over the built-in CSV export:
 - Support for both allocation and assets data
 
 Usage:
-    # Allocation data only
+    # Export both allocation and assets data (default behavior)
     python opencost_live_exporter.py --window 1h --aggregate container
     python opencost_live_exporter.py --window 30m --aggregate pod
     python opencost_live_exporter.py --window 1d --aggregate namespace
     
-    # Assets data only
-    python opencost_live_exporter.py --data-type assets --window 1h --aggregate type
-    python opencost_live_exporter.py --data-type assets --window 1d --aggregate account
-    python opencost_live_exporter.py --data-type assets --filter-types "Disk,LoadBalancer"
+    # Export with custom output filenames
+    python opencost_live_exporter.py --window 1h --allocation-output allocation.json --assets-output assets.json
     
-    # Both allocation and assets data in one call
-    python opencost_live_exporter.py --window 1h --aggregate container --assets-output assets.json
-    python opencost_live_exporter.py --window 1d --aggregate namespace --assets-output assets_daily.json --filter-types "Disk,LoadBalancer"
+    # Export with filtered asset types
+    python opencost_live_exporter.py --window 1h --aggregate container --filter-types "Disk,LoadBalancer"
+    
+    # Export with metadata
+    python opencost_live_exporter.py --window 4h --run-id test-123 --metadata environment=production
 """
 
 import argparse
@@ -34,9 +33,9 @@ import json
 import sys
 from datetime import datetime
 from typing import Dict, Any, Optional
-import requests
 import logging
 import re
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -80,7 +79,7 @@ class OpenCostLiveExporter:
             raise ValueError
 
         window = window.strip()
-        
+
         # Check if empty after stripping
         if not window:
             logger.error("Window cannot be empty or whitespace only")
@@ -159,7 +158,8 @@ class OpenCostLiveExporter:
             logger.error(f"Failed to fetch allocation data: {e}")
             raise
 
-    def _format_params(self, params: Dict[str, str]) -> str:
+    @staticmethod
+    def _format_params(params: Dict[str, str]) -> str:
         """Format parameters for logging"""
         return "&".join(f"{k}={v}" for k, v in params.items())
 
@@ -224,12 +224,12 @@ class OpenCostLiveExporter:
 
         logger.info(f"Exported {len(kusto_rows)} rows to {filename} in Kusto format")
 
-    def export_live_data(self,
+    def export_allocation_live_data(self,
                         window: str = "1h",
                         aggregate: str = "container",
                         filename: Optional[str] = None) -> str:
         """
-        Export live OpenCost data in Kusto format
+        Export live OpenCost allocation data in Kusto format
         
         Args:
             window: Time window for data
@@ -371,67 +371,65 @@ class OpenCostLiveExporter:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filter_suffix = f"_{filter_types.replace(',', '_')}" if filter_types else ""
             filename = f"opencost_assets_{aggregate}_{window}{filter_suffix}_{timestamp}.json"
-        
+
         # Export in Kusto format
         self.export_assets_to_kusto_format(data, filename)
-        
+
         return filename
 
 
 def main():
     """Main CLI function"""
     parser = argparse.ArgumentParser(
-        description='OpenCost Live Data Exporter - Export live cost allocation and assets data without waiting 24 hours. Supports single or dual export (both allocation and assets in one call).'
+        description='OpenCost Live Data Exporter - Export live cost allocation and assets data without waiting 24 hours. Always exports both allocation and assets data in one call.'
     )
-    
+
     parser.add_argument(
         '--endpoint',
         default='http://localhost:9003',
         help='OpenCost API endpoint (default: http://localhost:9003)'
     )
-    
+
     parser.add_argument(
         '--port',
         type=int,
         help='OpenCost API port (overrides port in endpoint if specified)'
     )
-    
+
     parser.add_argument(
         '--window',
         default='1h',
         help='Time window for data (default: 1h). Examples: 30m, 1h, 24h, today, yesterday'
     )
-    
+
     parser.add_argument(
         '--aggregate',
         default='container',
         help='Aggregation level (default: container). For allocations: container, pod, namespace, node, controller. For assets: type, account, project, service'
     )
-    
+
     parser.add_argument(
-        '--data-type',
-        default='allocation',
-        choices=['allocation', 'assets'],
-        help='Type of data to export (default: allocation)'
+        '--allocation-output',
+        help='Output filename for allocation data (auto-generated if not provided)'
     )
-    
+
     parser.add_argument(
-        '--output',
-        help='Output filename (auto-generated if not provided)'
+        '--assets-output',
+        help='Output filename for assets data (auto-generated if not provided)'
     )
-    
+
     parser.add_argument(
         '--include-idle',
         action='store_true',
         help='Include idle allocations'
     )
-    
+
     parser.add_argument(
         '--share-idle',
         action='store_true',
         help='Share idle costs across allocations'
     )
-    
+
     parser.add_argument(
         '--run-id',
         help='Run ID to include in exported data for tracking'
@@ -445,12 +443,7 @@ def main():
 
     parser.add_argument(
         '--filter-types',
-        help='Filter asset types (e.g., "Disk,LoadBalancer") - only for assets data type'
-    )
-
-    parser.add_argument(
-        '--assets-output',
-        help='Output filename for assets data (enables dual export - both allocation and assets)'
+        help='Filter asset types (e.g., "Disk,LoadBalancer")'
     )
 
     args = parser.parse_args()
@@ -494,61 +487,31 @@ def main():
 
         exporter = OpenCostLiveExporter(endpoint=endpoint, metadata=metadata)
 
-        # Check if dual export is requested (both allocation and assets)
-        if args.assets_output:
-            # Export both allocation and assets data
-            logger.info("Dual export mode: exporting both allocation and assets data")
-            
-            # Export allocation data
-            allocation_filename = exporter.export_live_data(
-                window=args.window,
-                aggregate=args.aggregate,
-                filename=args.output
-            )
-            
-            # Export assets data
-            assets_filename = exporter.export_assets_live_data(
-                window=args.window,
-                aggregate=args.aggregate,
-                filename=args.assets_output,
-                filter_types=args.filter_types
-            )
-            logger.info(f"Successfully exported live OpenCost allocation data to: {allocation_filename}")
-            logger.info(f"Successfully exported live OpenCost assets data to: {assets_filename}")
-            logger.info(f"Window: {args.window}")
-            logger.info(f"Aggregation: {args.aggregate}")
-            logger.info("Format: Kusto (JSON)")
-            if args.filter_types:
-                logger.info(f"Filtered asset types: {args.filter_types}")
-                
-        elif args.data_type == 'assets':
-            # Export assets data only
-            filename = exporter.export_assets_live_data(
-                window=args.window,
-                aggregate=args.aggregate,
-                filename=args.output,
-                filter_types=args.filter_types
-            )
+        # Always export both allocation and assets data
+        logger.info("Exporting both allocation and assets data")
 
-            logger.info(f"Successfully exported live OpenCost assets data to: {filename}")
-            logger.info(f"Window: {args.window}")
-            logger.info(f"Aggregation: {args.aggregate}")
-            logger.info("Format: Kusto (JSON)")
-            if args.filter_types:
-                logger.info(f"Filtered types: {args.filter_types}")
+        # Export allocation data
+        allocation_filename = exporter.export_allocation_live_data(
+            window=args.window,
+            aggregate=args.aggregate,
+            filename=args.allocation_output
+        )
 
-        else:
-            # Export allocation data only
-            filename = exporter.export_live_data(
-                window=args.window,
-                aggregate=args.aggregate,
-                filename=args.output
-            )
+        # Export assets data
+        assets_filename = exporter.export_assets_live_data(
+            window=args.window,
+            aggregate=args.aggregate,
+            filename=args.assets_output,
+            filter_types=args.filter_types
+        )
 
-            logger.info(f"Successfully exported live OpenCost data to: {filename}")
-            logger.info(f"Window: {args.window}")
-            logger.info(f"Aggregation: {args.aggregate}")
-            logger.info("Format: Kusto (JSON)")
+        logger.info(f"Successfully exported live OpenCost allocation data to: {allocation_filename}")
+        logger.info(f"Successfully exported live OpenCost assets data to: {assets_filename}")
+        logger.info(f"Window: {args.window}")
+        logger.info(f"Aggregation: {args.aggregate}")
+        logger.info("Format: Kusto (JSON)")
+        if args.filter_types:
+            logger.info(f"Filtered asset types: {args.filter_types}")
 
     except Exception as e:
         logger.error(f"Export failed: {e}")

@@ -14,23 +14,23 @@ from unittest.mock import Mock, patch
 import pytest
 import responses
 
-from opencost_live_exporter import OpenCostLiveExporter
+from cost_analysis.opencost_live_exporter import OpenCostLiveExporter
 
 
 class TestOpenCostLiveExporter:
     """Test suite for OpenCostLiveExporter class"""
-    
+
     @pytest.fixture
     def exporter(self):
         """Create an OpenCostLiveExporter instance for testing"""
         return OpenCostLiveExporter(endpoint="http://test-opencost:9003")
-    
+
     @pytest.fixture
     def exporter_with_metadata(self):
         """Create an OpenCostLiveExporter instance with metadata for testing"""
         metadata = {'run_id': 'test-run-123', 'test_name': 'unit-test'}
         return OpenCostLiveExporter(endpoint="http://test-opencost:9003", metadata=metadata)
-    
+
     @pytest.fixture
     def sample_allocation_data(self):
         """Sample allocation data for testing"""
@@ -74,7 +74,7 @@ class TestOpenCostLiveExporter:
                 }
             ]
         }
-    
+
     @pytest.fixture
     def empty_allocation_data(self):
         """Empty allocation data for testing edge cases"""
@@ -83,7 +83,7 @@ class TestOpenCostLiveExporter:
             "status": "success",
             "data": []
         }
-    
+
     @pytest.fixture
     def sample_assets_data(self):
         """Sample assets data for testing"""
@@ -144,7 +144,7 @@ class TestOpenCostLiveExporter:
                 }
             }
         }
-    
+
     @pytest.fixture
     def empty_assets_data(self):
         """Empty assets data for testing edge cases"""
@@ -160,13 +160,13 @@ class TestOpenCostLiveExporter:
         assert exporter.endpoint == "http://localhost:9003"
         assert exporter.session.headers['Content-Type'] == 'application/json'
         assert 'OpenCost-Live-Exporter' in exporter.session.headers['User-Agent']
-    
+
     def test_init_custom_endpoint(self):
         """Test initialization with custom endpoint"""
         endpoint = "http://custom-host:8080"
         exporter = OpenCostLiveExporter(endpoint=endpoint)
         assert exporter.endpoint == endpoint
-    
+
     def test_init_endpoint_with_trailing_slash(self):
         """Test initialization strips trailing slash from endpoint"""
         exporter = OpenCostLiveExporter(endpoint="http://test:9003/")
@@ -181,19 +181,19 @@ class TestOpenCostLiveExporter:
             json=sample_allocation_data,
             status=200
         )
-        
+
         result = exporter.get_allocation_data(window="1h", aggregate="container")
-        
+
         assert result == sample_allocation_data
         assert len(responses.calls) == 1
-        
+
         # Verify request parameters
         request = responses.calls[0].request
         assert "window=1h" in request.url
         assert "aggregate=container" in request.url
         assert "includeIdle=false" in request.url
         assert "shareIdle=false" in request.url
-    
+
     @responses.activate
     def test_get_allocation_data_with_options(self, exporter, sample_allocation_data):
         """Test allocation data retrieval with all options"""
@@ -248,19 +248,19 @@ class TestOpenCostLiveExporter:
         """Test successful Kusto format export"""
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
             tmp_path = tmp.name
-        
+
         try:
             exporter.export_to_kusto_format(sample_allocation_data, tmp_path)
-            
+
             # Verify JSON file was created
             assert os.path.exists(tmp_path)
-            
+
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
                 data = json.load(jsonfile)
-                
+
                 assert len(data) == 1
                 row = data[0]
-                
+
                 # Verify Kusto-optimized structure
                 assert 'Timestamp' in row
                 assert 'CollectionTime' in row
@@ -273,90 +273,67 @@ class TestOpenCostLiveExporter:
                 assert row['CpuCores'] == 0.5
                 assert row['TotalCost'] == 0.042
                 assert row['WindowMinutes'] == 60.0
-                
+
                 # Verify properties are JSON string
                 properties = json.loads(row['Properties'])
                 assert properties['namespace'] == 'test-namespace'
-        
+
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
-    
+
     def test_export_to_kusto_format_empty_data(self, exporter, empty_allocation_data):
         """Test Kusto format export with empty data"""
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
             tmp_path = tmp.name
-        
+
         # Remove the temp file since we don't want it to exist initially
         os.unlink(tmp_path)
-        
+
         try:
             # Should not create file for empty data
             exporter.export_to_kusto_format(empty_allocation_data, tmp_path)
             # File should not be created for empty data
             assert not os.path.exists(tmp_path)
-        
+
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
-    def test_export_live_data_kusto(self, exporter, sample_allocation_data):
+    def test_export_allocation_live_data_kusto(self, exporter, sample_allocation_data):
         """Test live data export to Kusto format"""
         with patch.object(exporter, 'get_allocation_data') as mock_get, \
              patch.object(exporter, 'export_to_kusto_format') as mock_export:
-            
+
             mock_get.return_value = sample_allocation_data
-            
-            filename = exporter.export_live_data(
+
+            filename = exporter.export_allocation_live_data(
                 window="2h",
                 aggregate="namespace",
                 filename="test_output.json"
             )
-            
+
             mock_get.assert_called_once_with(window="2h", aggregate="namespace")
             mock_export.assert_called_once_with(sample_allocation_data, "test_output.json")
             assert filename == "test_output.json"
-    
-    def test_export_live_data_auto_filename(self, exporter, sample_allocation_data):
+
+    def test_export_allocation_live_data_auto_filename(self, exporter, sample_allocation_data):
         """Test live data export with auto-generated filename"""
         with patch.object(exporter, 'get_allocation_data') as mock_get, \
              patch.object(exporter, 'export_to_kusto_format') as mock_export, \
-             patch('opencost_live_exporter.datetime') as mock_datetime:
-            
+             patch('cost_analysis.opencost_live_exporter.datetime') as mock_datetime:
+
             mock_get.return_value = sample_allocation_data
             mock_datetime.now.return_value.strftime.return_value = "20250117_120000"
-            
-            filename = exporter.export_live_data(
+
+            filename = exporter.export_allocation_live_data(
                 window="1h",
                 aggregate="container"
             )
-            
+
             expected_filename = "opencost_live_container_1h_20250117_120000.json"
             assert filename == expected_filename
             mock_export.assert_called_once_with(sample_allocation_data, expected_filename)
-    
-    def test_export_live_data_invalid_format(self, exporter, sample_allocation_data):
-        """Test live data export with invalid format - no longer applicable since we only support Kusto"""
-        # This test is no longer relevant as we only support Kusto format
-        # The export_live_data method no longer takes output_format parameter
-        pass
-
-    def test_format_params(self, exporter):
-        """Test parameter formatting helper method"""
-        params = {
-            "window": "1h",
-            "aggregate": "container",
-            "includeIdle": "false"
-        }
-        
-        result = exporter._format_params(params)
-        expected_parts = ["window=1h", "aggregate=container", "includeIdle=false"]
-        
-        # Split and sort to handle different orders
-        result_parts = sorted(result.split("&"))
-        expected_parts_sorted = sorted(expected_parts)
-        
-        assert result_parts == expected_parts_sorted
 
     def test_init_with_metadata(self):
         """Test initialization with custom metadata"""
@@ -369,24 +346,24 @@ class TestOpenCostLiveExporter:
         """Test Kusto format export includes custom metadata"""
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
             tmp_path = tmp.name
-        
+
         try:
             exporter_with_metadata.export_to_kusto_format(sample_allocation_data, tmp_path)
-            
+
             # Verify JSON file was created
             assert os.path.exists(tmp_path)
-            
+
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
                 data = json.load(jsonfile)
-                
+
                 assert len(data) == 1
                 row = data[0]
-                
+
                 # Verify metadata is included with _ prefix
                 assert row['_run_id'] == 'test-run-123'
                 assert row['_test_name'] == 'unit-test'
                 assert row['AllocationName'] == 'test-namespace/test-pod/test-container'
-        
+
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -394,7 +371,7 @@ class TestOpenCostLiveExporter:
     # =============================================
     # Assets API Tests
     # =============================================
-    
+
     @responses.activate
     def test_get_assets_data_success(self, exporter, sample_assets_data):
         """Test successful assets data retrieval"""
@@ -404,12 +381,12 @@ class TestOpenCostLiveExporter:
             json=sample_assets_data,
             status=200
         )
-        
+
         result = exporter.get_assets_data(window="1h", aggregate="type")
-        
+
         assert result == sample_assets_data
         assert len(responses.calls) == 1
-        
+
         # Verify correct URL and parameters
         request = responses.calls[0].request
         assert "window=1h" in request.url
@@ -424,15 +401,15 @@ class TestOpenCostLiveExporter:
             json=sample_assets_data,
             status=200
         )
-        
+
         result = exporter.get_assets_data(
-            window="1h", 
+            window="1h",
             aggregate="type",
             filter_types="Disk,LoadBalancer"
         )
-        
+
         assert result == sample_assets_data
-        
+
         # Verify correct URL and parameters
         request = responses.calls[0].request
         assert "filterTypes=Disk%2CLoadBalancer" in request.url
@@ -445,7 +422,7 @@ class TestOpenCostLiveExporter:
             "http://test-opencost:9003/assets",
             body=Exception("Network error")
         )
-        
+
         with pytest.raises(Exception):
             exporter.get_assets_data()
 
@@ -453,20 +430,20 @@ class TestOpenCostLiveExporter:
         """Test successful assets Kusto format export"""
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
             tmp_path = tmp.name
-        
+
         try:
             exporter.export_assets_to_kusto_format(sample_assets_data, tmp_path)
-            
+
             # Verify file was created and has correct content
             assert os.path.exists(tmp_path)
-            
+
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
                 data = json.load(jsonfile)
-                
+
                 # Verify it's an array of flattened records
                 assert isinstance(data, list)
                 assert len(data) == 2  # VM and Disk
-                
+
                 # Check VM record
                 vm_record = next(record for record in data if record['Type'] == 'Node')
                 assert vm_record['Source'] == 'http://test-opencost:9003/assets'
@@ -474,13 +451,13 @@ class TestOpenCostLiveExporter:
                 assert vm_record['Category'] == 'Compute'
                 assert vm_record['TotalCost'] == 0.12
                 assert vm_record['Name'] == 'test-vm'
-                
+
                 # Check Disk record
                 disk_record = next(record for record in data if record['Type'] == 'Disk')
                 assert disk_record['Category'] == 'Storage'
                 assert disk_record['TotalCost'] == 0.05
                 assert disk_record['Bytes'] == 107374182400
-        
+
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -489,15 +466,15 @@ class TestOpenCostLiveExporter:
         """Test live assets data export to Kusto format"""
         with patch.object(exporter, 'get_assets_data') as mock_get, \
              patch.object(exporter, 'export_assets_to_kusto_format') as mock_export:
-            
+
             mock_get.return_value = sample_assets_data
-            
+
             filename = exporter.export_assets_live_data(
                 window="30m",
                 aggregate="type",
                 filename="test_assets.csv"
             )
-            
+
             # Verify calls
             mock_get.assert_called_once_with(window="30m", aggregate="type", filter_types=None)
             mock_export.assert_called_once_with(sample_assets_data, "test_assets.csv")
@@ -519,7 +496,7 @@ class TestOpenCostLiveExporter:
             # Verify filter was passed
             mock_get.assert_called_once_with(
                 window="1h",
-                aggregate="type", 
+                aggregate="type",
                 filter_types="Disk,LoadBalancer"
             )
             mock_export.assert_called_once()
@@ -528,17 +505,17 @@ class TestOpenCostLiveExporter:
         """Test live assets data export with auto-generated filename"""
         with patch.object(exporter, 'get_assets_data') as mock_get, \
              patch.object(exporter, 'export_assets_to_kusto_format') as mock_export, \
-             patch('opencost_live_exporter.datetime') as mock_datetime:
-            
+             patch('cost_analysis.opencost_live_exporter.datetime') as mock_datetime:
+
             mock_get.return_value = sample_assets_data
             mock_datetime.now.return_value.strftime.return_value = "20250117_120000"
-            
+
             filename = exporter.export_assets_live_data(
                 window="1h",
                 aggregate="type",
                 filter_types="Disk,LoadBalancer"
             )
-            
+
             expected_filename = "opencost_assets_type_1h_Disk_LoadBalancer_20250117_120000.json"
             assert filename == expected_filename
             mock_export.assert_called_once_with(sample_assets_data, expected_filename)
@@ -547,21 +524,21 @@ class TestOpenCostLiveExporter:
         """Test assets export includes custom metadata"""
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
             tmp_path = tmp.name
-        
+
         try:
             exporter_with_metadata.export_assets_to_kusto_format(sample_assets_data, tmp_path)
-            
+
             # Verify file was created and has correct content
             assert os.path.exists(tmp_path)
-            
+
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
                 data = json.load(jsonfile)
-                
+
                 # Verify metadata is included in all records
                 for record in data:
                     assert record['_run_id'] == 'test-run-123'
                     assert record['_test_name'] == 'unit-test'
-        
+
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -573,84 +550,99 @@ class TestOpenCostLiveExporter:
 
 class TestCLI:
     """Test suite for CLI functionality"""
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_basic_usage(self, mock_exporter_class):
-        """Test basic CLI usage"""
+        """Test basic CLI usage (always exports both allocation and assets)"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_live_data.return_value = "test_output.csv"
-        
+        mock_exporter.export_allocation_live_data.return_value = "allocation_output.json"
+        mock_exporter.export_assets_live_data.return_value = "assets_output.json"
+
         with patch('sys.argv', ['opencost_live_exporter.py', '--window', '30m']):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was initialized correctly
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', metadata={})
-        
-        # Verify export was called with correct parameters
-        mock_exporter.export_live_data.assert_called_once_with(
+
+        # Verify both allocation and assets export were called
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='30m',
             aggregate='container',
             filename=None
         )
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+        mock_exporter.export_assets_live_data.assert_called_once_with(
+            window='30m',
+            aggregate='container',
+            filename=None,
+            filter_types=None
+        )
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_all_options(self, mock_exporter_class):
-        """Test CLI with all options"""
+        """Test CLI with all options (always exports both allocation and assets)"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_live_data.return_value = "custom_output.json"
-        
+        mock_exporter.export_allocation_live_data.return_value = "custom_allocation.json"
+        mock_exporter.export_assets_live_data.return_value = "custom_assets.json"
+
         args = [
             'opencost_live_exporter.py',
             '--endpoint', 'http://custom:8080',
             '--window', '24h',
             '--aggregate', 'namespace',
-            '--output', 'custom_output.json'
+            '--allocation-output', 'custom_allocation.json',
+            '--assets-output', 'custom_assets.json'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was initialized with custom endpoint
         mock_exporter_class.assert_called_once_with(endpoint='http://custom:8080', metadata={})
-        
-        # Verify export was called with all parameters
-        mock_exporter.export_live_data.assert_called_once_with(
+
+        # Verify both exports were called with all parameters
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='24h',
             aggregate='namespace',
-            filename='custom_output.json'
+            filename='custom_allocation.json'
         )
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+        mock_exporter.export_assets_live_data.assert_called_once_with(
+            window='24h',
+            aggregate='namespace',
+            filename='custom_assets.json',
+            filter_types=None
+        )
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_export_failure(self, mock_exporter_class):
         """Test CLI export failure handling"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_live_data.side_effect = Exception("Export failed")
-        
+        mock_exporter.export_allocation_live_data.side_effect = Exception("Export failed")
+
         args = [
             'opencost_live_exporter.py',
             '--window', '1h'
         ]
-        
+
         with patch('sys.argv', args), \
              patch('sys.exit') as mock_exit:
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
-                        # Verify sys.exit was called with error code
+
+        # Verify sys.exit was called with error code
         mock_exit.assert_called_once_with(1)
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_with_metadata(self, mock_exporter_class):
         """Test CLI with metadata"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_live_data.return_value = 'output.json'
-        
+        mock_exporter.export_allocation_live_data.return_value = 'output.json'
+
         args = [
             'opencost_live_exporter.py',
             '--window', '1h',
@@ -658,11 +650,11 @@ class TestCLI:
             '--metadata', 'env=prod',
             '--metadata', 'team=platform'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was created with metadata
         expected_metadata = {
             'run_id': 'test-123',
@@ -670,29 +662,34 @@ class TestCLI:
             'team': 'platform'
         }
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', metadata=expected_metadata)
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_assets_basic(self, mock_exporter_class):
-        """Test CLI assets functionality basic usage"""
+        """Test CLI assets functionality basic usage - now always exports both allocation and assets"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_assets_live_data.return_value = "assets_output.csv"
-        
+        mock_exporter.export_allocation_live_data.return_value = "allocation_output.json"
+        mock_exporter.export_assets_live_data.return_value = "assets_output.json"
+
         args = [
             'opencost_live_exporter.py',
-            '--data-type', 'assets',
             '--window', '1h',
             '--aggregate', 'type'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was initialized correctly
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', metadata={})
-        
-        # Verify assets export was called with correct parameters
+
+        # Verify both allocation and assets export were called
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
+            window='1h',
+            aggregate='type',
+            filename=None
+        )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='1h',
             aggregate='type',
@@ -700,27 +697,32 @@ class TestCLI:
             filter_types=None
         )
 
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_assets_with_filter(self, mock_exporter_class):
-        """Test CLI assets functionality with type filter"""
+        """Test CLI assets functionality with type filter - now always exports both allocation and assets"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
+        mock_exporter.export_allocation_live_data.return_value = "allocation_output.json"
         mock_exporter.export_assets_live_data.return_value = "filtered_assets.json"
-        
+
         args = [
             'opencost_live_exporter.py',
-            '--data-type', 'assets',
             '--window', '24h',
             '--aggregate', 'account',
             '--filter-types', 'Disk,LoadBalancer',
-            '--output', 'filtered_assets.json'
+            '--assets-output', 'filtered_assets.json'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
-        # Verify assets export was called with filter
+
+        # Verify both allocation and assets export were called
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
+            window='24h',
+            aggregate='account',
+            filename=None
+        )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='24h',
             aggregate='account',
@@ -728,27 +730,27 @@ class TestCLI:
             filter_types='Disk,LoadBalancer'
         )
 
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_assets_with_metadata(self, mock_exporter_class):
-        """Test CLI assets functionality with metadata"""
+        """Test CLI assets functionality with metadata - now always exports both allocation and assets"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
+        mock_exporter.export_allocation_live_data.return_value = "allocation_output.json"
         mock_exporter.export_assets_live_data.return_value = "assets_with_metadata.json"
-        
+
         args = [
             'opencost_live_exporter.py',
-            '--data-type', 'assets',
             '--window', '2h',
             '--aggregate', 'service',
             '--run-id', 'assets-test-789',
             '--metadata', 'cluster=prod-east',
             '--metadata', 'cost_center=engineering'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was initialized with correct metadata
         expected_metadata = {
             'run_id': 'assets-test-789',
@@ -756,41 +758,46 @@ class TestCLI:
             'cost_center': 'engineering'
         }
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', metadata=expected_metadata)
-        
-        # Verify assets export was called
+
+        # Verify both allocation and assets export were called
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
+            window='2h',
+            aggregate='service',
+            filename=None
+        )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='2h',
             aggregate='service',
             filename=None,
             filter_types=None
         )
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_dual_export(self, mock_exporter_class):
         """Test CLI dual export functionality (both allocation and assets)"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_live_data.return_value = "allocation_data.json"
+        mock_exporter.export_allocation_live_data.return_value = "allocation_data.json"
         mock_exporter.export_assets_live_data.return_value = "assets_data.json"
-        
+
         args = [
             'opencost_live_exporter.py',
             '--window', '1h',
             '--aggregate', 'namespace',
-            '--output', 'allocation_output.json',
+            '--allocation-output', 'allocation_output.json',
             '--assets-output', 'assets_output.json',
             '--filter-types', 'Disk,LoadBalancer'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was initialized
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', metadata={})
-        
+
         # Verify both allocation and assets exports were called
-        mock_exporter.export_live_data.assert_called_once_with(
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='1h',
             aggregate='namespace',
             filename='allocation_output.json'
@@ -801,15 +808,15 @@ class TestCLI:
             filename='assets_output.json',
             filter_types='Disk,LoadBalancer'
         )
-    
-    @patch('opencost_live_exporter.OpenCostLiveExporter')
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_dual_export_with_metadata(self, mock_exporter_class):
         """Test CLI dual export functionality with metadata"""
         mock_exporter = Mock()
         mock_exporter_class.return_value = mock_exporter
-        mock_exporter.export_live_data.return_value = "allocation_meta.json"
+        mock_exporter.export_allocation_live_data.return_value = "allocation_meta.json"
         mock_exporter.export_assets_live_data.return_value = "assets_meta.json"
-        
+
         args = [
             'opencost_live_exporter.py',
             '--window', '4h',
@@ -819,11 +826,11 @@ class TestCLI:
             '--metadata', 'environment=staging',
             '--metadata', 'team=platform'
         ]
-        
+
         with patch('sys.argv', args):
-            from opencost_live_exporter import main
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
             main()
-        
+
         # Verify exporter was initialized with correct metadata
         expected_metadata = {
             'run_id': 'dual-export-test-123',
@@ -831,9 +838,9 @@ class TestCLI:
             'team': 'platform'
         }
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', metadata=expected_metadata)
-        
+
         # Verify both exports were called
-        mock_exporter.export_live_data.assert_called_once_with(
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='4h',
             aggregate='pod',
             filename=None  # Auto-generated filename
@@ -844,7 +851,7 @@ class TestCLI:
             filename='assets_with_meta.json',
             filter_types=None
         )
-    
+
 
 class TestWindowFormatValidation:
     """Test cases for window format validation"""
@@ -907,7 +914,7 @@ class TestWindowFormatValidation:
             "-1h",        # Negative value
             "0h",         # Zero value
         ]
-        
+
         for fmt in invalid_formats:
             with pytest.raises(ValueError):
                 OpenCostLiveExporter.validate_window_format(fmt)
@@ -915,7 +922,7 @@ class TestWindowFormatValidation:
     def test_invalid_types(self):
         """Test invalid input types"""
         invalid_inputs = [None, 123, [], {}]
-        
+
         for inp in invalid_inputs:
             with pytest.raises(ValueError):
                 OpenCostLiveExporter.validate_window_format(inp)

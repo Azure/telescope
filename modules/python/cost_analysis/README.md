@@ -29,42 +29,28 @@ pip install -r requirements.txt
 ### Basic Usage
 
 ```bash
-# Export last hour of container-level allocation costs
-python opencost_live_exporter.py --window 1h
+# Export both allocation and assets data (default behavior - always exports both)
+python opencost_live_exporter.py --window 1h --aggregate container
+python opencost_live_exporter.py --window 30m --aggregate pod
+python opencost_live_exporter.py --window 1d --aggregate namespace
 
-# Export last 30 minutes with custom output filename
-python opencost_live_exporter.py --window 30m --output costs.json
+# Export with custom output filenames
+python opencost_live_exporter.py --window 1h --allocation-output allocation.json --assets-output assets.json
 
-# Export namespace-level allocation costs for the last 24 hours
-python opencost_live_exporter.py --window 24h --aggregate namespace
+# Export with filtered asset types
+python opencost_live_exporter.py --window 1h --aggregate container --filter-types "Disk,LoadBalancer"
 
-# Export assets data by type
-python opencost_live_exporter.py --data-type assets --window 1h --aggregate type
+# Export with metadata
+python opencost_live_exporter.py --window 4h --run-id test-123 --metadata environment=production
 
-# Export specific asset types (disks and load balancers)
-python opencost_live_exporter.py --data-type assets --filter-types "Disk,LoadBalancer"
-
-# Export assets by account/project
-python opencost_live_exporter.py --data-type assets --aggregate account --window 24h
-
-# 🆕 Dual Export: Export both allocation and assets data in one call
-python opencost_live_exporter.py --window 1h --aggregate namespace --assets-output assets.json
-
-# 🆕 Dual Export with custom filenames and metadata
+# Export with custom filenames and metadata
 python opencost_live_exporter.py \
   --window 4h \
   --aggregate container \
-  --output allocation_4h.json \
+  --allocation-output allocation_4h.json \
   --assets-output assets_4h.json \
-  --run-id dual-export-demo \
+  --run-id export-demo \
   --metadata environment=production
-
-# 🆕 Dual Export with filtered asset types
-python opencost_live_exporter.py \
-  --window 1d \
-  --aggregate namespace \
-  --assets-output daily_assets.json \
-  --filter-types "Disk,LoadBalancer,ClusterIP"
 ```
 
 ### Custom OpenCost Endpoint
@@ -127,36 +113,35 @@ assets_filename = exporter.export_assets_live_data(
 python opencost_live_exporter.py --endpoint http://opencost.example.com:9003 --window 1h
 ```
 
-### Dual Export (🆕 New Feature)
+### Simplified Export Behavior
 
-Export both allocation and assets data in a single script execution using the `--assets-output` flag:
+The OpenCost Live Exporter now **always exports both allocation and assets data** in a single execution:
 
 ```bash
-# Basic dual export
-python opencost_live_exporter.py --window 1h --aggregate namespace --assets-output assets.json
+# Basic export (creates both allocation and assets files)
+python opencost_live_exporter.py --window 1h --aggregate namespace
 
-# Dual export with custom filenames
+# Custom output filenames
 python opencost_live_exporter.py \
   --window 4h \
   --aggregate container \
-  --output allocation_4h.json \
+  --allocation-output allocation_4h.json \
   --assets-output assets_4h.json
 
-# Dual export with filtered asset types and metadata
+# Filtered asset types with metadata
 python opencost_live_exporter.py \
   --window 1d \
   --aggregate namespace \
-  --assets-output daily_assets.json \
   --filter-types "Disk,LoadBalancer,ClusterIP" \
-  --run-id dual-export-demo \
+  --run-id export-demo \
   --metadata environment=production
 ```
 
 **Benefits:**
-- Single API call for both data types
-- Consistent time window across both exports
-- Shared metadata and configuration
-- Faster execution compared to separate calls
+- Always gets both allocation and assets data in one execution
+- Consistent time window and metadata across both exports
+- Simplified CLI interface with fewer options
+- Better performance compared to separate calls
 
 ## Export Format
 
