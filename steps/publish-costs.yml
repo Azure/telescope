@@ -5,7 +5,7 @@ parameters:
   type: string
 
 steps:
-- ${{ if eq(variables['ALLOCATION_K8S_COST_FILE_PATH'], '') }}:
+- ${{ if eq(variables['collect_k8s_cost'], 'true') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ALLOCATION_K8S_COST_FILE_PATH)
@@ -15,7 +15,7 @@ steps:
       cloud: ${{ parameters.cloud }}
       upload_type: "Cost Results - Allocation"
 
-- ${{ if eq(variables['ASSETS_K8S_COST_FILE_PATH'], '') }}:
+- ${{ if eq(variables['collect_k8s_cost'], 'true') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ASSETS_K8S_COST_FILE_PATH)
