@@ -10,7 +10,7 @@ steps:
     parameters:
       storage_account_name: "akstelescopecosts" # $(AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME) #TODO: define and update it
       source_file_name: $(ALLOCATION_K8S_COST_FILE_PATH)
-      destination_file_name:  ${{ replace(variables['ASSETS_K8S_COST_FILE_PATH'], split(variables['ASSETS_K8S_COST_FILE_PATH'], '/'), '') }}
+      destination_file_name:  ${{ replace(replace(variables['ALLOCATION_K8S_COST_FILE_PATH'], '/', ''), '\\', '') }}
       subfolder: $(SCENARIO_NAME)/k8s-cost-analysis/allocation/$(Build.SourceBranchName)
       container_name: $(SCENARIO_TYPE)
       credential_type: ${{ parameters.credential_type }}
@@ -22,7 +22,7 @@ steps:
     parameters:
       storage_account_name: "akstelescopecosts" # $(AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME) #TODO: define and update it
       source_file_name: $(ASSETS_K8S_COST_FILE_PATH)
-      destination_file_name: ${{ replace(variables['ASSETS_K8S_COST_FILE_PATH'], split(variables['ASSETS_K8S_COST_FILE_PATH'], '/'), '') }}
+      destination_file_name: ${{ replace(replace(variables['ASSETS_K8S_COST_FILE_PATH'], '/', ''), '\\', '') }}
       subfolder: $(SCENARIO_NAME)/k8s-cost-analysis/assets/$(Build.SourceBranchName)
       container_name: $(SCENARIO_TYPE)
       credential_type: ${{ parameters.credential_type }}
