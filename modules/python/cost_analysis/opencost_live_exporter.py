@@ -346,7 +346,7 @@ class OpenCostLiveExporter:
 
         logger.info(f"Exported {len(kusto_rows)} asset rows to {filename} in Kusto format")
 
-    def export_assets_live_data(self, 
+    def export_assets_live_data(self,
                                window: str = "1h",
                                aggregate: str = "type",
                                filename: Optional[str] = None,
