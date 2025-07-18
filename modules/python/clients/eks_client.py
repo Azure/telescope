@@ -913,6 +913,8 @@ class EKSClient:
             launch_template_data = {}
             launch_template_data["InstanceType"] = instance_type
             # Add capacity reservation configuration if provided
+            # we can only 1 capacity reservation per launch template
+            # Adding Capacity Block reservations to a resource group is not supported.
             if reservation_id and capacity_type == "CAPACITY_BLOCK":
                 logger.info(
                     "Adding capacity reservation %s to launch template", reservation_id
