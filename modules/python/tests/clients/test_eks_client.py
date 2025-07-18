@@ -1323,8 +1323,8 @@ class TestEKSClient(unittest.TestCase):
         self.assertIn("TagSpecifications", create_lt_call_args)
         tag_specs = create_lt_call_args["TagSpecifications"]
 
-        # Should have tag specifications for both launch-template and instance
-        self.assertEqual(len(tag_specs), 2)
+        # Should have tag specifications only for launch-template (instance is not valid)
+        self.assertEqual(len(tag_specs), 1)
 
         # Check launch-template tags
         lt_tag_spec = next(
@@ -1348,40 +1348,14 @@ class TestEKSClient(unittest.TestCase):
         self.assertIn("created_at", lt_tags)
         self.assertIn("deletion_due_time", lt_tags)
 
-        # Check instance tags
-        instance_tag_spec = next(
-            (spec for spec in tag_specs if spec["ResourceType"] == "instance"), None
-        )
-        self.assertIsNotNone(
-            instance_tag_spec, "Instance tag specification should be present"
-        )
-
-        instance_tags = {tag["Key"]: tag["Value"] for tag in instance_tag_spec["Tags"]}
-        self.assertIn("Name", instance_tags)
-        self.assertIn("run_id", instance_tags)
-        self.assertIn("cluster_name", instance_tags)
-        self.assertIn("node_group_name", instance_tags)
-        self.assertIn("gpu_node_group", instance_tags)
-        self.assertIn("instance_type", instance_tags)
-        self.assertIn("capacity_type", instance_tags)
-        self.assertIn("scenario_name", instance_tags)
-        self.assertIn("scenario_type", instance_tags)
-        self.assertIn("created_at", instance_tags)
-        self.assertIn("deletion_due_time", instance_tags)
-
         # Verify the Name tag contains the node group name
         self.assertIn("test-tag-ng", lt_tags["Name"])
-        self.assertIn("test-tag-ng", instance_tags["Name"])
 
         # Verify specific tag values
         self.assertEqual(lt_tags["node_group_name"], "test-tag-ng")
-        self.assertEqual(instance_tags["node_group_name"], "test-tag-ng")
         self.assertEqual(lt_tags["instance_type"], "t3.medium")
-        self.assertEqual(instance_tags["instance_type"], "t3.medium")
         self.assertEqual(lt_tags["capacity_type"], "ON_DEMAND")
-        self.assertEqual(instance_tags["capacity_type"], "ON_DEMAND")
         self.assertEqual(lt_tags["gpu_node_group"], "False")
-        self.assertEqual(instance_tags["gpu_node_group"], "False")
 
     def test_create_launch_template_with_gpu_and_capacity_reservation_tags(self):
         """Test that launch template creation includes all required tags for GPU node groups with capacity reservations"""
@@ -1456,8 +1430,8 @@ class TestEKSClient(unittest.TestCase):
         self.assertIn("TagSpecifications", create_lt_call_args)
         tag_specs = create_lt_call_args["TagSpecifications"]
 
-        # Should have tag specifications for both launch-template and instance
-        self.assertEqual(len(tag_specs), 2)
+        # Should have tag specifications only for launch-template (instance is not valid)
+        self.assertEqual(len(tag_specs), 1)
 
         # Check launch-template tags
         lt_tag_spec = next(
@@ -1490,29 +1464,11 @@ class TestEKSClient(unittest.TestCase):
                 tag, lt_tags, f"Tag '{tag}' should be present in launch template tags"
             )
 
-        # Check instance tags
-        instance_tag_spec = next(
-            (spec for spec in tag_specs if spec["ResourceType"] == "instance"), None
-        )
-        self.assertIsNotNone(
-            instance_tag_spec, "Instance tag specification should be present"
-        )
-
-        instance_tags = {tag["Key"]: tag["Value"] for tag in instance_tag_spec["Tags"]}
-        for tag in required_tags:
-            self.assertIn(
-                tag, instance_tags, f"Tag '{tag}' should be present in instance tags"
-            )
-
         # Verify specific tag values for GPU and capacity reservation
         self.assertEqual(lt_tags["gpu_node_group"], "True")
-        self.assertEqual(instance_tags["gpu_node_group"], "True")
         self.assertEqual(lt_tags["capacity_type"], "CAPACITY_BLOCK")
-        self.assertEqual(instance_tags["capacity_type"], "CAPACITY_BLOCK")
         self.assertEqual(lt_tags["capacity_reservation_id"], "cr-gpu-123456789")
-        self.assertEqual(instance_tags["capacity_reservation_id"], "cr-gpu-123456789")
         self.assertEqual(lt_tags["instance_type"], "p3.2xlarge")
-        self.assertEqual(instance_tags["instance_type"], "p3.2xlarge")
 
     # ... existing tests ...
 

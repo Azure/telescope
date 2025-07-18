@@ -978,10 +978,6 @@ class EKSClient:
                     {
                         "ResourceType": "launch-template",
                         "Tags": tags,
-                    },
-                    {
-                        "ResourceType": "instance",
-                        "Tags": tags,
                     }
                 ],
                 LaunchTemplateData=launch_template_data,
