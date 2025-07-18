@@ -18,14 +18,14 @@ steps:
     script: |
       end_epoch=$(date +%s)
       start_epoch="$(${{ parameters.start_variable_name }})"
-      
+
       # Calculate duration in minutes
       duration_seconds=$((end_epoch - start_epoch))
       duration_minutes=$(echo "scale=2; $duration_seconds / 60" | bc -l)
-      
+
       echo "Step execution start time: $(date -d @$start_epoch -u)"
       echo "Step execution end time: $(date -u)"
       echo "Duration in minutes: $duration_minutes"
-      
+
       # Set variable for use in subsequent steps
       echo "##vso[task.setvariable variable=${{ parameters.duration_variable_name }}]$duration_minutes"

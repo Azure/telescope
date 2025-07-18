@@ -3,80 +3,80 @@ parameters:
     type: string
 
 steps:
-    - script: |
-        set -eo pipefail
+- script: |
+    set -eo pipefail
 
-        echo "Starting Kubernetes cost analysis collection..."
-        
-        echo "Deploying OpenCost service to cluster context: $CLUSTER_CONTEXT"
-        kubectl --context="$CLUSTER_CONTEXT" apply -f "$TERRAFORM_AZURE_MODULES_DIR/aks/cost-analysis/open-cost-service.yaml"
-        
-        echo "Waiting for OpenCost service to be available..."
-        kubectl --context="$CLUSTER_CONTEXT" wait --for=jsonpath='{.spec.clusterIP}' --timeout=60s service/opencost-service -n kube-system
-        
-        # Find a free port
-        FREE_PORT=$(python -c "import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()")
-        echo "Using port: $FREE_PORT"
+    echo "Starting Kubernetes cost analysis collection..."
 
-        echo "Starting port-forward to OpenCost service..."
-        kubectl --context="$CLUSTER_CONTEXT" port-forward service/opencost-service "$FREE_PORT:9003" -n kube-system &
-        PORT_FORWARD_PID=$!
+    echo "Deploying OpenCost service to cluster context: $CLUSTER_CONTEXT"
+    kubectl --context="$CLUSTER_CONTEXT" apply -f "$TERRAFORM_AZURE_MODULES_DIR/aks/cost-analysis/open-cost-service.yaml"
 
-        # Setup trap to cleanup port-forward on exit
-        trap 'kill $PORT_FORWARD_PID 2>/dev/null || true' EXIT
-        
-        # Wait for port-forward to be ready
-        echo "Waiting for port-forward to be ready..."
-        timeout 60 bash -c "until curl -s http://localhost:$FREE_PORT/healthz >/dev/null 2>&1; do sleep 5; done" || { echo "Error: Port-forward failed after 60 seconds"; exit 1; }
+    echo "Waiting for OpenCost service to be available..."
+    kubectl --context="$CLUSTER_CONTEXT" wait --for=jsonpath='{.spec.clusterIP}' --timeout=60s service/opencost-service -n kube-system
 
-        # Add buffer time for the test duration in minutes (ignore seconds)
-        test_duration_int=${TEST_DURATION_MINUTES%.*}
-        window=$((test_duration_int + 5))
+    # Find a free port
+    FREE_PORT=$(python -c "import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()")
+    echo "Using port: $FREE_PORT"
 
-        # Generate output file names with timestamp
-        timestamp=$(date +%s)
-        ALLOCATION_K8S_COST_FILE="${timestamp}_${SCENARIO_NAME}_${RUN_ID}_k8s_cost_allocation.json"
-        ASSETS_K8S_COST_FILE="${timestamp}_${SCENARIO_NAME}_${RUN_ID}_k8s_cost_assets.json"
+    echo "Starting port-forward to OpenCost service..."
+    kubectl --context="$CLUSTER_CONTEXT" port-forward service/opencost-service "$FREE_PORT:9003" -n kube-system &
+    PORT_FORWARD_PID=$!
 
-        echo "Running Python cost analysis script..."
-        echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
-          --window {$window}m \
-          --aggregate node \
-          --run-id $RUN_ID \
-          --metadata scenario_name=$SCENARIO_NAME \
-          --metadata scenario_stage_name=$SCENARIO_STAGE_NAME \
-          --allocation-output $RESULT_DIR/$ALLOCATION_K8S_COST_FILE \
-          --assets-output $RESULT_DIR/$ASSETS_K8S_COST_FILE \
-          --port $FREE_PORT"
+    # Setup trap to cleanup port-forward on exit
+    trap 'kill $PORT_FORWARD_PID 2>/dev/null || true' EXIT
 
-        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
-          --window "$window"m \
-          --aggregate node \
-          --run-id "$RUN_ID" \
-          --metadata scenario_name="$SCENARIO_NAME" \
-          --metadata scenario_stage_name="$SCENARIO_STAGE_NAME" \
-          --allocation-output "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE" \
-          --assets-output "$RESULT_DIR/$ASSETS_K8S_COST_FILE" \
-          --port "$FREE_PORT"
-    
-        echo "Allocation Costs:"
-        cat "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
-        echo "Assets:"
-        cat "$RESULT_DIR/$ASSETS_K8S_COST_FILE"
+    # Wait for port-forward to be ready
+    echo "Waiting for port-forward to be ready..."
+    timeout 60 bash -c "until curl -s http://localhost:$FREE_PORT/healthz >/dev/null 2>&1; do sleep 5; done" || { echo "Error: Port-forward failed after 60 seconds"; exit 1; }
 
-        echo "Cost analysis collection completed successfully"
-        echo "##vso[task.setvariable variable=ALLOCATION_K8S_COST_FILE_PATH]$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
-        echo "##vso[task.setvariable variable=ASSETS_K8S_COST_FILE_PATH]$RESULT_DIR/$ASSETS_K8S_COST_FILE"
-      workingDirectory: modules/python
-      condition: eq(variables.collect_k8s_cost, 'true')
-      displayName: "Collect kubernetes cost"
-      continueOnError: true
-      env:
-        PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/cost_analysis/opencost_live_exporter.py
-        RESULT_DIR: $(TEST_RESULTS_DIR)
-        RUN_ID: $(RUN_ID)
-        SCENARIO_NAME: $(SCENARIO_NAME)
-        SCENARIO_STAGE_NAME: $(System.JobDisplayName)
-        TEST_DURATION_MINUTES: $(EXECUTE_STEP_DURATION_MINUTES)
-        CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
-        TERRAFORM_AZURE_MODULES_DIR: $(Pipeline.Workspace)/s/modules/terraform/azure
+    # Add buffer time for the test duration in minutes (ignore seconds)
+    test_duration_int=${TEST_DURATION_MINUTES%.*}
+    window=$((test_duration_int + 5))
+
+    # Generate output file names with timestamp
+    timestamp=$(date +%s)
+    ALLOCATION_K8S_COST_FILE="${timestamp}_${SCENARIO_NAME}_${RUN_ID}_k8s_cost_allocation.json"
+    ASSETS_K8S_COST_FILE="${timestamp}_${SCENARIO_NAME}_${RUN_ID}_k8s_cost_assets.json"
+
+    echo "Running Python cost analysis script..."
+    echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
+      --window {$window}m \
+      --aggregate node \
+      --run-id $RUN_ID \
+      --metadata scenario_name=$SCENARIO_NAME \
+      --metadata scenario_stage_name=$SCENARIO_STAGE_NAME \
+      --allocation-output $RESULT_DIR/$ALLOCATION_K8S_COST_FILE \
+      --assets-output $RESULT_DIR/$ASSETS_K8S_COST_FILE \
+      --port $FREE_PORT"
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
+      --window "$window"m \
+      --aggregate node \
+      --run-id "$RUN_ID" \
+      --metadata scenario_name="$SCENARIO_NAME" \
+      --metadata scenario_stage_name="$SCENARIO_STAGE_NAME" \
+      --allocation-output "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE" \
+      --assets-output "$RESULT_DIR/$ASSETS_K8S_COST_FILE" \
+      --port "$FREE_PORT"
+
+    echo "Allocation Costs:"
+    cat "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
+    echo "Assets:"
+    cat "$RESULT_DIR/$ASSETS_K8S_COST_FILE"
+
+    echo "Cost analysis collection completed successfully"
+    echo "##vso[task.setvariable variable=ALLOCATION_K8S_COST_FILE_PATH]$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
+    echo "##vso[task.setvariable variable=ASSETS_K8S_COST_FILE_PATH]$RESULT_DIR/$ASSETS_K8S_COST_FILE"
+  workingDirectory: modules/python
+  condition: eq(variables.collect_k8s_cost, 'true')
+  displayName: "Collect kubernetes cost"
+  continueOnError: true
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/cost_analysis/opencost_live_exporter.py
+    RESULT_DIR: $(TEST_RESULTS_DIR)
+    RUN_ID: $(RUN_ID)
+    SCENARIO_NAME: $(SCENARIO_NAME)
+    SCENARIO_STAGE_NAME: $(System.JobDisplayName)
+    TEST_DURATION_MINUTES: $(EXECUTE_STEP_DURATION_MINUTES)
+    CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
+    TERRAFORM_AZURE_MODULES_DIR: $(Pipeline.Workspace)/s/modules/terraform/azure
