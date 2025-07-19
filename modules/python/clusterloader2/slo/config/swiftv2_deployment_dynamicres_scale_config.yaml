@@ -115,7 +115,7 @@ steps:
           timeout: 90s
   - name: Wait for curl command to be done -{{$j}}
     measurements:
-    - Identifier: Dummy-{{$j}}
+    - Identifier: Curl_Dummy-{{$j}}
       Method: Sleep
       Params:
         action: start
