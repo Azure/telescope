@@ -95,6 +95,13 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
+  - name: Wait for network readiness -{{$j}}
+    measurements:
+    - Identifier: NetworkReadiness-{{$j}}
+      Method: Sleep
+      Params:
+        action: start
+        duration: 30s  # Allow more time for network setup
   - name: Starting measurement Pod Curl Command -{{$j}}
     measurements:
     - Identifier: PodPeriodicCommand-{{$j}}
@@ -111,15 +118,15 @@ steps:
         commands:
         - name: CustPodCurl
           # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
-          command: ["/bin/sh", "-c", "curl --retry 3 --retry-delay 10 --max-time 15 172.27.0.30"]
-          timeout: 90s
+          command: ["/bin/sh", "-c", "curl --retry 5 --retry-delay 15 --max-time 30 172.27.0.30"]
+          timeout: 180s
   - name: Wait for curl command to be done -{{$j}}
     measurements:
     - Identifier: Curl_Dummy-{{$j}}
       Method: Sleep
       Params:
         action: start
-        duration: 120s
+        duration: 250s
   - name: Ending measurement Pod Curl Command -{{$j}}
     measurements:
     - Identifier: PodPeriodicCommand-{{$j}}
