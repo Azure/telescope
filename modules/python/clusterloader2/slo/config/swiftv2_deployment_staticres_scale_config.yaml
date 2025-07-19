@@ -56,13 +56,13 @@ steps:
               ReservationSize: {{$nodesPerStep}}
   - name: Wait for PNI to be created and nodes to be registered -{{$j}}
     measurements:
-      - Identifier: Dummy
+      - Identifier: PNI_sleep_Dummy-{{$j}}
         Method: Sleep
         Params:
           duration: 60s
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
-    - Identifier: WaitForControlledPodsRunning
+    - Identifier: WaitForControlledPodsRunning-{{$j}}
       Method: WaitForControlledPodsRunning
       Params:
         action: start
@@ -90,7 +90,7 @@ steps:
               pniName: pod-network-instance-{{$j}}-0
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
-    - Identifier: WaitForControlledPodsRunning
+    - Identifier: WaitForControlledPodsRunning-{{$j}}
       Method: WaitForControlledPodsRunning
       Params:
         action: gather
@@ -100,7 +100,7 @@ steps:
         operationTimeout: {{$operationTimeout}}
   - name: Starting measurement Pod Curl Command -{{$j}}
     measurements:
-    - Identifier: PodPeriodicCommand
+    - Identifier: PodPeriodicCommand-{{$j}}
       Method: PodPeriodicCommand
       Params:
         action: start
@@ -118,14 +118,14 @@ steps:
           timeout: 90s
   - name: Wait for curl command to be done -{{$j}}
     measurements:
-    - Identifier: Dummy
+    - Identifier: Curl_Dummy-{{$j}}
       Method: Sleep
       Params:
         action: start
         duration: 120s
   - name: Ending measurement Pod Curl Command -{{$j}}
     measurements:
-    - Identifier: PodPeriodicCommand
+    - Identifier: PodPeriodicCommand-{{$j}}
       Method: PodPeriodicCommand
       Params:
         action: gather
