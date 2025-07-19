@@ -3,6 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
+  collect_k8s_cost: true
 
 stages:
   - stage: azure_eastus2_small_scale
@@ -20,7 +21,7 @@ stages:
           matrix:
             small-scale-on-demand:
               cpu_per_node: 4
-              node_count: 5
+              node_count: 1
               pod_count: 10
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
@@ -30,7 +31,6 @@ stages:
               warmup_deployment: true
               vm_size: Standard_D4_v5
               capacity_type: on-demand
-              collect_k8s_cost: true
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
