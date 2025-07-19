@@ -97,7 +97,9 @@ def get_measurement(file_path):
 
 def process_cl2_reports(cl2_report_dir, template):
     content = ""
+    print("i am here")
     for f in os.listdir(cl2_report_dir):
+        print("testing")
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, "r", encoding="utf-8") as file:
             logger.info(f"Processing {file_path}")
