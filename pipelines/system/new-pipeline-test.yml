@@ -448,20 +448,20 @@ stages:
           #     ds_test: True
           #     test_type: Burst_DynamicRes_Nodes=50
           #     cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            # azure_swiftv2_burst_dynamicres_pods=100_nodes=100:
-            #   cpu_per_node: 4
-            #   node_count: 100
-            #   node_per_step: 100
-            #   max_pods: 1
-            #   repeats: 1
-            #   scale_timeout: "30m"
-            #   node_label: slo=true
-            #   cilium_enabled: False
-            #   scrape_containerd: False
-            #   service_test: False
-            #   ds_test: True
-            #   test_type: Burst_DynamicRes_Nodes=100
-            #   cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+            azure_swiftv2_burst_dynamicres_pods=100_nodes=100:
+              cpu_per_node: 4
+              node_count: 100
+              node_per_step: 100
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: Burst_DynamicRes_Nodes=100
+              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
           #   azure_swiftv2_burst_dynamicres_pods=200_nodes=200:
           #     cpu_per_node: 4
           #     node_count: 200
@@ -549,20 +549,20 @@ stages:
           #     ds_test: True
           #     test_type: Burst_StaticRes_Nodes=50
           #     cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            # azure_swiftv2_burst_staticres_pods=100_nodes=100:
-            #   cpu_per_node: 4
-            #   node_count: 100
-            #   node_per_step: 100
-            #   max_pods: 1
-            #   repeats: 1
-            #   scale_timeout: "30m"
-            #   node_label: slo=true
-            #   cilium_enabled: False
-            #   scrape_containerd: False
-            #   service_test: False
-            #   ds_test: True
-            #   test_type: Burst_StaticRes_Nodes=100
-            #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+            azure_swiftv2_burst_staticres_pods=100_nodes=100:
+              cpu_per_node: 4
+              node_count: 100
+              node_per_step: 100
+              max_pods: 1
+              repeats: 1
+              scale_timeout: "30m"
+              node_label: slo=true
+              cilium_enabled: False
+              scrape_containerd: False
+              service_test: False
+              ds_test: True
+              test_type: Burst_StaticRes_Nodes=100
+              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
           #   azure_swiftv2_burst_staticres_pods=200_nodes=200:
           #     cpu_per_node: 4
           #     node_count: 200
