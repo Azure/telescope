@@ -167,6 +167,8 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
     Timestamp: datetime,
     CollectionTime: datetime,
     Source: string,
+    RunId: string,
+    Metadata: dynamic,
     AllocationName: string,
     WindowStart: string,
     WindowEnd: string,
@@ -203,6 +205,8 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
     Timestamp: datetime,
     CollectionTime: datetime,
     Source: string,
+    RunId: string,
+    Metadata: dynamic,
     AssetName: string,
     WindowStart: string,
     WindowEnd: string,
@@ -260,6 +264,19 @@ OpenCostAssets
 | summarize TotalCost = sum(TotalCost) by Type
 | order by TotalCost desc
 
+// Filter by specific run ID (now a dedicated field)
+OpenCostAllocation
+| where RunId == "test-run-123"
+| summarize TotalCost = sum(TotalCost) by Namespace
+
+// Query with additional metadata filtering
+OpenCostAllocation
+| where Timestamp > ago(1h)
+| where RunId != ""  // Filter records with run ID
+| extend Environment = tostring(Metadata.environment)
+| where Environment == "production"
+| summarize TotalCost = sum(TotalCost) by RunId
+
 // Combined infrastructure and workload costs
 OpenCostAllocation
 | where Timestamp > ago(1h)
@@ -272,10 +289,10 @@ OpenCostAllocation
 | project Timestamp, WorkloadCost, InfraCost, TotalCost = WorkloadCost + InfraCost
 | render timechart
 
-// Efficiency analysis
+// Efficiency analysis by run ID
 OpenCostAllocation
-| where Timestamp > ago(1h)
-| summarize AvgCpuEff = avg(CpuEfficiency), AvgRamEff = avg(RamEfficiency) by Container
+| where Timestamp > ago(1h) and RunId != ""
+| summarize AvgCpuEff = avg(CpuEfficiency), AvgRamEff = avg(RamEfficiency) by RunId, Container
 | order by AvgCpuEff desc
 ```
 

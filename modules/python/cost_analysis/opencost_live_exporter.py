@@ -51,16 +51,19 @@ SUPPORTED_WINDOW_FORMATS = [
 class OpenCostLiveExporter:
     """Live data exporter for OpenCost API"""
 
-    def __init__(self, endpoint: str = "http://localhost:9003", metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, endpoint: str = "http://localhost:9003", run_id: str = "", metadata: Optional[Dict[str, Any]] = None):
         """
         Initialize the OpenCost Live Exporter
         
         Args:
             endpoint: OpenCost API endpoint
-            metadata: Optional metadata to include in exports (e.g., run_id, test_name, etc.)
+            run_id: Run ID for tracking exports across multiple calls
+            metadata: Optional metadata to include in exports (e.g., test_name, environment, etc.)
         """
         self.endpoint = endpoint.rstrip('/')
+        self.run_id = run_id
         self.metadata = metadata or {}
+
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
@@ -185,7 +188,8 @@ class OpenCostLiveExporter:
                     'Timestamp': datetime.now().isoformat(),
                     'CollectionTime': collection_time.isoformat(),
                     'Source': self.endpoint,
-                    **{f'_{k}': v for k, v in self.metadata.items()},  # Add custom metadata with _ prefix
+                    'RunId': self.run_id,  # Use self.run_id attribute
+                    'Metadata': json.dumps(self.metadata) if self.metadata else "{}",  # Metadata without run_id
                     'AllocationName': allocation_name,
                     'WindowStart': allocation_data.get('start', ''),
                     'WindowEnd': allocation_data.get('end', ''),
@@ -317,7 +321,8 @@ class OpenCostLiveExporter:
                 'Timestamp': datetime.now().isoformat(),
                 'CollectionTime': collection_time.isoformat(),
                 'Source': f"{self.endpoint}/assets",
-                **{f'_{k}': v for k, v in self.metadata.items()},  # Add custom metadata with _ prefix
+                'RunId': self.run_id,  # Use self.run_id attribute
+                'Metadata': json.dumps(self.metadata) if self.metadata else "{}",  # Metadata without run_id
                 'AssetName': asset_name,
                 'WindowStart': asset_data.get('start', ''),
                 'WindowEnd': asset_data.get('end', ''),
@@ -460,11 +465,7 @@ def main():
         # Process metadata
         metadata = {}
 
-        # Add run_id if provided
-        if args.run_id:
-            metadata['run_id'] = args.run_id
-
-        # Process additional metadata
+        # Process additional metadata (run_id will be passed separately)
         if args.metadata:
             for meta_item in args.metadata:
                 if '=' in meta_item:
@@ -485,7 +486,11 @@ def main():
             else:
                 endpoint = f"http://localhost:{args.port}"
 
-        exporter = OpenCostLiveExporter(endpoint=endpoint, metadata=metadata)
+        exporter = OpenCostLiveExporter(
+            endpoint=endpoint,
+            run_id=args.run_id or "",
+            metadata=metadata
+        )
 
         # Always export both allocation and assets data
         logger.info("Exporting both allocation and assets data")
