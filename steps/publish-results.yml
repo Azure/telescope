@@ -33,3 +33,8 @@ steps:
   parameters:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
+
+- template: /steps/publish-costs.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    credential_type: ${{ parameters.credential_type }}
