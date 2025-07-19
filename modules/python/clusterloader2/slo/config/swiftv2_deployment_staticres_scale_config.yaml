@@ -24,9 +24,8 @@ tuningSets:
     qpsLoad:
       qps: 1
 
-
 steps:
-  - name: Log - steps={{$steps}},  nodes={{$nodes}}, deploymentQPS=1
+  - name: Log - steps={{$steps}}, nodes={{$nodes}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
