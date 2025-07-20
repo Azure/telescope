@@ -9,7 +9,7 @@ parameters:
   type: object
   default: {}
 
-steps:
+#steps:
 # - template: /steps/engine/clusterloader2/autoscale/execute.yml
 #   parameters:
 #     cloud: ${{ parameters.cloud }}
