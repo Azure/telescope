@@ -22,6 +22,7 @@ steps:
   displayName: "Debug: Condition = FALSE - Upload steps will NOT run"
   condition: ne(variables['collect_k8s_cost'], 'true')
 
+- template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
     source_file_name: $(ALLOCATION_K8S_COST_FILE_PATH)
     subfolder: $(SCENARIO_TYPE)/$(SCENARIO_NAME)/k8s-cost-analysis/allocation/$(Build.SourceBranchName)
