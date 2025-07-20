@@ -19,6 +19,7 @@ NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus",
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
+JOB_LIFECYCLE_LATENCY_PREFIX = "JobLifecycleLatency"
 
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
@@ -83,6 +84,9 @@ def get_measurement(file_path):
         if file_name.startswith(file_prefix):
             group_name = file_name.split("_")[1]
             return file_prefix, group_name
+    if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
+        group_name = file_name.split("_")[1]
+        return measurement,group_name
     if file_name.startswith(PROM_QUERY_PREFIX):
         group_name = file_name.split("_")[1]
         measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
