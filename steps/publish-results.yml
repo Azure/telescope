@@ -38,3 +38,4 @@ steps:
   parameters:
     cloud: ${{ parameters.cloud }}
     credential_type: ${{ parameters.credential_type }}
+    collect_k8s_cost: $(collect_k8s_cost)

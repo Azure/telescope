@@ -3,11 +3,18 @@ parameters:
   type: string
 - name: credential_type
   type: string
+- name: collect_k8s_cost
+  type: string
+  default: 'false'
 
 steps:
 # Debug: Always show the variable value
 - script: echo "collect_k8s_cost variable value is '$(collect_k8s_cost)'"
-  displayName: "Debug: Show collect_k8s_cost value"
+  displayName: "Debug: Show collect_k8s_cost variable value"
+
+# Debug: Show the parameter value
+- script: echo "collect_k8s_cost parameter value is '${{ parameters.collect_k8s_cost }}'"
+  displayName: "Debug: Show collect_k8s_cost parameter value"
 
 # Debug: Show if condition evaluation result
 - script: echo "Template condition evaluated to include upload steps"
@@ -18,7 +25,7 @@ steps:
   displayName: "Debug: Condition = FALSE - Upload steps will NOT run"
   condition: ne(variables['collect_k8s_cost'], 'true')
 
-- ${{ if eq(variables.collect_k8s_cost, 'true') }}:
+- ${{ if eq(parameters.collect_k8s_cost, 'true') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ALLOCATION_K8S_COST_FILE_PATH)
@@ -28,7 +35,7 @@ steps:
       cloud: ${{ parameters.cloud }}
       upload_type: "Cost Results - Allocation"
 
-- ${{ if eq(variables.collect_k8s_cost, 'true') }}:
+- ${{ if eq(parameters.collect_k8s_cost, 'true') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ASSETS_K8S_COST_FILE_PATH)
