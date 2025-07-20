@@ -9,10 +9,6 @@ steps:
 - script: echo "collect_k8s_cost variable value is '$(collect_k8s_cost)'"
   displayName: "Debug: Show collect_k8s_cost variable value"
 
-# Debug: Show the parameter value
-- script: echo "collect_k8s_cost parameter value is '${{ parameters.collect_k8s_cost }}'"
-  displayName: "Debug: Show collect_k8s_cost parameter value"
-
 # Debug: Show if condition evaluation result
 - script: echo "Template condition evaluated to include upload steps"
   displayName: "Debug: Condition = TRUE - Upload steps will run"
