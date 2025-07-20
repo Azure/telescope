@@ -36,4 +36,4 @@ steps:
     SUBFOLDER: ${{ parameters.subfolder }}
     CONTAINER_NAME: ${{ parameters.container_name}}
     STORAGE_ACCOUNT_NAME: ${{ parameters.storage_account_name }}
-  condition: and(always(), eq(parameters.custom_condition, true))
+  condition: and(always(), ${{ eq(parameters.custom_condition, true) }})
