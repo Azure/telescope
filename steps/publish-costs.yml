@@ -26,7 +26,7 @@ steps:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
     upload_type: "Cost Results - Allocation"
-    custom_condition: eq(variables['collect_k8s_cost'], true)
+    custom_condition: eq(variables['collect_k8s_cost'], 'true')
 
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
@@ -36,4 +36,4 @@ steps:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
     upload_type: "Cost Results - Assets"
-    custom_condition: eq(variables['collect_k8s_cost'], false)
+    custom_condition: eq(variables['collect_k8s_cost'], 'false')
