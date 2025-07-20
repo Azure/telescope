@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
-  collect_k8s_cost: true
+  collect_k8s_cost: 'true'
 
 stages:
   - stage: azure_eastus2_small_scale
