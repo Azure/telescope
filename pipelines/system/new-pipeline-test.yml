@@ -18,6 +18,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
+          publish_k8s_cost: true
           matrix:
             small-scale-on-demand:
               cpu_per_node: 4
