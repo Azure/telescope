@@ -75,7 +75,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "default-ng"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.large"]
       min_size       = 2
       max_size       = 2
