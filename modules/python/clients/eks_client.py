@@ -97,6 +97,7 @@ class EKSClient:
         self.vm_size = None
         self.launch_template_id = None
         self.k8s_version = None
+        self.k8s_version = None
 
         try:
             self.eks = boto3.client("eks", region_name=self.region)

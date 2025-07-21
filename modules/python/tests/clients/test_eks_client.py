@@ -67,6 +67,7 @@ class TestEKSClient(unittest.TestCase):
         self.mock_eks.list_clusters.return_value = {"clusters": ["test-cluster-123"]}
         self.mock_eks.describe_cluster.return_value = {
             "cluster": {"tags": {"run_id": "test-run-123"}, "version": "1.29"}
+            "cluster": {"tags": {"run_id": "test-run-123"}, "version": "1.29"}
         }
 
         # Mock subnets response
