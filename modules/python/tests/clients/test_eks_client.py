@@ -1539,10 +1539,43 @@ class TestEKSClient(unittest.TestCase):
         eks_client.k8s_version = None
         
         # Execute and verify it raises an appropriate error
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError) as context:
             eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        
+        # Verify the error message is informative
+        self.assertIn("Kubernetes version is not set", str(context.exception))
 
-    # ... existing tests ...
+    def test_get_ami_type_with_k8s_version_invalid_format(self):
+        """Test AMI type selection with invalid version format"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "invalid-version"
+        
+        # Execute and verify it raises an appropriate error
+        with self.assertRaises(ValueError) as context:
+            eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        
+        # Verify the error message mentions the invalid format
+        self.assertIn("Invalid Kubernetes version format", str(context.exception))
+        self.assertIn("invalid-version", str(context.exception))
+
+    def test_get_ami_type_with_k8s_version_logging(self):
+        """Test that AMI type selection includes proper logging"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "1.30"
+        
+        with self.assertLogs('clients.eks_client', level='INFO') as log:
+            # Execute
+            ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+            
+            # Verify result
+            self.assertEqual(ami_type, "AL2_x86_64_GPU")
+            
+            # Verify logging
+            log_messages = ' '.join(log.output)
+            self.assertIn("Determining AMI type for Kubernetes version: 1.30", log_messages)
+            self.assertIn("Selected AMI type: AL2_x86_64_GPU", log_messages)
 
 
 if __name__ == "__main__":

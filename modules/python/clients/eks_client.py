@@ -1085,20 +1085,36 @@ class EKSClient:
 
         Returns:
             The AMI type string
-        """
 
-        # Determine AMI type based on Kubernetes version and GPU requirement
-        k8s_version_numeric = float(self.k8s_version)
-        logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
-        if k8s_version_numeric < 1.33:
-            # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
-            if gpu_node_group:
-                return "AL2_x86_64_GPU"
+        Raises:
+            ValueError: If k8s_version is None or cannot be parsed
+        """
+        if self.k8s_version is None:
+            raise ValueError("Kubernetes version is not set. Cannot determine AMI type.")
+
+        try:
+            # Determine AMI type based on Kubernetes version and GPU requirement
+            k8s_version_numeric = float(self.k8s_version)
+            logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
+            
+            if k8s_version_numeric < 1.33:
+                # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
+                if gpu_node_group:
+                    ami_type = "AL2_x86_64_GPU"
+                else:
+                    ami_type = "AL2_x86_64"
             else:
-                return "AL2_x86_64"
-        else:
-            # For Kubernetes versions >= 1.33, use AL2023_x86_64_NVIDIA for GPU and AL2023_x86_64 for non-GPU
-            if gpu_node_group:
-                return "AL2023_x86_64_NVIDIA"
-            else:
-                return "AL2023_x86_64_STANDARD"
+                # For Kubernetes versions >= 1.33, use AL2023_x86_64_NVIDIA for GPU and AL2023_x86_64 for non-GPU
+                if gpu_node_group:
+                    ami_type = "AL2023_x86_64_NVIDIA"
+                else:
+                    ami_type = "AL2023_x86_64_STANDARD"
+
+            logger.info("Selected AMI type: %s for k8s version %s (GPU: %s)", 
+                       ami_type, self.k8s_version, gpu_node_group)
+            return ami_type
+            
+        except (ValueError, TypeError) as e:
+            error_msg = f"Invalid Kubernetes version format '{self.k8s_version}': {str(e)}"
+            logger.error(error_msg)
+            raise ValueError(error_msg) from e
