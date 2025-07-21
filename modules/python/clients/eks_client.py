@@ -17,7 +17,6 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 import json
-from decimal import Decimal
 
 # Third party imports
 import boto3
@@ -329,7 +328,7 @@ class EKSClient:
                     "subnets": self.subnets,
                     "capacityType": capacity_type,
                     "nodeRole": self.node_role_arn,
-                    "amiType": self.get_AMI_type_with_k8s_version(gpu_node_group=gpu_node_group),
+                    "amiType": self.get_ami_type_with_k8s_version(gpu_node_group=gpu_node_group),
                     "labels": {
                         "cluster-name": self.cluster_name,
                         "nodegroup-name": node_group_name,
@@ -1074,7 +1073,7 @@ class EKSClient:
             )
             raise
 
-    def get_AMI_type_with_k8s_version(
+    def get_ami_type_with_k8s_version(
         self, gpu_node_group: bool = False,
     ) -> str:
         """
@@ -1096,7 +1095,7 @@ class EKSClient:
             # Determine AMI type based on Kubernetes version and GPU requirement
             k8s_version_numeric = float(self.k8s_version)
             logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
-            
+
             if k8s_version_numeric < 1.33:
                 # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
                 if gpu_node_group:
@@ -1110,10 +1109,10 @@ class EKSClient:
                 else:
                     ami_type = "AL2023_x86_64_STANDARD"
 
-            logger.info("Selected AMI type: %s for k8s version %s (GPU: %s)", 
+            logger.info("Selected AMI type: %s for k8s version %s (GPU: %s)",
                        ami_type, self.k8s_version, gpu_node_group)
             return ami_type
-            
+
         except (ValueError, TypeError) as e:
             error_msg = f"Invalid Kubernetes version format '{self.k8s_version}': {str(e)}"
             logger.error(error_msg)
