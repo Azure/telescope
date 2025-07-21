@@ -1,22 +1,22 @@
 parameters:
-  action:
+  - name: action
     type: string
     default: "apply"
-  cluster_context:
+  - name: cluster_context
     type: string
     default: ""
-  manifest_file:
+  - name: manifest_file
     type: string
-  namespace:
+  - name: namespace
     type: string
     default: default
-  wait_resource:
+  - name: wait_resource
     type: string
     default: pod
-  wait_condition:
+  - name: wait_condition
     type: string
     default: "condition=Ready"
-  timeout:
+  - name: timeout
     type: string
     default: 60s
 
