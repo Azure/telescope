@@ -298,7 +298,7 @@ class EKSClient:
         # Prepare operation metadata
         metadata = {
             "cluster_name": self.cluster_name,
-            "instance_type": instance_type,
+            "vm_size": instance_type,
             "node_count": node_count,
             "gpu_node_group": gpu_node_group,
             "capacity_type": capacity_type,
@@ -378,7 +378,6 @@ class EKSClient:
                     if reservation_id:
                         op.add_metadata("capacity_reservation_id", reservation_id)
                     op.add_metadata("launch_template_id", launch_template["id"])
-                    op.add_metadata("vm_size", self.vm_size)
 
                     if reservation_id:
                         logger.info(
@@ -993,10 +992,6 @@ class EKSClient:
                     {
                         "ResourceType": "launch-template",
                         "Tags": tags,
-                    },
-                    {
-                        "ResourceType": "instance",
-                        "Tags": tags,  # Apply same tags to instances launched from this template
                     },
                 ],
                 LaunchTemplateData=launch_template_data,
