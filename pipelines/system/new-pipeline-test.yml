@@ -15,8 +15,8 @@ variables:
   ds_test: True
 
 stages:
-  - stage: swiftv2_dynamicres_gradual
-    displayName: 'Swift V2 - Dynamic Resource Gradual Tests'
+  - stage: dynamicres_gradual
+    displayName: 'Dynamic Gradual'
     dependsOn: []
     jobs:
       - template: /pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml
@@ -33,8 +33,8 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: swiftv2_dynamicres_burst
-    displayName: 'Swift V2 - Dynamic Resource Burst Tests'
+  - stage: dynamicres_burst
+    displayName: 'Dynamic Burst'
     dependsOn: []
     jobs:
       - template: /pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
@@ -51,8 +51,8 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: swiftv2_staticres_gradual
-    displayName: 'Swift V2 - Static Resource Gradual Tests'
+  - stage: staticres_gradual
+    displayName: 'Static Gradual'
     dependsOn: []
     jobs:
       - template: /pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
@@ -69,8 +69,8 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: swiftv2_staticres_burst
-    displayName: 'Swift V2 - Static Resource Burst Tests'
+  - stage: staticres_burst
+    displayName: 'Static Burst'
     dependsOn: []
     jobs:
       - template: /pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
