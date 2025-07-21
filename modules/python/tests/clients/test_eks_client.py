@@ -67,7 +67,6 @@ class TestEKSClient(unittest.TestCase):
         self.mock_eks.list_clusters.return_value = {"clusters": ["test-cluster-123"]}
         self.mock_eks.describe_cluster.return_value = {
             "cluster": {"tags": {"run_id": "test-run-123"}, "version": "1.29"}
-            "cluster": {"tags": {"run_id": "test-run-123"}, "version": "1.29"}
         }
 
         # Mock subnets response
@@ -1128,25 +1127,37 @@ class TestEKSClient(unittest.TestCase):
         }
 
         # Progressive scaling from 2 to 6 with step size 2 creates steps: [4, 6]
-        # Each step calls scale_node_group which calls get_node_group multiple times
-        # Progressive flow: initial check + (step1: check + metadata + prog_metadata) + (step2: check + metadata + prog_metadata)
+        # Each step calls scale_node_group which calls get_node_group
+        # Need enough responses for: initial + step1 + step2 calls
 
         # Mock the methods that are called internally
         eks_client.get_node_group = mock.Mock()
-        # Provide enough responses for all get_node_group calls:
-        # 1. Initial check
-        # 2-4. Step 1 (check current, metadata after scale, progressive metadata) 
-        # 5-7. Step 2 (check current, metadata after scale, progressive metadata)
         eks_client.get_node_group.side_effect = [
             current_nodegroup,  # Initial call to get current state
-            # Step 1: scale to 4 nodes
-            {"scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Check current
-            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # After scale metadata
-            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Progressive metadata
-            # Step 2: scale to 6 nodes  
-            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Check current
-            {"scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # After scale metadata
-            {"scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Progressive metadata
+            {
+                "scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # Before step 1
+            {
+                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # After step 1
+             {
+                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },
+            {
+                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # Before step 2
+            {
+                "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },  # Final state
+            {
+                "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            }
         ]
 
         # Mock ready nodes for each step
