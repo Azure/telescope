@@ -1477,7 +1477,7 @@ class TestEKSClient(unittest.TestCase):
         eks_client.k8s_version = "1.29"
 
         # Execute
-        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
 
         # Verify
         self.assertEqual(ami_type, "AL2_x86_64")
@@ -1489,7 +1489,7 @@ class TestEKSClient(unittest.TestCase):
         eks_client.k8s_version = "1.32"
 
         # Execute
-        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
 
         # Verify
         self.assertEqual(ami_type, "AL2_x86_64_GPU")
@@ -1501,7 +1501,7 @@ class TestEKSClient(unittest.TestCase):
         eks_client.k8s_version = "1.33"
 
         # Execute
-        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
 
         # Verify
         self.assertEqual(ami_type, "AL2023_x86_64_STANDARD")
@@ -1513,7 +1513,7 @@ class TestEKSClient(unittest.TestCase):
         eks_client.k8s_version = "1.34"
 
         # Execute
-        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
 
         # Verify
         self.assertEqual(ami_type, "AL2023_x86_64_NVIDIA")
@@ -1525,10 +1525,10 @@ class TestEKSClient(unittest.TestCase):
         eks_client.k8s_version = "1.33"
 
         # Execute - Test both GPU and non-GPU for boundary case
-        ami_type_non_gpu = eks_client.get_AMI_type_with_k8s_version(
+        ami_type_non_gpu = eks_client.get_ami_type_with_k8s_version(
             gpu_node_group=False
         )
-        ami_type_gpu = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+        ami_type_gpu = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
 
         # Verify
         self.assertEqual(ami_type_non_gpu, "AL2023_x86_64_STANDARD")
@@ -1542,7 +1542,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Execute and verify it raises an appropriate error
         with self.assertRaises(ValueError) as context:
-            eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+            eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
 
         # Verify the error message is informative
         self.assertIn("Kubernetes version is not set", str(context.exception))
@@ -1555,7 +1555,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Execute and verify it raises an appropriate error
         with self.assertRaises(ValueError) as context:
-            eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+            eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
 
         # Verify the error message mentions the invalid format
         self.assertIn("Invalid Kubernetes version format", str(context.exception))
@@ -1569,7 +1569,7 @@ class TestEKSClient(unittest.TestCase):
 
         with self.assertLogs("clients.eks_client", level="INFO") as log:
             # Execute
-            ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+            ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
 
             # Verify result
             self.assertEqual(ami_type, "AL2_x86_64_GPU")
