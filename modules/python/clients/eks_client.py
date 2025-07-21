@@ -1108,11 +1108,11 @@ class EKSClient:
             clean_version = self.k8s_version.strip()
             if '.' not in clean_version or len(clean_version.split('.')) == 2:
                 clean_version = f"{clean_version}.0"
-            
+
             # Use semver to compare with 1.33.0
             current_k8s_version = semver.Version.parse(clean_version)
             threshold_k8s_version = semver.Version.parse("1.33.0")
-            
+
             if current_k8s_version < threshold_k8s_version:  # Current version < 1.33
                 # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
                 if gpu_node_group:
