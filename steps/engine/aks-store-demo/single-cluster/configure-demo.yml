@@ -5,7 +5,7 @@ parameters:
   - name: regions
     type: object
     default: {}
-  - action:
+  - name: action
     type: string
     default: "deploy"
 
