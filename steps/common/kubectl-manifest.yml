@@ -38,7 +38,7 @@ steps:
   displayName: "Apply kubectl manifest"
   env:
     ACTION: ${{ parameters.action }}
-    MANIFEST_FILE: $(manifest_file)
+    MANIFEST_FILE: ${{ parameters.manifest_file }}
     CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
     NAMESPACE: ${{ parameters.namespace }}
     WAIT_RESOURCE: ${{ parameters.wait_resource }}
