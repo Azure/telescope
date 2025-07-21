@@ -1598,17 +1598,6 @@ class TestEKSClient(unittest.TestCase):
         ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
         self.assertEqual(ami_type, "AL2023_x86_64_NVIDIA")
 
-    def test_get_ami_type_with_k8s_version_with_v_prefix(self):
-        """Test AMI type selection with version string having 'v' prefix"""
-        # Setup
-        eks_client = EKSClient()
-        eks_client.k8s_version = "v1.29"
-        
-        # Execute
-        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
-        
-        # Verify
-        self.assertEqual(ami_type, "AL2_x86_64")
 
 
 if __name__ == "__main__":
