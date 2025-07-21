@@ -34,8 +34,7 @@ steps:
     if [ "$ACTION" = "apply" ] && [ -n "$WAIT_CONDITION" ] && [ -n "$WAIT_RESOURCE" ]; then
       kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
     fi
-
-  displayName: "Apply kubectl manifest"
+  displayName: "${{ parameters.action }} kubectl manifest"
   env:
     ACTION: ${{ parameters.action }}
     MANIFEST_FILE: ${{ parameters.manifest_file }}
