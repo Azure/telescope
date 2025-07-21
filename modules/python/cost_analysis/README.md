@@ -14,7 +14,7 @@ This module provides real-time access to OpenCost allocation and assets data in 
 - ⏰ **Flexible Time Windows** - From minutes to days (30m, 1h, 24h, today, yesterday)
 - 📈 **Multiple Aggregations** - Container, pod, namespace, node, controller levels for allocations; type, account, project, service for assets
 - ️ **CLI Interface** - Easy command-line usage and automation
-- 🏷️ **Custom Metadata** - Include run_id, test names, and other tracking information
+- 🏷️ **Custom Metadata** - Include other tracking information
 - 🏗️ **Assets Support** - Export cloud infrastructure costs (disks, load balancers, etc.)
 - 🔍 **Asset Filtering** - Filter by specific asset types for focused analysis
 
@@ -94,6 +94,7 @@ python opencost_live_exporter.py \
   --allocation-output allocation_4h.json \
   --assets-output assets_4h.json \
   --run-id export-demo \
+  --scenario-name performance-benchmark \
   --metadata environment=production
 ```
 
@@ -137,6 +138,7 @@ python opencost_live_exporter.py \
 --include-idle            Include idle allocations in results (allocation only)
 --share-idle              Share idle costs across allocations (allocation only)
 --run-id RUN_ID           Run ID to include in exported data for tracking
+--scenario-name SCENARIO_NAME  Scenario name for categorizing test runs
 --metadata METADATA       Additional metadata in key=value format (can be used multiple times)
 --filter-types FILTER_TYPES Filter asset types (e.g., "Disk,LoadBalancer") - only for assets data type
 ```
@@ -152,6 +154,10 @@ python opencost_live_exporter.py \
     python modules/python/cost_analysis/opencost_live_exporter.py \
       --window $(BENCHMARK_DURATION) \
       --aggregate container \
+      --scenario-name $(SCENARIO_NAME) \
+      --run-id $(BUILD_BUILDNUMBER) \
+      --metadata environment=$(ENVIRONMENT) \
+      --metadata cluster=$(CLUSTER_NAME) \
       --output $(BENCHMARK_NAME)_costs.json
 ```
 
@@ -168,6 +174,7 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
     CollectionTime: datetime,
     Source: string,
     RunId: string,
+    ScenarioName: string,
     Metadata: dynamic,
     AllocationName: string,
     WindowStart: string,
@@ -206,6 +213,7 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
     CollectionTime: datetime,
     Source: string,
     RunId: string,
+    ScenarioName: string,
     Metadata: dynamic,
     AssetName: string,
     WindowStart: string,
@@ -293,6 +301,27 @@ OpenCostAllocation
 OpenCostAllocation
 | where Timestamp > ago(1h) and RunId != ""
 | summarize AvgCpuEff = avg(CpuEfficiency), AvgRamEff = avg(RamEfficiency) by RunId, Container
+
+// Filter by scenario name for test categorization
+OpenCostAllocation
+| where ScenarioName == "pod-churn-50k"
+| summarize TotalCost = sum(TotalCost), AvgEfficiency = avg(TotalEfficiency) by Namespace
+
+// Compare costs across different scenarios
+OpenCostAllocation
+| where Timestamp > ago(6h) and ScenarioName != ""
+| summarize TotalCost = sum(TotalCost) by ScenarioName
+| order by TotalCost desc
+
+// Analyze scenario performance with run tracking
+OpenCostAllocation
+| where ScenarioName in ("nap-benchmark", "cri-bottlerocket-benchmark")
+| summarize 
+    TotalCost = sum(TotalCost),
+    AvgCpuEff = avg(CpuEfficiency),
+    AvgRamEff = avg(RamEfficiency)
+by ScenarioName, RunId
+| order by ScenarioName, RunId
 | order by AvgCpuEff desc
 ```
 

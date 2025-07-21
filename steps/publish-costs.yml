@@ -8,19 +8,6 @@ parameters:
   default: false
 
 steps:
-# Debug: Always show the variable value
-- script: echo "publish_k8s_cost variable value is '$(publish_k8s_cost)'"
-  displayName: "Debug: Show publish_k8s_cost variable value"
-
-# Debug: Show if condition evaluation result
-- script: echo "Template condition evaluated to include upload steps"
-  displayName: "Debug: Condition = TRUE - Upload steps will run"
-  condition: eq(variables['publish_k8s_cost'], 'true')
-
-- script: echo "Template condition evaluated to exclude upload steps"
-  displayName: "Debug: Condition = FALSE - Upload steps will NOT run"
-  condition: ne(variables['publish_k8s_cost'], 'true')
-
 - ${{ if eq(parameters.publish_k8s_cost, 'true') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
@@ -30,8 +17,7 @@ steps:
       credential_type: ${{ parameters.credential_type }}
       cloud: ${{ parameters.cloud }}
       upload_type: "Cost Results - Allocation"
-
-- ${{ if eq(parameters.publish_k8s_cost, true) }}:
+- ${{ if eq(parameters.publish_k8s_cost, 'true') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml
     parameters:
       source_file_name: $(ASSETS_K8S_COST_FILE_PATH)

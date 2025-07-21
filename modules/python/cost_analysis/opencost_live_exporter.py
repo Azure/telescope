@@ -25,7 +25,7 @@ Usage:
     python opencost_live_exporter.py --window 1h --aggregate container --filter-types "Disk,LoadBalancer"
     
     # Export with metadata
-    python opencost_live_exporter.py --window 4h --run-id test-123 --metadata environment=production
+    python opencost_live_exporter.py --window 4h --run-id test-123 --scenario-name nap-benchmark --metadata environment=production
 """
 
 import argparse
@@ -51,17 +51,19 @@ SUPPORTED_WINDOW_FORMATS = [
 class OpenCostLiveExporter:
     """Live data exporter for OpenCost API"""
 
-    def __init__(self, endpoint: str = "http://localhost:9003", run_id: str = "", metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, endpoint: str = "http://localhost:9003", run_id: str = "", scenario_name: str = "", metadata: Optional[Dict[str, Any]] = None):
         """
         Initialize the OpenCost Live Exporter
         
         Args:
             endpoint: OpenCost API endpoint
             run_id: Run ID for tracking exports across multiple calls
+            scenario_name: Scenario name for categorizing test runs
             metadata: Optional metadata to include in exports (e.g., test_name, environment, etc.)
         """
         self.endpoint = endpoint.rstrip('/')
         self.run_id = run_id
+        self.scenario_name = scenario_name
         self.metadata = metadata or {}
 
         self.session = requests.Session()
@@ -189,6 +191,7 @@ class OpenCostLiveExporter:
                     'CollectionTime': collection_time.isoformat(),
                     'Source': self.endpoint,
                     'RunId': self.run_id,  # Use self.run_id attribute
+                    'ScenarioName': self.scenario_name,  # Use self.scenario_name attribute
                     'Metadata': json.dumps(self.metadata) if self.metadata else "{}",  # Metadata without run_id
                     'AllocationName': allocation_name,
                     'WindowStart': allocation_data.get('start', ''),
@@ -322,6 +325,7 @@ class OpenCostLiveExporter:
                 'CollectionTime': collection_time.isoformat(),
                 'Source': f"{self.endpoint}/assets",
                 'RunId': self.run_id,  # Use self.run_id attribute
+                'ScenarioName': self.scenario_name,  # Use self.scenario_name attribute
                 'Metadata': json.dumps(self.metadata) if self.metadata else "{}",  # Metadata without run_id
                 'AssetName': asset_name,
                 'WindowStart': asset_data.get('start', ''),
@@ -437,7 +441,12 @@ def main():
 
     parser.add_argument(
         '--run-id',
-        help='Run ID to include in exported data for tracking'
+        help='Unique identification of a test (benchmark) run'
+    )
+
+    parser.add_argument(
+        '--scenario-name',
+        help='Scenario name for categorizing test runs'
     )
 
     parser.add_argument(
@@ -489,6 +498,7 @@ def main():
         exporter = OpenCostLiveExporter(
             endpoint=endpoint,
             run_id=args.run_id or "",
+            scenario_name=args.scenario_name or "",
             metadata=metadata
         )
 

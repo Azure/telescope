@@ -30,8 +30,9 @@ class TestOpenCostLiveExporter:
         """Create an OpenCostLiveExporter instance with metadata for testing"""
         metadata = {'test_name': 'unit-test', 'environment': 'test'}
         return OpenCostLiveExporter(
-            endpoint="http://test-opencost:9003", 
+            endpoint="http://test-opencost:9003",
             run_id="test-run-123",
+            scenario_name="test-scenario",
             metadata=metadata
         )
 
@@ -368,15 +369,17 @@ class TestOpenCostLiveExporter:
                 assert len(data) == 1
                 row = data[0]
 
-                # Verify run_id and metadata are separated correctly
+                # Verify run_id, scenario_name, and metadata are separated correctly
                 assert row['RunId'] == 'test-run-123'
-                
-                # Verify metadata is JSON without run_id
+                assert row['ScenarioName'] == 'test-scenario'
+
+                # Verify metadata is JSON without run_id or scenario_name
                 metadata = json.loads(row['Metadata'])
                 assert metadata['test_name'] == 'unit-test'
                 assert metadata['environment'] == 'test'
                 assert 'run_id' not in metadata  # run_id should not be in metadata anymore
-                
+                assert 'scenario_name' not in metadata  # scenario_name should not be in metadata anymore
+
                 assert row['AllocationName'] == 'test-namespace/test-pod/test-container'
 
         finally:
@@ -556,7 +559,7 @@ class TestOpenCostLiveExporter:
                 # Verify run_id and metadata are separated correctly in all records
                 for record in data:
                     assert record['RunId'] == 'test-run-123'
-                    
+
                     # Verify metadata is JSON without run_id
                     metadata = json.loads(record['Metadata'])
                     assert metadata['test_name'] == 'unit-test'
@@ -587,7 +590,7 @@ class TestCLI:
             main()
 
         # Verify exporter was initialized correctly
-        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id="", metadata={})
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id="", scenario_name="", metadata={})
 
         # Verify both allocation and assets export were called
         mock_exporter.export_allocation_live_data.assert_called_once_with(
@@ -624,7 +627,7 @@ class TestCLI:
             main()
 
         # Verify exporter was initialized with custom endpoint
-        mock_exporter_class.assert_called_once_with(endpoint='http://custom:8080', run_id="", metadata={})
+        mock_exporter_class.assert_called_once_with(endpoint='http://custom:8080', run_id="", scenario_name="", metadata={})
 
         # Verify both exports were called with all parameters
         mock_exporter.export_allocation_live_data.assert_called_once_with(
@@ -683,7 +686,7 @@ class TestCLI:
             'env': 'prod',
             'team': 'platform'
         }
-        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='test-123', metadata=expected_metadata)
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='test-123', scenario_name="", metadata=expected_metadata)
 
     @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_assets_basic(self, mock_exporter_class):
@@ -704,7 +707,7 @@ class TestCLI:
             main()
 
         # Verify exporter was initialized correctly
-        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id="", metadata={})
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id="", scenario_name="", metadata={})
 
         # Verify both allocation and assets export were called
         mock_exporter.export_allocation_live_data.assert_called_once_with(
@@ -778,7 +781,7 @@ class TestCLI:
             'cluster': 'prod-east',
             'cost_center': 'engineering'
         }
-        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='assets-test-789', metadata=expected_metadata)
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='assets-test-789', scenario_name="", metadata=expected_metadata)
 
         # Verify both allocation and assets export were called
         mock_exporter.export_allocation_live_data.assert_called_once_with(
@@ -815,7 +818,7 @@ class TestCLI:
             main()
 
         # Verify exporter was initialized
-        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id="", metadata={})
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id="", scenario_name="", metadata={})
 
         # Verify both allocation and assets exports were called
         mock_exporter.export_allocation_live_data.assert_called_once_with(
@@ -857,7 +860,7 @@ class TestCLI:
             'environment': 'staging',
             'team': 'platform'
         }
-        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='dual-export-test-123', metadata=expected_metadata)
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='dual-export-test-123', scenario_name="", metadata=expected_metadata)
 
         # Verify both exports were called
         mock_exporter.export_allocation_live_data.assert_called_once_with(
