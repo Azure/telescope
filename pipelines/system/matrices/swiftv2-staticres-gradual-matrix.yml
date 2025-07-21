@@ -1,0 +1,98 @@
+# Static Resource Gradual Test Matrix
+azure_swiftv2_gradual_staticres_pps=20_nodes=100:
+  node_count: 100
+  node_per_step: 20
+  scale_timeout: "30m"
+  test_type: Gradual_StaticRes_PPS=20_Nodes=100
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=50_nodes=100:
+  node_count: 100
+  node_per_step: 50
+  scale_timeout: "30m"
+  test_type: Gradual_StaticRes_PPS=50_Nodes=100
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=20_nodes=200:
+  node_count: 200
+  node_per_step: 20
+  scale_timeout: "60m"
+  test_type: Gradual_StaticRes_PPS=20_Nodes=200
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=50_nodes=200:
+  node_count: 200
+  node_per_step: 50
+  scale_timeout: "60m"
+  test_type: Gradual_StaticRes_PPS=50_Nodes=200
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=100_nodes=200:
+  node_count: 200
+  node_per_step: 100
+  scale_timeout: "60m"
+  test_type: Gradual_StaticRes_PPS=100_Nodes=200
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=20_nodes=500:
+  node_count: 500
+  node_per_step: 20
+  scale_timeout: "120m"
+  test_type: Gradual_StaticRes_PPS=20_Nodes=500
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=50_nodes=500:
+  node_count: 500
+  node_per_step: 50
+  scale_timeout: "120m"
+  test_type: Gradual_StaticRes_PPS=50_Nodes=500
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=100_nodes=500:
+  node_count: 500
+  node_per_step: 100
+  scale_timeout: "120m"
+  test_type: Gradual_StaticRes_PPS=100_Nodes=500
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=20_nodes=750:
+  node_count: 750
+  node_per_step: 20
+  scale_timeout: "180m"
+  test_type: Gradual_StaticRes_PPS=20_Nodes=750
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=50_nodes=750:
+  node_count: 750
+  node_per_step: 50
+  scale_timeout: "180m"
+  test_type: Gradual_StaticRes_PPS=50_Nodes=750
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=100_nodes=750:
+  node_count: 750
+  node_per_step: 100
+  scale_timeout: "180m"
+  test_type: Gradual_StaticRes_PPS=100_Nodes=750
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=20_nodes=1000:
+  node_count: 1000
+  node_per_step: 20
+  scale_timeout: "240m"
+  test_type: Gradual_StaticRes_PPS=20_Nodes=1000
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=50_nodes=1000:
+  node_count: 1000
+  node_per_step: 50
+  scale_timeout: "240m"
+  test_type: Gradual_StaticRes_PPS=50_Nodes=1000
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+
+azure_swiftv2_gradual_staticres_pps=100_nodes=1000:
+  node_count: 1000
+  node_per_step: 100
+  scale_timeout: "240m"
+  test_type: Gradual_StaticRes_PPS=100_Nodes=1000
+  cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml

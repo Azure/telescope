@@ -15,7 +15,8 @@ variables:
   ds_test: True
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_eastus2_dynamicres_gradual
+    displayName: 'Azure East US 2 - Dynamic Resource Gradual Tests'
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -27,281 +28,65 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
-          matrix:
-          # ─────────────────────────────────────────────
-          # ▶ 20 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_burst_dynamicres_nodes=20:
-              node_count: 20
-              node_per_step: 20
-              scale_timeout: "30m"
-              test_type: Burst_DynamicRes_Nodes=20
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=20:
-              node_count: 20
-              node_per_step: 20
-              scale_timeout: "30m"
-              test_type: Burst_StaticRes_Nodes=20
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          # ─────────────────────────────────────────────
-          # ▶ 50 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_burst_dynamicres_nodes=50:
-              node_count: 50
-              node_per_step: 50
-              scale_timeout: "30m"
-              test_type: Burst_DynamicRes_Nodes=50
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=50:
-              node_count: 50
-              node_per_step: 50
-              scale_timeout: "30m"
-              test_type: Burst_StaticRes_Nodes=50
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          # ─────────────────────────────────────────────
-          # ▶ 100 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_gradual_dynamicres_pps=20_nodes=100:
-              node_count: 100
-              node_per_step: 20
-              scale_timeout: "30m"
-              test_type: Gradual_DynamicRes_PPS=20_Nodes=100
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=50_nodes=100:
-              node_count: 100
-              node_per_step: 50
-              scale_timeout: "30m"
-              test_type: Gradual_DynamicRes_PPS=50_Nodes=100
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_dynamicres_nodes=100:
-              node_count: 100
-              node_per_step: 100
-              scale_timeout: "30m"
-              test_type: Burst_DynamicRes_Nodes=100
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=20_nodes=100:
-              node_count: 100
-              node_per_step: 20
-              scale_timeout: "30m"
-              test_type: Gradual_StaticRes_PPS=20_Nodes=100
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=50_nodes=100:
-              node_count: 100
-              node_per_step: 50
-              scale_timeout: "30m"
-              test_type: Gradual_StaticRes_PPS=50_Nodes=100
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=100:
-              node_count: 100
-              node_per_step: 100
-              scale_timeout: "30m"
-              test_type: Burst_StaticRes_Nodes=100
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          # ─────────────────────────────────────────────
-          # ▶ 200 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_gradual_dynamicres_pps=20_nodes=200:
-              node_count: 200
-              node_per_step: 20
-              scale_timeout: "60m"
-              test_type: Gradual_DynamicRes_PPS=20_Nodes=200
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=50_nodes=200:
-              node_count: 200
-              node_per_step: 50
-              scale_timeout: "60m"
-              test_type: Gradual_DynamicRes_PPS=50_Nodes=200
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=100_nodes=200:
-              node_count: 200
-              node_per_step: 100
-              scale_timeout: "60m"
-              test_type: Gradual_DynamicRes_PPS=100_Nodes=200
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_dynamicres_nodes=200:
-              node_count: 200
-              node_per_step: 200
-              scale_timeout: "60m"
-              test_type: Burst_DynamicRes_Nodes=200
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=20_nodes=200:
-              node_count: 200
-              node_per_step: 20
-              scale_timeout: "60m"
-              test_type: Gradual_StaticRes_PPS=20_Nodes=200
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=50_nodes=200:
-              node_count: 200
-              node_per_step: 50
-              scale_timeout: "60m"
-              test_type: Gradual_StaticRes_PPS=50_Nodes=200
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=100_nodes=200:
-              node_count: 200
-              node_per_step: 100
-              scale_timeout: "60m"
-              test_type: Gradual_StaticRes_PPS=100_Nodes=200
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=200:
-              node_count: 200
-              node_per_step: 200
-              scale_timeout: "60m"
-              test_type: Burst_StaticRes_Nodes=200
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          # ─────────────────────────────────────────────
-          # ▶ 500 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_gradual_dynamicres_pps=20_nodes=500:
-              node_count: 500
-              node_per_step: 20
-              scale_timeout: "120m"
-              test_type: Gradual_DynamicRes_PPS=20_Nodes=500
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=50_nodes=500:
-              node_count: 500
-              node_per_step: 50
-              scale_timeout: "120m"
-              test_type: Gradual_DynamicRes_PPS=50_Nodes=500
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=100_nodes=500:
-              node_count: 500
-              node_per_step: 100
-              scale_timeout: "120m"
-              test_type: Gradual_DynamicRes_PPS=100_Nodes=500
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_dynamicres_nodes=500:
-              node_count: 500
-              node_per_step: 500
-              scale_timeout: "120m"
-              test_type: Burst_DynamicRes_Nodes=500
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=20_nodes=500:
-              node_count: 500
-              node_per_step: 20
-              scale_timeout: "120m"
-              test_type: Gradual_StaticRes_PPS=20_Nodes=500
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=50_nodes=500:
-              node_count: 500
-              node_per_step: 50
-              scale_timeout: "120m"
-              test_type: Gradual_StaticRes_PPS=50_Nodes=500
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=100_nodes=500:
-              node_count: 500
-              node_per_step: 100
-              scale_timeout: "120m"
-              test_type: Gradual_StaticRes_PPS=100_Nodes=500
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=500:
-              node_count: 500
-              node_per_step: 500
-              scale_timeout: "120m"
-              test_type: Burst_StaticRes_Nodes=500
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          # ─────────────────────────────────────────────
-          # ▶ 750 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_gradual_dynamicres_pps=20_nodes=750:
-              node_count: 750
-              node_per_step: 20
-              scale_timeout: "180m"
-              test_type: Gradual_DynamicRes_PPS=20_Nodes=750
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=50_nodes=750:
-              node_count: 750
-              node_per_step: 50
-              scale_timeout: "180m"
-              test_type: Gradual_DynamicRes_PPS=50_Nodes=750
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=100_nodes=750:
-              node_count: 750
-              node_per_step: 100
-              scale_timeout: "180m"
-              test_type: Gradual_DynamicRes_PPS=100_Nodes=750
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_dynamicres_nodes=750:
-              node_count: 750
-              node_per_step: 750
-              scale_timeout: "180m"
-              test_type: Burst_DynamicRes_Nodes=750
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=20_nodes=750:
-              node_count: 750
-              node_per_step: 20
-              scale_timeout: "180m"
-              test_type: Gradual_StaticRes_PPS=20_Nodes=750
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=50_nodes=750:
-              node_count: 750
-              node_per_step: 50
-              scale_timeout: "180m"
-              test_type: Gradual_StaticRes_PPS=50_Nodes=750
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=100_nodes=750:
-              node_count: 750
-              node_per_step: 100
-              scale_timeout: "180m"
-              test_type: Gradual_StaticRes_PPS=100_Nodes=750
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=750:
-              node_count: 750
-              node_per_step: 750
-              scale_timeout: "180m"
-              test_type: Burst_StaticRes_Nodes=750
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          # ─────────────────────────────────────────────
-          # ▶ 1000 Node Tests
-          # ─────────────────────────────────────────────
-            azure_swiftv2_gradual_dynamicres_pps=20_nodes=1000:
-              node_count: 1000
-              node_per_step: 20
-              scale_timeout: "240m"
-              test_type: Gradual_DynamicRes_PPS=20_Nodes=1000
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=50_nodes=1000:
-              node_count: 1000
-              node_per_step: 50
-              scale_timeout: "240m"
-              test_type: Gradual_DynamicRes_PPS=50_Nodes=1000
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_dynamicres_pps=100_nodes=1000:
-              node_count: 1000
-              node_per_step: 100
-              scale_timeout: "240m"
-              test_type: Gradual_DynamicRes_PPS=100_Nodes=1000
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_burst_dynamicres_nodes=1000:
-              node_count: 1000
-              node_per_step: 1000
-              scale_timeout: "240m"
-              test_type: Burst_DynamicRes_Nodes=1000
-              cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=20_nodes=1000:
-              node_count: 1000
-              node_per_step: 20
-              scale_timeout: "240m"
-              test_type: Gradual_StaticRes_PPS=20_Nodes=1000
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=50_nodes=1000:
-              node_count: 1000
-              node_per_step: 50
-              scale_timeout: "240m"
-              test_type: Gradual_StaticRes_PPS=50_Nodes=1000
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_gradual_staticres_pps=100_nodes=1000:
-              node_count: 1000
-              node_per_step: 100
-              scale_timeout: "240m"
-              test_type: Gradual_StaticRes_PPS=100_Nodes=1000
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-            azure_swiftv2_burst_staticres_nodes=1000:
-              node_count: 1000
-              node_per_step: 1000
-              scale_timeout: "240m"
-              test_type: Burst_StaticRes_Nodes=1000
-              cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-          max_parallel: 3
-          timeout_in_minutes: 2880
+          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml') }}
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_dynamicres_burst
+    displayName: 'Azure East US 2 - Dynamic Resource Burst Tests'
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml') }}
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_staticres_gradual
+    displayName: 'Azure East US 2 - Static Resource Gradual Tests'
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml') }}
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_staticres_burst
+    displayName: 'Azure East US 2 - Static Resource Burst Tests'
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - $(LOCATION)
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml') }}
+          max_parallel: 1
+          timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
