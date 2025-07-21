@@ -4,6 +4,7 @@ parameters:
     default: "apply"
   cluster_context:
     type: string
+    default: ""
   manifest_file:
     type: string
   namespace:
