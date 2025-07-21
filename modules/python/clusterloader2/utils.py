@@ -84,13 +84,13 @@ def get_measurement(file_path):
         if file_name.startswith(file_prefix):
             group_name = file_name.split("_")[1]
             return file_prefix, group_name
-    if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
-        group_name = file_name.split("_")[1]
-        return measurement, group_name
     if file_name.startswith(PROM_QUERY_PREFIX):
         group_name = file_name.split("_")[1]
         measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
         return measurement_name, group_name
+    if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
+        group_name = file_name.split("_")[1]
+        return JOB_LIFECYCLE_LATENCY_PREFIX, group_name
     if file_name.startswith(RESOURCE_USAGE_SUMMARY_PREFIX):
         group_name = file_name.split("_")[1]
         return RESOURCE_USAGE_SUMMARY_PREFIX, group_name
