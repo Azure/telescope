@@ -1142,6 +1142,10 @@ class TestEKSClient(unittest.TestCase):
                 "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
                 "status": "ACTIVE",
             },  # After step 1
+             {
+                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            },
             {
                 "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
                 "status": "ACTIVE",
@@ -1150,6 +1154,10 @@ class TestEKSClient(unittest.TestCase):
                 "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
                 "status": "ACTIVE",
             },  # Final state
+            {
+                "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
+                "status": "ACTIVE",
+            }
         ]
 
         # Mock ready nodes for each step
