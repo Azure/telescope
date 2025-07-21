@@ -97,7 +97,6 @@ class EKSClient:
         self.vm_size = None
         self.launch_template_id = None
         self.k8s_version = None
-        self.k8s_version = None
 
         try:
             self.eks = boto3.client("eks", region_name=self.region)
@@ -617,6 +616,7 @@ class EKSClient:
         metadata = {
             "cluster_name": cluster_name,
             "node_group_name": node_group_name,
+            "vm_size": self.vm_size,
         }
 
         # Try to get node group info before deletion for metadata
@@ -636,7 +636,6 @@ class EKSClient:
             try:
                 logger.info("Deleting node group '%s'", node_group_name)
                 op.add_metadata("node_pool_name", node_group_name)
-                op.add_metadata("vm_size", self.vm_size)
                 op.add_metadata(
                     "nodepool_info",
                     self.get_node_group(node_group_name, self.cluster_name),
@@ -993,7 +992,7 @@ class EKSClient:
                     {
                         "ResourceType": "launch-template",
                         "Tags": tags,
-                    },
+                    }
                 ],
                 LaunchTemplateData=launch_template_data,
             )
@@ -1106,16 +1105,15 @@ class EKSClient:
             logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
 
             # Normalize version for semver comparison
-            # Strip 'v' prefix if present and ensure it has .0 suffix for proper semver
-            clean_version = self.k8s_version.lstrip('v')
+            clean_version = self.k8s_version.strip()
             if '.' not in clean_version or len(clean_version.split('.')) == 2:
                 clean_version = f"{clean_version}.0"
             
             # Use semver to compare with 1.33.0
-            current_semver = semver.Version.parse(clean_version)
-            threshold_semver = semver.Version.parse("1.33.0")
+            current_k8s_version = semver.Version.parse(clean_version)
+            threshold_k8s_version = semver.Version.parse("1.33.0")
             
-            if current_semver < threshold_semver:  # Current version < 1.33
+            if current_k8s_version < threshold_k8s_version:  # Current version < 1.33
                 # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
                 if gpu_node_group:
                     ami_type = "AL2_x86_64_GPU"
