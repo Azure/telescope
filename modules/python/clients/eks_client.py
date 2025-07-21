@@ -324,7 +324,7 @@ class EKSClient:
                     "subnets": self.subnets,
                     "capacityType": capacity_type,
                     "nodeRole": self.node_role_arn,
-                    "amiType": "AL2_x86_64" if not gpu_node_group else "AL2_x86_64_GPU",
+                    "amiType": "AL2_x86_64" if not gpu_node_group else "AL2023_x86_64_NVIDIA",
                     "labels": {
                         "cluster-name": self.cluster_name,
                         "nodegroup-name": node_group_name,
