@@ -1127,29 +1127,25 @@ class TestEKSClient(unittest.TestCase):
         }
 
         # Progressive scaling from 2 to 6 with step size 2 creates steps: [4, 6]
-        # Each step calls scale_node_group which calls get_node_group
-        # Need enough responses for: initial + step1 + step2 calls
+        # Each step calls scale_node_group which calls get_node_group multiple times
+        # Progressive flow: initial check + (step1: check + metadata + prog_metadata) + (step2: check + metadata + prog_metadata)
 
         # Mock the methods that are called internally
         eks_client.get_node_group = mock.Mock()
+        # Provide enough responses for all get_node_group calls:
+        # 1. Initial check
+        # 2-4. Step 1 (check current, metadata after scale, progressive metadata) 
+        # 5-7. Step 2 (check current, metadata after scale, progressive metadata)
         eks_client.get_node_group.side_effect = [
             current_nodegroup,  # Initial call to get current state
-            {
-                "scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10},
-                "status": "ACTIVE",
-            },  # Before step 1
-            {
-                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
-                "status": "ACTIVE",
-            },  # After step 1
-            {
-                "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
-                "status": "ACTIVE",
-            },  # Before step 2
-            {
-                "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
-                "status": "ACTIVE",
-            },  # Final state
+            # Step 1: scale to 4 nodes
+            {"scalingConfig": {"desiredSize": 2, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Check current
+            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # After scale metadata
+            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Progressive metadata
+            # Step 2: scale to 6 nodes  
+            {"scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Check current
+            {"scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # After scale metadata
+            {"scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10}, "status": "ACTIVE"},  # Progressive metadata
         ]
 
         # Mock ready nodes for each step
@@ -1580,6 +1576,38 @@ class TestEKSClient(unittest.TestCase):
                 "Determining AMI type for Kubernetes version: 1.30", log_messages
             )
             self.assertIn("Selected AMI type: AL2_x86_64_GPU", log_messages)
+
+    def test_get_ami_type_with_k8s_version_semver_format(self):
+        """Test AMI type selection with full semver format versions"""
+        # Setup
+        eks_client = EKSClient()
+        
+        # Test with 1.32.5 (old version)
+        eks_client.k8s_version = "1.32.5"
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
+        self.assertEqual(ami_type, "AL2_x86_64")
+        
+        # Test with 1.33.0 (boundary)
+        eks_client.k8s_version = "1.33.0"
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
+        self.assertEqual(ami_type, "AL2023_x86_64_STANDARD")
+        
+        # Test with 1.33.1 (new version)
+        eks_client.k8s_version = "1.33.1"
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
+        self.assertEqual(ami_type, "AL2023_x86_64_NVIDIA")
+
+    def test_get_ami_type_with_k8s_version_with_v_prefix(self):
+        """Test AMI type selection with version string having 'v' prefix"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "v1.29"
+        
+        # Execute
+        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
+        
+        # Verify
+        self.assertEqual(ami_type, "AL2_x86_64")
 
 
 if __name__ == "__main__":

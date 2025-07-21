@@ -21,6 +21,7 @@ import json
 # Third party imports
 import boto3
 from botocore.exceptions import ClientError, WaiterError
+import semver
 
 # Local imports
 from utils.logger_config import get_logger, setup_logging
@@ -377,6 +378,7 @@ class EKSClient:
                     if reservation_id:
                         op.add_metadata("capacity_reservation_id", reservation_id)
                     op.add_metadata("launch_template_id", launch_template["id"])
+                    op.add_metadata("vm_size", self.vm_size)
 
                     if reservation_id:
                         logger.info(
@@ -629,11 +631,12 @@ class EKSClient:
             )
 
         with self._get_operation_context()(
-            "delete_node_group", "aws", metadata, result_dir=self.result_dir
+            "delete_node_pool", "aws", metadata, result_dir=self.result_dir
         ) as op:
             try:
                 logger.info("Deleting node group '%s'", node_group_name)
                 op.add_metadata("node_pool_name", node_group_name)
+                op.add_metadata("vm_size", self.vm_size)
                 op.add_metadata(
                     "nodepool_info",
                     self.get_node_group(node_group_name, self.cluster_name),
@@ -750,8 +753,16 @@ class EKSClient:
                     if i < len(steps) - 1:
                         time.sleep(10)
 
+                    op.add_metadata("vm_size", self.vm_size)
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
+                    )
+
+                    op.add_metadata(
+                    "nodepool_info",
+                    self.get_node_group(node_group_name, self.cluster_name))
+                    op.add_metadata(
+                        "cluster_info", self.get_cluster_data(self.cluster_name)
                     )
 
                 logger.info(
@@ -982,7 +993,11 @@ class EKSClient:
                     {
                         "ResourceType": "launch-template",
                         "Tags": tags,
-                    }
+                    },
+                    {
+                        "ResourceType": "instance",
+                        "Tags": tags,  # Apply same tags to instances launched from this template
+                    },
                 ],
                 LaunchTemplateData=launch_template_data,
             )
@@ -1092,17 +1107,25 @@ class EKSClient:
             raise ValueError("Kubernetes version is not set. Cannot determine AMI type.")
 
         try:
-            # Determine AMI type based on Kubernetes version and GPU requirement
-            k8s_version_numeric = float(self.k8s_version)
             logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
 
-            if k8s_version_numeric < 1.33:
+            # Normalize version for semver comparison
+            # Strip 'v' prefix if present and ensure it has .0 suffix for proper semver
+            clean_version = self.k8s_version.lstrip('v')
+            if '.' not in clean_version or len(clean_version.split('.')) == 2:
+                clean_version = f"{clean_version}.0"
+            
+            # Use semver to compare with 1.33.0
+            current_semver = semver.Version.parse(clean_version)
+            threshold_semver = semver.Version.parse("1.33.0")
+            
+            if current_semver < threshold_semver:  # Current version < 1.33
                 # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
                 if gpu_node_group:
                     ami_type = "AL2_x86_64_GPU"
                 else:
                     ami_type = "AL2_x86_64"
-            else:
+            else:  # Current version >= 1.33
                 # For Kubernetes versions >= 1.33, use AL2023_x86_64_NVIDIA for GPU and AL2023_x86_64 for non-GPU
                 if gpu_node_group:
                     ami_type = "AL2023_x86_64_NVIDIA"
@@ -1113,7 +1136,7 @@ class EKSClient:
                        ami_type, self.k8s_version, gpu_node_group)
             return ami_type
 
-        except (ValueError, TypeError) as e:
+        except Exception as e:
             error_msg = f"Invalid Kubernetes version format '{self.k8s_version}': {str(e)}"
             logger.error(error_msg)
             raise ValueError(error_msg) from e
