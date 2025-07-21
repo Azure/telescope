@@ -81,14 +81,14 @@ class OpenCostLiveExporter:
         """
         if not window or not isinstance(window, str):
             logger.error("Window must be a non-empty string")
-            raise ValueError
+            raise ValueError(f"Window must be a non-empty string, got: {type(window).__name__}")
 
         window = window.strip()
 
         # Check if empty after stripping
         if not window:
             logger.error("Window cannot be empty or whitespace only")
-            raise ValueError
+            raise ValueError("Window cannot be empty or whitespace only")
 
         # Check special formats first
         special_formats = ['today', 'yesterday', 'week', 'month', 'year']
@@ -102,7 +102,7 @@ class OpenCostLiveExporter:
             number = int(simple_match.group(1))
             if number == 0:
                 logger.error("Window cannot be zero: '%s'", window)
-                raise ValueError
+                raise ValueError(f"Window cannot be zero: '{window}'")
             return True
 
         # Check compound formats (1h30m, 2d12h, etc.)
@@ -113,11 +113,11 @@ class OpenCostLiveExporter:
             num2 = int(compound_match.group(3))
             if num1 == 0 or num2 == 0:
                 logger.error("Window cannot have zero values: '%s'", window)
-                raise ValueError
+                raise ValueError(f"Window cannot have zero values: '{window}'")
             return True
 
         logger.error("Invalid window format: '%s'", window)
-        raise ValueError
+        raise ValueError(f"Invalid window format: '{window}'")
 
     def get_allocation_data(self,
                           window: str = "1h",
