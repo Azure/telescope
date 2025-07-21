@@ -1,0 +1,16 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- task: Delay@1
+  displayName: 'Wait for 1 minute'
+  inputs:
+    delayForMinutes: 1
