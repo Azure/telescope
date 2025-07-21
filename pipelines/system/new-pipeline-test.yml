@@ -15,8 +15,8 @@ variables:
   ds_test: True
 
 stages:
-  - stage: azure_eastus2_dynamicres_gradual
-    displayName: 'Azure East US 2 - Dynamic Resource Gradual Tests'
+  - stage: swiftv2_dynamicres_gradual
+    displayName: 'Swift V2 - Dynamic Resource Gradual Tests'
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -34,8 +34,8 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_dynamicres_burst
-    displayName: 'Azure East US 2 - Dynamic Resource Burst Tests'
+  - stage: swiftv2_dynamicres_burst
+    displayName: 'Swift V2 - Dynamic Resource Burst Tests'
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -53,8 +53,8 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_staticres_gradual
-    displayName: 'Azure East US 2 - Static Resource Gradual Tests'
+  - stage: swiftv2_staticres_gradual
+    displayName: 'Swift V2 - Static Resource Gradual Tests'
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -72,8 +72,8 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_staticres_burst
-    displayName: 'Azure East US 2 - Static Resource Burst Tests'
+  - stage: swiftv2_staticres_burst
+    displayName: 'Swift V2 - Static Resource Burst Tests'
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
