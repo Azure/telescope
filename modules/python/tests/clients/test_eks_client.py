@@ -66,7 +66,7 @@ class TestEKSClient(unittest.TestCase):
         # Mock cluster list and describe responses
         self.mock_eks.list_clusters.return_value = {"clusters": ["test-cluster-123"]}
         self.mock_eks.describe_cluster.return_value = {
-            "cluster": {"tags": {"run_id": "test-run-123"}}
+            "cluster": {"tags": {"run_id": "test-run-123"}, "version": "1.29"}
         }
 
         # Mock subnets response
@@ -1469,6 +1469,78 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(lt_tags["capacity_type"], "CAPACITY_BLOCK")
         self.assertEqual(lt_tags["capacity_reservation_id"], "cr-gpu-123456789")
         self.assertEqual(lt_tags["instance_type"], "p3.2xlarge")
+
+    def test_get_ami_type_with_k8s_version_old_non_gpu(self):
+        """Test AMI type selection for old Kubernetes version (< 1.33) with non-GPU"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "1.29"
+        
+        # Execute
+        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        
+        # Verify
+        self.assertEqual(ami_type, "AL2_x86_64")
+
+    def test_get_ami_type_with_k8s_version_old_gpu(self):
+        """Test AMI type selection for old Kubernetes version (< 1.33) with GPU"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "1.32"
+        
+        # Execute
+        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+        
+        # Verify
+        self.assertEqual(ami_type, "AL2_x86_64_GPU")
+
+    def test_get_ami_type_with_k8s_version_new_non_gpu(self):
+        """Test AMI type selection for new Kubernetes version (>= 1.33) with non-GPU"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "1.33"
+        
+        # Execute
+        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        
+        # Verify
+        self.assertEqual(ami_type, "AL2023_x86_64_STANDARD")
+
+    def test_get_ami_type_with_k8s_version_new_gpu(self):
+        """Test AMI type selection for new Kubernetes version (>= 1.33) with GPU"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "1.34"
+        
+        # Execute
+        ami_type = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+        
+        # Verify
+        self.assertEqual(ami_type, "AL2023_x86_64_NVIDIA")
+
+    def test_get_ami_type_with_k8s_version_boundary_case(self):
+        """Test AMI type selection at the boundary version 1.33"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = "1.33"
+        
+        # Execute - Test both GPU and non-GPU for boundary case
+        ami_type_non_gpu = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
+        ami_type_gpu = eks_client.get_AMI_type_with_k8s_version(gpu_node_group=True)
+        
+        # Verify
+        self.assertEqual(ami_type_non_gpu, "AL2023_x86_64_STANDARD")
+        self.assertEqual(ami_type_gpu, "AL2023_x86_64_NVIDIA")
+
+    def test_get_ami_type_with_k8s_version_none_fallback(self):
+        """Test AMI type selection when k8s_version is None (should handle gracefully)"""
+        # Setup
+        eks_client = EKSClient()
+        eks_client.k8s_version = None
+        
+        # Execute and verify it raises an appropriate error
+        with self.assertRaises(TypeError):
+            eks_client.get_AMI_type_with_k8s_version(gpu_node_group=False)
 
     # ... existing tests ...
 

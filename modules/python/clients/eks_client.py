@@ -17,6 +17,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 import json
+from decimal import Decimal
 
 # Third party imports
 import boto3
@@ -95,6 +96,7 @@ class EKSClient:
         self.operation_timeout_minutes = operation_timeout_minutes
         self.vm_size = None
         self.launch_template_id = None
+        self.k8s_version = None
 
         try:
             self.eks = boto3.client("eks", region_name=self.region)
@@ -148,6 +150,9 @@ class EKSClient:
                     logger.info(
                         "Matched cluster: %s with run_id: %s", cluster_name, run_id
                     )
+                    # get k8s version and set it in the client
+                    self.k8s_version = details["cluster"].get("version")
+                    logger.info("Kubernetes version for cluster %s: %s", cluster_name, self.k8s_version)
                     return cluster_name
             raise Exception("No EKS cluster found with run_id: " + run_id)
         except Exception as e:
@@ -324,7 +329,7 @@ class EKSClient:
                     "subnets": self.subnets,
                     "capacityType": capacity_type,
                     "nodeRole": self.node_role_arn,
-                    "amiType": "AL2_x86_64" if not gpu_node_group else "AL2023_x86_64_NVIDIA",
+                    "amiType": self.get_AMI_type_with_k8s_version(gpu_node_group=gpu_node_group),
                     "labels": {
                         "cluster-name": self.cluster_name,
                         "nodegroup-name": node_group_name,
@@ -1068,3 +1073,32 @@ class EKSClient:
                 "Failed to delete launch template %s: %s", self.launch_template_id, str(e)
             )
             raise
+
+    def get_AMI_type_with_k8s_version(
+        self, gpu_node_group: bool = False,
+    ) -> str:
+        """
+        Get the appropriate AMI type based on the Kubernetes version and whether it's a GPU node group.
+
+        Args:
+            gpu_node_group: Whether this is a GPU-enabled node group (default: False)
+
+        Returns:
+            The AMI type string
+        """
+
+        # Determine AMI type based on Kubernetes version and GPU requirement
+        k8s_version_numeric = float(self.k8s_version)
+        logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
+        if k8s_version_numeric < 1.33:
+            # For Kubernetes versions < 1.33, use AL2_x86_64 for non-GPU and AL2_x86_64_GPU for GPU
+            if gpu_node_group:
+                return "AL2_x86_64_GPU"
+            else:
+                return "AL2_x86_64"
+        else:
+            # For Kubernetes versions >= 1.33, use AL2023_x86_64_NVIDIA for GPU and AL2023_x86_64 for non-GPU
+            if gpu_node_group:
+                return "AL2023_x86_64_NVIDIA"
+            else:
+                return "AL2023_x86_64_STANDARD"
