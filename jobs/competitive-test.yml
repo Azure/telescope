@@ -86,10 +86,6 @@ jobs:
       regions: ${{ parameters.regions }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
-  - template: /steps/record-start-time.yml
-    parameters:
-      variable_name: 'EXECUTE_STEP_START_EPOCH'
-      display_name: 'Record test execution start time'
   - template: /steps/execute-tests.yml
     parameters:
       cloud: ${{ parameters.cloud }}
@@ -97,11 +93,6 @@ jobs:
       engine: ${{ parameters.engine }}
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
-  - template: /steps/calculate-duration.yml
-    parameters:
-      start_variable_name: 'EXECUTE_STEP_START_EPOCH'
-      duration_variable_name: 'EXECUTE_STEP_DURATION_MINUTES'
-      display_name: 'Calculate step execution duration'
   - template: /steps/publish-results.yml
     parameters:
       cloud: ${{ parameters.cloud }}
