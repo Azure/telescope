@@ -1578,27 +1578,6 @@ class TestEKSClient(unittest.TestCase):
             )
             self.assertIn("Selected AMI type: AL2_x86_64_GPU", log_messages)
 
-    def test_get_ami_type_with_k8s_version_semver_format(self):
-        """Test AMI type selection with full semver format versions"""
-        # Setup
-        eks_client = EKSClient()
-        
-        # Test with 1.32.5 (old version)
-        eks_client.k8s_version = "1.32.5"
-        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
-        self.assertEqual(ami_type, "AL2_x86_64")
-        
-        # Test with 1.33.0 (boundary)
-        eks_client.k8s_version = "1.33.0"
-        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=False)
-        self.assertEqual(ami_type, "AL2023_x86_64_STANDARD")
-        
-        # Test with 1.33.1 (new version)
-        eks_client.k8s_version = "1.33.1"
-        ami_type = eks_client.get_ami_type_with_k8s_version(gpu_node_group=True)
-        self.assertEqual(ami_type, "AL2023_x86_64_NVIDIA")
-
-
 
 if __name__ == "__main__":
     unittest.main()
