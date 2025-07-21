@@ -19,7 +19,7 @@ stages:
     displayName: 'Swift V2 - Dynamic Resource Gradual Tests'
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml
         parameters:
           cloud: azure
           regions:
@@ -28,7 +28,6 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
-          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml') }}
           max_parallel: 1
           timeout_in_minutes: 2160
           credential_type: service_connection
@@ -38,7 +37,7 @@ stages:
     displayName: 'Swift V2 - Dynamic Resource Burst Tests'
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
         parameters:
           cloud: azure
           regions:
@@ -47,7 +46,6 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
-          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml') }}
           max_parallel: 1
           timeout_in_minutes: 2160
           credential_type: service_connection
@@ -57,7 +55,7 @@ stages:
     displayName: 'Swift V2 - Static Resource Gradual Tests'
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
         parameters:
           cloud: azure
           regions:
@@ -66,7 +64,6 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
-          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml') }}
           max_parallel: 1
           timeout_in_minutes: 2160
           credential_type: service_connection
@@ -76,7 +73,7 @@ stages:
     displayName: 'Swift V2 - Static Resource Burst Tests'
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
         parameters:
           cloud: azure
           regions:
@@ -85,7 +82,6 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
           topology: swiftv2-ds-churn
-          matrix: ${{ fromFile('/pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml') }}
           max_parallel: 1
           timeout_in_minutes: 2160
           credential_type: service_connection

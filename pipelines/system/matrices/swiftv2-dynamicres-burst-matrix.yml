@@ -1,49 +1,58 @@
-# Dynamic Resource Burst Test Matrix
-azure_swiftv2_burst_dynamicres_nodes=20:
-  node_count: 20
-  node_per_step: 20
-  scale_timeout: "30m"
-  test_type: Burst_DynamicRes_Nodes=20
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+parameters:
+  matrix:
+    azure_swiftv2_burst_dynamicres_nodes=20:
+      node_count: 20
+      node_per_step: 20
+      scale_timeout: "30m"
+      test_type: Burst_DynamicRes_Nodes=20
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+    azure_swiftv2_burst_dynamicres_nodes=50:
+      node_count: 50
+      node_per_step: 50
+      scale_timeout: "30m"
+      test_type: Burst_DynamicRes_Nodes=50
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+    azure_swiftv2_burst_dynamicres_nodes=100:
+      node_count: 100
+      node_per_step: 100
+      scale_timeout: "30m"
+      test_type: Burst_DynamicRes_Nodes=100
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+    azure_swiftv2_burst_dynamicres_nodes=200:
+      node_count: 200
+      node_per_step: 200
+      scale_timeout: "60m"
+      test_type: Burst_DynamicRes_Nodes=200
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+    azure_swiftv2_burst_dynamicres_nodes=500:
+      node_count: 500
+      node_per_step: 500
+      scale_timeout: "120m"
+      test_type: Burst_DynamicRes_Nodes=500
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+    azure_swiftv2_burst_dynamicres_nodes=750:
+      node_count: 750
+      node_per_step: 750
+      scale_timeout: "180m"
+      test_type: Burst_DynamicRes_Nodes=750
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+    azure_swiftv2_burst_dynamicres_nodes=1000:
+      node_count: 1000
+      node_per_step: 1000
+      scale_timeout: "240m"
+      test_type: Burst_DynamicRes_Nodes=1000
+      cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
 
-azure_swiftv2_burst_dynamicres_nodes=50:
-  node_count: 50
-  node_per_step: 50
-  scale_timeout: "30m"
-  test_type: Burst_DynamicRes_Nodes=50
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-
-azure_swiftv2_burst_dynamicres_nodes=100:
-  node_count: 100
-  node_per_step: 100
-  scale_timeout: "30m"
-  test_type: Burst_DynamicRes_Nodes=100
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-
-azure_swiftv2_burst_dynamicres_nodes=200:
-  node_count: 200
-  node_per_step: 200
-  scale_timeout: "60m"
-  test_type: Burst_DynamicRes_Nodes=200
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-
-azure_swiftv2_burst_dynamicres_nodes=500:
-  node_count: 500
-  node_per_step: 500
-  scale_timeout: "120m"
-  test_type: Burst_DynamicRes_Nodes=500
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-
-azure_swiftv2_burst_dynamicres_nodes=750:
-  node_count: 750
-  node_per_step: 750
-  scale_timeout: "180m"
-  test_type: Burst_DynamicRes_Nodes=750
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-
-azure_swiftv2_burst_dynamicres_nodes=1000:
-  node_count: 1000
-  node_per_step: 1000
-  scale_timeout: "240m"
-  test_type: Burst_DynamicRes_Nodes=1000
-  cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+jobs:
+- template: /jobs/competitive-test.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    regions: ${{ parameters.regions }}
+    engine: ${{ parameters.engine }}
+    engine_input: ${{ parameters.engine_input }}
+    topology: ${{ parameters.topology }}
+    matrix: ${{ parameters.matrix }}
+    max_parallel: ${{ parameters.max_parallel }}
+    timeout_in_minutes: ${{ parameters.timeout_in_minutes }}
+    credential_type: ${{ parameters.credential_type }}
+    ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
