@@ -13,4 +13,4 @@ steps:
     region: ${{ parameters.regions[0] }}
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
-    action: 'apply'
+    action: apply
