@@ -1,0 +1,46 @@
+parameters:
+  action:
+    type: string
+    default: "apply"
+  cluster_context:
+    type: string
+  manifest_file:
+    type: string
+  namespace:
+    type: string
+    default: default
+  wait_resource:
+    type: string
+    default: pod
+  wait_condition:
+    type: string
+    default: "condition=Ready"
+  timeout:
+    type: string
+    default: 60s
+
+steps:
+- script: |
+    set -euo pipefail
+
+    kubectl --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" || true
+
+    # Wait all nodes to be ready before applying the manifest
+    kubectl --context="$CLUSTER_CONTEXT" wait --for=condition=Ready nodes --timeout=600s
+
+    kubectl --context="$CLUSTER_CONTEXT" $ACTION -f "$MANIFEST_FILE"
+
+    # if ACTION is apply and WAIT_CONDITION and WAIT_RESOURCE is not empty then wait for the resource to be ready
+    if [ "$ACTION" = "apply" ] && [ -n "$WAIT_CONDITION" ] && [ -n "$WAIT_RESOURCE" ]; then
+      kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
+    fi
+
+  displayName: "Apply kubectl manifest"
+  env:
+    ACTION: ${{ parameters.action }}
+    MANIFEST_FILE: $(manifest_file)
+    CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
+    NAMESPACE: ${{ parameters.namespace }}
+    WAIT_RESOURCE: ${{ parameters.wait_resource }}
+    WAIT_CONDITION: ${{ parameters.wait_condition }}
+    TIMEOUT: ${{ parameters.timeout }}

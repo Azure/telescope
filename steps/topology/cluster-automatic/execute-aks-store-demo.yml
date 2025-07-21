@@ -10,7 +10,11 @@ parameters:
   default: {}
 
 steps:
-- task: Delay@1
+- task: Bash@3
   displayName: 'Wait for 1 minute'
   inputs:
-    delayForMinutes: 1
+    targetType: 'inline'
+    script: |
+      echo "Waiting for 1 minute..."
+      sleep 60
+      echo "Wait completed"
