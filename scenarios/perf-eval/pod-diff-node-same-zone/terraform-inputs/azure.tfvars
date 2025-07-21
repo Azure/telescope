@@ -100,12 +100,11 @@ network_config_list = [
 
 aks_config_list = [
   {
-    role                  = "pod2pod"
-    aks_name              = "pod-diff-node"
-    dns_prefix            = "pod2pod"
-    subnet_name           = "pod2pod-subnet-1"
-    sku_tier              = "Standard"
-    cost_analysis_enabled = true
+    role        = "pod2pod"
+    aks_name    = "pod-diff-node"
+    dns_prefix  = "pod2pod"
+    subnet_name = "pod2pod-subnet-1"
+    sku_tier    = "Standard"
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
@@ -117,7 +116,7 @@ aks_config_list = [
       name                         = "default"
       node_count                   = 1
       auto_scaling_enabled         = false
-      vm_size                      = "Standard_D2as_v5"
+      vm_size                      = "Standard_D16_v3"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
@@ -125,19 +124,19 @@ aks_config_list = [
     extra_node_pool = [
       {
         name        = "client"
-        vm_size     = "Standard_D2as_v5"
+        vm_size     = "Standard_D16_v3"
         node_count  = 1
         node_labels = { "client" = "true", "test" = "true" }
         node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
-        zones       = ["1"]
+        zones       = ["2"]
       },
       {
         name        = "server"
-        vm_size     = "Standard_D2as_v5"
+        vm_size     = "Standard_D16_v3"
         node_count  = 1
         node_labels = { "server" = "true", "test" = "true" }
         node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
-        zones       = ["1"]
+        zones       = ["2"]
       }
     ]
     kubernetes_version = "1.32"
