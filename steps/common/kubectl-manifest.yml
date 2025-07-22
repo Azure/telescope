@@ -47,8 +47,9 @@ steps:
         kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --all --timeout="$TIMEOUT" -n "$NAMESPACE"
       fi
     fi
+    trap 'kubectl get pods -n "$NAMESPACE" || true' EXIT
     echo "$ACTION manifest '$MANIFEST_FILE' has completed successfully"
-  displayName: "${{ parameters.action }} kubectl manifest"
+  displayName: "${{ parameters.action }} kubectl manifest file: ${{ parameters.manifest_file }}"
   # always runs if action is 'delete'
   condition: or(succeeded(), and(always(), eq('${{ parameters.action }}', 'delete')))
   env:
