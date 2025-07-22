@@ -1,25 +1,74 @@
 trigger: none
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: auto-cluster-pod-startup
 
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory-1-32:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 5m
+              load_type: memory
+              kubernetes_version: "1.32"
+              scrape_kubelets: True
+            n10-p700-memory-1-32:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 8m
+              load_type: memory
+              kubernetes_version: "1.32"
+              scrape_kubelets: True
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+
+  - stage: aws_useast2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory-1-32:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 5m
+              load_type: memory
+              kubernetes_version: "1.32"
+              scrape_kubelets: True
+            n10-p700-memory-1-32:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 8m
+              load_type: memory
+              kubernetes_version: "1.32"
+              scrape_kubelets: True
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
