@@ -35,16 +35,16 @@ steps:
 
       if [ "$currentnodes" != "${{ parameters.nodes_per_nodepool }}" ]; then
 
-        for i in {1..5}; do
+        for i in {1..20}; do
           if az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}; then
             echo "Nodepool $np scaled successfully."
             break
           else
-            echo "Failed to scale nodepool $np. Retrying in 30 seconds... (Attempt $i of 5)"
-            sleep 30
+            echo "Failed to scale nodepool $np. Retrying in 60 seconds... (Attempt $i of 20)"
+            sleep 60
           fi
-          if [ $i -eq 5 ]; then
-            echo "##vso[task.logissue type=error;] Failed to scale nodepool $np after 5 attempts."
+          if [ $i -eq 20 ]; then
+            echo "##vso[task.logissue type=error;] Failed to scale nodepool $np after 20 attempts (20 minutes)."
             exit 1
           fi
         done
