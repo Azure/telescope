@@ -1,5 +1,11 @@
 # Verify
 
+## Prerequisites
+
+* [terraform](https://developer.hashicorp.com/terraform/install)
+* [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
+* [kwok/kwokctrl](https://kwok.sigs.k8s.io/docs/user/installation/)
+
 ## Verify Locally
 
 ### Python Module
@@ -14,6 +20,9 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Create kwok cluster for kwok tests
+kwokctl create cluster --name kwok-test
 
 # Run tests with coverage (minimum 70% required)
 pytest --cov=. --cov-report=term-missing --cov-fail-under=70
