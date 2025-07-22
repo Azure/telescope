@@ -63,7 +63,10 @@ def override_config_clusterloader2(
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
-    logger.info(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
+    logger.info(
+        f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, "
+        f"scrape kubelets: {scrape_kubelets}, host network: {host_network}"
+    )
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")

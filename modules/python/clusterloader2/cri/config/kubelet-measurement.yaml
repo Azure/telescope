@@ -99,7 +99,6 @@ steps:
         unit: s
         dimensions:
           - node
-          - runtime_handler
         queries:
         - name: Perc99
           query: histogram_quantile(0.99, sum(rate(kubelet_run_podsandbox_duration_seconds_bucket[10m])) by (node, le))
