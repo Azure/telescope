@@ -36,6 +36,16 @@ steps:
         --role "Contributor" \
         --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RUN_ID" \
         || echo "Role assignment may already exist or failed - continuing..."
+
+      # Grant AKS Cluster Admin role for kubectl operations
+      CLUSTER_NAME=$(kubectl config current-context)
+      AKS_ID=$(az aks show -g $RUN_ID -n $CLUSTER_NAME --query id -o tsv)
+      az role assignment create \
+        --assignee "$CURRENT_OBJECT_ID" \
+        --role "Azure Kubernetes Service RBAC Cluster Admin" \
+        --scope "$AKS_ID" \
+        || echo "Role assignment may already exist or failed - continuing..."
+
     displayName: 'Grant RBAC permissions for AKS access'
   
   - script: |
