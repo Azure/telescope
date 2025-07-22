@@ -20,7 +20,7 @@ steps:
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-all-in-one.yaml"
       wait_condition: "condition=Available"
       wait_resource: "deployment"
-      timeout: "60s"
+      timeout: "300s"
   - template: /steps/common/kubectl-manifest.yml
     parameters:
       cluster_context: ${{ parameters.cluster_context }}
@@ -28,7 +28,7 @@ steps:
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-worker.yaml"
       wait_condition: "condition=Available"
       wait_resource: "deployment/virtual-worker"
-      timeout: "30s"
+      timeout: "60s"
   - template: /steps/common/kubectl-manifest.yml
     parameters:
       cluster_context: ${{ parameters.cluster_context }}
@@ -36,4 +36,4 @@ steps:
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-customer.yaml"
       wait_condition: "condition=Available"
       wait_resource: "deployment/virtual-customer"
-      timeout: "30s"
+      timeout: "60s"
