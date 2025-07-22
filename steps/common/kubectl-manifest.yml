@@ -22,7 +22,7 @@ parameters:
 
 steps:
 - script: |
-    set -euo pipefail
+    set -eo pipefail
     echo "Kubeconfig file: '$KUBECONFIG'"
 
     kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" || true
