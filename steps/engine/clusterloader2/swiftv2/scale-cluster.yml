@@ -34,17 +34,20 @@ steps:
       currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
 
       if [ "$currentnodes" != "${{ parameters.nodes_per_nodepool }}" ]; then
+        
+        # Calculate retry attempts for API calls (maximum 5 minutes for transient issues)
+        max_attempts=5  # 5 attempts with 60-second intervals = 5 minutes max
 
-        for i in {1..20}; do
+        for i in $(seq 1 $max_attempts); do
           if az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}; then
             echo "Nodepool $np scaled successfully."
             break
           else
-            echo "Failed to scale nodepool $np. Retrying in 60 seconds... (Attempt $i of 20)"
+            echo "Failed to scale nodepool $np. Retrying in 60 seconds... (Attempt $i of $max_attempts)"
             sleep 60
           fi
-          if [ $i -eq 20 ]; then
-            echo "##vso[task.logissue type=error;] Failed to scale nodepool $np after 20 attempts (20 minutes)."
+          if [ $i -eq $max_attempts ]; then
+            echo "##vso[task.logissue type=error;] Failed to scale nodepool $np after $max_attempts attempts (5 minutes)."
             exit 1
           fi
         done
@@ -62,7 +65,15 @@ steps:
       if [ "$currentnodes" = "${{ parameters.nodes_per_nodepool }}" ]; then
         echo "Checking node readiness for nodepool $np..."
         
-        TIMEOUT=600  # 10 minutes timeout
+        # Calculate timeout based on node count (10 seconds per node, minimum 5 minutes, maximum 10 minutes)
+        node_readiness_timeout=$(( ${{ parameters.nodes_per_nodepool }} * 10 ))
+        if [ $node_readiness_timeout -lt 300 ]; then
+          node_readiness_timeout=300  # 5 minutes minimum
+        elif [ $node_readiness_timeout -gt 600 ]; then
+          node_readiness_timeout=600  # 10 minutes maximum
+        fi
+        
+        TIMEOUT=$node_readiness_timeout
         RETRY_INTERVAL=30  # Check every 30 seconds
         elapsed=0
         
