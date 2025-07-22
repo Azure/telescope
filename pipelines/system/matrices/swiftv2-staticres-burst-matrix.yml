@@ -7,7 +7,6 @@ parameters:
   type: string
 - name: engine_input
   type: object
-  default: {}
 - name: topology
   type: string
 - name: max_parallel
@@ -16,16 +15,10 @@ parameters:
   type: number
 - name: credential_type
   type: string
-  default: managed_identity
-  values:
-  - managed_identity
-  - service_connection
 - name: ssh_key_enabled
   type: boolean
-  default: true
 - name: base_run_id
   type: string
-  default: ''
 - name: matrix
   type: object
   default:

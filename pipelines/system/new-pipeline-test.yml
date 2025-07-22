@@ -15,15 +15,6 @@ variables:
   ds_test: True
   # Generate base run ID (5 characters) to be used across all stages
   BASE_RUN_ID: $[format('{0}', substring(replace(newGuid(), '-', ''), 0, 5))]
-  # Common job template parameters
-  CLOUD: azure
-  ENGINE: clusterloader2
-  CL2_IMAGE: "ghcr.io/azure/clusterloader2:v20250311"
-  TOPOLOGY: swiftv2-ds-churn
-  MAX_PARALLEL: 1
-  TIMEOUT_MINUTES: 2160
-  CREDENTIAL_TYPE: service_connection
-  SSH_KEY_ENABLED: false
 
 stages:
   - stage: dynamicres_gradual
@@ -32,17 +23,17 @@ stages:
     jobs:
       - template: /pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml
         parameters:
-          cloud: $(CLOUD)
+          cloud: azure
           regions:
             - $(LOCATION)
-          engine: $(ENGINE)
+          engine: clusterloader2
           engine_input:
-            image: $(CL2_IMAGE)
-          topology: $(TOPOLOGY)
-          max_parallel: ${{ variables.MAX_PARALLEL }}
-          timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: ${{ variables.CREDENTIAL_TYPE }}
-          ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_burst
@@ -51,17 +42,17 @@ stages:
     jobs:
       - template: /pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
         parameters:
-          cloud: $(CLOUD)
+          cloud: azure
           regions:
             - $(LOCATION)
-          engine: $(ENGINE)
+          engine: clusterloader2
           engine_input:
-            image: $(CL2_IMAGE)
-          topology: $(TOPOLOGY)
-          max_parallel: ${{ variables.MAX_PARALLEL }}
-          timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: ${{ variables.CREDENTIAL_TYPE }}
-          ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
           base_run_id: $(BASE_RUN_ID)
 
   - stage: staticres_gradual
@@ -70,17 +61,17 @@ stages:
     jobs:
       - template: /pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
         parameters:
-          cloud: $(CLOUD)
+          cloud: azure
           regions:
             - $(LOCATION)
-          engine: $(ENGINE)
+          engine: clusterloader2
           engine_input:
-            image: $(CL2_IMAGE)
-          topology: $(TOPOLOGY)
-          max_parallel: ${{ variables.MAX_PARALLEL }}
-          timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: ${{ variables.CREDENTIAL_TYPE }}
-          ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
           base_run_id: $(BASE_RUN_ID)
 
   - stage: staticres_burst
@@ -89,15 +80,15 @@ stages:
     jobs:
       - template: /pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
         parameters:
-          cloud: $(CLOUD)
+          cloud: azure
           regions:
             - $(LOCATION)
-          engine: $(ENGINE)
+          engine: clusterloader2
           engine_input:
-            image: $(CL2_IMAGE)
-          topology: $(TOPOLOGY)
-          max_parallel: ${{ variables.MAX_PARALLEL }}
-          timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: ${{ variables.CREDENTIAL_TYPE }}
-          ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: swiftv2-ds-churn
+          max_parallel: 1
+          timeout_in_minutes: 2160
+          credential_type: service_connection
+          ssh_key_enabled: false
           base_run_id: $(BASE_RUN_ID)
