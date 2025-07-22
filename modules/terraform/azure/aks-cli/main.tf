@@ -107,12 +107,12 @@ resource "azurerm_role_assignment" "network_contributor" {
 
 data "azurerm_subscription" "current" {}
 
-resource "azurerm_role_assignment" "rg_contributor" {
-  count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
-  role_definition_name = "Contributor"
-  scope                = "/subscriptions/${data.azurerm_subscription.current.id}/resourceGroups/${var.resource_group_name}"
-  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
-}
+#resource "azurerm_role_assignment" "rg_contributor" {
+#  count                = !local.is_automatic_sku && var.aks_cli_config.managed_identity_name != null ? 1 : 0
+#  role_definition_name = "Contributor"
+#  scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+#  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+#}
 
 resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
@@ -148,7 +148,8 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 resource "terraform_data" "aks_cli" {
   depends_on = [
     terraform_data.enable_aks_cli_preview_extension,
-    azurerm_role_assignment.network_contributor
+    azurerm_role_assignment.network_contributor,
+    #azurerm_role_assignment.rg_contributor
   ]
 
   input = {
@@ -166,9 +167,67 @@ resource "terraform_data" "aks_cli" {
   }
 }
 
+# Get the AKS cluster information after creation to access system-assigned identity
+data "azurerm_kubernetes_cluster" "aks_cluster" {
+  depends_on          = [terraform_data.aks_cli]
+  name                = var.aks_cli_config.aks_name
+  resource_group_name = var.resource_group_name
+}
+
+# For AKS Automatic, assign additional roles to the system-assigned managed identity
+# resource "azurerm_role_assignment" "aks_automatic_contributor" {
+#   count                = local.is_automatic_sku ? 1 : 0
+#   role_definition_name = "Contributor"
+#   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+#   principal_id         = data.azurerm_kubernetes_cluster.aks_cluster.identity[0].principal_id
+#   depends_on           = [terraform_data.aks_cli]
+# }
+
+# resource "azurerm_role_assignment" "aks_automatic_network_contributor" {
+#   count                = local.is_automatic_sku && var.subnet_id != null ? 1 : 0
+#   role_definition_name = "Network Contributor"
+#   scope                = var.subnet_id
+#   principal_id         = data.azurerm_kubernetes_cluster.aks_cluster.identity[0].principal_id
+#   depends_on           = [terraform_data.aks_cli]
+# }
+
+# Add Azure Kubernetes Service RBAC Cluster Admin role for kubectl access
+# resource "azurerm_role_assignment" "aks_automatic_rbac_admin" {
+#   count                = local.is_automatic_sku ? 1 : 0
+#   role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+#   scope                = data.azurerm_kubernetes_cluster.aks_cluster.id
+#   principal_id         = data.azurerm_kubernetes_cluster.aks_cluster.identity[0].principal_id
+#   depends_on           = [terraform_data.aks_cli]
+# }
+
+# Get current client (user or service principal) running Terraform
+data "azurerm_client_config" "current" {}
+
+# Grant current user/service principal access to AKS cluster for kubectl operations
+# resource "azurerm_role_assignment" "current_user_aks_admin" {
+#   count                = local.is_automatic_sku ? 1 : 0
+#   role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+#   scope                = data.azurerm_kubernetes_cluster.aks_cluster.id
+#   principal_id         = data.azurerm_client_config.current.object_id
+#   depends_on           = [terraform_data.aks_cli]
+# }
+
+resource "azurerm_role_assignment" "aks_automatic_contributor" {
+  count                = local.is_automatic_sku ? 1 : 0
+  role_definition_name = "Contributor"
+  scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  principal_id         = data.azurerm_client_config.current.object_id
+  depends_on           = [terraform_data.aks_cli]
+}
+
+
 resource "terraform_data" "aks_nodepool_cli" {
   depends_on = [
-    terraform_data.aks_cli
+    terraform_data.aks_cli,
+    #azurerm_role_assignment.aks_automatic_contributor,
+    #azurerm_role_assignment.aks_automatic_network_contributor,
+    #azurerm_role_assignment.aks_automatic_rbac_admin,
+    azurerm_role_assignment.aks_automatic_contributor
   ]
 
   for_each = local.extra_pool_map
