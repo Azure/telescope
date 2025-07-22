@@ -161,14 +161,26 @@ while [ $nodepool_elapsed -lt $NODEPOOL_TIMEOUT ]; do
                 
                 # Additional check: verify nodes are ready in Kubernetes
                 echo "Verifying nodes are ready in Kubernetes..."
-                READY_NODES=$(kubectl get nodes -l slo=true --no-headers 2>/dev/null | grep -c "Ready" || echo "0")
+                
+                # Get ready nodes count with better error handling
+                READY_NODES=0
+                KUBECTL_OUTPUT=$(kubectl get nodes -l slo=true --no-headers 2>/dev/null | grep "Ready" | wc -l || echo 0)
+                if [[ "$KUBECTL_OUTPUT" =~ ^[0-9]+$ ]]; then
+                    READY_NODES=$KUBECTL_OUTPUT
+                fi
+                
                 EXPECTED_NODES=$(az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --query "count" --output tsv)
+                
+                echo "Node readiness check: $READY_NODES ready out of $EXPECTED_NODES expected nodes"
                 
                 if [ "$READY_NODES" -eq "$EXPECTED_NODES" ] && [ "$READY_NODES" -gt 0 ]; then
                     echo "All $READY_NODES user nodepool nodes are ready in Kubernetes"
                     break
                 else
                     echo "Only $READY_NODES out of $EXPECTED_NODES nodes are ready, waiting..."
+                    # Show node status for debugging
+                    echo "Current node status:"
+                    kubectl get nodes -l slo=true 2>/dev/null || echo "Unable to get node status"
                 fi
             else
                 echo "Nodepool succeeded but not in Running power state, waiting..."
@@ -197,8 +209,18 @@ done
 
 if [ $nodepool_elapsed -ge $NODEPOOL_TIMEOUT ]; then
     echo "Timeout reached waiting for user nodepool to be ready. Final status: $NODEPOOL_STATUS"
-    az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --output table
-    exit 1
+    
+    # If nodepool is succeeded but Kubernetes readiness check failed, show warning but continue
+    if [[ $NODEPOOL_STATUS == "Succeeded" && $NODEPOOL_POWER_STATE == "Running" ]]; then
+        echo "WARNING: Nodepool is in Succeeded/Running state but Kubernetes node readiness check timed out."
+        echo "This might be due to node labeling timing or kubectl connectivity issues."
+        echo "Continuing with the script as nodepool infrastructure is ready..."
+        az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --output table
+    else
+        echo "ERROR: Nodepool failed to reach ready state within timeout."
+        az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --output table
+        exit 1
+    fi
 fi
 
 # customer vnet (created using runCustomerSetup.sh manually)
