@@ -5,7 +5,7 @@ owner          = "aks"
 aks_cli_config_list = [
   {
     role                          = "automatic"
-    aks_name                      = "aks-automatic"
+    aks_name                      = "automatic"
     sku_tier                      = "Standard"
     use_aks_preview_cli_extension = true
     optional_parameters = [

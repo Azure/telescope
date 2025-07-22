@@ -5,6 +5,9 @@ parameters:
   - name: regions
     type: object
     default: {}
+  - name: cluster_context
+    type: string
+    default: ""
   - name: action
     type: string
     default: "apply"
@@ -12,55 +15,22 @@ parameters:
 steps:
   - template: /steps/common/kubectl-manifest.yml
     parameters:
+      cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-all-in-one.yaml"
       wait_condition: "" #"condition=status.readyReplicas=3"
       wait_resource: "" # "pod" #TODO
   - template: /steps/common/kubectl-manifest.yml
     parameters:
+      cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-worker.yaml"
       wait_condition: "condition=status.readyReplicas=3"
       wait_resource: "deployment/virtual-worker"
   - template: /steps/common/kubectl-manifest.yml
     parameters:
+      cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-customer.yaml"
       wait_condition: "condition=status.readyReplicas=3"
       wait_resource: "deployment/virtual-customer"
-
-  
-  # - task: KubernetesManifest@1
-  #   displayName: '${{ parameters.action }} AKS Store All-in-One'
-  #   inputs:
-  #     action: '${{ parameters.action }}'
-  #     kubernetesServiceConnection: '$(KUBERNETES_SERVICE_CONNECTION)'
-  #     manifests: '$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-all-in-one.yaml'
-  # - task: KubernetesManifest@1
-  #   displayName: '${{ parameters.action }} AKS Store Virtual Worker'
-  #   inputs:
-  #     action: '${{ parameters.action }}'
-  #     kubernetesServiceConnection: '$(KUBERNETES_SERVICE_CONNECTION)'
-  #     manifests: '$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-worker.yaml'
-  # - task: kubectl@1
-  #   displayName: 'Wait for Virtual Worker Deployment'
-  #   condition: eq('${{ parameters.action }}', 'deploy')
-  #   inputs:
-  #     connectionType: 'Kubernetes Service Connection'
-  #     kubernetesServiceEndpoint: '$(KUBERNETES_SERVICE_CONNECTION)'
-  #     command: 'wait'
-  #     arguments: '--for=condition=status.readyReplicas=3 deployment/virtual-worker --timeout=300s'
-  # - task: KubernetesManifest@1
-  #   displayName: '${{ parameters.action }} AKS Store Virtual Customer'
-  #   inputs:
-  #     action: '${{ parameters.action }}'
-  #     kubernetesServiceConnection: '$(KUBERNETES_SERVICE_CONNECTION)'
-  #     manifests: '$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-customer.yaml'
-  # - task: kubectl@1
-  #   displayName: 'Wait for Virtual Customer Deployment'
-  #   condition: eq('${{ parameters.action }}', 'deploy')
-  #   inputs:
-  #     connectionType: 'Kubernetes Service Connection'
-  #     kubernetesServiceEndpoint: '$(KUBERNETES_SERVICE_CONNECTION)'
-  #     command: 'wait'
-  #     arguments: '--for=condition=status.readyReplicas=3 deployment/virtual-customer --timeout=300s'
