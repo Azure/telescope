@@ -14,7 +14,7 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │   ├── SCENARIO_TYPE: perf-eval
 │   ├── SCENARIO_NAME: swiftv2-cluster-churn-feature
 │   ├── OWNER: aks
-│   ├── BASE_RUN_ID: 5-character GUID for shared identification across stages
+│   ├── BASE_RUN_ID: timestamp-based identifier for shared identification across stages
 │   └── Test Configuration Variables (cpu_per_node, max_pods, etc.)
 │
 ├── Stage 1: dynamicres_gradual
@@ -24,24 +24,24 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │       │   ├── pps=50_nodes=100/200/500/750/1000  
 │       │   └── pps=100_nodes=200/500/750/1000
 │       ├── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
 │
 ├── Stage 2: dynamicres_burst
 │   └── Template: pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
 │       ├── Matrix Parameters (7 configurations):
 │       │   └── nodes=20/50/100/200/500/750/1000
 │       ├── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
 │
 ├── Stage 3: staticres_gradual
 │   └── Template: pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
 │       ├── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
 │
 ├── Stage 4: staticres_burst
 │   └── Template: pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
 │       ├── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
 │
 └── All Matrix Templates Reference: jobs/competitive-test.yml
     ├── Parameters: cloud, regions, engine, topology, etc.
@@ -50,7 +50,7 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
         │
         ├── 1. Setup Tests
         │   └── Template: steps/setup-tests.yml
-        │       ├── Set Run ID (custom RUN_ID parameter or auto-generated 11-character GUID: 5-char base + separator + 5-char unique suffix)
+        │       ├── Set Run ID (custom RUN_ID parameter or auto-generated timestamp-based ID: 10-char base + separator + 5-char unique suffix from System.JobId)
         │       ├── Configure credentials and authentication
         │       ├── Setup test modules directory structure
         │       ├── SSH key setup (conditional: ssh_key_enabled=true)
@@ -247,33 +247,35 @@ The Run ID generation follows a two-tier approach:
 
 At the pipeline level (`new-pipeline-test.yml`), a base Run ID is generated:
 
-- **Base GUID**: A 5-character base identifier is created using Azure DevOps' `newGuid()` function
-- **Format**: `$(BASE_RUN_ID)` - 5 alphanumeric characters (hyphens removed, truncated)
+- **Base ID**: A timestamp-based identifier using Azure DevOps' `$(Date:MMddHHmmss)` format
+- **Format**: `$(BASE_RUN_ID)` - 10 characters representing MonthDayHourMinuteSecond (e.g., `0722143045`)
+- **Example**: For July 22 at 14:30:45, the base Run ID would be `0722143045`
 
 #### 2. Job-Specific Unique Suffix (Job Level)
 
 Each job in every stage matrix gets a unique 5-character suffix with separator:
 
-- **Suffix Source**: First 5 characters of the Azure DevOps `System.JobId`
-- **Final Run ID**: `$(BASE_RUN_ID)-<5-char suffix>` (e.g., `a1b2c-f67ab`)
-- **Total Length**: Always 11 characters (5 base + 1 separator + 5 unique)
+- **Suffix Generation**: Generated in `jobs/competitive-test.yml` using `$[format('{0}-{1}', parameters.base_run_id, substring(variables['System.JobId'], 0, 5))]`
+- **Suffix Source**: First 5 characters of the Azure DevOps `System.JobId` predefined variable
+- **Final Run ID**: `$(BASE_RUN_ID)-<5-char suffix>` (e.g., `0722143045-f67ab`)
+- **Total Length**: Always 16 characters (10 base + 1 separator + 5 unique)
 
 #### 3. Final Run ID Resolution (Job Level)
 
 In `steps/setup-tests.yml`, the final Run ID is resolved:
 
 1. **Custom Run ID**: If a `run_id` parameter is explicitly provided (which it is from the job template), that value is used directly
-2. **Auto-Generated Fallback**: If no custom `run_id` is provided, an 11-character GUID is generated (5 base + separator + 5 suffix)
+2. **Auto-Generated Fallback**: If no custom `run_id` is provided, a timestamp-based ID with suffix is generated (10 base + separator + 5 suffix)
 
 ### Benefits of This Approach
 
 This design provides several advantages:
 
 - **Complete Uniqueness**: Every job across all stages and matrices has a completely unique Run ID
-- **Shared Base**: All jobs from the same pipeline run share a common 5-character base for correlation
-- **Readable Format**: The separator makes it easy to distinguish the base ID from the unique suffix
+- **Shared Base**: All jobs from the same pipeline run share a common 10-character timestamp base for correlation
+- **Readable Format**: The separator makes it easy to distinguish the base ID from the unique suffix and the timestamp format is human-readable
 - **Resource Isolation**: Each job has unique resources (Azure Resource Groups, etc.) preventing conflicts
-- **Traceability**: Results and metadata can be correlated across the entire pipeline run using the shared base
+- **Traceability**: Results and metadata can be correlated across the entire pipeline run using the shared timestamp base
 - **Scalability**: Supports unlimited matrix configurations without ID collisions
 
 ### Usage Throughout Pipeline
@@ -288,13 +290,13 @@ The Run ID serves multiple purposes:
 
 ### Example Run IDs
 
-For a pipeline run with base Run ID `a1b2c`:
+For a pipeline run with base Run ID `0722143045` (July 22, 14:30:45):
 
-- **Dynamic Gradual Job 1**: `a1b2c-f67ab` (unique 5-char suffix: `f67ab`)
-- **Dynamic Gradual Job 2**: `a1b2c-c89de` (unique 5-char suffix: `c89de`)  
-- **Dynamic Burst Job 1**: `a1b2c-1234f` (unique 5-char suffix: `1234f`)
-- **Static Gradual Job 1**: `a1b2c-abcde` (unique 5-char suffix: `abcde`)
+- **Dynamic Gradual Job 1**: `0722143045-f67ab` (unique 5-char suffix: `f67ab`)
+- **Dynamic Gradual Job 2**: `0722143045-c89de` (unique 5-char suffix: `c89de`)  
+- **Dynamic Burst Job 1**: `0722143045-1234f` (unique 5-char suffix: `1234f`)
+- **Static Gradual Job 1**: `0722143045-abcde` (unique 5-char suffix: `abcde`)
 
-Each Run ID is exactly 11 characters and globally unique within the pipeline execution.
+Each Run ID is exactly 16 characters and globally unique within the pipeline execution.
 
 The Run ID is set as an Azure DevOps pipeline variable (`RUN_ID`) and made available to all subsequent steps in the pipeline execution.
