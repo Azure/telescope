@@ -1,8 +1,8 @@
 # Design
 
-## Architecture
+## Achitecture
 ![design](../docs/imgs/design.jpeg)
-As the architecture diagram above shows, Telescope streamlines the evaluation process through five key steps:
+As the achitecture diagram above shows, Telescope streamlines the evaluation process through five key steps:
 
 1. Provision Resources
 2. Validate Resources
@@ -25,7 +25,7 @@ The [pipelines](../pipelines/) orchestrate steps to run to conduct the benchmark
 
 ### Scenarios
 
-The [scenarios](../scenarios/) contains the scenarios for each test case, focusing on a particular setup. Analogously each scenario is an test case corresponding to `SCENARIO_NAME` used in the pipeline definition.
+The [scenarios](../scenarios/) contains the scenarios for each test case, focusing on a particular setup. analogically each scenario is an test case corresponding to `SCENARIO_NAME` used in the pipeline definition.
 
 ### Steps
 
@@ -46,7 +46,11 @@ The framework integrates with these performance testing tools:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf) - API server and ETCD performance testing
 2. [kwok](https://github.com/kubernetes-sigs/kwok) - Kubernetes simulation without kubelet
 3. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/) - Kubernetes cluster performance testing
+<<<<<<< HEAD
 4. [resource-consumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md) - Resource utilization testing
+=======
+4. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md) - Resource utilization testing
+>>>>>>> 3781963a (Update docs for vibe coding)
 5. [iperf](https://github.com/esnet/iperf) - Network performance testing
 6. [fio](https://github.com/axboe/fio) - Storage I/O performance testing
 
