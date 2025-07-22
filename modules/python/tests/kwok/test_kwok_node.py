@@ -44,9 +44,6 @@ def mock_apply_kwok_manifests(kwok_release, enable_metrics):
         metrics_usage_url = f"tests/kwok/{kwok_release}/metrics-usage.yaml"
         subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
 
-    return None
-
-
 class TestNodeIntegration(unittest.TestCase):
 
     @classmethod
