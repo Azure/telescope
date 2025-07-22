@@ -16,10 +16,10 @@ locals {
     if var.eks_config.enable_karpenter
   }
 
-  # metrics_server_addon = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? { "metrics-server" = { name = "metrics-server" } } : {}
+  metrics_server_addon = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? { "metrics-server" = { name = "metrics-server" } } : {}
 
   # Merge all addon maps
-  _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map) #, local.metrics_server_addon)
+  _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.metrics_server_addon)
 
   # Set default VPC-CNI settings if addon is present in the config
   vpc_cni_addon_map = contains(keys(local._eks_addons_map), "vpc-cni") ? {
