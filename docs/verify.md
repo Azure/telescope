@@ -78,4 +78,4 @@ deactivate
 
 ## Verify End-to-End
 
-(TODO)
+To verify end-to-end functionality, you can run the E2E tests as described in the [E2E Testing Guide](e2e-testing.md). This will ensure that all components work together as expected across different cloud providers.
