@@ -23,6 +23,9 @@ parameters:
 steps:
 - script: |
     set -eo pipefail
+
+    trap 'kubectl get pods -n "$NAMESPACE" || true' EXIT
+
     echo "Kubeconfig file: '$KUBECONFIG'"
     kubectl config view --kubeconfig /home/AzDevOps/.kube/config
 
@@ -47,7 +50,7 @@ steps:
         kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --all --timeout="$TIMEOUT" -n "$NAMESPACE"
       fi
     fi
-    trap 'kubectl get pods -n "$NAMESPACE" || true' EXIT
+
     echo "$ACTION manifest '$MANIFEST_FILE' has completed successfully"
   displayName: "${{ parameters.action }} kubectl manifest file: ${{ parameters.manifest_file }}"
   # always runs if action is 'delete'
