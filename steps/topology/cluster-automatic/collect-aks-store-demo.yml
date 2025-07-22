@@ -9,7 +9,6 @@ parameters:
   type: object
   default: {}
 
-
 steps:
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:

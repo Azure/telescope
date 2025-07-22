@@ -21,45 +21,42 @@ parameters:
     default: 60s
 
 steps:
-- script: |
-    set -eo pipefail
+  - script: |
+      set -eo pipefail
 
-    trap 'kubectl get pods -n "$NAMESPACE" || true' EXIT
+      trap 'kubectl get pods -n "$NAMESPACE" || true' EXIT
 
-    echo "Kubeconfig file: '$KUBECONFIG'"
-    kubectl config view 
+      echo "Create namespace if it does not exist"
+      kubectl --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --context="$CLUSTER_CONTEXT" apply -f -
 
-    echo "Create namespace if it does not exist"
-    kubectl --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --context="$CLUSTER_CONTEXT" apply -f -
+      echo "Wait all nodes to be ready before applying the manifest"
+      kubectl --context="$CLUSTER_CONTEXT" wait --for=condition=Ready nodes --all --timeout=600s || echo "No nodes found or not ready - continuing (cluster may use autoscaling)"
 
-    echo "Wait all nodes to be ready before applying the manifest"
-    kubectl --context="$CLUSTER_CONTEXT" wait --for=condition=Ready nodes --all --timeout=600s || echo "No nodes found or not ready - continuing (cluster may use autoscaling)"
+      echo "$ACTION manifest file: $MANIFEST_FILE"
+      kubectl --context="$CLUSTER_CONTEXT" $ACTION -f "$MANIFEST_FILE"
 
-    echo "$ACTION manifest file: $MANIFEST_FILE"
-    kubectl --context="$CLUSTER_CONTEXT" $ACTION -f "$MANIFEST_FILE"
-
-    # if ACTION is apply and WAIT_CONDITION and WAIT_RESOURCE is not empty then wait for the resource to be ready
-    if [ "$ACTION" = "apply" ] && [ -n "$WAIT_CONDITION" ] && [ -n "$WAIT_RESOURCE" ]; then
-      echo "Waiting for resource '$WAIT_RESOURCE' with condition '$WAIT_CONDITION'"
-      # Check if we're waiting for all resources of a type or specific resource
-      if [[ "$WAIT_RESOURCE" == *"/"* ]]; then
-        # Specific resource (e.g., deployment/myapp)
-        kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
-      else
-        # All resources of a type (e.g., deployment)
-        kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --all --timeout="$TIMEOUT" -n "$NAMESPACE"
+      # if ACTION is apply and WAIT_CONDITION and WAIT_RESOURCE is not empty then wait for the resource to be ready
+      if [ "$ACTION" = "apply" ] && [ -n "$WAIT_CONDITION" ] && [ -n "$WAIT_RESOURCE" ]; then
+        echo "Waiting for resource '$WAIT_RESOURCE' with condition '$WAIT_CONDITION'"
+        # Check if we're waiting for all resources of a type or specific resource
+        if [[ "$WAIT_RESOURCE" == *"/"* ]]; then
+          # Specific resource (e.g., deployment/myapp)
+          kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
+        else
+          # All resources of a type (e.g., deployment)
+          kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --all --timeout="$TIMEOUT" -n "$NAMESPACE"
+        fi
       fi
-    fi
 
-    echo "$ACTION manifest '$MANIFEST_FILE' has completed successfully"
-  displayName: "${{ parameters.action }} kubectl manifest file: ${{ parameters.manifest_file }}"
-  # always runs if action is 'delete'
-  condition: or(succeeded(), and(always(), eq('${{ parameters.action }}', 'delete')))
-  env:
-    ACTION: ${{ parameters.action }}
-    CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
-    MANIFEST_FILE: ${{ parameters.manifest_file }}
-    NAMESPACE: ${{ parameters.namespace }}
-    WAIT_RESOURCE: ${{ parameters.wait_resource }}
-    WAIT_CONDITION: ${{ parameters.wait_condition }}
-    TIMEOUT: ${{ parameters.timeout }}
+      echo "$ACTION manifest '$MANIFEST_FILE' has completed successfully"
+    displayName: "${{ parameters.action }} kubectl manifest file: ${{ parameters.manifest_file }}"
+    # always runs if action is 'delete'
+    condition: or(succeeded(), and(always(), eq('${{ parameters.action }}', 'delete')))
+    env:
+      ACTION: ${{ parameters.action }}
+      CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
+      MANIFEST_FILE: ${{ parameters.manifest_file }}
+      NAMESPACE: ${{ parameters.namespace }}
+      WAIT_RESOURCE: ${{ parameters.wait_resource }}
+      WAIT_CONDITION: ${{ parameters.wait_condition }}
+      TIMEOUT: ${{ parameters.timeout }}

@@ -475,4 +475,3 @@ spec:
   selector:
     app: store-admin
   type: LoadBalancer
-
