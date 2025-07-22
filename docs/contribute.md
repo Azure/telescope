@@ -2,18 +2,18 @@
 
 ## Step 1: Add Test Setup
 
-- [scenarios](../scenarios) is the directory where we organize infrastructure setup for different tests. There are 2 type of scenarios: `perf-eval` and `issue-repro`. Most tests fall under the category of `perf-eval`.
-- Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). Your folder name should match value of `SCENARIO_NAME`, which is used in the final yaml file.
+- [scenarios](../scenarios) is the directory where we organize infrastructure setup for different tests. There are 2 type of scenarios: `perf-eval` and `issue-repro`. Most tests fall under the scenario type of `perf-eval`. 
+- Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). Your folder name should match values of `SCENARIO_TYPE` and `SCENARIO_NAME`, which is used in the pipeline definition YAML file.
 - Your folder should contain 2 subfolders:
     - `terraform-inputs`: contains `.tfvars` file to specify how to set up resources
     - `terraform-test-inputs`: contains `.json` file to used in validating Terraform custom input
 - Specific details on what to put in `.tfvars` file can be found in folder [terraform](../modules/terraform) for corresponding provider.
 
-## Step 2: Add Test Tool
+## Step 2: Add Test Engine
 
 - We highly encourage re-using or extending the existing Python modules for new test cases if possible. All existing test engines can be found under the folder [python](../modules/python). If you need to add a new test engine, you need to implement it under the folder [engine](../steps/engine) so it can be used in the pipeline definition YAML file.
 - 
-## Step 3: Add Test Engine and Topology
+## Step 3: Add Test Topology
 
 - It is also preferable to re-use the existing test topologies, but if none of the existing topology meets your need, or you want to customize the topology to be used with an existing test engine, you can create your own subfolder under [topology](../steps/topology/)
 - Each folder under `topology` requires at least 3 files:
