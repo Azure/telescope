@@ -2,13 +2,7 @@ parameters:
 - name: cloud
   type: string
 - name: regions
-  t    burst_nodes=1000:
-      node_count: 1000
-      node_per_step: 1000
-      test_timeout: "15m"
-      scale_timeout: "60m"
-      test_type: Burst_StaticRes_Nodes=1000
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yamlbject
+  type: object
 - name: engine
   type: string
 - name: engine_input
@@ -31,43 +25,43 @@ parameters:
     nodes=20:
       node_count: 20
       node_per_step: 20
-      test_timeout: "5m"
+      test_timeout: "2m"
       test_type: Burst_StaticRes_Nodes=20
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     nodes=50:
       node_count: 50
       node_per_step: 50
-      test_timeout: "5m"
+      test_timeout: "3m"
       test_type: Burst_StaticRes_Nodes=50
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     nodes=100:
       node_count: 100
       node_per_step: 100
-      test_timeout: "5m"
+      test_timeout: "4m"
       test_type: Burst_StaticRes_Nodes=100
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     nodes=200:
       node_count: 200
       node_per_step: 200
-      test_timeout: "10m"
+      test_timeout: "6m"
       test_type: Burst_StaticRes_Nodes=200
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     nodes=500:
       node_count: 500
       node_per_step: 500
-      test_timeout: "25m"
+      test_timeout: "7m"
       test_type: Burst_StaticRes_Nodes=500
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     nodes=750:
       node_count: 750
       node_per_step: 750
-      test_timeout: "38m"
+      test_timeout: "9m"
       test_type: Burst_StaticRes_Nodes=750
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     burst_nodes=1000:
       node_count: 1000
       node_per_step: 1000
-      test_timeout: "50m"
+      test_timeout: "10m"
       test_type: Burst_StaticRes_Nodes=1000
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
 
