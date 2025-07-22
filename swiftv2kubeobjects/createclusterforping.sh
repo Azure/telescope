@@ -138,7 +138,7 @@ az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags Sk
 
 for attempt in $(seq 1 5); do
     echo "creating usernodepool: $attempt/5"
-    az aks nodepool add --cluster-name ${CLUSTER} --name "userpool1" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
+    az aks nodepool add --cluster-name ${CLUSTER} --name "userpool1" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 agentpool=userpool1 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
     sleep 15
 done
 
