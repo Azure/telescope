@@ -33,7 +33,16 @@ def make_mock_node(
 
 
 def mock_apply_kwok_manifests(kwok_release, enable_metrics):
+    """
+    Mock function to simulate the application of Kubernetes manifests for testing purposes.
 
+    Args:
+        kwok_release (str): The release version of KWOK for which manifests are applied.
+        enable_metrics (bool): If True, applies additional metrics-related manifests.
+
+    Returns:
+        None: This function does not return any value.
+    """
     kwok_yaml_url = f"tests/kwok/{kwok_release}/kwok.yaml"
     stage_fast_yaml_url = f"tests/kwok/{kwok_release}/stage-fast.yaml"
 
