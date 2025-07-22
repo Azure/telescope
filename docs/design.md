@@ -27,7 +27,7 @@ The [pipelines](../pipelines/) orchestrate steps to run to conduct the benchmark
 
 The [scenarios](../scenarios/) contains the scenarios for each test case, focusing on a particular setup. analogically each scenario is an test case corresponding to `SCENARIO_NAME` used in the pipeline definition.
 
-### Steps
+### StepsG
 
 The [steps](../steps/) folder contains reusable templates to be invoked from the pipeline. the steps are organized in a functional way, such as to setup/cleanup infrastructure, setup other resources / testing framework etc.
 
@@ -46,11 +46,7 @@ The framework integrates with these performance testing tools:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf) - API server and ETCD performance testing
 2. [kwok](https://github.com/kubernetes-sigs/kwok) - Kubernetes simulation without kubelet
 3. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/) - Kubernetes cluster performance testing
-<<<<<<< HEAD
-4. [resource-consumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md) - Resource utilization testing
-=======
 4. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md) - Resource utilization testing
->>>>>>> 3781963a (Update docs for vibe coding)
 5. [iperf](https://github.com/esnet/iperf) - Network performance testing
 6. [fio](https://github.com/axboe/fio) - Storage I/O performance testing
 
