@@ -2,6 +2,11 @@ scenario_type  = "perf-eval"
 scenario_name  = "cluster-automatic"
 deletion_delay = "2h"
 owner          = "aks"
+public_ip_config_list = [
+  {
+    name = "nat-gateway-pip"
+  }
+]
 network_config_list = [
   {
     role           = "automatic"
@@ -57,7 +62,16 @@ network_config_list = [
           cidr_block = "0.0.0.0/0"
         }
       ]
-    }
+    },
+    nat_gateway_associations = [{
+      nat_gateway_name = "nat-gateway"
+      subnet_names     = ["automatic-subnet"]
+      public_ip_names  = ["nat-gateway-pip"]
+    },{
+      nat_gateway_name = "nat-gateway-2"
+      subnet_names     = ["automatic-subnet-2"]
+      public_ip_names  = ["nat-gateway-pip"]
+    }]
   }
 ]
 
