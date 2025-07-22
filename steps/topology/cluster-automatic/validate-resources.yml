@@ -17,7 +17,7 @@ steps:
       az aks install-cli
     fi
     # Converts the kubeconfig to use Azure CLI authentication for AKS cluster access
-    kubelogin convert-kubeconfig -l azurecli -v
+    kubelogin convert-kubeconfig -l azurecli -v 99
   displayName: 'Install kubelogin and convert kubeconfig'
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
