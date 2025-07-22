@@ -12,17 +12,17 @@ steps:
     role: automatic
     region: ${{ parameters.regions[0] }}
 
-${{ if eq(parameters.cloud, 'azure') }}:    
-- script: |
-    set -eo pipefail
-    if ! command -v kubelogin &> /dev/null; then
-      az aks install-cli
-    fi
-    kubectl config view --kubeconfig /home/AzDevOps/.kube/config
-    # Converts the kubeconfig to use Azure CLI authentication for AKS cluster access
-    kubelogin convert-kubeconfig -l azurecli -v 99 --kubeconfig /home/AzDevOps/.kube/config
-    kubectl config view --kubeconfig /home/AzDevOps/.kube/config
-  displayName: 'Install kubelogin and convert kubeconfig'
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - script: |
+      set -eo pipefail
+      if ! command -v kubelogin &> /dev/null; then
+        az aks install-cli
+      fi
+      kubectl config view --kubeconfig /home/AzDevOps/.kube/config
+      # Converts the kubeconfig to use Azure CLI authentication for AKS cluster access
+      kubelogin convert-kubeconfig -l azurecli -v 99 --kubeconfig /home/AzDevOps/.kube/config
+      kubectl config view --kubeconfig /home/AzDevOps/.kube/config
+    displayName: 'Install kubelogin and convert kubeconfig'
 
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
