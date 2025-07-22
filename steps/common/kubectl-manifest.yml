@@ -25,7 +25,9 @@ steps:
     set -eo pipefail
     echo "Kubeconfig file: '$KUBECONFIG'"
     kubectl config view --kubeconfig /home/AzDevOps/.kube/config
-    kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" || true
+
+    # Create namespace if it does not exist
+    kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" apply -f -
 
     # Wait all nodes to be ready before applying the manifest
     kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" wait --for=condition=Ready nodes --timeout=600s
