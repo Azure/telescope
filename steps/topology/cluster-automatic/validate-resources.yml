@@ -14,8 +14,7 @@ steps:
 - script: |
     set -eo pipefail
     if ! command -v kubelogin &> /dev/null; then
-      echo "kubelogin could not be found. Installing kubelogin..."
-      brew install Azure/kubelogin/kubelogin
+      tdnf install -y kubelogin || az aks install-cli
     fi
     # Converts the kubeconfig to use Azure CLI authentication for AKS cluster access
     kubelogin convert-kubeconfig -l azurecli
