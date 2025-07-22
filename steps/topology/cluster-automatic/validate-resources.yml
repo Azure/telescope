@@ -17,7 +17,7 @@ steps:
   # Refresh credentials
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
     parameters:
-      region: ${{ parameters.regions[0] }}
+      region: ${{ parameters.region }}
       credential_type: service_connection
   - script: |
       set -eo pipefail
