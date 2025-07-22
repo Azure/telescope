@@ -12,8 +12,10 @@ variables:
   SCENARIO_NAME: cni-ab-testing
 
 stages:
-  - stage: azure_swedencentral_defautl
+  - stage: azure_swedencentral_default
     dependsOn: []
+    variables:
+      - group: Parallel-Pull-Disabled
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -34,6 +36,8 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.33"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               host_network: False
             n10-p700-memory:
@@ -43,6 +47,8 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.33"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               host_network: False
             n10-p1100-memory:
@@ -52,6 +58,8 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.33"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               host_network: False
           max_parallel: 3
@@ -81,6 +89,8 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.33"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               host_network: False
             n10-p700-memory:
@@ -90,6 +100,8 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.33"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               host_network: False
             n10-p1100-memory:
@@ -99,6 +111,8 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.33"
+              k8s_machine_type: Standard_D16ds_v4
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               host_network: False
           max_parallel: 3
@@ -115,7 +129,7 @@ stages:
           regions:
             - eu-west-1
           terraform_input_file_mapping:
-            - swedencentral: "scenarios/perf-eval/cri-resource-consume/terraform-inputs/aws.tfvars"
+            - eu-west-1: "scenarios/perf-eval/cri-resource-consume/terraform-inputs/aws.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241016"
