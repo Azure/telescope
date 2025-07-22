@@ -18,19 +18,22 @@ steps:
       cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-all-in-one.yaml"
-      wait_condition: "" #"condition=status.readyReplicas=3"
-      wait_resource: "" # "pod" #TODO
+      wait_condition: "condition=Available"
+      wait_resource: "deployment --all"
+      timeout: "60s"
   - template: /steps/common/kubectl-manifest.yml
     parameters:
       cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-worker.yaml"
-      wait_condition: "condition=status.readyReplicas=3"
+      wait_condition: "condition=Available"
       wait_resource: "deployment/virtual-worker"
+      timeout: "30s"
   - template: /steps/common/kubectl-manifest.yml
     parameters:
       cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-virtual-customer.yaml"
-      wait_condition: "condition=status.readyReplicas=3"
+      wait_condition: "condition=Available"
       wait_resource: "deployment/virtual-customer"
+      timeout: "30s"
