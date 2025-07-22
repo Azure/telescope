@@ -19,3 +19,17 @@ stages:
           credential_type: service_connection # required
           ssh_key_enabled: false
           timeout_in_minutes: 60 # if not specified, default is 60
+  - stage: aws_us-east-2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml # must keep as is
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: cluster-automatic
+          engine: aks-store-demo
+          max_parallel: 1 # required
+          credential_type: service_connection # required
+          ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
