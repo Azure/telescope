@@ -115,7 +115,11 @@ def verify_measurement():
 
             metrics = response[0]  # The first item contains the response data
             filtered_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
+                line
+                for line in metrics.splitlines()
+                if line.startswith("kubelet_pod_start")
+                or line.startswith("kubelet_runtime_operations")
+                or line.startswith("kubelet_run_podsandbox")
             )
             logger.info(f"##[section]Metrics for node: {node_name}") # pylint: disable=logging-too-many-args
             logger.info(filtered_metrics) # pylint: disable=logging-too-many-args
