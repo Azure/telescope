@@ -14,8 +14,14 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │   ├── SCENARIO_TYPE: perf-eval
 │   ├── SCENARIO_NAME: swiftv2-cluster-churn-feature
 │   ├── OWNER: aks
-│   ├── BASE_RUN_ID: timestamp-based identifier for shared identification across stages
 │   └── Test Configuration Variables (cpu_per_node, max_pods, etc.)
+│
+├── Stage 0: generate_base_run_id
+│   └── Job: generate_run_id
+│       └── Script: Generate base Run ID with user initials and timestamp (UserInitials-DDHHMMSS)
+│           ├── Extract user initials from Build.RequestedFor
+│           ├── Generate timestamp with date +%d%H%M%S
+│           └── Output: BASE_RUN_ID variable shared across all subsequent stages
 │
 ├── Stage 1: dynamicres_gradual
 │   └── Template: pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml
@@ -44,13 +50,16 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
 │
 └── All Matrix Templates Reference: jobs/competitive-test.yml
-    ├── Parameters: cloud, regions, engine, topology, etc.
+    ├── Parameters: cloud, regions, engine, topology, base_run_id, etc.
     ├── Strategy: Matrix execution with max_parallel=1
     └── Pipeline Steps:
         │
         ├── 1. Setup Tests
         │   └── Template: steps/setup-tests.yml
-        │       ├── Set Run ID (custom RUN_ID parameter or auto-generated timestamp-based ID: 10-char base + separator + 5-char unique suffix from System.JobId)
+        │       ├── Set Run ID (base_run_id + job suffix or fallback timestamp-based ID)
+        │       │   ├── Priority 1: Use explicit run_id parameter if provided
+        │       │   ├── Priority 2: Combine base_run_id + System.JobId suffix (e.g., JD-22200145-a1b2c)
+        │       │   └── Priority 3: Generate fallback timestamp-based ID with GUID suffix
         │       ├── Configure credentials and authentication
         │       ├── Setup test modules directory structure
         │       ├── SSH key setup (conditional: ssh_key_enabled=true)
@@ -241,41 +250,67 @@ The Run ID is a unique identifier used throughout the pipeline to track and orga
 
 ### Generation Process
 
-The Run ID generation follows a two-tier approach:
+The Run ID generation follows a two-tier approach with user identification and compact timestamp format:
 
 #### 1. Base Run ID Generation (Pipeline Level)
 
-At the pipeline level (`new-pipeline-test.yml`), a base Run ID is generated:
+At the pipeline level (`new-pipeline-test.yml`), a base Run ID is generated in a dedicated stage:
 
-- **Base ID**: A timestamp-based identifier using Azure DevOps' `$(Date:MMddHHmmss)` format
-- **Format**: `$(BASE_RUN_ID)` - 10 characters representing MonthDayHourMinuteSecond (e.g., `0722143045`)
-- **Example**: For July 22 at 14:30:45, the base Run ID would be `0722143045`
+- **Generation Method**: Script-based generation using `date` command and user extraction
+- **Format**: `UserInitials-DDHHMMSS` where:
+  - `UserInitials`: 2-character initials from `$(Build.RequestedFor)` (e.g., "John Doe" → "JD")
+  - `DD`: Day of month (2 digits)
+  - `HH`: Hour in 24-hour format (2 digits)
+  - `MM`: Minutes (2 digits)
+  - `SS`: Seconds (2 digits)
+- **Base ID Length**: 12 characters (e.g., `JD-22200145`)
+- **Example**: For John Doe triggering on July 22 at 20:01:45, the base Run ID would be `JD-22200145`
 
 #### 2. Job-Specific Unique Suffix (Job Level)
 
 Each job in every stage matrix gets a unique 5-character suffix with separator:
 
-- **Suffix Generation**: Generated in `jobs/competitive-test.yml` using `$[format('{0}-{1}', parameters.base_run_id, substring(variables['System.JobId'], 0, 5))]`
-- **Suffix Source**: First 5 characters of the Azure DevOps `System.JobId` predefined variable
-- **Final Run ID**: `$(BASE_RUN_ID)-<5-char suffix>` (e.g., `0722143045-f67ab`)
-- **Total Length**: Always 16 characters (10 base + 1 separator + 5 unique)
+- **Suffix Generation**: Generated in `steps/setup-tests.yml` using first 5 characters of `System.JobId`
+- **Suffix Source**: Azure DevOps `System.JobId` predefined variable
+- **Final Run ID**: `<BaseRunID>-<5-char suffix>` (e.g., `JD-22200145-f67ab`)
+- **Total Length**: Always 17 characters (12 base + 1 separator + 5 unique)
 
 #### 3. Final Run ID Resolution (Job Level)
 
-In `steps/setup-tests.yml`, the final Run ID is resolved:
+In `steps/setup-tests.yml`, the final Run ID is resolved with priority order:
 
-1. **Custom Run ID**: If a `run_id` parameter is explicitly provided (which it is from the job template), that value is used directly
-2. **Auto-Generated Fallback**: If no custom `run_id` is provided, a timestamp-based ID with suffix is generated (10 base + separator + 5 suffix)
+1. **Explicit Run ID**: If a `run_id` parameter is explicitly provided, that value is used directly
+2. **Base + Job Suffix**: If `base_run_id` parameter is provided, combine with job suffix: `${BASE_RUN_ID}-${job_suffix}`
+3. **Fallback Generation**: If both parameters are empty, generate timestamp-based ID with GUID suffix
+
+### User Initial Extraction Logic
+
+The pipeline extracts user initials from the `$(Build.RequestedFor)` variable:
+
+- **Processing Steps**:
+  1. Remove special characters, keep only letters and spaces
+  2. Extract first letter of each word
+  3. Convert to uppercase
+  4. Take first 2 characters as initials
+  5. Fallback to "XX" if extraction fails
+
+- **Examples**:
+  - "John Doe" → `JD`
+  - "Alice Smith Johnson" → `AS` (first 2 initials)
+  - "maría garcía" → `MG`
+  - "" (empty/invalid) → `XX` (fallback)
 
 ### Benefits of This Approach
 
 This design provides several advantages:
 
 - **Complete Uniqueness**: Every job across all stages and matrices has a completely unique Run ID
-- **Shared Base**: All jobs from the same pipeline run share a common 10-character timestamp base for correlation
-- **Readable Format**: The separator makes it easy to distinguish the base ID from the unique suffix and the timestamp format is human-readable
+- **Shared Base**: All jobs from the same pipeline run share a common 12-character base for correlation
+- **User Identification**: Immediately see who triggered each pipeline run
+- **Compact Format**: Only 17 characters total, much shorter than previous approaches
+- **Chronological Sorting**: Day-first format provides natural chronological ordering
 - **Resource Isolation**: Each job has unique resources (Azure Resource Groups, etc.) preventing conflicts
-- **Traceability**: Results and metadata can be correlated across the entire pipeline run using the shared timestamp base
+- **Traceability**: Results and metadata can be correlated across the entire pipeline run using the shared base
 - **Scalability**: Supports unlimited matrix configurations without ID collisions
 
 ### Usage Throughout Pipeline
@@ -290,13 +325,24 @@ The Run ID serves multiple purposes:
 
 ### Example Run IDs
 
-For a pipeline run with base Run ID `0722143045` (July 22, 14:30:45):
+For a pipeline run triggered by John Doe on July 22 at 20:01:45:
 
-- **Dynamic Gradual Job 1**: `0722143045-f67ab` (unique 5-char suffix: `f67ab`)
-- **Dynamic Gradual Job 2**: `0722143045-c89de` (unique 5-char suffix: `c89de`)  
-- **Dynamic Burst Job 1**: `0722143045-1234f` (unique 5-char suffix: `1234f`)
-- **Static Gradual Job 1**: `0722143045-abcde` (unique 5-char suffix: `abcde`)
+- **Base Run ID**: `JD-22200145` (John Doe, July 22, 20:01:45)
+- **Dynamic Gradual Job 1**: `JD-22200145-f67ab` (unique 5-char suffix: `f67ab`)
+- **Dynamic Gradual Job 2**: `JD-22200145-c89de` (unique 5-char suffix: `c89de`)  
+- **Dynamic Burst Job 1**: `JD-22200145-1234f` (unique 5-char suffix: `1234f`)
+- **Static Gradual Job 1**: `JD-22200145-abcde` (unique 5-char suffix: `abcde`)
 
-Each Run ID is exactly 16 characters and globally unique within the pipeline execution.
+Each Run ID is exactly 17 characters and globally unique within the pipeline execution.
+
+### Filtering and Analysis
+
+The new format enables powerful filtering capabilities:
+
+- **By User**: Filter by `JD-*` to see all runs by John Doe
+- **By Date**: Filter by `*-22*` to see all runs on the 22nd
+- **By Time Range**: Filter by `*-2220*` to see runs around 20:20
+- **By Pipeline Run**: Filter by `JD-22200145-*` to see all jobs from a specific pipeline execution
+- **Cross-User Analysis**: Compare runs by different users on the same day
 
 The Run ID is set as an Azure DevOps pipeline variable (`RUN_ID`) and made available to all subsequent steps in the pipeline execution.
