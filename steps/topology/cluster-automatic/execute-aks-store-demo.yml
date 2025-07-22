@@ -11,10 +11,10 @@ parameters:
 
 steps:
 - task: Bash@3
-  displayName: 'Wait for 1 minute'
+  displayName: 'Letting demo running for 60 minutes'
   inputs:
     targetType: 'inline'
     script: |
-      echo "Waiting for 1 minute..."
-      sleep 60
+      echo "Wait for 60 minutes..."
+      sleep 3600
       echo "Wait completed"
