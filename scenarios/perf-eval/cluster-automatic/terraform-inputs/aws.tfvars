@@ -33,7 +33,7 @@
 # Performance evaluation scenario for EKS automatic mode testing
 scenario_type  = "perf-eval"
 scenario_name  = "cluster-automatic"
-deletion_delay = "2h"  # Auto-cleanup after 2 hours
+deletion_delay = "2h"
 owner          = "aks"
 
 # Network configuration for EKS cluster with private/public subnet architecture
@@ -41,47 +41,47 @@ network_config_list = [
   {
     role           = "automatic"
     vpc_name       = "automatic-vpc"
-    vpc_cidr_block = "10.0.0.0/16"  # Provides ~65k IP addresses
-    
+    vpc_cidr_block = "10.0.0.0/16"
+
     # Subnet configuration: 2 private + 2 public subnets for HA across AZs
     subnet = [
       # Private subnets for EKS worker nodes (no direct internet access)
       {
         name                    = "automatic-subnet"
-        cidr_block              = "10.0.32.0/19"  # ~8k IPs in AZ-a
+        cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
         map_public_ip_on_launch = false
       },
       {
         name                    = "automatic-subnet-2"
-        cidr_block              = "10.0.64.0/19"  # ~8k IPs in AZ-b
+        cidr_block              = "10.0.64.0/19"
         zone_suffix             = "b"
         map_public_ip_on_launch = false
       },
       # Public subnets for NAT gateways and load balancers
       {
         name                    = "automatic-public-subnet"
-        cidr_block              = "10.0.0.0/24"   # ~250 IPs in AZ-a
+        cidr_block              = "10.0.0.0/24"
         zone_suffix             = "a"
         map_public_ip_on_launch = true
       },
       {
         name                    = "automatic-public-subnet-2"
-        cidr_block              = "10.0.1.0/24"   # ~250 IPs in AZ-b
+        cidr_block              = "10.0.1.0/24"
         zone_suffix             = "b"
         map_public_ip_on_launch = true
       }
     ]
-    
+
     security_group_name = "automatic-sg"
-    
+
     # Routing configuration
     route_tables = [
       # Public route table - direct internet access via IGW
       {
         name             = "internet-rt"
         cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = null  # Uses Internet Gateway instead
+        nat_gateway_name = null # Uses Internet Gateway instead
       },
       # Private route table - internet access via NAT Gateway
       # {
@@ -95,7 +95,7 @@ network_config_list = [
       #   nat_gateway_name = "nat-gateway-2"  # Routes through NAT for outbound traffic
       # }
     ],
-    
+
     # Subnet-to-route-table associations
     route_table_associations = [
       # Public subnets use internet route table
@@ -121,8 +121,7 @@ network_config_list = [
       #   route_table_name = "private-rt-2"
       # }
     ]
-    
-    # Security group rules for cluster access
+
     # Security group rules for cluster access
     sg_rules = {
       ingress = [
@@ -144,7 +143,7 @@ network_config_list = [
         }
       ]
     },
-    
+
     # Elastic IPs for NAT Gateways (one per AZ for HA) - TEMPORARILY DISABLED
     # nat_gateway_public_ips = [{
     #   name = "nat-gateway-pip"      # EIP for AZ-a NAT Gateway
@@ -152,7 +151,7 @@ network_config_list = [
     #   name = "nat-gateway-pip-2"    # EIP for AZ-b NAT Gateway
     # }],
     nat_gateway_public_ips = [],
-    
+
     # NAT Gateways for private subnet internet access (one per AZ) - TEMPORARILY DISABLED
     # nat_gateways = [{
     #   name           = "nat-gateway"              # Primary NAT in AZ-a
@@ -172,23 +171,23 @@ eks_config_list = [{
   role     = "automatic"
   eks_name = "automatic"
   vpc_name = "automatic-vpc"
-  
+
   # IAM policies required for EKS Auto Mode functionality
   policy_arns = [
-    "AmazonEKSClusterPolicy",        # Core EKS cluster permissions
+    "AmazonEKSClusterPolicy",         # Core EKS cluster permissions
     "AmazonEKSVPCResourceController", # VPC resource management
-    "AmazonEKS_CNI_Policy",          # Container networking interface
-    "AmazonSSMManagedInstanceCore"   # Systems Manager for node management
+    "AmazonEKS_CNI_Policy",           # Container networking interface
+    "AmazonSSMManagedInstanceCore"    # Systems Manager for node management
   ]
-  
+
   # EKS Auto Mode configuration
-  auto_mode                 = true   # Enable automatic infrastructure management
-  node_pool_general_purpose = true   # Auto-managed general purpose nodes
-  node_pool_system          = true   # Auto-managed system/control plane nodes
-  
+  auto_mode                 = true # Enable automatic infrastructure management
+  node_pool_general_purpose = true # Auto-managed general purpose nodes
+  node_pool_system          = true # Auto-managed system/control plane nodes
+
   # Manual node groups and addons disabled for pure auto mode testing
-  eks_managed_node_groups   = []     # Let auto mode handle node provisioning
-  eks_addons                = []     # Let auto mode handle addon management
-  
-  kubernetes_version        = "1.32" # Latest Kubernetes version for testing
+  eks_managed_node_groups = []
+  eks_addons              = []
+
+  kubernetes_version = "1.32"
 }]
