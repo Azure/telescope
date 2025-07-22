@@ -13,13 +13,26 @@ variables:
   scrape_containerd: False
   service_test: False
   ds_test: True
-  # Generate base run ID (5 characters) to be used across all stages
-  BASE_RUN_ID: $(Date:yyyyMMddHHmmss)
 
 stages:
+  - stage: generate_base_run_id
+    displayName: 'Generate Base Run ID'
+    jobs:
+    - job: generate_run_id
+      displayName: 'Generate Base Run ID'
+      steps:
+      - script: |
+          base_run_id=$(date +%m%d%H%M%S)
+          echo "Generated base run ID: $base_run_id"
+          echo "##vso[task.setvariable variable=BASE_RUN_ID;isOutput=true]$base_run_id"
+        name: generate_id
+        displayName: "Generate Base Run ID"
+
   - stage: dynamicres_gradual
     displayName: 'Dynamic Gradual'
-    dependsOn: []
+    dependsOn: generate_base_run_id
+    variables:
+      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
     jobs:
       - template: /pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml
         parameters:
@@ -38,7 +51,9 @@ stages:
 
   - stage: dynamicres_burst
     displayName: 'Dynamic Burst'
-    dependsOn: []
+    dependsOn: generate_base_run_id
+    variables:
+      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
     jobs:
       - template: /pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
         parameters:
@@ -57,7 +72,9 @@ stages:
 
   - stage: staticres_gradual
     displayName: 'Static Gradual'
-    dependsOn: []
+    dependsOn: generate_base_run_id
+    variables:
+      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
     jobs:
       - template: /pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
         parameters:
@@ -76,7 +93,9 @@ stages:
 
   - stage: staticres_burst
     displayName: 'Static Burst'
-    dependsOn: []
+    dependsOn: generate_base_run_id
+    variables:
+      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
     jobs:
       - template: /pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
         parameters:
