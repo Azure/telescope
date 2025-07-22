@@ -37,8 +37,15 @@ steps:
 
     # if ACTION is apply and WAIT_CONDITION and WAIT_RESOURCE is not empty then wait for the resource to be ready
     if [ "$ACTION" = "apply" ] && [ -n "$WAIT_CONDITION" ] && [ -n "$WAIT_RESOURCE" ]; then
-      echo "Waiting for resource $WAIT_RESOURCE with condition $WAIT_CONDITION to be ready"
-      kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
+      echo "Waiting for resource '$WAIT_RESOURCE' with condition '$WAIT_CONDITION'"
+      # Check if we're waiting for all resources of a type or specific resource
+      if [[ "$WAIT_RESOURCE" == *"/"* ]]; then
+        # Specific resource (e.g., deployment/myapp)
+        kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
+      else
+        # All resources of a type (e.g., deployment)
+        kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --all --timeout="$TIMEOUT" -n "$NAMESPACE"
+      fi
     fi
     echo "$ACTION manifest '$MANIFEST_FILE' has completed successfully"
   displayName: "${{ parameters.action }} kubectl manifest"
