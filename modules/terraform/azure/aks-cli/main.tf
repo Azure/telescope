@@ -98,7 +98,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 }
 
 resource "azurerm_role_assignment" "network_contributor" {
-  count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  count                = var.aks_cli_config.managed_identity_name != null && var.subnet_id != null ? 1 : 0
   role_definition_name = "Network Contributor"
   scope                = var.subnet_id
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
