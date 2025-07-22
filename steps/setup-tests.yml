@@ -22,7 +22,9 @@ steps:
     if [ -n "$RUN_ID" ]; then
       run_id=$RUN_ID
     else
-      run_id=$(Build.BuildId)-$(System.JobId)
+      # Generate a random GUID limited to 15 characters
+      full_guid=$(uuidgen)
+      run_id=$(echo "$full_guid" | tr -d '-' | cut -c1-15)
     fi
     echo "Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
