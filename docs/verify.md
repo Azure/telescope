@@ -35,6 +35,9 @@ pytest tests/clients/ -v  # Client tests
 pytest tests/crud/ -v     # CRUD operation tests
 pytest tests/iperf3/ -v   # Network performance tests
 
+# Delete kwok cluster
+kwokctl delete cluster --name kwok-test
+
 # Deactivate virtual environment
 deactivate
 ```
