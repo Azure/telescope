@@ -2,11 +2,7 @@ scenario_type  = "perf-eval"
 scenario_name  = "cluster-automatic"
 deletion_delay = "2h"
 owner          = "aks"
-public_ip_config_list = [
-  {
-    name = "nat-gateway-pip"
-  }
-]
+
 network_config_list = [
   {
     role           = "automatic"
@@ -17,32 +13,49 @@ network_config_list = [
         name                    = "automatic-subnet"
         cidr_block              = "10.0.32.0/19"
         zone_suffix             = "a"
-        map_public_ip_on_launch = true
+        map_public_ip_on_launch = false
       },
       {
         name                    = "automatic-subnet-2"
         cidr_block              = "10.0.64.0/19"
         zone_suffix             = "b"
+        map_public_ip_on_launch = false
+      },
+      {
+        name                    = "automatic-public-subnet"
+        cidr_block              = "10.0.0.0/24"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
     security_group_name = "automatic-sg"
     route_tables = [
       {
-        name       = "internet-rt"
-        cidr_block = "0.0.0.0/0"
+        name             = "internet-rt"
+        cidr_block       = "0.0.0.0/0"
+        nat_gateway_name = null
+      },
+      {
+        name             = "private-rt"
+        cidr_block       = "0.0.0.0/0"
+        nat_gateway_name = "nat-gateway"
       }
     ],
     route_table_associations = [
       {
+        name             = "automatic-public-subnet-rt-assoc"
+        subnet_name      = "automatic-public-subnet"
+        route_table_name = "internet-rt"
+      },
+      {
         name             = "automatic-subnet-rt-assoc"
         subnet_name      = "automatic-subnet"
-        route_table_name = "internet-rt"
+        route_table_name = "private-rt"
       },
       {
         name             = "automatic-subnet-rt-assoc-2"
         subnet_name      = "automatic-subnet-2"
-        route_table_name = "internet-rt"
+        route_table_name = "private-rt"
       }
     ]
     sg_rules = {
@@ -63,14 +76,13 @@ network_config_list = [
         }
       ]
     },
-    nat_gateway_associations = [{
-      nat_gateway_name = "nat-gateway"
-      subnet_names     = ["automatic-subnet"]
-      public_ip_names  = ["nat-gateway-pip"]
-    },{
-      nat_gateway_name = "nat-gateway-2"
-      subnet_names     = ["automatic-subnet-2"]
-      public_ip_names  = ["nat-gateway-pip"]
+    nat_gateway_public_ips = [{
+      name = "nat-gateway-pip"
+    }],
+    nat_gateways = [{
+      name           = "nat-gateway"
+      public_ip_name = "nat-gateway-pip"
+      subnet_name    = "automatic-public-subnet"
     }]
   }
 ]
