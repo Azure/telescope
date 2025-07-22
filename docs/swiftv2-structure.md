@@ -45,7 +45,7 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
         │
         ├── 1. Setup Tests
         │   └── Template: steps/setup-tests.yml
-        │       ├── Set Run ID (Build.BuildId-System.JobId or custom RUN_ID)
+        │       ├── Set Run ID (custom RUN_ID parameter or auto-generated 15-character GUID)
         │       ├── Configure credentials and authentication
         │       ├── Setup test modules directory structure
         │       ├── SSH key setup (conditional: ssh_key_enabled=true)
@@ -229,3 +229,35 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 ## Purpose
 
 This pipeline is designed to benchmark Kubernetes performance for SwiftV2 cluster churn scenarios across different scaling patterns (gradual vs burst) and resource allocation strategies (dynamic vs static) on Azure AKS clusters.
+
+## Run ID Generation
+
+The Run ID is a unique identifier used throughout the pipeline to track and organize resources, test results, and metadata for each pipeline execution. The Run ID generation follows this logic:
+
+### Generation Process
+
+The Run ID is generated in the `steps/setup-tests.yml` template during the "Set Run ID" step:
+
+1. **Custom Run ID**: If a `run_id` parameter is explicitly provided when invoking the pipeline (via the `competitive-test.yml` job template), that custom value is used directly.
+
+2. **Auto-Generated Run ID**: If no custom `run_id` is provided (which is the default case for `new-pipeline-test.yml`), a random GUID is generated:
+   - A full UUID is generated using `uuidgen`
+   - Hyphens are removed with `tr -d '-'`
+   - The result is truncated to the first 15 characters using `cut -c1-15`
+
+### Usage Throughout Pipeline
+
+The Run ID serves multiple purposes:
+
+- **Resource Naming**: Used as the Azure Resource Group name for all cloud resources
+- **Resource Tagging**: Applied as a tag to all Azure resources for identification and cleanup
+- **Test Organization**: Used in directory structures for test results and artifacts
+- **Cleanup Operations**: Enables targeted cleanup of resources associated with a specific test run
+- **Metadata Collection**: Included in test metadata and results for traceability
+
+### Example Run IDs
+
+- Custom: `my-custom-run-123` (if provided as parameter)
+- Auto-generated: `a1b2c3d4e5f6g7h` (15-character truncated UUID)
+
+The Run ID is set as an Azure DevOps pipeline variable (`RUN_ID`) and made available to all subsequent steps in the pipeline execution.
