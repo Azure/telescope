@@ -36,6 +36,8 @@ steps:
       kubectl --context="$CLUSTER_CONTEXT" wait --for="$WAIT_CONDITION" "$WAIT_RESOURCE" --timeout="$TIMEOUT" -n "$NAMESPACE"
     fi
   displayName: "${{ parameters.action }} kubectl manifest"
+  # always runs if action is 'delete'
+  condition: or(succeeded(), and(always(), eq('${{ parameters.action }}', 'delete')))
   env:
     ACTION: ${{ parameters.action }}
     CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
