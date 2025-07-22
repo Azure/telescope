@@ -1,3 +1,7 @@
+# This file is part of the AKS Store Demo project.
+# It defines the Kubernetes deployment for the MongoDB, RabbitMQ, and other services used in the demo.
+# DisableKubernetesDeploymentDetector: "This is a demo deployment for the AKS Store. Used only for benchmarking purposes."
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

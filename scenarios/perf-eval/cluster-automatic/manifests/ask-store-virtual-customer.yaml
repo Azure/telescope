@@ -1,3 +1,6 @@
+# This file is part of the AKS Store Demo project.
+# It defines the Kubernetes deployment for the virtual customer component.
+# DisableKubernetesDeploymentDetector: "This is a virtual customer deployment for the AKS Store Demo. Used only for benchmarking purposes."
 apiVersion: apps/v1
 kind: Deployment
 metadata:

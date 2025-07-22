@@ -1,3 +1,6 @@
+# This file is part of the AKS Store Demo project.
+# It defines the Kubernetes deployment for the virtual worker component.
+# DisableKubernetesDeploymentDetector: "This is a virtual worker deployment for the AKS Store
 apiVersion: apps/v1
 kind: Deployment
 metadata:
