@@ -11,6 +11,7 @@ steps:
   parameters:
     role: automatic
     region: ${{ parameters.regions[0] }}
+    alias: automatic
 
 - ${{ if eq(parameters.cloud, 'azure') }}:
   - script: |
