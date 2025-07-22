@@ -14,11 +14,6 @@ steps:
     alias: automatic
 
 - ${{ if eq(parameters.cloud, 'azure') }}:
-  # Refresh credentials
-  - template: /steps/cloud/${{ parameters.cloud }}/login.yml
-    parameters:
-      region: ${{ parameters.region }}
-      credential_type: service_connection
   - script: |
       set -eo pipefail
       if ! command -v kubelogin &> /dev/null; then
