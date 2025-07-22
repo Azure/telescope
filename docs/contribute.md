@@ -3,7 +3,7 @@
 ## Step 1: Add Test Setup
 
 - [scenarios](../scenarios) is the directory where we organize infrastructure setup for different tests. There are 2 type of scenarios: `perf-eval` and `issue-repro`. Most tests fall under the category of `perf-eval`.
-- Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). Your folder name should match value of `SCENARIO_NAME`, which is used in the final yaml file.
+- Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). Your folder name should match value of `SCENARIO_NAME`, which is used in the pipeline definition YAML file.
 - Your folder should contain 2 subfolders:
     - `terraform-inputs`: contains `.tfvars` file to specify how to set up resources
     - `terraform-test-inputs`: contains `.json` file to used in validating Terraform custom input
