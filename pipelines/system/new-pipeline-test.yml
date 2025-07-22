@@ -41,7 +41,7 @@ stages:
           topology: $(TOPOLOGY)
           max_parallel: ${{ variables.MAX_PARALLEL }}
           timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: $(CREDENTIAL_TYPE)
+          credential_type: ${{ variables.CREDENTIAL_TYPE }}
           ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
           base_run_id: $(BASE_RUN_ID)
 
@@ -60,7 +60,7 @@ stages:
           topology: $(TOPOLOGY)
           max_parallel: ${{ variables.MAX_PARALLEL }}
           timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: $(CREDENTIAL_TYPE)
+          credential_type: ${{ variables.CREDENTIAL_TYPE }}
           ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
           base_run_id: $(BASE_RUN_ID)
 
@@ -79,7 +79,7 @@ stages:
           topology: $(TOPOLOGY)
           max_parallel: ${{ variables.MAX_PARALLEL }}
           timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: $(CREDENTIAL_TYPE)
+          credential_type: ${{ variables.CREDENTIAL_TYPE }}
           ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
           base_run_id: $(BASE_RUN_ID)
 
@@ -98,6 +98,6 @@ stages:
           topology: $(TOPOLOGY)
           max_parallel: ${{ variables.MAX_PARALLEL }}
           timeout_in_minutes: ${{ variables.TIMEOUT_MINUTES }}
-          credential_type: $(CREDENTIAL_TYPE)
+          credential_type: ${{ variables.CREDENTIAL_TYPE }}
           ssh_key_enabled: ${{ variables.SSH_KEY_ENABLED }}
           base_run_id: $(BASE_RUN_ID)
