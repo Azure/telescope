@@ -11,8 +11,7 @@ steps:
   parameters:
     role: automatic
     region: ${{ parameters.regions[0] }}
-- name: Install kubelogin
-  script: |
+- script: |
     set -eo pipefail
     if ! command -v kubelogin &> /dev/null; then
       echo "kubelogin could not be found. Installing kubelogin..."
@@ -20,6 +19,7 @@ steps:
     fi
     # Converts the kubeconfig to use Azure CLI authentication for AKS cluster access
     kubelogin convert-kubeconfig -l azurecli
+  displayName: 'Install kubelogin and convert kubeconfig'
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
     action: apply
