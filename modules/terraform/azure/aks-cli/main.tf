@@ -104,6 +104,16 @@ resource "azurerm_role_assignment" "network_contributor" {
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
+
+data "azurerm_subscription" "current" {}
+
+resource "azurerm_role_assignment" "rg_contributor" {
+  count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  role_definition_name = "Contributor"
+  scope                = "/subscriptions/${data.azurerm_subscription.current.id}/resourceGroups/${var.resource_group_name}"
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
+
 resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 

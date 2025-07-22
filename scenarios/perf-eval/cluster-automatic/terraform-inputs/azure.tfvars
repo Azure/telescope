@@ -8,6 +8,7 @@ aks_cli_config_list = [
     aks_name                      = "automatic"
     sku_tier                      = "Standard"
     use_aks_preview_cli_extension = true
+    managed_identity_name         = "automatic-identity"
     optional_parameters = [
       {
         name  = "sku"
