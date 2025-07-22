@@ -14,10 +14,10 @@ steps:
 - script: |
     set -eo pipefail
     if ! command -v kubelogin &> /dev/null; then
-      tdnf install -y kubelogin || az aks install-cli
+      az aks install-cli
     fi
     # Converts the kubeconfig to use Azure CLI authentication for AKS cluster access
-    kubelogin convert-kubeconfig -l azurecli
+    kubelogin convert-kubeconfig -l azurecli -v
   displayName: 'Install kubelogin and convert kubeconfig'
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:

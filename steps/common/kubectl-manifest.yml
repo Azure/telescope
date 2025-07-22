@@ -23,7 +23,7 @@ parameters:
 steps:
 - script: |
     set -euo pipefail
-
+    kubelogin convert-kubeconfig -l azurecli -v
     kubectl --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" || true
 
     # Wait all nodes to be ready before applying the manifest
