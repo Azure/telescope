@@ -5,6 +5,7 @@
 {{$LoadType := DefaultParam .LoadType "memory"}}
 {{$Provider := DefaultParam .Provider "aks"}}
 {{$OSType := DefaultParam .OSType "linux"}}
+{{$HostNetwork := DefaultParam .HostNetwork "true"}}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -23,7 +24,7 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
     spec:
-      hostNetwork: true
+      hostNetwork: {{$HostNetwork}}
       nodeSelector:
         cri-resource-consume: "true"
       containers:

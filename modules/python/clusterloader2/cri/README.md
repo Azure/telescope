@@ -69,6 +69,7 @@ CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 CLOUD=aks # set to aws to run against aws
 SCRAPE_KUBELETS=True
 OS_TYPE="linux"
+HOST_NETWORK=True
 # NODE_PER_STEP=5
 # SCALE_ENABLED=True
 ```
@@ -78,6 +79,7 @@ OS_TYPE="linux"
 - `SCRAPE_KUBELETS` is not suggested to used together with scaling when these 2 variables `NODE_PER_STEP` and `SCALE_ENABLED` are set.
 - For scaling test, you should always start with 1 node and set total node count to be desired scale count + 1. For example, when scaling 100 nodes, the `NODE_COUNT` should be set to 101.
 - Different clouds have different number of default daemonsets. So the actual pods deployed in the test will be slightly different across clouds, but total pods per node (including daemonsets) should be the same.
+- `HOST_NETWORK` controls whether the pods use the host's network namespace. Set to `True` (default) for host network mode or `False` for pod network mode.
 
 Run these commands to execute test:
 
@@ -94,6 +96,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
     --provider $CLOUD \
     --os_type ${OS_TYPE:-linux} \
     --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+    --host_network ${HOST_NETWORK:-True} \
     --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
     --cl2_image ${CL2_IMAGE} \
