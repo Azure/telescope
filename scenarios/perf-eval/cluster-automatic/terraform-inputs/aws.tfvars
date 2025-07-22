@@ -84,16 +84,16 @@ network_config_list = [
         nat_gateway_name = null # Uses Internet Gateway instead
       },
       # Private route table - internet access via NAT Gateway
-      # {
-      #   name             = "private-rt"
-      #   cidr_block       = "0.0.0.0/0"
-      #   nat_gateway_name = "nat-gateway"  # Routes through NAT for outbound traffic
-      # },
-      # {
-      #   name             = "private-rt-2"
-      #   cidr_block       = "0.0.0.0/0"
-      #   nat_gateway_name = "nat-gateway-2"  # Routes through NAT for outbound traffic
-      # }
+      {
+        name             = "private-rt"
+        cidr_block       = "0.0.0.0/0"
+        nat_gateway_name = "nat-gateway" # Routes through NAT for outbound traffic
+      },
+      {
+        name             = "private-rt-2"
+        cidr_block       = "0.0.0.0/0"
+        nat_gateway_name = "nat-gateway-2" # Routes through NAT for outbound traffic
+      }
     ],
 
     # Subnet-to-route-table associations
@@ -110,16 +110,16 @@ network_config_list = [
         route_table_name = "internet-rt"
       },
       # Private subnets use private route table (via NAT)
-      # {
-      #   name             = "automatic-subnet-rt-assoc"
-      #   subnet_name      = "automatic-subnet"
-      #   route_table_name = "private-rt"
-      # },
-      # {
-      #   name             = "automatic-subnet-rt-assoc-2"
-      #   subnet_name      = "automatic-subnet-2"
-      #   route_table_name = "private-rt-2"
-      # }
+      {
+        name             = "automatic-subnet-rt-assoc"
+        subnet_name      = "automatic-subnet"
+        route_table_name = "private-rt"
+      },
+      {
+        name             = "automatic-subnet-rt-assoc-2"
+        subnet_name      = "automatic-subnet-2"
+        route_table_name = "private-rt-2"
+      }
     ]
 
     # Security group rules for cluster access
@@ -144,25 +144,23 @@ network_config_list = [
       ]
     },
 
-    # Elastic IPs for NAT Gateways (one per AZ for HA) - TEMPORARILY DISABLED
-    # nat_gateway_public_ips = [{
-    #   name = "nat-gateway-pip"      # EIP for AZ-a NAT Gateway
-    # },{
-    #   name = "nat-gateway-pip-2"    # EIP for AZ-b NAT Gateway
-    # }],
-    nat_gateway_public_ips = [],
+    # Elastic IPs for NAT Gateways (one per AZ for HA)
+    nat_gateway_public_ips = [{
+      name = "nat-gateway-pip" # EIP for AZ-a NAT Gateway
+      }, {
+      name = "nat-gateway-pip-2" # EIP for AZ-b NAT Gateway
+    }],
 
-    # NAT Gateways for private subnet internet access (one per AZ) - TEMPORARILY DISABLED
-    # nat_gateways = [{
-    #   name           = "nat-gateway"              # Primary NAT in AZ-a
-    #   public_ip_name = "nat-gateway-pip"
-    #   subnet_name    = "automatic-public-subnet"
-    # },{
-    #   name           = "nat-gateway-2"            # Secondary NAT in AZ-b
-    #   public_ip_name = "nat-gateway-pip-2"
-    #   subnet_name    = "automatic-public-subnet-2"
-    # }]
-    nat_gateways = []
+    # NAT Gateways for private subnet internet access (one per AZ)
+    nat_gateways = [{
+      name           = "nat-gateway" # Primary NAT in AZ-a
+      public_ip_name = "nat-gateway-pip"
+      subnet_name    = "automatic-public-subnet"
+      }, {
+      name           = "nat-gateway-2" # Secondary NAT in AZ-b
+      public_ip_name = "nat-gateway-pip-2"
+      subnet_name    = "automatic-public-subnet-2"
+    }]
   }
 ]
 
