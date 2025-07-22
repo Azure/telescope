@@ -24,7 +24,7 @@ steps:
 - script: |
     set -eo pipefail
     echo "Kubeconfig file: '$KUBECONFIG'"
-
+    kubectl config view --kubeconfig /home/AzDevOps/.kube/config
     kubectl --kubeconfig /home/AzDevOps/.kube/config --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" || true
 
     # Wait all nodes to be ready before applying the manifest
