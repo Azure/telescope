@@ -9,6 +9,9 @@ parameters:
 - name: run_id
   type: string
   default: ''
+- name: base_run_id
+  type: string
+  default: ''
 - name: retry_attempt_count
   type: number
   default: 3
@@ -20,11 +23,18 @@ parameters:
 steps:
 - script: |
     echo "DEBUG: Input run_id parameter: '$RUN_ID'"
+    echo "DEBUG: Input base_run_id parameter: '$BASE_RUN_ID'"
+    
+    # Priority: use run_id if provided, otherwise use base_run_id + job suffix, otherwise generate fallback
     if [ -n "$RUN_ID" ] && [ "$RUN_ID" != " " ] && [ "$RUN_ID" != "-" ]; then
       run_id=$RUN_ID
       echo "Using provided run_id: $run_id"
+    elif [ -n "$BASE_RUN_ID" ] && [ "$BASE_RUN_ID" != " " ]; then
+      job_suffix=$(echo "$(System.JobId)" | cut -c1-5)
+      run_id="${BASE_RUN_ID}-${job_suffix}"
+      echo "Using base_run_id ($BASE_RUN_ID) + job suffix ($job_suffix): $run_id"
     else
-      echo "WARNING: run_id parameter is empty or invalid, generating fallback timestamp-based ID"
+      echo "WARNING: Both run_id and base_run_id are empty, generating fallback timestamp-based ID"
       # Generate timestamp-based ID as fallback (MMddHHmmss format + suffix)
       timestamp=$(date +%m%d%H%M%S)
       full_guid=$(uuidgen)
@@ -37,6 +47,7 @@ steps:
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
+    BASE_RUN_ID: ${{ parameters.base_run_id }}
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"

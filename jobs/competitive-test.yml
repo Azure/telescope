@@ -60,28 +60,11 @@ jobs:
       ${{ parameters.matrix }}
   timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
   steps:
-  - script: |
-      echo "DEBUG: base_run_id parameter: '${{ parameters.base_run_id }}'"
-      if [ -n "${{ parameters.base_run_id }}" ]; then
-        base_run_id="${{ parameters.base_run_id }}"
-        echo "Using provided base_run_id: $base_run_id"
-      else
-        # Fallback to generating timestamp if base_run_id is not provided
-        base_run_id=$(date +%m%d%H%M%S)
-        echo "Generated fallback base_run_id: $base_run_id"
-      fi
-      
-      job_suffix=$(echo "$(System.JobId)" | cut -c1-5)
-      final_run_id="${base_run_id}-${job_suffix}"
-      echo "Job suffix: $job_suffix" 
-      echo "Final run ID: $final_run_id"
-      echo "##vso[task.setvariable variable=GENERATED_RUN_ID]$final_run_id"
-    displayName: "Generate Run ID"
   - template: /steps/setup-tests.yml
     parameters:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
-      run_id: $(GENERATED_RUN_ID)
+      base_run_id: ${{ parameters.base_run_id }}
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
