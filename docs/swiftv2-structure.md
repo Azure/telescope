@@ -14,6 +14,7 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │   ├── SCENARIO_TYPE: perf-eval
 │   ├── SCENARIO_NAME: swiftv2-cluster-churn-feature
 │   ├── OWNER: aks
+│   ├── BASE_RUN_ID: 5-character GUID for shared identification across stages
 │   └── Test Configuration Variables (cpu_per_node, max_pods, etc.)
 │
 ├── Stage 1: dynamicres_gradual
@@ -22,21 +23,25 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │       │   ├── pps=20_nodes=100/200/500/750/1000
 │       │   ├── pps=50_nodes=100/200/500/750/1000  
 │       │   └── pps=100_nodes=200/500/750/1000
-│       └── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+│       ├── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
 │
 ├── Stage 2: dynamicres_burst
 │   └── Template: pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
 │       ├── Matrix Parameters (7 configurations):
 │       │   └── nodes=20/50/100/200/500/750/1000
-│       └── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+│       ├── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
 │
 ├── Stage 3: staticres_gradual
 │   └── Template: pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
-│       └── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+│       ├── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
 │
 ├── Stage 4: staticres_burst
 │   └── Template: pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
-│       └── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+│       ├── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix)
 │
 └── All Matrix Templates Reference: jobs/competitive-test.yml
     ├── Parameters: cloud, regions, engine, topology, etc.
@@ -45,7 +50,7 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
         │
         ├── 1. Setup Tests
         │   └── Template: steps/setup-tests.yml
-        │       ├── Set Run ID (custom RUN_ID parameter or auto-generated 15-character GUID)
+        │       ├── Set Run ID (custom RUN_ID parameter or auto-generated 11-character GUID: 5-char base + separator + 5-char unique suffix)
         │       ├── Configure credentials and authentication
         │       ├── Setup test modules directory structure
         │       ├── SSH key setup (conditional: ssh_key_enabled=true)
@@ -232,18 +237,44 @@ This pipeline is designed to benchmark Kubernetes performance for SwiftV2 cluste
 
 ## Run ID Generation
 
-The Run ID is a unique identifier used throughout the pipeline to track and organize resources, test results, and metadata for each pipeline execution. The Run ID generation follows this logic:
+The Run ID is a unique identifier used throughout the pipeline to track and organize resources, test results, and metadata for each pipeline execution. The SwiftV2 pipeline uses a shared base Run ID across all stages with job-specific unique suffixes to ensure every job has a completely unique identifier.
 
 ### Generation Process
 
-The Run ID is generated in the `steps/setup-tests.yml` template during the "Set Run ID" step:
+The Run ID generation follows a two-tier approach:
 
-1. **Custom Run ID**: If a `run_id` parameter is explicitly provided when invoking the pipeline (via the `competitive-test.yml` job template), that custom value is used directly.
+#### 1. Base Run ID Generation (Pipeline Level)
 
-2. **Auto-Generated Run ID**: If no custom `run_id` is provided (which is the default case for `new-pipeline-test.yml`), a random GUID is generated:
-   - A full UUID is generated using `uuidgen`
-   - Hyphens are removed with `tr -d '-'`
-   - The result is truncated to the first 15 characters using `cut -c1-15`
+At the pipeline level (`new-pipeline-test.yml`), a base Run ID is generated:
+
+- **Base GUID**: A 5-character base identifier is created using Azure DevOps' `newGuid()` function
+- **Format**: `$(BASE_RUN_ID)` - 5 alphanumeric characters (hyphens removed, truncated)
+
+#### 2. Job-Specific Unique Suffix (Job Level)
+
+Each job in every stage matrix gets a unique 5-character suffix with separator:
+
+- **Suffix Source**: First 5 characters of the Azure DevOps `System.JobId`
+- **Final Run ID**: `$(BASE_RUN_ID)-<5-char suffix>` (e.g., `a1b2c-f67ab`)
+- **Total Length**: Always 11 characters (5 base + 1 separator + 5 unique)
+
+#### 3. Final Run ID Resolution (Job Level)
+
+In `steps/setup-tests.yml`, the final Run ID is resolved:
+
+1. **Custom Run ID**: If a `run_id` parameter is explicitly provided (which it is from the job template), that value is used directly
+2. **Auto-Generated Fallback**: If no custom `run_id` is provided, an 11-character GUID is generated (5 base + separator + 5 suffix)
+
+### Benefits of This Approach
+
+This design provides several advantages:
+
+- **Complete Uniqueness**: Every job across all stages and matrices has a completely unique Run ID
+- **Shared Base**: All jobs from the same pipeline run share a common 5-character base for correlation
+- **Readable Format**: The separator makes it easy to distinguish the base ID from the unique suffix
+- **Resource Isolation**: Each job has unique resources (Azure Resource Groups, etc.) preventing conflicts
+- **Traceability**: Results and metadata can be correlated across the entire pipeline run using the shared base
+- **Scalability**: Supports unlimited matrix configurations without ID collisions
 
 ### Usage Throughout Pipeline
 
@@ -252,12 +283,18 @@ The Run ID serves multiple purposes:
 - **Resource Naming**: Used as the Azure Resource Group name for all cloud resources
 - **Resource Tagging**: Applied as a tag to all Azure resources for identification and cleanup
 - **Test Organization**: Used in directory structures for test results and artifacts
-- **Cleanup Operations**: Enables targeted cleanup of resources associated with a specific test run
+- **Cleanup Operations**: Enables targeted cleanup of resources associated with specific jobs
 - **Metadata Collection**: Included in test metadata and results for traceability
 
 ### Example Run IDs
 
-- Custom: `my-custom-run-123` (if provided as parameter)
-- Auto-generated: `a1b2c3d4e5f6g7h` (15-character truncated UUID)
+For a pipeline run with base Run ID `a1b2c`:
+
+- **Dynamic Gradual Job 1**: `a1b2c-f67ab` (unique 5-char suffix: `f67ab`)
+- **Dynamic Gradual Job 2**: `a1b2c-c89de` (unique 5-char suffix: `c89de`)  
+- **Dynamic Burst Job 1**: `a1b2c-1234f` (unique 5-char suffix: `1234f`)
+- **Static Gradual Job 1**: `a1b2c-abcde` (unique 5-char suffix: `abcde`)
+
+Each Run ID is exactly 11 characters and globally unique within the pipeline execution.
 
 The Run ID is set as an Azure DevOps pipeline variable (`RUN_ID`) and made available to all subsequent steps in the pipeline execution.

@@ -98,3 +98,4 @@ jobs:
     timeout_in_minutes: ${{ parameters.timeout_in_minutes }}
     credential_type: ${{ parameters.credential_type }}
     ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
+    base_run_id: ${{ parameters.base_run_id }}

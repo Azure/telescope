@@ -33,6 +33,9 @@ parameters:
 - name: run_id
   type: string
   default: ''
+- name: base_run_id
+  type: string
+  default: ''
 - name: timeout_in_minutes
   type: number
   default: 60 # default when not specified is 60 minutes
@@ -61,7 +64,7 @@ jobs:
     parameters:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
-      run_id: ${{ parameters.run_id }}
+      run_id: $[format('{0}-{1}', parameters.base_run_id, substring(variables['System.JobId'], 0, 5))]
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
