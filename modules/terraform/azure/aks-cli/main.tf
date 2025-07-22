@@ -212,8 +212,9 @@ data "azurerm_client_config" "current" {}
 #   depends_on           = [terraform_data.aks_cli]
 # }
 
+# Grant current user/service principal Contributor access to the resource group for kubectl operations
 resource "azurerm_role_assignment" "aks_automatic_contributor" {
-  count                = local.is_automatic_sku ? 1 : 0
+  #count                = local.is_automatic_sku ? 1 : 0
   role_definition_name = "Contributor"
   scope                = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${var.resource_group_name}"
   principal_id         = data.azurerm_client_config.current.object_id

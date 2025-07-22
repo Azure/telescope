@@ -90,7 +90,7 @@ network_config_list = [
         nat_gateway_name = "nat-gateway"  # Routes through NAT for outbound traffic
       },
       {
-        name             = "private-rt"
+        name             = "private-rt-2"
         cidr_block       = "0.0.0.0/0"
         nat_gateway_name = "nat-gateway-2"  # Routes through NAT for outbound traffic
       }
@@ -118,7 +118,7 @@ network_config_list = [
       {
         name             = "automatic-subnet-rt-assoc-2"
         subnet_name      = "automatic-subnet-2"
-        route_table_name = "private-rt"
+        route_table_name = "private-rt-2"
       }
     ]
     
