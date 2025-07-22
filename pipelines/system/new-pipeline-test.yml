@@ -14,7 +14,7 @@ variables:
   service_test: False
   ds_test: True
   # Generate base run ID (5 characters) to be used across all stages
-  BASE_RUN_ID: $(Date:MMddHHmmss)
+  BASE_RUN_ID: $(Date:yyyyMMddHHmmss)
 
 stages:
   - stage: dynamicres_gradual

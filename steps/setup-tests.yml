@@ -19,16 +19,20 @@ parameters:
 
 steps:
 - script: |
-    if [ -n "$RUN_ID" ]; then
+    echo "DEBUG: Input run_id parameter: '$RUN_ID'"
+    if [ -n "$RUN_ID" ] && [ "$RUN_ID" != " " ] && [ "$RUN_ID" != "-" ]; then
       run_id=$RUN_ID
+      echo "Using provided run_id: $run_id"
     else
-      # Generate a random GUID limited to 5 characters (base) + separator + 5-char suffix = 11 total
+      echo "WARNING: run_id parameter is empty or invalid, generating fallback timestamp-based ID"
+      # Generate timestamp-based ID as fallback (MMddHHmmss format + suffix)
+      timestamp=$(date +%m%d%H%M%S)
       full_guid=$(uuidgen)
-      base_run_id=$(echo "$full_guid" | tr -d '-' | cut -c1-5)
-      suffix=$(echo "$full_guid" | tr -d '-' | cut -c6-10)
-      run_id="${base_run_id}-${suffix}"
+      suffix=$(echo "$full_guid" | tr -d '-' | cut -c1-5)
+      run_id="${timestamp}-${suffix}"
+      echo "Generated fallback run_id: $run_id"
     fi
-    echo "Run ID: $run_id"
+    echo "Final Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
   displayName: "Set Run ID"
   env:
