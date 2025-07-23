@@ -2,37 +2,41 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: nap
+  SCENARIO_NAME: cluster-automatic
   collect_k8s_cost: true
 
 stages:
-  - stage: azure_eastus2_small_scale
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /jobs/competitive-test.yml # must keep as is
         parameters:
           cloud: azure
           regions:
             - eastus2
-          engine: clusterloader2
+          topology: cluster-automatic
+          engine: aks-store-demo
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter
-          publish_k8s_cost: true
-          matrix:
-            small-scale-on-demand:
-              cpu_per_node: 4
-              node_count: 1
-              pod_count: 10
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              warmup_deployment: true
-              vm_size: Standard_D4_v5
-              capacity_type: on-demand
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
+            wait_duration_seconds: 60 # optional, default is 3600 seconds (1 hour)
+          max_parallel: 1 # required
+          credential_type: service_connection # required
           ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
+          publish_k8s_cost: true
+  - stage: aws_us_east_2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml # must keep as is
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-2
+          topology: cluster-automatic
+          engine: aks-store-demo
+          engine_input:
+            wait_duration_seconds: 60 # optional, default is 3600 seconds (1 hour)
+          max_parallel: 1 # required
+          credential_type: service_connection # required
+          ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
+          publish_k8s_cost: true
