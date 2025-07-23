@@ -21,8 +21,10 @@ aks_cli_config_list = [
         name  = "enable-cost-analysis"
         value = ""
       },
+      {
 	name  = "enable-acns"
 	value = ""
+      }
     ]
   }
 ]
