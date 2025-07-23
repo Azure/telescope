@@ -29,16 +29,16 @@ Before running E2E tests, you need to start the MCP (Model Context Protocol) Azu
    az login --use-device-code
    ```
 
-3. **Verify Connection**: Confirm the server is running and accessible by using `mcp_ado_build_get_definitions` command to list available build definitions and ensure the connection is established. Also get the build definition ID for the "New Pipeline Test".
+3. **Verify Connection**: Confirm the server is running and accessible by using `build_get_definitions` command to list available build definitions and ensure the connection is established. Also get the build definition ID for the "New Pipeline Test".
 
 **Note**: The MCP server cannot be started automatically - it must be manually initiated by the user before running E2E tests. The server provides the interface to interact with Azure DevOps APIs for triggering builds, monitoring status, and retrieving logs.
 
 ### Step 2: Trigger the ADO Build
 
-1. **Start Build**: Use `mcp_ado_build_run_build` - Start the test with project name, definition ID, and source branch name
-2. **Monitor Status**: Use `mcp_ado_build_get_status` - Check the build status every 15 minutes  
-3. **Retrieve Logs**: Use `mcp_ado_build_get_log` - Retrieve error logs if the build fails
-4. **Get Specific Logs**: Use `mcp_ado_build_get_log_by_id` - Get logs for a specific build log by log ID if the build fails
+1. **Start Build**: Use `build_run_build` - Start the test with project name, definition ID, and source branch name
+2. **Monitor Status**: Use `build_get_status` - Check the build status every 15 minutes  
+3. **Retrieve Logs**: Use `build_get_log` - Retrieve error logs if the build fails
+4. **Get Specific Logs**: Use `build_get_log_by_id` - Get logs for a specific build log by log ID if the build fails
 
 
 ## Common Issues
