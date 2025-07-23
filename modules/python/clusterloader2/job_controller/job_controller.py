@@ -186,6 +186,7 @@ class JobController(ClusterLoader2Base):
         parser.add_argument(
             "--test_type",
             type=str,
+            nargs="?",
             default="default-config",
             help="Description of test type",
         )
