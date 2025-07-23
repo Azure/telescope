@@ -16,7 +16,9 @@ locals {
     if var.eks_config.enable_karpenter
   }
 
-  metrics_server_addon = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? { "metrics-server" = { name = "metrics-server" } } : {}
+  # Add Metrics Server addon if auto mode is enabled and either system or general purpose node pools are configured. 
+  # Set create timeout to 5 minutes to prevent stuck on degraded state when all pods are actually running.
+  metrics_server_addon = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? { "metrics-server" = { name = "metrics-server", timeouts = { create = "5m" } } } : {}
 
   # Merge all addon maps
   _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.metrics_server_addon)
@@ -397,6 +399,17 @@ resource "aws_eks_addon" "addon" {
 
   tags = {
     "Name" = each.value.name
+  }
+
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  dynamic "timeouts" {
+    for_each = try(each.value.timeouts, {}) != {} ? [each.value.timeouts] : []
+    content {
+      create = try(timeouts.value.create, "20m")
+      update = try(timeouts.value.update, "20m")
+      delete = try(timeouts.value.delete, "40m")
+    }
   }
 
   depends_on = [
