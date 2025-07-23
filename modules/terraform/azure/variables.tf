@@ -28,6 +28,12 @@ variable "json_input" {
         })), [])
       }))
     )
+    aks_cli_optional_parameters = optional(
+      list(object({
+        name  = string
+        value = string
+      }))
+    )
   })
 
   validation {

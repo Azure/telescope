@@ -15,6 +15,8 @@ steps:
         set -x
       fi
 
+      AKS_CLI_OPTIONAL_PARAMETERS=${AKS_CLI_OPTIONAL_PARAMETERS:-null}
+
       CREATION_TIME=$(date -uIseconds |  sed 's/+00:00/Z/')
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
@@ -27,6 +29,7 @@ steps:
                 --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
                 --arg ena_express "$ENA_EXPRESS" \
                 --arg user_data_path "$TERRAFORM_USER_DATA_PATH" \
+                --argjson aks_cli_optional_parameters "$AKS_CLI_OPTIONAL_PARAMETERS" \
                 '{
                 run_id: $run_id,
                 region: $region,
@@ -34,6 +37,7 @@ steps:
                 k8s_machine_type: $k8s_machine_type,
                 ena_express: $ena_express,
                 user_data_path: $user_data_path,
+                aks_cli_optional_parameters: $aks_cli_optional_parameters,
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)

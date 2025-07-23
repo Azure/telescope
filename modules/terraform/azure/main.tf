@@ -1,15 +1,16 @@
 locals {
-  region                   = lookup(var.json_input, "region", "East US")
-  run_id                   = lookup(var.json_input, "run_id", "123456")
-  aks_sku_tier             = lookup(var.json_input, "aks_sku_tier", null)
-  aks_kubernetes_version   = lookup(var.json_input, "aks_kubernetes_version", null)
-  aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
-  aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
-  aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
-  aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
-  aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
-  k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
-  k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
+  region                      = lookup(var.json_input, "region", "East US")
+  run_id                      = lookup(var.json_input, "run_id", "123456")
+  aks_sku_tier                = lookup(var.json_input, "aks_sku_tier", null)
+  aks_kubernetes_version      = lookup(var.json_input, "aks_kubernetes_version", null)
+  aks_network_policy          = lookup(var.json_input, "aks_network_policy", null)
+  aks_network_dataplane       = lookup(var.json_input, "aks_network_dataplane", null)
+  aks_cli_system_node_pool    = lookup(var.json_input, "aks_cli_system_node_pool", null)
+  aks_cli_user_node_pool      = lookup(var.json_input, "aks_cli_user_node_pool", null)
+  aks_custom_headers          = lookup(var.json_input, "aks_custom_headers", [])
+  k8s_machine_type            = lookup(var.json_input, "k8s_machine_type", null)
+  k8s_os_disk_type            = lookup(var.json_input, "k8s_os_disk_type", null)
+  aks_cli_optional_parameters = lookup(var.json_input, "aks_cli_optional_parameters", null)
 
   tags = {
     "owner"             = var.owner
@@ -39,11 +40,12 @@ locals {
     for aks in var.aks_cli_config_list : merge(
       aks,
       {
-        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
-        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
-        aks_custom_headers = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
-        default_node_pool  = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
-        extra_node_pool    = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        sku_tier            = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        kubernetes_version  = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
+        aks_custom_headers  = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
+        default_node_pool   = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
+        extra_node_pool     = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        optional_parameters = (local.aks_cli_optional_parameters != null) ? ((aks.optional_parameters != null) ? [for k, v in merge({ for pair in aks.optional_parameters : pair.name => pair.value }, { for pair in local.aks_cli_optional_parameters : pair.name => pair.value }) : { name = k, value = v }] : local.aks_cli_optional_parameters) : aks.optional_parameters
       }
     )
   ] : []
