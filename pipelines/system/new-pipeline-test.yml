@@ -19,8 +19,8 @@ stages:
           engine_input:
             wait_duration_seconds: 60 # optional, default is 3600 seconds (1 hour)
           matrix:
-            default:
-              aks_cli_optional_parameters: ''
+#            default:
+#              aks_cli_optional_parameters: ''
             acns:
               aks_cli_optional_parameters: '{name: "enable-acns", value: ""}'
           max_parallel: 1 # required
