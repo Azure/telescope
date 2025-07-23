@@ -10,6 +10,11 @@ parameters:
   default: {}
 
 steps:
+
+- template: /steps/common/k8s-cost-analysis/collect.yml
+  parameters:
+    cluster_context: automatic
+
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
     action: delete
