@@ -108,7 +108,7 @@ def process_cl2_reports(cl2_report_dir, template):
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
-            logger.info(measurement, group_name)
+            logger.info(f"Measurement: {measurement}, Group Name: {group_name}")
             data = json.loads(file.read())
 
             if "dataItems" in data:
