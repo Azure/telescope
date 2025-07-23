@@ -10,14 +10,10 @@ parameters:
   default: {}
 
 steps:
-# - template: /steps/engine/clusterloader2/autoscale/collect.yml
-#   parameters:
-#     cloud: ${{ parameters.cloud }}
-#     engine_input: ${{ parameters.engine_input }}
-#     region: ${{ parameters.regions[0] }}
-
-- template: /steps/common/k8s-cost-analysis/collect.yml
+- template: /steps/engine/clusterloader2/autoscale/collect.yml
   parameters:
-    cluster_context: nap
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}
 
 - template: /steps/engine/clusterloader2/autoscale/cleanup.yml

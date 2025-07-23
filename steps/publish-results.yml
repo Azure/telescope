@@ -12,9 +12,6 @@ parameters:
   default: {}
 - name: credential_type
   type: string
-- name: publish_k8s_cost
-  type: boolean
-  default: false
 
 steps:
 - template: /steps/topology/${{ parameters.topology }}/collect-${{ parameters.engine }}.yml@self
@@ -36,9 +33,3 @@ steps:
   parameters:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
-
-- template: /steps/publish-costs.yml
-  parameters:
-    cloud: ${{ parameters.cloud }}
-    credential_type: ${{ parameters.credential_type }}
-    publish_k8s_cost: ${{ parameters.publish_k8s_cost }}
