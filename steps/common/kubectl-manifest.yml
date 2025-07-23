@@ -24,7 +24,7 @@ steps:
   - script: |
       set -eo pipefail
 
-      trap 'kubectl get pods -n "$NAMESPACE" || true' EXIT
+      trap 'kubectl --context="$CLUSTER_CONTEXT" get pods -n "$NAMESPACE" || true' EXIT
 
       echo "Create namespace if it does not exist"
       kubectl --context="$CLUSTER_CONTEXT" create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --context="$CLUSTER_CONTEXT" apply -f -

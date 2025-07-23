@@ -24,10 +24,18 @@ steps:
       set -eo pipefail
 
       # Get current service principal object ID and subscription info
-      CURRENT_OBJECT_ID=$(az ad signed-in-user show --query objectId -o tsv 2>/dev/null || az account show --query user.name -o tsv)
+      CURRENT_OBJECT_ID=$(az ad signed-in-user show --query objectId -o tsv 2>/dev/null)
+      if [ -z "$CURRENT_OBJECT_ID" ]; then
+        CURRENT_OBJECT_ID=$(az account show --query user.name -o tsv)
+        # Validate fallback value
+        if [[ ! "$CURRENT_OBJECT_ID" =~ ^[a-zA-Z0-9._@-]+$ ]]; then
+          echo "Error: Retrieved fallback value for CURRENT_OBJECT_ID is invalid: $CURRENT_OBJECT_ID"
+          exit 1
+        fi
+      fi
 
       echo "Granting Contributor access to service principal/user: $CURRENT_OBJECT_ID"
-      echo "Subscription ID: $SUBSCRIPTION_ID"
+      echo "Subscription ID: $AZURE_SUBSCRIPTION_ID"
       echo "Resource Group: $RUN_ID"
 
       # Grant current user/service principal Contributor access to the resource group for kubectl operations

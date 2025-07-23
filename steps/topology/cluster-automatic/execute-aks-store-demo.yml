@@ -8,13 +8,16 @@ parameters:
 - name: regions
   type: object
   default: {}
+- name: wait_duration
+  type: number
+  default: 3600
 
 steps:
 - task: Bash@3
-  displayName: 'Letting demo running for 60 minutes'
+  displayName: 'Letting demo running for configurable duration'
   inputs:
     targetType: 'inline'
     script: |
-      echo "Wait for 60 minutes..."
-      sleep 3600
+      echo "Wait for ${{ parameters.wait_duration }} seconds..."
+      sleep ${{ parameters.wait_duration }}
       echo "Wait completed"
