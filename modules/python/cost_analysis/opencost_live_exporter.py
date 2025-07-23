@@ -192,7 +192,7 @@ class OpenCostLiveExporter:
                     'Source': self.endpoint,
                     'RunId': self.run_id,  # Use self.run_id attribute
                     'ScenarioName': self.scenario_name,  # Use self.scenario_name attribute
-                    'Metadata': json.dumps(self.metadata) if self.metadata else "{}",  # Metadata without run_id
+                    'Metadata': self.metadata if self.metadata else {},  # Metadata as object for Kusto dynamic type
                     'AllocationName': allocation_name,
                     'WindowStart': allocation_data.get('start', ''),
                     'WindowEnd': allocation_data.get('end', ''),
@@ -221,15 +221,17 @@ class OpenCostLiveExporter:
                     'TotalEfficiency': allocation_data.get('totalEfficiency', 0),
                     'ExternalCost': allocation_data.get('externalCost', 0),
                     'SharedCost': allocation_data.get('sharedCost', 0),
-                    'Properties': json.dumps(allocation_data.get('properties', {}))
+                    'Properties': allocation_data.get('properties', {})  # Properties as object for Kusto dynamic type
                 }
                 kusto_rows.append(row)
 
-        # Save as JSON for Kusto ingestion
+        # Save as NDJSON (newline-delimited JSON) for Kusto ingestion
         with open(filename, 'w', encoding='utf-8') as jsonfile:
-            json.dump(kusto_rows, jsonfile, indent=2, ensure_ascii=False)
+            for row in kusto_rows:
+                json.dump(row, jsonfile, ensure_ascii=False)
+                jsonfile.write('\n')
 
-        logger.info(f"Exported {len(kusto_rows)} rows to {filename} in Kusto format")
+        logger.info(f"Exported {len(kusto_rows)} rows to {filename} in Kusto NDJSON format")
 
     def export_allocation_live_data(self,
                         window: str = "1h",
@@ -326,7 +328,7 @@ class OpenCostLiveExporter:
                 'Source': f"{self.endpoint}/assets",
                 'RunId': self.run_id,  # Use self.run_id attribute
                 'ScenarioName': self.scenario_name,  # Use self.scenario_name attribute
-                'Metadata': json.dumps(self.metadata) if self.metadata else "{}",  # Metadata without run_id
+                'Metadata': self.metadata if self.metadata else {},  # Metadata as object for Kusto dynamic type
                 'AssetName': asset_name,
                 'WindowStart': asset_data.get('start', ''),
                 'WindowEnd': asset_data.get('end', ''),
@@ -349,11 +351,13 @@ class OpenCostLiveExporter:
             }
             kusto_rows.append(row)
 
-        # Save as JSON for Kusto ingestion
+        # Save as NDJSON (newline-delimited JSON) for Kusto ingestion
         with open(filename, 'w', encoding='utf-8') as jsonfile:
-            json.dump(kusto_rows, jsonfile, indent=2, ensure_ascii=False)
+            for row in kusto_rows:
+                json.dump(row, jsonfile, ensure_ascii=False)
+                jsonfile.write('\n')
 
-        logger.info(f"Exported {len(kusto_rows)} asset rows to {filename} in Kusto format")
+        logger.info(f"Exported {len(kusto_rows)} asset rows to {filename} in Kusto NDJSON format")
 
     def export_assets_live_data(self,
                                window: str = "1h",

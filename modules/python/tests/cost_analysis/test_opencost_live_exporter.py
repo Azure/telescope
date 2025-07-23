@@ -257,35 +257,40 @@ class TestOpenCostLiveExporter:
         try:
             exporter.export_to_kusto_format(sample_allocation_data, tmp_path)
 
-            # Verify JSON file was created
+            # Verify NDJSON file was created
             assert os.path.exists(tmp_path)
 
+            # Read NDJSON file (newline-delimited JSON)
+            data = []
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
-                data = json.load(jsonfile)
+                for line in jsonfile:
+                    if line.strip():  # Skip empty lines
+                        data.append(json.loads(line.strip()))
 
-                assert len(data) == 1
-                row = data[0]
+            assert len(data) == 1
+            row = data[0]
 
-                # Verify Kusto-optimized structure
-                assert 'Timestamp' in row
-                assert 'CollectionTime' in row
-                assert 'Source' in row
-                assert 'RunId' in row
-                assert 'Metadata' in row
-                assert row['AllocationName'] == 'test-namespace/test-pod/test-container'
-                assert row['Namespace'] == 'test-namespace'
-                assert row['Pod'] == 'test-pod'
-                assert row['Container'] == 'test-container'
-                assert row['Node'] == 'test-node'
-                assert row['CpuCores'] == 0.5
-                assert row['TotalCost'] == 0.042
-                assert row['WindowMinutes'] == 60.0
-                assert row['RunId'] == ""  # Default empty run_id
-                assert row['Metadata'] == "{}"  # Default empty metadata
+            # Verify Kusto-optimized structure
+            assert 'Timestamp' in row
+            assert 'CollectionTime' in row
+            assert 'Source' in row
+            assert 'RunId' in row
+            assert 'Metadata' in row
+            assert row['AllocationName'] == 'test-namespace/test-pod/test-container'
+            assert row['Namespace'] == 'test-namespace'
+            assert row['Pod'] == 'test-pod'
+            assert row['Container'] == 'test-container'
+            assert row['Node'] == 'test-node'
+            assert row['CpuCores'] == 0.5
+            assert row['TotalCost'] == 0.042
+            assert row['WindowMinutes'] == 60.0
+            assert row['RunId'] == ""  # Default empty run_id
+            assert row['Metadata'] == {}  # Default empty metadata as object
 
-                # Verify properties are JSON string
-                properties = json.loads(row['Properties'])
-                assert properties['namespace'] == 'test-namespace'
+            # Verify properties are JSON object (not string)
+            properties = row['Properties']
+            assert isinstance(properties, dict)
+            assert properties['namespace'] == 'test-namespace'
 
         finally:
             if os.path.exists(tmp_path):
@@ -360,27 +365,32 @@ class TestOpenCostLiveExporter:
         try:
             exporter_with_metadata.export_to_kusto_format(sample_allocation_data, tmp_path)
 
-            # Verify JSON file was created
+            # Verify NDJSON file was created
             assert os.path.exists(tmp_path)
 
+            # Read NDJSON file (newline-delimited JSON)
+            data = []
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
-                data = json.load(jsonfile)
+                for line in jsonfile:
+                    if line.strip():  # Skip empty lines
+                        data.append(json.loads(line.strip()))
 
-                assert len(data) == 1
-                row = data[0]
+            assert len(data) == 1
+            row = data[0]
 
-                # Verify run_id, scenario_name, and metadata are separated correctly
-                assert row['RunId'] == 'test-run-123'
-                assert row['ScenarioName'] == 'test-scenario'
+            # Verify run_id, scenario_name, and metadata are separated correctly
+            assert row['RunId'] == 'test-run-123'
+            assert row['ScenarioName'] == 'test-scenario'
 
-                # Verify metadata is JSON without run_id or scenario_name
-                metadata = json.loads(row['Metadata'])
-                assert metadata['test_name'] == 'unit-test'
-                assert metadata['environment'] == 'test'
-                assert 'run_id' not in metadata  # run_id should not be in metadata anymore
-                assert 'scenario_name' not in metadata  # scenario_name should not be in metadata anymore
+            # Verify metadata is JSON object (not string) without run_id or scenario_name
+            metadata = row['Metadata']
+            assert isinstance(metadata, dict)
+            assert metadata['test_name'] == 'unit-test'
+            assert metadata['environment'] == 'test'
+            assert 'run_id' not in metadata  # run_id should not be in metadata anymore
+            assert 'scenario_name' not in metadata  # scenario_name should not be in metadata anymore
 
-                assert row['AllocationName'] == 'test-namespace/test-pod/test-container'
+            assert row['AllocationName'] == 'test-namespace/test-pod/test-container'
 
         finally:
             if os.path.exists(tmp_path):
@@ -455,30 +465,34 @@ class TestOpenCostLiveExporter:
             # Verify file was created and has correct content
             assert os.path.exists(tmp_path)
 
+            # Read NDJSON file (newline-delimited JSON)
+            data = []
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
-                data = json.load(jsonfile)
+                for line in jsonfile:
+                    if line.strip():  # Skip empty lines
+                        data.append(json.loads(line.strip()))
 
-                # Verify it's an array of flattened records
-                assert isinstance(data, list)
-                assert len(data) == 2  # VM and Disk
+            # Verify it's an array of flattened records
+            assert isinstance(data, list)
+            assert len(data) == 2  # VM and Disk
 
-                # Check VM record
-                vm_record = next(record for record in data if record['Type'] == 'Node')
-                assert vm_record['Source'] == 'http://test-opencost:9003/assets'
-                assert 'test-vm' in vm_record['AssetName']
-                assert vm_record['Category'] == 'Compute'
-                assert vm_record['TotalCost'] == 0.12
-                assert vm_record['Name'] == 'test-vm'
-                assert vm_record['RunId'] == ""  # Default empty run_id
-                assert vm_record['Metadata'] == "{}"  # Default empty metadata
+            # Check VM record
+            vm_record = next(record for record in data if record['Type'] == 'Node')
+            assert vm_record['Source'] == 'http://test-opencost:9003/assets'
+            assert 'test-vm' in vm_record['AssetName']
+            assert vm_record['Category'] == 'Compute'
+            assert vm_record['TotalCost'] == 0.12
+            assert vm_record['Name'] == 'test-vm'
+            assert vm_record['RunId'] == ""  # Default empty run_id
+            assert vm_record['Metadata'] == {}  # Default empty metadata as object
 
-                # Check Disk record
-                disk_record = next(record for record in data if record['Type'] == 'Disk')
-                assert disk_record['Category'] == 'Storage'
-                assert disk_record['TotalCost'] == 0.05
-                assert disk_record['Bytes'] == 107374182400
-                assert disk_record['RunId'] == ""  # Default empty run_id
-                assert disk_record['Metadata'] == "{}"  # Default empty metadata
+            # Check Disk record
+            disk_record = next(record for record in data if record['Type'] == 'Disk')
+            assert disk_record['Category'] == 'Storage'
+            assert disk_record['TotalCost'] == 0.05
+            assert disk_record['Bytes'] == 107374182400
+            assert disk_record['RunId'] == ""  # Default empty run_id
+            assert disk_record['Metadata'] == {}  # Default empty metadata as object
 
         finally:
             if os.path.exists(tmp_path):
@@ -553,17 +567,22 @@ class TestOpenCostLiveExporter:
             # Verify file was created and has correct content
             assert os.path.exists(tmp_path)
 
+            # Read NDJSON file (newline-delimited JSON)
+            data = []
             with open(tmp_path, 'r', encoding='utf-8') as jsonfile:
-                data = json.load(jsonfile)
+                for line in jsonfile:
+                    if line.strip():  # Skip empty lines
+                        data.append(json.loads(line.strip()))
 
-                # Verify run_id and metadata are separated correctly in all records
-                for record in data:
-                    assert record['RunId'] == 'test-run-123'
+            # Verify run_id and metadata are separated correctly in all records
+            for record in data:
+                assert record['RunId'] == 'test-run-123'
 
-                    # Verify metadata is JSON without run_id
-                    metadata = json.loads(record['Metadata'])
-                    assert metadata['test_name'] == 'unit-test'
-                    assert metadata['environment'] == 'test'
+                # Verify metadata is JSON object (not string) without run_id
+                metadata = record['Metadata']
+                assert isinstance(metadata, dict)
+                assert metadata['test_name'] == 'unit-test'
+                assert metadata['environment'] == 'test'
 
         finally:
             if os.path.exists(tmp_path):

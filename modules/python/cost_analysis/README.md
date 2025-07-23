@@ -204,7 +204,7 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
     TotalEfficiency: real,
     ExternalCost: real,
     SharedCost: real,
-    Properties: string
+    Properties: dynamic
 )
 
 // Create tables for assets data  
@@ -237,7 +237,23 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
 )
 ```
 
-### 2. Ingest Data
+### 2. Create Ingestion Mappings
+
+```kql
+// Create ingestion mapping for OpenCost Allocation data
+.create table OpenCostAllocation ingestion json mapping "OpenCostAllocation_mapping"
+'['
+'{"column":"Timestamp","path":"$[\'Timestamp\']","datatype":"datetime","transform":null},{"column":"CollectionTime","path":"$[\'CollectionTime\']","datatype":"datetime","transform":null},{"column":"Source","path":"$[\'Source\']","datatype":"string","transform":null},{"column":"RunId","path":"$[\'RunId\']","datatype":"string","transform":null},{"column":"Metadata","path":"$[\'Metadata\']","datatype":"dynamic","transform":null},{"column":"AllocationName","path":"$[\'AllocationName\']","datatype":"string","transform":null},{"column":"WindowStart","path":"$[\'WindowStart\']","datatype":"string","transform":null},{"column":"WindowEnd","path":"$[\'WindowEnd\']","datatype":"string","transform":null},{"column":"WindowMinutes","path":"$[\'WindowMinutes\']","datatype":"real","transform":null},{"column":"Namespace","path":"$[\'Namespace\']","datatype":"string","transform":null},{"column":"Node","path":"$[\'Node\']","datatype":"string","transform":null},{"column":"Container","path":"$[\'Container\']","datatype":"string","transform":null},{"column":"Pod","path":"$[\'Pod\']","datatype":"string","transform":null},{"column":"Controller","path":"$[\'Controller\']","datatype":"string","transform":null},{"column":"ControllerKind","path":"$[\'ControllerKind\']","datatype":"string","transform":null},{"column":"CpuCores","path":"$[\'CpuCores\']","datatype":"real","transform":null},{"column":"CpuCoreHours","path":"$[\'CpuCoreHours\']","datatype":"real","transform":null},{"column":"CpuCost","path":"$[\'CpuCost\']","datatype":"real","transform":null},{"column":"CpuEfficiency","path":"$[\'CpuEfficiency\']","datatype":"real","transform":null},{"column":"RamBytes","path":"$[\'RamBytes\']","datatype":"real","transform":null},{"column":"RamByteHours","path":"$[\'RamByteHours\']","datatype":"real","transform":null},{"column":"RamCost","path":"$[\'RamCost\']","datatype":"real","transform":null},{"column":"RamEfficiency","path":"$[\'RamEfficiency\']","datatype":"real","transform":null},{"column":"GpuCount","path":"$[\'GpuCount\']","datatype":"real","transform":null},{"column":"GpuHours","path":"$[\'GpuHours\']","datatype":"real","transform":null},{"column":"GpuCost","path":"$[\'GpuCost\']","datatype":"real","transform":null},{"column":"NetworkCost","path":"$[\'NetworkCost\']","datatype":"real","transform":null},{"column":"LoadBalancerCost","path":"$[\'LoadBalancerCost\']","datatype":"real","transform":null},{"column":"PvCost","path":"$[\'PvCost\']","datatype":"real","transform":null},{"column":"TotalCost","path":"$[\'TotalCost\']","datatype":"real","transform":null},{"column":"TotalEfficiency","path":"$[\'TotalEfficiency\']","datatype":"real","transform":null},{"column":"ExternalCost","path":"$[\'ExternalCost\']","datatype":"real","transform":null},{"column":"SharedCost","path":"$[\'SharedCost\']","datatype":"real","transform":null},{"column":"Properties","path":"$[\'Properties\']","datatype":"dynamic","transform":null}'
+']'
+
+// Create ingestion mapping for OpenCost Assets data
+.create table OpenCostAssets ingestion json mapping "OpenCostAssets_mapping"
+'['
+'{"column":"Timestamp","path":"$[\'Timestamp\']","datatype":"datetime","transform":null},{"column":"CollectionTime","path":"$[\'CollectionTime\']","datatype":"datetime","transform":null},{"column":"Source","path":"$[\'Source\']","datatype":"string","transform":null},{"column":"RunId","path":"$[\'RunId\']","datatype":"string","transform":null},{"column":"Metadata","path":"$[\'Metadata\']","datatype":"dynamic","transform":null},{"column":"AssetName","path":"$[\'AssetName\']","datatype":"string","transform":null},{"column":"WindowStart","path":"$[\'WindowStart\']","datatype":"string","transform":null},{"column":"WindowEnd","path":"$[\'WindowEnd\']","datatype":"string","transform":null},{"column":"WindowMinutes","path":"$[\'WindowMinutes\']","datatype":"real","transform":null},{"column":"Type","path":"$[\'Type\']","datatype":"string","transform":null},{"column":"Account","path":"$[\'Account\']","datatype":"string","transform":null},{"column":"Project","path":"$[\'Project\']","datatype":"string","transform":null},{"column":"Service","path":"$[\'Service\']","datatype":"string","transform":null},{"column":"Region","path":"$[\'Region\']","datatype":"string","transform":null},{"column":"Category","path":"$[\'Category\']","datatype":"string","transform":null},{"column":"Provider","path":"$[\'Provider\']","datatype":"string","transform":null},{"column":"ProviderID","path":"$[\'ProviderID\']","datatype":"string","transform":null},{"column":"Name","path":"$[\'Name\']","datatype":"string","transform":null},{"column":"Cost","path":"$[\'Cost\']","datatype":"real","transform":null},{"column":"Adjustment","path":"$[\'Adjustment\']","datatype":"real","transform":null},{"column":"TotalCost","path":"$[\'TotalCost\']","datatype":"real","transform":null},{"column":"Bytes","path":"$[\'Bytes\']","datatype":"real","transform":null},{"column":"Breakdown","path":"$[\'Breakdown\']","datatype":"string","transform":null},{"column":"Labels","path":"$[\'Labels\']","datatype":"string","transform":null}'
+']'
+```
+
+### 3. Ingest Data
 
 ```kql
 // Ingest allocation data
@@ -257,7 +273,7 @@ The Kusto format provides optimal integration with Azure Data Explorer for both 
 )
 ```
 
-### 3. Query Cost Data
+### 5. Query Cost Data
 
 ```kql
 // Allocation cost by namespace over time
@@ -277,13 +293,30 @@ OpenCostAllocation
 | where RunId == "test-run-123"
 | summarize TotalCost = sum(TotalCost) by Namespace
 
-// Query with additional metadata filtering
+// Query with metadata filtering using dynamic fields
 OpenCostAllocation
 | where Timestamp > ago(1h)
 | where RunId != ""  // Filter records with run ID
-| extend Environment = tostring(Metadata.environment)
-| where Environment == "production"
-| summarize TotalCost = sum(TotalCost) by RunId
+| and ScenarioName == "nap"
+| extend ScenarioStage = tostring(Metadata.scenario_stage_name)
+| summarize TotalCost = sum(TotalCost) by ScenarioStage, RunId
+
+// Query using Properties dynamic fields
+OpenCostAllocation
+| where Timestamp > ago(1h)
+| extend NodeType = tostring(Properties.node_kubernetes_io_instance_type)
+| extend ProviderID = tostring(Properties.providerID)
+| where NodeType != ""
+| summarize TotalCost = sum(TotalCost) by NodeType
+| order by TotalCost desc
+
+// Filter by specific metadata and properties
+OpenCostAllocation
+| where Timestamp > ago(1h)
+| extend ControlPlane = tostring(Properties.namespaceLabels.control_plane)
+| where ScenarioName == "nap" and ControlPlane == "true"
+| summarize TotalCost = sum(TotalCost) by Namespace, Container
+| order by TotalCost desc
 
 // Combined infrastructure and workload costs
 OpenCostAllocation
