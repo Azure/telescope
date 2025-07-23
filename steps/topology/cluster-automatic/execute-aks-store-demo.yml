@@ -8,9 +8,6 @@ parameters:
 - name: regions
   type: object
   default: {}
-- name: wait_duration
-  type: number
-  default: 3600
 
 steps:
 - task: Bash@3
@@ -18,6 +15,10 @@ steps:
   inputs:
     targetType: 'inline'
     script: |
-      echo "Wait for ${{ parameters.wait_duration }} seconds..."
-      sleep ${{ parameters.wait_duration }}
+      wait_duration=${{ parameters.engine_input.wait_duration_seconds }}
+      if [ -z "$wait_duration" ]; then
+        wait_duration=3600
+      fi
+      echo "Wait for $wait_duration seconds..."
+      sleep $wait_duration
       echo "Wait completed"
