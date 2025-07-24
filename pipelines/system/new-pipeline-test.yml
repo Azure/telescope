@@ -19,10 +19,10 @@ stages:
           engine_input:
             wait_duration_seconds: 1800 # optional, default is 3600 seconds (1 hour)
           matrix:
-            default:
-               aks_cli_optional_parameters: ''
-#            acns:
-#              aks_cli_optional_parameters: '{name: "enable-acns", value: ""}'
+#            default:
+#              aks_cli_optional_parameters: ''
+            acns:
+              aks_cli_optional_parameters: '{name: "enable-acns", value: ""}'
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
