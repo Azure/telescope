@@ -20,7 +20,7 @@ steps:
       manifest_file: "$(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests/aks-store-all-in-one.yaml"
       wait_condition: "condition=Available"
       wait_resource: "deployment"
-      timeout: "600s"
+      timeout: "900s"
   - template: /steps/common/kubectl-manifest.yml
     parameters:
       cluster_context: ${{ parameters.cluster_context }}
