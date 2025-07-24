@@ -68,7 +68,7 @@ steps:
     echo "##vso[task.setvariable variable=ALLOCATION_K8S_COST_FILE]$ALLOCATION_K8S_COST_FILE"
     echo "##vso[task.setvariable variable=ASSETS_K8S_COST_FILE]$ASSETS_K8S_COST_FILE"
   workingDirectory: modules/python
-  condition: eq(variables.collect_k8s_cost, 'true')
+  condition: and(eq(variables.collect_k8s_cost, 'true'), succeeded())
   displayName: "Collect kubernetes cost"
   continueOnError: true
   env:
