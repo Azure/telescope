@@ -35,8 +35,8 @@ steps:
 
     # Generate output file names with timestamp
     timestamp=$(date +%s)
-    ALLOCATION_K8S_COST_FILE="${timestamp}_${SCENARIO_NAME}_${RUN_ID}_k8s_cost_allocation.json"
-    ASSETS_K8S_COST_FILE="${timestamp}_${SCENARIO_NAME}_${RUN_ID}_k8s_cost_assets.json"
+    ALLOCATION_K8S_COST_FILE="${CLUSTER_CONTEXT}_${RUN_ID}_cost_allocation.json"
+    ASSETS_K8S_COST_FILE="${CLUSTER_CONTEXT}_${RUN_ID}_cost_assets.json"
 
     echo "Running Python cost analysis script..."
     echo "PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
@@ -65,8 +65,8 @@ steps:
     cat "$RESULT_DIR/$ASSETS_K8S_COST_FILE"
 
     echo "Cost analysis collection completed successfully"
-    echo "##vso[task.setvariable variable=ALLOCATION_K8S_COST_FILE_PATH]$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"
-    echo "##vso[task.setvariable variable=ASSETS_K8S_COST_FILE_PATH]$RESULT_DIR/$ASSETS_K8S_COST_FILE"
+    echo "##vso[task.setvariable variable=ALLOCATION_K8S_COST_FILE]$ALLOCATION_K8S_COST_FILE"
+    echo "##vso[task.setvariable variable=ASSETS_K8S_COST_FILE]$ASSETS_K8S_COST_FILE"
   workingDirectory: modules/python
   condition: eq(variables.collect_k8s_cost, 'true')
   displayName: "Collect kubernetes cost"
