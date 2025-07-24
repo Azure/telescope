@@ -18,6 +18,7 @@ steps:
 
       SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
       USER_NODE_POOL=${USER_NODE_POOL:-null}
+      AKS_CLI_OPTIONAL_PARAMETERS=${AKS_CLI_OPTIONAL_PARAMETERS:-null}
 
       if [ -z "$(AKS_CLI_CUSTOM_HEADERS)" ]; then
         AKS_CUSTOM_HEADERS='[]'
@@ -42,6 +43,7 @@ steps:
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
+                --argjson aks_cli_optional_parameters "$AKS_CLI_OPTIONAL_PARAMETERS" \
                 '{
                   run_id: $run_id,
                   region: $region,
@@ -53,7 +55,8 @@ steps:
                   k8s_os_disk_type: $k8s_os_disk_type,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
-                  aks_cli_user_node_pool: $aks_cli_user_node_pool
+                  aks_cli_user_node_pool: $aks_cli_user_node_pool,
+                  aks_cli_optional_parameters: $aks_cli_optional_parameters
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
