@@ -24,11 +24,11 @@ stages:
           topology: cluster-automatic
           engine: aks-store-demo
           engine_input:
-            wait_duration_seconds: 60 # optional, default is 3600 seconds (1 hour)
+            wait_duration_seconds: 1800
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+          timeout_in_minutes: 120
   - stage: aws_us_east_2
     dependsOn: []
     jobs:
@@ -40,8 +40,8 @@ stages:
           topology: cluster-automatic
           engine: aks-store-demo
           engine_input:
-            wait_duration_seconds: 60 # optional, default is 3600 seconds (1 hour)
+            wait_duration_seconds: 1800
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+          timeout_in_minutes: 120
