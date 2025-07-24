@@ -26,7 +26,7 @@ stages:
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+          timeout_in_minutes: 120 # if not specified, default is 60
           publish_k8s_cost: true
   # - stage: aws_us_east_2
   #   dependsOn: []
