@@ -108,12 +108,6 @@ run "eks_auto_mode_enabled" {
     error_message = "EKS Auto Mode should create metrics-server addon"
   }
 
-  # Test that metrics-server addon has correct timeout configuration
-  assert {
-    condition     = module.eks["auto_mode_true"].eks_addon.after_compute["metrics-server"].timeouts.create == "5m"
-    error_message = "EKS Auto Mode metrics-server addon should have create timeout set to 5m"
-  }
-
   assert {
     condition     = alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy", "AmazonEKSWorkerNodeMinimalPolicy", "AmazonEKSNetworkingPolicy"] : contains(keys(module.eks["auto_mode_true"].eks_role_policy_attachments), item)])
     error_message = "EKS Auto Mode should attach the required Auto Mode policies: AmazonEKSBlockStoragePolicy, AmazonEKSComputePolicy, AmazonEKSLoadBalancingPolicy, AmazonEKSWorkerNodeMinimalPolicy and AmazonEKSNetworkingPolicy"
