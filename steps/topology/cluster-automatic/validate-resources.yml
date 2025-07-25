@@ -14,52 +14,10 @@ steps:
     alias: automatic
 
 - ${{ if eq(parameters.cloud, 'azure') }}:
-  # Refresh credentials
-  - template: /steps/cloud/${{ parameters.cloud }}/login.yml
+  - template: /steps/cloud/azure/install-kubelogin.yml
     parameters:
+      cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
-      credential_type: service_connection
-
-  - script: |
-      set -eo pipefail
-
-      echo "Get current service principal object ID and subscription info"
-      CURRENT_OBJECT_ID=$(az ad signed-in-user show --query objectId -o tsv 2>/dev/null || az account show --query user.name -o tsv)
-
-      echo "Granting Contributor access to service principal/user: $CURRENT_OBJECT_ID"
-      echo "Subscription ID: $AZURE_SUBSCRIPTION_ID"
-      echo "Resource Group: $RUN_ID"
-
-      echo "Grant current user/service principal Contributor access to the resource group for kubectl operations"
-      az role assignment create \
-        --assignee "$CURRENT_OBJECT_ID" \
-        --role "Contributor" \
-        --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RUN_ID" \
-        || echo "Role assignment may already exist or failed - continuing..."
-
-      echo "Grant AKS Cluster Admin role for kubectl operations"
-      CLUSTER_NAME=$(kubectl config current-context)
-      AKS_ID=$(az aks show -g $RUN_ID -n $CLUSTER_NAME --query id -o tsv)
-      az role assignment create \
-        --assignee "$CURRENT_OBJECT_ID" \
-        --role "Azure Kubernetes Service RBAC Cluster Admin" \
-        --scope "$AKS_ID" \
-        || echo "Role assignment may already exist or failed - continuing..."
-
-    displayName: 'Grant RBAC permissions for AKS access'
-
-  - script: |
-      set -eo pipefail
-
-      echo "Installing kubelogin if not present..."
-      if ! command -v kubelogin &> /dev/null; then
-        az aks install-cli
-      fi
-
-      echo "Converting kubeconfig for Azure CLI authentication..."
-      kubelogin convert-kubeconfig -l azurecli -v 99
-      kubectl config view --kubeconfig /home/AzDevOps/.kube/config
-    displayName: 'Install kubelogin and convert kubeconfig'
 
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
