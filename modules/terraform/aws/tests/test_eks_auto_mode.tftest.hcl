@@ -68,6 +68,18 @@ variables {
     policy_arns             = ["AmazonEKS_CNI_Policy"]
     eks_managed_node_groups = []
     eks_addons              = []
+    }, {
+    role                      = "my-role"
+    eks_name                  = "auto_mode_with_metrics_addon"
+    vpc_name                  = "my-vpc"
+    auto_mode                 = true
+    node_pool_general_purpose = true
+    node_pool_system          = true
+    policy_arns               = ["AmazonEKS_CNI_Policy"]
+    eks_managed_node_groups   = []
+    eks_addons = [{
+      name = "metrics-server"
+    }]
   }]
 }
 
@@ -102,10 +114,16 @@ run "eks_auto_mode_enabled" {
     error_message = "EKS Auto Mode should enable elastic load balancing"
   }
 
-  # Test that metrics-server addon is created when Auto Mode is enabled
+  # Test that metrics-server is deployed via terraform_data resource when Auto Mode is enabled and metrics-server addon is not configured
   assert {
-    condition     = contains(keys(module.eks["auto_mode_true"].eks_addon.after_compute), "metrics-server")
-    error_message = "EKS Auto Mode should create metrics-server addon"
+    condition     = length(module.eks["auto_mode_true"].apply_metrics_server_addon) == 1
+    error_message = "EKS Auto Mode should deploy metrics-server via manifest when addon is not configured"
+  }
+
+  # Test that metrics-server addon resource is NOT created when using manifest deployment
+  assert {
+    condition     = !contains(keys(module.eks["auto_mode_true"].eks_addon.after_compute), "metrics-server")
+    error_message = "EKS Auto Mode should not create metrics-server addon when using manifest deployment"
   }
 
   assert {
@@ -158,6 +176,12 @@ run "eks_auto_mode_disabled" {
     error_message = "EKS Auto Mode should not enable block storage when disabled"
   }
 
+  # Test that metrics-server manifest deployment is not created when Auto Mode is disabled
+  assert {
+    condition     = length(module.eks["auto_mode_false"].apply_metrics_server_addon) == 0
+    error_message = "EKS Auto Mode should not deploy metrics-server via manifest when disabled"
+  }
+
   # Test that metrics-server addon is not created when Auto Mode is disabled
   assert {
     condition     = !contains(keys(module.eks["auto_mode_false"].eks_addon.after_compute), "metrics-server")
@@ -180,6 +204,24 @@ run "eks_auto_mode_disabled" {
   assert {
     condition     = !alltrue([for item in ["AmazonEKSBlockStoragePolicy", "AmazonEKSComputePolicy", "AmazonEKSLoadBalancingPolicy"] : contains(keys(module.eks["auto_mode_false"].eks_role_policy_attachments), item)])
     error_message = "Auto Mode specific policies should not be attached when auto mode is disabled"
+  }
+
+  expect_failures = [check.deletion_due_time]
+}
+
+run "eks_auto_mode_with_metrics_addon" {
+  command = plan
+
+  # Test that metrics-server manifest deployment is NOT created when metrics-server addon is explicitly configured
+  assert {
+    condition     = length(module.eks["auto_mode_with_metrics_addon"].apply_metrics_server_addon) == 0
+    error_message = "EKS Auto Mode should not deploy metrics-server via manifest when metrics-server addon is explicitly configured"
+  }
+
+  # Test that metrics-server addon IS created when explicitly configured in eks_addons
+  assert {
+    condition     = contains(keys(module.eks["auto_mode_with_metrics_addon"].eks_addon.after_compute), "metrics-server")
+    error_message = "EKS Auto Mode should create metrics-server addon when explicitly configured in eks_addons"
   }
 
   expect_failures = [check.deletion_due_time]
