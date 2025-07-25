@@ -77,7 +77,7 @@ variables {
     node_pool_system          = true
     policy_arns               = ["AmazonEKS_CNI_Policy"]
     eks_managed_node_groups   = []
-    eks_addons                = [{
+    eks_addons = [{
       name = "metrics-server"
     }]
   }]
