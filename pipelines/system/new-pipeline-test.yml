@@ -17,7 +17,7 @@ stages:
           topology: cluster-automatic
           engine: aks-store-demo
           engine_input:
-            wait_duration_seconds: 1800 # optional, default is 3600 seconds (1 hour)
+            wait_duration_seconds: 60 # optional, default is 3600 seconds (1 hour)
           matrix:
             default:
               aks_cli_optional_parameters: '[]'
