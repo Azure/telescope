@@ -671,7 +671,8 @@ resource "aws_eks_access_policy_association" "node_pool_policy" {
 # Deploy Metrics Server addon with manifest because the official EKS addon may take several hours to report healthy status when using EKS Auto Mode.
 # AWS documentation: https://docs.aws.amazon.com/eks/latest/userguide/metrics-server.html
 resource "terraform_data" "apply_metrics_server_addon" {
-  count = var.eks_config.auto_mode ? 1 : 0
+  # if EKS Auto Mode is enabled and metrics-server is not set in the addon list
+  count = var.eks_config.auto_mode && !contains(keys(local.eks_addons_map), "metrics-server") ? 1 : 0
 
   provisioner "local-exec" {
     command = <<EOT
