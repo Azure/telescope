@@ -156,9 +156,20 @@ resource "terraform_data" "aks_cli" {
   }
 }
 
-resource "terraform_data" "aks_nodepool_cli" {
+resource "terraform_data" "wait_for_aks_created" {
+  provisioner "local-exec" {
+    command = "az aks wait -g ${var.resource_group_name} -n ${var.aks_cli_config.aks_name} --created --timeout 900"
+  }
+
   depends_on = [
     terraform_data.aks_cli
+  ]
+}
+
+resource "terraform_data" "aks_nodepool_cli" {
+  depends_on = [
+    terraform_data.aks_cli,
+    terraform_data.wait_for_aks_created
   ]
 
   for_each = local.extra_pool_map
