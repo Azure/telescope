@@ -53,7 +53,7 @@ steps:
           --assignee "$CURRENT_OBJECT_ID" \
           --scope "$AKS_ID" \
           --role "Azure Kubernetes Service RBAC Cluster Admin" \
-          --query "[?principalId=='$CURRENT_OBJECT_ID']" \
+          --query "[?principalName=='$CURRENT_OBJECT_ID']" \
           -o tsv | grep -q .; then
           echo "Role assignment verified successfully"
           break
