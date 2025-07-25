@@ -49,12 +49,12 @@ steps:
         echo "Role assignment verified successfully"
         break
       fi
-      
+
       if [ $i -eq 30 ]; then
         echo "Warning: Role assignment verification timed out after 5 minutes"
         break
       fi
-      
+
       echo "Role assignment not yet visible, waiting 10 seconds..."
       sleep 10
     done
@@ -73,4 +73,3 @@ steps:
     kubelogin convert-kubeconfig -l azurecli -v 99
     kubectl config view --kubeconfig /home/AzDevOps/.kube/config
   displayName: 'Install kubelogin and convert kubeconfig'
-
