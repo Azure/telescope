@@ -16,12 +16,8 @@ locals {
     if var.eks_config.enable_karpenter
   }
 
-  # Add Metrics Server addon if auto mode is enabled and either system or general purpose node pools are configured. 
-  # Set create timeout to 5 minutes to prevent stuck on degraded state when all pods are actually running.
-  metrics_server_addon = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? { "metrics-server" = { name = "metrics-server", timeouts = { create = "5m" } } } : {}
-
   # Merge all addon maps
-  _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map, local.metrics_server_addon)
+  _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map)
 
   # Set default VPC-CNI settings if addon is present in the config
   vpc_cni_addon_map = contains(keys(local._eks_addons_map), "vpc-cni") ? {
@@ -670,4 +666,36 @@ resource "aws_eks_access_policy_association" "node_pool_policy" {
     type = "cluster"
   }
   depends_on = [aws_eks_access_entry.node_pool_entry]
+}
+
+# Deploy Metrics Server addon with manifest because the official EKS addon may take several hours to report healthy status when using EKS Auto Mode.
+# AWS documentation: https://docs.aws.amazon.com/eks/latest/userguide/metrics-server.html
+resource "terraform_data" "apply_metrics_server_addon" {
+  # if EKS Auto Mode is enabled and metrics-server is not set in the addon list
+  count = var.eks_config.auto_mode && !contains(keys(local.eks_addons_map), "metrics-server") ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<EOT
+      set -e
+      kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      # Wait for the metrics-server deployment to be ready
+      kubectl wait --for=condition=Available deployment/metrics-server -n kube-system --timeout=300s
+      kubectl get pod -l k8s-app=metrics-server -n kube-system
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      set -e
+      kubectl delete -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      # Wait for the deployment/metrics-server to be deleted
+      kubectl wait --for=delete deployment/metrics-server -n kube-system --timeout=30s
+    EOT
+  }
+
+  depends_on = [
+    terraform_data.apply_nodepool_system_custom, 
+    terraform_data.apply_nodepool_general_custom
+  ]
 }

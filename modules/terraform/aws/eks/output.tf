@@ -58,3 +58,8 @@ output "node_pool_policy" {
   description = "EKS access policy association for Auto Mode node pools. Used for unit tests"
   value       = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? aws_eks_access_policy_association.node_pool_policy : []
 }
+
+output "apply_metrics_server_addon" {
+  description = "Terraform data resource for metrics-server manifest application. Used for unit tests"
+  value       = terraform_data.apply_metrics_server_addon
+}
