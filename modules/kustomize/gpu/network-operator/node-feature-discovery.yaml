@@ -3,11 +3,11 @@ kind: NodeFeatureRule
 metadata:
   name: nfd-network-rule
 spec:
-   rules:
-   - name: "nfd-network-rule"
-     labels:
+  rules:
+    - name: "nfd-network-rule"
+      labels:
         "feature.node.kubernetes.io/pci-15b3.present": "true"
-     matchFeatures:
+      matchFeatures:
         - feature: pci.device
           matchExpressions:
             device: {op: In, value: ["101c", "101e"]}

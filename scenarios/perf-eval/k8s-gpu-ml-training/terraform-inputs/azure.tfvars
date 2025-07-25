@@ -37,7 +37,7 @@ aks_cli_config_list = [
             value = "Ephemeral"
           },
           {
-            name = "gpu-driver"
+            name  = "gpu-driver"
             value = "none"
           }
         ]

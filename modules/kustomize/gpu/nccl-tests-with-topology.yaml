@@ -70,8 +70,8 @@ spec:
                   rdma/shared_ib: 1
               securityContext:
                 capabilities:
-                  add: 
-                  - "IPC_LOCK"
+                  add:
+                    - "IPC_LOCK"
               volumeMounts:
                 - name: shm
                   mountPath: /dev/shm
@@ -85,5 +85,5 @@ spec:
               configMap:
                 name: nvidia-topology
                 items:
-                - key: topo.xml
-                  path: topo.xml
+                  - key: topo.xml
+                    path: topo.xml
