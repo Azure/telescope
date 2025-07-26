@@ -254,6 +254,46 @@ class KubernetesClient:
             time.sleep(10)
         raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
 
+    def wait_for_pods_completed(self, label_selector, namespace="default", timeout=300):
+        """
+        Waits for pods with a specific label to complete successfully their execution within a specified timeout.
+        Raises an exception if the pods do not complete within the timeout.
+
+        :param label_selector: The label selector to filter pods.
+        :param namespace: The namespace where the pod is located (default: "default").
+        :param timeout: The timeout in seconds to wait for the pod to complete (default: 300 seconds).
+        :return: None
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            logger.info(
+                f"Waiting for pods with label '{label_selector}' in namespace '{namespace}' to complete..."
+            )
+            pods = self.get_pods_by_namespace(
+                namespace=namespace, label_selector=label_selector
+            )
+            if not pods:
+                logger.info(
+                    f"No pods found with label '{label_selector}' in namespace '{namespace}'."
+                )
+                return
+            all_completed = True
+            for pod in pods:
+                logger.info(f"Pod '{pod.metadata.name}' status: {pod.status.phase}")
+                if pod.status.phase != "Succeeded":
+                    all_completed = False
+                    break
+            if all_completed:
+                logger.info(
+                    f"All pods with label '{label_selector}' in namespace '{namespace}' have completed successfully."
+                )
+                return
+            logger.info(f"Waiting for 10 seconds before checking pod status again.")
+            time.sleep(10)
+        raise Exception(
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete within {timeout} seconds."
+        )
+
     def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
         """
         Waits for a specific job to complete its execution within a specified timeout.
@@ -316,7 +356,7 @@ class KubernetesClient:
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
-    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = "", namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, command: str, container_name: str = "", dest_path: str = "", namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
@@ -331,11 +371,14 @@ class KubernetesClient:
             Exception: If an error occurs while executing the command in the pod.
         """
         commands = ['/bin/sh', '-c', command]
+        logger.info(
+            f"Executing command in pod '{pod_name}' in namespace '{namespace}': {' '.join(commands)}"
+        )
         resp = stream(self.api.connect_get_namespaced_pod_exec,
                       name=pod_name,
                       namespace=namespace,
                       command=commands,
-                      container=container_name,
+                      container=container_name if container_name else None,
                       stderr=True, stdin=False,
                       stdout=True, tty=False,
                       _preload_content=False)
@@ -348,7 +391,8 @@ class KubernetesClient:
                 if resp.peek_stdout():
                     stdout = resp.read_stdout()
                     res.append(stdout)
-                    logger.info(f"STDOUT: {stdout}")
+                    clean_stdout = stdout.rstrip('\n\r')
+                    logger.info(f"STDOUT: {clean_stdout}")
                     if file:
                         file.write(stdout.encode('utf-8'))
                         logger.info(f"Saved response to file: {dest_path}")
