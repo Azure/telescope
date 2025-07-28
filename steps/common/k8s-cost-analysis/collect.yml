@@ -80,3 +80,7 @@ steps:
     TEST_DURATION_MINUTES: $(EXECUTE_STEP_DURATION_MINUTES)
     CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
     TERRAFORM_AZURE_MODULES_DIR: $(Pipeline.Workspace)/s/modules/terraform/azure
+- template: /steps/publish-costs.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    credential_type: ${{ parameters.credential_type }}
