@@ -7,33 +7,22 @@ E2E testing in Telescope runs performance benchmarks across cloud providers (Azu
 ## Prerequisites
 
 * [Node.js 20+](https://nodejs.org/en/download/) - Required for MCP Azure DevOps server
-* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) - For authentication and Azure operations
-* Access to Azure DevOps organization with `telescope` project
-* MCP Azure DevOps server configuration file [here](../.vscode/mcp.json)
+* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) - For authentication
+* Access to `akstelescope' Azure DevOps organization with `telescope` project
+* Start ADO MCP server manually before running tests
+* Authentication to Azure DevOps using device code authentication if user is not already authenticated (`az login --use-device-code`)
 
 ## Key Information
 
 - Always use ["New Pipeline Test"](../pipelines/system/new-pipeline-test.yml) for running E2E tests
-- Project name: `telescope`
 
 ## How to Run E2E Test
 
-### Step 1: Start MCP Azure DevOps Server
+### Step 1: Setup and Verify Connection
+1. **Verify Connection**: Confirm the server is running and accessible by using `build_get_definitions` command to list available build definitions and ensure the connection is established. Also get the build definition ID for the "New Pipeline Test".
 
-Before running E2E tests, you need to start the MCP (Model Context Protocol) Azure DevOps server to enable ADO operations:
-
-1. **Start Server**: The MCP server must be started manually by the user. Run the ADO MCP server and provide the Azure DevOps organization name as input when prompted.
-
-2. **Authentication**: Login to Azure using device code authentication:
-   ```bash
-   az login --use-device-code
-   ```
-
-3. **Verify Connection**: Confirm the server is running and accessible by using `build_get_definitions` command to list available build definitions and ensure the connection is established. Also get the build definition ID for the "New Pipeline Test".
-
-**Note**: The MCP server cannot be started automatically - it must be manually initiated by the user before running E2E tests. The server provides the interface to interact with Azure DevOps APIs for triggering builds, monitoring status, and retrieving logs.
-
-### Step 2: Trigger the ADO Build
+2. **Get Build Definition ID**: Use `build_get_definitions` to retrieve the build definition ID for the "New Pipeline Test" in the `telescope` project. This ID is required to trigger the build.
+### Step 2: Trigger the ADO Build & Monitor Status
 
 1. **Start Build**: Use `build_run_build` - Start the test with project name, definition ID, and source branch name
 2. **Monitor Status**: Use `build_get_status` - Check the build status every 15 minutes  
@@ -41,7 +30,7 @@ Before running E2E tests, you need to start the MCP (Model Context Protocol) Azu
 4. **Get Specific Logs**: Use `build_get_log_by_id` - Get logs for a specific build log by log ID if the build fails
 
 
-## Common Issues
+## Common Issues in E2E Testing
 - **Cloud capacity**: Instances may not be available in target regions
 - **Timeout**: Test takes longer than expected duration
 - **Infrastructure**: Network, authentication, or quota problems
