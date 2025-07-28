@@ -15,10 +15,6 @@ steps:
   parameters:
     cluster_context: automatic
 
-- template: /steps/publish-costs.yml
-  parameters:
-    cloud: ${{ parameters.cloud }}
-
 - template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
     action: delete
