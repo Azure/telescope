@@ -11,7 +11,7 @@ parameters:
 
 steps:
 
-- template: /steps/common/k8s-cost-analysis/collect.yml
+- template: /steps/common/k8s-cost-analysis/collect-publish.yml
   parameters:
     cluster_context: automatic
 
