@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-resource-consume"
+scenario_name  = "cni-ab-testing"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -118,5 +118,5 @@ eks_config_list = [{
       name = "kube-proxy"
     }
   ]
-  kubernetes_version = "1.32"
+  kubernetes_version = "1.33"
 }]

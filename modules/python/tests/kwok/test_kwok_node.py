@@ -1,8 +1,8 @@
+import subprocess
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from kubernetes import client, config
-
 from kwok.kwok import Node
 
 
@@ -17,8 +17,7 @@ def make_mock_node(
 ):
     node = MagicMock()
     node.metadata = MagicMock(
-        annotations=annotations or {"kwok.x-k8s.io/node": "fake"},
-        name=name
+        annotations=annotations or {"kwok.x-k8s.io/node": "fake"}, name=name
     )
     node.status = MagicMock(
         conditions=[MagicMock(type="Ready", status="True" if ready else "False")],
@@ -27,18 +26,35 @@ def make_mock_node(
     )
     node.spec = MagicMock(
         unschedulable=unschedulable,
-        taints=taints or [
-            MagicMock(
-                effect="NoSchedule",
-                key="kwok.x-k8s.io/node",
-                value="fake"
-            )
-        ]
+        taints=taints
+        or [MagicMock(effect="NoSchedule", key="kwok.x-k8s.io/node", value="fake")],
     )
     return node
 
 
+def mock_apply_kwok_manifests(kwok_release, enable_metrics):
+    """
+    Mock function to simulate the application of Kubernetes manifests for testing purposes.
+
+    Args:
+        kwok_release (str): The release version of KWOK for which manifests are applied.
+        enable_metrics (bool): If True, applies additional metrics-related manifests.
+
+    Returns:
+        None: This function does not return any value.
+    """
+    kwok_yaml_url = f"tests/kwok/{kwok_release}/kwok.yaml"
+    stage_fast_yaml_url = f"tests/kwok/{kwok_release}/stage-fast.yaml"
+
+    subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
+    subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
+
+    if enable_metrics:
+        metrics_usage_url = f"tests/kwok/{kwok_release}/metrics-usage.yaml"
+        subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
+
 class TestNodeIntegration(unittest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         """
@@ -57,12 +73,18 @@ class TestNodeIntegration(unittest.TestCase):
         Set up the environment for each test.
         """
         # Initialize the Node instance
-        self.node = Node(node_count=2)
+        self.node = Node(node_count=2, kwok_release="v0.7.0", enable_metrics=True)
 
-    def test_create_nodes(self):
+    @patch("kwok.kwok.Node.apply_kwok_manifests", side_effect=mock_apply_kwok_manifests)
+    def test_create_nodes(self, mock_apply):
         try:
             self.node.create()
             print("Nodes created successfully.")
+            # Verify mock was called with expected arguments
+            mock_apply.assert_called_once_with(
+                self.node.kwok_release,
+                self.node.enable_metrics
+            )
 
             # Verify the number of nodes in the cluster
             nodes = self.core_v1_api.list_node().items
