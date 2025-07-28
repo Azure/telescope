@@ -194,7 +194,7 @@ data "azurerm_kubernetes_cluster" "aks" {
   count               = var.aks_cli_config.grant_rbac_permissions ? 1 : 0
   name                = var.aks_cli_config.aks_name
   resource_group_name = var.resource_group_name
-  
+
   depends_on = [
     terraform_data.aks_cli
   ]
