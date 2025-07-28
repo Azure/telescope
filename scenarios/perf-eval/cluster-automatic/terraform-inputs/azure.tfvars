@@ -8,6 +8,7 @@ aks_cli_config_list = [
     aks_name                      = "aks-automatic"
     sku_tier                      = "Standard"
     use_aks_preview_cli_extension = true
+    grant_rbac_permissions        = true
     optional_parameters = [
       {
         name  = "sku"

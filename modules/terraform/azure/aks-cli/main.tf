@@ -196,3 +196,98 @@ resource "terraform_data" "aks_nodepool_cli" {
     ])
   }
 }
+
+# Get current client configuration to obtain object ID for RBAC assignments
+data "azurerm_client_config" "current" {}
+
+# Get the AKS cluster information for RBAC assignments
+data "azurerm_kubernetes_cluster" "aks" {
+  count               = var.aks_cli_config.grant_rbac_permissions ? 1 : 0
+  name                = var.aks_cli_config.aks_name
+  resource_group_name = var.resource_group_name
+  
+  depends_on = [
+    terraform_data.aks_cli
+  ]
+}
+
+# Grant RBAC permissions for AKS access using Azure provider resources
+# Grant Contributor role on the resource group for kubectl operations
+resource "azurerm_role_assignment" "aks_contributor" {
+  count                = var.aks_cli_config.grant_rbac_permissions ? 1 : 0
+  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  role_definition_name = "Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  depends_on = [
+    terraform_data.aks_cli
+  ]
+}
+
+# Grant AKS Cluster Admin role for kubectl operations
+# Use terraform_data with error handling and propagation waiting
+resource "terraform_data" "aks_cluster_admin_role" {
+  count = var.aks_cli_config.grant_rbac_permissions ? 1 : 0
+
+  input = {
+    scope                = data.azurerm_kubernetes_cluster.aks[0].id
+    role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+    principal_id         = data.azurerm_client_config.current.object_id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      # Check if role assignment already exists
+      existing_role=$(az role assignment list \
+        --scope "${self.input.scope}" \
+        --role "${self.input.role_definition_name}" \
+        --assignee "${self.input.principal_id}" \
+        --query "length(@)" -o tsv 2>/dev/null || echo "0")
+      
+      if [ "$existing_role" -eq 0 ]; then
+        echo "Creating AKS Cluster Admin role assignment..."
+        az role assignment create \
+          --scope "${self.input.scope}" \
+          --role "${self.input.role_definition_name}" \
+          --assignee "${self.input.principal_id}"
+        
+        echo "Waiting for role assignment to propagate..."
+        # Wait for role assignment to propagate (up to 5 minutes)
+        max_attempts=30
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+          echo "Checking role assignment propagation (attempt $attempt/$max_attempts)..."
+          
+          # Check if role assignment is active and propagated
+          active_role=$(az role assignment list \
+            --scope "${self.input.scope}" \
+            --role "${self.input.role_definition_name}" \
+            --assignee "${self.input.principal_id}" \
+            --include-inherited \
+            --query "length(@)" -o tsv 2>/dev/null || echo "0")
+          
+          if [ "$active_role" -gt 0 ]; then
+            echo "Role assignment has propagated successfully."
+            break
+          fi
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "Warning: Role assignment may not have fully propagated after 5 minutes."
+            break
+          fi
+          
+          echo "Role assignment not yet propagated, waiting 10 seconds..."
+          sleep 10
+          attempt=$((attempt + 1))
+        done
+      else
+        echo "AKS Cluster Admin role assignment already exists, skipping..."
+      fi
+    EOT
+  }
+
+  depends_on = [
+    terraform_data.aks_cli,
+    data.azurerm_kubernetes_cluster.aks
+  ]
+}
