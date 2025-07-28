@@ -34,6 +34,103 @@ steps:
   condition: and(eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq(variables['CLEANUP_RESOURCES'], 'true'))
 - script: |
     set -eu
+    echo "Force cleanup Azure resources in $RUN_ID before resource group deletion"
+    
+    # Function to retry commands with exponential backoff
+    retry_command() {
+      local max_attempts=5
+      local delay=30
+      local attempt=1
+      local command="$@"
+      
+      while [ $attempt -le $max_attempts ]; do
+        echo "Attempt $attempt/$max_attempts: $command"
+        if eval "$command"; then
+          echo "Command succeeded on attempt $attempt"
+          return 0
+        else
+          echo "Command failed on attempt $attempt"
+          if [ $attempt -lt $max_attempts ]; then
+            echo "Waiting $delay seconds before retry..."
+            sleep $delay
+            delay=$((delay * 2))  # Exponential backoff
+          fi
+          attempt=$((attempt + 1))
+        fi
+      done
+      
+      echo "Command failed after $max_attempts attempts: $command"
+      return 1
+    }
+    
+    # Force delete AKS clusters first (this should remove service association links)
+    echo "Deleting AKS clusters..."
+    for cluster in $(az aks list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
+      echo "Force deleting AKS cluster: $cluster"
+      retry_command "az aks delete -g $RUN_ID -n $cluster --yes --no-wait" || true
+    done
+    
+    # Wait for AKS deletions to process
+    echo "Waiting for AKS clusters to be deleted..."
+    sleep 60
+    
+    # Check if any AKS clusters still exist and wait
+    for i in {1..10}; do
+      clusters=$(az aks list -g $RUN_ID --query "length([])" -o tsv 2>/dev/null || echo "0")
+      if [ "$clusters" = "0" ]; then
+        echo "All AKS clusters deleted"
+        break
+      else
+        echo "Still waiting for $clusters AKS cluster(s) to be deleted... (attempt $i/10)"
+        sleep 30
+      fi
+    done
+    
+    # Remove NAT Gateway associations from subnets
+    echo "Removing NAT Gateway associations..."
+    for vnet in $(az network vnet list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
+      for subnet in $(az network vnet subnet list -g $RUN_ID --vnet-name $vnet --query "[?natGateway].name" -o tsv 2>/dev/null || true); do
+        echo "Removing NAT Gateway from subnet: $vnet/$subnet"
+        retry_command "az network vnet subnet update -g $RUN_ID --vnet-name $vnet -n $subnet --remove natGateway" || true
+      done
+    done
+    
+    # Remove NSG associations from subnets
+    echo "Removing NSG associations..."
+    for vnet in $(az network vnet list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
+      for subnet in $(az network vnet subnet list -g $RUN_ID --vnet-name $vnet --query "[?networkSecurityGroup].name" -o tsv 2>/dev/null || true); do
+        echo "Removing NSG from subnet: $vnet/$subnet"
+        retry_command "az network vnet subnet update -g $RUN_ID --vnet-name $vnet -n $subnet --remove networkSecurityGroup" || true
+      done
+    done
+    
+    # Delete NAT Gateways
+    echo "Deleting NAT Gateways..."
+    for natgw in $(az network nat gateway list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
+      echo "Deleting NAT Gateway: $natgw"
+      retry_command "az network nat gateway delete -g $RUN_ID -n $natgw" || true
+    done
+    
+    # Delete NSGs
+    echo "Deleting Network Security Groups..."
+    for nsg in $(az network nsg list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
+      echo "Deleting NSG: $nsg"
+      retry_command "az network nsg delete -g $RUN_ID -n $nsg" || true
+    done
+    
+    # Delete Public IPs
+    echo "Deleting Public IP addresses..."
+    for pip in $(az network public-ip list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
+      echo "Deleting Public IP: $pip"
+      retry_command "az network public-ip delete -g $RUN_ID -n $pip" || true
+    done
+    
+    echo "Pre-cleanup completed"
+  displayName: "Force Cleanup Azure Resources"
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  
+- script: |
+    set -eu
     echo "Delete resource group $RUN_ID"
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
