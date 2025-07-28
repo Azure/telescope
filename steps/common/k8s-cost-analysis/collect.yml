@@ -9,7 +9,7 @@ steps:
     echo "Starting Kubernetes cost analysis collection..."
 
     echo "Deploying OpenCost service to cluster context: $CLUSTER_CONTEXT"
-    kubectl --context="$CLUSTER_CONTEXT" apply -f "$TERRAFORM_AZURE_MODULES_DIR/aks/cost-analysis/open-cost-service.yaml"
+    kubectl --context="$CLUSTER_CONTEXT" apply -f "$OPEN_COST_SVC_MANIFEST"
 
     echo "Waiting for OpenCost service to be available..."
     kubectl --context="$CLUSTER_CONTEXT" wait --for=jsonpath='{.spec.clusterIP}' --timeout=60s service/opencost-service -n kube-system
@@ -79,7 +79,7 @@ steps:
     SCENARIO_STAGE_NAME: $(System.JobDisplayName)
     TEST_DURATION_MINUTES: $(EXECUTE_STEP_DURATION_MINUTES)
     CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
-    TERRAFORM_AZURE_MODULES_DIR: $(Pipeline.Workspace)/s/modules/terraform/azure
+    OPEN_COST_SVC_MANIFEST: $(Pipeline.Workspace)/s/steps/common/k8s-cost-analysis/opencost-service.yaml
 - template: /steps/publish-costs.yml
   parameters:
     cloud: ${{ parameters.cloud }}
