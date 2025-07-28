@@ -8,7 +8,7 @@ E2E testing in Telescope runs performance benchmarks across cloud providers (Azu
 
 * [Node.js 20+](https://nodejs.org/en/download/) - Required for MCP Azure DevOps server
 * [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) - For authentication
-* Access to `akstelescope' Azure DevOps organization with `telescope` project
+* Access to `akstelescope` Azure DevOps organization with `telescope` project
 * Add ADO MCP server to your MCP configuration. Create a `.vscode/mcp.json` file in the root of your project with the following content:
 ```
 {
@@ -17,7 +17,7 @@ E2E testing in Telescope runs performance benchmarks across cloud providers (Azu
       "id": "ado_org",
       "type": "promptString",
       "description": "Azure DevOps organization name",
-      "default": "akstelescope",
+      "default": "akstelescope"
     }
   ],
   "servers": {
