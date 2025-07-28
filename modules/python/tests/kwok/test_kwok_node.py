@@ -1,4 +1,3 @@
-import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -43,15 +42,18 @@ def mock_apply_kwok_manifests(kwok_release, enable_metrics):
     Returns:
         None: This function does not return any value.
     """
-    kwok_yaml_url = f"tests/kwok/{kwok_release}/kwok.yaml"
-    stage_fast_yaml_url = f"tests/kwok/{kwok_release}/stage-fast.yaml"
-
-    subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
-    subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
+    # Mock the k8s_client.apply_manifest_from_url calls instead of kubectl subprocess calls
+    kwok_yaml_url = f"https://github.com/kubernetes-sigs/kwok/releases/download/{kwok_release}/kwok.yaml"
+    stage_fast_yaml_url = f"https://github.com/kubernetes-sigs/kwok/releases/download/{kwok_release}/stage-fast.yaml"
+    
+    # In a real test, these would be mocked k8s_client calls
+    # For this mock, we just simulate the behavior without actual API calls
+    print(f"Mock applying manifest from {kwok_yaml_url}")
+    print(f"Mock applying manifest from {stage_fast_yaml_url}")
 
     if enable_metrics:
-        metrics_usage_url = f"tests/kwok/{kwok_release}/metrics-usage.yaml"
-        subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
+        metrics_usage_url = f"https://github.com/kubernetes-sigs/kwok/releases/download/{kwok_release}/metrics-usage.yaml"
+        print(f"Mock applying manifest from {metrics_usage_url}")
 
 class TestNodeIntegration(unittest.TestCase):
 

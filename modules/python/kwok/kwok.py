@@ -1,5 +1,4 @@
 import argparse
-import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -28,11 +27,11 @@ class KWOK(ABC):
     def apply_kwok_manifests(self, kwok_release, enable_metrics):
         kwok_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/kwok.yaml"
         stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
-        subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
-        subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
+        self.k8s_client.apply_manifest_from_url(kwok_yaml_url)
+        self.k8s_client.apply_manifest_from_url(stage_fast_yaml_url)
         if enable_metrics:
             metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
-            subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
+            self.k8s_client.apply_manifest_from_url(metrics_usage_url)
 
     @abstractmethod
     def create(self):

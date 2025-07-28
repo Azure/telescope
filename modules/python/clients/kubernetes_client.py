@@ -632,6 +632,105 @@ class KubernetesClient:
             )
             return False
 
+    def apply_manifest_from_url(self, manifest_url):
+        """
+        Apply a Kubernetes manifest from a URL using Kubernetes Python client API.
+        
+        :param manifest_url: URL of the manifest to apply
+        :return: None
+        """
+        try:
+            # Fetch the manifest content from the URL
+            response = requests.get(manifest_url, timeout=30)
+            response.raise_for_status()
+            
+            # Parse YAML content (can contain multiple documents)
+            manifests = list(yaml.safe_load_all(response.text))
+            
+            for manifest in manifests:
+                if not manifest:  # Skip empty documents
+                    continue
+                    
+                self._apply_single_manifest(manifest)
+            
+            logger.info(f"Successfully applied manifest from {manifest_url}")
+        except Exception as e:
+            raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
+    
+    def _apply_single_manifest(self, manifest):
+        """
+        Apply a single Kubernetes manifest using the appropriate API client.
+        
+        :param manifest: Dictionary representing a Kubernetes resource
+        :return: None
+        """
+        try:
+            kind = manifest.get("kind")
+            api_version = manifest.get("apiVersion", "")
+            namespace = manifest.get("metadata", {}).get("namespace")
+            
+            if kind == "Deployment":
+                if namespace:
+                    self.app.create_namespaced_deployment(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Deployment requires a namespace")
+            elif kind == "DaemonSet":
+                if namespace:
+                    self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("DaemonSet requires a namespace")
+            elif kind == "Service":
+                if namespace:
+                    self.api.create_namespaced_service(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Service requires a namespace")
+            elif kind == "ConfigMap":
+                if namespace:
+                    self.api.create_namespaced_config_map(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("ConfigMap requires a namespace")
+            elif kind == "Secret":
+                if namespace:
+                    self.api.create_namespaced_secret(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Secret requires a namespace")
+            elif kind == "ServiceAccount":
+                if namespace:
+                    self.api.create_namespaced_service_account(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("ServiceAccount requires a namespace")
+            elif kind == "ClusterRole":
+                # ClusterRole is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.create_cluster_role(body=manifest)
+            elif kind == "ClusterRoleBinding":
+                # ClusterRoleBinding is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.create_cluster_role_binding(body=manifest)
+            elif kind == "Role":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.create_namespaced_role(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Role requires a namespace")
+            elif kind == "RoleBinding":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.create_namespaced_role_binding(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("RoleBinding requires a namespace")
+            elif kind == "Namespace":
+                # Namespace is cluster-scoped
+                self.api.create_namespace(body=manifest)
+            else:
+                logger.warning(f"Unsupported resource kind: {kind}. Skipping...")
+                
+        except client.rest.ApiException as e:
+            if e.status == 409:  # Resource already exists
+                logger.info(f"Resource {kind}/{manifest.get('metadata', {}).get('name')} already exists, skipping creation")
+            else:
+                raise Exception(f"Error creating {kind}: {str(e)}") from e
+
     def install_gpu_device_plugin(self, namespace="kube-system"):
         """
         Install the NVIDIA GPU device plugin in the specified namespace.
