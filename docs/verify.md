@@ -12,7 +12,7 @@
 
 ```bash
 # Navigate to Python modules directory
-cd modules/python
+pushd modules/python
 
 # Create and activate virtual environment
 python3 -m venv venv
@@ -57,10 +57,10 @@ terraform init
 terraform validate
 ```
 
-
 ### YAML Module
 
 ```bash
+# Go to root directory of telescope
 # Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
