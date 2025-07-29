@@ -662,9 +662,23 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(mock_logger.error.call_count, 2)
 
         # Verify specific error messages
-        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
-        self.assertTrue(any("Error deleting PVC 'pvc-1'" in call for call in error_calls))
-        self.assertTrue(any("Error deleting PVC 'pvc-2'" in call for call in error_calls))
+        error_calls = mock_logger.error.call_args_list
+        
+        # Check that we have the expected error messages for both PVCs
+        pvc1_found = False
+        pvc2_found = False
+        
+        for call in error_calls:
+            if call.args and len(call.args) >= 2:
+                # Format the message like the logger would
+                formatted_msg = call.args[0] % call.args[1:] if len(call.args) > 1 else call.args[0]
+                if "Error deleting PVC 'pvc-1'" in formatted_msg:
+                    pvc1_found = True
+                if "Error deleting PVC 'pvc-2'" in formatted_msg:
+                    pvc2_found = True
+        
+        self.assertTrue(pvc1_found, "Expected error message for pvc-1 not found")
+        self.assertTrue(pvc2_found, "Expected error message for pvc-2 not found")
 
     @patch('kubernetes.client.StorageV1Api.list_volume_attachment')
     def test_get_volume_attachments_success(self, mock_list_volume_attachment):

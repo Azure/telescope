@@ -85,8 +85,19 @@ class TestNodeIntegration(unittest.TestCase):
         """
         Set up the environment for each test.
         """
-        # Initialize the Node instance
-        self.node = Node(node_count=2, kwok_release="v0.7.0", enable_metrics=True)
+        # Get the absolute path to the template file
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(current_dir, "..", "..", "kwok", "config", "kwok-node.yaml")
+        template_path = os.path.normpath(template_path)
+        
+        # Initialize the Node instance with correct template path
+        self.node = Node(
+            node_count=2, 
+            kwok_release="v0.7.0", 
+            enable_metrics=True,
+            node_manifest_path=template_path
+        )
 
     @patch("kwok.kwok.Node.apply_kwok_manifests", side_effect=mock_apply_kwok_manifests)
     def test_create_nodes(self, mock_apply):
@@ -142,8 +153,18 @@ class TestNodeIntegration(unittest.TestCase):
             """
             Set up the environment for each test.
             """
+            # Get the absolute path to the template file
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            template_path = os.path.join(current_dir, "..", "..", "kwok", "config", "kwok-node.yaml")
+            template_path = os.path.normpath(template_path)
+            
             self.mock_k8s_client = MagicMock()
-            self.node = Node(node_count=2, k8s_client=self.mock_k8s_client)
+            self.node = Node(
+                node_count=2, 
+                k8s_client=self.mock_k8s_client,
+                node_manifest_path=template_path
+            )
 
         def test_validate_success(self):
             """
