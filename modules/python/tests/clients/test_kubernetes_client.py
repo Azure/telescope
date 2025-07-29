@@ -27,7 +27,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 class TestKubernetesClient(unittest.TestCase):
-    """Unit tests for the KubernetesClient class covering node, pod, PVC, service, 
+    """Unit tests for the KubernetesClient class covering node, pod, PVC, service,
        and GPU plugin operations.
     """
     @patch('kubernetes.config.load_kube_config')
@@ -662,9 +662,23 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(mock_logger.error.call_count, 2)
 
         # Verify specific error messages
-        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
-        self.assertTrue(any("Error deleting PVC 'pvc-1'" in call for call in error_calls))
-        self.assertTrue(any("Error deleting PVC 'pvc-2'" in call for call in error_calls))
+        error_calls = mock_logger.error.call_args_list
+
+        # Check that we have the expected error messages for both PVCs
+        pvc1_found = False
+        pvc2_found = False
+
+        for call in error_calls:
+            if call.args and len(call.args) >= 2:
+                # Format the message like the logger would
+                formatted_msg = call.args[0] % call.args[1:] if len(call.args) > 1 else call.args[0]
+                if "Error deleting PVC 'pvc-1'" in formatted_msg:
+                    pvc1_found = True
+                if "Error deleting PVC 'pvc-2'" in formatted_msg:
+                    pvc2_found = True
+
+        self.assertTrue(pvc1_found, "Expected error message for pvc-1 not found")
+        self.assertTrue(pvc2_found, "Expected error message for pvc-2 not found")
 
     @patch('kubernetes.client.StorageV1Api.list_volume_attachment')
     def test_get_volume_attachments_success(self, mock_list_volume_attachment):
@@ -1876,6 +1890,349 @@ spec: {}
             namespace='default',
             field_selector="spec.nodeName=node-1"
         )
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_success_single_document(self, mock_apply_single,
+                                                            mock_requests_get):
+        """Test successful application of a single manifest document from URL."""
+        # Mock successful HTTP response
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.apply_manifest_from_url("https://example.com/manifest.yaml")
+
+        # Verify HTTP request
+        mock_requests_get.assert_called_once_with("https://example.com/manifest.yaml", timeout=30)
+        mock_response.raise_for_status.assert_called_once()
+
+        # Verify manifest application
+        mock_apply_single.assert_called_once()
+        applied_manifest = mock_apply_single.call_args[0][0]
+        self.assertEqual(applied_manifest['kind'], 'Namespace')
+        self.assertEqual(applied_manifest['metadata']['name'], 'test-namespace')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_success_multiple_documents(self, mock_apply_single,
+                                                               mock_requests_get):
+        """Test successful application of multiple manifest documents from URL."""
+        # Mock successful HTTP response with multiple YAML documents
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: test-namespace
+spec:
+  selector:
+    app: test-app
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.apply_manifest_from_url("https://example.com/multi-manifest.yaml")
+
+        # Verify HTTP request
+        mock_requests_get.assert_called_once_with(
+            "https://example.com/multi-manifest.yaml", timeout=30)
+
+        # Verify both manifests were applied
+        self.assertEqual(mock_apply_single.call_count, 2)
+
+        # Check first manifest (Namespace)
+        first_manifest = mock_apply_single.call_args_list[0][0][0]
+        self.assertEqual(first_manifest['kind'], 'Namespace')
+        self.assertEqual(first_manifest['metadata']['name'], 'test-namespace')
+
+        # Check second manifest (Service)
+        second_manifest = mock_apply_single.call_args_list[1][0][0]
+        self.assertEqual(second_manifest['kind'], 'Service')
+        self.assertEqual(second_manifest['metadata']['name'], 'test-service')
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_http_404_error(self, mock_requests_get):
+        """Test handling of HTTP 404 error when fetching manifest."""
+        # Mock HTTP 404 error
+        mock_requests_get.side_effect = requests.exceptions.HTTPError(
+            "404 Client Error: Not Found")
+
+        # Verify exception is raised
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/nonexistent.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/nonexistent.yaml", str(context.exception))
+        self.assertIn("404 Client Error", str(context.exception))
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_http_timeout(self, mock_requests_get):
+        """Test handling of HTTP timeout when fetching manifest."""
+        # Mock HTTP timeout
+        mock_requests_get.side_effect = requests.exceptions.Timeout("Request timed out")
+
+        # Verify exception is raised
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/slow-manifest.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/slow-manifest.yaml", str(context.exception))
+        self.assertIn("Request timed out", str(context.exception))
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_yaml_parse_error(self, mock_requests_get):
+        """Test handling of YAML parsing errors."""
+        # Mock successful HTTP response with invalid YAML
+        mock_response = MagicMock()
+        mock_response.text = """
+invalid: yaml: content:
+  - missing
+    closing bracket
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Verify exception is raised for invalid YAML
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/invalid.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/invalid.yaml", str(context.exception))
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_empty_documents(self, mock_apply_single,
+                                                    mock_requests_get):
+        """Test handling of empty YAML documents."""
+        # Mock successful HTTP response with empty documents
+        mock_response = MagicMock()
+        mock_response.text = """
+---
+# Empty document
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+---
+# Another empty document
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.apply_manifest_from_url(
+            "https://example.com/manifest-with-empty.yaml")
+
+        # Verify only non-empty manifest was applied
+        mock_apply_single.assert_called_once()
+        applied_manifest = mock_apply_single.call_args[0][0]
+        self.assertEqual(applied_manifest['kind'], 'Namespace')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_apply_single_manifest_exception(
+            self, mock_apply_single, mock_requests_get):
+        """Test handling of exceptions during single manifest application."""
+        # Mock successful HTTP response
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Mock _apply_single_manifest to raise an exception
+        mock_apply_single.side_effect = Exception("Failed to create resource")
+
+        # Verify exception is propagated
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/manifest.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/manifest.yaml", str(context.exception))
+        self.assertIn("Failed to create resource", str(context.exception))
+
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_apply_single_manifest_namespace(self, mock_create_namespace):
+        """Test _apply_single_manifest with Namespace resource."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_namespace.assert_called_once_with(body=manifest)
+
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_deployment')
+    def test_apply_single_manifest_deployment(self, mock_create_deployment):
+        """Test _apply_single_manifest with Deployment resource."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_deployment.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    def test_apply_single_manifest_deployment_no_namespace(self):
+        """Test _apply_single_manifest with Deployment missing namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment"},
+            "spec": {}
+        }
+
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertEqual(str(context.exception), "Deployment requires a namespace")
+
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_daemon_set')
+    def test_apply_single_manifest_daemonset(self, mock_create_daemonset):
+        """Test _apply_single_manifest with DaemonSet resource."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "DaemonSet",
+            "metadata": {"name": "test-daemonset", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_daemonset.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    @patch('kubernetes.client.CoreV1Api.create_namespaced_service')
+    def test_apply_single_manifest_service(self, mock_create_service):
+        """Test _apply_single_manifest with Service resource."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_service.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    @patch('kubernetes.client.RbacAuthorizationV1Api.create_cluster_role')
+    def test_apply_single_manifest_cluster_role(self, mock_create_cluster_role):
+        """Test _apply_single_manifest with ClusterRole resource."""
+        manifest = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": "test-cluster-role"},
+            "rules": []
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_cluster_role.assert_called_once_with(body=manifest)
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_apply_single_manifest_kwok_stage(self, mock_create_custom_object):
+        """Test _apply_single_manifest with KWOK Stage custom resource."""
+        manifest = {
+            "apiVersion": "kwok.x-k8s.io/v1alpha1",
+            "kind": "Stage",
+            "metadata": {"name": "test-stage"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="kwok.x-k8s.io",
+            version="v1alpha1",
+            plural="stages",
+            body=manifest
+        )
+
+    @patch('clients.kubernetes_client.logger')
+    def test_apply_single_manifest_unsupported_kind(self, mock_logger):
+        """Test _apply_single_manifest with unsupported resource kind."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "UnsupportedResource",
+            "metadata": {"name": "test-resource"}
+        }
+
+        # Should not raise an exception, just log a warning
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_logger.warning.assert_called_once_with(
+            "Unsupported resource kind: %s. Skipping...", "UnsupportedResource")
+
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_apply_single_manifest_resource_already_exists(self, mock_create_namespace):
+        """Test _apply_single_manifest when resource already exists (409 conflict)."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "existing-namespace"}
+        }
+
+        # Mock 409 conflict error (resource already exists)
+        api_exception = ApiException(status=409, reason="Conflict")
+        mock_create_namespace.side_effect = api_exception
+
+        # Should not raise an exception, just log and continue
+        with patch('clients.kubernetes_client.logger') as mock_logger:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+            mock_logger.info.assert_called_once_with(
+                "Resource %s/%s already exists, skipping creation",
+                "Namespace", "existing-namespace"
+            )
+
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_apply_single_manifest_api_exception_non_409(self, mock_create_namespace):
+        """Test _apply_single_manifest with API exception other than 409."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+
+        # Mock 403 forbidden error
+        api_exception = ApiException(status=403, reason="Forbidden")
+        mock_create_namespace.side_effect = api_exception
+
+        # Should raise an exception
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertIn("Error creating Namespace", str(context.exception))
 
 if __name__ == '__main__':
     unittest.main()
