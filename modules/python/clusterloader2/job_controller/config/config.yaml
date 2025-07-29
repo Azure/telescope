@@ -18,6 +18,18 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: start
+          labelSelector: group=job-scheduling
+          timeout: 3h
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group=job-scheduling
+          threshold: 30s
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
@@ -55,6 +67,15 @@ steps:
         timeout: 3h
   - name: Collect measurements
     measurements:
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: gather
+          timeout: 3h
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
