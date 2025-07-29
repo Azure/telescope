@@ -749,6 +749,25 @@ class KubernetesClient:
             elif kind == "Namespace":
                 # Namespace is cluster-scoped
                 self.api.create_namespace(body=manifest)
+            elif kind == "CustomResourceDefinition":
+                # CustomResourceDefinition is cluster-scoped
+                apiextensions_api = client.ApiextensionsV1Api()
+                apiextensions_api.create_custom_resource_definition(body=manifest)
+            elif kind == "FlowSchema":
+                # FlowSchema is cluster-scoped (part of flow control API)
+                flowcontrol_api = client.FlowcontrolV1Api()
+                flowcontrol_api.create_flow_schema(body=manifest)
+            elif kind == "Stage":
+                # Stage is a custom resource from KWOK, handle as custom resource
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="stages",  # KWOK Stage resources use "stages" as plural
+                    body=manifest
+                )
             else:
                 logger.warning("Unsupported resource kind: %s. Skipping...", kind)
 
