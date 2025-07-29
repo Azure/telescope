@@ -79,4 +79,3 @@ steps:
     TEST_DURATION_MINUTES: $(EXECUTE_STEP_DURATION_MINUTES)
     CLUSTER_CONTEXT: ${{ parameters.cluster_context }}
     OPEN_COST_SVC_MANIFEST: $(Pipeline.Workspace)/s/steps/common/k8s-cost-analysis/open-cost-service.yaml
-
