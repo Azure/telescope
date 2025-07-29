@@ -15,7 +15,7 @@ steps:
     # Get the start epoch from the variable
     start_epoch="${{ parameters.start_variable_name }}"
           
-    duration_minutes=$(PYTHONPATH=$PYTHONPATH:$(pwd) $PYTHON_SCRIPT_FILE "$start_epoch")
+    duration_minutes=$(PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE "$start_epoch")
     
     if [ $? -ne 0 ]; then
         echo "Error: Failed to calculate duration"
