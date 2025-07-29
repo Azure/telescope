@@ -147,7 +147,7 @@ run "test_json_input_optional_parameters_override" {
         },
         {
           name  = "zones"
-          value = "1 2"  # This should override module value "1 2 3"
+          value = "1 2" # This should override module value "1 2 3"
         }
       ]
     }
@@ -165,7 +165,7 @@ run "test_json_input_optional_parameters_override" {
         optional_parameters = [
           {
             name  = "zones"
-            value = "1 2 3"  # This should be overridden by json_input
+            value = "1 2 3" # This should be overridden by json_input
           },
           {
             name  = "enable-network-policy"
