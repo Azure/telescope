@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import requests
 
 from clients.kubernetes_client import KubernetesClient
+from utils.retries import execute_with_retries
 
 
 @dataclass
@@ -72,7 +73,10 @@ class Node(KWOK):
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
-                self.k8s_client.create_node(kwok_template)
+                execute_with_retries(
+                    self.k8s_client.create_node,
+                    kwok_template,
+                )
 
             print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
