@@ -87,6 +87,22 @@ locals {
     "-n", var.aks_cli_config.aks_name,
     "--yes",
   ])
+
+  role_assignments = var.aks_cli_config.grant_rbac_permissions ? {
+    aks_contributor = {
+      scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+      role_definition_name = "Contributor"
+      principal_id         = data.azurerm_client_config.current.object_id
+      role_name            = "AKS Contributor"
+    }
+    aks_cluster_admin = {
+      scope                = var.aks_cli_config.grant_rbac_permissions ? data.azurerm_kubernetes_cluster.aks[0].id : ""
+      role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+      principal_id         = data.azurerm_client_config.current.object_id
+      role_name            = "AKS Cluster Admin"
+    }
+  } : {}
+
 }
 
 resource "azurerm_user_assigned_identity" "userassignedidentity" {
@@ -200,28 +216,15 @@ data "azurerm_kubernetes_cluster" "aks" {
   ]
 }
 
-# Grant RBAC permissions for AKS access using Azure provider resources
-# Grant Contributor role on the resource group for kubectl operations
-resource "azurerm_role_assignment" "aks_contributor" {
-  count                = var.aks_cli_config.grant_rbac_permissions ? 1 : 0
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
-  role_definition_name = "Contributor"
-  principal_id         = data.azurerm_client_config.current.object_id
-
-  depends_on = [
-    terraform_data.aks_cli
-  ]
-}
-
-# Grant AKS Cluster Admin role for kubectl operations
-# Use terraform_data with error handling and propagation waiting
-resource "terraform_data" "aks_cluster_admin_role" {
-  count = var.aks_cli_config.grant_rbac_permissions ? 1 : 0
+# Grant RBAC permissions for AKS access
+resource "terraform_data" "wait_for_role_propagation" {
+  for_each = local.role_assignments
 
   input = {
-    scope                = data.azurerm_kubernetes_cluster.aks[0].id
-    role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
-    principal_id         = data.azurerm_client_config.current.object_id
+    scope                = each.value.scope
+    role_definition_name = each.value.role_definition_name
+    principal_id         = each.value.principal_id
+    role_name            = each.value.role_name
   }
 
   provisioner "local-exec" {
@@ -234,44 +237,46 @@ resource "terraform_data" "aks_cluster_admin_role" {
         --query "length(@)" -o tsv 2>/dev/null || echo "0")
       
       if [ "$existing_role" -eq 0 ]; then
-        echo "Creating AKS Cluster Admin role assignment..."
+        echo "Creating ${self.input.role_name} role assignment..."
         az role assignment create \
           --scope "${self.input.scope}" \
           --role "${self.input.role_definition_name}" \
           --assignee "${self.input.principal_id}"
-        
-        echo "Waiting for role assignment to propagate..."
-        # Wait for role assignment to propagate (up to 5 minutes)
-        max_attempts=30
-        attempt=1
-        while [ $attempt -le $max_attempts ]; do
-          echo "Checking role assignment propagation (attempt $attempt/$max_attempts)..."
-          
-          # Check if role assignment is active and propagated
-          active_role=$(az role assignment list \
-            --scope "${self.input.scope}" \
-            --role "${self.input.role_definition_name}" \
-            --assignee "${self.input.principal_id}" \
-            --include-inherited \
-            --query "length(@)" -o tsv 2>/dev/null || echo "0")
-          
-          if [ "$active_role" -gt 0 ]; then
-            echo "Role assignment has propagated successfully."
-            break
-          fi
-          
-          if [ $attempt -eq $max_attempts ]; then
-            echo "Warning: Role assignment may not have fully propagated after 5 minutes."
-            break
-          fi
-          
-          echo "Role assignment not yet propagated, waiting 10 seconds..."
-          sleep 10
-          attempt=$((attempt + 1))
-        done
       else
-        echo "AKS Cluster Admin role assignment already exists, skipping..."
+        echo "${self.input.role_name} role assignment already exists, skipping creation..."
       fi
+      
+      # Wait for role assignment propagation (hardcoded 30 attempts = 5 minutes)
+      max_attempts=30
+      role_name="${self.input.role_name}"
+      attempt=1
+      
+      echo "Waiting for $role_name role assignment to propagate..."
+      while [ $attempt -le $max_attempts ]; do
+        echo "Checking $role_name role propagation (attempt $attempt/$max_attempts)..."
+        
+        # Check if role assignment is active and propagated
+        active_role=$(az role assignment list \
+          --scope "${self.input.scope}" \
+          --role "${self.input.role_definition_name}" \
+          --assignee "${self.input.principal_id}" \
+          --include-inherited \
+          --query "length(@)" -o tsv 2>/dev/null || echo "0")
+        
+        if [ "$active_role" -gt 0 ]; then
+          echo "$role_name role assignment has propagated successfully."
+          exit 0
+        fi
+        
+        if [ $attempt -eq $max_attempts ]; then
+          echo "Error: $role_name role assignment has not propagated after 5 minutes."
+          exit 1
+        fi
+        
+        echo "Role assignment not yet propagated, waiting 10 seconds..."
+        sleep 10
+        attempt=$((attempt + 1))
+      done
     EOT
   }
 
