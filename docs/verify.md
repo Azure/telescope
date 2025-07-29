@@ -12,7 +12,7 @@
 
 ```bash
 # Navigate to Python modules directory
-cd modules/python
+pushd modules/python
 
 # Create and activate virtual environment
 python3 -m venv venv
@@ -40,23 +40,27 @@ kwokctl delete cluster --name kwok-test
 
 # Deactivate virtual environment
 deactivate
+popd
 ```
 
 ### Terraform Module
 
 ```bash
 # Navigate to Terraform modules directory
-cd modules/terraform
+pushd modules/terraform
 
 # Format check
 terraform fmt --check -recursive
 
 # Navigate to Azure modules directory
-cd modules/terraform/azure
+pushd azure
 terraform init
 terraform validate
-```
+popd
 
+# Navigate back to root directory
+popd
+```
 
 ### YAML Module
 
