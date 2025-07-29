@@ -3,7 +3,7 @@
 ## Step 1: Add Test Setup
 
 - [scenarios](../scenarios) is the directory where we organize infrastructure setup for different tests. There are 2 type of scenarios: `perf-eval` and `issue-repro`. Most tests fall under the scenario type of `perf-eval`. 
-- Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). Your folder name should match values of `SCENARIO_TYPE` and `SCENARIO_NAME`, which is used in the pipeline definition YAML file.
+- Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). Your folder name should match values of `SCENARIO_TYPE` and `SCENARIO_NAME`, which is used in the pipeline definition YAML file. The `SCENARIO_NAME` should be within 30 characters.
 - Your folder should contain 2 subfolders:
     - `terraform-inputs`: contains `.tfvars` file to specify how to set up resources
     - `terraform-test-inputs`: contains `.json` file to used in validating Terraform custom input
@@ -23,7 +23,7 @@
 
 ## Step 4: Add Pipeline Definition
 
-- Add the pipeline definition to [new-pipeline-test.yml](../pipelines/system/new-pipeline-test.yml) in your private branch.
+- Add the pipeline definition to [new-pipeline-test.yml](../pipelines/system/new-pipeline-test.yml) in your private branch. This step is required and must not be skipped.
 - Then verify the changes based on instructions in [verify.md](../docs/verify.md)
 - Iterate until all verification setups pass without error, finally create a separate yaml file under a subfolder under [pipelines](../pipelines/perf-eval) based on test category. Move the content of the new-pipeline-test.yml to this new file and undo all changes made to the new-pipeline-test.yml file. It is recommended to re-use existing test categories as follows:
 
