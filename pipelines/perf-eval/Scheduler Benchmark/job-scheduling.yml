@@ -1,7 +1,19 @@
 trigger: none
 schedules:
+- cron: "0 4 * * *"
+  displayName: "4:00 AM daily (small scale)"
+  branches:
+    include:
+    - main
+  always: true
+- cron: "0 16 * * 1,3"
+  displayName: "4:00 PM on Mondays and Wenesday (medium scale)"
+  branches:
+    include:
+    - main
+  always: true
 - cron: "0 16 * * 4"
-  displayName: "4:00 PM on Thursdays"
+  displayName: "4:00 PM on Thursdays (high scale)"
   branches:
     include:
     - main
@@ -11,8 +23,9 @@ variables:
   SCENARIO_NAME: job-scheduling
 
 stages:
-- stage: azure_northeurope
+- stage: azure_northeurope_small
   dependsOn: []
+  condition: eq(variables['Build.Reason'], 'Schedule')
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -24,9 +37,59 @@ stages:
         image: "ghcr.io/azure/clusterloader2:v20250423"
       topology: job_controller
       matrix:
-        default:
-          node_count: 2000 # 2k kwok nodes
-          job_throughput: 800 # qps
+        small:
+          node_count: 200
+          job_throughput: 100
+          job_count: 2000
+          scale_timeout: "30m"
+          cl2_config_file: config.yaml
+      max_parallel: 1
+      timeout_in_minutes: 180
+      credential_type: service_connection
+      ssh_key_enabled: false
+
+- stage: azure_northeurope_medium
+  dependsOn: []
+  condition: and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '6:00 PM on Mondays and Wenesday (medium scale)'))
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - northeurope
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250423"
+      topology: job_controller
+      matrix:
+        medium:
+          node_count: 1000
+          job_throughput: 500
+          job_count: 10000
+          scale_timeout: "45m"
+          cl2_config_file: config.yaml
+      max_parallel: 1
+      timeout_in_minutes: 270
+      credential_type: service_connection
+      ssh_key_enabled: false
+
+- stage: azure_northeurope_high
+  dependsOn: []
+  condition: and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 PM on Thursdays (high scale)'))
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - northeurope
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250423"
+      topology: job_controller
+      matrix:
+        high:
+          node_count: 2000
+          job_throughput: 800
           job_count: 20000
           scale_timeout: "1h"
           cl2_config_file: config.yaml
@@ -34,8 +97,10 @@ stages:
       timeout_in_minutes: 360
       credential_type: service_connection
       ssh_key_enabled: false
-- stage: aws_euwest1
+
+- stage: aws_euwest1_small
   dependsOn: []
+  condition: eq(variables['Build.Reason'], 'Schedule')
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -47,7 +112,57 @@ stages:
         image: "ghcr.io/azure/clusterloader2:v20250423"
       topology: job_controller
       matrix:
-        default:
+        small:
+          node_count: 200
+          job_throughput: 100
+          job_count: 2000
+          scale_timeout: "30m"
+          cl2_config_file: config.yaml
+      max_parallel: 1
+      timeout_in_minutes: 180
+      credential_type: service_connection
+      ssh_key_enabled: false
+
+- stage: aws_euwest1_medium
+  dependsOn: []
+  condition: and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '6:00 PM on Mondays and Wenesday (medium scale)'))
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: aws
+      regions:
+      - eu-west-1
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250423"
+      topology: job_controller
+      matrix:
+        medium:
+          node_count: 1000
+          job_throughput: 500
+          job_count: 10000
+          scale_timeout: "45m"
+          cl2_config_file: config.yaml
+      max_parallel: 1
+      timeout_in_minutes: 270
+      credential_type: service_connection
+      ssh_key_enabled: false
+
+- stage: aws_euwest1_high
+  dependsOn: []
+  condition: and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 PM on Thursdays (high scale)'))
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: aws
+      regions:
+      - eu-west-1
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250423"
+      topology: job_controller
+      matrix:
+        high:
           node_count: 2000
           job_throughput: 800
           job_count: 20000
