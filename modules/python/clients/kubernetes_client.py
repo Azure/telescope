@@ -755,7 +755,7 @@ class KubernetesClient:
                 apiextensions_api.create_custom_resource_definition(body=manifest)
             elif kind == "FlowSchema":
                 # FlowSchema is cluster-scoped (part of flow control API)
-                flowcontrol_api = client.FlowcontrolV1Api()
+                flowcontrol_api = client.FlowcontrolApiserverV1Api()
                 flowcontrol_api.create_flow_schema(body=manifest)
             elif kind == "Stage":
                 # Stage is a custom resource from KWOK, handle as custom resource
