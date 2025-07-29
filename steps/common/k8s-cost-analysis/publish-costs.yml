@@ -1,0 +1,23 @@
+parameters:
+- name: cloud
+  type: string
+
+steps:
+- template: /steps/cloud/azure/upload-storage-account.yml
+  parameters:
+    source_file_name: $(TEST_RESULTS_DIR)/$(ALLOCATION_K8S_COST_FILE)
+    destination_file_name: $(ALLOCATION_K8S_COST_FILE)
+    subfolder: $(SCENARIO_TYPE)/$(SCENARIO_NAME)/k8s-cost-analysis/allocation/$(Build.SourceBranchName)
+    container_name: cost
+    credential_type: service_connection
+    cloud: ${{ parameters.cloud }}
+    upload_type: "Cost Results - Allocation"
+- template: /steps/cloud/azure/upload-storage-account.yml
+  parameters:
+    source_file_name: $(TEST_RESULTS_DIR)/$(ASSETS_K8S_COST_FILE)
+    destination_file_name: $(ASSETS_K8S_COST_FILE)
+    subfolder: $(SCENARIO_TYPE)/$(SCENARIO_NAME)/k8s-cost-analysis/assets/$(Build.SourceBranchName)
+    container_name: cost
+    credential_type: service_connection
+    cloud: ${{ parameters.cloud }}
+    upload_type: "Cost Results - Assets"
