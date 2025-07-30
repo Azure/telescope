@@ -52,7 +52,7 @@ class JobController(ClusterLoader2Base):
             config["CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR"] = 100.0
             config["CL2_PROMETHEUS_MEMORY_SCALE_FACTOR"] = 100.0
             config["CL2_PROMETHEUS_CPU_SCALE_FACTOR"] = 30.0
-            config["CL2_PROMETHEUS_NODE_SELECTOR"] = "prometheus: \"true\""
+            config["CL2_PROMETHEUS_NODE_SELECTOR"] = "\"prometheus: \"true\"\""
         
         self.write_cl2_override_file(logger, self.cl2_override_file, config)
 
