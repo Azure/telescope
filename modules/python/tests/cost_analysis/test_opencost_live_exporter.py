@@ -9,6 +9,7 @@ covering all functionality including API interactions, data export formats, and 
 import json
 import os
 import tempfile
+from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -327,7 +328,11 @@ class TestOpenCostLiveExporter:
                 filename="test_output.json"
             )
 
-            mock_get.assert_called_once_with(window="2h", aggregate="namespace")
+            mock_get.assert_called_once_with(
+                window="2h",
+                aggregate="namespace",
+                validate_availability=False
+            )
             mock_export.assert_called_once_with(sample_allocation_data, "test_output.json")
             assert filename == "test_output.json"
 
@@ -615,7 +620,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='30m',
             aggregate='container',
-            filename=None
+            filename=None,
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='30m',
@@ -652,7 +658,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='24h',
             aggregate='namespace',
-            filename='custom_allocation.json'
+            filename='custom_allocation.json',
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='24h',
@@ -708,6 +715,45 @@ class TestCLI:
         mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='test-123', scenario_name="", metadata=expected_metadata)
 
     @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
+    def test_main_with_validation_flag(self, mock_exporter_class):
+        """Test CLI with validation flag enabled"""
+        mock_exporter = Mock()
+        mock_exporter_class.return_value = mock_exporter
+        mock_exporter.export_allocation_live_data.return_value = 'allocation_validated.json'
+        mock_exporter.export_assets_live_data.return_value = 'assets_validated.json'
+
+        args = [
+            'opencost_live_exporter.py',
+            '--window', '2h',
+            '--aggregate', 'namespace',
+            '--validate-availability',
+            '--run-id', 'validation-test-456'
+        ]
+
+        with patch('sys.argv', args):
+            from cost_analysis.opencost_live_exporter import main  # pylint: disable=import-outside-toplevel
+            main()
+
+        # Verify exporter was created correctly
+        mock_exporter_class.assert_called_once_with(endpoint='http://localhost:9003', run_id='validation-test-456', scenario_name="", metadata={})
+
+        # Verify allocation export was called with validation enabled
+        mock_exporter.export_allocation_live_data.assert_called_once_with(
+            window='2h',
+            aggregate='namespace',
+            filename=None,
+            validate_availability=True
+        )
+
+        # Verify assets export was called (validation only applies to allocation)
+        mock_exporter.export_assets_live_data.assert_called_once_with(
+            window='2h',
+            aggregate='namespace',
+            filename=None,
+            filter_types=None
+        )
+
+    @patch('cost_analysis.opencost_live_exporter.OpenCostLiveExporter')
     def test_main_assets_basic(self, mock_exporter_class):
         """Test CLI assets functionality basic usage - now always exports both allocation and assets"""
         mock_exporter = Mock()
@@ -732,7 +778,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='1h',
             aggregate='type',
-            filename=None
+            filename=None,
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='1h',
@@ -765,7 +812,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='24h',
             aggregate='account',
-            filename=None
+            filename=None,
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='24h',
@@ -806,7 +854,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='2h',
             aggregate='service',
-            filename=None
+            filename=None,
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='2h',
@@ -843,7 +892,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='1h',
             aggregate='namespace',
-            filename='allocation_output.json'
+            filename='allocation_output.json',
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='1h',
@@ -885,7 +935,8 @@ class TestCLI:
         mock_exporter.export_allocation_live_data.assert_called_once_with(
             window='4h',
             aggregate='pod',
-            filename=None  # Auto-generated filename
+            filename=None,  # Auto-generated filename
+            validate_availability=False
         )
         mock_exporter.export_assets_live_data.assert_called_once_with(
             window='4h',
@@ -968,6 +1019,196 @@ class TestWindowFormatValidation:
         for inp in invalid_inputs:
             with pytest.raises(ValueError):
                 OpenCostLiveExporter.validate_window_format(inp)
+
+
+class TestDataAvailabilityValidation:
+    """Test suite for data availability validation"""
+
+    @pytest.fixture
+    def exporter(self):
+        """Create an OpenCostLiveExporter instance for testing"""
+        return OpenCostLiveExporter(endpoint="http://test-opencost:9003")
+
+    @pytest.fixture
+    def sample_validation_data_success(self):
+        """Sample data for successful validation testing"""
+        return {
+            "code": 200,
+            "status": "success",
+            "data": [
+                {
+                    "test-namespace": {
+                        "name": "test-namespace",
+                        "start": "2025-07-30T14:00:00Z",
+                        "end": "2025-07-30T14:01:00Z",
+                        "minutes": 1.0,
+                        "properties": {
+                            "namespace": "test-namespace"
+                        },
+                        "totalCost": 0.042
+                    }
+                }
+            ]
+        }
+
+    @pytest.fixture
+    def sample_validation_data_empty(self):
+        """Sample empty data for validation testing"""
+        return {
+            "code": 200,
+            "status": "success",
+            "data": []
+        }
+
+    def test_parse_window_to_minutes_simple_formats(self):
+        """Test parsing simple window formats to minutes"""
+        assert OpenCostLiveExporter._parse_window_to_minutes("30s") == 0.5
+        assert OpenCostLiveExporter._parse_window_to_minutes("5m") == 5
+        assert OpenCostLiveExporter._parse_window_to_minutes("2h") == 120
+        assert OpenCostLiveExporter._parse_window_to_minutes("1d") == 1440
+
+    def test_parse_window_to_minutes_compound_formats(self):
+        """Test parsing compound window formats to minutes"""
+        assert OpenCostLiveExporter._parse_window_to_minutes("1h30m") == 90
+        assert OpenCostLiveExporter._parse_window_to_minutes("2d12h") == 3600
+
+    def test_parse_window_to_minutes_special_formats(self):
+        """Test parsing special window formats to minutes"""
+        # Test yesterday (24 hours)
+        assert OpenCostLiveExporter._parse_window_to_minutes("yesterday") == 1440
+        
+        # Test week (7 days)
+        assert OpenCostLiveExporter._parse_window_to_minutes("week") == 10080
+
+    def test_parse_window_to_minutes_invalid(self):
+        """Test parsing invalid window formats"""
+        with pytest.raises(ValueError):
+            OpenCostLiveExporter._parse_window_to_minutes("invalid")
+        
+        with pytest.raises(ValueError):
+            OpenCostLiveExporter._parse_window_to_minutes("1y")
+
+    @responses.activate
+    def test_validate_data_availability_success(self, exporter, sample_validation_data_success):
+        """Test successful data availability validation"""
+        responses.add(
+            responses.GET,
+            "http://test-opencost:9003/allocation",
+            json=sample_validation_data_success,
+            status=200
+        )
+        
+        # Should not raise an exception
+        result = exporter.validate_data_availability(window="60m")
+        assert result is True
+        
+        # Verify the request was made with ISO timestamp format
+        request = responses.calls[0].request
+        assert "window=" in request.url
+        # Should contain start and end time in ISO format with Z suffix
+        assert "T" in request.url  # ISO timestamp format
+        assert "Z" in request.url  # UTC timezone
+
+    @responses.activate
+    def test_validate_data_availability_no_data(self, exporter, sample_validation_data_empty):
+        """Test data availability validation with no data"""
+        responses.add(
+            responses.GET,
+            "http://test-opencost:9003/allocation",
+            json=sample_validation_data_empty,
+            status=200
+        )
+        
+        # Should raise ValueError due to no data
+        with pytest.raises(ValueError) as exc_info:
+            exporter.validate_data_availability(window="60m")
+        
+        assert "No allocation data available" in str(exc_info.value)
+
+    @responses.activate
+    def test_validate_data_availability_empty_window_data(self, exporter):
+        """Test data availability validation with empty window data"""
+        data_with_empty_windows = {
+            "code": 200,
+            "status": "success",
+            "data": [{}]  # Empty window data
+        }
+        
+        responses.add(
+            responses.GET,
+            "http://test-opencost:9003/allocation",
+            json=data_with_empty_windows,
+            status=200
+        )
+        
+        # Should raise ValueError due to no allocation data in windows
+        with pytest.raises(ValueError) as exc_info:
+            exporter.validate_data_availability(window="60m")
+        
+        assert "No allocation data found" in str(exc_info.value)
+
+    @responses.activate
+    def test_validate_data_availability_api_error(self, exporter):
+        """Test data availability validation with API error"""
+        responses.add(
+            responses.GET,
+            "http://test-opencost:9003/allocation",
+            status=500
+        )
+        
+        # Should raise RequestException
+        with pytest.raises(Exception):
+            exporter.validate_data_availability(window="60m")
+
+    def test_validate_data_availability_invalid_window(self, exporter):
+        """Test data availability validation with invalid window format"""
+        # Should raise ValueError for invalid window format
+        with pytest.raises(ValueError) as exc_info:
+            exporter.validate_data_availability(window="invalid")
+        
+        assert "Invalid window format" in str(exc_info.value)
+
+    def test_get_allocation_data_with_validation(self, exporter, sample_validation_data_success):
+        """Test get_allocation_data with validation enabled"""
+        with patch.object(exporter, 'validate_data_availability') as mock_validate, \
+             patch.object(exporter.session, 'get') as mock_get:
+            
+            mock_response = Mock()
+            mock_response.json.return_value = sample_validation_data_success
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+            
+            result = exporter.get_allocation_data(
+                window="60m",
+                validate_availability=True
+            )
+            
+            # Verify validation was called with correct parameters
+            mock_validate.assert_called_once_with("60m", "container")
+            assert result == sample_validation_data_success
+
+    def test_export_allocation_live_data_with_validation(self, exporter, sample_validation_data_success):
+        """Test export_allocation_live_data with validation enabled"""
+        with patch.object(exporter, 'get_allocation_data') as mock_get, \
+             patch.object(exporter, 'export_to_kusto_format') as _mock_export, \
+             patch('cost_analysis.opencost_live_exporter.datetime') as mock_datetime:
+            
+            mock_datetime.now.return_value = datetime(2025, 1, 1, 12, 0, 0)
+            mock_get.return_value = sample_validation_data_success
+            
+            filename = exporter.export_allocation_live_data(
+                window="60m",
+                validate_availability=True
+            )
+            
+            # Verify validation parameters were passed through
+            mock_get.assert_called_once_with(
+                window="60m",
+                aggregate="container",
+                validate_availability=True
+            )
+            
+            assert filename == "opencost_live_container_60m_20250101_120000.json"
 
 
 if __name__ == "__main__":

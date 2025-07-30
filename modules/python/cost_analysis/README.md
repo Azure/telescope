@@ -17,6 +17,39 @@ This module provides real-time access to OpenCost allocation and assets data in 
 - 🏷️ **Custom Metadata** - Include other tracking information
 - 🏗️ **Assets Support** - Export cloud infrastructure costs (disks, load balancers, etc.)
 - 🔍 **Asset Filtering** - Filter by specific asset types for focused analysis
+- ✅ **Data Validation** - Validate data availability for specified time windows before export
+
+## Data Availability Validation
+
+The exporter includes optional data availability validation to ensure OpenCost has sufficient data for your specified time window. This is particularly useful for benchmarking and testing scenarios where you need to guarantee data completeness.
+
+### How It Works
+
+The validation feature queries OpenCost to check if data is available starting from the expected time based on your window parameter. For example:
+
+- `--window 60m` expects data from 60 minutes ago
+- `--window 2h` expects data from 2 hours ago
+- `--window 1d` expects data from 1 day ago
+
+### Validation Examples
+
+```bash
+# Validate that 1-hour window has complete data
+python opencost_live_exporter.py --window 60m --validate-availability
+
+# Validate different time windows
+python opencost_live_exporter.py --window 2h --validate-availability
+```
+
+### Error Scenarios
+
+The validation will raise an error if:
+
+- No allocation data is available for the time window
+- Data doesn't start early enough to cover the full window
+- OpenCost API is unreachable or returns errors
+
+This ensures you only export data when you have confidence in its completeness for your analysis.
 
 ## Quick Start
 
@@ -78,6 +111,9 @@ python opencost_live_exporter.py --window 1h --aggregate container
 python opencost_live_exporter.py --window 30m --aggregate pod
 python opencost_live_exporter.py --window 1d --aggregate namespace
 
+# Export with data availability validation
+python opencost_live_exporter.py --window 60m --aggregate container --validate-availability
+
 # Export with custom output filenames
 python opencost_live_exporter.py --window 1h --allocation-output allocation.json --assets-output assets.json
 
@@ -87,7 +123,7 @@ python opencost_live_exporter.py --window 1h --aggregate container --filter-type
 # Export with metadata
 python opencost_live_exporter.py --window 4h --run-id test-123 --metadata environment=production
 
-# Export with custom filenames and metadata
+# Export with validation and custom filenames
 python opencost_live_exporter.py \
   --window 4h \
   --aggregate container \
@@ -95,7 +131,8 @@ python opencost_live_exporter.py \
   --assets-output assets_4h.json \
   --run-id export-demo \
   --scenario-name performance-benchmark \
-  --metadata environment=production
+  --metadata environment=production \
+  --validate-availability
 ```
 
 ### Custom OpenCost Endpoint
@@ -141,6 +178,7 @@ python opencost_live_exporter.py \
 --scenario-name SCENARIO_NAME  Scenario name for categorizing test runs
 --metadata METADATA       Additional metadata in key=value format (can be used multiple times)
 --filter-types FILTER_TYPES Filter asset types (e.g., "Disk,LoadBalancer") - only for assets data type
+--validate-availability   Validate data availability for the specified window before fetching data
 ```
 
 ## Integration with Telescope Benchmarking

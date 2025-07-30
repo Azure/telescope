@@ -47,7 +47,8 @@ steps:
       --metadata scenario_stage_name=$SCENARIO_STAGE_NAME \
       --allocation-output $RESULT_DIR/$ALLOCATION_K8S_COST_FILE \
       --assets-output $RESULT_DIR/$ASSETS_K8S_COST_FILE \
-      --port $FREE_PORT"
+      --port $FREE_PORT \ 
+      --validate-availability"
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
       --window "$window"m \
@@ -57,7 +58,8 @@ steps:
       --metadata scenario_stage_name="$SCENARIO_STAGE_NAME" \
       --allocation-output "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE" \
       --assets-output "$RESULT_DIR/$ASSETS_K8S_COST_FILE" \
-      --port "$FREE_PORT"
+      --port "$FREE_PORT" \
+      --validate-availability
 
     echo "Allocation Costs:"
     cat "$RESULT_DIR/$ALLOCATION_K8S_COST_FILE"

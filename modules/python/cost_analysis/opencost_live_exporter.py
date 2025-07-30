@@ -31,7 +31,7 @@ Usage:
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import logging
 import re
@@ -119,11 +119,166 @@ class OpenCostLiveExporter:
         logger.error("Invalid window format: '%s'", window)
         raise ValueError(f"Invalid window format: '{window}'")
 
+    @staticmethod
+    def _parse_window_to_minutes(window: str) -> int:
+        """
+        Parse window string to minutes for validation
+        
+        Args:
+            window: Window string (e.g., '60m', '1h', '2d')
+            
+        Returns:
+            Number of minutes in the window
+            
+        Raises:
+            ValueError: If window format cannot be parsed
+        """
+        window = window.strip().lower()
+
+        # Handle special formats
+        if window == 'today':
+            # Today from midnight to now
+            now = datetime.now()
+            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            return int((now - midnight).total_seconds() / 60)
+        if window == 'yesterday':
+            return 24 * 60  # 24 hours
+        if window == 'week':
+            return 7 * 24 * 60  # 7 days
+        if window == 'month':
+            return 30 * 24 * 60  # 30 days
+        if window == 'year':
+            return 365 * 24 * 60  # 365 days
+
+        # Handle simple duration formats
+        simple_pattern = r'^(\d+)([smhd])$'
+        simple_match = re.match(simple_pattern, window)
+        if simple_match:
+            number = int(simple_match.group(1))
+            unit = simple_match.group(2)
+  
+            if unit == 's':
+                return number / 60  # Convert seconds to minutes
+            if unit == 'm':
+                return number
+            if unit == 'h':
+                return number * 60
+            if unit == 'd':
+                return number * 24 * 60
+        
+        # Handle compound formats (1h30m, 2d12h, etc.)
+        compound_pattern = r'^(\d+)([hd])(\d+)([mh])$'
+        compound_match = re.match(compound_pattern, window)
+        if compound_match:
+            num1 = int(compound_match.group(1))
+            unit1 = compound_match.group(2)
+            num2 = int(compound_match.group(3))
+            unit2 = compound_match.group(4)
+            
+            minutes = 0
+            if unit1 == 'h':
+                minutes += num1 * 60
+            if unit1 == 'd':
+                minutes += num1 * 24 * 60
+                
+            if unit2 == 'm':
+                minutes += num2
+            if unit2 == 'h':
+                minutes += num2 * 60
+                
+            return minutes
+        
+        raise ValueError(f"Cannot parse window to minutes: '{window}'")
+
+    def validate_data_availability(self,
+                                 window: str,
+                                 aggregate: str = "namespace") -> bool:
+        """
+        Validate that OpenCost has data available for the specified window
+        by checking if data exists at the window start time
+        
+        Args:
+            window: Time window to validate (e.g., '60m', '1h')
+            aggregate: Aggregation level for validation query
+            
+        Returns:
+            True if data is available for the window
+            
+        Raises:
+            ValueError: If data is not available for the specified window
+            requests.exceptions.RequestException: If API call fails
+        """
+        # Validate window format first
+        self.validate_window_format(window)
+        
+        # Calculate the start time of the requested window
+        try:
+            window_minutes = self._parse_window_to_minutes(window)
+        except ValueError as e:
+            logger.error("Cannot validate data availability: %s", e)
+            raise
+        
+        # Calculate expected start time (current_time - window_duration)
+        now = datetime.now()
+        expected_start = now - timedelta(minutes=window_minutes)
+        
+        logger.info("Validating data availability for window '%s' (%s minutes)", 
+                   window, window_minutes)
+        logger.info("Expected start time: %s", expected_start.isoformat())
+        
+        # Query for a 1-minute window starting at the expected start time
+        # Format: start_time=expected_start, end_time=expected_start+1min
+        start_time_str = expected_start.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_time = expected_start + timedelta(minutes=1)
+        end_time_str = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        url = f"{self.endpoint}/allocation"
+        params = {
+            'window': f'{start_time_str},{end_time_str}',  # Specific time range in ISO format
+            'aggregate': aggregate
+        }
+        
+        try:
+            logger.info("Checking data availability at start time: %s?%s",
+                       url, self._format_params(params))
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if not data.get('data') or len(data['data']) == 0:
+                raise ValueError(
+                    f"No allocation data available at window start time for '{window}'. "
+                    f"Expected data at {expected_start.isoformat()}"
+                )
+            
+            # Check if we have any allocation data in the response
+            has_data = False
+            for window_data in data['data']:
+                if window_data and len(window_data) > 0:
+                    has_data = True
+                    break
+            
+            if not has_data:
+                raise ValueError(
+                    f"No allocation data found at window start time for '{window}'. "
+                    f"Expected data at {expected_start.isoformat()}"
+                )
+            
+            logger.info("Data availability validated successfully for window '%s' at start time %s", 
+                       window, expected_start.isoformat())
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error("Failed to validate data availability: %s", e)
+            raise
+
     def get_allocation_data(self,
                           window: str = "1h",
                           aggregate: str = "container",
                           include_idle: bool = False,
-                          share_idle: bool = False) -> Dict[str, Any]:
+                          share_idle: bool = False,
+                          validate_availability: bool = False) -> Dict[str, Any]:
         """
         Get allocation data from OpenCost API
         
@@ -132,15 +287,20 @@ class OpenCostLiveExporter:
             aggregate: Aggregation level (container, pod, namespace, node, etc.)
             include_idle: Include idle allocations
             share_idle: Share idle costs across allocations
+            validate_availability: Validate data availability before fetching (default: False)
             
         Returns:
             Raw allocation data from OpenCost API
             
         Raises:
-            ValueError: If window format is invalid
+            ValueError: If window format is invalid or data not available (when validation enabled)
         """
         # Validate window format
         self.validate_window_format(window)
+
+        # Validate data availability if requested
+        if validate_availability:
+            self.validate_data_availability(window, aggregate)
 
         url = f"{self.endpoint}/allocation"
         params = {
@@ -151,16 +311,18 @@ class OpenCostLiveExporter:
         }
 
         try:
-            logger.info(f"Fetching allocation data: {url}?{self._format_params(params)}")
+            logger.info("Fetching allocation data: %s?%s",
+                       url, self._format_params(params))
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
 
             data = response.json()
-            logger.info(f"Successfully fetched {len(data.get('data', []))} allocation windows")
+            logger.info("Successfully fetched %s allocation windows",
+                       len(data.get('data', [])))
             return data
 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to fetch allocation data: {e}")
+            logger.error("Failed to fetch allocation data: %s", e)
             raise
 
     @staticmethod
@@ -231,12 +393,14 @@ class OpenCostLiveExporter:
                 json.dump(row, jsonfile, ensure_ascii=False)
                 jsonfile.write('\n')
 
-        logger.info(f"Exported {len(kusto_rows)} rows to {filename} in Kusto NDJSON format")
+        logger.info("Exported %s rows to %s in Kusto NDJSON format",
+                   len(kusto_rows), filename)
 
     def export_allocation_live_data(self,
                         window: str = "1h",
                         aggregate: str = "container",
-                        filename: Optional[str] = None) -> str:
+                        filename: Optional[str] = None,
+                        validate_availability: bool = False) -> str:
         """
         Export live OpenCost allocation data in Kusto format
         
@@ -244,12 +408,17 @@ class OpenCostLiveExporter:
             window: Time window for data
             aggregate: Aggregation level
             filename: Output filename (auto-generated if not provided)
+            validate_availability: Validate data availability before fetching (default: False)
             
         Returns:
             Generated filename
         """
         # Get data from OpenCost API
-        data = self.get_allocation_data(window=window, aggregate=aggregate)
+        data = self.get_allocation_data(
+            window=window,
+            aggregate=aggregate,
+            validate_availability=validate_availability
+        )
 
         # Generate filename if not provided
         if not filename:
@@ -357,7 +526,8 @@ class OpenCostLiveExporter:
                 json.dump(row, jsonfile, ensure_ascii=False)
                 jsonfile.write('\n')
 
-        logger.info(f"Exported {len(kusto_rows)} asset rows to {filename} in Kusto NDJSON format")
+        logger.info("Exported %s asset rows to %s in Kusto NDJSON format",
+                   len(kusto_rows), filename)
 
     def export_assets_live_data(self,
                                window: str = "1h",
@@ -464,6 +634,12 @@ def main():
         help='Filter asset types (e.g., "Disk,LoadBalancer")'
     )
 
+    parser.add_argument(
+        '--validate-availability',
+        action='store_true',
+        help='Validate data availability for the specified window before fetching data'
+    )
+
     args = parser.parse_args()
 
     try:
@@ -471,8 +647,9 @@ def main():
         try:
             OpenCostLiveExporter.validate_window_format(args.window)
         except ValueError as e:
-            logger.error(f"Invalid window format: {e}")
-            logger.info(f"Supported window formats: {', '.join(SUPPORTED_WINDOW_FORMATS[:10])}...")
+            logger.error("Invalid window format: %s", e)
+            logger.info("Supported window formats: %s...",
+                       ', '.join(SUPPORTED_WINDOW_FORMATS[:10]))
             sys.exit(1)
 
         # Process metadata
@@ -513,7 +690,8 @@ def main():
         allocation_filename = exporter.export_allocation_live_data(
             window=args.window,
             aggregate=args.aggregate,
-            filename=args.allocation_output
+            filename=args.allocation_output,
+            validate_availability=args.validate_availability
         )
 
         # Export assets data
