@@ -10,22 +10,25 @@ parameters:
   default: 'Calculate step execution duration'
 
 steps:
-- task: Bash@3
+- script: |
+    set -eo pipefail
+    # Get the start epoch from the variable
+    start_epoch="$(${{ parameters.start_variable_name }})"
+    echo "Start epoch time: $start_epoch"
+          
+    duration_minutes=$(PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE "$start_epoch")
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to calculate duration"
+        exit 1
+    fi
+    
+    echo "Calculated duration: $duration_minutes minutes"
+    
+    # Set variable for use in subsequent steps
+    echo "##vso[task.setvariable variable=${{ parameters.duration_variable_name }}]$duration_minutes"
+  workingDirectory: modules/python/
   displayName: '${{ parameters.display_name }}'
   continueOnError: true
-  inputs:
-    targetType: 'inline'
-    script: |
-      end_epoch=$(date +%s)
-      start_epoch="$(${{ parameters.start_variable_name }})"
-
-      # Calculate duration in minutes
-      duration_seconds=$((end_epoch - start_epoch))
-      duration_minutes=$(echo "scale=2; $duration_seconds / 60" | bc -l)
-
-      echo "Step execution start time: $(date -d @$start_epoch -u)"
-      echo "Step execution end time: $(date -u)"
-      echo "Duration in minutes: $duration_minutes"
-
-      # Set variable for use in subsequent steps
-      echo "##vso[task.setvariable variable=${{ parameters.duration_variable_name }}]$duration_minutes"
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/utils/calculate_duration.py
