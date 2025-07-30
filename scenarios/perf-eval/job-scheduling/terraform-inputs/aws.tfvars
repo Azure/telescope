@@ -62,9 +62,9 @@ eks_config_list = [{
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
+      name           = "default"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.large"]
+      instance_types = ["m4.2xlarge"]
       min_size       = 2
       max_size       = 2
       desired_size   = 2
@@ -74,15 +74,27 @@ eks_config_list = [{
       }
     },
     {
-      name           = "virtualnodes"
+      name           = "prompool"
       ami_type       = "AL2_x86_64"
-      instance_types = ["m4.2xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
+      instance_types = ["m4.16xlarge"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
+      capacity_type  = "ON_DEMAND"
+      labels         = { 
+        "prometheus" = "true"
+      }
+    },
+    {
+      name           = "kwokpool"
+      ami_type       = "AL2_x86_64"
+      instance_types = ["m4.16xlarge"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels = {
-        "default" = "true"
+        "kwok" = "true"
       }
     }
   ]
@@ -92,5 +104,5 @@ eks_config_list = [{
       name = "coredns"
     }
   ]
-  kubernetes_version = "1.32"
+  kubernetes_version = "1.33"
 }]
