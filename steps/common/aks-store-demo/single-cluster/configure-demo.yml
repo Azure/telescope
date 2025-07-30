@@ -1,0 +1,21 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: regions
+    type: object
+    default: {}
+  - name: cluster_context
+    type: string
+    default: ""
+  - name: action
+    type: string
+    default: "apply"
+
+steps:
+  - template: /steps/common/aks-store-demo-python.yml
+    parameters:
+      cluster_context: ${{ parameters.cluster_context }}
+      action: ${{ parameters.action }}
+      namespace: "default"
+      scenario_path: ""  # Will use environment variables to determine path
