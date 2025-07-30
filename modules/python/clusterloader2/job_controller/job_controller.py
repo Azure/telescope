@@ -132,6 +132,13 @@ class JobController(ClusterLoader2Base):
         parser.add_argument(
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
+        parser.add_argument(
+            "--prometheus_enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable Prometheus scraping. Must be either True or False",
+        )
 
     @staticmethod
     def add_validate_subparser_arguments(parser):
