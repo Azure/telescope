@@ -9,7 +9,7 @@ metadata:
   name: mongodb
 spec:
   serviceName: mongodb
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: mongodb
@@ -67,7 +67,7 @@ metadata:
   name: rabbitmq
 spec:
   serviceName: rabbitmq
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: rabbitmq
@@ -131,7 +131,7 @@ kind: Deployment
 metadata:
   name: order-service
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: order-service
@@ -219,7 +219,7 @@ kind: Deployment
 metadata:
   name: makeline-service
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: makeline-service
@@ -296,7 +296,7 @@ kind: Deployment
 metadata:
   name: product-service
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: product-service
@@ -355,7 +355,7 @@ kind: Deployment
 metadata:
   name: store-front
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: store-front
@@ -418,7 +418,7 @@ kind: Deployment
 metadata:
   name: store-admin
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: store-admin
