@@ -87,7 +87,6 @@ class TestJobControllerBenchmark(unittest.TestCase):
                 run_url="http://example.com/run123",
                 result_file=tmp_path,
                 test_type="unit-test",
-                start_timestamp="2024-06-11T12:00:00Z",
                 node_count=3,
                 job_count=1000,
                 job_throughput=50,
@@ -153,7 +152,6 @@ class TestJobControllerParser(unittest.TestCase):
         self.assertIn("run_url", collect_args)
         self.assertIn("result_file", collect_args)
         self.assertIn("test_type", collect_args)
-        self.assertIn("start_timestamp", collect_args)
         self.assertIn("job_count", collect_args)
         self.assertIn("job_throughput", collect_args)
 

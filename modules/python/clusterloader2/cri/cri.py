@@ -16,7 +16,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    os_type, scrape_kubelets, override_file):
+    os_type, scrape_kubelets, host_network, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -63,7 +63,10 @@ def override_config_clusterloader2(
 
     # Calculate the number of steps to scale up
     steps = node_count // node_per_step
-    logger.info(f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, scrape kubelets: {scrape_kubelets}")
+    logger.info(
+        f"Scaled enabled: {scale_enabled}, node per step: {node_per_step}, steps: {steps}, "
+        f"scrape kubelets: {scrape_kubelets}, host network: {host_network}"
+    )
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
@@ -86,6 +89,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_PROVIDER: {provider}\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
+        file.write(f"CL2_HOST_NETWORK: {str(host_network).lower()}\n")
 
     file.close()
 
@@ -114,7 +118,11 @@ def verify_measurement():
 
             metrics = response[0]  # The first item contains the response data
             filtered_metrics = "\n".join(
-                line for line in metrics.splitlines() if line.startswith("kubelet_pod_start") or line.startswith("kubelet_runtime_operations")
+                line
+                for line in metrics.splitlines()
+                if line.startswith("kubelet_pod_start")
+                or line.startswith("kubelet_runtime_operations")
+                or line.startswith("kubelet_run_podsandbox")
             )
             logger.info(f"##[section]Metrics for node: {node_name}") # pylint: disable=logging-too-many-args
             logger.info(filtered_metrics) # pylint: disable=logging-too-many-args
@@ -250,6 +258,13 @@ def main():
         help="Whether to scrape kubelets",
     )
     parser_override.add_argument(
+        "--host_network",
+        type=str2bool,
+        choices=[True, False],
+        default=True,
+        help="Whether to enable host network",
+    )
+    parser_override.add_argument(
         "--cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
     )
 
@@ -328,6 +343,7 @@ def main():
             args.provider,
             args.os_type,
             args.scrape_kubelets,
+            args.host_network,
             args.cl2_override_file,
         )
     elif args.command == "execute":

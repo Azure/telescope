@@ -39,7 +39,6 @@ class JobController(ClusterLoader2Base):
     run_url: str = ""
     result_file: str = ""
     test_type: str = "default-config"
-    start_timestamp: str = ""
 
     def configure_clusterloader2(self):
         config = {
@@ -94,7 +93,6 @@ class JobController(ClusterLoader2Base):
             "run_id": self.run_id,
             "run_url": self.run_url,
             "test_type": self.test_type,
-            "start_timestamp": self.start_timestamp,
             "job_count": self.job_count,
             "job_throughput": self.job_throughput,
             "provider": provider,
@@ -188,11 +186,9 @@ class JobController(ClusterLoader2Base):
         parser.add_argument(
             "--test_type",
             type=str,
-            nargs="?",
             default="default-config",
             help="Description of test type",
         )
-        parser.add_argument("--start_timestamp", type=str, help="Test start timestamp")
         parser.add_argument(
             "--job_count", type=int, default=1000, help="Number of jobs to run"
         )

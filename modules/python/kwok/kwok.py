@@ -1,21 +1,24 @@
+"""KWOK (Kubernetes WithOut Kubelet) - Virtual Node/Pod Simulator."""
 import argparse
-import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import requests
 
 from clients.kubernetes_client import KubernetesClient
+from utils.retries import execute_with_retries
 
 
 @dataclass
 class KWOK(ABC):
+    """Abstract base class for KWOK (Kubernetes WithOut Kubelet) components."""
     kwok_repo: str = "kubernetes-sigs/kwok"
     kwok_release: str = None
     enable_metrics: bool = False
     k8s_client: KubernetesClient = KubernetesClient()
 
     def fetch_latest_release(self):
+        """Fetch the latest KWOK release version from GitHub."""
         response = requests.get(
             f"https://api.github.com/repos/{self.kwok_repo}/releases/latest", timeout=10
         )
@@ -26,29 +29,43 @@ class KWOK(ABC):
     # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
     # to simulate resource usage for nodes, pods, and containers.
     def apply_kwok_manifests(self, kwok_release, enable_metrics):
-        kwok_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/kwok.yaml"
-        stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
-        subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
-        subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
+        """Apply KWOK manifests to set up the environment and enable metrics if requested."""
+        kwok_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                         f"download/{kwok_release}/kwok.yaml")
+        stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                              f"download/{kwok_release}/stage-fast.yaml")
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            kwok_yaml_url
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            stage_fast_yaml_url
+        )
         if enable_metrics:
-            metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
-            subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
+            metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                               f"download/{kwok_release}/metrics-usage.yaml")
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_url,
+                metrics_usage_url
+            )
 
     @abstractmethod
     def create(self):
-        pass
+        """Create KWOK resources."""
 
     @abstractmethod
     def validate(self):
-        pass
+        """Validate KWOK resources are working correctly."""
 
     @abstractmethod
     def tear_down(self):
-        pass
+        """Clean up and remove KWOK resources."""
 
 
 @dataclass
 class Node(KWOK):
+    """KWOK Node implementation for creating and managing virtual Kubernetes nodes."""
     node_manifest_path: str = "kwok/config/kwok-node.yaml"
     node_count: int = 1
 
@@ -65,14 +82,19 @@ class Node(KWOK):
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
-                self.k8s_client.create_node(kwok_template)
+                execute_with_retries(
+                    self.k8s_client.create_node,
+                    kwok_template,
+                )
 
             print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
     def validate(self):
-        ready_nodes = self.k8s_client.get_nodes()
+        ready_nodes = execute_with_retries(
+            self.k8s_client.get_nodes
+        )
         kwok_nodes = [
             node
             for node in ready_nodes
@@ -82,7 +104,8 @@ class Node(KWOK):
 
         if len(kwok_nodes) < self.node_count:
             raise RuntimeError(
-                f"Validation failed: Expected at least {self.node_count} KWOK nodes, but found {len(kwok_nodes)}."
+                f"Validation failed: Expected at least {self.node_count} KWOK nodes, "
+                f"but found {len(kwok_nodes)}."
             )
 
         for node in kwok_nodes:
@@ -116,7 +139,10 @@ class Node(KWOK):
         for i in range(self.node_count):
             node_name = f"kwok-node-{i}"
             print(f"Deleting node: {node_name}")
-            self.k8s_client.delete_node(node_name)
+            execute_with_retries(
+                self.k8s_client.delete_node,
+                node_name
+            )
         print(f"Successfully deleted {self.node_count} nodes.")
 
     def _validate_node_status(self, node):
@@ -128,8 +154,8 @@ class Node(KWOK):
             print(f"Node {node.metadata.name} is Ready.")
         else:
             raise RuntimeError(
-                f"Node {node.metadata.name} is NOT Ready."
-                f"Condition: {ready_condition.status if ready_condition else 'No Ready condition found'}"
+                f"Node {node.metadata.name} is NOT Ready. "
+                f"Condition: {ready_condition.status if ready_condition else 'No condition found'}"
             )
 
     def _validate_node_schedulable(self, node):
@@ -148,13 +174,15 @@ class Node(KWOK):
 
         if not allocatable or not capacity:
             raise RuntimeError(
-                f"Node {node.metadata.name} is missing resource information (allocatable or capacity)."
+                f"Node {node.metadata.name} is missing resource information "
+                f"(allocatable or capacity)."
             )
         print(f"Node {node.metadata.name} Allocatable: {allocatable}")
         print(f"Node {node.metadata.name} Capacity: {capacity}")
 
 
 def main():
+    """Main function to handle command-line arguments and execute KWOK operations."""
     parser = argparse.ArgumentParser(
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
     )

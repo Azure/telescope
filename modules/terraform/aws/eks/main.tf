@@ -695,7 +695,7 @@ resource "terraform_data" "apply_metrics_server_addon" {
   }
 
   depends_on = [
-    terraform_data.apply_nodepool_system_custom, 
+    terraform_data.apply_nodepool_system_custom,
     terraform_data.apply_nodepool_general_custom
   ]
 }

@@ -1,0 +1,141 @@
+trigger: none
+schedules:
+  - cron: "0 1-23/4 * * *"
+    displayName: "Every 4 Hour (1AM start)"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cni-ab-testing
+
+stages:
+  - stage: azure_swedencentral_default
+    dependsOn: []
+    variables:
+      - group: Default-CNI
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+            n10-p700-memory:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+            n10-p1100-memory:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+          max_parallel: 3
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_swedencentral_stateless
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+            n10-p700-memory:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+            n10-p1100-memory:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+          max_parallel: 3
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: aws_westeurope
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - eu-west-1
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20241016"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+            n10-p700-memory:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+            n10-p1100-memory:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              scrape_kubelets: True
+              host_network: False
+          max_parallel: 3
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false

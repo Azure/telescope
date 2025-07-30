@@ -1191,8 +1191,9 @@ class TestMainParameterValidation(unittest.TestCase):
         mock_logger.critical.assert_called()
         mock_exit.assert_called_with(1)
 
+    @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AWSNodePoolCRUD")
-    def test_main_k8s_client_not_available_aws(self, mock_aws_crud_class):
+    def test_main_k8s_client_not_available_aws(self, mock_aws_crud_class, mock_operation_context):
         """Test main function when k8s client is not available for AWS GPU setup"""
         # Setup
         mock_node_pool_crud = mock.MagicMock()
@@ -1202,6 +1203,12 @@ class TestMainParameterValidation(unittest.TestCase):
 
         mock_aws_crud_class.return_value = mock_node_pool_crud
         mock_node_pool_crud.create_node_pool.return_value = True
+
+        # Setup operation context mock to prevent file generation - use a no-op context manager
+        mock_context_manager = mock.MagicMock()
+        mock_context_manager.__enter__ = mock.MagicMock(return_value=mock_context_manager)
+        mock_context_manager.__exit__ = mock.MagicMock(return_value=None)
+        mock_operation_context.return_value = mock_context_manager
 
         test_args = [
             "crud.py",
