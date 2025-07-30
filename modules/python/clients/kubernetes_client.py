@@ -712,7 +712,10 @@ class KubernetesClient:
 
             self._apply_single_manifest(manifest=manifest)
 
-            logger.info("Successfully applied manifest from %s", manifest_path)
+            if manifest_path:
+                logger.info("Successfully applied manifest from file: %s", manifest_path)
+            elif manifest_dict:
+                logger.info("Successfully applied manifest from dictionary")
 
             # If wait conditions are specified, wait for them
             if wait_condition and wait_resource:
