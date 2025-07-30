@@ -1,7 +1,8 @@
-"""Kubernetes client for managing cluster operations and resources."""
+"""Kubernetes client for managing cluster operations and resources."""  # pylint: disable=too-many-lines
 import time
 import os
 import uuid
+import glob
 import yaml
 import requests
 
@@ -689,10 +690,10 @@ class KubernetesClient:
                                 wait_condition: str = None, wait_resource: str = None,
                                 namespace: str = "default", timeout_seconds: int = 300):
         """
-        Apply a Kubernetes manifest from file path or dictionary.
-        Optionally wait for a specific condition after applying the manifest.
+        Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
+        Optionally wait for a specific condition after applying the manifest(s).
         
-        :param manifest_path: Path to YAML manifest file
+        :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :param wait_condition: Condition to wait for (e.g., 'condition=available')
         :param wait_resource: Resource to wait for (e.g., 'deployment/myapp')
@@ -701,21 +702,61 @@ class KubernetesClient:
         :return: None
         """
         try:
-            # Load manifest
-            if manifest_path:
-                with open(manifest_path, 'r', encoding='utf-8') as file:
-                    manifest = yaml.safe_load(file)
-            elif manifest_dict:
-                manifest = manifest_dict
-            else:
-                raise ValueError("Either manifest_path or manifest_dict must be provided")
+            manifests_to_apply = []
+            applied_sources = []
 
-            self._apply_single_manifest(manifest=manifest)
-
+            # Load manifests from various sources
             if manifest_path:
-                logger.info("Successfully applied manifest from file: %s", manifest_path)
-            elif manifest_dict:
-                logger.info("Successfully applied manifest from dictionary")
+                if os.path.isfile(manifest_path):
+                    # Single file
+                    with open(manifest_path, 'r', encoding='utf-8') as file:
+                        content = file.read()
+                        # Handle multiple documents in a single YAML file
+                        yaml_docs = list(yaml.safe_load_all(content))
+                        manifests_to_apply.extend([doc for doc in yaml_docs if doc])  # Filter out None/empty docs
+                    applied_sources.append(f"file: {manifest_path}")
+                elif os.path.isdir(manifest_path):
+                    # Directory containing manifest files
+                    yaml_files = []
+                    for ext in ['*.yaml', '*.yml']:
+                        # Use recursive search which will include all files
+                        yaml_files.extend(glob.glob(os.path.join(manifest_path, '**', ext), recursive=True))
+
+                    # Remove duplicates and sort files to ensure consistent ordering
+                    yaml_files = sorted(list(set(yaml_files)))
+
+                    if not yaml_files:
+                        raise ValueError(f"No YAML files found in directory: {manifest_path}")
+
+                    for yaml_file in yaml_files:
+                        with open(yaml_file, 'r', encoding='utf-8') as file:
+                            content = file.read()
+                            # Handle multiple documents in each YAML file
+                            yaml_docs = list(yaml.safe_load_all(content))
+                            manifests_to_apply.extend([doc for doc in yaml_docs if doc])  # Filter out None/empty docs
+
+                    applied_sources.append(f"directory: {manifest_path} ({len(yaml_files)} files)")
+                else:
+                    raise FileNotFoundError(f"Path does not exist: {manifest_path}")
+
+            if manifest_dict:
+                manifests_to_apply.append(manifest_dict)
+                applied_sources.append("dictionary")
+
+            if not manifests_to_apply:
+                raise ValueError("At least one of manifest_path or manifest_dict must be provided")
+
+            # Apply all manifests
+            logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}")
+
+            for i, manifest in enumerate(manifests_to_apply):
+                if not manifest:  # Skip empty documents
+                    continue
+
+                logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
+                self._apply_single_manifest(manifest=manifest)
+
+            logger.info(f"Successfully applied {len(manifests_to_apply)} manifest(s)")
 
             # If wait conditions are specified, wait for them
             if wait_condition and wait_resource:
@@ -736,7 +777,7 @@ class KubernetesClient:
                     raise Exception(f"Timeout waiting for condition '{wait_condition}' on '{wait_resource}'")
 
         except Exception as e:
-            logger.error(f"Error applying manifest: {str(e)}")
+            logger.error(f"Error applying manifest(s): {str(e)}")
             raise e
 
     def wait_for_condition(self, wait_resource: str, wait_condition: str, namespace: str = "default",
