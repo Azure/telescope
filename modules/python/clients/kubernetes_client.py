@@ -689,7 +689,7 @@ class KubernetesClient:
         """
         Apply a Kubernetes manifest from file path or dictionary.
         
-        :param manifest_path: NoPath to YAML manifest file
+        :param manifest_path: Path to YAML manifest file
         :param manifest_dict: Dictionary containing the manifest
         :return: None
         """
@@ -705,7 +705,10 @@ class KubernetesClient:
 
             self._apply_single_manifest(manifest=manifest)
 
-            logger.info("Successfully applied manifest from %s", manifest_path)
+            if manifest_path:
+                logger.info("Successfully applied manifest from file: %s", manifest_path)
+            elif manifest_dict:
+                logger.info("Successfully applied manifest from dictionary")
 
         except Exception as e:
             logger.error(f"Error applying manifest: {str(e)}")
