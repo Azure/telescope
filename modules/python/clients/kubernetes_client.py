@@ -685,12 +685,19 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
 
-    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None,
+                                wait_condition: str = None, wait_resource: str = None,
+                                namespace: str = "default", timeout_seconds: int = 300):
         """
         Apply a Kubernetes manifest from file path or dictionary.
+        Optionally wait for a specific condition after applying the manifest.
         
-        :param manifest_path: NoPath to YAML manifest file
+        :param manifest_path: Path to YAML manifest file
         :param manifest_dict: Dictionary containing the manifest
+        :param wait_condition: Condition to wait for (e.g., 'condition=available')
+        :param wait_resource: Resource to wait for (e.g., 'deployment/myapp')
+        :param namespace: Namespace for the wait operation
+        :param timeout_seconds: Timeout for wait operation in seconds
         :return: None
         """
         try:
@@ -707,9 +714,148 @@ class KubernetesClient:
 
             logger.info("Successfully applied manifest from %s", manifest_path)
 
+            # If wait conditions are specified, wait for them
+            if wait_condition and wait_resource:
+                logger.info(f"Waiting for resource '{wait_resource}' with condition '{wait_condition}'")
+
+                # Check if we're waiting for all resources of a type or specific resource
+                wait_all = "/" not in wait_resource
+
+                success = self.wait_for_condition(
+                    wait_resource=wait_resource,
+                    wait_condition=wait_condition,
+                    namespace=namespace,
+                    timeout_seconds=timeout_seconds,
+                    wait_all=wait_all
+                )
+
+                if not success:
+                    raise Exception(f"Timeout waiting for condition '{wait_condition}' on '{wait_resource}'")
+
         except Exception as e:
             logger.error(f"Error applying manifest: {str(e)}")
             raise e
+
+    def wait_for_condition(self, wait_resource: str, wait_condition: str, namespace: str = "default",
+                          timeout_seconds: int = 300, wait_all: bool = False):
+        """
+        Wait for a Kubernetes resource to meet a specific condition.
+        Equivalent to 'kubectl wait --for=<condition> <resource> --timeout=<timeout> -n <namespace>'
+        
+        :param wait_resource: Resource to wait for (e.g., 'deployment/myapp' or 'deployment')
+        :param wait_condition: Condition to wait for (e.g., 'condition=available', 'condition=ready')
+        :param namespace: Namespace where the resource is located
+        :param timeout_seconds: Maximum time to wait in seconds
+        :param wait_all: If True, wait for all resources of the type (equivalent to --all flag)
+        :return: True if condition is met, False if timeout
+        """
+        try:
+            start_time = time.time()
+            timeout = start_time + timeout_seconds
+
+            # Parse resource type and name
+            if "/" in wait_resource:
+                resource_type, resource_name = wait_resource.split("/", 1)
+            else:
+                resource_type = wait_resource
+                resource_name = None
+                wait_all = True  # If no specific resource name, wait for all
+
+            logger.info(f"Waiting for {wait_resource} with condition '{wait_condition}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
+
+            while time.time() < timeout:
+                try:
+                    if self._check_resource_condition(resource_type, resource_name, wait_condition, namespace, wait_all):
+                        elapsed_time = time.time() - start_time
+                        logger.info(f"Condition '{wait_condition}' met for {wait_resource} after {elapsed_time:.2f} seconds")
+                        return True
+
+                    time.sleep(5)  # Check every 5 seconds
+
+                except Exception as e:
+                    logger.warning(f"Error checking condition for {wait_resource}: {str(e)}")
+                    time.sleep(5)
+
+            # Timeout reached
+            elapsed_time = time.time() - start_time
+            logger.error(f"Timeout waiting for condition '{wait_condition}' on {wait_resource} after {elapsed_time:.2f} seconds")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error waiting for condition: {str(e)}")
+            raise e
+
+    def _check_resource_condition(self, resource_type: str, resource_name: str, condition: str,
+                                 namespace: str, wait_all: bool) -> bool:
+        """
+        Check if a specific resource condition is met.
+        
+        :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
+        :param resource_name: Name of specific resource (None if checking all)
+        :param condition: Condition to check (e.g., 'condition=available', 'condition=ready')
+        :param namespace: Namespace of the resource
+        :param wait_all: Whether to check all resources of the type
+        :return: True if condition is met
+        """
+        try:
+            # Parse condition (e.g., 'condition=available' -> 'available')
+            if condition.startswith('condition='):
+                condition_type = condition.split('=', 1)[1]
+            else:
+                condition_type = condition
+
+            resource_type_lower = resource_type.lower()
+
+            if resource_type_lower in ['deployment', 'deployments']:
+                return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
+            else:
+                logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error checking resource condition: {str(e)}")
+            return False
+
+    def _check_deployment_condition(self, resource_name: str, condition_type: str, namespace: str, wait_all: bool) -> bool:
+        """Check deployment condition (e.g., 'available', 'progressing')."""
+        try:
+            if wait_all or not resource_name:
+                # Check all deployments in namespace
+                deployments = self.app.list_namespaced_deployment(namespace=namespace).items
+            else:
+                # Check specific deployment
+                deployment = self.app.read_namespaced_deployment(name=resource_name, namespace=namespace)
+                deployments = [deployment]
+
+            for deployment in deployments:
+                if not self._is_deployment_condition_met(deployment, condition_type):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.debug("Deployment not found, waiting...")
+                return False
+            raise e
+
+    def _is_deployment_condition_met(self, deployment, condition_type: str) -> bool:
+        """Check if a deployment meets the specified condition."""
+        if not deployment.status or not deployment.status.conditions:
+            return False
+
+        condition_type_lower = condition_type.lower()
+
+        for condition in deployment.status.conditions:
+            if condition.type.lower() == condition_type_lower and condition.status == "True":
+                return True
+
+        # Special case for 'ready' - check if all replicas are ready
+        if condition_type_lower == 'ready':
+            return (deployment.status.ready_replicas == deployment.status.replicas and
+                    deployment.status.replicas > 0)
+
+        return False
 
     def _apply_single_manifest(self, manifest):
         """

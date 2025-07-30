@@ -2566,5 +2566,198 @@ spec:
 
             self.assertIn("Error creating Service", str(context.exception))
 
+    @patch('yaml.safe_load')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_wait_condition_success(self, _mock_open_file, mock_yaml_load):
+        """Test apply_manifest_from_file with wait condition - success case"""
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "test-namespace"
+            }
+        }
+
+        mock_yaml_load.return_value = manifest_dict
+
+        # Mock the API client and wait functionality
+        with patch.object(self.client, 'app') as mock_app, \
+             patch.object(self.client, 'wait_for_condition') as mock_wait:
+            mock_app.create_namespaced_deployment.return_value = None
+            mock_wait.return_value = True
+
+            # Call with wait conditions
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/deployment.yaml",
+                wait_condition="condition=available",
+                wait_resource="deployment/test-deployment",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            # Verify API was called correctly
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="test-namespace",
+                body=manifest_dict
+            )
+
+            # Verify wait was called correctly
+            mock_wait.assert_called_once_with(
+                wait_resource="deployment/test-deployment",
+                wait_condition="condition=available",
+                namespace="test-namespace",
+                timeout_seconds=1,
+                wait_all=False
+            )
+
+    @patch('yaml.safe_load')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_wait_condition_timeout(self, _mock_open_file, mock_yaml_load):
+        """Test apply_manifest_from_file with wait condition - timeout case"""
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "test-namespace"
+            }
+        }
+
+        mock_yaml_load.return_value = manifest_dict
+
+        # Mock the API client and wait functionality
+        with patch.object(self.client, 'app') as mock_app, \
+             patch.object(self.client, 'wait_for_condition') as mock_wait:
+            mock_app.create_namespaced_deployment.return_value = None
+            mock_wait.return_value = False  # Simulate timeout
+
+            # Should raise exception on timeout
+            with self.assertRaises(Exception) as context:
+                self.client.apply_manifest_from_file(
+                    manifest_path="/path/to/deployment.yaml",
+                    wait_condition="condition=available",
+                    wait_resource="deployment/test-deployment",
+                    namespace="test-namespace",
+                    timeout_seconds=1
+                )
+
+            self.assertIn("Timeout waiting for condition", str(context.exception))
+
+    @patch('time.time')
+    def test_wait_for_condition_deployment_success(self, mock_time):
+        """Test wait_for_condition for deployment - success case"""
+        # Mock time progression
+        mock_time.side_effect = [0, 1, 2]  # Start, check, success
+
+        # Mock deployment with available condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True"),
+            MagicMock(type="Progressing", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):  # Mock sleep to speed up test
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            # Test successful wait
+            result = self.client.wait_for_condition(
+                wait_resource="deployment/test-deployment",
+                wait_condition="condition=available",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_app.read_namespaced_deployment.assert_called_with(
+                name="test-deployment",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_deployment_timeout(self, mock_time):
+        """Test wait_for_condition for deployment - timeout case"""
+        # Mock time progression to simulate timeout
+        mock_time.side_effect = [0, 2, 5, 6]  # Start, mid, timeout, after
+
+        # Mock deployment with unavailable condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="False"),
+            MagicMock(type="Progressing", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):  # Mock sleep to speed up test
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            # Test timeout
+            result = self.client.wait_for_condition(
+                wait_resource="deployment/test-deployment",
+                wait_condition="condition=available",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_all_deployments_success(self, mock_time):
+        """Test wait_for_condition for all deployments - success case"""
+        mock_time.side_effect = [0, 1, 2]  # Start, check, success
+
+        # Mock multiple deployments, all available
+        mock_deployment1 = MagicMock()
+        mock_deployment1.status.conditions = [MagicMock(type="Available", status="True")]
+        mock_deployment2 = MagicMock()
+        mock_deployment2.status.conditions = [MagicMock(type="Available", status="True")]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):  # Mock sleep to speed up test
+            mock_app.list_namespaced_deployment.return_value.items = [mock_deployment1, mock_deployment2]
+
+            result = self.client.wait_for_condition(
+                wait_resource="deployment",  # No specific name = all deployments
+                wait_condition="condition=available",
+                namespace="test-namespace",
+                timeout_seconds=5,
+                wait_all=True
+            )
+
+            self.assertTrue(result)
+
+    def test_wait_for_condition_unsupported_resource_type(self):
+        """Test wait_for_condition with unsupported resource type"""
+        result = self.client.wait_for_condition(
+            wait_resource="pod/test",
+            wait_condition="condition=ready",
+            namespace="test-namespace",
+            timeout_seconds=1
+        )
+
+        self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_resource_not_found(self, mock_time):
+        """Test wait_for_condition when resource is not found"""
+        mock_time.side_effect = [0, 2, 5, 6]
+
+        # Mock 404 error (resource not found)
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                wait_resource="deployment/nonexistent",
+                wait_condition="condition=available",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
 if __name__ == '__main__':
     unittest.main()
