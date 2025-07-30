@@ -96,7 +96,7 @@ locals {
       role_name            = "AKS Contributor"
     }
     aks_cluster_admin = {
-      scope                = var.aks_cli_config.grant_rbac_permissions ? data.azurerm_kubernetes_cluster.aks[0].id : ""
+      scope                = data.azurerm_kubernetes_cluster.aks[0].id
       role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
       principal_id         = data.azurerm_client_config.current.object_id
       role_name            = "AKS Cluster Admin"
