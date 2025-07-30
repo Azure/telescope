@@ -685,6 +685,32 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
 
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
+        """
+        Apply a Kubernetes manifest from file path or dictionary.
+        
+        :param manifest_path: NoPath to YAML manifest file
+        :param manifest_dict: Dictionary containing the manifest
+        :return: None
+        """
+        try:
+            # Load manifest
+            if manifest_path:
+                with open(manifest_path, 'r', encoding='utf-8') as file:
+                    manifest = yaml.safe_load(file)
+            elif manifest_dict:
+                manifest = manifest_dict
+            else:
+                raise ValueError("Either manifest_path or manifest_dict must be provided")
+
+            self._apply_single_manifest(manifest=manifest)
+
+            logger.info("Successfully applied manifest from %s", manifest_path)
+
+        except Exception as e:
+            logger.error(f"Error applying manifest: {str(e)}")
+            raise e
+
     def _apply_single_manifest(self, manifest):
         """
         Apply a single Kubernetes manifest using the appropriate API client.
