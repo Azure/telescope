@@ -37,6 +37,8 @@ spec:
       - image: nicolaka/netshoot
         command: ["sleep", "infinity"]
         imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
         name: deployment-churn
         ports:
         resources:
