@@ -2337,22 +2337,31 @@ spec:
         self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
         mock_open_file.assert_not_called()
 
+    @patch('os.path.isfile')
+    @patch('os.path.isdir')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_file_not_found_error(self, mock_open_file):
+    def test_apply_manifest_from_file_file_not_found_error(self, mock_open_file, mock_isdir, mock_isfile):
         """Test apply_manifest_from_file with file not found error"""
-        # Mock file not found error
-        mock_open_file.side_effect = FileNotFoundError("No such file or directory")
+        # Mock file and directory existence checks to return False (file doesn't exist)
+        mock_isfile.return_value = False
+        mock_isdir.return_value = False
 
         # Call should raise FileNotFoundError
-        with self.assertRaises(FileNotFoundError):
+        with self.assertRaises(FileNotFoundError) as context:
             self.client.apply_manifest_from_file(manifest_path="/nonexistent/path.yaml")
 
-        mock_open_file.assert_called_once_with("/nonexistent/path.yaml", 'r', encoding='utf-8')
+        self.assertIn("Path does not exist", str(context.exception))
+        # Verify open was not called since we check file existence first
+        mock_open_file.assert_not_called()
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_yaml_parse_error(self, mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_yaml_parse_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with YAML parsing error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
         # Mock YAML parsing error
         mock_yaml_load.side_effect = Exception("Invalid YAML content")
 
@@ -2361,13 +2370,14 @@ spec:
             self.client.apply_manifest_from_file(manifest_path="/path/to/invalid.yaml")
 
         self.assertIn("Invalid YAML content", str(context.exception))
-        mock_open_file.assert_called_once_with("/path/to/invalid.yaml", 'r', encoding='utf-8')
-        mock_yaml_load.assert_called_once()
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_configmap_success(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_configmap_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with ConfigMap resource"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "v1",
             "kind": "ConfigMap",
@@ -2396,10 +2406,13 @@ spec:
                 body=manifest_dict
             )
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_secret_success(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_secret_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with Secret resource"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "v1",
             "kind": "Secret",
@@ -2429,10 +2442,13 @@ spec:
                 body=manifest_dict
             )
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_namespace_success(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_namespace_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with Namespace resource (cluster-scoped)"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "v1",
             "kind": "Namespace",
@@ -2456,10 +2472,13 @@ spec:
             # Verify API was called correctly
             mock_api.create_namespace.assert_called_once_with(body=manifest_dict)
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_cluster_role_success(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_cluster_role_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with ClusterRole resource"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "rbac.authorization.k8s.io/v1",
             "kind": "ClusterRole",
@@ -2488,10 +2507,13 @@ spec:
             # Verify API was called correctly
             mock_rbac_api.create_cluster_role.assert_called_once_with(body=manifest_dict)
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_unsupported_resource_warning(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_unsupported_resource_warning(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with unsupported resource type - should log warning"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "custom.io/v1",
             "kind": "UnsupportedResource",
@@ -2512,10 +2534,13 @@ spec:
                 "UnsupportedResource"
             )
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_api_exception_409_conflict(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_api_exception_409_conflict(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with API exception 409 (resource already exists)"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "v1",
             "kind": "Service",
@@ -2543,10 +2568,13 @@ spec:
                     "Service", "test-service"
                 )
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_api_exception_other_error(self, _mock_open_file, mock_yaml_load):
+    def test_apply_manifest_from_file_api_exception_other_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test apply_manifest_from_file with API exception other than 409"""
+        # Mock file existence check
+        mock_isfile.return_value = True
         manifest_dict = {
             "apiVersion": "v1",
             "kind": "Service",
@@ -2570,10 +2598,14 @@ spec:
 
             self.assertIn("Error creating Service", str(context.exception))
 
-    @patch('yaml.safe_load')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_with_wait_condition_success(self, _mock_open_file, mock_yaml_load):
-        """Test apply_manifest_from_file with wait condition - success case"""
+    def test_apply_manifest_from_file_deployment_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with deployment manifest - success case"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
         manifest_dict = {
             "apiVersion": "apps/v1",
             "kind": "Deployment",
@@ -2585,68 +2617,18 @@ spec:
 
         mock_yaml_load.return_value = [manifest_dict]
 
-        # Mock the API client and wait functionality
-        with patch.object(self.client, 'app') as mock_app, \
-             patch.object(self.client, 'wait_for_condition') as mock_wait:
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
             mock_app.create_namespaced_deployment.return_value = None
-            mock_wait.return_value = True
 
-            # Call with wait conditions
-            self.client.apply_manifest_from_file(
-                manifest_path="/path/to/deployment.yaml",
-                wait_condition="condition=available",
-                wait_resource="deployment/test-deployment",
-                namespace="test-namespace",
-                timeout_seconds=1
-            )
+            # Call method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/deployment.yaml")
 
             # Verify API was called correctly
             mock_app.create_namespaced_deployment.assert_called_once_with(
                 namespace="test-namespace",
                 body=manifest_dict
             )
-
-            # Verify wait was called correctly
-            mock_wait.assert_called_once_with(
-                wait_resource="deployment/test-deployment",
-                wait_condition="condition=available",
-                namespace="test-namespace",
-                timeout_seconds=1,
-                wait_all=False
-            )
-
-    @patch('yaml.safe_load')
-    @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_with_wait_condition_timeout(self, _mock_open_file, mock_yaml_load):
-        """Test apply_manifest_from_file with wait condition - timeout case"""
-        manifest_dict = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "name": "test-deployment",
-                "namespace": "test-namespace"
-            }
-        }
-
-        mock_yaml_load.return_value = [manifest_dict]
-
-        # Mock the API client and wait functionality
-        with patch.object(self.client, 'app') as mock_app, \
-             patch.object(self.client, 'wait_for_condition') as mock_wait:
-            mock_app.create_namespaced_deployment.return_value = None
-            mock_wait.return_value = False  # Simulate timeout
-
-            # Should raise exception on timeout
-            with self.assertRaises(Exception) as context:
-                self.client.apply_manifest_from_file(
-                    manifest_path="/path/to/deployment.yaml",
-                    wait_condition="condition=available",
-                    wait_resource="deployment/test-deployment",
-                    namespace="test-namespace",
-                    timeout_seconds=1
-                )
-
-            self.assertIn("Timeout waiting for condition", str(context.exception))
 
     @patch('time.time')
     def test_wait_for_condition_deployment_success(self, mock_time):
@@ -2769,8 +2751,7 @@ spec:
     @patch('glob.glob')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_folder_success(self, mock_open_file, mock_yaml_load, 
-                                                    mock_glob, mock_isfile, mock_isdir):
+    def test_apply_manifest_from_file_folder_success(self, mock_open_file, mock_yaml_load, mock_glob, mock_isfile, mock_isdir):
         """Test apply_manifest_from_file with folder path - success case"""
         # Setup mocks
         mock_isfile.return_value = False
@@ -2895,9 +2876,9 @@ spec:
     @patch('glob.glob')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_folder_with_wait_condition(self, _mock_open_file, mock_yaml_load,
+    def test_apply_manifest_from_file_folder_with_deployment(self, _mock_open_file, mock_yaml_load,
                                                                mock_glob, mock_isfile, mock_isdir):
-        """Test apply_manifest_from_file with folder and wait condition"""
+        """Test apply_manifest_from_file with folder containing deployment"""
         # Setup mocks
         mock_isfile.return_value = False
         mock_isdir.return_value = True
@@ -2912,67 +2893,18 @@ spec:
 
         mock_yaml_load.return_value = [deployment_manifest]
 
-        # Mock the API client and wait_for_condition
-        with patch.object(self.client, 'app') as mock_app, \
-             patch.object(self.client, 'wait_for_condition') as mock_wait:
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
             mock_app.create_namespaced_deployment.return_value = None
-            mock_wait.return_value = True
 
-            # Call the method with wait condition
-            self.client.apply_manifest_from_file(
-                manifest_path="/path/to/manifests",
-                wait_condition="condition=available",
-                wait_resource="deployment/test-deployment",
-                timeout_seconds=60
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify deployment was created
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="test-namespace",
+                body=deployment_manifest
             )
-
-            # Verify wait_for_condition was called
-            mock_wait.assert_called_once_with(
-                wait_resource="deployment/test-deployment",
-                wait_condition="condition=available",
-                namespace="default",
-                timeout_seconds=60,
-                wait_all=False
-            )
-
-    @patch('os.path.isdir')
-    @patch('os.path.isfile')
-    @patch('glob.glob')
-    @patch('yaml.safe_load_all')
-    @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_folder_wait_condition_timeout(self, _mock_open_file, mock_yaml_load,
-                                                                  mock_glob, mock_isfile, mock_isdir):
-        """Test apply_manifest_from_file with folder and wait condition timeout"""
-        # Setup mocks
-        mock_isfile.return_value = False
-        mock_isdir.return_value = True
-        mock_glob.return_value = ["/path/to/manifests/deployment.yaml"]
-
-        deployment_manifest = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
-            "spec": {"replicas": 1}
-        }
-
-        mock_yaml_load.return_value = [deployment_manifest]
-
-        # Mock the API client and wait_for_condition to return False (timeout)
-        with patch.object(self.client, 'app') as mock_app, \
-             patch.object(self.client, 'wait_for_condition') as mock_wait:
-            mock_app.create_namespaced_deployment.return_value = None
-            mock_wait.return_value = False
-
-            # Call the method with wait condition and expect exception
-            with self.assertRaises(Exception) as context:
-                self.client.apply_manifest_from_file(
-                    manifest_path="/path/to/manifests",
-                    wait_condition="condition=available",
-                    wait_resource="deployment/test-deployment",
-                    timeout_seconds=1
-                )
-
-            self.assertIn("Timeout waiting for condition", str(context.exception))
 
     @patch('os.path.isdir')
     @patch('os.path.isfile')

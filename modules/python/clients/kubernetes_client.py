@@ -686,19 +686,12 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
 
-    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None,
-                                wait_condition: str = None, wait_resource: str = None,
-                                namespace: str = "default", timeout_seconds: int = 300):
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
-        Optionally wait for a specific condition after applying the manifest(s).
         
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
-        :param wait_condition: Condition to wait for (e.g., 'condition=available')
-        :param wait_resource: Resource to wait for (e.g., 'deployment/myapp')
-        :param namespace: Namespace for the wait operation
-        :param timeout_seconds: Timeout for wait operation in seconds
         :return: None
         """
         try:
@@ -757,24 +750,6 @@ class KubernetesClient:
                 self._apply_single_manifest(manifest=manifest)
 
             logger.info(f"Successfully applied {len(manifests_to_apply)} manifest(s)")
-
-            # If wait conditions are specified, wait for them
-            if wait_condition and wait_resource:
-                logger.info(f"Waiting for resource '{wait_resource}' with condition '{wait_condition}'")
-
-                # Check if we're waiting for all resources of a type or specific resource
-                wait_all = "/" not in wait_resource
-
-                success = self.wait_for_condition(
-                    wait_resource=wait_resource,
-                    wait_condition=wait_condition,
-                    namespace=namespace,
-                    timeout_seconds=timeout_seconds,
-                    wait_all=wait_all
-                )
-
-                if not success:
-                    raise Exception(f"Timeout waiting for condition '{wait_condition}' on '{wait_resource}'")
 
         except Exception as e:
             logger.error(f"Error applying manifest(s): {str(e)}")
@@ -852,9 +827,9 @@ class KubernetesClient:
 
             if resource_type_lower in ['deployment', 'deployments']:
                 return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
-            else:
-                logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
-                return False
+
+            logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
+            return False
 
         except Exception as e:
             logger.error(f"Error checking resource condition: {str(e)}")
