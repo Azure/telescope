@@ -18,11 +18,10 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
-      - Identifier: SchedulingThroughput
-        Method: SchedulingThroughput
+      - Identifier: SchedulingThroughputPrometheus
+        Method: SchedulingThroughputPrometheus
         Params:
           action: start
-          labelSelector: group=job-scheduling
           timeout: 3h
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
@@ -67,8 +66,8 @@ steps:
         timeout: 3h
   - name: Collect measurements
     measurements:
-      - Identifier: SchedulingThroughput
-        Method: SchedulingThroughput
+      - Identifier: SchedulingThroughputPrometheus
+        Method: SchedulingThroughputPrometheus
         Params:
           action: gather
           timeout: 3h
