@@ -421,14 +421,23 @@ class KubernetesClient:
         logger.info(
             f"Executing command in pod '{pod_name}' in namespace '{namespace}': {' '.join(commands)}"
         )
-        resp = stream(self.api.connect_get_namespaced_pod_exec,
-                      name=pod_name,
-                      namespace=namespace,
-                      command=commands,
-                      container=container_name if container_name else None,
-                      stderr=True, stdin=False,
-                      stdout=True, tty=False,
-                      _preload_content=False)
+        # Build kwargs conditionally
+        stream_kwargs = {
+            "name": pod_name,
+            "namespace": namespace,
+            "command": commands,
+            "stderr": True,
+            "stdin": False,
+            "stdout": True,
+            "tty": False,
+            "_preload_content": False,
+        }
+
+        # Only include container if container_name is provided
+        if container_name:
+            stream_kwargs["container"] = container_name
+
+        resp = stream(self.api.connect_get_namespaced_pod_exec, **stream_kwargs)
 
         res = []
         file = None
