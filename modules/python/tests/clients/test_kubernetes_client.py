@@ -2633,8 +2633,8 @@ spec:
     @patch('time.time')
     def test_wait_for_condition_deployment_success(self, mock_time):
         """Test wait_for_condition for deployment - success case"""
-        # Mock time progression
-        mock_time.side_effect = [0, 1, 2]  # Start, check, success
+        # Mock time progression - provide enough values to avoid StopIteration
+        mock_time.side_effect = [0, 0, 1, 2, 2]  # start_time, timeout check, loop check, success, elapsed
 
         # Mock deployment with available condition
         mock_deployment = MagicMock()
@@ -2664,8 +2664,8 @@ spec:
     @patch('time.time')
     def test_wait_for_condition_deployment_timeout(self, mock_time):
         """Test wait_for_condition for deployment - timeout case"""
-        # Mock time progression to simulate timeout
-        mock_time.side_effect = [0, 2, 5, 6]  # Start, mid, timeout, after
+        # Mock time progression to simulate timeout - provide enough values
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]  # start_time, timeout calc, loop checks, timeout, elapsed
 
         # Mock deployment with unavailable condition
         mock_deployment = MagicMock()
@@ -2691,7 +2691,7 @@ spec:
     @patch('time.time')
     def test_wait_for_condition_all_deployments_success(self, mock_time):
         """Test wait_for_condition for all deployments - success case"""
-        mock_time.side_effect = [0, 1, 2]  # Start, check, success
+        mock_time.side_effect = [0, 0, 1, 2, 2]  # start_time, timeout check, loop check, success, elapsed
 
         # Mock multiple deployments, all available
         mock_deployment1 = MagicMock()
@@ -2727,7 +2727,7 @@ spec:
     @patch('time.time')
     def test_wait_for_condition_resource_not_found(self, mock_time):
         """Test wait_for_condition when resource is not found"""
-        mock_time.side_effect = [0, 2, 5, 6]
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]  # start_time, timeout calc, loop checks, timeout, elapsed
 
         # Mock 404 error (resource not found)
         api_exception = ApiException(status=404, reason="Not Found")
