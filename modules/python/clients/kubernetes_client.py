@@ -53,6 +53,7 @@ class KubernetesClient:
         return self.app
 
     def get_api_client(self):
+        """Get the CoreV1Api client."""
         return self.api
 
     def describe_node(self, node_name):
