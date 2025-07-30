@@ -217,7 +217,7 @@ data "azurerm_kubernetes_cluster" "aks" {
 }
 
 # Grant RBAC permissions for AKS access
-resource "terraform_data" "wait_for_role_propagation" {
+resource "terraform_data" "role_assignment" {
   for_each = local.role_assignments
 
   input = {
