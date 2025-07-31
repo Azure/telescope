@@ -3636,11 +3636,11 @@ spec:
             "spec": {"replicas": 1}
         }
 
-        # Should raise ValueError since Deployment requires namespace
-        with self.assertRaises(ValueError) as context:
+        # Should raise Exception (wrapping ValueError) since Deployment requires namespace
+        with self.assertRaises(Exception) as context:
             self.client.delete_manifest_from_file(manifest_dict=manifest)
 
-        self.assertEqual(str(context.exception), "Deployment requires a namespace")
+        self.assertIn("Deployment requires a namespace", str(context.exception))
 
     def test_delete_manifest_from_file_ignore_not_found(self):
         """Test deleting manifest with ignore_not_found=True when resource doesn't exist."""
