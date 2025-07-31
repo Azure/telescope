@@ -11,11 +11,6 @@ parameters:
 
 steps:
 
-- template: /steps/common/k8s-cost-analysis/collect-publish.yml
-  parameters:
-    cluster_context: automatic
-    cloud: ${{ parameters.cloud }}
-
 - template: /steps/common/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
     action: cleanup
