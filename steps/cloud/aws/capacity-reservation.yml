@@ -4,12 +4,11 @@ parameters:
 - name: instance_type
   type: string
 - name: instance_count
-  type: int
+  type: number
 - name: start_date
   type: string
 - name: duration_hours
-  type: int
-  default: 24
+  type: number
 - name: dry_run
   type: boolean
   default: true
