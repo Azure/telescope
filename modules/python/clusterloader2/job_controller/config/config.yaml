@@ -24,9 +24,8 @@ steps:
       - Identifier: SchedulingThroughput
         Method: SchedulingThroughput
         Params:
-          labelSelector: group=job-scheduling
-          measurmentInterval: 1s
           action: start
+          labelSelector: group=job-scheduling
       - Identifier: APIResponsivenessPrometheus
         Method: APIResponsivenessPrometheus
         Params:
