@@ -26,10 +26,6 @@ steps:
         Params:
           action: start
           labelSelector: group=job-scheduling
-      - Identifier: APIResponsivenessPrometheus
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: start
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
@@ -80,12 +76,6 @@ steps:
         Params:
           action: gather
           timeout: 3h
-      - Identifier: APIResponsivenessPrometheus
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: gather
-          timeout: 3h
-          useSimpleLatencyQuery: true
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
