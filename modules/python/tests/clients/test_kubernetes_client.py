@@ -3428,6 +3428,106 @@ spec:
             mock_api.create_namespaced_config_map.assert_called_once()
 
     @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_deployment_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with deployment manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/deployment.yaml")
+
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_service_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with service manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
+
+        self.assertIn("Service requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_statefulset_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with StatefulSet manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {
+                "name": "test-statefulset"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/statefulset.yaml")
+
+        self.assertIn("StatefulSet requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_configmap_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with ConfigMap manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-configmap"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/configmap.yaml")
+
+        self.assertIn("ConfigMap requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
     @patch('builtins.open', new_callable=mock_open)
     @patch('yaml.safe_load_all')
     def test_delete_manifest_from_file_single_file(self, mock_yaml_load, mock_file, mock_isfile):
@@ -3527,8 +3627,8 @@ spec:
                 body=unittest.mock.ANY
             )
 
-    def test_delete_manifest_from_file_with_namespace_injection(self):
-        """Test deleting manifest with default namespace injection."""
+    def test_delete_manifest_from_file_missing_namespace_error(self):
+        """Test deleting manifest that requires namespace but doesn't have one."""
         manifest = {
             "apiVersion": "apps/v1",
             "kind": "Deployment",
@@ -3536,22 +3636,11 @@ spec:
             "spec": {"replicas": 1}
         }
 
-        # Mock the API client
-        with patch.object(self.client, 'app') as mock_app:
-            mock_app.delete_namespaced_deployment.return_value = None
+        # Should raise ValueError since Deployment requires namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.delete_manifest_from_file(manifest_dict=manifest)
 
-            # Call the method with default namespace
-            self.client.delete_manifest_from_file(
-                manifest_dict=manifest,
-                default_namespace="default-namespace"
-            )
-
-            # Verify the deployment was deleted with injected namespace
-            mock_app.delete_namespaced_deployment.assert_called_once_with(
-                name="test-deployment",
-                namespace="default-namespace",
-                body=unittest.mock.ANY
-            )
+        self.assertEqual(str(context.exception), "Deployment requires a namespace")
 
     def test_delete_manifest_from_file_ignore_not_found(self):
         """Test deleting manifest with ignore_not_found=True when resource doesn't exist."""
@@ -3999,68 +4088,6 @@ spec:
 
         self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
 
-    def test_inject_namespace_if_needed_deployment(self):
-        """Test namespace injection for deployment without namespace."""
-        manifest = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": "test-deployment"},
-            "spec": {"replicas": 1}
-        }
-
-        # Call the helper method
-        # pylint: disable=protected-access
-        self.client._inject_namespace_if_needed(manifest, "default-namespace")
-
-        # Verify namespace was injected
-        self.assertEqual(manifest["metadata"]["namespace"], "default-namespace")
-
-    def test_inject_namespace_if_needed_existing_namespace(self):
-        """Test namespace injection when namespace already exists."""
-        manifest = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": "test-deployment", "namespace": "existing-namespace"},
-            "spec": {"replicas": 1}
-        }
-
-        # Call the helper method
-        # pylint: disable=protected-access
-        self.client._inject_namespace_if_needed(manifest, "default-namespace")
-
-        # Verify original namespace was preserved
-        self.assertEqual(manifest["metadata"]["namespace"], "existing-namespace")
-
-    def test_inject_namespace_if_needed_cluster_scoped(self):
-        """Test namespace injection for cluster-scoped resources (should not inject)."""
-        manifest = {
-            "apiVersion": "rbac.authorization.k8s.io/v1",
-            "kind": "ClusterRole",
-            "metadata": {"name": "test-clusterrole"},
-            "rules": []
-        }
-
-        # Call the helper method
-        # pylint: disable=protected-access
-        self.client._inject_namespace_if_needed(manifest, "default-namespace")
-
-        # Verify no namespace was injected for cluster-scoped resource
-        self.assertNotIn("namespace", manifest.get("metadata", {}))
-
-    def test_inject_namespace_if_needed_no_metadata(self):
-        """Test namespace injection when manifest has no metadata."""
-        manifest = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "spec": {"replicas": 1}
-        }
-
-        # Call the helper method
-        # pylint: disable=protected-access
-        self.client._inject_namespace_if_needed(manifest, "default-namespace")
-
-        # Verify metadata and namespace were created
-        self.assertEqual(manifest["metadata"]["namespace"], "default-namespace")
 
 if __name__ == '__main__':
     unittest.main()

@@ -817,29 +817,31 @@ class KubernetesClient:
 
         return manifests, sources
 
-    def _inject_namespace_if_needed(self, manifest: dict, default_namespace: str):
+    def _validate_namespace_if_required(self, manifest: dict):
         """
-        Inject namespace into manifest if not present and required.
+        Validate that namespace is present for resources that require it.
         
-        :param manifest: Manifest dictionary to potentially modify
-        :param default_namespace: Default namespace to inject
-        :return: None (modifies manifest in place)
+        :param manifest: Manifest dictionary to validate
+        :return: None
+        :raises ValueError: If namespace is required but not present
         """
-        if (default_namespace and
-            manifest.get('kind') in ['Service', 'Deployment', 'StatefulSet', 'DaemonSet', 'Pod', 'ConfigMap', 'Secret']):
-            if not manifest.get('metadata', {}).get('namespace'):
-                if 'metadata' not in manifest:
-                    manifest['metadata'] = {}
-                manifest['metadata']['namespace'] = default_namespace
-                logger.info(f"Injected namespace '{default_namespace}' into {manifest['kind']}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
+        kind = manifest.get('kind')
+        namespace_required_kinds = [
+            'Service', 'Deployment', 'StatefulSet', 'DaemonSet', 'Pod', 
+            'ConfigMap', 'Secret', 'ServiceAccount', 'Role', 'RoleBinding', 'MPIJob'
+        ]
 
-    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, default_namespace: str = None):
+        if kind in namespace_required_kinds:
+            namespace = manifest.get('metadata', {}).get('namespace')
+            if not namespace:
+                raise ValueError(f"{kind} requires a namespace")
+
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
         
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
-        :param default_namespace: Default namespace to inject into resources that don't specify one
         :return: None
         """
         try:
@@ -853,8 +855,8 @@ class KubernetesClient:
                 if not manifest:  # Skip empty documents
                     continue
 
-                # Inject default namespace if not present and required
-                self._inject_namespace_if_needed(manifest, default_namespace)
+                # Validate namespace is present for resources that require it
+                self._validate_namespace_if_required(manifest)
 
                 logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
                 self._apply_single_manifest(manifest=manifest)
@@ -865,14 +867,13 @@ class KubernetesClient:
             logger.error(f"Error applying manifest(s): {str(e)}")
             raise e
 
-    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, default_namespace: str = None, ignore_not_found: bool = True):
+    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, ignore_not_found: bool = True):
         """
         Delete Kubernetes manifest(s) from file path, folder path, or dictionary.
         Equivalent to 'kubectl delete -f <file/folder>'
         
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
-        :param default_namespace: Default namespace for resources that don't specify one
         :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
         :return: None
         """
@@ -888,8 +889,8 @@ class KubernetesClient:
                 if not manifest:  # Skip empty documents
                     continue
 
-                # Inject default namespace if not present and required
-                self._inject_namespace_if_needed(manifest, default_namespace)
+                # Validate namespace is present for resources that require it
+                self._validate_namespace_if_required(manifest)
 
                 logger.info(f"Deleting manifest {i+1}/{len(manifests_to_delete)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
                 self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found)
