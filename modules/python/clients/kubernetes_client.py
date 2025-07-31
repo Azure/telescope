@@ -52,6 +52,10 @@ class KubernetesClient:
         """Get the AppsV1Api client."""
         return self.app
 
+    def get_api_client(self):
+        """Get the CoreV1Api client."""
+        return self.api
+
     def describe_node(self, node_name):
         """Get detailed information about a specific node."""
         return self.api.read_node(node_name)
@@ -277,6 +281,66 @@ class KubernetesClient:
             time.sleep(10)
         raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
 
+    def wait_for_labeled_pods_ready(self, label_selector: str, namespace: str = "default", timeout_in_minutes: int = 5) -> None:
+        """
+        Wait for all pods with specific label to be ready
+
+        Args:
+            selector: Label selector for the pods
+            namespace: Namespace where pods exist
+            timeout: Timeout string (e.g., "300s", "5m")
+        """
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector
+        )
+        pod_count = len(pods)
+        if pod_count == 0:
+            raise Exception(f"No pods found with selector '{label_selector}' in namespace '{namespace}'")
+        self.wait_for_pods_ready(
+            pod_count=pod_count,
+            operation_timeout_in_minutes=timeout_in_minutes,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    def wait_for_pods_completed(self, label_selector, namespace="default", timeout=300):
+        """
+        Waits for pods with a specific label to complete successfully their execution within a specified timeout.
+        Raises an exception if the pods do not complete within the timeout.
+
+        :param label_selector: The label selector to filter pods.
+        :param namespace: The namespace where the pod is located (default: "default").
+        :param timeout: The timeout in seconds to wait for the pod to complete (default: 300 seconds).
+        :return: None
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            logger.info(
+                f"Waiting for pods with label '{label_selector}' in namespace '{namespace}' to complete..."
+            )
+            pods = self.get_pods_by_namespace(
+                namespace=namespace, label_selector=label_selector
+            )
+            if not pods:
+                raise Exception(f"No pods found with label '{label_selector}' in namespace '{namespace}'.")
+            all_completed = True
+            for pod in pods:
+                logger.info(f"Pod '{pod.metadata.name}' status: {pod.status.phase}")
+                if pod.status.phase != "Succeeded":
+                    all_completed = False
+                    break
+            if all_completed:
+                logger.info(
+                    f"All pods with label '{label_selector}' in namespace '{namespace}' have completed successfully."
+                )
+                return pods
+            sleep_time = 10
+            logger.info(f"Waiting for {sleep_time} seconds before checking pod status again.")
+            time.sleep(sleep_time)
+        raise Exception(
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete within {timeout} seconds."
+        )
+
     def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
         """
         Waits for a specific job to complete its execution within a specified timeout.
@@ -339,8 +403,7 @@ class KubernetesClient:
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
-    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str,
-                            *, dest_path: str = "", namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, command: str, container_name: str = "", dest_path: str = "", namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
@@ -355,14 +418,26 @@ class KubernetesClient:
             Exception: If an error occurs while executing the command in the pod.
         """
         commands = ['/bin/sh', '-c', command]
-        resp = stream(self.api.connect_get_namespaced_pod_exec,
-                      name=pod_name,
-                      namespace=namespace,
-                      command=commands,
-                      container=container_name,
-                      stderr=True, stdin=False,
-                      stdout=True, tty=False,
-                      _preload_content=False)
+        logger.info(
+            f"Executing command in pod '{pod_name}' in namespace '{namespace}': {' '.join(commands)}"
+        )
+        # Build kwargs conditionally
+        stream_kwargs = {
+            "name": pod_name,
+            "namespace": namespace,
+            "command": commands,
+            "stderr": True,
+            "stdin": False,
+            "stdout": True,
+            "tty": False,
+            "_preload_content": False,
+        }
+
+        # Only include container if container_name is provided
+        if container_name:
+            stream_kwargs["container"] = container_name
+
+        resp = stream(self.api.connect_get_namespaced_pod_exec, **stream_kwargs)
 
         res = []
         file = None
@@ -374,7 +449,8 @@ class KubernetesClient:
                 if resp.peek_stdout():
                     stdout = resp.read_stdout()
                     res.append(stdout)
-                    logger.info("STDOUT: %s", stdout)
+                    clean_stdout = stdout.rstrip('\n\r')
+                    logger.info("STDOUT: %s", clean_stdout)
                     if file:
                         file.write(stdout.encode('utf-8'))
                         logger.info("Saved response to file: %s", dest_path)
@@ -766,6 +842,45 @@ class KubernetesClient:
                     group=group,
                     version=version,
                     plural="stages",  # KWOK Stage resources use "stages" as plural
+                    body=manifest
+                )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.create_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        body=manifest
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    body=manifest
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
                     body=manifest
                 )
             else:
