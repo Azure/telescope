@@ -217,68 +217,12 @@ data "azurerm_kubernetes_cluster" "aks" {
 }
 
 # Grant RBAC permissions for AKS access
-resource "terraform_data" "wait_for_role_propagation" {
+resource "azurerm_role_assignment" "wait_for_role_propagation" {
   for_each = local.role_assignments
 
-  input = {
-    scope                = each.value.scope
-    role_definition_name = each.value.role_definition_name
-    principal_id         = each.value.principal_id
-    role_name            = each.value.role_name
-  }
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      # Check if role assignment already exists
-      existing_role=$(az role assignment list \
-        --scope "${self.input.scope}" \
-        --role "${self.input.role_definition_name}" \
-        --assignee "${self.input.principal_id}" \
-        --query "length(@)" -o tsv 2>/dev/null || echo "0")
-      
-      if [ "$existing_role" -eq 0 ]; then
-        echo "Creating ${self.input.role_name} role assignment..."
-        az role assignment create \
-          --scope "${self.input.scope}" \
-          --role "${self.input.role_definition_name}" \
-          --assignee "${self.input.principal_id}"
-      else
-        echo "${self.input.role_name} role assignment already exists, skipping creation..."
-      fi
-      
-      # Wait for role assignment propagation (hardcoded 30 attempts = 5 minutes)
-      max_attempts=30
-      role_name="${self.input.role_name}"
-      attempt=1
-      
-      echo "Waiting for $role_name role assignment to propagate..."
-      while [ $attempt -le $max_attempts ]; do
-        echo "Checking $role_name role propagation (attempt $attempt/$max_attempts)..."
-        
-        # Check if role assignment is active and propagated
-        active_role=$(az role assignment list \
-          --scope "${self.input.scope}" \
-          --role "${self.input.role_definition_name}" \
-          --assignee "${self.input.principal_id}" \
-          --include-inherited \
-          --query "length(@)" -o tsv 2>/dev/null || echo "0")
-        
-        if [ "$active_role" -gt 0 ]; then
-          echo "$role_name role assignment has propagated successfully."
-          exit 0
-        fi
-        
-        if [ $attempt -eq $max_attempts ]; then
-          echo "Error: $role_name role assignment has not propagated after 5 minutes."
-          exit 1
-        fi
-        
-        echo "Role assignment not yet propagated, waiting 10 seconds..."
-        sleep 10
-        attempt=$((attempt + 1))
-      done
-    EOT
-  }
+  scope                = each.value.scope
+  role_definition_name = each.value.role_definition_name
+  principal_id         = each.value.principal_id
 
   depends_on = [
     terraform_data.aks_cli,
