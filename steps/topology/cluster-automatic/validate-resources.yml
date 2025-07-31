@@ -19,7 +19,4 @@ steps:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
 
-- template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
-  parameters:
-    action: apply
-    cluster_context: automatic
+# TODO: apply aks-store-demo
