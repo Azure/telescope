@@ -7,7 +7,7 @@ parameters:
     default: "deploy"
 
 steps:
-  - template: /steps/common/aks-store-demo-python.yml
+  - template: /steps/common/aks-store-demo/single-cluster/aks-store-demo-python.yml
     parameters:
       cluster_context: ${{ parameters.cluster_context }}
       action: ${{ parameters.action }}
