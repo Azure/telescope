@@ -936,6 +936,7 @@ class KubernetesClient:
 
         condition_type_lower = condition_type.lower()
 
+        logger.info(f"Deployment '{deployment.metadata.name}' current status: {deployment.status}")
         for condition in deployment.status.conditions:
             if condition.type.lower() == condition_type_lower and condition.status == "True":
                 return True
