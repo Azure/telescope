@@ -98,10 +98,6 @@ class AKSStoreDemo(ABC):
         """Deploy AKS Store Demo components."""
 
     @abstractmethod
-    def validate(self):
-        """Validate AKS Store Demo deployment."""
-
-    @abstractmethod
     def cleanup(self):
         """Clean up AKS Store Demo resources."""
 
@@ -171,59 +167,6 @@ class SingleClusterDemo(AKSStoreDemo):
             logger.error(f"Failed to deploy AKS Store Demo: {e}")
             raise RuntimeError(f"Failed to deploy AKS Store Demo: {e}") from e
 
-    def validate(self):
-        """Validate the AKS Store Demo deployment."""
-        try:
-            logger.info("Validating AKS Store Demo deployment")
-
-            # Set context if specified
-            self.set_context()
-
-            # Check that all expected deployments are available
-            expected_deployments = [
-                "product-service",
-                "order-service", 
-                "rabbitmq",
-                "virtual-worker",
-                "virtual-customer"
-            ]
-
-            for deployment_name in expected_deployments:
-                try:
-                    result = execute_with_retries(
-                        self.k8s_client.wait_for_condition,
-                        resource_type="deployment",
-                        resource_name=deployment_name,
-                        wait_condition="condition=available",
-                        namespace=self.namespace,
-                        timeout_seconds=30
-                    )
-
-                    if result:
-                        logger.info(f"Deployment {deployment_name} is available")
-                    else:
-                        logger.warning(f"Deployment {deployment_name} is not available")
-
-                except Exception as e:
-                    logger.warning(f"Could not validate deployment {deployment_name}: {e}")
-
-            # Check pods are running
-            pods = execute_with_retries(
-                self.k8s_client.get_ready_pods_by_namespace,
-                namespace=self.namespace
-            )
-
-            logger.info(f"Found {len(pods)} ready pods in namespace {self.namespace}")
-
-            for pod in pods:
-                logger.info(f"Pod {pod.metadata.name} is ready")
-
-            logger.info("AKS Store Demo validation completed")
-
-        except Exception as e:
-            logger.error(f"Failed to validate AKS Store Demo: {e}")
-            raise RuntimeError(f"Failed to validate AKS Store Demo: {e}") from e
-
     def cleanup(self):
         """Clean up AKS Store Demo resources."""
         try:
@@ -288,9 +231,9 @@ def main():
     )
     parser.add_argument(
         "--action",
-        choices=["deploy", "validate", "cleanup"],
+        choices=["deploy", "cleanup"],
         required=True,
-        help="Action to perform: deploy, validate, or cleanup",
+        help="Action to perform: deploy or cleanup",
     )
 
     args = parser.parse_args()

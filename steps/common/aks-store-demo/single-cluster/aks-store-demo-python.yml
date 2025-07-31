@@ -21,14 +21,6 @@ steps:
         --namespace "${{ parameters.namespace }}" \
         --manifests-path "$MANIFESTS_PATH"
 
-      # Validate the AKS Store Demo only if action is deploy
-      if [ "${{ parameters.action }}" = "deploy" ]; then
-        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
-          --action validate \
-          --cluster-context "${{ parameters.cluster_context }}" \
-          --namespace "${{ parameters.namespace }}"
-      fi
-
     displayName: '${{ parameters.action }} AKS Store Demo'
     workingDirectory: modules/python
     env:
