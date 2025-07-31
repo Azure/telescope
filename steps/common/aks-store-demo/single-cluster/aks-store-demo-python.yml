@@ -14,7 +14,7 @@ steps:
       set -eo pipefail
 
       echo "Using AKS Store Demo Python class to ${{ parameters.action }}"
-      
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
         --action "${{ parameters.action }}" \
         --cluster-context "${{ parameters.cluster_context }}" \
