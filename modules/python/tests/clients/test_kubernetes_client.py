@@ -3225,6 +3225,7 @@ spec:
         with patch.object(self.client, 'app') as mock_app:
             mock_app.delete_namespaced_deployment.return_value = None
 
+            # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest)
 
             mock_app.delete_namespaced_deployment.assert_called_once_with(
@@ -3245,6 +3246,7 @@ spec:
         with patch.object(self.client, 'api') as mock_api:
             mock_api.delete_namespaced_service.return_value = None
 
+            # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest)
 
             mock_api.delete_namespaced_service.assert_called_once_with(
@@ -3266,6 +3268,7 @@ spec:
             mock_rbac_api = mock_rbac_api_class.return_value
             mock_rbac_api.delete_cluster_role.return_value = None
 
+            # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest)
 
             mock_rbac_api.delete_cluster_role.assert_called_once_with(
@@ -3283,6 +3286,7 @@ spec:
 
         # Should log warning but not raise exception
         try:
+            # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest)
         except Exception as e:
             self.fail(f"Method should not raise exception for unsupported kind: {e}")
@@ -3298,6 +3302,7 @@ spec:
 
         with patch.object(self.client, 'app') as mock_app:
             # Should return early without calling delete
+            # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest)
             mock_app.delete_namespaced_deployment.assert_not_called()
 
@@ -3334,6 +3339,7 @@ spec:
         mock_yaml_load.return_value = [manifest]
 
         # Call the helper method
+        # pylint: disable=protected-access
         manifests, sources = self.client._load_manifests_from_sources(manifest_path="/path/to/manifest.yaml")
 
         # Verify results
@@ -3360,6 +3366,7 @@ spec:
         mock_yaml_load.return_value = [manifest]
 
         # Call the helper method
+        # pylint: disable=protected-access
         manifests, sources = self.client._load_manifests_from_sources(manifest_path="/path/to/manifests")
 
         # Verify results
@@ -3377,6 +3384,7 @@ spec:
         }
 
         # Call the helper method
+        # pylint: disable=protected-access
         manifests, sources = self.client._load_manifests_from_sources(manifest_dict=manifest)
 
         # Verify results
@@ -3387,6 +3395,7 @@ spec:
     def test_load_manifests_from_sources_no_sources(self):
         """Test loading manifests with no sources provided."""
         with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
             self.client._load_manifests_from_sources()
 
         self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
@@ -3401,6 +3410,7 @@ spec:
         }
 
         # Call the helper method
+        # pylint: disable=protected-access
         self.client._inject_namespace_if_needed(manifest, "default-namespace")
 
         # Verify namespace was injected
@@ -3416,6 +3426,7 @@ spec:
         }
 
         # Call the helper method
+        # pylint: disable=protected-access
         self.client._inject_namespace_if_needed(manifest, "default-namespace")
 
         # Verify original namespace was preserved
@@ -3431,6 +3442,7 @@ spec:
         }
 
         # Call the helper method
+        # pylint: disable=protected-access
         self.client._inject_namespace_if_needed(manifest, "default-namespace")
 
         # Verify no namespace was injected for cluster-scoped resource
@@ -3445,6 +3457,7 @@ spec:
         }
 
         # Call the helper method
+        # pylint: disable=protected-access
         self.client._inject_namespace_if_needed(manifest, "default-namespace")
 
         # Verify metadata and namespace were created
