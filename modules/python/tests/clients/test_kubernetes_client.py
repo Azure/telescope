@@ -3045,5 +3045,410 @@ spec:
             mock_api.create_namespaced_service.assert_called_once()
             mock_api.create_namespaced_config_map.assert_called_once()
 
+    @patch('os.path.isfile')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_delete_manifest_from_file_single_file(self, mock_yaml_load, mock_file, mock_isfile):
+        """Test deleting a single manifest file."""
+        mock_isfile.return_value = True
+
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.return_value = None
+
+            # Call the method
+            self.client.delete_manifest_from_file(manifest_path="/path/to/manifest.yaml")
+
+            # Verify the file was opened and parsed
+            mock_file.assert_called_once_with("/path/to/manifest.yaml", 'r', encoding='utf-8')
+            mock_yaml_load.assert_called_once()
+
+            # Verify the deployment was deleted
+            mock_app.delete_namespaced_deployment.assert_called_once_with(
+                name="test-deployment",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    @patch('os.path.isdir')
+    @patch('glob.glob')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_delete_manifest_from_file_directory(self, mock_yaml_load, _mock_file, mock_glob, mock_isdir):
+        """Test deleting manifests from a directory."""
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml", "/path/to/manifests/service.yaml"]
+
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        # Return different manifests for each file
+        mock_yaml_load.side_effect = [[deployment_manifest], [service_manifest]]
+
+        # Mock both API clients
+        with patch.object(self.client, 'app') as mock_app, \
+             patch.object(self.client, 'api') as mock_api:
+
+            mock_app.delete_namespaced_deployment.return_value = None
+            mock_api.delete_namespaced_service.return_value = None
+
+            # Call the method
+            self.client.delete_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify glob was called to find YAML files
+            self.assertEqual(mock_glob.call_count, 2)  # Called for *.yaml and *.yml
+
+            # Verify both manifests were deleted (in reverse order)
+            mock_api.delete_namespaced_service.assert_called_once()
+            mock_app.delete_namespaced_deployment.assert_called_once()
+
+    def test_delete_manifest_from_file_dict_only(self):
+        """Test deleting a manifest from dictionary only."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_config_map.return_value = None
+
+            # Call the method
+            self.client.delete_manifest_from_file(manifest_dict=manifest)
+
+            # Verify the configmap was deleted
+            mock_api.delete_namespaced_config_map.assert_called_once_with(
+                name="test-configmap",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_manifest_from_file_with_namespace_injection(self):
+        """Test deleting manifest with default namespace injection."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment"},  # No namespace specified
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.return_value = None
+
+            # Call the method with default namespace
+            self.client.delete_manifest_from_file(
+                manifest_dict=manifest,
+                default_namespace="default-namespace"
+            )
+
+            # Verify the deployment was deleted with injected namespace
+            mock_app.delete_namespaced_deployment.assert_called_once_with(
+                name="test-deployment",
+                namespace="default-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_manifest_from_file_ignore_not_found(self):
+        """Test deleting manifest with ignore_not_found=True when resource doesn't exist."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the API client to raise 404 error
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.side_effect = ApiException(status=404, reason="Not Found")
+
+            # Call the method with ignore_not_found=True (default)
+            try:
+                self.client.delete_manifest_from_file(manifest_dict=manifest, ignore_not_found=True)
+            except Exception as e:
+                self.fail(f"Method should not raise exception when ignore_not_found=True: {e}")
+
+            # Verify the deployment deletion was attempted
+            mock_app.delete_namespaced_deployment.assert_called_once()
+
+    def test_delete_manifest_from_file_not_ignore_not_found(self):
+        """Test deleting manifest with ignore_not_found=False when resource doesn't exist."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the API client to raise 404 error
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.side_effect = ApiException(status=404, reason="Not Found")
+
+            # Call the method with ignore_not_found=False
+            with self.assertRaises(Exception):
+                self.client.delete_manifest_from_file(manifest_dict=manifest, ignore_not_found=False)
+
+            # Verify the deployment deletion was attempted
+            mock_app.delete_namespaced_deployment.assert_called_once()
+
+    def test_delete_single_manifest_deployment(self):
+        """Test deleting a single deployment manifest."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.return_value = None
+
+            self.client._delete_single_manifest(manifest)
+
+            mock_app.delete_namespaced_deployment.assert_called_once_with(
+                name="test-deployment",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_service(self):
+        """Test deleting a single service manifest."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_service.return_value = None
+
+            self.client._delete_single_manifest(manifest)
+
+            mock_api.delete_namespaced_service.assert_called_once_with(
+                name="test-service",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_cluster_scoped(self):
+        """Test deleting a cluster-scoped resource (ClusterRole)."""
+        manifest = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": "test-clusterrole"},
+            "rules": []
+        }
+
+        with patch('clients.kubernetes_client.client.RbacAuthorizationV1Api') as mock_rbac_api_class:
+            mock_rbac_api = mock_rbac_api_class.return_value
+            mock_rbac_api.delete_cluster_role.return_value = None
+
+            self.client._delete_single_manifest(manifest)
+
+            mock_rbac_api.delete_cluster_role.assert_called_once_with(
+                name="test-clusterrole",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_unsupported_kind(self):
+        """Test deleting an unsupported resource kind."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "UnsupportedKind",
+            "metadata": {"name": "test-resource", "namespace": "test-namespace"}
+        }
+
+        # Should log warning but not raise exception
+        try:
+            self.client._delete_single_manifest(manifest)
+        except Exception as e:
+            self.fail(f"Method should not raise exception for unsupported kind: {e}")
+
+    def test_delete_single_manifest_no_name(self):
+        """Test deleting a manifest without a resource name."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"namespace": "test-namespace"},  # No name
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Should return early without calling delete
+            self.client._delete_single_manifest(manifest)
+            mock_app.delete_namespaced_deployment.assert_not_called()
+
+    def test_delete_manifest_from_file_no_arguments(self):
+        """Test calling delete_manifest_from_file without any arguments."""
+        with self.assertRaises(ValueError) as context:
+            self.client.delete_manifest_from_file()
+
+        self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
+
+    @patch('os.path.exists')
+    def test_delete_manifest_from_file_nonexistent_path(self, mock_exists):
+        """Test deleting from a non-existent file path."""
+        mock_exists.return_value = False
+
+        with self.assertRaises(FileNotFoundError):
+            self.client.delete_manifest_from_file(manifest_path="/nonexistent/path")
+
+    # Test helper methods
+    @patch('os.path.isfile')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_load_manifests_from_sources_single_file(self, mock_yaml_load, _mock_file, mock_isfile):
+        """Test loading manifests from a single file."""
+        mock_isfile.return_value = True
+
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Call the helper method
+        manifests, sources = self.client._load_manifests_from_sources(manifest_path="/path/to/manifest.yaml")
+
+        # Verify results
+        self.assertEqual(len(manifests), 1)
+        self.assertEqual(manifests[0], manifest)
+        self.assertEqual(sources, ["file: /path/to/manifest.yaml"])
+
+    @patch('os.path.isdir')
+    @patch('glob.glob')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_load_manifests_from_sources_directory(self, mock_yaml_load, _mock_file, mock_glob, mock_isdir):
+        """Test loading manifests from a directory."""
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml"]
+
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Call the helper method
+        manifests, sources = self.client._load_manifests_from_sources(manifest_path="/path/to/manifests")
+
+        # Verify results
+        self.assertEqual(len(manifests), 1)
+        self.assertEqual(manifests[0], manifest)
+        self.assertEqual(sources, ["directory: /path/to/manifests (1 files)"])
+
+    def test_load_manifests_from_sources_dictionary(self):
+        """Test loading manifests from a dictionary."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+
+        # Call the helper method
+        manifests, sources = self.client._load_manifests_from_sources(manifest_dict=manifest)
+
+        # Verify results
+        self.assertEqual(len(manifests), 1)
+        self.assertEqual(manifests[0], manifest)
+        self.assertEqual(sources, ["dictionary"])
+
+    def test_load_manifests_from_sources_no_sources(self):
+        """Test loading manifests with no sources provided."""
+        with self.assertRaises(ValueError) as context:
+            self.client._load_manifests_from_sources()
+
+        self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
+
+    def test_inject_namespace_if_needed_deployment(self):
+        """Test namespace injection for deployment without namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment"},
+            "spec": {"replicas": 1}
+        }
+
+        # Call the helper method
+        self.client._inject_namespace_if_needed(manifest, "default-namespace")
+
+        # Verify namespace was injected
+        self.assertEqual(manifest["metadata"]["namespace"], "default-namespace")
+
+    def test_inject_namespace_if_needed_existing_namespace(self):
+        """Test namespace injection when namespace already exists."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "existing-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        # Call the helper method
+        self.client._inject_namespace_if_needed(manifest, "default-namespace")
+
+        # Verify original namespace was preserved
+        self.assertEqual(manifest["metadata"]["namespace"], "existing-namespace")
+
+    def test_inject_namespace_if_needed_cluster_scoped(self):
+        """Test namespace injection for cluster-scoped resources (should not inject)."""
+        manifest = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": "test-clusterrole"},
+            "rules": []
+        }
+
+        # Call the helper method
+        self.client._inject_namespace_if_needed(manifest, "default-namespace")
+
+        # Verify no namespace was injected for cluster-scoped resource
+        self.assertNotIn("namespace", manifest.get("metadata", {}))
+
+    def test_inject_namespace_if_needed_no_metadata(self):
+        """Test namespace injection when manifest has no metadata."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "spec": {"replicas": 1}
+        }
+
+        # Call the helper method
+        self.client._inject_namespace_if_needed(manifest, "default-namespace")
+
+        # Verify metadata and namespace were created
+        self.assertEqual(manifest["metadata"]["namespace"], "default-namespace")
+
 if __name__ == '__main__':
     unittest.main()
