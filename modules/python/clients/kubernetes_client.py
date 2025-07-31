@@ -53,6 +53,10 @@ class KubernetesClient:
         """Get the AppsV1Api client."""
         return self.app
 
+    def get_api_client(self):
+        """Get the CoreV1Api client."""
+        return self.api
+
     def describe_node(self, node_name):
         """Get detailed information about a specific node."""
         return self.api.read_node(node_name)
@@ -278,6 +282,66 @@ class KubernetesClient:
             time.sleep(10)
         raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
 
+    def wait_for_labeled_pods_ready(self, label_selector: str, namespace: str = "default", timeout_in_minutes: int = 5) -> None:
+        """
+        Wait for all pods with specific label to be ready
+
+        Args:
+            selector: Label selector for the pods
+            namespace: Namespace where pods exist
+            timeout: Timeout string (e.g., "300s", "5m")
+        """
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector
+        )
+        pod_count = len(pods)
+        if pod_count == 0:
+            raise Exception(f"No pods found with selector '{label_selector}' in namespace '{namespace}'")
+        self.wait_for_pods_ready(
+            pod_count=pod_count,
+            operation_timeout_in_minutes=timeout_in_minutes,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    def wait_for_pods_completed(self, label_selector, namespace="default", timeout=300):
+        """
+        Waits for pods with a specific label to complete successfully their execution within a specified timeout.
+        Raises an exception if the pods do not complete within the timeout.
+
+        :param label_selector: The label selector to filter pods.
+        :param namespace: The namespace where the pod is located (default: "default").
+        :param timeout: The timeout in seconds to wait for the pod to complete (default: 300 seconds).
+        :return: None
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            logger.info(
+                f"Waiting for pods with label '{label_selector}' in namespace '{namespace}' to complete..."
+            )
+            pods = self.get_pods_by_namespace(
+                namespace=namespace, label_selector=label_selector
+            )
+            if not pods:
+                raise Exception(f"No pods found with label '{label_selector}' in namespace '{namespace}'.")
+            all_completed = True
+            for pod in pods:
+                logger.info(f"Pod '{pod.metadata.name}' status: {pod.status.phase}")
+                if pod.status.phase != "Succeeded":
+                    all_completed = False
+                    break
+            if all_completed:
+                logger.info(
+                    f"All pods with label '{label_selector}' in namespace '{namespace}' have completed successfully."
+                )
+                return pods
+            sleep_time = 10
+            logger.info(f"Waiting for {sleep_time} seconds before checking pod status again.")
+            time.sleep(sleep_time)
+        raise Exception(
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete within {timeout} seconds."
+        )
+
     def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
         """
         Waits for a specific job to complete its execution within a specified timeout.
@@ -340,8 +404,7 @@ class KubernetesClient:
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
-    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str,
-                            *, dest_path: str = "", namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, command: str, container_name: str = "", dest_path: str = "", namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
@@ -356,14 +419,26 @@ class KubernetesClient:
             Exception: If an error occurs while executing the command in the pod.
         """
         commands = ['/bin/sh', '-c', command]
-        resp = stream(self.api.connect_get_namespaced_pod_exec,
-                      name=pod_name,
-                      namespace=namespace,
-                      command=commands,
-                      container=container_name,
-                      stderr=True, stdin=False,
-                      stdout=True, tty=False,
-                      _preload_content=False)
+        logger.info(
+            f"Executing command in pod '{pod_name}' in namespace '{namespace}': {' '.join(commands)}"
+        )
+        # Build kwargs conditionally
+        stream_kwargs = {
+            "name": pod_name,
+            "namespace": namespace,
+            "command": commands,
+            "stderr": True,
+            "stdin": False,
+            "stdout": True,
+            "tty": False,
+            "_preload_content": False,
+        }
+
+        # Only include container if container_name is provided
+        if container_name:
+            stream_kwargs["container"] = container_name
+
+        resp = stream(self.api.connect_get_namespaced_pod_exec, **stream_kwargs)
 
         res = []
         file = None
@@ -375,7 +450,8 @@ class KubernetesClient:
                 if resp.peek_stdout():
                     stdout = resp.read_stdout()
                     res.append(stdout)
-                    logger.info("STDOUT: %s", stdout)
+                    clean_stdout = stdout.rstrip('\n\r')
+                    logger.info("STDOUT: %s", clean_stdout)
                     if file:
                         file.write(stdout.encode('utf-8'))
                         logger.info("Saved response to file: %s", dest_path)
@@ -824,20 +900,44 @@ class KubernetesClient:
             logger.error(f"Error deleting manifest(s): {str(e)}")
             raise e
 
-    def wait_for_condition(self, resource_type: str, wait_condition: str, namespace: str = "default",
+    def wait_for_condition(self, resource_type: str, wait_condition_type: str, namespace: str = "default",
                           timeout_seconds: int = 300, resource_name: str = None, wait_all: bool = False):
         """
         Wait for a Kubernetes resource to meet a specific condition.
-        Equivalent to 'kubectl wait --for=<condition> <resource> --timeout=<timeout> -n <namespace>'
+        Equivalent to 'kubectl wait --for=condition=<wait_condition_type> <resource> --timeout=<timeout> -n <namespace>'
         
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
-        :param wait_condition: Condition to wait for (e.g., 'condition=available', 'condition=ready')
+        :param wait_condition_type: Condition type to wait for (e.g., 'available', 'ready', 'progressing')
         :param namespace: Namespace where the resource is located
         :param timeout_seconds: Maximum time to wait in seconds
         :param resource_name: Name of specific resource (None to wait for all)
         :param wait_all: If True, wait for all resources of the type (equivalent to --all flag)
         :return: True if condition is met, False if timeout
+        :raises ValueError: If wait_condition_type is invalid
         """
+        # Define valid condition types for different resource types
+        valid_conditions = {
+            'deployment': ['available', 'progressing', 'replicafailure', 'ready'],
+            'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
+            # Add more resource types as needed
+        }
+
+        # Validate wait_condition_type format and type
+        if not wait_condition_type or not isinstance(wait_condition_type, str):
+            raise ValueError("wait_condition_type must be a non-empty string")
+
+        wait_condition_lower = wait_condition_type.lower().strip()
+        resource_type_lower = resource_type.lower()
+
+        # Check if resource type is supported
+        if resource_type_lower not in valid_conditions:
+            raise ValueError(f"Resource type '{resource_type}' is not supported for condition checking")
+
+        # Check if condition type is valid for this resource type
+        if wait_condition_lower not in valid_conditions[resource_type_lower]:
+            valid_conditions_str = ', '.join(valid_conditions[resource_type_lower])
+            raise ValueError(f"Invalid condition '{wait_condition_type}' for resource type '{resource_type}'. Valid conditions: {valid_conditions_str}")
+
         try:
             start_time = time.time()
             timeout = start_time + timeout_seconds
@@ -851,13 +951,13 @@ class KubernetesClient:
             if resource_name:
                 resource_desc = f"{resource_type}/{resource_name}"
 
-            logger.info(f"Waiting for {resource_desc} with condition '{wait_condition}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
+            logger.info(f"Waiting for {resource_desc} with condition '{wait_condition_type}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
 
             while time.time() < timeout:
                 try:
-                    if self._check_resource_condition(resource_type, resource_name, wait_condition, namespace, wait_all):
+                    if self._check_resource_condition(resource_type, resource_name, wait_condition_lower, namespace, wait_all):
                         elapsed_time = time.time() - start_time
-                        logger.info(f"Condition '{wait_condition}' met for {resource_desc} after {elapsed_time:.2f} seconds")
+                        logger.info(f"Condition '{wait_condition_type}' met for {resource_desc} after {elapsed_time:.2f} seconds")
                         return True
 
                     time.sleep(5)  # Check every 5 seconds
@@ -868,32 +968,26 @@ class KubernetesClient:
 
             # Timeout reached
             elapsed_time = time.time() - start_time
-            logger.error(f"Timeout waiting for condition '{wait_condition}' on {resource_desc} after {elapsed_time:.2f} seconds")
+            logger.error(f"Timeout waiting for condition '{wait_condition_type}' on {resource_desc} after {elapsed_time:.2f} seconds")
             return False
 
         except Exception as e:
             logger.error(f"Error waiting for condition: {str(e)}")
             raise e
 
-    def _check_resource_condition(self, resource_type: str, resource_name: str, condition: str,
+    def _check_resource_condition(self, resource_type: str, resource_name: str, condition_type: str,
                                  namespace: str, wait_all: bool) -> bool:
         """
         Check if a specific resource condition is met.
         
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param resource_name: Name of specific resource (None if checking all)
-        :param condition: Condition to check (e.g., 'condition=available', 'condition=ready')
+        :param condition_type: Condition type to check (e.g., 'available', 'ready', 'progressing')
         :param namespace: Namespace of the resource
         :param wait_all: Whether to check all resources of the type
         :return: True if condition is met
         """
         try:
-            # Parse condition (e.g., 'condition=available' -> 'available')
-            if condition.startswith('condition='):
-                condition_type = condition.split('=', 1)[1]
-            else:
-                condition_type = condition
-
             resource_type_lower = resource_type.lower()
 
             if resource_type_lower in ['deployment', 'deployments']:
@@ -1033,6 +1127,45 @@ class KubernetesClient:
                     plural="stages",  # KWOK Stage resources use "stages" as plural
                     body=manifest
                 )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.create_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        body=manifest
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    body=manifest
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
+                    body=manifest
+                )
             else:
                 logger.warning("Unsupported resource kind: %s. Skipping...", kind)
 
@@ -1135,6 +1268,48 @@ class KubernetesClient:
                     group=group,
                     version=version,
                     plural="stages",  # KWOK Stage resources use "stages" as plural
+                    name=resource_name,
+                    body=delete_options
+                )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.delete_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        name=resource_name,
+                        body=delete_options
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    name=resource_name,
+                    body=delete_options
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
                     name=resource_name,
                     body=delete_options
                 )

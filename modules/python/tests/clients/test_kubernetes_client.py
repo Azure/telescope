@@ -205,6 +205,17 @@ class TestKubernetesClient(unittest.TestCase):
         # Verify it's the expected type (AppsV1Api)
         self.assertEqual(type(result).__name__, 'AppsV1Api')
 
+    def test_get_api_client_returns_api_attribute(self):
+        """ Test that get_api_client returns the api attribute from the client."""
+        # Execute
+        result = self.client.get_api_client()
+
+        # Verify - the result should be the same object as client.api
+        self.assertIs(result, self.client.api)
+
+        # Verify it's the expected type (AppsV1Api)
+        self.assertEqual(type(result).__name__, 'CoreV1Api')
+
     @patch('kubernetes.client.CoreV1Api.read_node')
     def test_describe_node(self, mock_read_node):
         """Test that describe_node calls the Kubernetes API read_node method
@@ -1230,6 +1241,166 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertGreaterEqual(mock_get_ready_pods.call_count, 1)
         mock_sleep.assert_called()
 
+    @patch("clients.kubernetes_client.KubernetesClient.wait_for_pods_ready")
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_labeled_pods_ready_success(
+        self, mock_get_pods, mock_wait_for_pods
+    ):
+        """Test waiting for labeled pods to be ready - success case."""
+        label_selector = "app=test-app"
+        namespace = "test-namespace"
+        timeout_in_minutes = 5
+
+        # Mock pods found with the label selector
+        mock_pods = ["pod1", "pod2", "pod3"]
+        mock_get_pods.return_value = mock_pods
+        mock_wait_for_pods.return_value = None
+
+        # Execute
+        self.client.wait_for_labeled_pods_ready(
+            label_selector=label_selector,
+            namespace=namespace,
+            timeout_in_minutes=timeout_in_minutes,
+        )
+
+        # Verify
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+        mock_wait_for_pods.assert_called_once_with(
+            pod_count=3,
+            operation_timeout_in_minutes=timeout_in_minutes,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_labeled_pods_ready_no_pods_found(self, mock_get_pods):
+        """Test waiting for labeled pods when no pods are found with the selector."""
+        label_selector = "app=nonexistent-app"
+        namespace = "test-namespace"
+
+        # Mock no pods found
+        mock_get_pods.return_value = []
+
+        # Execute and verify exception
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_labeled_pods_ready(
+                label_selector=label_selector, namespace=namespace
+            )
+
+        expected_message = (
+            f"No pods found with selector '{label_selector}' in namespace '{namespace}'"
+        )
+        self.assertEqual(str(context.exception), expected_message)
+
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @patch("clients.kubernetes_client.KubernetesClient.wait_for_pods_ready")
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_labeled_pods_ready_wait_fails(
+        self, mock_get_pods, mock_wait_for_pods
+    ):
+        """Test waiting for labeled pods when wait_for_pods_ready fails."""
+        label_selector = "app=failing-app"
+        namespace = "test-namespace"
+
+        # Mock pods found
+        mock_pods = ["pod1", "pod2"]
+        mock_get_pods.return_value = mock_pods
+
+        # Mock wait_for_pods_ready raising an exception
+        expected_error = "Only 1 pods are ready, expected 2 pods!"
+        mock_wait_for_pods.side_effect = Exception(expected_error)
+
+        # Execute and verify exception is propagated
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_labeled_pods_ready(
+                label_selector=label_selector, namespace=namespace
+            )
+
+        self.assertEqual(str(context.exception), expected_error)
+
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+        mock_wait_for_pods.assert_called_once_with(
+            pod_count=2,
+            operation_timeout_in_minutes=5,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_success(self, mock_get_pods, mock_sleep):
+        """Test wait_for_pods_completed when all pods complete successfully."""
+        label_selector = "app=test"
+        namespace = "default"
+        pod1 = self._create_pod(
+            namespace="default",
+            name="pod1",
+            phase="Pending",
+        )
+        pod2 = self._create_pod(
+            namespace="default",
+            name="pod2",
+            phase="Succeeded",
+        )
+        pod3 = self._create_pod(
+            namespace="default",
+            name="pod3",
+            phase="Succeeded",
+        )
+        mock_get_pods.side_effect = [
+            [pod1, pod2, pod3],
+            [pod2, pod3],
+        ]
+        result = self.client.wait_for_pods_completed(
+            label_selector, namespace, timeout=1
+        )
+        self.assertEqual(result, [pod2, pod3])
+        self.assertGreaterEqual(mock_get_pods.call_count, 2)
+        mock_sleep.assert_called()
+
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_timeout(self, mock_get_pods, mock_sleep):
+        """Test wait_for_pods_completed raises exception on timeout."""
+        label_selector = "app=test"
+        namespace = "default"
+        pod1 = self._create_pod(
+            namespace="default",
+            name="pod1",
+            phase="Pending",
+        )
+        mock_get_pods.return_value = [pod1]
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_pods_completed(label_selector, namespace, timeout=0.01)
+        self.assertIn(
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete",
+            str(context.exception),
+        )
+        mock_sleep.assert_called()
+
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_no_pods(self, mock_get_pods):
+        """Test wait_for_pods_completed raises exception if no pods found."""
+        label_selector = "app=none"
+        namespace = "default"
+        mock_get_pods.return_value = []
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_pods_completed(label_selector, namespace, timeout=1)
+        self.assertIn(
+            f"No pods found with label '{label_selector}' in namespace '{namespace}'.",
+            str(context.exception),
+        )
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+
     @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
     def test_wait_for_job_completed_success(self, mock_read_job):
         """Test waiting for job completion when job succeeds."""
@@ -1324,7 +1495,6 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
         self.assertEqual(context.exception.__cause__.status, 404)
         mock_read_job.assert_called()
-
 
     @patch('kubernetes.client.BatchV1Api.read_namespaced_job')
     def test_wait_for_job_completed_unexpected_api_exception(
@@ -1773,7 +1943,6 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertTrue(result["gpu-node-1"]["device_status"])
         mock_sleep.assert_called()
 
-
     @patch("clients.kubernetes_client.KubernetesClient.get_pod_logs")
     @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")
     @patch("kubernetes.client.CoreV1Api.read_namespaced_pod")
@@ -2174,6 +2343,83 @@ metadata:
             group="kwok.x-k8s.io",
             version="v1alpha1",
             plural="stages",
+            body=manifest
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_namespaced_custom_object')
+    def test_apply_single_manifest_mpi_job(self, mock_create_custom_object):
+        """Test _apply_single_manifest with MPIJob custom resource."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job", "namespace": "kubeflow"},
+            "spec": {
+                "slotsPerWorker": 1,
+                "runPolicy": {},
+                "mpiReplicaSpecs": {}
+            }
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="kubeflow.org",
+            version="v2beta1",
+            namespace="kubeflow",
+            plural="mpijobs",
+            body=manifest
+        )
+
+    def test_apply_single_manifest_mpi_job_no_namespace(self):
+        """Test _apply_single_manifest with MPIJob missing namespace."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job"},
+            "spec": {}
+        }
+
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertEqual(str(context.exception), "MPIJob requires a namespace")
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_apply_single_manifest_node_feature_rule(self, mock_create_custom_object):
+        """Test _apply_single_manifest with NodeFeatureRule custom resource."""
+        manifest = {
+            "apiVersion": "nfd.k8s-sigs.io/v1alpha1",
+            "kind": "NodeFeatureRule",
+            "metadata": {"name": "test-node-feature-rule"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="nfd.k8s-sigs.io",
+            version="v1alpha1",
+            plural="nodefeaturerules",
+            body=manifest
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_apply_single_manifest_nic_cluster_policy(self, mock_create_custom_object):
+        """Test _apply_single_manifest with NicClusterPolicy custom resource."""
+        manifest = {
+            "apiVersion": "mellanox.com/v1alpha1",
+            "kind": "NicClusterPolicy",
+            "metadata": {"name": "nic-cluster-policy"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="mellanox.com",
+            version="v1alpha1",
+            plural="nicclusterpolicies",
             body=manifest
         )
 
@@ -2651,7 +2897,7 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name="test-deployment",
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=5
             )
@@ -2683,7 +2929,7 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name="test-deployment",
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=1
             )
@@ -2708,7 +2954,7 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name=None,  # No specific name = all deployments
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=5,
                 wait_all=True
@@ -2718,15 +2964,16 @@ spec:
 
     def test_wait_for_condition_unsupported_resource_type(self):
         """Test wait_for_condition with unsupported resource type"""
-        result = self.client.wait_for_condition(
-            resource_type="pod",
-            resource_name="test",
-            wait_condition="condition=ready",
-            namespace="test-namespace",
-            timeout_seconds=1
-        )
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="pod",
+                resource_name="test",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
 
-        self.assertFalse(result)
+        self.assertIn("Resource type 'pod' is not supported", str(context.exception))
 
     @patch('time.time')
     def test_wait_for_condition_resource_not_found(self, mock_time):
@@ -2743,12 +2990,117 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name="nonexistent",
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=1
             )
 
             self.assertFalse(result)
+
+    def test_wait_for_condition_invalid_condition_type(self):
+        """Test wait_for_condition with invalid condition type"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="invalid_condition",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("Invalid condition 'invalid_condition' for resource type 'deployment'", str(context.exception))
+        self.assertIn("Valid conditions: available, progressing, replicafailure, ready", str(context.exception))
+
+    def test_wait_for_condition_empty_condition(self):
+        """Test wait_for_condition with empty condition"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("wait_condition_type must be a non-empty string", str(context.exception))
+
+    def test_wait_for_condition_none_condition(self):
+        """Test wait_for_condition with None condition"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type=None,
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("wait_condition_type must be a non-empty string", str(context.exception))
+
+    def test_wait_for_condition_valid_condition_types(self):
+        """Test wait_for_condition with various valid condition types"""
+        valid_conditions = [
+            "available",
+            "ready", 
+            "progressing",
+            "replicafailure"
+        ]
+
+        # Mock deployment with all conditions to make tests pass quickly
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True"),
+            MagicMock(type="Ready", status="True"),
+            MagicMock(type="Progressing", status="True"),
+            MagicMock(type="ReplicaFailure", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.time', side_effect=[0, 0, 1, 2, 2] * len(valid_conditions)), \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            for condition in valid_conditions:
+                with self.subTest(condition=condition):
+                    result = self.client.wait_for_condition(
+                        resource_type="deployment",
+                        resource_name="test-deployment",
+                        wait_condition_type=condition,
+                        namespace="test-namespace",
+                        timeout_seconds=5
+                    )
+                    self.assertTrue(result)
+
+    def test_wait_for_condition_case_insensitive(self):
+        """Test wait_for_condition with different case conditions"""
+        case_variations = [
+            "Available",
+            "AVAILABLE", 
+            "available",
+            "aVaiLaBle"
+        ]
+
+        # Mock deployment with available condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.time', side_effect=[0, 0, 1, 2, 2] * len(case_variations)), \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            for condition in case_variations:
+                with self.subTest(condition=condition):
+                    result = self.client.wait_for_condition(
+                        resource_type="deployment",
+                        resource_name="test-deployment",
+                        wait_condition_type=condition,
+                        namespace="test-namespace",
+                        timeout_seconds=5
+                    )
+                    self.assertTrue(result)
 
     # Tests for the enhanced apply_manifest_from_file method with folder support
     @patch('os.path.isdir')
@@ -3305,6 +3657,187 @@ spec:
             # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest)
             mock_app.delete_namespaced_deployment.assert_not_called()
+
+    def test_delete_single_manifest_mpi_job(self):
+        """Test deleting a single MPIJob custom resource."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job", "namespace": "kubeflow"},
+            "spec": {
+                "slotsPerWorker": 1,
+                "runPolicy": {},
+                "mpiReplicaSpecs": {}
+            }
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_namespaced_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_namespaced_custom_object.assert_called_once_with(
+                group="kubeflow.org",
+                version="v2beta1",
+                namespace="kubeflow",
+                plural="mpijobs",
+                name="test-mpi-job",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_mpi_job_no_namespace(self):
+        """Test deleting MPIJob without namespace raises error."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job"},
+            "spec": {}
+        }
+
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+        self.assertIn("MPIJob requires a namespace", str(context.exception))
+
+    def test_delete_single_manifest_node_feature_rule(self):
+        """Test deleting a single NodeFeatureRule custom resource."""
+        manifest = {
+            "apiVersion": "nfd.k8s-sigs.io/v1alpha1",
+            "kind": "NodeFeatureRule",
+            "metadata": {"name": "test-node-feature-rule"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="nfd.k8s-sigs.io",
+                version="v1alpha1",
+                plural="nodefeaturerules",
+                name="test-node-feature-rule",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_nic_cluster_policy(self):
+        """Test deleting a single NicClusterPolicy custom resource."""
+        manifest = {
+            "apiVersion": "mellanox.com/v1alpha1",
+            "kind": "NicClusterPolicy",
+            "metadata": {"name": "nic-cluster-policy"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="mellanox.com",
+                version="v1alpha1",
+                plural="nicclusterpolicies",
+                name="nic-cluster-policy",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_kwok_stage(self):
+        """Test deleting a single KWOK Stage custom resource."""
+        manifest = {
+            "apiVersion": "kwok.x-k8s.io/v1alpha1",
+            "kind": "Stage",
+            "metadata": {"name": "test-stage"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                plural="stages",
+                name="test-stage",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_api_exception_404_ignore_not_found_true(self):
+        """Test delete with 404 error when ignore_not_found=True."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 404 not found error
+            api_exception = ApiException(status=404, reason="Not Found")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should not raise an exception, just log and continue
+            with patch('clients.kubernetes_client.logger') as mock_logger:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest, ignore_not_found=True)
+                mock_logger.info.assert_called_once_with(
+                    "Resource %s/%s not found, skipping deletion",
+                    "Deployment", "test-deployment"
+                )
+
+    def test_delete_single_manifest_api_exception_404_ignore_not_found_false(self):
+        """Test delete with 404 error when ignore_not_found=False."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 404 not found error
+            api_exception = ApiException(status=404, reason="Not Found")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest, ignore_not_found=False)
+
+            self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
+
+    def test_delete_single_manifest_api_exception_non_404(self):
+        """Test delete with API exception other than 404."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 403 forbidden error
+            api_exception = ApiException(status=403, reason="Forbidden")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest)
+
+            self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
 
     def test_delete_manifest_from_file_no_arguments(self):
         """Test calling delete_manifest_from_file without any arguments."""

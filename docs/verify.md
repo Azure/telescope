@@ -38,9 +38,14 @@ pytest tests/iperf3/ -v   # Network performance tests
 # Delete kwok cluster
 kwokctl delete cluster --name kwok-test
 
+# Go back to root directory
+popd
+
+# Run lint
+ pylint --rcfile=.pylintrc --ignore=site-packages modules/python
+
 # Deactivate virtual environment
 deactivate
-popd
 ```
 
 ### Terraform Module
