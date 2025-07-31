@@ -122,7 +122,7 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._install_operator")
     def test_install_network_operator_success(
-        self, mock_install, mock_k8s_client, mock_sleep
+        self, mock_install, mock_k8s_client, _mock_sleep
     ):
         """Test successful network operator installation."""
         mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
@@ -164,7 +164,7 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._install_operator")
     def test_install_gpu_operator_success(
-        self, mock_install, mock_k8s_client, mock_sleep
+        self, mock_install, mock_k8s_client, _mock_sleep
     ):
         """Test successful GPU operator installation."""
         mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
@@ -182,9 +182,7 @@ class TestGPU(unittest.TestCase):
 
     @patch("time.sleep")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
-    def test_install_mpi_operator_success(
-        self, mock_k8s_client, mock_sleep
-    ):
+    def test_install_mpi_operator_success(self, mock_k8s_client, _mock_sleep):
         """Test successful MPI operator installation."""
         mock_k8s_client.apply_manifest_from_url.return_value = None
         mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
@@ -248,7 +246,7 @@ class TestGPU(unittest.TestCase):
     @patch("time.sleep")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._create_topology_configmap")
-    def test_execute_azure_provider(self, mock_topology, mock_k8s_client, mock_sleep):
+    def test_execute_azure_provider(self, mock_topology, mock_k8s_client, _mock_sleep):
         """Test execute function with Azure provider."""
         mock_pod = MagicMock()
         mock_pod.metadata.name = "test-pod"
@@ -343,7 +341,7 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.configure")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_configure_command(
-        self, mock_args, mock_configure, mock_execute, mock_collect
+        self, mock_args, mock_configure, _mock_execute, _mock_collect
     ):
         """Test main function with configure command."""
         mock_args.return_value = MagicMock(
@@ -368,7 +366,7 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.configure")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_execute_command(
-        self, mock_args, mock_configure, mock_execute, mock_collect
+        self, mock_args, _mock_configure, mock_execute, _mock_collect
     ):
         """Test main function with execute command."""
         mock_args.return_value = MagicMock(
@@ -393,7 +391,7 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.configure")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_collect_command(
-        self, mock_args, mock_configure, mock_execute, mock_collect
+        self, mock_args, _mock_configure, _mock_execute, mock_collect
     ):
         """Test main function with collect command."""
         mock_args.return_value = MagicMock(
@@ -417,7 +415,7 @@ class TestGPU(unittest.TestCase):
     @patch("argparse.ArgumentParser.parse_args")
     @patch("argparse.ArgumentParser.print_help")
     def test_main_no_command(
-        self, mock_help, mock_args, mock_configure, mock_execute, mock_collect
+        self, mock_help, mock_args, _mock_configure, _mock_execute, _mock_collect
     ):
         """Test main function with no command specified."""
         mock_args.return_value = MagicMock(command=None)
@@ -425,9 +423,9 @@ class TestGPU(unittest.TestCase):
         main()
 
         mock_help.assert_called_once()
-        mock_configure.assert_not_called()
-        mock_execute.assert_not_called()
-        mock_collect.assert_not_called()
+        _mock_configure.assert_not_called()
+        _mock_execute.assert_not_called()
+        _mock_collect.assert_not_called()
 
 
 if __name__ == "__main__":

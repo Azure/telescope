@@ -11,4 +11,4 @@ spec:
         - feature: pci.device
           matchExpressions:
             # Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
-            device: { op: In, value: ["101c", "101e"] }
+            device: {op: In, value: ["101c", "101e"]}
