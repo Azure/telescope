@@ -81,7 +81,7 @@ eks_config_list = [{
       max_size       = 1
       desired_size   = 1
       capacity_type  = "ON_DEMAND"
-      labels         = { 
+      labels = {
         "prometheus" = "true"
       }
     },

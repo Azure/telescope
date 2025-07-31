@@ -33,12 +33,12 @@ aks_config_list = [
         node_labels          = { "prometheus" = "true" }
       },
       {
-        name        = "kwokpool"
-        node_count  = 1
+        name                 = "kwokpool"
+        node_count           = 1
         auto_scaling_enabled = false
-        vm_size     = "Standard_D64_v3"
+        vm_size              = "Standard_D64_v3"
         max_pods             = 110
-        node_labels = { "kwok" = "true" }
+        node_labels          = { "kwok" = "true" }
       }
     ]
     kubernetes_version = "1.33"
