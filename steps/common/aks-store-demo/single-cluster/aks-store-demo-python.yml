@@ -8,9 +8,6 @@ parameters:
   - name: namespace
     type: string
     default: "default"
-  - name: scenario_path
-    type: string
-    default: ""
 
 steps:
   - script: |
@@ -18,15 +15,21 @@ steps:
 
       echo "Using AKS Store Demo Python class to ${{ parameters.action }}"
       
-      # Run the AKS Store Demo Python script
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
         --action "${{ parameters.action }}" \
         --cluster-context "${{ parameters.cluster_context }}" \
         --namespace "${{ parameters.namespace }}" \
-        --scenario-path "${{ parameters.scenario_path }}"
+        --manifests-path "$MANIFESTS_PATH"
+
+      # Validate the AKS Store Demo only if action is deploy
+      if [ "${{ parameters.action }}" = "deploy" ]; then
+        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
+          --action validate \
+          --cluster-context "${{ parameters.cluster_context }}" \
+          --namespace "${{ parameters.namespace }}"
+      fi
 
     displayName: '${{ parameters.action }} AKS Store Demo'
     env:
-      SCENARIO_TYPE: $(SCENARIO_TYPE)
-      SCENARIO_NAME: $(SCENARIO_NAME)
+      MANIFESTS_PATH: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests
       PYTHON_SCRIPT: $(Pipeline.Workspace)/s/modules/python/aks_store_demo/aks_store_demo.py

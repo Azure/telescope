@@ -16,6 +16,7 @@ steps:
     cluster_context: automatic
     cloud: ${{ parameters.cloud }}
 
-- template: /steps/engine/aks-store-demo/single-cluster/configure-demo.yml
+- template: /steps/common/aks-store-demo/single-cluster/configure-demo.yml
   parameters:
-    action: delete
+    action: clean
+    cluster_context: automatic
