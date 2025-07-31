@@ -247,8 +247,6 @@ def main():
 
     if args.action == "deploy":
         demo.deploy()
-    elif args.action == "validate":
-        demo.validate()
     elif args.action == "cleanup":
         demo.cleanup()
 
