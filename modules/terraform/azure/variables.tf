@@ -232,7 +232,6 @@ variable "aks_cli_config_list" {
     aks_custom_headers            = optional(list(string), [])
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
-    grant_rbac_permissions        = optional(bool, false)
 
     default_node_pool = optional(object({
       name        = string
