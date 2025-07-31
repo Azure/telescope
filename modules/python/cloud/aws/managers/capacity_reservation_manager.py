@@ -10,7 +10,9 @@ The module follows the telescope project patterns and integrates with boto3 for 
 """
 
 import logging
+import argparse
 from datetime import datetime
+
 from typing import Dict, List, Optional
 
 import boto3
@@ -333,8 +335,6 @@ class CapacityReservationManager:
 
 
 if __name__ == "__main__":
-    import argparse
-    from datetime import datetime
     
     # Set up command line argument parsing
     parser = argparse.ArgumentParser(description='AWS Capacity Reservation Manager - Find and Purchase Capacity Blocks')
