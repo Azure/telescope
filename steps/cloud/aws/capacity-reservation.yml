@@ -18,13 +18,20 @@ steps:
 - script: |
     set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
-      --region $REGION \
-      --instance-type $INSTANCE_TYPE \
-      --instance-count $INSTANCE_COUNT \
-      --start-date $START_DATE \
-      --duration-hours $DURATION_HOURS \
-      --dry-run
+    ARGS=(
+      "$PYTHON_SCRIPT_FILE"
+      --region "$REGION"
+      --instance-type "$INSTANCE_TYPE"
+      --instance-count "$INSTANCE_COUNT"
+      --start-date "$START_DATE"
+      --duration-hours "$DURATION_HOURS"
+    )
+    if [[ "${DRY_RUN,,}" == "true" ]]; then
+      ARGS+=(--dry-run)
+    fi
+    # Run the command
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "${ARGS[@]}"
+
   workingDirectory: modules/python
   env:
     REGION: ${{ parameters.region }}
