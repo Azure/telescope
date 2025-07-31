@@ -138,7 +138,7 @@ class TestAKSStoreDemo(unittest.TestCase):
     @patch('aks_store_demo.aks_store_demo.execute_with_retries')
     def test_apply_manifest_basic(self, mock_execute):
         """Test basic manifest application without wait conditions."""
-  
+
         @dataclass
         class ConcreteDemo(AKSStoreDemo):
             def deploy(self):
@@ -154,7 +154,7 @@ class TestAKSStoreDemo(unittest.TestCase):
         mock_execute.assert_called_once_with(
             mock_client.apply_manifest_from_file,
             manifest_path="/path/to/manifest.yaml",
-            default_namespace="test-namespace"
+            namespace="test-namespace"
         )
 
     @patch('aks_store_demo.aks_store_demo.execute_with_retries')
@@ -185,7 +185,7 @@ class TestAKSStoreDemo(unittest.TestCase):
             call(
                 mock_client.apply_manifest_from_file,
                 manifest_path="/path/to/manifest.yaml",
-                default_namespace="test-namespace"
+                namespace="test-namespace"
             ),
             call(
                 mock_client.wait_for_condition,
@@ -227,7 +227,7 @@ class TestAKSStoreDemo(unittest.TestCase):
             call(
                 mock_client.apply_manifest_from_file,
                 manifest_path="/path/to/manifest.yaml",
-                default_namespace="test-namespace"
+                namespace="test-namespace"
             ),
             call(
                 mock_client.wait_for_condition,
@@ -417,19 +417,19 @@ class TestSingleClusterDemo:
             call(
                 self.mock_client.delete_manifest_from_file,
                 manifest_path="/test/manifests/aks-store-virtual-customer.yaml",
-                default_namespace="test-namespace",
+                namespace="test-namespace",
                 ignore_not_found=True
             ),
             call(
                 self.mock_client.delete_manifest_from_file,
                 manifest_path="/test/manifests/aks-store-virtual-worker.yaml",
-                default_namespace="test-namespace",
+                namespace="test-namespace",
                 ignore_not_found=True
             ),
             call(
                 self.mock_client.delete_manifest_from_file,
                 manifest_path="/test/manifests/aks-store-all-in-one.yaml",
-                default_namespace="test-namespace",
+                namespace="test-namespace",
                 ignore_not_found=True
             )
         ]

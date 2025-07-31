@@ -61,7 +61,7 @@ class AKSStoreDemo(ABC):
             execute_with_retries(
                 self.k8s_client.apply_manifest_from_file,
                 manifest_path=manifest_file,
-                default_namespace=self.namespace
+                namespace=self.namespace
             )
 
             # Wait for condition if specified
@@ -191,7 +191,7 @@ class SingleClusterDemo(AKSStoreDemo):
                     execute_with_retries(
                         self.k8s_client.delete_manifest_from_file,
                         manifest_path=manifest_file,
-                        default_namespace=self.namespace,
+                        namespace=self.namespace,
                         ignore_not_found=True
                     )
                     logger.info(f"Successfully deleted resources from: {manifest_file}")
