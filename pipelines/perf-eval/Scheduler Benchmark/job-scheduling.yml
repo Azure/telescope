@@ -34,7 +34,7 @@ stages:
       - northeurope
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250423"
+        image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: job_controller
       matrix:
         small:
@@ -59,7 +59,7 @@ stages:
       - northeurope
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250423"
+        image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: job_controller
       matrix:
         medium:
@@ -84,7 +84,7 @@ stages:
       - northeurope
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250423"
+        image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: job_controller
       matrix:
         high:
@@ -109,7 +109,7 @@ stages:
       - eu-west-1
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250423"
+        image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: job_controller
       matrix:
         small:
@@ -134,7 +134,7 @@ stages:
       - eu-west-1
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250423"
+        image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: job_controller
       matrix:
         medium:
@@ -159,7 +159,7 @@ stages:
       - eu-west-1
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250423"
+        image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: job_controller
       matrix:
         high:
