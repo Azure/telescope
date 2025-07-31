@@ -2649,7 +2649,8 @@ spec:
 
             # Test successful wait
             result = self.client.wait_for_condition(
-                wait_resource="deployment/test-deployment",
+                resource_type="deployment",
+                resource_name="test-deployment",
                 wait_condition="condition=available",
                 namespace="test-namespace",
                 timeout_seconds=5
@@ -2680,7 +2681,8 @@ spec:
 
             # Test timeout
             result = self.client.wait_for_condition(
-                wait_resource="deployment/test-deployment",
+                resource_type="deployment",
+                resource_name="test-deployment",
                 wait_condition="condition=available",
                 namespace="test-namespace",
                 timeout_seconds=1
@@ -2704,7 +2706,8 @@ spec:
             mock_app.list_namespaced_deployment.return_value.items = [mock_deployment1, mock_deployment2]
 
             result = self.client.wait_for_condition(
-                wait_resource="deployment",  # No specific name = all deployments
+                resource_type="deployment",
+                resource_name=None,  # No specific name = all deployments
                 wait_condition="condition=available",
                 namespace="test-namespace",
                 timeout_seconds=5,
@@ -2716,7 +2719,8 @@ spec:
     def test_wait_for_condition_unsupported_resource_type(self):
         """Test wait_for_condition with unsupported resource type"""
         result = self.client.wait_for_condition(
-            wait_resource="pod/test",
+            resource_type="pod",
+            resource_name="test",
             wait_condition="condition=ready",
             namespace="test-namespace",
             timeout_seconds=1
@@ -2737,7 +2741,8 @@ spec:
             mock_app.read_namespaced_deployment.side_effect = api_exception
 
             result = self.client.wait_for_condition(
-                wait_resource="deployment/nonexistent",
+                resource_type="deployment",
+                resource_name="nonexistent",
                 wait_condition="condition=available",
                 namespace="test-namespace",
                 timeout_seconds=1

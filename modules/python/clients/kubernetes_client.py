@@ -755,16 +755,17 @@ class KubernetesClient:
             logger.error(f"Error applying manifest(s): {str(e)}")
             raise e
 
-    def wait_for_condition(self, wait_resource: str, wait_condition: str, namespace: str = "default",
-                          timeout_seconds: int = 300, wait_all: bool = False):
+    def wait_for_condition(self, resource_type: str, wait_condition: str, namespace: str = "default",
+                          timeout_seconds: int = 300, resource_name: str = None, wait_all: bool = False):
         """
         Wait for a Kubernetes resource to meet a specific condition.
         Equivalent to 'kubectl wait --for=<condition> <resource> --timeout=<timeout> -n <namespace>'
         
-        :param wait_resource: Resource to wait for (e.g., 'deployment/myapp' or 'deployment')
+        :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param wait_condition: Condition to wait for (e.g., 'condition=available', 'condition=ready')
         :param namespace: Namespace where the resource is located
         :param timeout_seconds: Maximum time to wait in seconds
+        :param resource_name: Name of specific resource (None to wait for all)
         :param wait_all: If True, wait for all resources of the type (equivalent to --all flag)
         :return: True if condition is met, False if timeout
         """
@@ -772,32 +773,33 @@ class KubernetesClient:
             start_time = time.time()
             timeout = start_time + timeout_seconds
 
-            # Parse resource type and name
-            if "/" in wait_resource:
-                resource_type, resource_name = wait_resource.split("/", 1)
-            else:
-                resource_type = wait_resource
-                resource_name = None
-                wait_all = True  # If no specific resource name, wait for all
+            # If no specific resource name and wait_all is False, wait for all resources
+            if not resource_name and not wait_all:
+                wait_all = True
 
-            logger.info(f"Waiting for {wait_resource} with condition '{wait_condition}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
+            # Build resource description for logging
+            resource_desc = f"{resource_type}"
+            if resource_name:
+                resource_desc = f"{resource_type}/{resource_name}"
+
+            logger.info(f"Waiting for {resource_desc} with condition '{wait_condition}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
 
             while time.time() < timeout:
                 try:
                     if self._check_resource_condition(resource_type, resource_name, wait_condition, namespace, wait_all):
                         elapsed_time = time.time() - start_time
-                        logger.info(f"Condition '{wait_condition}' met for {wait_resource} after {elapsed_time:.2f} seconds")
+                        logger.info(f"Condition '{wait_condition}' met for {resource_desc} after {elapsed_time:.2f} seconds")
                         return True
 
                     time.sleep(5)  # Check every 5 seconds
 
                 except Exception as e:
-                    logger.warning(f"Error checking condition for {wait_resource}: {str(e)}")
+                    logger.warning(f"Error checking condition for {resource_desc}: {str(e)}")
                     time.sleep(5)
 
             # Timeout reached
             elapsed_time = time.time() - start_time
-            logger.error(f"Timeout waiting for condition '{wait_condition}' on {wait_resource} after {elapsed_time:.2f} seconds")
+            logger.error(f"Timeout waiting for condition '{wait_condition}' on {resource_desc} after {elapsed_time:.2f} seconds")
             return False
 
         except Exception as e:
