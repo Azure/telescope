@@ -3658,6 +3658,187 @@ spec:
             self.client._delete_single_manifest(manifest)
             mock_app.delete_namespaced_deployment.assert_not_called()
 
+    def test_delete_single_manifest_mpi_job(self):
+        """Test deleting a single MPIJob custom resource."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job", "namespace": "kubeflow"},
+            "spec": {
+                "slotsPerWorker": 1,
+                "runPolicy": {},
+                "mpiReplicaSpecs": {}
+            }
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_namespaced_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_namespaced_custom_object.assert_called_once_with(
+                group="kubeflow.org",
+                version="v2beta1",
+                namespace="kubeflow",
+                plural="mpijobs",
+                name="test-mpi-job",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_mpi_job_no_namespace(self):
+        """Test deleting MPIJob without namespace raises error."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job"},
+            "spec": {}
+        }
+
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+        self.assertIn("MPIJob requires a namespace", str(context.exception))
+
+    def test_delete_single_manifest_node_feature_rule(self):
+        """Test deleting a single NodeFeatureRule custom resource."""
+        manifest = {
+            "apiVersion": "nfd.k8s-sigs.io/v1alpha1",
+            "kind": "NodeFeatureRule",
+            "metadata": {"name": "test-node-feature-rule"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="nfd.k8s-sigs.io",
+                version="v1alpha1",
+                plural="nodefeaturerules",
+                name="test-node-feature-rule",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_nic_cluster_policy(self):
+        """Test deleting a single NicClusterPolicy custom resource."""
+        manifest = {
+            "apiVersion": "mellanox.com/v1alpha1",
+            "kind": "NicClusterPolicy",
+            "metadata": {"name": "nic-cluster-policy"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="mellanox.com",
+                version="v1alpha1",
+                plural="nicclusterpolicies",
+                name="nic-cluster-policy",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_kwok_stage(self):
+        """Test deleting a single KWOK Stage custom resource."""
+        manifest = {
+            "apiVersion": "kwok.x-k8s.io/v1alpha1",
+            "kind": "Stage",
+            "metadata": {"name": "test-stage"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                plural="stages",
+                name="test-stage",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_api_exception_404_ignore_not_found_true(self):
+        """Test delete with 404 error when ignore_not_found=True."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 404 not found error
+            api_exception = ApiException(status=404, reason="Not Found")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should not raise an exception, just log and continue
+            with patch('clients.kubernetes_client.logger') as mock_logger:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest, ignore_not_found=True)
+                mock_logger.info.assert_called_once_with(
+                    "Resource %s/%s not found, skipping deletion",
+                    "Deployment", "test-deployment"
+                )
+
+    def test_delete_single_manifest_api_exception_404_ignore_not_found_false(self):
+        """Test delete with 404 error when ignore_not_found=False."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 404 not found error
+            api_exception = ApiException(status=404, reason="Not Found")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest, ignore_not_found=False)
+
+            self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
+
+    def test_delete_single_manifest_api_exception_non_404(self):
+        """Test delete with API exception other than 404."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 403 forbidden error
+            api_exception = ApiException(status=403, reason="Forbidden")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest)
+
+            self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
+
     def test_delete_manifest_from_file_no_arguments(self):
         """Test calling delete_manifest_from_file without any arguments."""
         with self.assertRaises(ValueError) as context:

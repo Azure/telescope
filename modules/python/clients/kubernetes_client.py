@@ -1268,6 +1268,48 @@ class KubernetesClient:
                     name=resource_name,
                     body=delete_options
                 )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.delete_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        name=resource_name,
+                        body=delete_options
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    name=resource_name,
+                    body=delete_options
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
+                    name=resource_name,
+                    body=delete_options
+                )
             else:
                 logger.warning("Unsupported resource kind for deletion: %s. Skipping...", kind)
 
