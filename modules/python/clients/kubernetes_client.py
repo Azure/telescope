@@ -917,6 +917,8 @@ class KubernetesClient:
                 deployment = self.app.read_namespaced_deployment(name=resource_name, namespace=namespace)
                 deployments = [deployment]
 
+            logger.info(f"Deployments status: {[self._is_deployment_condition_met(d, condition_type) for d in deployments]}")
+
             for deployment in deployments:
                 if not self._is_deployment_condition_met(deployment, condition_type):
                     return False
