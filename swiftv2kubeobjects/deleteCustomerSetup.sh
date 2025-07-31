@@ -135,9 +135,15 @@ fi
 echo "=== Cleaning up subnet delegations ==="
 if az network vnet subnet show --resource-group "$RG" --vnet-name "$custVnetName" --name "$custScaleDelSubnet" &>/dev/null; then
     echo "Attempting to clean up subnet delegation for $custScaleDelSubnet..."
+    # Get the full subnet resource ID
+    custScaleDelSubnetResourceId=$(az network vnet subnet show --name "$custScaleDelSubnet" --vnet-name "$custVnetName" --resource-group "$RG" --query id --output tsv)
+    # URL encode the subnet resource ID
+    custScaleDelSubnetResourceIdEncoded=$(echo "$custScaleDelSubnetResourceId" | sed 's|/|%2F|g')
+    
     for attempt in $(seq 1 3); do
         echo "Attempting to remove delegation for $custScaleDelSubnet using subnetdelegator command: $attempt/3"
-        script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F$sub%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custScaleDelSubnet'" /dev/null && break || echo "Command failed, retrying..."
+        echo "Using subnet resource ID: $custScaleDelSubnetResourceId"
+        script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/$custScaleDelSubnetResourceIdEncoded'" /dev/null && break || echo "Command failed, retrying..."
         sleep 30
     done
 fi
