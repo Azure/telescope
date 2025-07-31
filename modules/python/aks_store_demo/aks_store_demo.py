@@ -79,7 +79,7 @@ class AKSStoreDemo(ABC):
                     self.k8s_client.wait_for_condition,
                     resource_type=resource_type,
                     resource_name=resource_name,
-                    wait_condition=wait_condition,
+                    wait_condition_type=wait_condition,
                     namespace=self.namespace,
                     timeout_seconds=timeout_seconds
                 )
@@ -114,19 +114,19 @@ class SingleClusterDemo(AKSStoreDemo):
         return [
             {
                 "file": f"{base_path}/aks-store-all-in-one.yaml",
-                "wait_condition": "condition=available",
+                "wait_condition_type": "available",
                 "wait_resource": "deployment",
-                "timeout": "900s"
+                "timeout": "1200s"
             },
             {
                 "file": f"{base_path}/aks-store-virtual-worker.yaml",
-                "wait_condition": "condition=available", 
+                "wait_condition_type": "available", 
                 "wait_resource": "deployment/virtual-worker",
                 "timeout": "120s"
             },
             {
                 "file": f"{base_path}/aks-store-virtual-customer.yaml",
-                "wait_condition": "condition=available",
+                "wait_condition_type": "available",
                 "wait_resource": "deployment/virtual-customer", 
                 "timeout": "120s"
             }
@@ -156,7 +156,7 @@ class SingleClusterDemo(AKSStoreDemo):
 
                 self.apply_manifest(
                     manifest_file=manifest_file,
-                    wait_condition=manifest_config.get("wait_condition"),
+                    wait_condition=manifest_config.get("wait_condition_type"),
                     wait_resource=manifest_config.get("wait_resource"),
                     timeout=manifest_config.get("timeout", "300s")
                 )
