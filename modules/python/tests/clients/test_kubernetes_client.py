@@ -2651,7 +2651,7 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name="test-deployment",
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=5
             )
@@ -2683,7 +2683,7 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name="test-deployment",
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=1
             )
@@ -2708,7 +2708,7 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name=None,  # No specific name = all deployments
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=5,
                 wait_all=True
@@ -2718,15 +2718,16 @@ spec:
 
     def test_wait_for_condition_unsupported_resource_type(self):
         """Test wait_for_condition with unsupported resource type"""
-        result = self.client.wait_for_condition(
-            resource_type="pod",
-            resource_name="test",
-            wait_condition="condition=ready",
-            namespace="test-namespace",
-            timeout_seconds=1
-        )
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="pod",
+                resource_name="test",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
 
-        self.assertFalse(result)
+        self.assertIn("Resource type 'pod' is not supported", str(context.exception))
 
     @patch('time.time')
     def test_wait_for_condition_resource_not_found(self, mock_time):
@@ -2743,12 +2744,117 @@ spec:
             result = self.client.wait_for_condition(
                 resource_type="deployment",
                 resource_name="nonexistent",
-                wait_condition="condition=available",
+                wait_condition_type="available",
                 namespace="test-namespace",
                 timeout_seconds=1
             )
 
             self.assertFalse(result)
+
+    def test_wait_for_condition_invalid_condition_type(self):
+        """Test wait_for_condition with invalid condition type"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="invalid_condition",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("Invalid condition 'invalid_condition' for resource type 'deployment'", str(context.exception))
+        self.assertIn("Valid conditions: available, progressing, replicafailure, ready", str(context.exception))
+
+    def test_wait_for_condition_empty_condition(self):
+        """Test wait_for_condition with empty condition"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("wait_condition_type must be a non-empty string", str(context.exception))
+
+    def test_wait_for_condition_none_condition(self):
+        """Test wait_for_condition with None condition"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type=None,
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("wait_condition_type must be a non-empty string", str(context.exception))
+
+    def test_wait_for_condition_valid_condition_types(self):
+        """Test wait_for_condition with various valid condition types"""
+        valid_conditions = [
+            "available",
+            "ready", 
+            "progressing",
+            "replicafailure"
+        ]
+
+        # Mock deployment with all conditions to make tests pass quickly
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True"),
+            MagicMock(type="Ready", status="True"),
+            MagicMock(type="Progressing", status="True"),
+            MagicMock(type="ReplicaFailure", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.time', side_effect=[0, 0, 1, 2, 2] * len(valid_conditions)), \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            for condition in valid_conditions:
+                with self.subTest(condition=condition):
+                    result = self.client.wait_for_condition(
+                        resource_type="deployment",
+                        resource_name="test-deployment",
+                        wait_condition_type=condition,
+                        namespace="test-namespace",
+                        timeout_seconds=5
+                    )
+                    self.assertTrue(result)
+
+    def test_wait_for_condition_case_insensitive(self):
+        """Test wait_for_condition with different case conditions"""
+        case_variations = [
+            "Available",
+            "AVAILABLE", 
+            "available",
+            "aVaiLaBle"
+        ]
+
+        # Mock deployment with available condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.time', side_effect=[0, 0, 1, 2, 2] * len(case_variations)), \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            for condition in case_variations:
+                with self.subTest(condition=condition):
+                    result = self.client.wait_for_condition(
+                        resource_type="deployment",
+                        resource_name="test-deployment",
+                        wait_condition_type=condition,
+                        namespace="test-namespace",
+                        timeout_seconds=5
+                    )
+                    self.assertTrue(result)
 
     # Tests for the enhanced apply_manifest_from_file method with folder support
     @patch('os.path.isdir')

@@ -824,20 +824,44 @@ class KubernetesClient:
             logger.error(f"Error deleting manifest(s): {str(e)}")
             raise e
 
-    def wait_for_condition(self, resource_type: str, wait_condition: str, namespace: str = "default",
+    def wait_for_condition(self, resource_type: str, wait_condition_type: str, namespace: str = "default",
                           timeout_seconds: int = 300, resource_name: str = None, wait_all: bool = False):
         """
         Wait for a Kubernetes resource to meet a specific condition.
-        Equivalent to 'kubectl wait --for=<condition> <resource> --timeout=<timeout> -n <namespace>'
+        Equivalent to 'kubectl wait --for=condition=<wait_condition_type> <resource> --timeout=<timeout> -n <namespace>'
         
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
-        :param wait_condition: Condition to wait for (e.g., 'condition=available', 'condition=ready')
+        :param wait_condition_type: Condition type to wait for (e.g., 'available', 'ready', 'progressing')
         :param namespace: Namespace where the resource is located
         :param timeout_seconds: Maximum time to wait in seconds
         :param resource_name: Name of specific resource (None to wait for all)
         :param wait_all: If True, wait for all resources of the type (equivalent to --all flag)
         :return: True if condition is met, False if timeout
+        :raises ValueError: If wait_condition_type is invalid
         """
+        # Define valid condition types for different resource types
+        valid_conditions = {
+            'deployment': ['available', 'progressing', 'replicafailure', 'ready'],
+            'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
+            # Add more resource types as needed
+        }
+
+        # Validate wait_condition_type format and type
+        if not wait_condition_type or not isinstance(wait_condition_type, str):
+            raise ValueError("wait_condition_type must be a non-empty string")
+
+        wait_condition_lower = wait_condition_type.lower().strip()
+        resource_type_lower = resource_type.lower()
+
+        # Check if resource type is supported
+        if resource_type_lower not in valid_conditions:
+            raise ValueError(f"Resource type '{resource_type}' is not supported for condition checking")
+
+        # Check if condition type is valid for this resource type
+        if wait_condition_lower not in valid_conditions[resource_type_lower]:
+            valid_conditions_str = ', '.join(valid_conditions[resource_type_lower])
+            raise ValueError(f"Invalid condition '{wait_condition_type}' for resource type '{resource_type}'. Valid conditions: {valid_conditions_str}")
+
         try:
             start_time = time.time()
             timeout = start_time + timeout_seconds
@@ -851,13 +875,13 @@ class KubernetesClient:
             if resource_name:
                 resource_desc = f"{resource_type}/{resource_name}"
 
-            logger.info(f"Waiting for {resource_desc} with condition '{wait_condition}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
+            logger.info(f"Waiting for {resource_desc} with condition '{wait_condition_type}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
 
             while time.time() < timeout:
                 try:
-                    if self._check_resource_condition(resource_type, resource_name, wait_condition, namespace, wait_all):
+                    if self._check_resource_condition(resource_type, resource_name, wait_condition_lower, namespace, wait_all):
                         elapsed_time = time.time() - start_time
-                        logger.info(f"Condition '{wait_condition}' met for {resource_desc} after {elapsed_time:.2f} seconds")
+                        logger.info(f"Condition '{wait_condition_type}' met for {resource_desc} after {elapsed_time:.2f} seconds")
                         return True
 
                     time.sleep(5)  # Check every 5 seconds
@@ -868,32 +892,26 @@ class KubernetesClient:
 
             # Timeout reached
             elapsed_time = time.time() - start_time
-            logger.error(f"Timeout waiting for condition '{wait_condition}' on {resource_desc} after {elapsed_time:.2f} seconds")
+            logger.error(f"Timeout waiting for condition '{wait_condition_type}' on {resource_desc} after {elapsed_time:.2f} seconds")
             return False
 
         except Exception as e:
             logger.error(f"Error waiting for condition: {str(e)}")
             raise e
 
-    def _check_resource_condition(self, resource_type: str, resource_name: str, condition: str,
+    def _check_resource_condition(self, resource_type: str, resource_name: str, condition_type: str,
                                  namespace: str, wait_all: bool) -> bool:
         """
         Check if a specific resource condition is met.
         
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param resource_name: Name of specific resource (None if checking all)
-        :param condition: Condition to check (e.g., 'condition=available', 'condition=ready')
+        :param condition_type: Condition type to check (e.g., 'available', 'ready', 'progressing')
         :param namespace: Namespace of the resource
         :param wait_all: Whether to check all resources of the type
         :return: True if condition is met
         """
         try:
-            # Parse condition (e.g., 'condition=available' -> 'available')
-            if condition.startswith('condition='):
-                condition_type = condition.split('=', 1)[1]
-            else:
-                condition_type = condition
-
             resource_type_lower = resource_type.lower()
 
             if resource_type_lower in ['deployment', 'deployments']:
