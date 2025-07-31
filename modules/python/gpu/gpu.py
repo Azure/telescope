@@ -176,15 +176,8 @@ def install_mpi_operator(
     Args:
         chart_version: Specific chart version to install
     """
-    install_command = [
-        "kubectl",
-        "apply",
-        "--server-side",
-        "-f",
-        f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{chart_version}/deploy/v2beta1/mpi-operator.yaml",
-    ]
-    logger.info(f"Executing: {' '.join(install_command)}")
-    subprocess.run(install_command, check=True)
+    mpi_file = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{chart_version}/deploy/v2beta1/mpi-operator.yaml"
+    KUBERNETES_CLIENT.apply_manifest_from_url(mpi_file)
     time.sleep(15)
     KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
         label_selector="app.kubernetes.io/name=mpi-operator",

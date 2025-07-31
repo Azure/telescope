@@ -181,20 +181,22 @@ class TestGPU(unittest.TestCase):
         )
 
     @patch("time.sleep")
-    @patch("subprocess.run")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     def test_install_mpi_operator_success(
-        self, mock_k8s_client, mock_subprocess, mock_sleep
+        self, mock_k8s_client, mock_sleep
     ):
         """Test successful MPI operator installation."""
-        mock_subprocess.return_value = MagicMock(returncode=0)
+        mock_k8s_client.apply_manifest_from_url.return_value = None
         mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
 
         install_mpi_operator(chart_version=self.test_chart_version)
 
         expected_url = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{self.test_chart_version}/deploy/v2beta1/mpi-operator.yaml"
-        mock_subprocess.assert_called_once_with(
-            ["kubectl", "apply", "--server-side", "-f", expected_url], check=True
+        mock_k8s_client.apply_manifest_from_url.assert_called_once_with(expected_url)
+        mock_k8s_client.wait_for_labeled_pods_ready.assert_called_once_with(
+            label_selector="app.kubernetes.io/name=mpi-operator",
+            namespace="mpi-operator",
+            timeout_in_minutes=5,
         )
 
     @patch("gpu.gpu.install_mpi_operator")
