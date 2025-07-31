@@ -1,0 +1,20 @@
+trigger: none
+
+
+jobs:
+  - job: aws_capacity_reservation
+    continueOnError: false
+    steps:
+    - template: /steps/cloud/aws/login.yml
+      parameters:
+        region: $(AWS_REGION)
+        credential_type: service_connection
+    - template: /steps/cloud/aws/capacity-reservation.yml
+      parameters:
+        region: $(AWS_REGION)
+        instance_type: $(AWS_INSTANCE_TYPE)
+        instance_count: $(AWS_INSTANCE_COUNT)
+        start_date: $(AWS_START_DATE)
+        duration_hours: $(AWS_DURATION_HOURS)
+        dry_run: true
+

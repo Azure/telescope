@@ -1,0 +1,38 @@
+parameters:
+- name: region
+  type: string
+- name: instance_type
+  type: string
+- name: instance_count
+  type: int
+- name: start_date
+  type: string
+- name: duration_hours
+  type: int
+  default: 24
+- name: dry_run
+  type: boolean
+  default: true
+
+
+steps:
+- script: |
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
+      --region $REGION \
+      --instance-type $INSTANCE_TYPE \
+      --instance-count $INSTANCE_COUNT \
+      --start-date $START_DATE \
+      --duration-hours $DURATION_HOURS \
+      --dry-run $DRY_RUN
+  workingDirectory: modules/python
+  env:
+    REGION: ${{ parameters.region }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s//modules/python python3 cloud/aws/managers/capacity_reservation_manager.py
+    INSTANCE_TYPE: ${{ parameters.instance_type }}
+    INSTANCE_COUNT: ${{ parameters.instance_count }}
+    START_DATE: ${{ parameters.start_date }}
+    DURATION_HOURS: ${{ parameters.duration_hours }}
+    DRY_RUN: ${{ parameters.dry_run }}
+  displayName: "Create AWS Capacity Reservation"
