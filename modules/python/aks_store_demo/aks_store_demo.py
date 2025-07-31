@@ -116,23 +116,23 @@ class SingleClusterDemo(AKSStoreDemo):
         base_path = self.manifests_path
 
         return [
-            # {
-            #     "file": f"{base_path}/aks-store-all-in-one.yaml",
-            #     "wait_condition": "condition=available",
-            #     "wait_resource": "deployment",
-            #     "timeout": "900s"
-            # },
+            {
+                "file": f"{base_path}/aks-store-all-in-one.yaml",
+                "wait_condition": "condition=available",
+                "wait_resource": "deployment",
+                "timeout": "900s"
+            },
             {
                 "file": f"{base_path}/aks-store-virtual-worker.yaml",
                 "wait_condition": "condition=available", 
                 "wait_resource": "deployment/virtual-worker",
-                "timeout": "60s"
+                "timeout": "120s"
             },
             {
                 "file": f"{base_path}/aks-store-virtual-customer.yaml",
                 "wait_condition": "condition=available",
                 "wait_resource": "deployment/virtual-customer", 
-                "timeout": "60s"
+                "timeout": "120s"
             }
         ]
 
@@ -181,9 +181,9 @@ class SingleClusterDemo(AKSStoreDemo):
 
             # Check that all expected deployments are available
             expected_deployments = [
-                # "product-service",
-                # "order-service", 
-                # "rabbitmq",
+                "product-service",
+                "order-service", 
+                "rabbitmq",
                 "virtual-worker",
                 "virtual-customer"
             ]
