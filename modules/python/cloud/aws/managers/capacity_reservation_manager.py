@@ -365,7 +365,7 @@ if __name__ == "__main__":
         )
         
         if not offerings:
-            logger.info("No capacity block offerings found for the specified criteria.")
+            logger.error("No capacity block offerings found for the specified criteria.")
             exit(1)
         
         # Sort by price (ascending) to get the cheapest option

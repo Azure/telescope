@@ -24,7 +24,7 @@ steps:
       --instance-count $INSTANCE_COUNT \
       --start-date $START_DATE \
       --duration-hours $DURATION_HOURS \
-      --dry-run $DRY_RUN
+      --dry-run
   workingDirectory: modules/python
   env:
     REGION: ${{ parameters.region }}
