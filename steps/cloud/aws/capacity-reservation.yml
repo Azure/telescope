@@ -28,7 +28,7 @@ steps:
   workingDirectory: modules/python
   env:
     REGION: ${{ parameters.region }}
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python python3 cloud/aws/managers/capacity_reservation_manager.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/cloud/aws/managers/capacity_reservation_manager.py
     INSTANCE_TYPE: ${{ parameters.instance_type }}
     INSTANCE_COUNT: ${{ parameters.instance_count }}
     START_DATE: ${{ parameters.start_date }}

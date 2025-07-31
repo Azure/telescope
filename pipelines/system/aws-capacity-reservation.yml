@@ -9,6 +9,12 @@ jobs:
       parameters:
         region: $(AWS_REGION)
         credential_type: service_connection
+    - script: |
+        set -e
+        if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
+          pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+        fi
+      displayName: "Install Dependencies"
     - template: /steps/cloud/aws/capacity-reservation.yml
       parameters:
         region: $(AWS_REGION)
