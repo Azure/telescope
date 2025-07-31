@@ -16,7 +16,7 @@ LOCATION="eastus2euap"
 
 # create RG
 echo "Create RG"
-date=$(date -d "+1 month" +"%Y-%m-%d")
+date=$(date -d "+3 month" +"%Y-%m-%d")
 az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 # create customer vnet
