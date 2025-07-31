@@ -76,33 +76,16 @@ az aks get-credentials --resource-group $RG --name $CLUSTER --overwrite-existing
 kubectl apply -f ./nginx-deployment.yaml
 
 # print vnet guid, subnet guid of scaledel and subnet id of scaledel
-echo "Fetching VNet and Subnet information..."
+echo "=== Network Information ==="
 
-# Get VNet GUID from the created VNet
-vnetGuid=$(az network vnet show --resource-group $RG --name $custVnetName --query "guid" -o tsv)
-echo "VNet GUID: $vnetGuid"
+# Get VNet GUID (try different properties)
+vnetGuid=$(az network vnet show --resource-group $RG --name $custVnetName --query "resourceGuid" -o tsv 2>/dev/null || echo "Not available")
 
-# Get subnet GUID and subnet ID for scaledel subnet using REST API
+# Get subnet info and extract GUID and ID
 subnetInfo=$(az rest --method get --url "/subscriptions/$sub/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2023-06-01")
-
-# Extract subnet ID (this should work)
+subnetGuid=$(echo $subnetInfo | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 subnetId=$(echo $subnetInfo | jq -r '.id')
 
-# Extract subnet GUID from serviceAssociationLinks - try different possible paths
-subnetGuid=$(echo $subnetInfo | jq -r '
-  if .properties.serviceAssociationLinks and (.properties.serviceAssociationLinks | length > 0) then
-    .properties.serviceAssociationLinks[0].properties.linkedResourceType // 
-    .properties.serviceAssociationLinks[0].properties.resourceGuid //
-    .properties.serviceAssociationLinks[0].id //
-    "GUID not found in serviceAssociationLinks"
-  else
-    "No serviceAssociationLinks found"
-  end
-')
-
+echo "VNet GUID: $vnetGuid"
 echo "ScaleDel Subnet GUID: $subnetGuid"
 echo "ScaleDel Subnet ID: $subnetId"
-
-# Debug: Print the serviceAssociationLinks structure to help identify the correct path
-echo "Debug - ServiceAssociationLinks structure:"
-echo $subnetInfo | jq '.properties.serviceAssociationLinks'
