@@ -1,14 +1,13 @@
 name: job-scheduling
 
-{{$job_count := DefaultParam .CL2_JOBS 20000}}
-{{$qps := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 800}}
+{{$jobs := DefaultParam .CL2_JOBS 10000}}
+{{$namespaces := DefaultParam .CL2_NAMESPACES 100}}
+{{$qps := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$replicas_per_namespace := DivideInt $jobs $namespaces}}
 
 namespace:
-  number: 1
-  prefix: job-scheduling
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: false
+  number: {{$namespaces}}
+  prefix: test
 
 tuningSets:
 - name: Uniform{{$qps}}qps
@@ -22,13 +21,21 @@ steps:
         Method: SchedulingThroughputPrometheus
         Params:
           action: start
-          timeout: 3h
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          labelSelector: group=job-scheduling
+          measurmentInterval: 1s
+          action: start
+      - Identifier: APIResponsivenessPrometheus
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: start
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
           action: start
           labelSelector: group=job-scheduling
-          threshold: 30s
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
@@ -42,20 +49,18 @@ steps:
           labelSelector: group=job-scheduling
           timeout: 3h
 
-{{range $i := Loop $job_count}}
-  - name: Create job {{$i}}
+  - name: Create jobs
     phases:
     - namespaceRange:
           min: 1
-          max: 1
-      replicasPerNamespace: 1
+          max: {{$namespaces}}
+      replicasPerNamespace: {{$replicas_per_namespace}}
       tuningSet: Uniform{{$qps}}qps
       objectBundle:
-      - basename: test-job-{{$i}}
+      - basename: test
         objectTemplatePath: job_template.yaml
         templateFillMap:
           Group: job-scheduling
-{{end}}
        
   - name: Waiting for jobs to be finished
     measurements:
@@ -71,10 +76,22 @@ steps:
         Params:
           action: gather
           timeout: 3h
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: gather
+          timeout: 3h
+      - Identifier: APIResponsivenessPrometheus
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: gather
+          timeout: 3h
+          useSimpleLatencyQuery: true
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
           action: gather
+          timeout: 3h
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
