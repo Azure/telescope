@@ -22,5 +22,5 @@ jobs:
         instance_count: $(AWS_INSTANCE_COUNT)
         start_date: $(AWS_START_DATE)
         duration_hours: $(AWS_DURATION_HOURS)
-        dry_run: false
+        dry_run: true
 
