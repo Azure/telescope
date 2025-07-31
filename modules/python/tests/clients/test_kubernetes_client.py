@@ -2298,6 +2298,36 @@ metadata:
         mock_create_daemonset.assert_called_once_with(
             namespace="test-namespace", body=manifest)
 
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_stateful_set')
+    def test_apply_single_manifest_statefulset(self, mock_create_statefulset):
+        """Test _apply_single_manifest with StatefulSet resource."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_statefulset.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    def test_apply_single_manifest_statefulset_no_namespace(self):
+        """Test _apply_single_manifest with StatefulSet missing namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset"},
+            "spec": {}
+        }
+
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertEqual(str(context.exception), "StatefulSet requires a namespace")
+
     @patch('kubernetes.client.CoreV1Api.create_namespaced_service')
     def test_apply_single_manifest_service(self, mock_create_service):
         """Test _apply_single_manifest with Service resource."""
@@ -3585,6 +3615,42 @@ spec:
                 namespace="test-namespace",
                 body=unittest.mock.ANY
             )
+
+    def test_delete_single_manifest_statefulset(self):
+        """Test deleting a single StatefulSet manifest."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_stateful_set.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_app.delete_namespaced_stateful_set.assert_called_once_with(
+                name="test-statefulset",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_statefulset_no_namespace(self):
+        """Test _delete_single_manifest with StatefulSet missing namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset"},
+            "spec": {}
+        }
+
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+        self.assertIn("StatefulSet requires a namespace", str(context.exception))
 
     def test_delete_single_manifest_service(self):
         """Test deleting a single service manifest."""
