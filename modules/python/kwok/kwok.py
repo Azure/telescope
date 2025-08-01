@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import requests
 
 from clients.kubernetes_client import KubernetesClient
+from utils.retries import execute_with_retries
 
 
 @dataclass
@@ -33,12 +34,21 @@ class KWOK(ABC):
                          f"download/{kwok_release}/kwok.yaml")
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                               f"download/{kwok_release}/stage-fast.yaml")
-        self.k8s_client.apply_manifest_from_url(kwok_yaml_url)
-        self.k8s_client.apply_manifest_from_url(stage_fast_yaml_url)
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            kwok_yaml_url
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            stage_fast_yaml_url
+        )
         if enable_metrics:
             metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
                                f"download/{kwok_release}/metrics-usage.yaml")
-            self.k8s_client.apply_manifest_from_url(metrics_usage_url)
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_url,
+                metrics_usage_url
+            )
 
     @abstractmethod
     def create(self):
@@ -72,14 +82,19 @@ class Node(KWOK):
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
-                self.k8s_client.create_node(kwok_template)
+                execute_with_retries(
+                    self.k8s_client.create_node,
+                    kwok_template,
+                )
 
             print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
     def validate(self):
-        ready_nodes = self.k8s_client.get_nodes()
+        ready_nodes = execute_with_retries(
+            self.k8s_client.get_nodes
+        )
         kwok_nodes = [
             node
             for node in ready_nodes
@@ -124,7 +139,10 @@ class Node(KWOK):
         for i in range(self.node_count):
             node_name = f"kwok-node-{i}"
             print(f"Deleting node: {node_name}")
-            self.k8s_client.delete_node(node_name)
+            execute_with_retries(
+                self.k8s_client.delete_node,
+                node_name
+            )
         print(f"Successfully deleted {self.node_count} nodes.")
 
     def _validate_node_status(self, node):
