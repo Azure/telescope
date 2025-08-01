@@ -47,6 +47,12 @@ class JobController(ClusterLoader2Base):
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
         }
+        if self.prometheus_enabled:
+            config["CL2_PROMETHEUS_TOLERATE_MASTER"] = True
+            config["CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR"] = 100.0
+            config["CL2_PROMETHEUS_MEMORY_SCALE_FACTOR"] = 100.0
+            config["CL2_PROMETHEUS_CPU_SCALE_FACTOR"] = 30.0
+            config["CL2_PROMETHEUS_NODE_SELECTOR"] = "\"prometheus: \\\"true\\\"\""
         self.write_cl2_override_file(logger, self.cl2_override_file, config)
 
     def validate_clusterloader2(self):
@@ -124,6 +130,13 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--job_throughput", type=int, default=-1, help="Job throughput"
+        )
+        parser.add_argument(
+            "--prometheus_enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable Prometheus scraping. Must be either True or False",
         )
 
     @staticmethod
