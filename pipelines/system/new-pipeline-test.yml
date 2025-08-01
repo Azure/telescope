@@ -2,7 +2,8 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: acns-azurecni-overlay-cilium
+  SCENARIO_NAME: non-acns-azurecni-overlay
+  OBSERVERABILITY_TOOL: retina-oss-standard-basic
 
 stages:
   - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
@@ -16,10 +17,10 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-            repository: ""
-            makeargs: ""
-            ref: ""
-            install: false
+            repository: http://github.com/microsoft/retina.git
+            makeargs: "helm-install-with-operator"
+            ref: main
+            install: true
           topology: observability
           matrix:
             acns:
