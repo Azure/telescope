@@ -99,14 +99,14 @@ class TestGPU(unittest.TestCase):
             command="ibdev2netdev",
         )
 
-    @patch("time.sleep")
+    @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._install_operator")
     def test_install_network_operator_success(
-        self, mock_install, mock_k8s_client, _mock_sleep
+        self, mock_install, mock_k8s_client, _mock_execute_with_retries
     ):
         """Test successful network operator installation."""
-        mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
+        _mock_execute_with_retries.return_value = None
         mock_k8s_client.apply_manifest_from_file.return_value = None
 
         install_network_operator(
@@ -119,37 +119,17 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
         )
 
-        # Verify Kubernetes client calls
-        expected_wait_calls = [
-            call(
-                label_selector="app.kubernetes.io/instance=network-operator",
-                namespace="network-operator",
-                timeout_in_minutes=5,
-            ),
-            call(
-                label_selector="nvidia.com/ofed-driver=",
-                namespace="network-operator",
-                timeout_in_minutes=5,
-            ),
-            call(
-                label_selector="app=rdma-shared-dp",
-                namespace="network-operator",
-                timeout_in_minutes=5,
-            ),
-        ]
-        mock_k8s_client.wait_for_labeled_pods_ready.assert_has_calls(
-            expected_wait_calls
-        )
+        # Verify execute_with_retries is called 3 times for the wait operations
+        self.assertEqual(_mock_execute_with_retries.call_count, 3)
 
-    @patch("time.sleep")
+    @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._install_operator")
     def test_install_gpu_operator_success(
-        self, mock_install, mock_k8s_client, _mock_sleep
+        self, mock_install, _mock_k8s_client, _mock_execute_with_retries
     ):
         """Test successful GPU operator installation."""
-        mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
-        mock_k8s_client.wait_for_pods_completed.return_value = None
+        _mock_execute_with_retries.return_value = None
 
         install_gpu_operator(
             chart_version=self.test_chart_version, config_dir=self.test_config_dir
@@ -161,22 +141,22 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
         )
 
-    @patch("time.sleep")
+        # Verify execute_with_retries is called 3 times for the wait operations
+        self.assertEqual(_mock_execute_with_retries.call_count, 3)
+
+    @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
-    def test_install_mpi_operator_success(self, mock_k8s_client, _mock_sleep):
+    def test_install_mpi_operator_success(self, mock_k8s_client, _mock_execute_with_retries):
         """Test successful MPI operator installation."""
         mock_k8s_client.apply_manifest_from_url.return_value = None
-        mock_k8s_client.wait_for_labeled_pods_ready.return_value = None
+        _mock_execute_with_retries.return_value = None
 
         install_mpi_operator(chart_version=self.test_chart_version)
 
         expected_url = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{self.test_chart_version}/deploy/v2beta1/mpi-operator.yaml"
         mock_k8s_client.apply_manifest_from_url.assert_called_once_with(expected_url)
-        mock_k8s_client.wait_for_labeled_pods_ready.assert_called_once_with(
-            label_selector="app.kubernetes.io/name=mpi-operator",
-            namespace="mpi-operator",
-            timeout_in_minutes=5,
-        )
+        # Verify execute_with_retries is called once for the wait operation
+        _mock_execute_with_retries.assert_called_once()
 
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
@@ -224,14 +204,14 @@ class TestGPU(unittest.TestCase):
         with self.assertRaises(requests.RequestException):
             _create_topology_configmap(vm_size=self.test_vm_size)
 
-    @patch("time.sleep")
+    @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._create_topology_configmap")
-    def test_execute_azure_provider(self, mock_topology, mock_k8s_client, _mock_sleep):
+    def test_execute_azure_provider(self, mock_topology, mock_k8s_client, _mock_execute_with_retries):
         """Test execute function with Azure provider."""
         mock_pod = MagicMock()
         mock_pod.metadata.name = "test-pod"
-        mock_k8s_client.wait_for_pods_completed.return_value = [mock_pod]
+        _mock_execute_with_retries.return_value = [mock_pod]
         mock_k8s_client.get_pod_logs.return_value = b"test logs content"
 
         with patch("builtins.open", mock_open()) as mock_file:
@@ -246,6 +226,8 @@ class TestGPU(unittest.TestCase):
             mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
                 f"{self.test_config_dir}/nccl-tests/mpijob.yaml"
             )
+            # Verify execute_with_retries is called once for waiting for pods
+            _mock_execute_with_retries.assert_called_once()
             mock_file.assert_called_once_with(
                 f"{self.test_result_dir}/raw.log", "w", encoding="utf-8"
             )

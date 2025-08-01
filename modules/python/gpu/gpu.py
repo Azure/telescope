@@ -4,9 +4,9 @@ import json
 import re
 from datetime import datetime, timezone
 from typing import Dict, Any
-import time
 import requests
 from utils.logger_config import get_logger, setup_logging
+from utils.retries import execute_with_retries
 from clients.kubernetes_client import KubernetesClient, client
 
 # Configure logging
@@ -90,7 +90,8 @@ def install_network_operator(
         operator_name="network-operator",
         config_dir=config_dir,
     )
-    KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
         label_selector="app.kubernetes.io/instance=network-operator",
         namespace="network-operator",
         timeout_in_minutes=5,
@@ -100,13 +101,14 @@ def install_network_operator(
     KUBERNETES_CLIENT.apply_manifest_from_file(nfd_file)
     nic_file = f"{config_dir}/network-operator/nic-cluster-policy.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nic_file)
-    time.sleep(15)
-    KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
         label_selector="nvidia.com/ofed-driver=",
         namespace="network-operator",
         timeout_in_minutes=5,
     )
-    KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
         label_selector="app=rdma-shared-dp",
         namespace="network-operator",
         timeout_in_minutes=5,
@@ -128,18 +130,20 @@ def install_gpu_operator(
     _install_operator(
         chart_version=chart_version, operator_name="gpu-operator", config_dir=config_dir
     )
-    time.sleep(15)
-    KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
         label_selector="app.kubernetes.io/managed-by=gpu-operator",
         namespace="gpu-operator",
         timeout_in_minutes=10,
     )
-    KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
         label_selector="app.kubernetes.io/component=nvidia-driver",
         namespace="gpu-operator",
         timeout_in_minutes=10,
     )
-    KUBERNETES_CLIENT.wait_for_pods_completed(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_pods_completed,
         label_selector="app=nvidia-cuda-validator",
         namespace="gpu-operator",
         timeout=600,
@@ -157,8 +161,8 @@ def install_mpi_operator(
     """
     mpi_file = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{chart_version}/deploy/v2beta1/mpi-operator.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_url(mpi_file)
-    time.sleep(15)
-    KUBERNETES_CLIENT.wait_for_labeled_pods_ready(
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
         label_selector="app.kubernetes.io/name=mpi-operator",
         namespace="mpi-operator",
         timeout_in_minutes=5,
@@ -247,8 +251,8 @@ def execute(
 
     nccl_file = f"{config_dir}/nccl-tests/mpijob.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nccl_file)
-    time.sleep(15)
-    pods = KUBERNETES_CLIENT.wait_for_pods_completed(
+    pods = execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_pods_completed,
         label_selector="component=launcher"
     )
     pod_name = pods[0].metadata.name
@@ -417,11 +421,12 @@ def _parse_nccl_test_results(log_file_path: str) -> Dict[str, Any]:
 
 def collect(result_dir: str, run_url: str, cloud_info: str) -> None:
     """
-    Collect and parse NCCL test results, saving them to JSON file
+    Collect and parse NCCL test results, saving them to a JSON file.
 
     Args:
-        log_file: Path to the NCCL test log file
-        output_file: Path where to save the JSON results
+        result_dir: Directory where the raw log file and results will be stored.
+        run_url: URL associated with the NCCL test run.
+        cloud_info: Information about the cloud environment where the test was run.
     """
     try:
         logger.info("Collecting NCCL test results...")
