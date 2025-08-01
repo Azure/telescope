@@ -59,27 +59,6 @@ def _install_operator(
     subprocess.run(command, check=True)
 
 
-def _uninstall_operator(
-    operator_name: str,
-) -> None:
-    """
-    Uninstall GPU Network Operator
-
-    Args:
-        release_name: Helm release name to uninstall (default: gpu-operator)
-        namespace: Namespace where the operator is installed (default: gpu-operator)
-    """
-    logger.info(
-        f"Uninstalling release '{operator_name}' from namespace '{operator_name}'"
-    )
-
-    subprocess.run(
-        ["helm", "uninstall", operator_name, "--namespace", operator_name], check=True
-    )
-
-    logger.info(f"Release '{operator_name}' uninstalled successfully")
-
-
 def _verify_rdma() -> None:
     """
     Verify RDMA configuration by checking the status of RDMA devices

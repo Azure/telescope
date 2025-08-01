@@ -9,7 +9,6 @@ from unittest.mock import patch, MagicMock, mock_open, call
 import requests
 from gpu.gpu import (
     _install_operator,
-    _uninstall_operator,
     _verify_rdma,
     install_network_operator,
     install_gpu_operator,
@@ -81,24 +80,6 @@ class TestGPU(unittest.TestCase):
             ),
         ]
         mock_subprocess.assert_has_calls(expected_calls)
-
-    @patch("subprocess.run")
-    def test_uninstall_operator_success(self, mock_subprocess):
-        """Test successful operator uninstallation via Helm."""
-        mock_subprocess.return_value = MagicMock(returncode=0)
-
-        _uninstall_operator(operator_name=self.test_operator_name)
-
-        mock_subprocess.assert_called_once_with(
-            [
-                "helm",
-                "uninstall",
-                self.test_operator_name,
-                "--namespace",
-                self.test_operator_name,
-            ],
-            check=True,
-        )
 
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     def test_verify_rdma_success(self, mock_k8s_client):
