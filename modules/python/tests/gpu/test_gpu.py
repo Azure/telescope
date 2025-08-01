@@ -161,8 +161,8 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_success(self, mock_network, mock_gpu, mock_mpi):
-        """Test configure function that installs all operators."""
+    def test_configure_all_operators(self, mock_network, mock_gpu, mock_mpi):
+        """Test configure function that installs all operators when all versions are provided."""
         configure(
             network_operator_version=self.test_chart_version,
             gpu_operator_version=self.test_chart_version,
@@ -177,6 +177,58 @@ class TestGPU(unittest.TestCase):
             chart_version=self.test_chart_version, config_dir=self.test_config_dir
         )
         mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
+
+    @patch("gpu.gpu.install_mpi_operator")
+    @patch("gpu.gpu.install_gpu_operator")
+    @patch("gpu.gpu.install_network_operator")
+    def test_configure_only_gpu_operator(self, mock_network, mock_gpu, mock_mpi):
+        """Test configure function that installs only GPU operator when only its version is provided."""
+        configure(
+            network_operator_version="",
+            gpu_operator_version=self.test_chart_version,
+            mpi_operator_version="",
+            config_dir=self.test_config_dir,
+        )
+
+        mock_network.assert_not_called()
+        mock_gpu.assert_called_once_with(
+            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+        )
+        mock_mpi.assert_not_called()
+
+    @patch("gpu.gpu.install_mpi_operator")
+    @patch("gpu.gpu.install_gpu_operator")
+    @patch("gpu.gpu.install_network_operator")
+    def test_configure_both_network_and_mpi_operator(self, mock_network, mock_gpu, mock_mpi):
+        """Test configure function that installs both Network and MPI operators when their versions are provided."""
+        configure(
+            network_operator_version=self.test_chart_version,
+            gpu_operator_version="",
+            mpi_operator_version=self.test_chart_version,
+            config_dir=self.test_config_dir,
+        )
+
+        mock_network.assert_called_once_with(
+            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+        )
+        mock_gpu.assert_not_called()
+        mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
+
+    @patch("gpu.gpu.install_mpi_operator")
+    @patch("gpu.gpu.install_gpu_operator")
+    @patch("gpu.gpu.install_network_operator")
+    def test_configure_no_operators(self, mock_network, mock_gpu, mock_mpi):
+        """Test configure function that installs no operators when no versions are provided."""
+        configure(
+            network_operator_version="",
+            gpu_operator_version="",
+            mpi_operator_version="",
+            config_dir=self.test_config_dir,
+        )
+
+        mock_network.assert_not_called()
+        mock_gpu.assert_not_called()
+        mock_mpi.assert_not_called()
 
     @patch("requests.get")
     @patch("gpu.gpu.KUBERNETES_CLIENT")

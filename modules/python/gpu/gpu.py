@@ -176,7 +176,7 @@ def configure(
     config_dir: str,
 ) -> None:
     """
-    Install all required operators with specified versions and custom configurations
+    Install operators with specified versions and custom configurations
 
     Args:
         network_operator_version: Version of the network operator
@@ -184,11 +184,14 @@ def configure(
         mpi_operator_version: Version of the MPI operator
         config_dir: Directory containing custom configuration files
     """
-    install_network_operator(
-        chart_version=network_operator_version, config_dir=config_dir
-    )
-    install_gpu_operator(chart_version=gpu_operator_version, config_dir=config_dir)
-    install_mpi_operator(chart_version=mpi_operator_version)
+    if network_operator_version:
+        install_network_operator(
+            chart_version=network_operator_version, config_dir=config_dir
+        )
+    if gpu_operator_version:
+        install_gpu_operator(chart_version=gpu_operator_version, config_dir=config_dir)
+    if mpi_operator_version:
+        install_mpi_operator(chart_version=mpi_operator_version)
 
 
 def _create_topology_configmap(
@@ -466,19 +469,22 @@ def main():
     configure_parser.add_argument(
         "--network_operator_version",
         type=str,
-        required=True,
+        required=False,
+        default="",
         help="Version of the network operator to install",
     )
     configure_parser.add_argument(
         "--gpu_operator_version",
         type=str,
-        required=True,
+        required=False,
+        default="",
         help="Version of the GPU operator to install",
     )
     configure_parser.add_argument(
         "--mpi_operator_version",
         type=str,
-        required=True,
+        required=False,
+        default="",
         help="Version of the MPI operator to install",
     )
     configure_parser.add_argument(
@@ -514,6 +520,7 @@ def main():
         "--vm_size",
         type=str,
         required=False,
+        default="",
         help="Type of the machine (e.g., 'ndv4', 'ndv5')",
     )
 

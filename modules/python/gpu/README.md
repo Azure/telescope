@@ -1,6 +1,8 @@
 # Overview
 
-## Validate
+## Configure
+
+The example below installs 3 operatiors: network operator, gpu operator, and mpi operator. To install only specific operator(s), you can set the version for that specific operator only and leave the rest unset.
 
 ```bash
 pushd modules/python
@@ -10,9 +12,9 @@ MPI_OPERATOR_VERSION="v0.6.0"
 CONFIG_DIR=$(pwd)/gpu/config
 PYTHON_SCRIPT_FILE=$(pwd)/gpu/gpu.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-  --network_operator_version $NETWORK_OPERATOR_VERSION \
-  --gpu_operator_version $GPU_OPERATOR_VERSION \
-  --mpi_operator_version $MPI_OPERATOR_VERSION \
+  --network_operator_version ${NETWORK_OPERATOR_VERSION:-""} \
+  --gpu_operator_version ${GPU_OPERATOR_VERSION:-""} \
+  --mpi_operator_version ${MPI_OPERATOR_VERSION:-""} \
   --config_dir $CONFIG_DIR
 ```
 
@@ -28,7 +30,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
   --provider $CLOUD \
   --config_dir $CONFIG_DIR \
   --result_dir $RESULT_DIR \
-  --vm_size $VM_SIZE
+  --vm_size ${VM_SIZE:-""}
 ```
 
 ## Collect
