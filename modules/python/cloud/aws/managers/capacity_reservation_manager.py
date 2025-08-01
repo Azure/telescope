@@ -334,8 +334,7 @@ class CapacityReservationManager:
         }
 
 
-if __name__ == "__main__":
-    
+def main():    
     # Set up command line argument parsing
     parser = argparse.ArgumentParser(description='AWS Capacity Reservation Manager - Find and Purchase Capacity Blocks')
     parser.add_argument('--region', '-r', default='us-east-2', help='AWS region (default: us-east-2)')
@@ -417,4 +416,7 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error("Error: %s", e)
         exit(1)
-    
+
+
+if __name__ == "__main__":
+    main()
