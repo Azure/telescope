@@ -24,7 +24,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory:
@@ -34,6 +34,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
             n10-p700-memory:
               node_count: 10
@@ -42,6 +43,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
             n10-p1100-memory:
               node_count: 10
@@ -50,6 +52,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
           max_parallel: 3
           timeout_in_minutes: 120
@@ -66,7 +69,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory:
@@ -76,6 +79,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
             n10-p700-memory:
               node_count: 10
@@ -84,6 +88,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
             n10-p1100-memory:
               node_count: 10
@@ -92,6 +97,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
           max_parallel: 3
           timeout_in_minutes: 120
@@ -108,7 +114,7 @@ stages:
             - eu-west-1
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory:
@@ -118,6 +124,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
             n10-p700-memory:
               node_count: 10
@@ -126,6 +133,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
             n10-p1100-memory:
               node_count: 10
@@ -134,6 +142,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
+              scrape_containerd: True
               host_network: False
           max_parallel: 3
           timeout_in_minutes: 120
