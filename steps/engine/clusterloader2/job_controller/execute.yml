@@ -16,7 +16,7 @@ steps:
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
         --operation_timeout $SCALE_TIMEOUT \
-        --prometheus_enabled ${PROMETHEUS_ENABLED:-True} \
+        --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
@@ -24,7 +24,7 @@ steps:
         --cl2_config_dir ${CL2_CONFIG_DIR} \
         --cl2_report_dir $CL2_REPORT_DIR \
         --cl2_config_file $CL2_CONFIG_FILE \
-        --prometheus_enabled ${PROMETHEUS_ENABLED:-True} \
+        --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD
     workingDirectory: modules/python

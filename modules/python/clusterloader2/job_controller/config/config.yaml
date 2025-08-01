@@ -17,10 +17,6 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
-      - Identifier: SchedulingThroughputPrometheus
-        Method: SchedulingThroughputPrometheus
-        Params:
-          action: start
       - Identifier: SchedulingThroughput
         Method: SchedulingThroughput
         Params:
@@ -66,11 +62,6 @@ steps:
         timeout: 3h
   - name: Collect measurements
     measurements:
-      - Identifier: SchedulingThroughputPrometheus
-        Method: SchedulingThroughputPrometheus
-        Params:
-          action: gather
-          timeout: 3h
       - Identifier: SchedulingThroughput
         Method: SchedulingThroughput
         Params:
