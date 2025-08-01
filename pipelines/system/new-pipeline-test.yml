@@ -3,7 +3,7 @@ trigger: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: non-acns-azurecni-overlay
-  OBSERVERABILITY_TOOL: retina-oss-standard-advanced-local-context
+  OBSERVERABILITY_TOOL: retina-oss-standard-advanced-remote-context
 
 stages:
   - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
@@ -18,7 +18,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             repository: http://github.com/microsoft/retina.git
-            makeargs: "helm-install-advanced-local-context"
+            makeargs: "helm-install-advanced-remote-context"
             ref: main
             install: true
           topology: observability
