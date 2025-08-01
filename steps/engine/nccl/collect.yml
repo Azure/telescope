@@ -1,0 +1,13 @@
+steps:
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+        --result_dir $RESULT_DIR \
+        --run_url $RUN_URL \
+        --cloud_info "$CLOUD_INFO"
+    workingDirectory: modules/python
+    displayName: "Collect nccl-tests"
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
+      RESULT_DIR: $(TEST_RESULTS_DIR)
+      RUN_URL: $(RUN_URL)

@@ -1,0 +1,25 @@
+parameters:
+  cloud: ""
+  vm_size: ""
+
+steps:
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --network_operator_version ${NETWORK_OPERATOR_VERSION:-""} \
+        --gpu_operator_version ${GPU_OPERATOR_VERSION:-""} \
+        --mpi_operator_version ${MPI_OPERATOR_VERSION:-""} \
+        --config_dir $CONFIG_DIR
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        --provider $CLOUD \
+        --config_dir $CONFIG_DIR \
+        --result_dir $RESULT_DIR \
+        --vm_size ${VM_SIZE:-""}
+    workingDirectory: modules/python
+    displayName: "Execute nccl-tests"
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
+      CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/gpu/config
+      RESULT_DIR: $(TEST_RESULTS_DIR)
+      CLOUD: ${{ parameters.cloud }}
+      VM_SIZE: ${{ parameters.vm_size }}

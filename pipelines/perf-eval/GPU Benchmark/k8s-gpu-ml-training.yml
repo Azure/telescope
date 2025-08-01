@@ -5,7 +5,6 @@ variables:
   NETWORK_OPERATOR_VERSION: v25.4.0
   GPU_OPERATOR_VERSION: v25.3.1
   MPI_OPERATOR_VERSION: v0.6.0
-  OWNER: aks
 
 stages:
   - stage: azure_ND_A100_gpu_test
