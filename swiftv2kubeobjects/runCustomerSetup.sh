@@ -75,17 +75,15 @@ echo "Deploy nginx pod on the cluster with IP - 172.27.0.30"
 az aks get-credentials --resource-group $RG --name $CLUSTER --overwrite-existing -a
 kubectl apply -f ./nginx-deployment.yaml
 
-# print vnet guid, subnet guid of scaledel and subnet id of scaledel
-echo "=== Network Information ==="
 
-# Get VNet GUID (try different properties)
-vnetGuid=$(az network vnet show --resource-group $RG --name $custVnetName --query "resourceGuid" -o tsv 2>/dev/null || echo "Not available")
+ACR_NAME="sv2perfacr"
+IMAGE_NAME="nicolaka/netshoot"
+ACR_IMAGE_NAME="netshoot:latest"
 
-# Get subnet info and extract GUID and ID
-subnetInfo=$(az rest --method get --url "/subscriptions/$sub/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2023-06-01")
-subnetGuid=$(echo $subnetInfo | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
-subnetId=$(echo $subnetInfo | jq -r '.id')
-
-echo "VNet GUID: $vnetGuid"
-echo "ScaleDel Subnet GUID: $subnetGuid"
-echo "ScaleDel Subnet ID: $subnetId"
+az acr create --resource-group $RG --name $ACR_NAME --sku Basic
+az acr login --name $ACR_NAME
+docker pull $IMAGE_NAME
+docker tag $IMAGE_NAME $ACR_NAME.azurecr.io/$ACR_IMAGE_NAME
+docker push $ACR_NAME.azurecr.io/$ACR_IMAGE_NAME
+echo "Docker image $IMAGE_NAME mirrored to ACR $ACR_NAME as $ACR_IMAGE_NAME"
+echo "You can now use this image in your AKS cluster."

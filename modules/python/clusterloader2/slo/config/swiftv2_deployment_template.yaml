@@ -34,7 +34,7 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
-      - image: nicolaka/netshoot
+      - image: sv2perfacr.azurecr.io/netshoot:latest
         command: ["sleep", "infinity"]
         imagePullPolicy: IfNotPresent
         securityContext:

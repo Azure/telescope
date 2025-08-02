@@ -37,6 +37,7 @@ create_aks_cluster() {
         --node-resource-group MC_sv2perf-$resource_group-$cluster_name \
         --enable-managed-identity \
         --generate-ssh-keys \
+        --attach-acr sv2perfacr \
         --yes
 } 
 
