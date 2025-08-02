@@ -10,11 +10,10 @@ parameters:
 
 steps:
 - script: |
-    # Make all required scripts executable and run the main script
+    # Make required scripts executable and run the simplified script
     chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/aks-utils.sh
-    chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/vm-recovery.sh
-    chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/scale-cluster.sh
-    $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/scale-cluster.sh
+    chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/scale-cluster-simple.sh
+    $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/scale-cluster-simple.sh
   env:
     REGION: ${{ parameters.region }}
     ROLE: ${{ parameters.role }}

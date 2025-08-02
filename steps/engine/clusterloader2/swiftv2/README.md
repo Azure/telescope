@@ -1,148 +1,110 @@
 # AKS Nodepool Scaling Scripts
 
-A modular collection of scripts for scaling AKS nodepools with robust error handling and VM failure recovery.
+Simplified scripts for scaling AKS nodepools and handling VM failures.
 
-## Overview
+## Files
 
-The original monolithic `scale-cluster.sh` script has been refactored into three focused, maintainable modules:
+### Simplified Scripts (Recommended)
 
-## File Structure
+- **`scale-cluster-simple.sh`** - Streamlined scaling with basic VM repair
+- **`vm-status-repair.sh`** - Dedicated VM status checking and repair tool
+- **`scale-cluster.yml`** - Complete scaling template with integrated VM repair
 
-### 1. `aks-utils.sh` - Core Utilities Library
-Contains common functions for AKS cluster management:
+### Shared Utilities
 
-- **Logging Functions**: `log_info()`, `log_warning()`, `log_error()`
-- **Cluster Discovery**: `find_aks_cluster()` - finds AKS clusters by region and role tags
-- **Nodepool Management**: 
-  - `get_user_nodepools()` - discovers user nodepools (excludes system/test pools)
-  - `get_nodepool_count()` - retrieves current node count
-- **Azure Resource Queries**:
-  - `get_node_resource_group()` - gets node resource group for cluster
-  - `get_vmss_name()` - finds VMSS name for nodepool
+- **`aks-utils.sh`** - Common functions for cluster management and logging
 
-### 2. `vm-recovery.sh` - VM Failure Detection and Recovery
-Handles VM failure scenarios and recovery operations:
+### Legacy Scripts
 
-- **VM Health Monitoring**: `check_failed_vms()` - detects failed VMs in nodepool VMSS
-- **Recovery Operations**:
-  - `reimage_failed_vms()` - attempts to reimage failed VM instances
-  - `cleanup_failed_vms()` - removes persistent failed VMs
-- **Status Reporting**: `show_vmss_status()` - displays VMSS instance status for debugging
-
-### 3. `scale-cluster.sh` - Main Scaling Orchestration
-The primary script that orchestrates the scaling process:
-
-- **Scaling Operations**:
-  - `scale_nodepool_with_timeout()` - scales individual nodepool with timeout protection
-  - `scale_nodepool()` - orchestrates scaling with retry logic and VM recovery
-- **Node Readiness Verification**:
-  - `verify_node_readiness()` - ensures nodes are ready in Kubernetes
-  - `diagnose_node_issues()` - diagnoses persistent readiness issues
-  - `handle_readiness_timeout()` - handles timeout scenarios with diagnostics
-- **Main Orchestration**: Environment validation, cluster discovery, and scaling coordination
+- **`scale-cluster.sh`** - Original complex scaling script (kept for reference)
+- **`vm-recovery.sh`** - Original VM recovery script (kept for reference)
 
 ## Usage
 
-### Prerequisites
-- Azure CLI (`az`) configured with appropriate permissions
-- `kubectl` configured (handled automatically by the script)
-- `jq` for JSON parsing
-- Required environment variables set
+### Basic Scaling (Includes VM Repair)
 
-### Environment Variables
-The following environment variables must be set:
+The scaling template automatically handles VM repair as part of the scaling process:
 
-```bash
-export REGION="eastus"                    # Azure region where AKS cluster is located
-export ROLE="cluster"                     # Role tag for resource identification
-export NODES_PER_NODEPOOL="20"          # Target node count per nodepool
-export RUN_ID="benchmark-run-001"        # Run identifier tag for resource filtering
+```yaml
+- template: steps/engine/clusterloader2/swiftv2/scale-cluster.yml
+  parameters:
+    region: "eastus2euap"
+    role: "slo"
+    nodes_per_nodepool: "500"
+    enable_autoscale: "false"
 ```
 
-### Running the Script
+This single step will:
+
+1. Scale the nodepool to the target size
+2. Wait 60 seconds for stabilization
+3. Check VM status and list any failed VMs  
+4. Automatically repair (reimage) any failed VMs
+
+### Manual VM Troubleshooting (Optional)
+
+For independent VM troubleshooting outside of scaling operations, you can run the script directly:
+
 ```bash
-./scale-cluster.sh
+# Set environment variables
+export REGION="eastus2euap"
+export ROLE="slo"
+export RUN_ID="your-run-id"
+
+# Check VM status only
+./vm-status-repair.sh status
+
+# Repair failed VMs only
+./vm-status-repair.sh repair
+
+# Status and repair combined
+./vm-status-repair.sh both
 ```
 
-The script will:
-1. Validate environment variables
-2. Discover AKS cluster using tags
-3. Identify user nodepools to be scaled
-4. Scale each nodepool (with VM failure recovery if needed)
-5. Verify all nodes are ready in Kubernetes
+## Environment Variables
 
-## Key Features
+All scripts require:
 
-### 🔧 **Modular Design**
-- Separated concerns into focused, reusable modules
-- Clear function boundaries and responsibilities
-- Easy to test and maintain individual components
+- `REGION` - Azure region (e.g., "eastus2euap")
+- `ROLE` - Resource role tag (e.g., "slo")
+- `NODES_PER_NODEPOOL` - Target node count (for scaling operations)
+- `RUN_ID` - Run identifier for resource filtering
 
-### 🛡️ **Robust Error Handling**
-- Timeout protection for all Azure operations (30-minute max per operation)
-- Retry logic with exponential backoff
-- Comprehensive error reporting and diagnostics
+## Key Improvements
 
-### ⚡ **VM Failure Recovery**
-- Automatic detection of failed VM instances in VMSS
-- Recovery strategies: reimage failed VMs, delete persistent failures
-- Scale-down-then-scale-up approach for stuck VM scenarios
+The simplified scripts address production issues where complex retry logic caused operations to hang:
 
-### 📊 **Enhanced Monitoring**
-- Detailed progress logging with structured output
-- Azure DevOps integration with warning/error annotations
-- VMSS status reporting for troubleshooting
-- Dynamic timeouts based on node count
-
-### 🎯 **Smart Nodepool Selection**
-- Filters out system nodepools (`System` mode)
-- Excludes monitoring nodepools (`promnodepool`)
-- Skips development/test nodepools (`devtest` in name)
-
-## Architecture Benefits
-
-### Before (Monolithic)
-- Single 387-line file with mixed responsibilities
-- Difficult to test individual components
-- Hard to understand the flow and debug issues
-- Duplicated utility functions
-
-### After (Modular)
-- Three focused files with clear responsibilities
-- Reusable utility functions in separate library
-- Self-documenting code with clear function names
-- Easy to extend and maintain
-- Better error isolation and handling
-
-## Integration
-
-This script is designed to integrate with the Telescope benchmarking framework:
-
-- **Pipeline Integration**: Can be called from Azure DevOps pipelines
-- **Logging Compatibility**: Uses ADO-compatible log formats
-- **Tag-based Discovery**: Works with Telescope's resource tagging strategy
-- **Environment Variable**: Compatible with existing pipeline variable patterns
+- **20-minute timeout** instead of complex retry loops
+- **Clear VM status reporting** with detailed failure information
+- **Separate VM repair tool** for troubleshooting
+- **No background monitoring** to prevent hanging operations
+- **Simple error handling** with basic retry only where needed
 
 ## Troubleshooting
 
+### When Operations Get Stuck
+
+1. Check logs for timeout messages
+2. Use the VM status tool to identify failed VMs:
+
+   ```bash
+   # Set environment variables first
+   export REGION="eastus2euap"
+   export ROLE="slo"
+   export RUN_ID="your-run-id"
+   
+   # Check VM status
+   ./vm-status-repair.sh status
+   ```
+
+3. Run the repair tool to fix failed instances:
+
+   ```bash
+   ./vm-status-repair.sh repair
+   ```
+
 ### Common Issues
-1. **Missing Environment Variables**: Check that all required variables are set
-2. **Azure Permission Issues**: Ensure service principal has Contributor access to AKS and VMSS resources
-3. **Network Connectivity**: Verify connection to Azure APIs and Kubernetes cluster
-4. **VM Provisioning Failures**: Check Azure resource quotas and regional capacity
 
-### Debug Mode
-The script runs with `-x` flag for detailed execution tracing. Monitor the logs for:
-- Azure CLI command outputs
-- VM failure detection results
-- Scaling operation progress
-- Node readiness status checks
-
-## Future Enhancements
-
-Potential improvements to consider:
-- [ ] Parallel nodepool scaling for faster execution
-- [ ] Configurable timeout values via environment variables
-- [ ] Metrics collection and reporting integration
-- [ ] Support for mixed nodepool sizes per cluster
-- [ ] Integration with cluster autoscaler for intelligent scaling
+- **Scale timeout (20 minutes)** - Usually indicates Azure infrastructure issues
+- **Failed VMs after scaling** - Use repair tool to reimage failed instances
+- **Nodes not joining cluster** - Check VM status and Kubernetes node conditions
