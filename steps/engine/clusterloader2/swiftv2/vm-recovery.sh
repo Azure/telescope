@@ -17,7 +17,7 @@ function check_failed_vms() {
     local cluster_name=$2
     local resource_group=$3
     
-    log_info "Checking for failed VMs in nodepool '$nodepool'..."
+    log_info "Checking for failed VMs in nodepool '$nodepool'..." >&2
     
     # Get node resource group
     local node_rg
@@ -30,7 +30,7 @@ function check_failed_vms() {
     local failed_vms=0
     
     if [ -n "$vmss_name" ]; then
-        log_info "Found VMSS: '$vmss_name' for nodepool '$nodepool'"
+        log_info "Found VMSS: '$vmss_name' for nodepool '$nodepool'" >&2
         
         # Count VMs in failed provisioning state
         failed_vms=$(az vmss list-instances \
@@ -39,14 +39,14 @@ function check_failed_vms() {
             --query "[?provisioningState=='Failed' || instanceView.statuses[?code=='ProvisioningState/failed']] | length(@)" \
             --output tsv 2>/dev/null || echo 0)
         
-        log_info "Found $failed_vms failed VMs in nodepool '$nodepool'"
+        log_info "Found $failed_vms failed VMs in nodepool '$nodepool'" >&2
         
         # Attempt to recover failed VMs
         if [ "$failed_vms" -gt 0 ]; then
             reimage_failed_vms "$vmss_name" "$node_rg" "$nodepool"
         fi
     else
-        log_warning "No VMSS found for nodepool '$nodepool'"
+        log_warning "No VMSS found for nodepool '$nodepool'" >&2
     fi
     
     echo "$failed_vms:$vmss_name:$node_rg"

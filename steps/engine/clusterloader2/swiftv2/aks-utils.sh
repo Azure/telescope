@@ -69,7 +69,7 @@ function get_user_nodepools() {
     local cluster_name=$1
     local resource_group=$2
     
-    log_info "Discovering user nodepools for cluster '$cluster_name'..."
+    log_info "Discovering user nodepools for cluster '$cluster_name'..." >&2
     
     # Get all nodepools as JSON
     local nodepools
@@ -91,11 +91,11 @@ function get_user_nodepools() {
     )
     
     if [ -z "$usernodepools" ]; then
-        log_warning "No user nodepools found to scale"
+        log_warning "No user nodepools found to scale" >&2
         return 1
     fi
     
-    log_info "Found user nodepools: $(echo "$usernodepools" | tr '\n' ' ')"
+    log_info "Found user nodepools: $(echo "$usernodepools" | tr '\n' ' ')" >&2
     echo "$usernodepools"
 }
 
