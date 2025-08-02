@@ -75,7 +75,7 @@ function list_vm_status() {
     local cluster_name=$2
     local resource_group=$3
     
-    log_info "Checking VM status for nodepool '$nodepool'..."
+    log_info "Checking VM status for nodepool '$nodepool'..." >&2
     
     # Get node resource group
     local node_rg
@@ -86,20 +86,20 @@ function list_vm_status() {
     vmss_name=$(get_vmss_name "$nodepool" "$node_rg")
     
     if [ -n "$vmss_name" ]; then
-        log_info "Found VMSS: '$vmss_name' for nodepool '$nodepool'"
+        log_info "Found VMSS: '$vmss_name' for nodepool '$nodepool'" >&2
         
         # List all VM instances with their status
-        log_info "VM instance status for nodepool '$nodepool':"
+        log_info "VM instance status for nodepool '$nodepool':" >&2
         az vmss list-instances \
             --name "$vmss_name" \
             --resource-group "$node_rg" \
             --query "[].{InstanceId:instanceId,ProvisioningState:provisioningState,PowerState:instanceView.statuses[1].displayStatus}" \
-            --output table 2>/dev/null || log_warning "Unable to retrieve VMSS status"
+            --output table 2>/dev/null || log_warning "Unable to retrieve VMSS status" >&2
         
         # Return VMSS info for repair operations
         echo "$vmss_name:$node_rg"
     else
-        log_warning "No VMSS found for nodepool '$nodepool'"
+        log_warning "No VMSS found for nodepool '$nodepool'" >&2
         echo ":"
     fi
 }
