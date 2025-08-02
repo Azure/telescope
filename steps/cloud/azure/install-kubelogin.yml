@@ -1,0 +1,25 @@
+parameters:
+- name: cloud
+  type: string
+- name: region
+  type: string
+
+steps:
+# Refresh credentials
+- template: /steps/cloud/${{ parameters.cloud }}/login.yml
+  parameters:
+    region: ${{ parameters.region }}
+    credential_type: service_connection
+
+- script: |
+    set -eo pipefail
+
+    echo "Installing kubelogin if not present..."
+    if ! command -v kubelogin &> /dev/null; then
+      az aks install-cli
+    fi
+
+    echo "Converting kubeconfig for Azure CLI authentication..."
+    kubelogin convert-kubeconfig -l azurecli -v 99
+    kubectl config view --kubeconfig /home/AzDevOps/.kube/config
+  displayName: 'Install kubelogin and convert kubeconfig'
