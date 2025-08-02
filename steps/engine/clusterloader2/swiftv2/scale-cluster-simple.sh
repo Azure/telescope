@@ -19,17 +19,39 @@ source "$SCRIPT_DIR/aks-utils.sh"
 # SIMPLIFIED SCALING AND VM REPAIR
 # =============================================================================
 
-# Scale nodepool with basic timeout
+# Calculate timeout based on node count
+function get_scale_timeout() {
+    local node_count=$1
+    
+    if [ "$node_count" -le 100 ]; then
+        echo 900  # 15 minutes
+    elif [ "$node_count" -le 200 ]; then
+        echo 1200  # 20 minutes
+    elif [ "$node_count" -le 500 ]; then
+        echo 1800  # 30 minutes
+    elif [ "$node_count" -le 750 ]; then
+        echo 2700  # 45 minutes
+    else
+        echo 3600  # 60 minutes for 1000+ nodes
+    fi
+}
+
+# Scale nodepool with dynamic timeout based on node count
 function scale_nodepool() {
     local cluster_name=$1
     local nodepool=$2
     local resource_group=$3
     local target_count=$4
     
-    log_info "Scaling nodepool '$nodepool' to $target_count nodes..."
+    # Calculate timeout based on node count
+    local timeout_seconds
+    timeout_seconds=$(get_scale_timeout "$target_count")
+    local timeout_minutes=$((timeout_seconds / 60))
     
-    # Scale with 20-minute timeout
-    if timeout 1200 az aks nodepool scale \
+    log_info "Scaling nodepool '$nodepool' to $target_count nodes (timeout: ${timeout_minutes} minutes)..."
+    
+    # Scale with dynamic timeout
+    if timeout "$timeout_seconds" az aks nodepool scale \
         --cluster-name "$cluster_name" \
         --name "$nodepool" \
         --resource-group "$resource_group" \
@@ -39,7 +61,7 @@ function scale_nodepool() {
     else
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
-            log_warning "Scale operation timed out after 20 minutes for nodepool '$nodepool'"
+            log_warning "Scale operation timed out after ${timeout_minutes} minutes for nodepool '$nodepool'"
         else
             log_warning "Scale operation failed with exit code $exit_code for nodepool '$nodepool'"
         fi
@@ -82,11 +104,13 @@ function list_vm_status() {
     fi
 }
 
-# Repair failed VMs by reimaging them
+# Repair failed VMs by reimaging them with retry logic
 function repair_failed_vms() {
     local vmss_name=$1
     local node_rg=$2
     local nodepool=$3
+    local max_retries=3
+    local retry_delay=30
     
     if [ -z "$vmss_name" ] || [ -z "$node_rg" ]; then
         log_info "No VMSS information available for repair"
@@ -95,37 +119,83 @@ function repair_failed_vms() {
     
     log_info "Identifying failed VMs in nodepool '$nodepool'..."
     
-    # Get list of failed instance IDs
+    # Get list of failed instance IDs (both Failed state and OSProvisioningTimedOut)
     local failed_instances
     failed_instances=$(az vmss list-instances \
         --name "$vmss_name" \
         --resource-group "$node_rg" \
-        --query "[?provisioningState=='Failed'].instanceId" \
+        --query "[?provisioningState=='Failed' || contains(to_string(instanceView.statuses[?code=='ProvisioningState/failed/OSProvisioningTimedOut']), 'OSProvisioningTimedOut')].instanceId" \
         --output tsv 2>/dev/null || echo "")
     
-    if [ -z "$failed_instances" ]; then
+    # Also check for instances with OSProvisioningTimedOut specifically
+    local timeout_instances
+    timeout_instances=$(az vmss list-instances \
+        --name "$vmss_name" \
+        --resource-group "$node_rg" \
+        --query "[].{instanceId:instanceId,statuses:instanceView.statuses[?contains(code,'OSProvisioningTimedOut')]}" \
+        --output json 2>/dev/null | jq -r '.[] | select(.statuses | length > 0) | .instanceId' 2>/dev/null || echo "")
+    
+    # Combine both lists and remove duplicates
+    local all_failed_instances
+    all_failed_instances=$(echo -e "$failed_instances\n$timeout_instances" | sort -u | grep -v '^$' || echo "")
+    
+    if [ -z "$all_failed_instances" ]; then
         log_info "No failed VMs found in nodepool '$nodepool'"
         return 0
     fi
     
-    log_info "Found failed VM instances: $failed_instances"
+    log_info "Found failed VM instances: $all_failed_instances"
     
-    # Reimage each failed instance
-    for instance_id in $failed_instances; do
+    # Log detailed failure information for troubleshooting
+    log_info "Checking detailed failure reasons..."
+    az vmss list-instances \
+        --name "$vmss_name" \
+        --resource-group "$node_rg" \
+        --query "[?provisioningState=='Failed'].{InstanceId:instanceId,ProvisioningState:provisioningState,Statuses:instanceView.statuses[?code=='ProvisioningState/failed/OSProvisioningTimedOut' || contains(code,'failed')].{Code:code,Message:message}}" \
+        --output table 2>/dev/null || log_warning "Unable to retrieve detailed failure information"
+    
+    # Reimage each failed instance with retry logic
+    for instance_id in $all_failed_instances; do
         if [ -n "$instance_id" ]; then
-            log_info "Reimaging VM instance '$instance_id' in VMSS '$vmss_name'..."
+            local retry_count=0
+            local reimage_success=false
             
-            # Reimage with timeout (don't wait for completion)
-            timeout 300 az vmss reimage \
-                --name "$vmss_name" \
-                --resource-group "$node_rg" \
-                --instance-id "$instance_id" \
-                --no-wait 2>/dev/null || \
-                log_warning "Reimage command failed or timed out for instance '$instance_id'"
+            while [ $retry_count -lt $max_retries ] && [ "$reimage_success" = false ]; do
+                retry_count=$((retry_count + 1))
+                
+                if [ $retry_count -gt 1 ]; then
+                    log_info "Retry attempt $retry_count/$max_retries for VM instance '$instance_id'"
+                    log_info "Waiting $retry_delay seconds before retry..."
+                    sleep $retry_delay
+                else
+                    log_info "Reimaging VM instance '$instance_id' in VMSS '$vmss_name' (attempt $retry_count/$max_retries)..."
+                fi
+                
+                # Reimage with timeout (don't wait for completion)
+                if timeout 300 az vmss reimage \
+                    --name "$vmss_name" \
+                    --resource-group "$node_rg" \
+                    --instance-id "$instance_id" \
+                    --no-wait 2>/dev/null; then
+                    log_info "Successfully initiated reimage for VM instance '$instance_id'"
+                    reimage_success=true
+                else
+                    local exit_code=$?
+                    if [ $retry_count -lt $max_retries ]; then
+                        log_warning "Reimage attempt $retry_count failed for instance '$instance_id' (exit code: $exit_code), will retry..."
+                    else
+                        log_warning "All $max_retries reimage attempts failed for instance '$instance_id' (exit code: $exit_code)"
+                    fi
+                fi
+            done
+            
+            if [ "$reimage_success" = false ]; then
+                log_warning "Failed to reimage VM instance '$instance_id' after $max_retries attempts, continuing with other instances..."
+            fi
         fi
     done
     
-    log_info "Reimage operations initiated for all failed instances"
+    log_info "Reimage operations completed for all failed instances"
 }
 
 # Validate required environment variables
@@ -178,7 +248,9 @@ function main() {
         # Scale if needed
         if [ "$current_nodes" != "$NODES_PER_NODEPOOL" ]; then
             log_info "Scaling nodepool '$nodepool': $current_nodes → $NODES_PER_NODEPOOL"
-            scale_nodepool "$aks_name" "$nodepool" "$aks_rg" "$NODES_PER_NODEPOOL"
+            if ! scale_nodepool "$aks_name" "$nodepool" "$aks_rg" "$NODES_PER_NODEPOOL"; then
+                log_warning "Scale operation failed for nodepool '$nodepool', continuing with other nodepools..."
+            fi
         else
             log_info "Nodepool '$nodepool' already at target size ($NODES_PER_NODEPOOL)"
         fi
