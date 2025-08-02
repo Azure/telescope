@@ -10,100 +10,14 @@ parameters:
 
 steps:
 - script: |
-    set -euo pipefail
-    set -x
-
-    region=${{ parameters.region }}
-
-    aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].name" --output tsv)
-
-    aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].resourceGroup" --output tsv)
-
-    if [ -z "$aks_name" ]; then
-        echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $region."
-        exit 1
-    fi
-    az aks get-credentials -n $aks_name -g $aks_rg
-
-    nodepools=$(az aks nodepool list --cluster-name $aks_name --resource-group $aks_rg -o json)
-    usernodepools=$(echo $nodepools | jq -r '.[] | select(.mode == "User" and .name != "promnodepool" and (.name | contains("devtest") | not)) | .name')
-
-    for np in $usernodepools; do
-      currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
-
-      if [ "$currentnodes" != "${{ parameters.nodes_per_nodepool }}" ]; then
-        
-        # Calculate retry attempts for API calls (maximum 5 minutes for transient issues)
-        max_attempts=5  # 5 attempts with 60-second intervals = 5 minutes max
-
-        for i in $(seq 1 $max_attempts); do
-          if az aks nodepool scale --cluster-name $aks_name --name $np --resource-group $aks_rg -c ${{ parameters.nodes_per_nodepool }}; then
-            echo "Nodepool $np scaled successfully."
-            break
-          else
-            echo "Failed to scale nodepool $np. Retrying in 60 seconds... (Attempt $i of $max_attempts)"
-            sleep 60
-          fi
-          if [ $i -eq $max_attempts ]; then
-            echo "##vso[task.logissue type=error;] Failed to scale nodepool $np after $max_attempts attempts (5 minutes)."
-            exit 1
-          fi
-        done
-
-      fi
-
-    done
-
-    # Verify all nodes are ready in Kubernetes after scaling operations
-    echo "Verifying all scaled nodes are ready in Kubernetes..."
-    for np in $usernodepools; do
-      currentnodes=$(az aks nodepool show --cluster-name $aks_name --name $np --resource-group $aks_rg | jq '.count')
-      
-      # Only check nodes that were scaled to the target count
-      if [ "$currentnodes" = "${{ parameters.nodes_per_nodepool }}" ]; then
-        echo "Checking node readiness for nodepool $np..."
-        
-        # Calculate timeout based on node count (10 seconds per node, minimum 5 minutes, maximum 10 minutes)
-        node_readiness_timeout=$(( ${{ parameters.nodes_per_nodepool }} * 10 ))
-        if [ $node_readiness_timeout -lt 300 ]; then
-          node_readiness_timeout=300  # 5 minutes minimum
-        elif [ $node_readiness_timeout -gt 600 ]; then
-          node_readiness_timeout=600  # 10 minutes maximum
-        fi
-        
-        TIMEOUT=$node_readiness_timeout
-        RETRY_INTERVAL=30  # Check every 30 seconds
-        elapsed=0
-        
-        while [ $elapsed -lt $TIMEOUT ]; do
-          # Get ready nodes count for this nodepool
-          READY_NODES=$(kubectl get nodes -l agentpool=$np --no-headers 2>/dev/null | grep "Ready" | wc -l || echo 0)
-          EXPECTED_NODES=${{ parameters.nodes_per_nodepool }}
-          
-          echo "Node readiness check for $np: $READY_NODES ready out of $EXPECTED_NODES expected nodes (elapsed: ${elapsed}s)"
-          
-          if [ "$READY_NODES" -eq "$EXPECTED_NODES" ] && [ "$READY_NODES" -gt 0 ]; then
-            echo "All $READY_NODES nodes in nodepool $np are ready in Kubernetes"
-            break
-          else
-            echo "Only $READY_NODES out of $EXPECTED_NODES nodes are ready for nodepool $np, waiting..."
-            sleep $RETRY_INTERVAL
-            elapsed=$((elapsed + RETRY_INTERVAL))
-          fi
-        done
-        
-        if [ $elapsed -ge $TIMEOUT ]; then
-          echo "##vso[task.logissue type=error;] Timeout reached waiting for nodes in nodepool $np to be ready"
-          kubectl get nodes -l agentpool=$np 2>/dev/null || echo "Unable to get node status"
-          exit 1
-        fi
-      fi
-    done
-
-    echo "All nodepool scaling and node readiness verification completed successfully."
+    # Make required scripts executable and run the simplified script
+    chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/aks-utils.sh
+    chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/scale-cluster.sh
+    $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2/scale-cluster.sh
   env:
+    REGION: ${{ parameters.region }}
     ROLE: ${{ parameters.role }}
+    NODES_PER_NODEPOOL: ${{ parameters.nodes_per_nodepool }}
+    RUN_ID: $(RUN_ID)
   displayName: "Scale Cluster"
 

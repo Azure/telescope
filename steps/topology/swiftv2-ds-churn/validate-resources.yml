@@ -15,7 +15,7 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: $NODE_COUNT
+      nodes_per_nodepool: $(node_count)
       enable_autoscale: "false"
   - template: /steps/engine/clusterloader2/swiftv2/validate.yml
     parameters:
