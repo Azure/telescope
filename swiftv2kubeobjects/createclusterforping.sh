@@ -7,6 +7,7 @@ CLUSTER="large"
 SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
 K8S_VER=1.30
 NODEPOOLS=1
+SHARED_IDENTITY_NAME="sharedKubeletIdentity"
 
 # Function to create AKS cluster
 create_aks_cluster() {
@@ -37,7 +38,8 @@ create_aks_cluster() {
         --node-resource-group MC_sv2perf-$resource_group-$cluster_name \
         --enable-managed-identity \
         --generate-ssh-keys \
-        --attach-acr sv2perfacr \
+        --enable-managed-identity \
+        --assign-kubelet-identity $(az identity show --name $SHARED_IDENTITY_NAME --resource-group $RG --query id -o tsv) \
         --yes
 } 
 

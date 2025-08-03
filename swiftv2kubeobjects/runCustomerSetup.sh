@@ -79,6 +79,7 @@ kubectl apply -f ./nginx-deployment.yaml
 ACR_NAME="sv2perfacr"
 IMAGE_NAME="nicolaka/netshoot"
 ACR_IMAGE_NAME="netshoot:latest"
+SHARED_IDENTITY_NAME="sharedKubeletIdentity"
 
 az acr create --resource-group $RG --name $ACR_NAME --sku Basic
 az acr login --name $ACR_NAME
@@ -87,3 +88,20 @@ docker tag $IMAGE_NAME $ACR_NAME.azurecr.io/$ACR_IMAGE_NAME
 docker push $ACR_NAME.azurecr.io/$ACR_IMAGE_NAME
 echo "Docker image $IMAGE_NAME mirrored to ACR $ACR_NAME as $ACR_IMAGE_NAME"
 echo "You can now use this image in your AKS cluster."
+
+az identity create \
+  --name $SHARED_IDENTITY_NAME \
+  --resource-group $RG \
+  --location $LOCATION
+
+pId=$(az identity show \
+  --name $SHARED_IDENTITY_NAME \
+  --resource-group $RG \
+  --query principalId \
+  --output tsv)
+
+az role assignment create \
+  --assignee-object-id $pId \
+  --assignee-principal-type ServicePrincipal \
+  --role AcrPull \
+  --scope $(az acr show --name $ACR_NAME --query id -o tsv)
