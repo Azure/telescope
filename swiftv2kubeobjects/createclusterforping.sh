@@ -14,6 +14,110 @@ custScaleDelSubnet="scaledel"
 custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
 custRG="sv2-perf-infra-customer"
 
+# Get target user node count from environment variable (default to 1 if not specified)
+TARGET_USER_NODE_COUNT=${NODES_PER_NODEPOOL:-1}
+echo "Target user nodepool size: $TARGET_USER_NODE_COUNT nodes"
+
+# Function to create and verify nodepool
+create_and_verify_nodepool() {
+    local cluster_name=$1
+    local nodepool_name=$2
+    local resource_group=$3
+    local node_count=${4:-1}
+    local node_size=${5:-"Standard_D4_v3"}
+    local node_subnet_id=$6
+    local pod_subnet_id=$7
+    local labels=${8:-""}
+    local taints=${9:-""}
+    local extra_args=${10:-""}
+    
+    echo "Creating nodepool: $nodepool_name with $node_count nodes of size $node_size"
+    
+    # Build the nodepool creation command
+    local nodepool_cmd="az aks nodepool add --cluster-name ${cluster_name} --name ${nodepool_name} --resource-group ${resource_group}"
+    nodepool_cmd+=" --node-count ${node_count} -s ${node_size} --os-sku Ubuntu"
+    nodepool_cmd+=" --vnet-subnet-id ${node_subnet_id} --pod-subnet-id ${pod_subnet_id}"
+    nodepool_cmd+=" --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true"
+    
+    # Add optional labels
+    if [[ -n "$labels" ]]; then
+        nodepool_cmd+=" --labels ${labels}"
+    fi
+    
+    # Add optional taints
+    if [[ -n "$taints" ]]; then
+        nodepool_cmd+=" --node-taints \"${taints}\""
+    fi
+    
+    # Add any extra arguments
+    if [[ -n "$extra_args" ]]; then
+        nodepool_cmd+=" ${extra_args}"
+    fi
+    
+    # Create nodepool with retry logic
+    local max_attempts=5
+    for attempt in $(seq 1 $max_attempts); do
+        echo "Creating nodepool ${nodepool_name}: attempt $attempt/$max_attempts"
+        if eval $nodepool_cmd; then
+            echo "Nodepool ${nodepool_name} creation command succeeded"
+            break
+        else
+            echo "Nodepool ${nodepool_name} creation attempt $attempt failed"
+            if [[ $attempt -eq $max_attempts ]]; then
+                echo "ERROR: Failed to create nodepool ${nodepool_name} after $max_attempts attempts"
+                return 1
+            fi
+            sleep 15
+        fi
+    done
+    
+    # Wait for nodepool to be ready with retry logic and timeout
+    echo "Waiting for nodepool ${nodepool_name} to be ready..."
+    local timeout=900  # 15 minutes timeout for nodepool
+    local retry_interval=30  # Check every 30 seconds
+    local elapsed=0
+    
+    while [ $elapsed -lt $timeout ]; do
+        local status=$(az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --query "provisioningState" --output tsv 2>/dev/null || echo "QueryFailed")
+        local power_state=$(az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --query "powerState.code" --output tsv 2>/dev/null || echo "QueryFailed")
+        
+        echo "Nodepool ${nodepool_name} status: $status, Power state: $power_state (elapsed: ${elapsed}s)"
+        
+        case $status in
+            "Succeeded")
+                if [[ $power_state == "Running" ]]; then
+                    echo "Nodepool ${nodepool_name} is ready and running"
+                    return 0
+                else
+                    echo "Nodepool succeeded but not in Running power state, waiting..."
+                fi
+                ;;
+            "Creating"|"Scaling"|"Upgrading")
+                echo "Nodepool ${nodepool_name} is still provisioning, waiting..."
+                ;;
+            "Failed"|"Canceled"|"Deleting"|"Deleted")
+                echo "Nodepool ${nodepool_name} is in failed state: $status. Exiting."
+                az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --output table
+                return 1
+                ;;
+            "QueryFailed"|"")
+                echo "Failed to query nodepool status. This might be temporary, continuing to wait..."
+                ;;
+            *)
+                echo "Unknown nodepool status: $status. Continuing to wait..."
+                ;;
+        esac
+        
+        sleep $retry_interval
+        elapsed=$((elapsed + retry_interval))
+    done
+    
+    echo "Timeout reached waiting for nodepool ${nodepool_name} to be ready. Final status: $status"
+    echo "ERROR: Nodepool ${nodepool_name} failed to reach ready state within timeout."
+    az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --output table
+    return 1
+}
+
 # Function to create AKS cluster
 create_aks_cluster() {
     local cluster_name=$1
@@ -165,58 +269,23 @@ SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --quer
 date=$(date -d "+1 week" +"%Y-%m-%d")
 az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
-for attempt in $(seq 1 5); do
-    echo "creating usernodepool: $attempt/5"
-    az aks nodepool add --cluster-name ${CLUSTER} --name "userpool1" --resource-group ${RG} -s Standard_D4_v3 --os-sku Ubuntu --labels slo=true testscenario=swiftv2 agentpool=userpool1 --node-taints "slo=true:NoSchedule" --vnet-subnet-id ${nodeSubnetID} --pod-subnet-id ${podSubnetID} --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true && break || echo "usernodepool creation attemped failed"
-    sleep 15
-done
+# Create user nodepool using the new function (start with 1 node, will be scaled later)
+INITIAL_USER_NODES=1  # Start with minimal nodes, will be scaled by scale-cluster.sh
+echo "Creating user nodepool with $INITIAL_USER_NODES initial nodes (target: $TARGET_USER_NODE_COUNT)..."
+if ! create_and_verify_nodepool "${CLUSTER}" "userpool1" "${RG}" "$INITIAL_USER_NODES" "Standard_D4_v3" "${nodeSubnetID}" "${podSubnetID}" "slo=true testscenario=swiftv2 agentpool=userpool1" "slo=true:NoSchedule"; then
+    echo "ERROR: Failed to create user nodepool"
+    exit 1
+fi
 
-# Wait for user nodepool to be ready with retry logic and timeout
-echo "Waiting for user nodepool to be ready..."
-NODEPOOL_TIMEOUT=900  # 15 minutes timeout for nodepool
-NODEPOOL_RETRY_INTERVAL=30  # Check every 30 seconds
-nodepool_elapsed=0
+# Calculate buffer pool size (5% of target user nodepool size, minimum 1 node)
+BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 5 + 50) / 100 ))  # 5% rounded up
+if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
+    BUFFER_NODE_COUNT=1
+fi
 
-while [ $nodepool_elapsed -lt $NODEPOOL_TIMEOUT ]; do
-    NODEPOOL_STATUS=$(az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --query "provisioningState" --output tsv 2>/dev/null || echo "QueryFailed")
-    NODEPOOL_POWER_STATE=$(az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --query "powerState.code" --output tsv 2>/dev/null || echo "QueryFailed")
-    
-    echo "Current nodepool status: $NODEPOOL_STATUS, Power state: $NODEPOOL_POWER_STATE (elapsed: ${nodepool_elapsed}s)"
-    
-    case $NODEPOOL_STATUS in
-        "Succeeded")
-            if [[ $NODEPOOL_POWER_STATE == "Running" ]]; then
-                echo "User nodepool is ready and running"
-                break
-            else
-                echo "Nodepool succeeded but not in Running power state, waiting..."
-            fi
-            ;;
-        "Creating"|"Scaling"|"Upgrading")
-            echo "User nodepool is still provisioning, waiting..."
-            ;;
-        "Failed"|"Canceled"|"Deleting"|"Deleted")
-            echo "User nodepool is in failed state: $NODEPOOL_STATUS. Exiting."
-            # Show nodepool details for debugging
-            az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --output table
-            exit 1
-            ;;
-        "QueryFailed"|"")
-            echo "Failed to query nodepool status. This might be temporary, continuing to wait..."
-            ;;
-        *)
-            echo "Unknown nodepool status: $NODEPOOL_STATUS. Continuing to wait..."
-            ;;
-    esac
-    
-    sleep $NODEPOOL_RETRY_INTERVAL
-    nodepool_elapsed=$((nodepool_elapsed + NODEPOOL_RETRY_INTERVAL))
-done
-
-if [ $nodepool_elapsed -ge $NODEPOOL_TIMEOUT ]; then
-    echo "Timeout reached waiting for user nodepool to be ready. Final status: $NODEPOOL_STATUS"
-    echo "ERROR: Nodepool failed to reach ready state within timeout."
-    az aks nodepool show --resource-group ${RG} --cluster-name ${CLUSTER} --name "userpool1" --output table
+echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (5% of $TARGET_USER_NODE_COUNT target user nodes)..."
+if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "Standard_D4_v3" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
+    echo "ERROR: Failed to create buffer nodepool"
     exit 1
 fi
 

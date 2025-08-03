@@ -267,6 +267,96 @@ function verify_node_readiness() {
     return 1
 }
 
+# Get total ready nodes across all user and buffer nodepools
+function get_total_ready_nodes() {
+    local cluster_name=$1
+    local resource_group=$2
+    
+    log_info "Checking total ready nodes across all user and buffer nodepools..." >&2
+    
+    # Get kubeconfig
+    az aks get-credentials --name "$cluster_name" --resource-group "$resource_group" --admin --overwrite-existing >/dev/null 2>&1
+    
+    # Count ready nodes with user nodepool labels (including buffer pools)
+    local ready_nodes
+    ready_nodes=$(kubectl get nodes \
+        -l agentpool \
+        -o jsonpath='{range .items[*]}{.metadata.labels.agentpool}{" "}{range .status.conditions[*]}{.type}={.status}{" "}{end}{"\n"}{end}' 2>/dev/null | \
+        grep -E "(userpool|bufferpool)" | \
+        grep "Ready=True" | \
+        wc -l || echo "0")
+    
+    log_info "Total ready nodes in user/buffer pools: $ready_nodes" >&2
+    echo "$ready_nodes"
+}
+
+# Check if VM repair is needed based on ready node count
+function is_vm_repair_needed() {
+    local cluster_name=$1
+    local resource_group=$2
+    local target_nodes=$3
+    
+    local ready_nodes
+    ready_nodes=$(get_total_ready_nodes "$cluster_name" "$resource_group")
+    
+    if [[ $ready_nodes -ge $target_nodes ]]; then
+        log_info "Sufficient ready nodes ($ready_nodes >= $target_nodes). VM repair not needed."
+        return 1  # Not needed
+    else
+        log_info "Insufficient ready nodes ($ready_nodes < $target_nodes). VM repair needed."
+        return 0  # Needed
+    fi
+}
+
+# Verify total healthy node count across all relevant nodepools
+function verify_total_node_capacity() {
+    local cluster_name=$1
+    local resource_group=$2
+    local required_nodes=$3
+    
+    log_info "Verifying total healthy node capacity meets requirement of $required_nodes nodes"
+    
+    # Get all nodepools including user and buffer pools
+    local all_nodepools
+    all_nodepools=$(az aks nodepool list \
+        --cluster-name "$cluster_name" \
+        --resource-group "$resource_group" \
+        --query "[?mode=='User' && name!='promnodepool' && !contains(name, 'devtest')].{name:name, count:count, powerState:powerState.code}" \
+        --output json)
+    
+    local total_healthy_nodes=0
+    local nodepool_details=""
+    
+    # Calculate total healthy nodes from user and buffer pools
+    while IFS= read -r nodepool; do
+        local name=$(echo "$nodepool" | jq -r '.name')
+        local count=$(echo "$nodepool" | jq -r '.count')
+        local power_state=$(echo "$nodepool" | jq -r '.powerState')
+        
+        if [[ "$power_state" == "Running" ]]; then
+            total_healthy_nodes=$((total_healthy_nodes + count))
+            nodepool_details+="  $name: $count nodes (Running)\n"
+        else
+            log_warning "Nodepool '$name' is not in Running state (current: $power_state)"
+            nodepool_details+="  $name: $count nodes ($power_state)\n"
+        fi
+    done < <(echo "$all_nodepools" | jq -c '.[]')
+    
+    log_info "Total healthy node count summary:"
+    echo -e "$nodepool_details"
+    log_info "Total healthy nodes: $total_healthy_nodes (required: $required_nodes)"
+    
+    if [[ $total_healthy_nodes -ge $required_nodes ]]; then
+        log_info "✓ Total healthy node count ($total_healthy_nodes) meets requirement ($required_nodes)"
+        return 0
+    else
+        log_warning "✗ Total healthy node count ($total_healthy_nodes) is below requirement ($required_nodes)"
+        local deficit=$((required_nodes - total_healthy_nodes))
+        log_warning "Node deficit: $deficit nodes"
+        return 1
+    fi
+}
+
 # Validate required environment variables
 function validate_environment() {
     local missing_vars=""
@@ -328,21 +418,56 @@ function main() {
         log_info "Waiting 60 seconds for scale operation to stabilize..."
         sleep 60
         
-        # List VM status and get VMSS info
-        local vmss_info
-        vmss_info=$(list_vm_status "$nodepool" "$aks_name" "$aks_rg")
-        IFS=':' read -r vmss_name node_rg <<< "$vmss_info"
-        
-        # Repair any failed VMs
-        repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
-        
-        # Verify all nodes are ready in Kubernetes
-        if ! verify_node_readiness "$nodepool" "$aks_name" "$aks_rg" "$NODES_PER_NODEPOOL"; then
-            log_warning "Node readiness verification failed for nodepool '$nodepool', but continuing..."
-        fi
-        
         log_info "Completed processing nodepool '$nodepool'"
     done
+    
+    # Calculate total required nodes (user nodepools only, buffer pools provide additional capacity)
+    local total_user_nodepools
+    total_user_nodepools=$(echo "$usernodepools" | wc -w)
+    local total_required_nodes=$((total_user_nodepools * NODES_PER_NODEPOOL))
+    
+    log_info "Verifying overall cluster capacity..."
+    log_info "Expected user nodepools: $total_user_nodepools"
+    log_info "Expected total required nodes: $total_required_nodes"
+    
+    # Check if VM repair is needed based on total ready node count
+    if is_vm_repair_needed "$aks_name" "$aks_rg" "$total_required_nodes"; then
+        log_info "Insufficient ready nodes detected. Performing VM repair and verification..."
+        
+        # Process each nodepool for VM repair
+        for nodepool in $usernodepools; do
+            log_info "=== Repairing VMs for nodepool: '$nodepool' ==="
+            
+            # List VM status and get VMSS info
+            local vmss_info
+            vmss_info=$(list_vm_status "$nodepool" "$aks_name" "$aks_rg")
+            IFS=':' read -r vmss_name node_rg <<< "$vmss_info"
+            
+            # Repair any failed VMs
+            repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
+            
+            # Verify all nodes are ready in Kubernetes
+            if ! verify_node_readiness "$nodepool" "$aks_name" "$aks_rg" "$NODES_PER_NODEPOOL"; then
+                log_warning "Node readiness verification failed for nodepool '$nodepool', but continuing..."
+            fi
+            
+            log_info "Completed VM repair for nodepool '$nodepool'"
+        done
+        
+        # Final check after repairs
+        log_info "Verifying node count after VM repairs..."
+        local final_ready_nodes
+        final_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
+        log_info "Final ready node count: $final_ready_nodes (required: $total_required_nodes)"
+    else
+        log_info "Sufficient ready nodes available. Skipping VM repair operations."
+    fi
+    
+    # Verify total healthy node count meets requirements
+    if ! verify_total_node_capacity "$aks_name" "$aks_rg" "$total_required_nodes"; then
+        log_warning "Total node capacity verification failed, but continuing..."
+        log_info "Note: Buffer pool may provide additional capacity for workload distribution"
+    fi
     
     log_info "All nodepool operations completed"
 }

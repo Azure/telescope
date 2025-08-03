@@ -78,14 +78,15 @@ function get_user_nodepools() {
         --resource-group "$resource_group" \
         --output json)
     
-    # Filter for user nodepools (exclude system, prometheus, and devtest pools)
+    # Filter for user nodepools (exclude system, prometheus, devtest, and buffer pools)
     local usernodepools
     usernodepools=$(echo "$nodepools" | jq -r '
         .[] | 
         select(
             .mode == "User" and 
             .name != "promnodepool" and 
-            (.name | contains("devtest") | not)
+            (.name | contains("devtest") | not) and
+            (.name | contains("buffer") | not)
         ) | 
         .name'
     )
