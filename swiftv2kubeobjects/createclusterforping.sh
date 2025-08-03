@@ -8,6 +8,10 @@ SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
 K8S_VER=1.30
 NODEPOOLS=1
 SHARED_IDENTITY_NAME="sharedKubeletIdentity"
+custVnetName=custvnet
+custScaleDelSubnet="scaledel"
+custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
+custRG="sv2-perf-infra-customer"
 
 # Function to create AKS cluster
 create_aks_cluster() {
@@ -19,6 +23,17 @@ create_aks_cluster() {
     local pod_subnet_id=$6
     
     echo "Creating AKS cluster: $cluster_name in resource group: $resource_group"
+    
+    # Get the kubelet identity ID from the shared infrastructure resource group
+    local kubelet_identity_id=$(az identity show --name $SHARED_IDENTITY_NAME --resource-group $custRG --query id -o tsv)
+    
+    if [ -z "$kubelet_identity_id" ]; then
+        echo "ERROR: Failed to get kubelet identity ID from resource group $custRG"
+        exit 1
+    fi
+    
+    echo "Using kubelet identity: $kubelet_identity_id"
+    
     az aks create -n ${cluster_name} -g ${resource_group} \
         -s Standard_D8_v3 -c 5 \
         --os-sku Ubuntu \
@@ -38,8 +53,7 @@ create_aks_cluster() {
         --node-resource-group MC_sv2perf-$resource_group-$cluster_name \
         --enable-managed-identity \
         --generate-ssh-keys \
-        --enable-managed-identity \
-        --assign-kubelet-identity $(az identity show --name $SHARED_IDENTITY_NAME --resource-group $RG --query id -o tsv) \
+        --assign-kubelet-identity ${kubelet_identity_id} \
         --yes
 } 
 
@@ -195,10 +209,6 @@ if [ $nodepool_elapsed -ge $NODEPOOL_TIMEOUT ]; then
 fi
 
 # customer vnet (created using runCustomerSetup.sh manually)
-custVnetName=custvnet
-custScaleDelSubnet="scaledel"
-custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
-custRG="sv2-perf-infra-customer"
 
 export custVnetGUID=$(az network vnet show --name $custVnetName --resource-group $custRG --query resourceGuid --output tsv)
 export custSubnetResourceId=$(az network vnet subnet show --name $custScaleDelSubnet --vnet-name $custVnetName --resource-group $custRG --query id --output tsv)
