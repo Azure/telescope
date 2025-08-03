@@ -79,7 +79,6 @@ jobs:
       terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
-      engine_input: ${{ parameters.engine_input }}
   - template: /steps/validate-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}

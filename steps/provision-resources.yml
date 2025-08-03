@@ -23,9 +23,6 @@ parameters:
 - name: credential_type
   type: string
   default: managed_identity
-- name: engine_input
-  type: object
-  default: {}
 
 steps:
 - template: /steps/terraform/set-working-directory.yml
@@ -106,4 +103,4 @@ steps:
   condition: eq(variables['CREATESWIFTV2PING'], 'true')
   name: SetupAKSMTClusterPING
   env:
-    NODES_PER_NODEPOOL: ${{ parameters.engine_input.node_count }}
+    NODES_PER_NODEPOOL: $(node_count)

@@ -14,9 +14,9 @@ custScaleDelSubnet="scaledel"
 custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
 custRG="sv2-perf-infra-customer"
 
-# Get target user node count from environment variable (default to 1 if not specified)
-TARGET_USER_NODE_COUNT=${NODES_PER_NODEPOOL:-1}
-echo "Target user nodepool size: $TARGET_USER_NODE_COUNT nodes"
+# Get target user node count from environment variable (used only for buffer pool calculation)
+TARGET_USER_NODE_COUNT=$NODES_PER_NODEPOOL
+echo "Target user nodepool size for buffer calculation: $TARGET_USER_NODE_COUNT nodes"
 
 # Function to create and verify nodepool
 create_and_verify_nodepool() {
@@ -269,21 +269,21 @@ SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --quer
 date=$(date -d "+1 week" +"%Y-%m-%d")
 az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
-# Create user nodepool using the new function (start with 1 node, will be scaled later)
-INITIAL_USER_NODES=1  # Start with minimal nodes, will be scaled by scale-cluster.sh
-echo "Creating user nodepool with $INITIAL_USER_NODES initial nodes (target: $TARGET_USER_NODE_COUNT)..."
+# Create user nodepool with 1 node (will be scaled later by scale-cluster.sh)
+INITIAL_USER_NODES=1  # Always start with 1 node, regardless of target
+echo "Creating user nodepool with $INITIAL_USER_NODES node (will be scaled to $TARGET_USER_NODE_COUNT later)..."
 if ! create_and_verify_nodepool "${CLUSTER}" "userpool1" "${RG}" "$INITIAL_USER_NODES" "Standard_D4_v3" "${nodeSubnetID}" "${podSubnetID}" "slo=true testscenario=swiftv2 agentpool=userpool1" "slo=true:NoSchedule"; then
     echo "ERROR: Failed to create user nodepool"
     exit 1
 fi
 
-# Calculate buffer pool size (5% of target user nodepool size, minimum 1 node)
-BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 5 + 50) / 100 ))  # 5% rounded up
+# Calculate buffer pool size based on target user nodepool size (not initial size)
+BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 5 + 50) / 100 ))  # 5% of target, rounded up
 if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
     BUFFER_NODE_COUNT=1
 fi
 
-echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (5% of $TARGET_USER_NODE_COUNT target user nodes)..."
+echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (5% of target $TARGET_USER_NODE_COUNT user nodes)..."
 if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "Standard_D4_v3" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
     echo "ERROR: Failed to create buffer nodepool"
     exit 1
