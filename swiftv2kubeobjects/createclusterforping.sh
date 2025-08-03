@@ -33,7 +33,22 @@ create_aks_cluster() {
     fi
     
     echo "Using kubelet identity: $kubelet_identity_id"
-    
+
+    local control_plane_identity_id=$(az identity create \
+        --name controlPlaneIdentity \
+        --resource-group $resource_group \
+        --location $location \
+        --query id \
+        --output tsv)
+
+    if [ -z "$control_plane_identity_id" ]; then
+        echo "ERROR: Failed to create control plane identity in resource group $resource_group"
+        exit 1
+    fi
+
+    echo "Using control plane identity: $control_plane_identity_id"
+
+    # Create the AKS cluster with the specified parameters
     az aks create -n ${cluster_name} -g ${resource_group} \
         -s Standard_D8_v3 -c 5 \
         --os-sku Ubuntu \
@@ -54,6 +69,7 @@ create_aks_cluster() {
         --enable-managed-identity \
         --generate-ssh-keys \
         --assign-kubelet-identity ${kubelet_identity_id} \
+        --assign-identity ${control_plane_identity_id} \
         --yes
 } 
 
