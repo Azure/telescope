@@ -26,7 +26,7 @@ create_aks_cluster() {
     echo "Creating AKS cluster: $cluster_name in resource group: $resource_group"
     
     # Get the kubelet identity ID from the shared infrastructure resource group
-    local kubelet_identity_id=$(az identity show --name $SHARED_IDENTITY_NAME --resource-group $custRG --query id -o tsv)
+    local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group $custRG --query id -o tsv)
     
     if [ -z "$kubelet_identity_id" ]; then
         echo "ERROR: Failed to get kubelet identity ID from resource group $custRG"
