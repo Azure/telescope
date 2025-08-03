@@ -79,7 +79,8 @@ kubectl apply -f ./nginx-deployment.yaml
 ACR_NAME="sv2perfacr"
 IMAGE_NAME="nicolaka/netshoot"
 ACR_IMAGE_NAME="netshoot:latest"
-SHARED_IDENTITY_NAME="sharedKubeletIdentity"
+SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
+SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
 
 az acr create --resource-group $RG --name $ACR_NAME --sku Basic
 az acr login --name $ACR_NAME
@@ -90,12 +91,12 @@ echo "Docker image $IMAGE_NAME mirrored to ACR $ACR_NAME as $ACR_IMAGE_NAME"
 echo "You can now use this image in your AKS cluster."
 
 az identity create \
-  --name $SHARED_IDENTITY_NAME \
+  --name $SHARED_KUBELET_IDENTITY_NAME \
   --resource-group $RG \
   --location $LOCATION
 
 pId=$(az identity show \
-  --name $SHARED_IDENTITY_NAME \
+  --name $SHARED_KUBELET_IDENTITY_NAME \
   --resource-group $RG \
   --query principalId \
   --output tsv)
@@ -105,3 +106,21 @@ az role assignment create \
   --assignee-principal-type ServicePrincipal \
   --role AcrPull \
   --scope $(az acr show --name $ACR_NAME --query id -o tsv)
+
+az identity create \
+  --name $SHARED_CONTROL_PLANE_IDENTITY_NAME \
+  --resource-group $RG \
+  --location $LOCATION 
+
+cPID=$(az identity show \
+  --name $SHARED_CONTROL_PLANE_IDENTITY_NAME \
+  --resource-group $RG \
+  --query principalId \
+  --output tsv)
+
+az role assignment create \
+  --assignee-object-id $cPID \
+  --assignee-principal-type ServicePrincipal \
+  --role "Managed Identity Operator" \
+  --scope /subscriptions/$sub/resourcegroups/$RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$SHARED_KUBELET_IDENTITY_NAME
+

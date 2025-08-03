@@ -7,7 +7,8 @@ CLUSTER="large"
 SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
 K8S_VER=1.30
 NODEPOOLS=1
-SHARED_IDENTITY_NAME="sharedKubeletIdentity"
+SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
+SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
 custVnetName=custvnet
 custScaleDelSubnet="scaledel"
 custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
@@ -34,15 +35,10 @@ create_aks_cluster() {
     
     echo "Using kubelet identity: $kubelet_identity_id"
 
-    local control_plane_identity_id=$(az identity create \
-        --name controlPlaneIdentity \
-        --resource-group $resource_group \
-        --location $location \
-        --query id \
-        --output tsv)
+    local control_plane_identity_id=$(az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group $custRG --query id -o tsv)
 
     if [ -z "$control_plane_identity_id" ]; then
-        echo "ERROR: Failed to create control plane identity in resource group $resource_group"
+        echo "ERROR: Failed to get control plane identity ID from resource group $custRG"
         exit 1
     fi
 
