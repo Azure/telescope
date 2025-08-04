@@ -1,0 +1,26 @@
+parameters:
+  - name: action
+    type: string
+    default: "deploy"
+  - name: cluster_context
+    type: string
+    default: ""
+  - name: namespace
+    type: string
+    default: "aks-store-demo"
+
+steps:
+  - script: |
+      set -eo pipefail
+
+      echo "Using AKS Store Demo Python class to ${{ parameters.action }}"
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
+        --action "${{ parameters.action }}" \
+        --cluster-context "${{ parameters.cluster_context }}" \
+        --namespace "${{ parameters.namespace }}"
+
+    displayName: '${{ parameters.action }} AKS Store Demo'
+    workingDirectory: modules/python
+    env:
+      PYTHON_SCRIPT: $(Pipeline.Workspace)/s/modules/python/aks_store_demo/aks_store_demo.py
