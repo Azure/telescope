@@ -19,7 +19,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_5k_with_Firebolt_Enabled_On_Demand
+  - stage: azure_eastus2_5k
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 AM'),
@@ -58,7 +58,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_5k_with_Firebolt_Enabled_Spot
+  - stage: azure_eastus2_5k
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 PM'),
