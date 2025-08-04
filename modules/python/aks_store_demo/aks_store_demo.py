@@ -215,7 +215,7 @@ def main():
     parser.add_argument(
         "--namespace",
         type=str,
-        default="default",
+        default="aks-store-demo",
         help="Kubernetes namespace to deploy to",
     )
     parser.add_argument(
