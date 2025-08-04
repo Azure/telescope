@@ -74,18 +74,6 @@ eks_config_list = [{
       }
     },
     {
-      name           = "prompool"
-      ami_type       = "AL2023_x86_64_STANDARD"
-      instance_types = ["m4.16xlarge"]
-      min_size       = 1
-      max_size       = 1
-      desired_size   = 1
-      capacity_type  = "ON_DEMAND"
-      labels = {
-        "prometheus" = "true"
-      }
-    },
-    {
       name           = "kwokpool"
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m4.16xlarge"]
@@ -96,6 +84,13 @@ eks_config_list = [{
       labels = {
         "kwok" = "true"
       }
+      taints = [
+        {
+          key    = "kwok"
+          value  = "true"
+          effect = "NoSchedule"
+        }
+      ]
     }
   ]
 
