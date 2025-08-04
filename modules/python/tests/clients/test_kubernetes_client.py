@@ -4088,6 +4088,436 @@ spec:
 
         self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
 
+    # Tests for namespace override functionality
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_namespace_override_deployment(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter overriding deployment manifest namespace."""
+        mock_isfile.return_value = True
+
+        # Deployment manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/deployment.yaml", 
+                namespace="override-namespace"
+            )
+
+            # Verify deployment was created with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_namespace_override_service(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter overriding service manifest namespace."""
+        mock_isfile.return_value = True
+
+        # Service manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "original-namespace"
+            },
+            "spec": {"selector": {"app": "test"}}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_service.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/service.yaml", 
+                namespace="override-namespace"
+            )
+
+            # Verify service was created with override namespace
+            mock_api.create_namespaced_service.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_namespace_override_statefulset(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter overriding StatefulSet manifest namespace."""
+        mock_isfile.return_value = True
+
+        # StatefulSet manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {
+                "name": "test-statefulset",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_stateful_set.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/statefulset.yaml", 
+                namespace="override-namespace"
+            )
+
+            # Verify StatefulSet was created with override namespace
+            mock_app.create_namespaced_stateful_set.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_manifest_from_file_with_namespace_override_manifest_dict(self):
+        """Test apply_manifest_from_file with namespace override using manifest_dict."""
+        # ConfigMap manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-configmap",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "value"}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_config_map.return_value = None
+
+            # Call with namespace override using manifest_dict
+            self.client.apply_manifest_from_file(
+                manifest_dict=manifest_dict, 
+                namespace="override-namespace"
+            )
+
+            # Verify ConfigMap was created with override namespace
+            mock_api.create_namespaced_config_map.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_override_missing_namespace_in_manifest(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter when manifest has no namespace."""
+        mock_isfile.return_value = True
+
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call with namespace parameter
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/deployment.yaml", 
+                namespace="provided-namespace"
+            )
+
+            # Verify deployment was created with provided namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="provided-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_override_mpi_job(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace override for MPIJob custom resource."""
+        mock_isfile.return_value = True
+
+        # MPIJob manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {
+                "name": "test-mpi-job",
+                "namespace": "original-namespace"
+            },
+            "spec": {"slotsPerWorker": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the CustomObjects API client
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.create_namespaced_custom_object.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/mpijob.yaml", 
+                namespace="override-namespace"
+            )
+
+            # Verify MPIJob was created with override namespace
+            mock_custom_api.create_namespaced_custom_object.assert_called_once_with(
+                group="kubeflow.org",
+                version="v2beta1",
+                namespace="override-namespace",
+                plural="mpijobs",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_override_cluster_scoped_resource(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter for cluster-scoped resource (should be ignored)."""
+        mock_isfile.return_value = True
+
+        # ClusterRole manifest (cluster-scoped, no namespace)
+        manifest_dict = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {
+                "name": "test-cluster-role"
+            },
+            "rules": []
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the RBAC API client
+        with patch('clients.kubernetes_client.client.RbacAuthorizationV1Api') as mock_rbac_api_class:
+            mock_rbac_api = mock_rbac_api_class.return_value
+            mock_rbac_api.create_cluster_role.return_value = None
+
+            # Call with namespace parameter (should be ignored for cluster-scoped resource)
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/clusterrole.yaml", 
+                namespace="should-be-ignored"
+            )
+
+            # Verify ClusterRole was created without namespace (cluster-scoped)
+            mock_rbac_api.create_cluster_role.assert_called_once_with(body=manifest_dict)
+
+    @patch('os.path.isdir')
+    @patch('glob.glob')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_apply_manifest_from_file_namespace_override_multiple_manifests(self, mock_yaml_load, _mock_open_file, mock_glob, mock_isdir):
+        """Test apply_manifest_from_file with namespace override for multiple manifests."""
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml", "/path/to/manifests/service.yaml"]
+
+        # Multiple manifests with different original namespaces
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "original-namespace-1"},
+            "spec": {"replicas": 1}
+        }
+
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "original-namespace-2"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        # Return different manifests for each file
+        mock_yaml_load.side_effect = [[deployment_manifest], [service_manifest]]
+
+        # Mock both API clients
+        with patch.object(self.client, 'app') as mock_app, \
+             patch.object(self.client, 'api') as mock_api:
+
+            mock_app.create_namespaced_deployment.return_value = None
+            mock_api.create_namespaced_service.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/manifests", 
+                namespace="global-override-namespace"
+            )
+
+            # Verify both manifests were applied with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="global-override-namespace",
+                body=deployment_manifest
+            )
+            mock_api.create_namespaced_service.assert_called_once_with(
+                namespace="global-override-namespace",
+                body=service_manifest
+            )
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_with_namespace_override(self, mock_get):
+        """Test apply_manifest_from_url with namespace parameter."""
+        # Mock successful HTTP response
+        mock_response = mock.MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: original-namespace
+spec:
+  replicas: 1
+"""
+        mock_get.return_value = mock_response
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_url(
+                manifest_url="http://example.com/manifest.yaml",
+                namespace="override-namespace"
+            )
+
+            # Verify deployment was created with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once()
+            call_args = mock_app.create_namespaced_deployment.call_args
+            self.assertEqual(call_args[1]['namespace'], "override-namespace")
+
+    def test_apply_single_manifest_with_namespace_parameter(self):
+        """Test _apply_single_manifest with namespace parameter directly."""
+        # Deployment manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest with namespace override
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace="override-namespace")
+
+            # Verify deployment was created with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_single_manifest_namespace_priority(self):
+        """Test _apply_single_manifest namespace parameter takes priority over manifest namespace."""
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest with namespace parameter
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace="provided-namespace")
+
+            # Verify deployment was created with provided namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="provided-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_single_manifest_fallback_to_manifest_namespace(self):
+        """Test _apply_single_manifest falls back to manifest namespace when parameter is None."""
+        # Deployment manifest with namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "manifest-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest without namespace parameter
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace=None)
+
+            # Verify deployment was created with manifest namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="manifest-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_single_manifest_no_namespace_anywhere_raises_error(self):
+        """Test _apply_single_manifest raises error when no namespace is provided anywhere."""
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Call _apply_single_manifest without namespace parameter
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace=None)
+
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
 
 if __name__ == '__main__':
     unittest.main()

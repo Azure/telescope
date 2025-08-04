@@ -516,7 +516,7 @@ class TestMainFunction:
 
         mock_demo_class.assert_called_once_with(
             cluster_context="",
-            namespace="default",
+            namespace="aks-store-demo",
             manifests_path="/test/path",
             action="deploy"
         )
@@ -534,7 +534,7 @@ class TestMainFunction:
 
         mock_demo_class.assert_called_once_with(
             cluster_context="",
-            namespace="default",
+            namespace="aks-store-demo",
             manifests_path="/test/path",
             action="cleanup"
         )

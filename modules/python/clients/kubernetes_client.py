@@ -8,6 +8,7 @@ import requests
 
 from kubernetes import client, config
 from kubernetes.stream import stream
+from typing import Optional
 from utils.logger_config import get_logger, setup_logging
 from utils.common import save_info_to_file
 from utils.constants import UrlConstants
@@ -737,11 +738,12 @@ class KubernetesClient:
             )
             return False
 
-    def apply_manifest_from_url(self, manifest_url):
+    def apply_manifest_from_url(self, manifest_url, namespace: Optional[str] = None):
         """
         Apply a Kubernetes manifest from a URL using Kubernetes Python client API.
 
         :param manifest_url: URL of the manifest to apply
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
@@ -756,7 +758,7 @@ class KubernetesClient:
                 if not manifest:  # Skip empty documents
                     continue
 
-                self._apply_single_manifest(manifest)
+                self._apply_single_manifest(manifest, namespace=namespace)
 
             logger.info("Successfully applied manifest from %s", manifest_url)
         except Exception as e:
@@ -817,12 +819,13 @@ class KubernetesClient:
 
         return manifests, sources
 
-    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, namespace: Optional[str] = None):
         """
         Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
         
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
@@ -830,14 +833,15 @@ class KubernetesClient:
             manifests_to_apply, applied_sources = self._load_manifests_from_sources(manifest_path, manifest_dict)
 
             # Apply all manifests
-            logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}")
+            namespace_info = f" in namespace '{namespace}'" if namespace else ""
+            logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}{namespace_info}")
 
             for i, manifest in enumerate(manifests_to_apply):
                 if not manifest:  # Skip empty documents
                     continue
 
                 logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
-                self._apply_single_manifest(manifest=manifest)
+                self._apply_single_manifest(manifest=manifest, namespace=namespace)
 
             logger.info(f"Successfully applied {len(manifests_to_apply)} manifest(s)")
 
@@ -1017,16 +1021,18 @@ class KubernetesClient:
 
         return False
 
-    def _apply_single_manifest(self, manifest):
+    def _apply_single_manifest(self, manifest, namespace=None):
         """
         Apply a single Kubernetes manifest using the appropriate API client.
 
         :param manifest: Dictionary representing a Kubernetes resource
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
             kind = manifest.get("kind")
-            namespace = manifest.get("metadata", {}).get("namespace")
+            # Use provided namespace or fall back to manifest namespace
+            namespace = namespace or manifest.get("metadata", {}).get("namespace")
 
             if kind == "Deployment":
                 if namespace:
