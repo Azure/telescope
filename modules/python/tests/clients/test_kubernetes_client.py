@@ -1920,7 +1920,7 @@ class TestKubernetesClient(unittest.TestCase):
     @patch("kubernetes.client.CoreV1Api.create_namespaced_pod")
     def test_verify_nvidia_smi_success(
         self,
-        _mock_create_pod,
+        mock_create_pod,
         mock_read_pod,
         _mock_delete_pod,
         mock_get_logs,
@@ -1929,6 +1929,7 @@ class TestKubernetesClient(unittest.TestCase):
         """Test successful nvidia-smi verification."""
         node = MagicMock()
         node.metadata.name = "gpu-node-1"
+        node.status.allocatable = {"nvidia.com/gpu": "8"}
 
         # Simulate pod status: first Pending, then Succeeded
         mock_read_pod.side_effect = [
@@ -1942,6 +1943,11 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertIn("gpu-node-1", result)
         self.assertTrue(result["gpu-node-1"]["device_status"])
         mock_sleep.assert_called()
+        
+        # Verify that the pod was created with all 8 GPUs requested
+        pod_spec = mock_create_pod.call_args[1]['body']
+        gpu_limits = pod_spec.spec.containers[0].resources.limits["nvidia.com/gpu"]
+        self.assertEqual(gpu_limits, "8")
 
     @patch("clients.kubernetes_client.KubernetesClient.get_pod_logs")
     @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")
@@ -1953,6 +1959,7 @@ class TestKubernetesClient(unittest.TestCase):
         """Test nvidia-smi verification failure."""
         node = MagicMock()
         node.metadata.name = "gpu-node-2"
+        node.status.allocatable = {"nvidia.com/gpu": "4"}
 
         mock_read_pod.return_value.status.phase = "Succeeded"
         mock_get_logs.return_value = "Some unrelated output"
@@ -1975,6 +1982,7 @@ class TestKubernetesClient(unittest.TestCase):
         """Test nvidia-smi verification when pod deletion fails."""
         node = MagicMock()
         node.metadata.name = "gpu-node-3"
+        node.status.allocatable = {"nvidia.com/gpu": "2"}
 
         mock_read_pod.return_value.status.phase = "Succeeded"
         mock_get_logs.return_value = "NVIDIA-SMI GPU driver info"
@@ -1992,9 +2000,19 @@ class TestKubernetesClient(unittest.TestCase):
         """Test nvidia-smi verification with general exception."""
         node = MagicMock()
         node.metadata.name = "gpu-node-4"
+        node.status.allocatable = {"nvidia.com/gpu": "1"}
 
         result = self.client.verify_nvidia_smi_on_node([node])
         self.assertFalse(result)
+
+    def test_verify_nvidia_smi_no_gpu_nodes(self):
+        """Test nvidia-smi verification skips nodes with no GPUs."""
+        node = MagicMock()
+        node.metadata.name = "cpu-only-node"
+        node.status.allocatable = {"nvidia.com/gpu": "0"}
+
+        result = self.client.verify_nvidia_smi_on_node([node])
+        self.assertEqual(result, {})  # Should return empty dict as no nodes processed
 
     @patch("kubernetes.client.AppsV1Api.create_namespaced_daemon_set")
     @patch("requests.get")

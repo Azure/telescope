@@ -655,6 +655,14 @@ class KubernetesClient:
                 node_name = node.metadata.name
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
 
+                # Get GPU count for this node
+                gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
+                if gpu_count == 0:
+                    logger.warning(f"Node {node_name} has no GPUs allocated, skipping")
+                    continue
+
+                logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
+
                 # Create pod spec with node selector
                 pod = client.V1Pod(
                     metadata=client.V1ObjectMeta(name=pod_name),
@@ -665,7 +673,7 @@ class KubernetesClient:
                                 image="nvidia/cuda:12.2.0-base-ubuntu20.04",
                                 command=["/bin/bash", "-c", "nvidia-smi"],
                                 resources=client.V1ResourceRequirements(
-                                    limits={"nvidia.com/gpu": "1"}
+                                    limits={"nvidia.com/gpu": str(gpu_count)}
                                 ),
                             )
                         ],
