@@ -4242,7 +4242,7 @@ spec:
 
             # Call with namespace override
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/deployment.yaml", 
+                manifest_path="/path/to/deployment.yaml",
                 namespace="override-namespace"
             )
 
@@ -4278,7 +4278,7 @@ spec:
 
             # Call with namespace override
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/service.yaml", 
+                manifest_path="/path/to/service.yaml",
                 namespace="override-namespace"
             )
 
@@ -4314,7 +4314,7 @@ spec:
 
             # Call with namespace override
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/statefulset.yaml", 
+                manifest_path="/path/to/statefulset.yaml",
                 namespace="override-namespace"
             )
 
@@ -4343,7 +4343,7 @@ spec:
 
             # Call with namespace override using manifest_dict
             self.client.apply_manifest_from_file(
-                manifest_dict=manifest_dict, 
+                manifest_dict=manifest_dict,
                 namespace="override-namespace"
             )
 
@@ -4379,7 +4379,7 @@ spec:
 
             # Call with namespace parameter
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/deployment.yaml", 
+                manifest_path="/path/to/deployment.yaml",
                 namespace="provided-namespace"
             )
 
@@ -4416,7 +4416,7 @@ spec:
 
             # Call with namespace override
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/mpijob.yaml", 
+                manifest_path="/path/to/mpijob.yaml",
                 namespace="override-namespace"
             )
 
@@ -4455,7 +4455,7 @@ spec:
 
             # Call with namespace parameter (should be ignored for cluster-scoped resource)
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/clusterrole.yaml", 
+                manifest_path="/path/to/clusterrole.yaml",
                 namespace="should-be-ignored"
             )
 
@@ -4498,7 +4498,7 @@ spec:
 
             # Call with namespace override
             self.client.apply_manifest_from_file(
-                manifest_path="/path/to/manifests", 
+                manifest_path="/path/to/manifests",
                 namespace="global-override-namespace"
             )
 
@@ -4649,10 +4649,10 @@ spec:
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_delete_manifest_from_file_with_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+    def test_delete_manifest_from_file_with_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test delete_manifest_from_file with namespace override parameter."""
         mock_isfile.return_value = True
-        
+
         # Mock YAML content - deployment with original namespace
         manifest_dict = {
             "apiVersion": "apps/v1",
@@ -4683,10 +4683,10 @@ spec:
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_delete_manifest_from_file_without_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+    def test_delete_manifest_from_file_without_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test delete_manifest_from_file without namespace override parameter."""
         mock_isfile.return_value = True
-        
+
         # Mock YAML content - service with original namespace
         manifest_dict = {
             "apiVersion": "v1",
@@ -4742,10 +4742,10 @@ spec:
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_delete_manifest_from_file_multiple_manifests_with_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+    def test_delete_manifest_from_file_multiple_manifests_with_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test delete_manifest_from_file with multiple manifests and namespace override."""
         mock_isfile.return_value = True
-        
+
         # Mock YAML content with multiple manifests
         manifests = [
             {
@@ -4774,7 +4774,7 @@ spec:
         # Verify _delete_single_manifest was called for each manifest with override namespace
         # Note: manifests are deleted in reverse order
         self.assertEqual(mock_delete.call_count, 2)
-        
+
         # Check calls (reverse order)
         mock_delete.assert_any_call(
             manifest=manifests[1],  # Service (reversed)
@@ -4782,7 +4782,7 @@ spec:
             namespace="override-namespace"
         )
         mock_delete.assert_any_call(
-            manifest=manifests[0],  # Deployment (reversed) 
+            manifest=manifests[0],  # Deployment (reversed)
             ignore_not_found=True,
             namespace="override-namespace"
         )
@@ -4790,10 +4790,10 @@ spec:
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_delete_manifest_from_file_ignore_not_found_with_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+    def test_delete_manifest_from_file_ignore_not_found_with_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
         """Test delete_manifest_from_file with ignore_not_found=False and namespace override."""
         mock_isfile.return_value = True
-        
+
         # Mock YAML content - StatefulSet with original namespace
         manifest_dict = {
             "apiVersion": "apps/v1",
@@ -4868,13 +4868,13 @@ spec:
         # Test with namespace override - should use override
         with patch.object(self.client, 'api') as mock_api:
             mock_api.delete_namespaced_secret.return_value = None
-            
+
             # pylint: disable=protected-access
             self.client._delete_single_manifest(
                 manifest=manifest_dict,
                 namespace="override-namespace"
             )
-            
+
             # Check that the override namespace was used
             mock_api.delete_namespaced_secret.assert_called_once()
             call_args = mock_api.delete_namespaced_secret.call_args
@@ -4886,10 +4886,10 @@ spec:
         # Test without namespace override - should use manifest namespace
         with patch.object(self.client, 'api') as mock_api:
             mock_api.delete_namespaced_secret.return_value = None
-            
+
             # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest=manifest_dict, namespace=None)
-            
+
             # Check that the manifest namespace was used
             mock_api.delete_namespaced_secret.assert_called_once()
             call_args = mock_api.delete_namespaced_secret.call_args
