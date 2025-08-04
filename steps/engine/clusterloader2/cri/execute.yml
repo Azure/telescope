@@ -13,12 +13,26 @@ steps:
       set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-        $NODE_COUNT ${NODE_PER_STEP:-$NODE_COUNT} $MAX_PODS $REPEATS $OPERATION_TIMEOUT \
-        $LOAD_TYPE ${SCALE_ENABLED:-False} ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
-        $CLOUD ${SCRAPE_KUBELETS:-False} ${CL2_CONFIG_DIR}/overrides.yaml
+        --node_count $NODE_COUNT \
+        --node_per_step ${NODE_PER_STEP:-$NODE_COUNT} \
+        --max_pods $MAX_PODS \
+        --repeats $REPEATS \
+        --operation_timeout $OPERATION_TIMEOUT \
+        --load_type $LOAD_TYPE \
+        --scale_enabled ${SCALE_ENABLED:-False} \
+        --pod_startup_latency_threshold ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
+        --provider $CLOUD \
+        --os_type ${OS_TYPE:-linux} \
+        --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+        --host_network ${HOST_NETWORK:-True} \
+        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD \
-        ${SCRAPE_KUBELETS:-False}
+        --cl2_image ${CL2_IMAGE} \
+        --cl2_config_dir ${CL2_CONFIG_DIR} \
+        --cl2_report_dir $CL2_REPORT_DIR \
+        --kubeconfig ${HOME}/.kube/config \
+        --provider $CLOUD \
+        --scrape_kubelets ${SCRAPE_KUBELETS:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:

@@ -46,6 +46,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         mock_kubernetes_instance = MagicMock()
         mock_kubernetes_instance.get_nodes.return_value = [node_ready]
         mock_kubernetes_instance.get_daemonsets_pods_allocated_resources.return_value = (100, 204800)
+        mock_kubernetes_instance.get_daemonsets_pods_count.return_value = 6
         mock_kubernetes_client.return_value = mock_kubernetes_instance
 
         # Call the function under test
@@ -59,7 +60,9 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            os_type="linux",
             scrape_kubelets=True,
+            host_network=True,
             override_file="/mock/override.yaml"
         )
 
@@ -71,13 +74,57 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call("CL2_RESOURCE_CONSUME_MEMORY_KI: 157917Ki\n")
         handle.write.assert_any_call("CL2_REPEATS: 1\n")
         handle.write.assert_any_call("CL2_NODE_COUNT: 10\n")
+        handle.write.assert_any_call("CL2_NODE_PER_STEP: 2\n")
         handle.write.assert_any_call("CL2_STEPS: 5\n")
-        handle.write.assert_any_call("CL2_LOAD_TYPE: memory\n")
-        handle.write.assert_any_call("CL2_POD_STARTUP_LATENCY_THRESHOLD: 15s\n")
         handle.write.assert_any_call("CL2_OPERATION_TIMEOUT: 2m\n")
+        handle.write.assert_any_call("CL2_LOAD_TYPE: memory\n")
         handle.write.assert_any_call("CL2_SCALE_ENABLED: false\n")
+        handle.write.assert_any_call("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        handle.write.assert_any_call("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        handle.write.assert_any_call("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
+        handle.write.assert_any_call("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        handle.write.assert_any_call("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+        handle.write.assert_any_call("CL2_POD_STARTUP_LATENCY_THRESHOLD: 15s\n")
         handle.write.assert_any_call("CL2_PROVIDER: aks\n")
+        handle.write.assert_any_call("CL2_OS_TYPE: linux\n")
         handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: true\n")
+        handle.write.assert_any_call("CL2_HOST_NETWORK: true\n")
+
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('clusterloader2.cri.cri.KubernetesClient')
+    def test_override_config_clusterloader2_host_network_false(self, mock_kubernetes_client, mock_open):
+        # Mock nodes
+        node_ready = self._create_node(
+            name="node-1", ready_status="True", cpu_allocatable="2000m", memory_allocatable="4096Mi", labels={"cri-resource-consume": "true"})
+
+        mock_kubernetes_instance = MagicMock()
+        mock_kubernetes_instance.get_nodes.return_value = [node_ready]
+        mock_kubernetes_instance.get_daemonsets_pods_allocated_resources.return_value = (100, 204800)
+        mock_kubernetes_instance.get_daemonsets_pods_count.return_value = 6
+        mock_kubernetes_client.return_value = mock_kubernetes_instance
+
+        # Call the function under test with host_network=False
+        override_config_clusterloader2(
+            node_count=10,
+            node_per_step=2,
+            max_pods=30,
+            repeats=1,
+            operation_timeout="2m",
+            load_type="memory",
+            scale_enabled=False,
+            pod_startup_latency_threshold="15s",
+            provider="aks",
+            os_type="linux",
+            scrape_kubelets=False,
+            host_network=False,
+            override_file="/mock/override.yaml"
+        )
+
+        mock_open.assert_called_once_with("/mock/override.yaml", 'w', encoding='utf-8')
+        handle = mock_open()
+        # Verify that CL2_HOST_NETWORK is set to false
+        handle.write.assert_any_call("CL2_HOST_NETWORK: false\n")
+        handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: false\n")
 
     @patch('clusterloader2.cri.cri.run_cl2_command')
     def test_execute_clusterloader2(self, mock_run_cl2_command):
@@ -171,20 +218,61 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
     def test_override_command(self, mock_override):
         test_args = [
-            "main.py", "override", "5", "1", "110", "3", "2m", "cpu", "True", "10s",
-            "aws", "False", "/tmp/override.yaml"
+            "main.py", "override", 
+            "--node_count", "5", 
+            "--node_per_step", "1", 
+            "--max_pods", "110", 
+            "--repeats", "3", 
+            "--operation_timeout", "2m", 
+            "--load_type", "cpu", 
+            "--scale_enabled", "True", 
+            "--pod_startup_latency_threshold", "10s",
+            "--provider", "aws", 
+            "--os_type", "linux", 
+            "--scrape_kubelets", "False", 
+            "--host_network", "False",
+            "--cl2_override_file", "/tmp/override.yaml"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, "/tmp/override.yaml"
+            )
+
+    @patch("clusterloader2.cri.cri.override_config_clusterloader2")
+    def test_override_command_default_host_network(self, mock_override):
+        # Test with default host_network value (should be True)
+        test_args = [
+            "main.py", "override", 
+            "--node_count", "5", 
+            "--node_per_step", "1", 
+            "--max_pods", "110", 
+            "--repeats", "3", 
+            "--operation_timeout", "2m", 
+            "--load_type", "cpu", 
+            "--scale_enabled", "True", 
+            "--pod_startup_latency_threshold", "10s",
+            "--provider", "aws", 
+            "--os_type", "linux", 
+            "--scrape_kubelets", "False", 
+            "--cl2_override_file", "/tmp/override.yaml"
+        ]
+        with patch.object(sys, 'argv', test_args):
+            main()
+            mock_override.assert_called_once_with(
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
     def test_execute_command(self, mock_execute):
         test_args = [
-            "main.py", "execute", "gcr.io/cl2:latest", "/configs", "/reports",
-            "/home/user/.kube/config", "gcp", "True"
+            "main.py", "execute", 
+            "--cl2_image", "gcr.io/cl2:latest", 
+            "--cl2_config_dir", "/configs", 
+            "--cl2_report_dir", "/reports",
+            "--kubeconfig", "/home/user/.kube/config", 
+            "--provider", "gcp", 
+            "--scrape_kubelets", "True"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
@@ -196,8 +284,17 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
     @patch("clusterloader2.cri.cri.collect_clusterloader2")
     def test_collect_command(self, mock_collect):
         test_args = [
-            "main.py", "collect", "3", "100", "5", "memory", "/reports",
-            "gcp-zone", "run-123", "https://run.url", "/tmp/results.json", "False"
+            "main.py", "collect", 
+            "--node_count", "3", 
+            "--max_pods", "100", 
+            "--repeats", "5", 
+            "--load_type", "memory", 
+            "--cl2_report_dir", "/reports",
+            "--cloud_info", "gcp-zone", 
+            "--run_id", "run-123", 
+            "--run_url", "https://run.url", 
+            "--result_file", "/tmp/results.json", 
+            "--scrape_kubelets", "False"
         ]
         with patch.object(sys, 'argv', test_args):
             main()

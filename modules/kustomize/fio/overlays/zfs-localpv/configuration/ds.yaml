@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zfs-host-setup
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: zfs-host-setup
+  template:
+    metadata:
+      labels:
+        name: zfs-host-setup
+    spec:
+      nodeSelector:
+        fio-dedicated: "true"
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: zfs-host-setup
+          image: ubuntu:22.04
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+              export NUMBER_OF_NVME=$(($(ls /dev/nvme*n1 | wc -l) - 1))
+              echo "Starting ZFS setup on node $(hostname)..."
+
+              echo "Updating package repository on the host..."
+              chroot /host apt update
+
+              echo "Installing required packages on the host..."
+              chroot /host apt install -y gdisk zfsutils-linux kmod
+
+              echo "Checking if ZFS pool 'zfspv-pool' already exists on the host..."
+              if chroot /host zpool list | grep -q zfspv-pool; then
+                echo "ZFS pool 'zfspv-pool' already exists. Skipping disk setup."
+              else
+                echo "ZFS pool does not exist. Proceeding with disk setup on the host..."
+                for disk in $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1"); do
+                  echo "Preparing disk $disk..."
+                  if [ -e $disk ]; then
+                    chroot /host sgdisk --zap-all $disk
+                    chroot /host sgdisk --new=1:0:0 $disk
+                  else
+                    echo "Disk $disk not found. Skipping."
+                  fi
+                done
+
+                echo "Loading ZFS kernel module on the host..."
+                chroot /host modprobe zfs
+
+                echo "Creating ZFS pool 'zfspv-pool' on the host..."
+                chroot /host zpool create zfspv-pool $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1") || echo "Failed to create ZFS pool."
+              fi
+
+              echo "ZFS setup complete. Keeping pod running..."
+              sleep inf
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "chroot /host zpool status zfspv-pool || exit 1"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+      tolerations:
+        - operator: Exists
+          effect: NoExecute
+        - operator: Exists
+          effect: NoSchedule

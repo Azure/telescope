@@ -126,6 +126,14 @@ variable "network_config_list" {
   default = []
 }
 
+variable "dns_zones" {
+  description = "List of DNS zones to create"
+  type = list(object({
+    name = string
+  }))
+  default = []
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -168,6 +176,7 @@ variable "aks_config_list" {
       subnet_name          = optional(string)
       node_count           = number
       vm_size              = string
+      os_type              = optional(string)
       os_sku               = optional(string)
       os_disk_type         = optional(string)
       os_disk_size_gb      = optional(number, null)
@@ -204,6 +213,9 @@ variable "aks_config_list" {
       skip_nodes_with_local_storage    = optional(bool, true)
       skip_nodes_with_system_pods      = optional(bool, true)
     }))
+    web_app_routing = optional(object({
+      dns_zone_names = list(string)
+    }), null)
   }))
   default = []
 }
@@ -221,12 +233,12 @@ variable "aks_cli_config_list" {
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
 
-    default_node_pool = object({
+    default_node_pool = optional(object({
       name        = string
       node_count  = number
       vm_size     = string
       vm_set_type = optional(string, "VirtualMachineScaleSets")
-    })
+    }), null)
     extra_node_pool = optional(
       list(object({
         name        = string
@@ -242,6 +254,8 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
+    dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
 }
+

@@ -30,6 +30,12 @@ variable "subnets" {
   default     = {}
 }
 
+variable "dns_zones" {
+  description = "Map of DNS zones created, where the key is the zone name and the value is the zone ID"
+  type        = map(string)
+  default     = {}
+}
+
 variable "k8s_machine_type" {
   description = "Value to replace AKS nodes vm_size"
   type        = string
@@ -92,6 +98,7 @@ variable "aks_config" {
       subnet_name          = optional(string, null)
       node_count           = number
       vm_size              = string
+      os_type              = optional(string, null)
       os_sku               = optional(string, "Ubuntu")
       os_disk_type         = optional(string, "Managed")
       os_disk_size_gb      = optional(number, null)
@@ -132,5 +139,17 @@ variable "aks_config" {
       skip_nodes_with_local_storage    = optional(bool, true)
       skip_nodes_with_system_pods      = optional(bool, true)
     }))
+    web_app_routing = optional(object({
+      dns_zone_names = list(string)
+    }), null)
   })
+
+  validation {
+    condition = alltrue([
+      for node_pool in var.aks_config.extra_node_pool :
+      node_pool.os_type == "Windows" ? length(node_pool.name) <= 6 : true
+    ])
+
+    error_message = "Windows agent pool name can not be longer than 6 characters"
+  }
 }

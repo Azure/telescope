@@ -34,7 +34,7 @@ jobs:
         id: changed-files
         run: |
           # Get list of changed files
-          file_changes=$(git diff --name-only origin/main HEAD -- '*.py')
+          file_changes=$(git diff --name-only --diff-filter=d origin/main HEAD -- '*.py')
           echo "Files changed: $file_changes"
           if [ -z "$file_changes" ]; then
             echo "No Python files were changed."
@@ -42,19 +42,20 @@ jobs:
             pylint $file_changes
           fi
       - name: Install kwokctl
+        if: always()
         run: |
           curl -LO https://github.com/kubernetes-sigs/kwok/releases/latest/download/kwokctl-linux-amd64
           chmod +x kwokctl-linux-amd64
           sudo mv kwokctl-linux-amd64 /usr/local/bin/kwokctl
 
       - name: Create KWOK cluster
+        if: always()
         run: kwokctl create cluster --name kwok-test
-      - name: Run Python Unit Tests
+      - name: Run Python Tests with Coverage
+        if: always()
         working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: coverage run -m unittest discover
-      - name: Generate Coverage Report
-        working-directory: ${{ env.PYTHON_MODULES_DIR }}
-        run: coverage report -m
+        # TODO: Update Validation to check 70% coverage for each test file
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70
       - name: Delete KWOK cluster
         if: always()
         run: kwokctl delete cluster --name kwok-test

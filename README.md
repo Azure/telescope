@@ -2,18 +2,18 @@
 
 # Telescope
 
-Telescope is a framework built to test and compare cloud products and services, focusing on evaluating scalability and performance. It enables users to make informed, data-driven decisions for their multi-cloud strategies on Azure, AWS and GCP.
+Telescope is a cloud-native framework designed to benchmark and compare cloud products and services, with a focus on scalability and performance. It empowers users to make informed, data-driven decisions for multi-cloud strategies across Azure, AWS, and GCP.
 
-The current supported Kubernetes test scenarios are:
+The currently supported Kubernetes-based test scenarios are:
 1. [API Server & ETCD Benchmark](pipelines/perf-eval/API%20Server%20Benchmark)
-2. [Scheduler & Controller Benchmark](pipelines/perf/Schedulear%20Benchmark)
+2. [Scheduler & Controller Benchmark](pipelines/perf-eval/Scheduler%20Benchmark)
 3. [Autoscaler/Karpenter Benchmark](pipelines/perf-eval/Autoscale%20Benchmark)
 4. [Container Network Benchmark](pipelines/perf-eval/CNI%20Benchmark)
 5. [Container Storage Benchmark](pipelines/perf-eval/CSI%20Benchmark/)
 6. [Container Runtime Benchmark](pipelines/perf-eval/CRI%20Benchmark/)
-7. [GPU Benchmark](incoming)
+7. [GPU/HPC Benchmark](pipelines/perf-eval/GPU%20Benchmark)
 
-The current integrated test tools are:
+The currently integrated open-source testing tools are:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
 2. [kwok](https://github.com/kubernetes-sigs/kwok)
 3. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
@@ -22,27 +22,12 @@ The current integrated test tools are:
 6. [fio](https://github.com/axboe/fio)
 
 ## Design
-![design](./docs/imgs/design.jpeg)
-As the achitecture diagram above shows, Telescope streamlines the evaluation process through five key steps:
 
-1. Provision Resources
-2. Validate Resources
-3. Execute Tests
-4. Cleanup Resources
-5. Publish Results
-
-Telescope offers three primary reusable components:
-
-1. **Terraform modules** to manage test resource setup and provide reproducibility.
-2. **Python modules** for seamless integration with testing and measurement tools.
-3. **Data Analytics** including Blob Storage, Event Hub, and Data Explorer for continuous monitoring.
-
-## Setup
-[Read more](modules/terraform/setup/README.md)
+[Read more](docs/design.md)
 
 ## Contributing
 
-[Read more](docs/contributing/readme.md)
+[Read more](docs/contribute.md)
 <!-- markdown-link-check-disable -->
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us

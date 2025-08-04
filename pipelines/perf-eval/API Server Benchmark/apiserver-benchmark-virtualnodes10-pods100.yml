@@ -32,14 +32,14 @@ stages:
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.2.0
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_default
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -54,28 +54,29 @@ stages:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
+              kubernetes_version: "1.32"
             exempt:
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
+              kubernetes_version: "1.32"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.2.0
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_lower_max_inflight
+  - stage: gcp_eastus1
     dependsOn: []
-    variables:
-      - group: API-Server-L4-Config-MI50
+    condition: eq(variables['Build.Reason'], 'Manual')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
-          cloud: azure
+          cloud: gcp
           regions:
-            - eastus2
+            - us-east1
           engine: kperf
           topology: kperf
           matrix:
@@ -83,12 +84,8 @@ stages:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
               disable_warmup: "true"
-            exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: ""
-              disable_warmup: "true"
           engine_input:
-            runner_image: ghcr.io/azure/kperf:0.2.0
+            runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node10_job1_pod100
             benchmark_subcmd_args: "--total 1000"
           max_parallel: 2

@@ -19,6 +19,9 @@ NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus",
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
+JOB_LIFECYCLE_LATENCY_PREFIX = "JobLifecycleLatency"
+SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX = "SchedulingThroughputPrometheus"
+SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
 
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
@@ -87,13 +90,54 @@ def get_measurement(file_path):
         group_name = file_name.split("_")[1]
         measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
         return measurement_name, group_name
+    if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
+        group_name = file_name.split("_")[1]
+        return JOB_LIFECYCLE_LATENCY_PREFIX, group_name
     if file_name.startswith(RESOURCE_USAGE_SUMMARY_PREFIX):
         group_name = file_name.split("_")[1]
         return RESOURCE_USAGE_SUMMARY_PREFIX, group_name
     if file_name.startswith(NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX):
         group_name = file_name.split("_")[1]
         return NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX, group_name
+    if file_name.startswith(SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX):
+        group_name = file_name.split("_")[1]
+        return SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX, group_name
+    if file_name.startswith(SCHEDULING_THROUGHPUT_PREFIX):
+        group_name = file_name.split("_")[1]
+        return SCHEDULING_THROUGHPUT_PREFIX, group_name
     return None, None
+
+def process_cl2_reports(cl2_report_dir, template):
+    content = ""
+    for f in os.listdir(cl2_report_dir):
+        file_path = os.path.join(cl2_report_dir, f)
+        with open(file_path, "r", encoding="utf-8") as file:
+            logger.info(f"Processing {file_path}")
+            measurement, group_name = get_measurement(file_path)
+            if not measurement:
+                continue
+            logger.info(f"Measurement: {measurement}, Group Name: {group_name}")
+            data = json.loads(file.read())
+
+            if "dataItems" in data:
+                items = data["dataItems"]
+                if not items:
+                    logger.info(f"No data items found in {file_path}")
+                    logger.info(f"Data:\n{data}")
+                    continue
+                for item in items:
+                    result = template.copy()
+                    result["group"] = group_name
+                    result["measurement"] = measurement
+                    result["result"] = item
+                    content += json.dumps(result) + "\n"
+            else:
+                result = template.copy()
+                result["group"] = group_name
+                result["measurement"] = measurement
+                result["result"] = data
+                content += json.dumps(result) + "\n"
+    return content
 
 
 def parse_xml_to_json(file_path, indent=0):

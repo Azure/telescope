@@ -55,6 +55,8 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
     cpu_request = cpu_value // pods_per_node
+    # Consider 5% less CPU request for deployment pods
+    cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir):

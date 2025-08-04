@@ -12,13 +12,13 @@ To use the EKS module, follow these steps:
 
 ```hcl
   eks_config_list = [{
-  eks_name                = "sumanth-test"
+  eks_name                = "eks-test"
   vpc_name                = "client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
       name           = "node-group-1"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["t3.small"]
       min_size       = 1
       max_size       = 3

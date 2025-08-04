@@ -16,6 +16,7 @@ locals {
     if var.eks_config.enable_karpenter
   }
 
+  # Merge all addon maps
   _eks_addons_map = merge(local.karpenter_addons_map, local.eks_config_addons_map)
 
   # Set default VPC-CNI settings if addon is present in the config
@@ -43,7 +44,15 @@ locals {
 
   eks_addons_map = merge(local._eks_addons_map, local.vpc_cni_addon_map) # note: the order matters (the later takes precedence)
 
-  policy_arns = var.eks_config.policy_arns
+  auto_mode_policies = var.eks_config.auto_mode ? [
+    "AmazonEKSBlockStoragePolicy",
+    "AmazonEKSComputePolicy",
+    "AmazonEKSLoadBalancingPolicy",
+    "AmazonEKSWorkerNodeMinimalPolicy",
+    "AmazonEKSNetworkingPolicy"
+  ] : []
+
+  policy_arns = concat(var.eks_config.policy_arns, local.auto_mode_policies)
 
   addons_policy_arns  = flatten([for addon in local.eks_addons_map : addon.policy_arns if can(addon.policy_arns)])
   service_account_map = { for addon in local.eks_addons_map : addon.name => addon.service_account if try(addon.service_account, null) != null }
@@ -85,7 +94,10 @@ data "aws_iam_policy_document" "assume_role" {
       identifiers = ["eks.amazonaws.com", "ec2.amazonaws.com"]
     }
 
-    actions = ["sts:AssumeRole"]
+    actions = [
+      "sts:AssumeRole",
+      "sts:TagSession" # Required for EKS Auto Mode
+    ]
   }
 }
 
@@ -142,6 +154,36 @@ resource "aws_eks_cluster" "eks" {
   }
 
   version = var.eks_config.kubernetes_version
+
+  # Enable EKS Auto Mode (see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_cluster#eks-cluster-with-eks-auto-mode)
+  # When using EKS Auto Mode compute_config.enabled, kubernetes_network_config.elastic_load_balancing.enabled, 
+  # and storage_config.block_storage.enabled must *ALL be set to true.
+  # Enabling EKS Auto Mode also requires that bootstrap_self_managed_addons is set to false.
+
+  bootstrap_self_managed_addons = var.eks_config.auto_mode ? false : true
+  dynamic "compute_config" {
+    for_each = var.eks_config.auto_mode ? { "compute_config" : true } : {}
+    content {
+      enabled = true
+      # node_pools must be null. Custom node pools are created below.
+    }
+  }
+  dynamic "storage_config" {
+    for_each = var.eks_config.auto_mode ? { "block_storage" : true } : {}
+    content {
+      block_storage {
+        enabled = true
+      }
+    }
+  }
+  dynamic "kubernetes_network_config" {
+    for_each = var.eks_config.auto_mode ? { "elastic_load_balancing" : true } : {}
+    content {
+      elastic_load_balancing {
+        enabled = true
+      }
+    }
+  }
 
   depends_on = [
     aws_iam_role_policy_attachment.policy_attachments
@@ -355,9 +397,22 @@ resource "aws_eks_addon" "addon" {
     "Name" = each.value.name
   }
 
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  dynamic "timeouts" {
+    for_each = try(each.value.timeouts, {}) != {} ? [each.value.timeouts] : []
+    content {
+      create = try(timeouts.value.create, "20m")
+      update = try(timeouts.value.update, "20m")
+      delete = try(timeouts.value.delete, "40m")
+    }
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.addon_policy_attachments,
-    aws_eks_node_group.eks_managed_node_groups
+    aws_eks_node_group.eks_managed_node_groups,
+    terraform_data.apply_nodepool_system_custom,
+    terraform_data.apply_nodepool_general_custom,
   ]
 }
 
@@ -404,4 +459,243 @@ resource "terraform_data" "install_cni_metrics_helper" {
       EOT
   }
   depends_on = [aws_eks_cluster.eks]
+}
+
+
+
+################################################################################
+# EKS Auto Mode
+################################################################################
+
+resource "terraform_data" "apply_nodeclass_custom" {
+  count = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<EOT
+      set -e
+      aws eks update-kubeconfig --region ${var.region} --name ${local.eks_cluster_name}
+      envsubst < "${path.module}/auto_mode/nodeclass-custom.yaml" | kubectl apply -f -
+      # Wait for the nodeclass to be ready
+      kubectl wait --for=condition=Ready nodeclass/custom --timeout=30s
+      kubectl get nodeclass custom
+    EOT
+    environment = {
+      RUN_ID            = var.tags["run_id"]
+      OWNER             = var.tags["owner"]
+      SCENARIO          = var.tags["scenario"]
+      DELETION_DUE_TIME = var.tags["deletion_due_time"]
+      NODE_ROLE_NAME    = aws_iam_role.eks_cluster_role.name
+    }
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      set -e
+      kubectl delete nodeclass custom --ignore-not-found
+    EOT
+  }
+
+  depends_on = [
+    aws_eks_cluster.eks,
+    aws_iam_role_policy_attachment.automode_controller_policy_attachments,
+    aws_eks_access_entry.node_pool_entry,
+    aws_eks_access_policy_association.node_pool_policy,
+  ]
+}
+
+resource "terraform_data" "apply_nodepool_system_custom" {
+  count = var.eks_config.auto_mode && var.eks_config.node_pool_system ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<EOT
+      set -e
+      kubectl apply -f "${path.module}/auto_mode/nodepool-system-custom.yaml"
+      # Wait for the nodepool to be ready
+      kubectl wait --for=condition=Ready nodepool/system-custom --timeout=30s
+      kubectl get nodepool system-custom
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      set -e
+      kubectl delete nodepool system-custom --ignore-not-found
+    EOT
+  }
+
+  depends_on = [terraform_data.apply_nodeclass_custom]
+}
+
+resource "terraform_data" "apply_nodepool_general_custom" {
+  count = var.eks_config.auto_mode && var.eks_config.node_pool_general_purpose ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<EOT
+      set -e
+      kubectl apply -f "${path.module}/auto_mode/nodepool-general-custom.yaml"
+      # Wait for the nodepool to be ready
+      kubectl wait --for=condition=Ready nodepool/general-purpose-custom --timeout=30s
+      kubectl get nodepool general-purpose-custom
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      set -e
+      kubectl delete nodepool general-purpose-custom --ignore-not-found
+    EOT
+  }
+
+  depends_on = [terraform_data.apply_nodeclass_custom]
+}
+
+resource "aws_iam_policy" "automode_controller_policy" {
+  count = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? 1 : 0
+
+  name = substr("AutoModeControllerPolicy-${local.eks_cluster_name}", 0, 60)
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowScopedEC2InstanceAccessActions"
+        Effect = "Allow"
+        Action = [
+          "ec2:RunInstances",
+          "ec2:CreateLaunchTemplate",
+          "ec2:CreateTags",
+          "ec2:CreateFleet",
+          "ec2:DeleteLaunchTemplate"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AmazonEC2ContainerRegistryPullOnly"
+        Effect = "Allow",
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchImportUpstreamImage"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid    = "AllowRegionalReadActions"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceTypeOfferings",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplates",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSpotPriceHistory",
+          "ec2:DescribeSubnets"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowEKSSSMReadActions"
+        Effect = "Allow"
+        Action = "ssm:GetParameter"
+        Resource = [
+          "arn:aws:ssm:${var.region}::parameter/aws/service/eks/optimized-ami/*",
+          "arn:aws:ssm:${var.region}::parameter/aws/service/bottlerocket/*"
+        ]
+      },
+      {
+        Sid      = "AllowPricingReadActions"
+        Effect   = "Allow"
+        Action   = "pricing:GetProducts"
+        Resource = "*"
+      },
+      {
+        Sid      = "AllowPassingNodeRole"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = "arn:aws:iam::*:role/*eks*"
+      },
+      {
+        Sid    = "AllowScopedInstanceProfileActions"
+        Effect = "Allow"
+        Action = [
+          "iam:AddRoleToInstanceProfile",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "iam:GetInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:TagInstanceProfile"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "AllowClusterEndpointDiscovery"
+        Effect   = "Allow"
+        Action   = "eks:DescribeCluster"
+        Resource = "arn:aws:eks:${var.region}:*:cluster/${local.eks_cluster_name}"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "automode_controller_policy_attachments" {
+  count      = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? 1 : 0
+  policy_arn = aws_iam_policy.automode_controller_policy[0].arn
+  role       = aws_iam_role.eks_cluster_role.name
+}
+
+resource "aws_eks_access_entry" "node_pool_entry" {
+  count         = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? 1 : 0
+  cluster_name  = local.eks_cluster_name
+  principal_arn = aws_iam_role.eks_cluster_role.arn
+  type          = "EC2"
+  depends_on    = [aws_eks_cluster.eks]
+}
+
+resource "aws_eks_access_policy_association" "node_pool_policy" {
+  count         = var.eks_config.auto_mode && (var.eks_config.node_pool_system || var.eks_config.node_pool_general_purpose) ? 1 : 0
+  cluster_name  = local.eks_cluster_name
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAutoNodePolicy"
+  principal_arn = aws_iam_role.eks_cluster_role.arn
+
+  access_scope {
+    type = "cluster"
+  }
+  depends_on = [aws_eks_access_entry.node_pool_entry]
+}
+
+# Deploy Metrics Server addon with manifest because the official EKS addon may take several hours to report healthy status when using EKS Auto Mode.
+# AWS documentation: https://docs.aws.amazon.com/eks/latest/userguide/metrics-server.html
+resource "terraform_data" "apply_metrics_server_addon" {
+  # if EKS Auto Mode is enabled and metrics-server is not set in the addon list
+  count = var.eks_config.auto_mode && !contains(keys(local.eks_addons_map), "metrics-server") ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<EOT
+      set -e
+      kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      # Wait for the metrics-server deployment to be ready
+      kubectl wait --for=condition=Available deployment/metrics-server -n kube-system --timeout=300s
+      kubectl get pod -l k8s-app=metrics-server -n kube-system
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      set -e
+      kubectl delete -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      # Wait for the deployment/metrics-server to be deleted
+      kubectl wait --for=delete deployment/metrics-server -n kube-system --timeout=30s
+    EOT
+  }
+
+  depends_on = [
+    terraform_data.apply_nodepool_system_custom,
+    terraform_data.apply_nodepool_general_custom
+  ]
 }

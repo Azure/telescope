@@ -19,7 +19,7 @@ network_config_list = [
     nsr_rules = [
       {
         name                       = "Allow-Port-5201"
-        priority                   = 100
+        priority                   = 120
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -30,7 +30,7 @@ network_config_list = [
       },
       {
         name                       = "Allow-Port-20000"
-        priority                   = 101
+        priority                   = 121
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -41,7 +41,7 @@ network_config_list = [
       },
       {
         name                       = "Allow-Port-20003"
-        priority                   = 102
+        priority                   = 122
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -52,7 +52,7 @@ network_config_list = [
       },
       {
         name                       = "Allow-Port-20005"
-        priority                   = 103
+        priority                   = 123
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -63,7 +63,7 @@ network_config_list = [
       },
       {
         name                       = "Allow-Port-80"
-        priority                   = 104
+        priority                   = 124
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -74,7 +74,7 @@ network_config_list = [
       },
       {
         name                       = "Allow-API-Server"
-        priority                   = 105
+        priority                   = 125
         direction                  = "Outbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -85,7 +85,7 @@ network_config_list = [
       },
       {
         name                       = "Allow-WebSocket"
-        priority                   = 106
+        priority                   = 126
         direction                  = "Inbound"
         access                     = "Allow"
         protocol                   = "Tcp"
@@ -128,7 +128,7 @@ aks_config_list = [
         node_count  = 1
         node_labels = { "client" = "true", "test" = "true" }
         node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
-        zones       = ["1"]
+        zones       = ["2"]
       },
       {
         name        = "server"
@@ -136,9 +136,9 @@ aks_config_list = [
         node_count  = 1
         node_labels = { "server" = "true", "test" = "true" }
         node_taints = ["dedicated-test=true:NoSchedule", "dedicated-test=true:NoExecute"]
-        zones       = ["1"]
+        zones       = ["2"]
       }
     ]
-    kubernetes_version = "1.30"
+    kubernetes_version = "1.32"
   }
 ]

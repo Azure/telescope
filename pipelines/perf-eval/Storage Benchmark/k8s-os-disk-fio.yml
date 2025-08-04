@@ -35,19 +35,19 @@ stages:
           engine: fio
           engine_input:
             fio_command_array:
-              - "4k|32|randread|180"
-              - "4k|32|randwrite|180"
-              - "256k|8|randread|180"
-              - "256k|8|randwrite|180"
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
           matrix:
             Standard_D16s_v3:
               k8s_machine_type: Standard_D16s_v3
               k8s_os_disk_type: Managed
-              replica_count: 1
+              storage_name: os-disk
             Standard_D16ds_v6:
               k8s_machine_type: Standard_D16ds_v6
               k8s_os_disk_type: Managed
-              replica_count: 1
+              storage_name: os-disk
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -72,19 +72,19 @@ stages:
           engine: fio
           engine_input:
             fio_command_array:
-              - "4k|32|randread|180"
-              - "4k|32|randwrite|180"
-              - "256k|8|randread|180"
-              - "256k|8|randwrite|180"
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
           matrix:
             Standard_D16s_v3_Ephemeral:
               k8s_machine_type: Standard_D16s_v3
               k8s_os_disk_type: Ephemeral
-              replica_count: 1
+              storage_name: os-disk
             Standard_D16ds_v6_Ephemeral:
               k8s_machine_type: Standard_D16ds_v6
               k8s_os_disk_type: Ephemeral
-              replica_count: 1
+              storage_name: os-disk
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -107,14 +107,14 @@ stages:
           engine: fio
           engine_input:
             fio_command_array:
-              - "4k|32|randread|180"
-              - "4k|32|randwrite|180"
-              - "256k|8|randread|180"
-              - "256k|8|randwrite|180"
+              - "4k|32|randread|180|1|10G"
+              - "4k|32|randwrite|180|1|10G"
+              - "256k|8|randread|180|1|10G"
+              - "256k|8|randwrite|180|1|10G"
           matrix:
             m7i.4xlarge:
               k8s_machine_type: m7i.4xlarge
-              replica_count: 1
+              storage_name: os-disk
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection

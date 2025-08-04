@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ring-buffer-config-ds
+  namespace: default
+  labels:
+    app: ring-buffer-config
+spec:
+  selector:
+    matchLabels:
+      app: ring-buffer-config
+  template:
+    metadata:
+      labels:
+        app: ring-buffer-config
+    spec:
+      containers:
+        - name: ring-buffer-config
+          image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - |
+              set -e;
+              interface=$(ip -j link show | jq -r 'map(select(.master=="eth0"))[].ifname')
+              ethtool -G $interface rx 2048
+              sleep infinity # must be kept since daemonset will be restarted if the container exits
+          readinessProbe:
+            initialDelaySeconds: 1
+            periodSeconds: 60
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e;
+                  interface=$(ip -j link show | jq -r 'map(select(.master=="eth0"))[].ifname')
+                  rx_size=$(ethtool -g $interface | awk '/Current hardware settings:/,/^$/ {if ($1 == "RX:") print $2}')
+                  if [ "$rx_size" -ne 2048 ]; then
+                    echo "RX ring buffer size for $interface is not 2048, current value is $rx_size" >> /proc/1/fd/1;
+                    exit 1;
+                  fi;
+                  echo "RX ring buffer size for $interface is 2048" >> /proc/1/fd/1;
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+      hostNetwork: true
+      tolerations:
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "dedicated-test"
+          operator: "Equal"
+          value: "true"
+          effect: "NoExecute"
+      nodeSelector:
+        test: "true"

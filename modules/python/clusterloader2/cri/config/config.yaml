@@ -18,7 +18,9 @@ name: resource-consumer
 {{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
 
 {{$provider := DefaultParam .CL2_PROVIDER "aks"}}
+{{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
+{{$hostNetwork := DefaultParam .CL2_HOST_NETWORK "true"}}
 
 namespace:
   number: 1
@@ -87,12 +89,18 @@ steps:
           Replicas: {{$replicas}}
       {{end}}
           Group: resource-consumer
-          Memory: {{$memory}}K
+          {{if eq $osType "windows"}}
+          Memory: {{$memory}}
+          {{else}}
+          Memory: {{$memoryKi}}K
+          {{end}}
           CPU: --millicores={{$cpu}}
           MemoryRequest: {{$memoryKi}}
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}
+          OSType: {{$osType}}
+          HostNetwork: {{$hostNetwork}}
 
   - name: Waiting for latency pods to be running
     measurements:

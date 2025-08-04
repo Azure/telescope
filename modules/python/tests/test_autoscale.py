@@ -67,8 +67,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         without_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'false', '/mock/path')
 
         # Assert the CPU request calculation
-        self.assertEqual(with_warmup_cpu_request, 1800)  # 2000m - 100m (allocated) - 100m (warmup)
-        self.assertEqual(without_warmup_cpu_request, 1900) # 2000m - 100m (allocated)
+        self.assertEqual(with_warmup_cpu_request, 1800*0.95)  # 2000m - 100m (allocated) - 100m (warmup)
+        self.assertEqual(without_warmup_cpu_request, 1900*0.95) # 2000m - 100m (allocated)
 
         # Assert cleanup is called
         mock_cleanup.assert_called_once_with('/mock/path')
