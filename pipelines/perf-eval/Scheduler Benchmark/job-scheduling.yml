@@ -35,7 +35,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         small:
           node_count: 200
@@ -60,7 +60,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         medium:
           node_count: 1000
@@ -85,7 +85,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         high:
           node_count: 2000
@@ -110,7 +110,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         small:
           node_count: 200
@@ -135,7 +135,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         medium:
           node_count: 1000
@@ -160,7 +160,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         high:
           node_count: 2000
