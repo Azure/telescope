@@ -11,7 +11,7 @@ parameters:
 
 steps:
 
-- template: /steps/common/aks-store-demo/single-cluster/aks-store-demo-python.yml
+- template: /steps/topology/cluster-automatic/aks-store-demo-python.yml
   parameters:
     cluster_context: automatic
     action: cleanup
