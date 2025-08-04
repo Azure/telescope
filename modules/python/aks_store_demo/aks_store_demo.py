@@ -49,12 +49,9 @@ class AKSStoreDemo(ABC):
             logger.warning(f"Namespace operation: {e}")
 
     def apply_manifest(self, manifest_file: str, wait_condition: str = None,
-                      wait_resource: str = None, timeout: str = "300s"):
+                      wait_resource: str = None, timeout: int = 300):
         """Apply a single manifest with optional wait conditions."""
         try:
-            # Convert timeout from kubectl format (e.g., "300s") to seconds
-            timeout_seconds = int(timeout.rstrip('s'))
-
             logger.info(f"Applying manifest: {manifest_file}")
 
             # Apply the manifest first
@@ -81,7 +78,7 @@ class AKSStoreDemo(ABC):
                     resource_name=resource_name,
                     wait_condition_type=wait_condition,
                     namespace=self.namespace,
-                    timeout_seconds=timeout_seconds
+                    timeout_seconds=timeout
                 )
 
                 if not result:
@@ -116,19 +113,19 @@ class SingleClusterDemo(AKSStoreDemo):
                 "file": f"{base_path}/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
                 "wait_resource": "deployment",
-                "timeout": "1200s"
+                "timeout": 1200
             },
             {
                 "file": f"{base_path}/aks-store-virtual-worker.yaml",
                 "wait_condition_type": "available",
                 "wait_resource": "deployment/virtual-worker",
-                "timeout": "120s"
+                "timeout": 120
             },
             {
                 "file": f"{base_path}/aks-store-virtual-customer.yaml",
                 "wait_condition_type": "available",
                 "wait_resource": "deployment/virtual-customer",
-                "timeout": "120s"
+                "timeout": 120
             }
         ]
 
@@ -158,7 +155,7 @@ class SingleClusterDemo(AKSStoreDemo):
                     manifest_file=manifest_file,
                     wait_condition=manifest_config.get("wait_condition_type"),
                     wait_resource=manifest_config.get("wait_resource"),
-                    timeout=manifest_config.get("timeout", "300s")
+                    timeout=manifest_config.get("timeout", 300)
                 )
 
             logger.info("AKS Store Demo deployment completed successfully")

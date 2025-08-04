@@ -178,7 +178,7 @@ class TestAKSStoreDemo(unittest.TestCase):
             "/path/to/manifest.yaml",
             wait_condition="available",
             wait_resource="deployment/test-deployment",
-            timeout="600s"
+            timeout=600
         )
 
         expected_calls = [
@@ -220,7 +220,7 @@ class TestAKSStoreDemo(unittest.TestCase):
             "/path/to/manifest.yaml",
             wait_condition="available",
             wait_resource="deployment",
-            timeout="300s"
+            timeout=300
         )
 
         expected_calls = [
@@ -310,19 +310,19 @@ class TestSingleClusterDemo:
                 "file": "/test/manifests/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
                 "wait_resource": "deployment",
-                "timeout": "1200s"
+                "timeout": 1200
             },
             {
                 "file": "/test/manifests/aks-store-virtual-worker.yaml",
                 "wait_condition_type": "available",
                 "wait_resource": "deployment/virtual-worker",
-                "timeout": "120s"
+                "timeout": 120
             },
             {
                 "file": "/test/manifests/aks-store-virtual-customer.yaml",
                 "wait_condition_type": "available",
                 "wait_resource": "deployment/virtual-customer",
-                "timeout": "120s"
+                "timeout": 120
             }
         ]
 
@@ -348,19 +348,19 @@ class TestSingleClusterDemo:
                 manifest_file="/test/manifests/aks-store-all-in-one.yaml",
                 wait_condition="available",
                 wait_resource="deployment",
-                timeout="1200s"
+                timeout=1200
             ),
             call(
                 manifest_file="/test/manifests/aks-store-virtual-worker.yaml",
                 wait_condition="available",
                 wait_resource="deployment/virtual-worker",
-                timeout="120s"
+                timeout=120
             ),
             call(
                 manifest_file="/test/manifests/aks-store-virtual-customer.yaml",
                 wait_condition="available",
                 wait_resource="deployment/virtual-customer",
-                timeout="120s"
+                timeout=120
             )
         ]
 
