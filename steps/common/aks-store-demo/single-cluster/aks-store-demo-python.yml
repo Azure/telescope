@@ -7,7 +7,7 @@ parameters:
     default: ""
   - name: namespace
     type: string
-    default: "default"
+    default: "aks-store-demo"
 
 steps:
   - script: |

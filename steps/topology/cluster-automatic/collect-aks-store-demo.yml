@@ -11,7 +11,8 @@ parameters:
 
 steps:
 
-- template: /steps/common/aks-store-demo/single-cluster/configure-demo.yml
+- template: /steps/common/aks-store-demo/single-cluster/aks-store-demo-python.yml
   parameters:
-    action: cleanup
     cluster_context: automatic
+    action: cleanup
+    namespace: aks-store-demo
