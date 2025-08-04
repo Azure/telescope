@@ -49,43 +49,7 @@ class AKSStoreDemo(ABC):
         except Exception as e:
             logger.warning(f"Namespace operation: {e}")
 
-    def apply_manifest(self, manifest_file: str, wait_condition_type: str = None,
-                      resource_type: str = None, resource_name: str = None, timeout: int = 300):
-        """Apply a single manifest with optional wait conditions."""
-        try:
-            logger.info(f"Applying manifest: {manifest_file}")
-
-            # Apply the manifest first
-            execute_with_retries(
-                self.k8s_client.apply_manifest_from_file,
-                manifest_path=manifest_file,
-                namespace=self.namespace
-            )
-
-            # Wait for condition if specified
-            if wait_condition_type and resource_type:
-                resource_identifier = f"{resource_type}/{resource_name}" if resource_name else resource_type
-                logger.info(f"Waiting for {resource_identifier} with condition {wait_condition_type}")
-
-                result = execute_with_retries(
-                    self.k8s_client.wait_for_condition,
-                    resource_type=resource_type,
-                    resource_name=resource_name,
-                    wait_condition_type=wait_condition_type,
-                    namespace=self.namespace,
-                    timeout_seconds=timeout
-                )
-
-                if not result:
-                    logger.warning(f"Timeout waiting for {resource_identifier} with condition {wait_condition_type}")
-
-            logger.info(f"Successfully applied manifest: {manifest_file}")
-
-        except Exception as e:
-            logger.error(f"Failed to apply manifest {manifest_file}: {e}")
-            raise RuntimeError(f"Failed to apply manifest {manifest_file}: {e}") from e
-
-    def apply_manifest_url(self, manifest_url: str, wait_condition_type: str = None,
+    def apply_manifest(self, manifest_url: str, wait_condition_type: str = None,
                           resource_type: str = None, resource_name: str = None, timeout: int = 300):
         """Apply a single manifest from URL with optional wait conditions."""
         try:
@@ -120,6 +84,33 @@ class AKSStoreDemo(ABC):
         except Exception as e:
             logger.error(f"Failed to apply manifest from URL {manifest_url}: {e}")
             raise RuntimeError(f"Failed to apply manifest from URL {manifest_url}: {e}") from e
+
+    def delete_manifest_from_url(self, manifest_url: str):
+        """Delete resources from a manifest URL."""
+        try:
+            logger.info(f"Deleting resources from URL: {manifest_url}")
+
+            # Fetch manifest from URL
+            response = requests.get(manifest_url, timeout=30)
+            response.raise_for_status()
+
+            # Parse YAML content and delete each resource
+            manifests_content = list(yaml.safe_load_all(response.text))
+
+            for manifest in manifests_content:
+                if manifest:  # Skip empty documents
+                    execute_with_retries(
+                        self.k8s_client.delete_manifest_from_file,
+                        manifest_dict=manifest,
+                        ignore_not_found=True,
+                        namespace=self.namespace
+                    )
+
+            logger.info(f"Successfully deleted resources from URL: {manifest_url}")
+
+        except Exception as e:
+            logger.error(f"Failed to delete manifest from URL {manifest_url}: {e}")
+            # Don't raise the exception here - we want cleanup to continue even if one manifest fails
 
     @abstractmethod
     def deploy(self):
@@ -169,7 +160,7 @@ class SingleClusterDemo(AKSStoreDemo):
 
                 logger.info(f"Deploying from URL: {manifest_url}")
 
-                self.apply_manifest_url(
+                self.apply_manifest(
                     manifest_url=manifest_url,
                     wait_condition_type=manifest_config.get("wait_condition_type"),
                     resource_type=manifest_config.get("resource_type"),
@@ -197,30 +188,7 @@ class SingleClusterDemo(AKSStoreDemo):
 
             for manifest_config in manifests:
                 manifest_url = manifest_config["url"]
-
-                try:
-                    logger.info(f"Deleting resources from URL: {manifest_url}")
-
-                    # Fetch manifest from URL and delete
-                    response = requests.get(manifest_url, timeout=30)
-                    response.raise_for_status()
-
-                    # Parse YAML content and delete each resource
-                    manifests_content = list(yaml.safe_load_all(response.text))
-
-                    for manifest in manifests_content:
-                        if manifest:  # Skip empty documents
-                            execute_with_retries(
-                                self.k8s_client.delete_manifest_from_file,
-                                manifest_dict=manifest,
-                                ignore_not_found=True,
-                                namespace=self.namespace
-                            )
-
-                    logger.info(f"Successfully deleted resources from URL: {manifest_url}")
-
-                except Exception as e:
-                    logger.warning(f"Failed to cleanup manifest from URL {manifest_url}: {e}")
+                self.delete_manifest_from_url(manifest_url)
 
             logger.info("AKS Store Demo cleanup completed")
 
