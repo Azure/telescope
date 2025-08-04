@@ -42,11 +42,16 @@ class KWOK(ABC):
             self.k8s_client.apply_manifest_from_url,
             stage_fast_yaml_url
         )
-        # Apply KWOK configuration configmap
+        # Replace KWOK configuration configmap
+        execute_with_retries(
+            self.k8s_client.delete_manifest_from_file,
+            "kwok/config/kwok-config.yaml"
+        )
         execute_with_retries(
             self.k8s_client.apply_manifest_from_file,
             "kwok/config/kwok-config.yaml"
         )
+
         # Patch kwok-controller deployment with node selector and toleration
         node_selector = {"kwok": "true"}
         tolerations = [{
@@ -61,6 +66,7 @@ class KWOK(ABC):
             node_selector,
             tolerations
         )
+
         if enable_metrics:
             metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
                                f"download/{kwok_release}/metrics-usage.yaml")
