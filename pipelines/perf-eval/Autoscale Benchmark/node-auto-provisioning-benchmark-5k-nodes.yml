@@ -1,28 +1,28 @@
 trigger: none
 schedules:
   # Azure Large Scale(5000) On-Demand Schedule
-  - cron: "0 19 * * *"
-    displayName: "Every day at 7:00 PM"
+  - cron: "0 15 * * *"
+    displayName: "Every day at 3:00 PM"
     branches:
       include:
         - main
     always: true
   # Azure Large Scale(5000) Spot Schedule
-  - cron: "0 7 * * *"
-    displayName: "Every day at 7:00 AM"
+  - cron: "0 3 * * *"
+    displayName: "Every day at 3:00 AM"
     branches:
       include:
         - main
-    always: true    
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_5k
+  - stage: azure_eastus2_5k_ondemand
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 AM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -58,10 +58,10 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_5k
+  - stage: azure_eastus2_5k_spot
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 PM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -74,7 +74,7 @@ stages:
           regions:
             - eastus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"            
+            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
