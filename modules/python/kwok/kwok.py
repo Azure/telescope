@@ -42,6 +42,25 @@ class KWOK(ABC):
             self.k8s_client.apply_manifest_from_url,
             stage_fast_yaml_url
         )
+        # Apply KWOK configuration configmap
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_file,
+            "kwok/config/kwok-config.yaml"
+        )
+        # Patch kwok-controller deployment with node selector and toleration
+        node_selector = {"kwok": "true"}
+        tolerations = [{
+            "key": "kwok",
+            "value": "true",
+            "effect": "NoSchedule"
+        }]
+        execute_with_retries(
+            self.k8s_client.patch_deployment,
+            "kwok-controller",
+            "kube-system",
+            node_selector,
+            tolerations
+        )
         if enable_metrics:
             metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
                                f"download/{kwok_release}/metrics-usage.yaml")
@@ -129,6 +148,7 @@ class Node(KWOK):
                 ) from e
 
         print(f"Validation completed for {self.node_count} KWOK nodes.")
+
 
     def _generate_node_ip(self, index, base_ip=(10, 0, 0, 10)):
         """Generate a valid IPv4 address, rolling over octets as needed."""
