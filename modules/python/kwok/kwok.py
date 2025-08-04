@@ -68,6 +68,10 @@ class Node(KWOK):
     """KWOK Node implementation for creating and managing virtual Kubernetes nodes."""
     node_manifest_path: str = "kwok/config/kwok-node.yaml"
     node_count: int = 1
+    node_cpu: str = "32"
+    node_memory: str = "256Gi"
+    node_pods: str = "110"
+    node_gpu: str = "0"
 
     def create(self):
         try:
@@ -77,8 +81,14 @@ class Node(KWOK):
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
             for i in range(self.node_count):
-                node_ip = self._generate_node_ip(i)
-                replacements = {"node_name": f"kwok-node-{i}", "node_ip": node_ip}
+                replacements = {
+                    "node_name": f"kwok-node-{i}",
+                    "node_ip": self._generate_node_ip(i),
+                    "node_cpu": self.node_cpu,
+                    "node_memory": self.node_memory,
+                    "node_pods": self.node_pods,
+                    "node_gpu": self.node_gpu
+                }
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
@@ -199,6 +209,30 @@ def main():
         help="Path to the node manifest YAML template.",
     )
     parser.add_argument(
+        "--node-cpu",
+        type=str,
+        default="32",
+        help="CPU capacity and allocatable for each node (default: 32).",
+    )
+    parser.add_argument(
+        "--node-memory",
+        type=str,
+        default="256Gi",
+        help="Memory capacity and allocatable for each node (default: 256Gi).",
+    )
+    parser.add_argument(
+        "--node-pods",
+        type=str,
+        default="110",
+        help="Pod capacity and allocatable for each node (default: 110).",
+    )
+    parser.add_argument(
+        "--node-gpu",
+        type=str,
+        default="0",
+        help="GPU (nvidia.com/gpu) capacity and allocatable for each node (default: 0).",
+    )
+    parser.add_argument(
         "--kwok-release",
         type=str,
         default="",
@@ -221,6 +255,10 @@ def main():
     node = Node(
         node_manifest_path=args.node_manifest_path,
         node_count=args.node_count,
+        node_cpu=args.node_cpu,
+        node_memory=args.node_memory,
+        node_pods=args.node_pods,
+        node_gpu=args.node_gpu,
         kwok_release=args.kwok_release,
         enable_metrics=args.enable_metrics,
     )

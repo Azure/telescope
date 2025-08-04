@@ -1066,6 +1066,8 @@ class KubernetesClient:
             kind = manifest.get("kind")
             # Use provided namespace or fall back to manifest namespace
             namespace = namespace or manifest.get("metadata", {}).get("namespace")
+            name = manifest.get("metadata", {}).get("name")
+            logger.info("Applying manifest %s %s in namespace %s", kind, name, namespace)
 
             if kind == "Deployment":
                 if namespace:

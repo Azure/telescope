@@ -2612,10 +2612,11 @@ spec:
         with patch('clients.kubernetes_client.logger') as mock_logger:
             # pylint: disable=protected-access
             self.client._apply_single_manifest(manifest)
-            mock_logger.info.assert_called_once_with(
-                "Resource %s/%s already exists, skipping creation",
-                "Namespace", "existing-namespace"
-            )
+            expected_calls = [
+                mock.call("Applying manifest %s %s in namespace %s", "Namespace", "existing-namespace", None),
+                mock.call("Resource %s/%s already exists, skipping creation", "Namespace", "existing-namespace")
+            ]
+            mock_logger.info.assert_has_calls(expected_calls)
 
     @patch('kubernetes.client.CoreV1Api.create_namespace')
     def test_apply_single_manifest_api_exception_non_409(self, mock_create_namespace):
