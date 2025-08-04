@@ -21,6 +21,7 @@ class AKSStoreDemo(ABC):
     namespace: str = "aks-store-demo"
     action: str = "apply"
     timeout_seconds: int = 900
+    tag: str = "2.0.0"
 
     def __post_init__(self):
         """Initialize the Kubernetes client after dataclass initialization."""
@@ -111,14 +112,13 @@ class AKSStoreDemo(ABC):
 
 
 @dataclass
-class SingleClusterDemo(AKSStoreDemo):
-    """Single cluster AKS Store Demo implementation."""
+class AllInOneAKSStoreDemo(AKSStoreDemo):
+    """All-in-one AKS Store Demo implementation."""
 
     def get_manifest_urls(self) -> List[Dict[str, Any]]:
         """Get the list of manifest URLs to apply with their configurations."""
-        # Hardcoded commit ID to keep consistency among the executions
-        commit_id = "ca7f6fa7f406920d2a284c6dfa4bfd1d85ed7521"
-        base_url = f"https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/{commit_id}"
+        # Use configurable tag instead of hardcoded commit ID
+        base_url = f"https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/{self.tag}"
 
         return [
             {
@@ -209,13 +209,20 @@ def main():
         required=True,
         help="Action to perform: deploy or cleanup",
     )
+    parser.add_argument(
+        "--tag",
+        type=str,
+        default="2.0.0",
+        help="Tag version of AKS Store Demo to use (default: 2.0.0)",
+    )
 
     args = parser.parse_args()
 
-    demo = SingleClusterDemo(
+    demo = AllInOneAKSStoreDemo(
         cluster_context=args.cluster_context,
         namespace=args.namespace,
         action=args.action,
+        tag=args.tag,
     )
 
     if args.action == "deploy":
