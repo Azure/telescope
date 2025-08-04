@@ -817,25 +817,6 @@ class KubernetesClient:
 
         return manifests, sources
 
-    def _validate_namespace_if_required(self, manifest: dict):
-        """
-        Validate that namespace is present for resources that require it.
-        
-        :param manifest: Manifest dictionary to validate
-        :return: None
-        :raises ValueError: If namespace is required but not present
-        """
-        kind = manifest.get('kind')
-        namespace_required_kinds = [
-            'Service', 'Deployment', 'StatefulSet', 'DaemonSet', 'Pod', 
-            'ConfigMap', 'Secret', 'ServiceAccount', 'Role', 'RoleBinding', 'MPIJob'
-        ]
-
-        if kind in namespace_required_kinds:
-            namespace = manifest.get('metadata', {}).get('namespace')
-            if not namespace:
-                raise ValueError(f"{kind} requires a namespace")
-
     def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
@@ -854,9 +835,6 @@ class KubernetesClient:
             for i, manifest in enumerate(manifests_to_apply):
                 if not manifest:  # Skip empty documents
                     continue
-
-                # Validate namespace is present for resources that require it
-                self._validate_namespace_if_required(manifest)
 
                 logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
                 self._apply_single_manifest(manifest=manifest)
@@ -888,9 +866,6 @@ class KubernetesClient:
             for i, manifest in enumerate(manifests_to_delete):
                 if not manifest:  # Skip empty documents
                     continue
-
-                # Validate namespace is present for resources that require it
-                self._validate_namespace_if_required(manifest)
 
                 logger.info(f"Deleting manifest {i+1}/{len(manifests_to_delete)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
                 self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found)
@@ -1012,8 +987,6 @@ class KubernetesClient:
                 deployment = self.app.read_namespaced_deployment(name=resource_name, namespace=namespace)
                 deployments = [deployment]
 
-            logger.info(f"Deployments status: {[self._is_deployment_condition_met(d, condition_type) for d in deployments]}")
-
             for deployment in deployments:
                 if not self._is_deployment_condition_met(deployment, condition_type):
                     return False
@@ -1033,7 +1006,6 @@ class KubernetesClient:
 
         condition_type_lower = condition_type.lower()
 
-        logger.info(f"Deployment '{deployment.metadata.name}' current status: {deployment.status}")
         for condition in deployment.status.conditions:
             if condition.type.lower() == condition_type_lower and condition.status == "True":
                 return True

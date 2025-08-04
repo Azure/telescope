@@ -19,7 +19,8 @@ steps:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
 
-- template: /steps/common/aks-store-demo/single-cluster/configure-demo.yml
+- template: /steps/common/aks-store-demo/single-cluster/aks-store-demo-python.yml
   parameters:
-    action: deploy
     cluster_context: automatic
+    action: deploy
+    namespace: aks-store-demo
