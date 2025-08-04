@@ -24,3 +24,4 @@ steps:
     cluster_context: automatic
     action: deploy
     namespace: aks-store-demo
+-
