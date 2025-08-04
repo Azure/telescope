@@ -39,7 +39,6 @@ class JobController(ClusterLoader2Base):
     run_url: str = ""
     result_file: str = ""
     test_type: str = "default-config"
-    start_timestamp: str = ""
 
     def configure_clusterloader2(self):
         config = {
@@ -48,6 +47,12 @@ class JobController(ClusterLoader2Base):
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
         }
+        if self.prometheus_enabled:
+            config["CL2_PROMETHEUS_TOLERATE_MASTER"] = True
+            config["CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR"] = 100.0
+            config["CL2_PROMETHEUS_MEMORY_SCALE_FACTOR"] = 100.0
+            config["CL2_PROMETHEUS_CPU_SCALE_FACTOR"] = 30.0
+            config["CL2_PROMETHEUS_NODE_SELECTOR"] = "\"prometheus: \\\"true\\\"\""
         self.write_cl2_override_file(logger, self.cl2_override_file, config)
 
     def validate_clusterloader2(self):
@@ -94,7 +99,6 @@ class JobController(ClusterLoader2Base):
             "run_id": self.run_id,
             "run_url": self.run_url,
             "test_type": self.test_type,
-            "start_timestamp": self.start_timestamp,
             "job_count": self.job_count,
             "job_throughput": self.job_throughput,
             "provider": provider,
@@ -126,6 +130,13 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--job_throughput", type=int, default=-1, help="Job throughput"
+        )
+        parser.add_argument(
+            "--prometheus_enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable Prometheus scraping. Must be either True or False",
         )
 
     @staticmethod
@@ -188,11 +199,9 @@ class JobController(ClusterLoader2Base):
         parser.add_argument(
             "--test_type",
             type=str,
-            nargs="?",
             default="default-config",
             help="Description of test type",
         )
-        parser.add_argument("--start_timestamp", type=str, help="Test start timestamp")
         parser.add_argument(
             "--job_count", type=int, default=1000, help="Number of jobs to run"
         )

@@ -1,6 +1,8 @@
+"""Kubernetes client for managing cluster operations and resources."""  # pylint: disable=too-many-lines
 import time
 import os
 import uuid
+import glob
 import yaml
 import requests
 
@@ -31,6 +33,7 @@ logger = get_logger(__name__)
 
 
 class KubernetesClient:
+    """Client for managing Kubernetes cluster operations and resources."""
     def __init__(self, config_file=None):
         self.config_file = config_file
         config.load_kube_config(config_file=config_file)
@@ -47,21 +50,29 @@ class KubernetesClient:
         self.batch = client.BatchV1Api()
 
     def get_app_client(self):
+        """Get the AppsV1Api client."""
         return self.app
 
+    def get_api_client(self):
+        """Get the CoreV1Api client."""
+        return self.api
+
     def describe_node(self, node_name):
+        """Get detailed information about a specific node."""
         return self.api.read_node(node_name)
 
     def get_nodes(self, label_selector=None, field_selector=None):
-        return self.api.list_node(label_selector=label_selector, field_selector=field_selector).items
+        """Get a list of nodes matching the given selectors."""
+        return self.api.list_node(label_selector=label_selector,
+                                 field_selector=field_selector).items
 
     def get_ready_nodes(self, label_selector=None, field_selector=None):
         """
-        Get a list of nodes that are ready to be scheduled. Should apply all those conditions:
+        Get a list of nodes that are ready to be scheduled. Should apply all conditions:
         - 'Ready' condition status is True
         - 'NetworkUnavailable' condition status is not present or is False
         - Spec unschedulable is False
-        - Spec taints do not have any of the builtin taints keys with effect 'NoSchedule' or 'NoExecute'
+        - Spec taints do not have any builtin taints keys with effect 'NoSchedule' or 'NoExecute'
         """
         nodes = self.get_nodes(label_selector=label_selector, field_selector=field_selector)
         return [
@@ -77,7 +88,9 @@ class KubernetesClient:
             and node.spec.unschedulable is not True
         )
         if not is_schedulable:
-            logger.info(f"Node NOT Ready: '{node.metadata.name}' is not schedulable. status_conditions: {status_conditions}. unschedulable: {node.spec.unschedulable}")
+            logger.info("Node NOT Ready: '%s' is not schedulable. "
+                       "status_conditions: %s. unschedulable: %s",
+                       node.metadata.name, status_conditions, node.spec.unschedulable)
 
         return is_schedulable
 
@@ -86,13 +99,16 @@ class KubernetesClient:
             return True
 
         for taint in node.spec.taints:
-            if taint.key in builtin_taints_keys and taint.effect in ("NoSchedule", "NoExecute"):
-                logger.info(f"Node NOT Ready: '{node.metadata.name}' has taint '{taint.key}' with effect '{taint.effect}'")
+            if (taint.key in builtin_taints_keys and
+                taint.effect in ("NoSchedule", "NoExecute")):
+                logger.info("Node NOT Ready: '%s' has taint '%s' with effect '%s'",
+                           node.metadata.name, taint.key, taint.effect)
                 return False
 
         return True
 
     def _is_ready_pod(self, pod):
+        """Check if a pod is in Ready state."""
         for condition in pod.status.conditions:
             if condition.type == "Ready" and condition.status == "True":
                 return True
@@ -100,31 +116,43 @@ class KubernetesClient:
         return False
 
     def get_pods_by_namespace(self, namespace, label_selector=None, field_selector=None):
-        return self.api.list_namespaced_pod(namespace=namespace, label_selector=label_selector, field_selector=field_selector).items
+        """Get pods in a specific namespace matching the given selectors."""
+        return self.api.list_namespaced_pod(namespace=namespace,
+                                           label_selector=label_selector,
+                                           field_selector=field_selector).items
 
     def get_ready_pods_by_namespace(self, namespace=None, label_selector=None, field_selector=None):
-        pods = self.get_pods_by_namespace(namespace=namespace, label_selector=label_selector, field_selector=field_selector)
+        """Get pods that are running and ready in a specific namespace."""
+        pods = self.get_pods_by_namespace(namespace=namespace,
+                                         label_selector=label_selector,
+                                         field_selector=field_selector)
         return [pod for pod in pods if pod.status.phase == "Running" and self._is_ready_pod(pod)]
 
     def get_persistent_volume_claims_by_namespace(self, namespace):
+        """Get all persistent volume claims in a namespace."""
         return self.api.list_namespaced_persistent_volume_claim(namespace=namespace).items
 
     def get_bound_persistent_volume_claims_by_namespace(self, namespace):
+        """Get all bound persistent volume claims in a namespace."""
         claims = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
         return [claim for claim in claims if claim.status.phase == "Bound"]
 
     def delete_persistent_volume_claim_by_namespace(self, namespace):
+        """Delete all persistent volume claims in a namespace."""
         pvcs = self.get_persistent_volume_claims_by_namespace(namespace=namespace)
         for pvc in pvcs:
             try:
-                self.api.delete_namespaced_persistent_volume_claim(pvc.metadata.name, namespace, body=client.V1DeleteOptions())
+                self.api.delete_namespaced_persistent_volume_claim(
+                    pvc.metadata.name, namespace, body=client.V1DeleteOptions())
             except client.rest.ApiException as e:
-                logger.error(f"Error deleting PVC '{pvc.metadata.name}': {e}")
+                logger.error("Error deleting PVC '%s': %s", pvc.metadata.name, e)
 
     def get_volume_attachments(self):
+        """Get all volume attachments in the cluster."""
         return self.storage.list_volume_attachment().items
 
     def get_attached_volume_attachments(self):
+        """Get all attached volume attachments in the cluster."""
         volume_attachments = self.get_volume_attachments()
         return [attachment for attachment in volume_attachments if attachment.status.attached]
 
@@ -254,6 +282,66 @@ class KubernetesClient:
             time.sleep(10)
         raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
 
+    def wait_for_labeled_pods_ready(self, label_selector: str, namespace: str = "default", timeout_in_minutes: int = 5) -> None:
+        """
+        Wait for all pods with specific label to be ready
+
+        Args:
+            selector: Label selector for the pods
+            namespace: Namespace where pods exist
+            timeout: Timeout string (e.g., "300s", "5m")
+        """
+        pods = self.get_pods_by_namespace(
+            namespace=namespace, label_selector=label_selector
+        )
+        pod_count = len(pods)
+        if pod_count == 0:
+            raise Exception(f"No pods found with selector '{label_selector}' in namespace '{namespace}'")
+        self.wait_for_pods_ready(
+            pod_count=pod_count,
+            operation_timeout_in_minutes=timeout_in_minutes,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    def wait_for_pods_completed(self, label_selector, namespace="default", timeout=300):
+        """
+        Waits for pods with a specific label to complete successfully their execution within a specified timeout.
+        Raises an exception if the pods do not complete within the timeout.
+
+        :param label_selector: The label selector to filter pods.
+        :param namespace: The namespace where the pod is located (default: "default").
+        :param timeout: The timeout in seconds to wait for the pod to complete (default: 300 seconds).
+        :return: None
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            logger.info(
+                f"Waiting for pods with label '{label_selector}' in namespace '{namespace}' to complete..."
+            )
+            pods = self.get_pods_by_namespace(
+                namespace=namespace, label_selector=label_selector
+            )
+            if not pods:
+                raise Exception(f"No pods found with label '{label_selector}' in namespace '{namespace}'.")
+            all_completed = True
+            for pod in pods:
+                logger.info(f"Pod '{pod.metadata.name}' status: {pod.status.phase}")
+                if pod.status.phase != "Succeeded":
+                    all_completed = False
+                    break
+            if all_completed:
+                logger.info(
+                    f"All pods with label '{label_selector}' in namespace '{namespace}' have completed successfully."
+                )
+                return pods
+            sleep_time = 10
+            logger.info(f"Waiting for {sleep_time} seconds before checking pod status again.")
+            time.sleep(sleep_time)
+        raise Exception(
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete within {timeout} seconds."
+        )
+
     def wait_for_job_completed(self, job_name, namespace="default", timeout=300):
         """
         Waits for a specific job to complete its execution within a specified timeout.
@@ -316,7 +404,7 @@ class KubernetesClient:
         except client.rest.ApiException as e:
             raise Exception(f"Error getting logs for pod '{pod_name}' in namespace '{namespace}': {str(e)}") from e
 
-    def run_pod_exec_command(self, pod_name: str, container_name: str, command: str, dest_path: str = "", namespace: str = "default") -> str:
+    def run_pod_exec_command(self, pod_name: str, command: str, container_name: str = "", dest_path: str = "", namespace: str = "default") -> str:
         """
         Executes a command in a specified container within a Kubernetes pod and optionally saves the output to a file.
         Args:
@@ -331,27 +419,42 @@ class KubernetesClient:
             Exception: If an error occurs while executing the command in the pod.
         """
         commands = ['/bin/sh', '-c', command]
-        resp = stream(self.api.connect_get_namespaced_pod_exec,
-                      name=pod_name,
-                      namespace=namespace,
-                      command=commands,
-                      container=container_name,
-                      stderr=True, stdin=False,
-                      stdout=True, tty=False,
-                      _preload_content=False)
+        logger.info(
+            f"Executing command in pod '{pod_name}' in namespace '{namespace}': {' '.join(commands)}"
+        )
+        # Build kwargs conditionally
+        stream_kwargs = {
+            "name": pod_name,
+            "namespace": namespace,
+            "command": commands,
+            "stderr": True,
+            "stdin": False,
+            "stdout": True,
+            "tty": False,
+            "_preload_content": False,
+        }
+
+        # Only include container if container_name is provided
+        if container_name:
+            stream_kwargs["container"] = container_name
+
+        resp = stream(self.api.connect_get_namespaced_pod_exec, **stream_kwargs)
 
         res = []
-        file = open(dest_path, 'wb') if dest_path != "" else None  # pylint: disable=consider-using-with
+        file = None
+        if dest_path:
+            file = open(dest_path, 'wb')  # pylint: disable=consider-using-with
         try:
             while resp.is_open():
                 resp.update(timeout=1)
                 if resp.peek_stdout():
                     stdout = resp.read_stdout()
                     res.append(stdout)
-                    logger.info(f"STDOUT: {stdout}")
+                    clean_stdout = stdout.rstrip('\n\r')
+                    logger.info("STDOUT: %s", clean_stdout)
                     if file:
                         file.write(stdout.encode('utf-8'))
-                        logger.info(f"Saved response to file: {dest_path}")
+                        logger.info("Saved response to file: %s", dest_path)
                 if resp.peek_stderr():
                     error_msg = resp.read_stderr()
                     raise Exception(f"Error occurred while executing command in pod: {error_msg}")
@@ -362,13 +465,15 @@ class KubernetesClient:
         return ''.join(res)
 
     def get_daemonsets_pods_allocated_resources(self, namespace, node_name):
+        """Get CPU and memory resources allocated by DaemonSet pods on a specific node."""
         pods = self.get_pods_by_namespace(namespace=namespace, field_selector=f"spec.nodeName={node_name}")
         cpu_request = 0
         memory_request = 0
         for pod in pods:
             for container in pod.spec.containers:
                 if container.resources.requests:
-                    logger.info(f"Pod {pod.metadata.name} has container {container.name} with resources {container.resources.requests}")
+                    logger.info("Pod %s has container %s with resources %s",
+                               pod.metadata.name, container.name, container.resources.requests)
                     cpu_request += int(container.resources.requests.get("cpu", "0m").replace("m", ""))
                     memory_request += int(container.resources.requests.get("memory", "0Mi").replace("Mi", ""))
         return cpu_request, memory_request * 1024 # Convert to KiB
@@ -631,6 +736,583 @@ class KubernetesClient:
                 f"Error verifying NVIDIA drivers: {str(e)}"
             )
             return False
+
+    def apply_manifest_from_url(self, manifest_url):
+        """
+        Apply a Kubernetes manifest from a URL using Kubernetes Python client API.
+
+        :param manifest_url: URL of the manifest to apply
+        :return: None
+        """
+        try:
+            # Fetch the manifest content from the URL
+            response = requests.get(manifest_url, timeout=30)
+            response.raise_for_status()
+
+            # Parse YAML content (can contain multiple documents)
+            manifests = list(yaml.safe_load_all(response.text))
+
+            for manifest in manifests:
+                if not manifest:  # Skip empty documents
+                    continue
+
+                self._apply_single_manifest(manifest)
+
+            logger.info("Successfully applied manifest from %s", manifest_url)
+        except Exception as e:
+            raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
+
+    def _load_manifests_from_sources(self, manifest_path: str = None, manifest_dict: dict = None):
+        """
+        Load manifests from various sources (file, directory, or dictionary).
+        
+        :param manifest_path: Path to YAML manifest file or folder containing manifest files
+        :param manifest_dict: Dictionary containing the manifest
+        :return: Tuple of (manifests_list, sources_list)
+        """
+        manifests = []
+        sources = []
+
+        # Load manifests from file or directory
+        if manifest_path:
+            if os.path.isfile(manifest_path):
+                # Single file
+                with open(manifest_path, 'r', encoding='utf-8') as file:
+                    content = file.read()
+                    # Handle multiple documents in a single YAML file
+                    yaml_docs = list(yaml.safe_load_all(content))
+                    manifests.extend([doc for doc in yaml_docs if doc])  # Filter out None/empty docs
+                sources.append(f"file: {manifest_path}")
+            elif os.path.isdir(manifest_path):
+                # Directory containing manifest files
+                yaml_files = []
+                for ext in ['*.yaml', '*.yml']:
+                    # Use recursive search which will include all files
+                    yaml_files.extend(glob.glob(os.path.join(manifest_path, '**', ext), recursive=True))
+
+                # Remove duplicates and sort files to ensure consistent ordering
+                yaml_files = sorted(list(set(yaml_files)))
+
+                if not yaml_files:
+                    raise ValueError(f"No YAML files found in directory: {manifest_path}")
+
+                for yaml_file in yaml_files:
+                    with open(yaml_file, 'r', encoding='utf-8') as file:
+                        content = file.read()
+                        # Handle multiple documents in each YAML file
+                        yaml_docs = list(yaml.safe_load_all(content))
+                        manifests.extend([doc for doc in yaml_docs if doc])  # Filter out None/empty docs
+
+                sources.append(f"directory: {manifest_path} ({len(yaml_files)} files)")
+            else:
+                raise FileNotFoundError(f"Path does not exist: {manifest_path}")
+
+        # Load manifest from dictionary
+        if manifest_dict:
+            manifests.append(manifest_dict)
+            sources.append("dictionary")
+
+        if not manifests:
+            raise ValueError("At least one of manifest_path or manifest_dict must be provided")
+
+        return manifests, sources
+
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
+        """
+        Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
+        
+        :param manifest_path: Path to YAML manifest file or folder containing manifest files
+        :param manifest_dict: Dictionary containing the manifest
+        :return: None
+        """
+        try:
+            # Load manifests from various sources
+            manifests_to_apply, applied_sources = self._load_manifests_from_sources(manifest_path, manifest_dict)
+
+            # Apply all manifests
+            logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}")
+
+            for i, manifest in enumerate(manifests_to_apply):
+                if not manifest:  # Skip empty documents
+                    continue
+
+                logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
+                self._apply_single_manifest(manifest=manifest)
+
+            logger.info(f"Successfully applied {len(manifests_to_apply)} manifest(s)")
+
+        except Exception as e:
+            logger.error(f"Error applying manifest(s): {str(e)}")
+            raise e
+
+    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, ignore_not_found: bool = True):
+        """
+        Delete Kubernetes manifest(s) from file path, folder path, or dictionary.
+        Equivalent to 'kubectl delete -f <file/folder>'
+        
+        :param manifest_path: Path to YAML manifest file or folder containing manifest files
+        :param manifest_dict: Dictionary containing the manifest
+        :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
+        :return: None
+        """
+        try:
+            # Load manifests from various sources
+            manifests_to_delete, deleted_sources = self._load_manifests_from_sources(manifest_path, manifest_dict)
+
+            # Delete all manifests in reverse order (to handle dependencies)
+            manifests_to_delete.reverse()
+            logger.info(f"Deleting {len(manifests_to_delete)} manifest(s) from: {', '.join(deleted_sources)}")
+
+            for i, manifest in enumerate(manifests_to_delete):
+                if not manifest:  # Skip empty documents
+                    continue
+
+                logger.info(f"Deleting manifest {i+1}/{len(manifests_to_delete)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
+                self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found)
+
+            logger.info(f"Successfully deleted {len(manifests_to_delete)} manifest(s)")
+
+        except Exception as e:
+            logger.error(f"Error deleting manifest(s): {str(e)}")
+            raise e
+
+    def wait_for_condition(self, resource_type: str, wait_condition_type: str, namespace: str = "default",
+                          timeout_seconds: int = 300, resource_name: str = None, wait_all: bool = False):
+        """
+        Wait for a Kubernetes resource to meet a specific condition.
+        Equivalent to 'kubectl wait --for=condition=<wait_condition_type> <resource> --timeout=<timeout> -n <namespace>'
+        
+        :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
+        :param wait_condition_type: Condition type to wait for (e.g., 'available', 'ready', 'progressing')
+        :param namespace: Namespace where the resource is located
+        :param timeout_seconds: Maximum time to wait in seconds
+        :param resource_name: Name of specific resource (None to wait for all)
+        :param wait_all: If True, wait for all resources of the type (equivalent to --all flag)
+        :return: True if condition is met, False if timeout
+        :raises ValueError: If wait_condition_type is invalid
+        """
+        # Define valid condition types for different resource types
+        valid_conditions = {
+            'deployment': ['available', 'progressing', 'replicafailure', 'ready'],
+            'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
+            # Add more resource types as needed
+        }
+
+        # Validate wait_condition_type format and type
+        if not wait_condition_type or not isinstance(wait_condition_type, str):
+            raise ValueError("wait_condition_type must be a non-empty string")
+
+        wait_condition_lower = wait_condition_type.lower().strip()
+        resource_type_lower = resource_type.lower()
+
+        # Check if resource type is supported
+        if resource_type_lower not in valid_conditions:
+            raise ValueError(f"Resource type '{resource_type}' is not supported for condition checking")
+
+        # Check if condition type is valid for this resource type
+        if wait_condition_lower not in valid_conditions[resource_type_lower]:
+            valid_conditions_str = ', '.join(valid_conditions[resource_type_lower])
+            raise ValueError(f"Invalid condition '{wait_condition_type}' for resource type '{resource_type}'. Valid conditions: {valid_conditions_str}")
+
+        try:
+            start_time = time.time()
+            timeout = start_time + timeout_seconds
+
+            # If no specific resource name and wait_all is False, wait for all resources
+            if not resource_name and not wait_all:
+                wait_all = True
+
+            # Build resource description for logging
+            resource_desc = f"{resource_type}"
+            if resource_name:
+                resource_desc = f"{resource_type}/{resource_name}"
+
+            logger.info(f"Waiting for {resource_desc} with condition '{wait_condition_type}' in namespace '{namespace}' (timeout: {timeout_seconds}s)")
+
+            while time.time() < timeout:
+                try:
+                    if self._check_resource_condition(resource_type, resource_name, wait_condition_lower, namespace, wait_all):
+                        elapsed_time = time.time() - start_time
+                        logger.info(f"Condition '{wait_condition_type}' met for {resource_desc} after {elapsed_time:.2f} seconds")
+                        return True
+
+                    time.sleep(5)  # Check every 5 seconds
+
+                except Exception as e:
+                    logger.warning(f"Error checking condition for {resource_desc}: {str(e)}")
+                    time.sleep(5)
+
+            # Timeout reached
+            elapsed_time = time.time() - start_time
+            logger.error(f"Timeout waiting for condition '{wait_condition_type}' on {resource_desc} after {elapsed_time:.2f} seconds")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error waiting for condition: {str(e)}")
+            raise e
+
+    def _check_resource_condition(self, resource_type: str, resource_name: str, condition_type: str,
+                                 namespace: str, wait_all: bool) -> bool:
+        """
+        Check if a specific resource condition is met.
+        
+        :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
+        :param resource_name: Name of specific resource (None if checking all)
+        :param condition_type: Condition type to check (e.g., 'available', 'ready', 'progressing')
+        :param namespace: Namespace of the resource
+        :param wait_all: Whether to check all resources of the type
+        :return: True if condition is met
+        """
+        try:
+            resource_type_lower = resource_type.lower()
+
+            if resource_type_lower in ['deployment', 'deployments']:
+                return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
+
+            logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error checking resource condition: {str(e)}")
+            return False
+
+    def _check_deployment_condition(self, resource_name: str, condition_type: str, namespace: str, wait_all: bool) -> bool:
+        """Check deployment condition (e.g., 'available', 'progressing')."""
+        try:
+            if wait_all or not resource_name:
+                # Check all deployments in namespace
+                deployments = self.app.list_namespaced_deployment(namespace=namespace).items
+            else:
+                # Check specific deployment
+                deployment = self.app.read_namespaced_deployment(name=resource_name, namespace=namespace)
+                deployments = [deployment]
+
+            for deployment in deployments:
+                if not self._is_deployment_condition_met(deployment, condition_type):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.debug("Deployment not found, waiting...")
+                return False
+            raise e
+
+    def _is_deployment_condition_met(self, deployment, condition_type: str) -> bool:
+        """Check if a deployment meets the specified condition."""
+        if not deployment.status or not deployment.status.conditions:
+            return False
+
+        condition_type_lower = condition_type.lower()
+
+        for condition in deployment.status.conditions:
+            if condition.type.lower() == condition_type_lower and condition.status == "True":
+                return True
+
+        # Special case for 'ready' - check if all replicas are ready
+        if condition_type_lower == 'ready':
+            return (deployment.status.ready_replicas == deployment.status.replicas and
+                    deployment.status.replicas > 0)
+
+        return False
+
+    def _apply_single_manifest(self, manifest):
+        """
+        Apply a single Kubernetes manifest using the appropriate API client.
+
+        :param manifest: Dictionary representing a Kubernetes resource
+        :return: None
+        """
+        try:
+            kind = manifest.get("kind")
+            namespace = manifest.get("metadata", {}).get("namespace")
+            name = manifest.get("metadata", {}).get("name")
+            logger.info("Applying manifest %s %s in namespace %s", kind, name, namespace)
+
+            if kind == "Deployment":
+                if namespace:
+                    self.app.create_namespaced_deployment(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Deployment requires a namespace")
+            elif kind == "DaemonSet":
+                if namespace:
+                    self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("DaemonSet requires a namespace")
+            elif kind == "StatefulSet":
+                if namespace:
+                    self.app.create_namespaced_stateful_set(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Service":
+                if namespace:
+                    self.api.create_namespaced_service(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Service requires a namespace")
+            elif kind == "ConfigMap":
+                if namespace:
+                    self.api.create_namespaced_config_map(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("ConfigMap requires a namespace")
+            elif kind == "Secret":
+                if namespace:
+                    self.api.create_namespaced_secret(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Secret requires a namespace")
+            elif kind == "ServiceAccount":
+                if namespace:
+                    self.api.create_namespaced_service_account(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("ServiceAccount requires a namespace")
+            elif kind == "ClusterRole":
+                # ClusterRole is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.create_cluster_role(body=manifest)
+            elif kind == "ClusterRoleBinding":
+                # ClusterRoleBinding is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.create_cluster_role_binding(body=manifest)
+            elif kind == "Role":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.create_namespaced_role(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Role requires a namespace")
+            elif kind == "RoleBinding":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.create_namespaced_role_binding(namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("RoleBinding requires a namespace")
+            elif kind == "Namespace":
+                # Namespace is cluster-scoped
+                self.api.create_namespace(body=manifest)
+            elif kind == "CustomResourceDefinition":
+                # CustomResourceDefinition is cluster-scoped
+                apiextensions_api = client.ApiextensionsV1Api()
+                apiextensions_api.create_custom_resource_definition(body=manifest)
+            elif kind == "FlowSchema":
+                # FlowSchema is cluster-scoped (part of flow control API)
+                flowcontrol_api = client.FlowcontrolApiserverV1Api()
+                flowcontrol_api.create_flow_schema(body=manifest)
+            elif kind == "Stage":
+                # Stage is a custom resource from KWOK, handle as custom resource
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="stages",  # KWOK Stage resources use "stages" as plural
+                    body=manifest
+                )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.create_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        body=manifest
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    body=manifest
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
+                    body=manifest
+                )
+            else:
+                logger.warning("Unsupported resource kind: %s. Skipping...", kind)
+
+        except client.rest.ApiException as e:
+            if e.status == 409:  # Resource already exists
+                resource_name = manifest.get('metadata', {}).get('name')
+                logger.info("Resource %s/%s already exists, skipping creation",
+                           kind, resource_name)
+            else:
+                raise Exception(f"Error creating {kind}: {str(e)}") from e
+
+    def _delete_single_manifest(self, manifest, ignore_not_found: bool = True):
+        """
+        Delete a single Kubernetes manifest using the appropriate API client.
+
+        :param manifest: Dictionary representing a Kubernetes resource
+        :param ignore_not_found: If True, don't raise error if resource doesn't exist
+        :return: None
+        """
+        try:
+            kind = manifest.get("kind")
+            namespace = manifest.get("metadata", {}).get("namespace")
+            resource_name = manifest.get("metadata", {}).get("name")
+
+            if not resource_name:
+                logger.warning(f"Resource name not found in manifest for {kind}, skipping deletion")
+                return
+
+            delete_options = client.V1DeleteOptions(
+                propagation_policy="Foreground"  # Wait for dependent resources to be deleted
+            )
+
+            if kind == "Deployment":
+                if namespace:
+                    self.app.delete_namespaced_deployment(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Deployment requires a namespace")
+            elif kind == "DaemonSet":
+                if namespace:
+                    self.app.delete_namespaced_daemon_set(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("DaemonSet requires a namespace")
+            elif kind == "StatefulSet":
+                if namespace:
+                    self.app.delete_namespaced_stateful_set(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Service":
+                if namespace:
+                    self.api.delete_namespaced_service(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Service requires a namespace")
+            elif kind == "ConfigMap":
+                if namespace:
+                    self.api.delete_namespaced_config_map(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("ConfigMap requires a namespace")
+            elif kind == "Secret":
+                if namespace:
+                    self.api.delete_namespaced_secret(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Secret requires a namespace")
+            elif kind == "ServiceAccount":
+                if namespace:
+                    self.api.delete_namespaced_service_account(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("ServiceAccount requires a namespace")
+            elif kind == "ClusterRole":
+                # ClusterRole is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.delete_cluster_role(name=resource_name, body=delete_options)
+            elif kind == "ClusterRoleBinding":
+                # ClusterRoleBinding is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.delete_cluster_role_binding(name=resource_name, body=delete_options)
+            elif kind == "Role":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.delete_namespaced_role(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Role requires a namespace")
+            elif kind == "RoleBinding":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.delete_namespaced_role_binding(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("RoleBinding requires a namespace")
+            elif kind == "Namespace":
+                # Namespace is cluster-scoped
+                self.api.delete_namespace(name=resource_name, body=delete_options)
+            elif kind == "CustomResourceDefinition":
+                # CustomResourceDefinition is cluster-scoped
+                apiextensions_api = client.ApiextensionsV1Api()
+                apiextensions_api.delete_custom_resource_definition(name=resource_name, body=delete_options)
+            elif kind == "FlowSchema":
+                # FlowSchema is cluster-scoped (part of flow control API)
+                flowcontrol_api = client.FlowcontrolApiserverV1Api()
+                flowcontrol_api.delete_flow_schema(name=resource_name, body=delete_options)
+            elif kind == "Stage":
+                # Stage is a custom resource from KWOK, handle as custom resource
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="stages",  # KWOK Stage resources use "stages" as plural
+                    name=resource_name,
+                    body=delete_options
+                )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.delete_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        name=resource_name,
+                        body=delete_options
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    name=resource_name,
+                    body=delete_options
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
+                    name=resource_name,
+                    body=delete_options
+                )
+            else:
+                logger.warning("Unsupported resource kind for deletion: %s. Skipping...", kind)
+
+            logger.info(f"Successfully deleted {kind}/{resource_name}")
+
+        except client.rest.ApiException as e:
+            if e.status == 404 and ignore_not_found:  # Resource not found
+                resource_name = manifest.get('metadata', {}).get('name')
+                logger.info("Resource %s/%s not found, skipping deletion",
+                           kind, resource_name)
+            else:
+                raise Exception(f"Error deleting {kind}/{resource_name}: {str(e)}") from e
+        except Exception as e:
+            resource_name = manifest.get('metadata', {}).get('name')
+            raise Exception(f"Error deleting {kind}/{resource_name}: {str(e)}") from e
 
     def install_gpu_device_plugin(self, namespace="kube-system"):
         """
