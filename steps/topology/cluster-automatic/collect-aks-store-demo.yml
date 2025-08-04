@@ -8,3 +8,11 @@ parameters:
 - name: regions
   type: object
   default: {}
+
+steps:
+
+- template: /steps/common/aks-store-demo/single-cluster/aks-store-demo-python.yml
+  parameters:
+    cluster_context: automatic
+    action: cleanup
+    namespace: default
