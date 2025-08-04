@@ -18,11 +18,9 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
         --action "${{ parameters.action }}" \
         --cluster-context "${{ parameters.cluster_context }}" \
-        --namespace "${{ parameters.namespace }}" \
-        --manifests-path "$MANIFESTS_PATH"
+        --namespace "${{ parameters.namespace }}"
 
     displayName: '${{ parameters.action }} AKS Store Demo'
     workingDirectory: modules/python
     env:
-      MANIFESTS_PATH: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/manifests
       PYTHON_SCRIPT: $(Pipeline.Workspace)/s/modules/python/aks_store_demo/aks_store_demo.py
