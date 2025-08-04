@@ -88,7 +88,7 @@ eks_config_list = [{
         {
           key    = "kwok"
           value  = "true"
-          effect = "NoSchedule"
+          effect = "NO_SCHEDULE"
         }
       ]
     }
