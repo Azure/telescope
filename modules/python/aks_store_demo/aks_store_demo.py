@@ -213,7 +213,8 @@ class SingleClusterDemo(AKSStoreDemo):
                             execute_with_retries(
                                 self.k8s_client.delete_manifest_from_file,
                                 manifest_dict=manifest,
-                                ignore_not_found=True
+                                ignore_not_found=True,
+                                namespace=self.namespace
                             )
 
                     logger.info(f"Successfully deleted resources from URL: {manifest_url}")
