@@ -5,6 +5,7 @@ name: job-scheduling
 {{$qps := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
 {{$replicas_per_namespace := DivideInt $jobs $namespaces}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
+{{$jobTemplatePath := DefaultParam .CL2_JOB_TEMPLATE_PATH job_template.yaml}}
 
 namespace:
   number: {{$namespaces}}
@@ -51,7 +52,7 @@ steps:
       tuningSet: Uniform{{$qps}}qps
       objectBundle:
       - basename: test
-        objectTemplatePath: job_template.yaml
+        objectTemplatePath: {{$jobTemplatePath}}
         templateFillMap:
           Group: job-scheduling
 
