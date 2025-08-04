@@ -134,9 +134,7 @@ class TestAKSStoreDemo(unittest.TestCase):
         mock_logger.warning.assert_called_once_with("Namespace operation: Namespace error")
 
     @patch('aks_store_demo.aks_store_demo.execute_with_retries')
-    @patch('aks_store_demo.aks_store_demo.yaml.safe_load_all')
-    @patch('aks_store_demo.aks_store_demo.requests.get')
-    def test_delete_manifest_from_url_success(self, mock_requests, mock_yaml, mock_execute):
+    def test_delete_manifest_from_url_success(self, mock_execute):
         """Test successful deletion of manifest from URL."""
         @dataclass
         class ConcreteDemo(AKSStoreDemo):
@@ -148,34 +146,13 @@ class TestAKSStoreDemo(unittest.TestCase):
         mock_client = Mock(spec=KubernetesClient)
         demo = ConcreteDemo(k8s_client=mock_client, namespace="test-namespace")
 
-        # Mock the HTTP response
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.text = "mock yaml content"
-        mock_requests.return_value = mock_response
-
-        # Mock YAML parsing to return a manifest
-        mock_manifest = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": "test-deployment"}
-        }
-        mock_yaml.return_value = [mock_manifest]
-
         # Call the method
         demo.delete_manifest_from_url("https://example.com/manifest.yaml")
 
-        # Verify HTTP request was made
-        mock_requests.assert_called_once_with("https://example.com/manifest.yaml", timeout=30)
-        mock_response.raise_for_status.assert_called_once()
-
-        # Verify YAML was parsed
-        mock_yaml.assert_called_once_with("mock yaml content")
-
-        # Verify delete_manifest_from_file was called via execute_with_retries
+        # Verify delete_manifest_from_url was called via execute_with_retries
         mock_execute.assert_called_once_with(
-            mock_client.delete_manifest_from_file,
-            manifest_dict=mock_manifest,
+            mock_client.delete_manifest_from_url,
+            manifest_url="https://example.com/manifest.yaml",
             ignore_not_found=True,
             namespace="test-namespace"
         )

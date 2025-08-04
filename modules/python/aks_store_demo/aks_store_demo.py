@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Any
 
-import requests
-import yaml
 from clients.kubernetes_client import KubernetesClient
 from utils.retries import execute_with_retries
 from utils.logger_config import get_logger, setup_logging
@@ -90,21 +88,12 @@ class AKSStoreDemo(ABC):
         try:
             logger.info(f"Deleting resources from URL: {manifest_url}")
 
-            # Fetch manifest from URL
-            response = requests.get(manifest_url, timeout=30)
-            response.raise_for_status()
-
-            # Parse YAML content and delete each resource
-            manifests_content = list(yaml.safe_load_all(response.text))
-
-            for manifest in manifests_content:
-                if manifest:  # Skip empty documents
-                    execute_with_retries(
-                        self.k8s_client.delete_manifest_from_file,
-                        manifest_dict=manifest,
-                        ignore_not_found=True,
-                        namespace=self.namespace
-                    )
+            execute_with_retries(
+                self.k8s_client.delete_manifest_from_url,
+                manifest_url=manifest_url,
+                ignore_not_found=True,
+                namespace=self.namespace
+            )
 
             logger.info(f"Successfully deleted resources from URL: {manifest_url}")
 
