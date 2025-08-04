@@ -849,7 +849,7 @@ class KubernetesClient:
             logger.error(f"Error applying manifest(s): {str(e)}")
             raise e
 
-    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, ignore_not_found: bool = True):
+    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, ignore_not_found: bool = True, namespace: Optional[str] = None):
         """
         Delete Kubernetes manifest(s) from file path, folder path, or dictionary.
         Equivalent to 'kubectl delete -f <file/folder>'
@@ -857,6 +857,7 @@ class KubernetesClient:
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
@@ -865,14 +866,15 @@ class KubernetesClient:
 
             # Delete all manifests in reverse order (to handle dependencies)
             manifests_to_delete.reverse()
-            logger.info(f"Deleting {len(manifests_to_delete)} manifest(s) from: {', '.join(deleted_sources)}")
+            namespace_info = f" in namespace '{namespace}'" if namespace else ""
+            logger.info(f"Deleting {len(manifests_to_delete)} manifest(s) from: {', '.join(deleted_sources)}{namespace_info}")
 
             for i, manifest in enumerate(manifests_to_delete):
                 if not manifest:  # Skip empty documents
                     continue
 
                 logger.info(f"Deleting manifest {i+1}/{len(manifests_to_delete)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
-                self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found)
+                self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found, namespace=namespace)
 
             logger.info(f"Successfully deleted {len(manifests_to_delete)} manifest(s)")
 
@@ -1161,17 +1163,19 @@ class KubernetesClient:
             else:
                 raise Exception(f"Error creating {kind}: {str(e)}") from e
 
-    def _delete_single_manifest(self, manifest, ignore_not_found: bool = True):
+    def _delete_single_manifest(self, manifest, ignore_not_found: bool = True, namespace: Optional[str] = None):
         """
         Delete a single Kubernetes manifest using the appropriate API client.
 
         :param manifest: Dictionary representing a Kubernetes resource
         :param ignore_not_found: If True, don't raise error if resource doesn't exist
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
             kind = manifest.get("kind")
-            namespace = manifest.get("metadata", {}).get("namespace")
+            # Use provided namespace or fall back to manifest namespace
+            namespace = namespace or manifest.get("metadata", {}).get("namespace")
             resource_name = manifest.get("metadata", {}).get("name")
 
             if not resource_name:

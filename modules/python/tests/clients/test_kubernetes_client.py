@@ -4518,6 +4518,302 @@ spec:
 
         self.assertIn("Deployment requires a namespace", str(context.exception))
 
+    # Tests for delete_manifest_from_file with namespace override functionality
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_with_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file with namespace override parameter."""
+        mock_isfile.return_value = True
+        
+        # Mock YAML content - deployment with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with namespace override
+            self.client.delete_manifest_from_file(
+                manifest_path="test.yaml",
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called with override namespace
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_without_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file without namespace override parameter."""
+        mock_isfile.return_value = True
+        
+        # Mock YAML content - service with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "original-namespace"
+            },
+            "spec": {"ports": [{"port": 80}]}
+        }
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file without namespace override
+            self.client.delete_manifest_from_file(manifest_path="test.yaml")
+
+        # Verify _delete_single_manifest was called without namespace override
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=True,
+            namespace=None
+        )
+
+    def test_delete_manifest_from_file_with_namespace_override_manifest_dict(self):
+        """Test delete_manifest_from_file with namespace override using manifest_dict."""
+        # ConfigMap manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-config",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "value"}
+        }
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with namespace override using manifest_dict
+            self.client.delete_manifest_from_file(
+                manifest_dict=manifest_dict,
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called with override namespace
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_multiple_manifests_with_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file with multiple manifests and namespace override."""
+        mock_isfile.return_value = True
+        
+        # Mock YAML content with multiple manifests
+        manifests = [
+            {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {"name": "test-deployment", "namespace": "original-ns"},
+                "spec": {"replicas": 1}
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Service", 
+                "metadata": {"name": "test-service", "namespace": "original-ns"},
+                "spec": {"ports": [{"port": 80}]}
+            }
+        ]
+        mock_yaml_load.return_value = manifests
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with namespace override
+            self.client.delete_manifest_from_file(
+                manifest_path="test.yaml",
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called for each manifest with override namespace
+        # Note: manifests are deleted in reverse order
+        self.assertEqual(mock_delete.call_count, 2)
+        
+        # Check calls (reverse order)
+        mock_delete.assert_any_call(
+            manifest=manifests[1],  # Service (reversed)
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+        mock_delete.assert_any_call(
+            manifest=manifests[0],  # Deployment (reversed) 
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_ignore_not_found_with_namespace_override(self, mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file with ignore_not_found=False and namespace override."""
+        mock_isfile.return_value = True
+        
+        # Mock YAML content - StatefulSet with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {
+                "name": "test-statefulset",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with ignore_not_found=False and namespace override
+            self.client.delete_manifest_from_file(
+                manifest_path="test.yaml",
+                ignore_not_found=False,
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called with correct parameters
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=False,
+            namespace="override-namespace"
+        )
+
+    def test_delete_single_manifest_with_namespace_parameter(self):
+        """Test _delete_single_manifest with namespace parameter."""
+        # ConfigMap manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-config",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "value"}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_config_map.return_value = None
+
+            # Call _delete_single_manifest with namespace parameter
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(
+                manifest=manifest_dict,
+                namespace="override-namespace"
+            )
+
+            # Verify config map was deleted with override namespace
+            mock_api.delete_namespaced_config_map.assert_called_once()
+            call_args = mock_api.delete_namespaced_config_map.call_args
+            self.assertEqual(call_args[1]['namespace'], "override-namespace")
+            self.assertEqual(call_args[1]['name'], "test-config")
+
+    def test_delete_single_manifest_namespace_priority(self):
+        """Test that _delete_single_manifest uses namespace priority correctly."""
+        # Test manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1", 
+            "kind": "Secret",
+            "metadata": {
+                "name": "test-secret",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "dmFsdWU="}
+        }
+
+        # Test with namespace override - should use override
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_secret.return_value = None
+            
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(
+                manifest=manifest_dict,
+                namespace="override-namespace"
+            )
+            
+            # Check that the override namespace was used
+            mock_api.delete_namespaced_secret.assert_called_once()
+            call_args = mock_api.delete_namespaced_secret.call_args
+            self.assertEqual(call_args[1]['namespace'], "override-namespace")
+
+        # Reset the mock
+        mock_api.reset_mock()
+
+        # Test without namespace override - should use manifest namespace
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_secret.return_value = None
+            
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest=manifest_dict, namespace=None)
+            
+            # Check that the manifest namespace was used
+            mock_api.delete_namespaced_secret.assert_called_once()
+            call_args = mock_api.delete_namespaced_secret.call_args
+            self.assertEqual(call_args[1]['namespace'], "original-namespace")
+
+    def test_delete_single_manifest_fallback_to_manifest_namespace(self):
+        """Test _delete_single_manifest falls back to manifest namespace when no override provided."""
+        # ServiceAccount manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {
+                "name": "test-sa",
+                "namespace": "manifest-namespace"
+            }
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_service_account.return_value = None
+
+            # Call _delete_single_manifest without namespace parameter
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest_dict, namespace=None)
+
+            # Verify service account was deleted with manifest namespace
+            mock_api.delete_namespaced_service_account.assert_called_once()
+            call_args = mock_api.delete_namespaced_service_account.call_args
+            self.assertEqual(call_args[1]['namespace'], "manifest-namespace")
+            self.assertEqual(call_args[1]['name'], "test-sa")
+
+    def test_delete_single_manifest_no_namespace_anywhere_raises_error(self):
+        """Test _delete_single_manifest raises error when no namespace is provided anywhere."""
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Call _delete_single_manifest without namespace parameter
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest_dict, namespace=None)
+
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
 
 if __name__ == '__main__':
     unittest.main()
