@@ -2240,6 +2240,133 @@ metadata:
                      "https://example.com/manifest.yaml", str(context.exception))
         self.assertIn("Failed to create resource", str(context.exception))
 
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._delete_single_manifest')
+    def test_delete_manifest_from_url_success_single_document(self, mock_delete_single,
+                                                             mock_requests_get):
+        """Test successful deletion of a single manifest from URL."""
+        # Mock HTTP response
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 1
+"""
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.delete_manifest_from_url("https://example.com/manifest.yaml")
+
+        # Verify HTTP request was made with correct URL and timeout
+        mock_requests_get.assert_called_once_with("https://example.com/manifest.yaml", timeout=30)
+        mock_response.raise_for_status.assert_called_once()
+
+        # Verify _delete_single_manifest was called once
+        mock_delete_single.assert_called_once()
+
+        # Verify the manifest passed to _delete_single_manifest
+        call_args = mock_delete_single.call_args
+        manifest = call_args[0][0]
+        self.assertEqual(manifest['kind'], 'Deployment')
+        self.assertEqual(manifest['metadata']['name'], 'test-deployment')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._delete_single_manifest')
+    def test_delete_manifest_from_url_success_multiple_documents(self, mock_delete_single,
+                                                                mock_requests_get):
+        """Test successful deletion of multiple manifests from URL."""
+        # Mock HTTP response with multiple YAML documents
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: default
+spec:
+  type: LoadBalancer
+"""
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.delete_manifest_from_url("https://example.com/multi-manifest.yaml")
+
+        # Verify HTTP request was made
+        mock_requests_get.assert_called_once_with("https://example.com/multi-manifest.yaml", timeout=30)
+        mock_response.raise_for_status.assert_called_once()
+
+        # Verify _delete_single_manifest was called twice (for Service first, then Deployment - reverse order)
+        self.assertEqual(mock_delete_single.call_count, 2)
+
+        # Verify first call was for Service (reverse order)
+        first_call = mock_delete_single.call_args_list[0]
+        first_manifest = first_call[0][0]
+        self.assertEqual(first_manifest['kind'], 'Service')
+        self.assertEqual(first_manifest['metadata']['name'], 'test-service')
+
+        # Verify second call was for Deployment
+        second_call = mock_delete_single.call_args_list[1]
+        second_manifest = second_call[0][0]
+        self.assertEqual(second_manifest['kind'], 'Deployment')
+        self.assertEqual(second_manifest['metadata']['name'], 'test-deployment')
+
+    @patch('requests.get')
+    def test_delete_manifest_from_url_http_404_error(self, mock_requests_get):
+        """Test delete_manifest_from_url with HTTP 404 error."""
+        # Mock HTTP 404 error
+        mock_requests_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
+
+        # Verify exception is raised
+        with self.assertRaises(Exception) as context:
+            self.client.delete_manifest_from_url("https://example.com/nonexistent.yaml")
+
+        self.assertIn("Error deleting manifest from "
+                     "https://example.com/nonexistent.yaml", str(context.exception))
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._delete_single_manifest')
+    def test_delete_manifest_from_url_with_namespace_override(self, mock_delete_single,
+                                                             mock_requests_get):
+        """Test delete_manifest_from_url with namespace parameter."""
+        # Mock HTTP response
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 1
+"""
+        mock_requests_get.return_value = mock_response
+
+        # Call the method with namespace override
+        self.client.delete_manifest_from_url(
+            "https://example.com/manifest.yaml", 
+            namespace="override-namespace"
+        )
+
+        # Verify _delete_single_manifest was called with namespace override
+        mock_delete_single.assert_called_once()
+        call_args = mock_delete_single.call_args
+        self.assertEqual(call_args[1]['namespace'], 'override-namespace')
+
     @patch('kubernetes.client.CoreV1Api.create_namespace')
     def test_apply_single_manifest_namespace(self, mock_create_namespace):
         """Test _apply_single_manifest with Namespace resource."""
@@ -4808,10 +4935,11 @@ spec:
         }
 
         # Call _delete_single_manifest without namespace parameter
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(Exception) as context:
             # pylint: disable=protected-access
             self.client._delete_single_manifest(manifest_dict, namespace=None)
 
+        self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
         self.assertIn("Deployment requires a namespace", str(context.exception))
 
 

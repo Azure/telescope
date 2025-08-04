@@ -764,6 +764,37 @@ class KubernetesClient:
         except Exception as e:
             raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
 
+    def delete_manifest_from_url(self, manifest_url, ignore_not_found: bool = True, namespace: Optional[str] = None):
+        """
+        Delete a Kubernetes manifest from a URL using Kubernetes Python client API.
+        Equivalent to 'kubectl delete -f <url>'
+
+        :param manifest_url: URL of the manifest to delete
+        :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
+        :param namespace: Optional namespace to override the manifest namespace
+        :return: None
+        """
+        try:
+            # Fetch the manifest content from the URL
+            response = requests.get(manifest_url, timeout=30)
+            response.raise_for_status()
+
+            # Parse YAML content (can contain multiple documents)
+            manifests = list(yaml.safe_load_all(response.text))
+
+            # Delete manifests in reverse order (to handle dependencies)
+            manifests.reverse()
+
+            for manifest in manifests:
+                if not manifest:  # Skip empty documents
+                    continue
+
+                self._delete_single_manifest(manifest, ignore_not_found=ignore_not_found, namespace=namespace)
+
+            logger.info("Successfully deleted manifest from %s", manifest_url)
+        except Exception as e:
+            raise Exception(f"Error deleting manifest from {manifest_url}: {str(e)}") from e
+
     def _load_manifests_from_sources(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Load manifests from various sources (file, directory, or dictionary).
