@@ -2934,7 +2934,7 @@ spec:
 
             # Verify warning was logged
             mock_logger.warning.assert_called_once_with(
-                "Unsupported resource kind: %s. Skipping...", 
+                "Unsupported resource kind: %s. Skipping...",
                 "UnsupportedResource"
             )
 
@@ -3199,7 +3199,7 @@ spec:
         """Test wait_for_condition with various valid condition types"""
         valid_conditions = [
             "available",
-            "ready", 
+            "ready",
             "progressing",
             "replicafailure"
         ]
@@ -3233,7 +3233,7 @@ spec:
         """Test wait_for_condition with different case conditions"""
         case_variations = [
             "Available",
-            "AVAILABLE", 
+            "AVAILABLE",
             "available",
             "aVaiLaBle"
         ]
@@ -4942,6 +4942,324 @@ spec:
 
         self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
         self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_node_selector_only(self, mock_patch_deployment):
+        """Test patching deployment with node selector only."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {"kwok": "true", "zone": "us-west-1"}
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_tolerations_only(self, mock_patch_deployment):
+        """Test patching deployment with tolerations only."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        tolerations = [
+            {
+                "key": "kwok",
+                "operator": "Equal",
+                "value": "true",
+                "effect": "NoSchedule"
+            },
+            {
+                "key": "example.com/special",
+                "operator": "Exists",
+                "effect": "NoExecute"
+            }
+        ]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            tolerations=tolerations
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_both_node_selector_and_tolerations(self, mock_patch_deployment):
+        """Test patching deployment with both node selector and tolerations."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {"environment": "production", "instance-type": "large"}
+        tolerations = [
+            {
+                "key": "dedicated",
+                "operator": "Equal",
+                "value": "production",
+                "effect": "NoSchedule"
+            }
+        ]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector,
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_neither_node_selector_nor_tolerations(self, mock_patch_deployment):
+        """Test patching deployment with neither node selector nor tolerations."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace
+        )
+
+        # Verify - should still patch with empty spec
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {}
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_api_exception(self, mock_patch_deployment):
+        """Test patch_deployment when API exception occurs."""
+        # Setup
+        deployment_name = "failing-deployment"
+        namespace = "test-namespace"
+        node_selector = {"kwok": "true"}
+
+        # Mock API exception
+        api_exception = client.rest.ApiException(
+            status=403,
+            reason="Forbidden"
+        )
+        mock_patch_deployment.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.patch_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                node_selector=node_selector
+            )
+
+        # Verify exception message
+        self.assertIn(f"Error patching deployment {deployment_name}", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+
+        # Verify API was called
+        mock_patch_deployment.assert_called_once()
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_unexpected_exception(self, mock_patch_deployment):
+        """Test patch_deployment when unexpected exception occurs."""
+        # Setup
+        deployment_name = "error-deployment"
+        namespace = "test-namespace"
+        tolerations = [{"key": "test", "operator": "Exists"}]
+
+        # Mock unexpected exception
+        mock_patch_deployment.side_effect = ValueError("Unexpected error")
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.patch_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                tolerations=tolerations
+            )
+
+        # Verify exception message
+        self.assertIn(f"Unexpected error patching deployment {deployment_name}", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, ValueError)
+
+        # Verify API was called
+        mock_patch_deployment.assert_called_once()
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_success_with_complex_tolerations(self, mock_patch_deployment):
+        """Test patch_deployment success with complex tolerations."""
+        # Setup
+        deployment_name = "complex-deployment"
+        namespace = "kube-system"
+        node_selector = {"node-role.kubernetes.io/master": ""}
+        tolerations = [
+            {
+                "key": "node-role.kubernetes.io/master",
+                "operator": "Exists",
+                "effect": "NoSchedule"
+            },
+            {
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "effect": "NoExecute",
+                "tolerationSeconds": 300
+            },
+            {
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "effect": "NoExecute",
+                "tolerationSeconds": 300
+            }
+        ]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector,
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_empty_node_selector(self, mock_patch_deployment):
+        """Test patch_deployment with empty node selector."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {}  # Empty dict
+        tolerations = [{"key": "test", "operator": "Exists"}]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify - empty node selector should NOT be included (falsy value)
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_empty_tolerations(self, mock_patch_deployment):
+        """Test patch_deployment with empty tolerations list."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {"kwok": "true"}
+        tolerations = []  # Empty list
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify - empty tolerations should NOT be included (falsy value)
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
 
 
 if __name__ == '__main__':
