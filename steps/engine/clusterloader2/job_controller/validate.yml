@@ -16,7 +16,7 @@ steps:
     --node_label $NODE_LABEL
   workingDirectory: modules/python
   timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
-  displayName: "Validate node count"
+  displayName: "Validate node count with label ${{ parameters.node_label }}"
   env:
     DESIRED_NODES: ${{ parameters.desired_nodes }}
     VALIDATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
