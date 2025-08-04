@@ -48,8 +48,8 @@ class AKSStoreDemo(ABC):
         except Exception as e:
             logger.warning(f"Namespace operation: {e}")
 
-    def apply_manifest(self, manifest_file: str, wait_condition: str = None,
-                      wait_resource: str = None, timeout: int = 300):
+    def apply_manifest(self, manifest_file: str, wait_condition_type: str = None,
+                      resource_type: str = None, resource_name: str = None, timeout: int = 300):
         """Apply a single manifest with optional wait conditions."""
         try:
             logger.info(f"Applying manifest: {manifest_file}")
@@ -62,27 +62,21 @@ class AKSStoreDemo(ABC):
             )
 
             # Wait for condition if specified
-            if wait_condition and wait_resource:
-                logger.info(f"Waiting for {wait_resource} with condition {wait_condition}")
-
-                # Parse wait_resource to extract resource_type and resource_name
-                if "/" in wait_resource:
-                    resource_type, resource_name = wait_resource.split("/", 1)
-                else:
-                    resource_type = wait_resource
-                    resource_name = None
+            if wait_condition_type and resource_type:
+                resource_identifier = f"{resource_type}/{resource_name}" if resource_name else resource_type
+                logger.info(f"Waiting for {resource_identifier} with condition {wait_condition_type}")
 
                 result = execute_with_retries(
                     self.k8s_client.wait_for_condition,
                     resource_type=resource_type,
                     resource_name=resource_name,
-                    wait_condition_type=wait_condition,
+                    wait_condition_type=wait_condition_type,
                     namespace=self.namespace,
                     timeout_seconds=timeout
                 )
 
                 if not result:
-                    logger.warning(f"Timeout waiting for {wait_resource} with condition {wait_condition}")
+                    logger.warning(f"Timeout waiting for {resource_identifier} with condition {wait_condition_type}")
 
             logger.info(f"Successfully applied manifest: {manifest_file}")
 
@@ -112,19 +106,22 @@ class SingleClusterDemo(AKSStoreDemo):
             {
                 "file": f"{base_path}/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment",
+                "resource_type": "deployment",
+                "resource_name": None, # All
                 "timeout": 1200
             },
             {
                 "file": f"{base_path}/aks-store-virtual-worker.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment/virtual-worker",
+                "resource_type": "deployment",
+                "resource_name": "virtual-worker",
                 "timeout": 120
             },
             {
                 "file": f"{base_path}/aks-store-virtual-customer.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment/virtual-customer",
+                "resource_type": "deployment",
+                "resource_name": "virtual-customer",
                 "timeout": 120
             }
         ]
@@ -153,8 +150,9 @@ class SingleClusterDemo(AKSStoreDemo):
 
                 self.apply_manifest(
                     manifest_file=manifest_file,
-                    wait_condition=manifest_config.get("wait_condition_type"),
-                    wait_resource=manifest_config.get("wait_resource"),
+                    wait_condition_type=manifest_config.get("wait_condition_type"),
+                    resource_type=manifest_config.get("resource_type"),
+                    resource_name=manifest_config.get("resource_name"),
                     timeout=manifest_config.get("timeout", 300)
                 )
 

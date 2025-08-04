@@ -176,8 +176,9 @@ class TestAKSStoreDemo(unittest.TestCase):
 
         demo.apply_manifest(
             "/path/to/manifest.yaml",
-            wait_condition="available",
-            wait_resource="deployment/test-deployment",
+            wait_condition_type="available",
+            resource_type="deployment",
+            resource_name="test-deployment",
             timeout=600
         )
 
@@ -218,8 +219,9 @@ class TestAKSStoreDemo(unittest.TestCase):
 
         demo.apply_manifest(
             "/path/to/manifest.yaml",
-            wait_condition="available",
-            wait_resource="deployment",
+            wait_condition_type="available",
+            resource_type="deployment",
+            resource_name=None,
             timeout=300
         )
 
@@ -261,8 +263,9 @@ class TestAKSStoreDemo(unittest.TestCase):
 
         demo.apply_manifest(
             "/path/to/manifest.yaml",
-            wait_condition="available",
-            wait_resource="deployment/test-deployment"
+            wait_condition_type="available",
+            resource_type="deployment",
+            resource_name="test-deployment"
         )
 
         mock_logger.warning.assert_called_once_with(
@@ -309,19 +312,22 @@ class TestSingleClusterDemo:
             {
                 "file": "/test/manifests/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment",
+                "resource_type": "deployment",
+                "resource_name": None,
                 "timeout": 1200
             },
             {
                 "file": "/test/manifests/aks-store-virtual-worker.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment/virtual-worker",
+                "resource_type": "deployment",
+                "resource_name": "virtual-worker",
                 "timeout": 120
             },
             {
                 "file": "/test/manifests/aks-store-virtual-customer.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment/virtual-customer",
+                "resource_type": "deployment",
+                "resource_name": "virtual-customer",
                 "timeout": 120
             }
         ]
@@ -346,20 +352,23 @@ class TestSingleClusterDemo:
         expected_calls = [
             call(
                 manifest_file="/test/manifests/aks-store-all-in-one.yaml",
-                wait_condition="available",
-                wait_resource="deployment",
+                wait_condition_type="available",
+                resource_type="deployment",
+                resource_name=None,
                 timeout=1200
             ),
             call(
                 manifest_file="/test/manifests/aks-store-virtual-worker.yaml",
-                wait_condition="available",
-                wait_resource="deployment/virtual-worker",
+                wait_condition_type="available",
+                resource_type="deployment",
+                resource_name="virtual-worker",
                 timeout=120
             ),
             call(
                 manifest_file="/test/manifests/aks-store-virtual-customer.yaml",
-                wait_condition="available",
-                wait_resource="deployment/virtual-customer",
+                wait_condition_type="available",
+                resource_type="deployment",
+                resource_name="virtual-customer",
                 timeout=120
             )
         ]
