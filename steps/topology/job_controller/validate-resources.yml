@@ -15,4 +15,13 @@ steps:
   - template: /steps/common/kwok/validate.yml
   - template: /steps/engine/clusterloader2/job_controller/validate.yml
     parameters:
-      desired_nodes: 5
+      desired_nodes: 2
+      node_label: default
+  - template: /steps/engine/clusterloader2/job_controller/validate.yml
+    parameters:
+      desired_nodes: 1
+      node_label: kwok
+  - template: /steps/engine/clusterloader2/job_controller/validate.yml
+    parameters:
+      desired_nodes: 1
+      node_label: prometheus

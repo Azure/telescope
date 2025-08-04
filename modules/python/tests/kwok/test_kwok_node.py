@@ -172,8 +172,8 @@ class TestNodeIntegration(unittest.TestCase):
                 make_mock_node(
                     name=f"kwok-node-{i}",
                     ready=True,
-                    allocatable={"cpu": "2", "memory": "4Gi"},
-                    capacity={"cpu": "2", "memory": "4Gi"},
+                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
                 )
                 for i in range(2)
             ]
@@ -193,8 +193,8 @@ class TestNodeIntegration(unittest.TestCase):
                 make_mock_node(
                     name=f"kwok-node-{i}",
                     ready=True,
-                    allocatable={"cpu": "2", "memory": "4Gi"},
-                    capacity={"cpu": "2", "memory": "4Gi"},
+                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
                 )
                 for i in range(1)  # Only one node, but node_count=2
             ]
@@ -212,14 +212,14 @@ class TestNodeIntegration(unittest.TestCase):
                 make_mock_node(
                     name="kwok-node-0",
                     ready=False,
-                    allocatable={"cpu": "2", "memory": "4Gi"},
-                    capacity={"cpu": "2", "memory": "4Gi"},
+                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
                 ),
                 make_mock_node(
                     name="kwok-node-1",
                     ready=True,
-                    allocatable={"cpu": "2", "memory": "4Gi"},
-                    capacity={"cpu": "2", "memory": "4Gi"},
+                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
                 ),
             ]
             self.mock_k8s_client.get_nodes.return_value = mock_nodes
@@ -241,8 +241,8 @@ class TestNodeIntegration(unittest.TestCase):
                 make_mock_node(
                     name="kwok-node-1",
                     ready=True,
-                    allocatable={"cpu": "2", "memory": "4Gi"},
-                    capacity={"cpu": "2", "memory": "4Gi"},
+                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
                 ),
             ]
             self.mock_k8s_client.get_nodes.return_value = mock_nodes

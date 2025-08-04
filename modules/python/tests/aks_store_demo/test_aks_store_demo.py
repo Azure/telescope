@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import unittest
 from unittest.mock import Mock, patch, call
 
-from aks_store_demo.aks_store_demo import AKSStoreDemo, SingleClusterDemo, main
+from aks_store_demo.aks_store_demo import AKSStoreDemo, AllInOneAKSStoreDemo, main
 from clients.kubernetes_client import KubernetesClient
 
 
@@ -198,13 +198,13 @@ class TestAKSStoreDemo(unittest.TestCase):
         self.assertEqual(second_call[1]['timeout_seconds'], 600)
 
 
-class TestSingleClusterDemo(unittest.TestCase):
-    """Test cases for the SingleClusterDemo implementation."""
+class TestAllInOneAKSStoreDemo(unittest.TestCase):
+    """Test cases for the AllInOneAKSStoreDemo implementation."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.mock_client = Mock(spec=KubernetesClient)
-        self.demo = SingleClusterDemo(
+        self.demo = AllInOneAKSStoreDemo(
             k8s_client=self.mock_client,
             namespace="test-namespace"
         )
@@ -215,7 +215,7 @@ class TestSingleClusterDemo(unittest.TestCase):
 
         expected = [
             {
-                "url": "https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/ca7f6fa7f406920d2a284c6dfa4bfd1d85ed7521/aks-store-all-in-one.yaml",
+                "url": "https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/2.0.0/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
                 "resource_type": "deployment", 
                 "resource_name": None,
@@ -225,9 +225,26 @@ class TestSingleClusterDemo(unittest.TestCase):
 
         assert manifests == expected
 
-    @patch.object(SingleClusterDemo, 'set_context')
-    @patch.object(SingleClusterDemo, 'ensure_namespace')
-    @patch.object(SingleClusterDemo, 'apply_manifest')
+    def test_get_manifest_urls_with_custom_tag(self):
+        """Test that get_manifest_urls uses custom tag correctly."""
+        demo_with_custom_tag = AllInOneAKSStoreDemo(tag="1.5.0")
+        manifests = demo_with_custom_tag.get_manifest_urls()
+
+        expected = [
+            {
+                "url": "https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/1.5.0/aks-store-all-in-one.yaml",
+                "wait_condition_type": "available",
+                "resource_type": "deployment", 
+                "resource_name": None,
+                "timeout": 1200
+            }
+        ]
+
+        assert manifests == expected
+
+    @patch.object(AllInOneAKSStoreDemo, 'set_context')
+    @patch.object(AllInOneAKSStoreDemo, 'ensure_namespace')
+    @patch.object(AllInOneAKSStoreDemo, 'apply_manifest')
     def test_deploy_success(self, mock_apply, mock_ensure_ns, mock_set_context):
         """Test successful deployment using URL-based manifests."""
         self.demo.deploy()
@@ -239,7 +256,7 @@ class TestSingleClusterDemo(unittest.TestCase):
         assert mock_apply.call_count == 1
 
         expected_call = call(
-            manifest_url="https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/ca7f6fa7f406920d2a284c6dfa4bfd1d85ed7521/aks-store-all-in-one.yaml",
+            manifest_url="https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/2.0.0/aks-store-all-in-one.yaml",
             wait_condition_type="available",
             resource_type="deployment",
             resource_name=None,
@@ -248,8 +265,8 @@ class TestSingleClusterDemo(unittest.TestCase):
 
         assert mock_apply.call_args_list == [expected_call]
 
-    @patch.object(SingleClusterDemo, 'set_context')
-    @patch.object(SingleClusterDemo, 'ensure_namespace')
+    @patch.object(AllInOneAKSStoreDemo, 'set_context')
+    @patch.object(AllInOneAKSStoreDemo, 'ensure_namespace')
     def test_deploy_exception_handling(self, mock_ensure_ns, _mock_set_context):
         """Test deployment exception handling."""
         mock_ensure_ns.side_effect = Exception("Namespace creation failed")
@@ -257,8 +274,8 @@ class TestSingleClusterDemo(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.demo.deploy()
 
-    @patch.object(SingleClusterDemo, 'set_context')
-    @patch.object(SingleClusterDemo, 'delete_manifest_from_url')
+    @patch.object(AllInOneAKSStoreDemo, 'set_context')
+    @patch.object(AllInOneAKSStoreDemo, 'delete_manifest_from_url')
     def test_cleanup_success(self, mock_delete_url, mock_set_context):
         """Test successful cleanup using URL-based manifests."""
         self.demo.cleanup()
@@ -268,10 +285,10 @@ class TestSingleClusterDemo(unittest.TestCase):
         # Should call delete_manifest_from_url once for the single manifest URL
         assert mock_delete_url.call_count == 1
 
-        expected_call = call("https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/ca7f6fa7f406920d2a284c6dfa4bfd1d85ed7521/aks-store-all-in-one.yaml")
+        expected_call = call("https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/2.0.0/aks-store-all-in-one.yaml")
         assert mock_delete_url.call_args_list == [expected_call]
 
-    @patch.object(SingleClusterDemo, 'set_context')
+    @patch.object(AllInOneAKSStoreDemo, 'set_context')
     def test_cleanup_exception_handling(self, mock_set_context):
         """Test cleanup exception handling."""
         mock_set_context.side_effect = Exception("Context setting failed")
@@ -283,7 +300,7 @@ class TestSingleClusterDemo(unittest.TestCase):
 class TestMainFunction(unittest.TestCase):
     """Test cases for the main function and argument parsing."""
 
-    @patch('aks_store_demo.aks_store_demo.SingleClusterDemo')
+    @patch('aks_store_demo.aks_store_demo.AllInOneAKSStoreDemo')
     @patch('sys.argv', ['aks_store_demo.py', '--action', 'deploy'])
     def test_main_deploy_action(self, mock_demo_class):
         """Test main function with deploy action."""
@@ -295,12 +312,13 @@ class TestMainFunction(unittest.TestCase):
         mock_demo_class.assert_called_once_with(
             cluster_context="",
             namespace="aks-store-demo",
-            action="deploy"
+            action="deploy",
+            tag="2.0.0"
         )
         mock_demo.deploy.assert_called_once()
         mock_demo.cleanup.assert_not_called()
 
-    @patch('aks_store_demo.aks_store_demo.SingleClusterDemo')
+    @patch('aks_store_demo.aks_store_demo.AllInOneAKSStoreDemo')
     @patch('sys.argv', ['aks_store_demo.py', '--action', 'cleanup'])
     def test_main_cleanup_action(self, mock_demo_class):
         """Test main function with cleanup action."""
@@ -312,12 +330,13 @@ class TestMainFunction(unittest.TestCase):
         mock_demo_class.assert_called_once_with(
             cluster_context="",
             namespace="aks-store-demo",
-            action="cleanup"
+            action="cleanup",
+            tag="2.0.0"
         )
         mock_demo.cleanup.assert_called_once()
         mock_demo.deploy.assert_not_called()
 
-    @patch('aks_store_demo.aks_store_demo.SingleClusterDemo')
+    @patch('aks_store_demo.aks_store_demo.AllInOneAKSStoreDemo')
     @patch('sys.argv', [
         'aks_store_demo.py',
         '--cluster-context', 'test-context',
@@ -334,7 +353,31 @@ class TestMainFunction(unittest.TestCase):
         mock_demo_class.assert_called_once_with(
             cluster_context="test-context",
             namespace="test-namespace",
-            action="deploy"
+            action="deploy",
+            tag="2.0.0"
+        )
+        mock_demo.deploy.assert_called_once()
+
+    @patch('aks_store_demo.aks_store_demo.AllInOneAKSStoreDemo')
+    @patch('sys.argv', [
+        'aks_store_demo.py',
+        '--cluster-context', 'test-context',
+        '--namespace', 'test-namespace',
+        '--action', 'deploy',
+        '--tag', '1.0.0'
+    ])
+    def test_main_with_custom_tag(self, mock_demo_class):
+        """Test main function with custom tag argument."""
+        mock_demo = Mock()
+        mock_demo_class.return_value = mock_demo
+
+        main()
+
+        mock_demo_class.assert_called_once_with(
+            cluster_context="test-context",
+            namespace="test-namespace",
+            action="deploy",
+            tag="1.0.0"
         )
         mock_demo.deploy.assert_called_once()
 

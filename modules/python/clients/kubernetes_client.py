@@ -1,5 +1,6 @@
 """Kubernetes client for managing cluster operations and resources."""  # pylint: disable=too-many-lines
 import time
+from typing import Optional
 import os
 import uuid
 import glob
@@ -8,7 +9,6 @@ import requests
 
 from kubernetes import client, config
 from kubernetes.stream import stream
-from typing import Optional
 from utils.logger_config import get_logger, setup_logging
 from utils.common import save_info_to_file
 from utils.constants import UrlConstants
@@ -1066,6 +1066,8 @@ class KubernetesClient:
             kind = manifest.get("kind")
             # Use provided namespace or fall back to manifest namespace
             namespace = namespace or manifest.get("metadata", {}).get("namespace")
+            name = manifest.get("metadata", {}).get("name")
+            logger.info("Applying manifest %s %s in namespace %s", kind, name, namespace)
 
             if kind == "Deployment":
                 if namespace:

@@ -16,6 +16,7 @@ steps:
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
         --operation_timeout $SCALE_TIMEOUT \
+        --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \

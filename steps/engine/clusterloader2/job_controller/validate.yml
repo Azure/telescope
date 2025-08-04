@@ -1,6 +1,8 @@
 parameters:
 - name: desired_nodes
   type: number
+- name: node_label
+  type: string
 - name: operation_timeout_in_minutes
   type: number
   default: 20
@@ -10,4 +12,4 @@ steps:
     desired_nodes: ${{ parameters.desired_nodes }}
     operation_timeout_in_minutes: ${{ parameters.operation_timeout_in_minutes }}
     python_script_file: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
-    node_label: "default"
+    node_label: ${{ parameters.node_label }}
