@@ -15,4 +15,4 @@ steps:
   parameters:
     cluster_context: automatic
     action: cleanup
-    namespace: aks-store-demo
+    namespace: default
