@@ -1,10 +1,11 @@
 """AKS Store Demo - Application deployment and management for AKS Store."""
 import argparse
-import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Any
 
+import requests
+import yaml
 from clients.kubernetes_client import KubernetesClient
 from utils.retries import execute_with_retries
 from utils.logger_config import get_logger, setup_logging
@@ -84,6 +85,42 @@ class AKSStoreDemo(ABC):
             logger.error(f"Failed to apply manifest {manifest_file}: {e}")
             raise RuntimeError(f"Failed to apply manifest {manifest_file}: {e}") from e
 
+    def apply_manifest_url(self, manifest_url: str, wait_condition_type: str = None,
+                          resource_type: str = None, resource_name: str = None, timeout: int = 300):
+        """Apply a single manifest from URL with optional wait conditions."""
+        try:
+            logger.info(f"Applying manifest from URL: {manifest_url}")
+
+            # Apply the manifest first
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_url,
+                manifest_url=manifest_url,
+                namespace=self.namespace
+            )
+
+            # Wait for condition if specified
+            if wait_condition_type and resource_type:
+                resource_identifier = f"{resource_type}/{resource_name}" if resource_name else resource_type
+                logger.info(f"Waiting for {resource_identifier} with condition {wait_condition_type}")
+
+                result = execute_with_retries(
+                    self.k8s_client.wait_for_condition,
+                    resource_type=resource_type,
+                    resource_name=resource_name,
+                    wait_condition_type=wait_condition_type,
+                    namespace=self.namespace,
+                    timeout_seconds=timeout
+                )
+
+                if not result:
+                    logger.warning(f"Timeout waiting for {resource_identifier} with condition {wait_condition_type}")
+
+            logger.info(f"Successfully applied manifest from URL: {manifest_url}")
+
+        except Exception as e:
+            logger.error(f"Failed to apply manifest from URL {manifest_url}: {e}")
+            raise RuntimeError(f"Failed to apply manifest from URL {manifest_url}: {e}") from e
+
     @abstractmethod
     def deploy(self):
         """Deploy AKS Store Demo components."""
@@ -96,33 +133,20 @@ class AKSStoreDemo(ABC):
 @dataclass
 class SingleClusterDemo(AKSStoreDemo):
     """Single cluster AKS Store Demo implementation."""
-    manifests_path: str = ""
 
-    def get_manifest_files(self) -> List[Dict[str, Any]]:
-        """Get the list of manifest files to apply with their configurations."""
-        base_path = self.manifests_path
+    def get_manifest_urls(self) -> List[Dict[str, Any]]:
+        """Get the list of manifest URLs to apply with their configurations."""
+        # Hardcoded commit ID to keep consistency among the executions
+        commit_id = "ca7f6fa7f406920d2a284c6dfa4bfd1d85ed7521"
+        base_url = f"https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/{commit_id}"
 
         return [
             {
-                "file": f"{base_path}/aks-store-all-in-one.yaml",
+                "url": f"{base_url}/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
                 "resource_type": "deployment",
                 "resource_name": None, # All
                 "timeout": 1200
-            },
-            {
-                "file": f"{base_path}/aks-store-virtual-worker.yaml",
-                "wait_condition_type": "available",
-                "resource_type": "deployment",
-                "resource_name": "virtual-worker",
-                "timeout": 120
-            },
-            {
-                "file": f"{base_path}/aks-store-virtual-customer.yaml",
-                "wait_condition_type": "available",
-                "resource_type": "deployment",
-                "resource_name": "virtual-customer",
-                "timeout": 120
             }
         ]
 
@@ -137,19 +161,16 @@ class SingleClusterDemo(AKSStoreDemo):
             # Ensure namespace exists
             self.ensure_namespace()
 
-            # Apply all manifests
-            manifests = self.get_manifest_files()
+            # Apply all manifests from URLs
+            manifests = self.get_manifest_urls()
 
             for manifest_config in manifests:
-                manifest_file = manifest_config["file"]
+                manifest_url = manifest_config["url"]
 
-                # Check if manifest file exists
-                if not os.path.exists(manifest_file):
-                    logger.warning(f"Manifest file not found: {manifest_file}")
-                    continue
+                logger.info(f"Deploying from URL: {manifest_url}")
 
-                self.apply_manifest(
-                    manifest_file=manifest_file,
+                self.apply_manifest_url(
+                    manifest_url=manifest_url,
                     wait_condition_type=manifest_config.get("wait_condition_type"),
                     resource_type=manifest_config.get("resource_type"),
                     resource_name=manifest_config.get("resource_name"),
@@ -170,29 +191,35 @@ class SingleClusterDemo(AKSStoreDemo):
             # Set context if specified
             self.set_context()
 
-            # Get all manifest files and delete in reverse order
-            manifests = self.get_manifest_files()
+            # Get all manifest URLs and delete in reverse order
+            manifests = self.get_manifest_urls()
             manifests.reverse()  # Delete in reverse order
 
             for manifest_config in manifests:
-                manifest_file = manifest_config["file"]
-
-                if not os.path.exists(manifest_file):
-                    logger.warning(f"Manifest file not found for cleanup: {manifest_file}")
-                    continue
+                manifest_url = manifest_config["url"]
 
                 try:
-                    logger.info(f"Deleting resources from: {manifest_file}")
-                    execute_with_retries(
-                        self.k8s_client.delete_manifest_from_file,
-                        manifest_path=manifest_file,
-                        namespace=self.namespace,
-                        ignore_not_found=True
-                    )
-                    logger.info(f"Successfully deleted resources from: {manifest_file}")
+                    logger.info(f"Deleting resources from URL: {manifest_url}")
+
+                    # Fetch manifest from URL and delete
+                    response = requests.get(manifest_url, timeout=30)
+                    response.raise_for_status()
+
+                    # Parse YAML content and delete each resource
+                    manifests_content = list(yaml.safe_load_all(response.text))
+
+                    for manifest in manifests_content:
+                        if manifest:  # Skip empty documents
+                            execute_with_retries(
+                                self.k8s_client.delete_manifest_from_file,
+                                manifest_dict=manifest,
+                                ignore_not_found=True
+                            )
+
+                    logger.info(f"Successfully deleted resources from URL: {manifest_url}")
 
                 except Exception as e:
-                    logger.warning(f"Failed to cleanup manifest {manifest_file}: {e}")
+                    logger.warning(f"Failed to cleanup manifest from URL {manifest_url}: {e}")
 
             logger.info("AKS Store Demo cleanup completed")
 
@@ -219,12 +246,6 @@ def main():
         help="Kubernetes namespace to deploy to",
     )
     parser.add_argument(
-        "--manifests-path",
-        type=str,
-        required=True,
-        help="Path to the directory containing manifests",
-    )
-    parser.add_argument(
         "--action",
         choices=["deploy", "cleanup"],
         required=True,
@@ -236,7 +257,6 @@ def main():
     demo = SingleClusterDemo(
         cluster_context=args.cluster_context,
         namespace=args.namespace,
-        manifests_path=args.manifests_path,
         action=args.action,
     )
 
