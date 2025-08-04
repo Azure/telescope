@@ -8,12 +8,12 @@ schedules:
         - main
     always: true
   # Azure Large Scale(5000) Spot Schedule
-  - cron: "0 3 * * *"
-    displayName: "Every day at 3:00 AM"
-    branches:
-      include:
-        - main
-    always: true
+  # - cron: "0 3 * * *"
+  #   displayName: "Every day at 3:00 AM"
+  #   branches:
+  #     include:
+  #       - main
+  #   always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
@@ -22,7 +22,7 @@ stages:
   - stage: azure_eastus2_5k_ondemand
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
