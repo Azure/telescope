@@ -28,13 +28,3 @@ data:
       enableCRDs:
       - Stage
       - Metric
-      - Attach
-      - ClusterAttach
-      - Exec
-      - ClusterExec
-      - Logs
-      - ClusterLogs
-      - PortForward
-      - ClusterPortForward
-      - ResourceUsage
-      - ClusterResourceUsage
