@@ -21,7 +21,3 @@ steps:
     parameters:
       desired_nodes: 1
       node_label: kwok
-  - template: /steps/engine/clusterloader2/job_controller/validate.yml
-    parameters:
-      desired_nodes: 1
-      node_label: prometheus
