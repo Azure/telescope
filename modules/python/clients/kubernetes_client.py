@@ -765,7 +765,7 @@ class KubernetesClient:
     def _load_manifests_from_sources(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Load manifests from various sources (file, directory, or dictionary).
-        
+
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :return: Tuple of (manifests_list, sources_list)
@@ -820,7 +820,7 @@ class KubernetesClient:
     def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
-        
+
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :return: None
@@ -849,7 +849,7 @@ class KubernetesClient:
         """
         Delete Kubernetes manifest(s) from file path, folder path, or dictionary.
         Equivalent to 'kubectl delete -f <file/folder>'
-        
+
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
@@ -881,7 +881,7 @@ class KubernetesClient:
         """
         Wait for a Kubernetes resource to meet a specific condition.
         Equivalent to 'kubectl wait --for=condition=<wait_condition_type> <resource> --timeout=<timeout> -n <namespace>'
-        
+
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param wait_condition_type: Condition type to wait for (e.g., 'available', 'ready', 'progressing')
         :param namespace: Namespace where the resource is located
@@ -955,7 +955,7 @@ class KubernetesClient:
                                  namespace: str, wait_all: bool) -> bool:
         """
         Check if a specific resource condition is met.
-        
+
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param resource_name: Name of specific resource (None if checking all)
         :param condition_type: Condition type to check (e.g., 'available', 'ready', 'progressing')
@@ -1360,3 +1360,49 @@ class KubernetesClient:
             time.sleep(1)
         logger.error("NVIDIA GPU device plugin verification timed out.")
         return False
+
+    def patch_deployment(self, name, namespace, node_selector=None, tolerations=None):
+        """
+        Patch a deployment with node selector and tolerations.
+
+        :param name: Name of the deployment to patch
+        :param namespace: Namespace of the deployment
+        :param node_selector: Dictionary of node selector labels (e.g., {"kwok": "true"})
+        :param tolerations: List of toleration dictionaries
+        :return: None
+        """
+        try:
+            # Construct the patch body
+            patch_body = {
+                "spec": {
+                    "template": {
+                        "spec": {}
+                    }
+                }
+            }
+
+            # Add node selector if provided
+            if node_selector:
+                patch_body["spec"]["template"]["spec"]["nodeSelector"] = node_selector
+
+            # Add tolerations if provided
+            if tolerations:
+                patch_body["spec"]["template"]["spec"]["tolerations"] = tolerations
+
+            logger.info(f"Patching deployment {name} in namespace {namespace}")
+            logger.info(f"Patch body: {patch_body}")
+
+            # Patch the deployment
+            self.app.patch_namespaced_deployment(
+                name=name,
+                namespace=namespace,
+                body=patch_body
+            )
+            logger.info(f"Successfully patched deployment {name}")
+
+        except client.rest.ApiException as e:
+            logger.error(f"Error patching deployment {name}: {str(e)}")
+            raise Exception(f"Error patching deployment {name}: {str(e)}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error patching deployment {name}: {str(e)}")
+            raise Exception(f"Unexpected error patching deployment {name}: {str(e)}") from e
