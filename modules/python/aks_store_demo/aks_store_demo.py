@@ -120,14 +120,14 @@ class SingleClusterDemo(AKSStoreDemo):
             },
             {
                 "file": f"{base_path}/aks-store-virtual-worker.yaml",
-                "wait_condition_type": "available", 
+                "wait_condition_type": "available",
                 "wait_resource": "deployment/virtual-worker",
                 "timeout": "120s"
             },
             {
                 "file": f"{base_path}/aks-store-virtual-customer.yaml",
                 "wait_condition_type": "available",
-                "wait_resource": "deployment/virtual-customer", 
+                "wait_resource": "deployment/virtual-customer",
                 "timeout": "120s"
             }
         ]
