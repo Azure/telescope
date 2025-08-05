@@ -1,0 +1,40 @@
+trigger: none
+schedules:
+- cron: "0 4 * * *"
+  displayName: "4:00 AM daily (small scale)"
+  branches:
+    include:
+    - main
+  always: true
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-gpu-scheduling
+
+stages:
+- stage: azure_eastus2_small
+  dependsOn: []
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250513"
+      topology: kwok
+      matrix:
+        small:
+          node_count: 200
+          node_gpu: 8
+          job_count: 2000
+          job_throughput: 100
+          scale_timeout: "30m"
+          cl2_config_file: config.yaml
+          job_template_path: gpu_job_template.yaml
+      max_parallel: 1
+      timeout_in_minutes: 180
+      credential_type: service_connection
+      ssh_key_enabled: false
+
