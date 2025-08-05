@@ -226,15 +226,25 @@ resource "aws_launch_template" "launch_template" {
 
   user_data = var.user_data_path != "" ? filebase64("${var.user_data_path}/${local.role}-userdata.sh") : null
 
-  network_interfaces {
-    dynamic "ena_srd_specification" {
-      for_each = var.ena_express != null || each.value.ena_express != null ? { "ena_express" : each.value.ena_express } : {}
-      content {
-        ena_srd_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
-        ena_srd_udp_specification {
-          ena_srd_udp_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
+  dynamic "network_interfaces" {
+    for_each = each.value.network_interfaces != null ? [each.value.network_interfaces] : (
+      var.ena_express != null || each.value.ena_express != null
+    ) ? [{}] : []
+    content {
+      dynamic "ena_srd_specification" {
+        for_each = (
+          var.ena_express != null || each.value.ena_express != null
+        ) ? { "ena_express" : each.value.ena_express } : {}
+        content {
+          ena_srd_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
+          ena_srd_udp_specification {
+            ena_srd_udp_enabled = var.ena_express != null ? var.ena_express : each.value.ena_express
+          }
         }
       }
+      associate_public_ip_address = try(network_interfaces.value.associate_public_ip_address, null)
+      delete_on_termination       = try(network_interfaces.value.delete_on_termination, null)
+      interface_type              = try(network_interfaces.value.interface_type, null)
     }
   }
 
@@ -258,7 +268,45 @@ resource "aws_launch_template" "launch_template" {
     }
   }
 
-  tags = var.tags
+  dynamic "capacity_reservation_specification" {
+    for_each = each.value.capacity_reservation_specification != null ? [each.value.capacity_reservation_specification] : []
+
+    content {
+      capacity_reservation_preference = capacity_reservation_specification.value.capacity_reservation_preference
+
+      dynamic "capacity_reservation_target" {
+        for_each = capacity_reservation_specification.value.capacity_reservation_target != null ? [capacity_reservation_specification.value.capacity_reservation_target] : []
+        content {
+          capacity_reservation_id                 = capacity_reservation_target.value.capacity_reservation_id
+          capacity_reservation_resource_group_arn = capacity_reservation_target.value.capacity_reservation_resource_group_arn
+        }
+      }
+    }
+  }
+
+  dynamic "instance_market_options" {
+    for_each = each.value.instance_market_options != null ? [each.value.instance_market_options] : []
+
+    content {
+      market_type = instance_market_options.value.market_type
+
+      dynamic "spot_options" {
+        for_each = instance_market_options.value.spot_options != null ? [instance_market_options.value.spot_options] : []
+
+        content {
+          block_duration_minutes         = spot_options.value.block_duration_minutes
+          instance_interruption_behavior = spot_options.value.instance_interruption_behavior
+          max_price                      = spot_options.value.max_price
+          spot_instance_type             = spot_options.value.spot_instance_type
+          valid_until                    = spot_options.value.valid_until
+        }
+      }
+    }
+  }
+
+  # Usually set on node group but required if capacity reservation is used
+  instance_type = each.value.capacity_type == "CAPACITY_BLOCK" ? element(each.value.instance_types, 0) : null
+  tags          = var.tags
 }
 
 resource "aws_eks_node_group" "eks_managed_node_groups" {
@@ -286,7 +334,7 @@ resource "aws_eks_node_group" "eks_managed_node_groups" {
   }
 
   ami_type       = each.value.ami_type
-  instance_types = var.k8s_machine_type != null ? [var.k8s_machine_type] : each.value.instance_types
+  instance_types = each.value.capacity_type == "CAPACITY_BLOCK" ? null : var.k8s_machine_type != null ? [var.k8s_machine_type] : each.value.instance_types
   capacity_type  = each.value.capacity_type
   labels         = each.value.labels
 
