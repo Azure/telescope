@@ -26,7 +26,7 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
         --action create \
         --node-count $NODE_COUNT \
-        --node-gpu $NODE_GPU
+        --node-gpu ${NODE_GPU:-"0"}
 
     workingDirectory: modules/python
     env:

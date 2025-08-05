@@ -111,9 +111,10 @@ class Node(KWOK):
                     "node_ip": self._generate_node_ip(i),
                     "node_cpu": self.node_cpu,
                     "node_memory": self.node_memory,
-                    "node_pods": self.node_pods,
-                    "node_gpu": self.node_gpu
+                    "node_pods": self.node_pods
                 }
+                if self.node_gpu and self.node_gpu != "0":
+                    replacements["node_gpu"] = self.node_gpu
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
