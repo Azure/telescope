@@ -1,20 +1,40 @@
 trigger: none
 
-
-jobs:
-  - job: aws_capacity_reservation
-    continueOnError: false
-    steps:
-    - template: /steps/cloud/aws/login.yml
-      parameters:
-        region: $(AWS_REGION)
-        credential_type: service_connection
-    - template: /steps/cloud/aws/capacity-reservation.yml
-      parameters:
-        region: $(AWS_REGION)
-        instance_type: $(AWS_INSTANCE_TYPE)
-        instance_count: $(AWS_INSTANCE_COUNT)
-        start_date: $(AWS_START_DATE)
-        duration_hours: $(AWS_DURATION_HOURS)
-        dry_run: true
-
+stages:
+  - stage: aws_capacity_reservation
+    displayName: "AWS Capacity Reservation"
+    dependsOn: []
+    jobs:
+      - deployment: aws_capacity_reservation_approval
+        continueOnError: false
+        environment: aws-capacity-reservation
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: |
+                    set -eo pipefail
+                    echo "Approval completed"
+                  displayName: "Pipeline Approval"
+      - job: aws_capacity_reservation
+        continueOnError: false
+        dependsOn: aws_capacity_reservation_approval
+        steps:
+          - template: /steps/cloud/aws/login.yml
+            parameters:
+              region: $(AWS_REGION)
+              credential_type: service_connection
+          - script: |
+              set -e
+              if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
+                pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+              fi
+            displayName: "Install Dependencies"
+          - template: /steps/cloud/aws/capacity-reservation.yml
+            parameters:
+              region: $(AWS_REGION)
+              instance_type: $(AWS_INSTANCE_TYPE)
+              instance_count: $(AWS_INSTANCE_COUNT)
+              start_date: $(AWS_START_DATE)
+              duration_hours: $(AWS_DURATION_HOURS)
+              dry_run: $(AWS_DRY_RUN)

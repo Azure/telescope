@@ -4,32 +4,36 @@ parameters:
 - name: instance_type
   type: string
 - name: instance_count
-  type: int
+  type: string
 - name: start_date
   type: string
 - name: duration_hours
-  type: int
-  default: 24
+  type: string
 - name: dry_run
-  type: boolean
-  default: true
-
+  type: string
+  default: "true"
 
 steps:
 - script: |
     set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
-      --region $REGION \
-      --instance-type $INSTANCE_TYPE \
-      --instance-count $INSTANCE_COUNT \
-      --start-date $START_DATE \
-      --duration-hours $DURATION_HOURS \
-      --dry-run $DRY_RUN
+    ARGS=(
+      "$PYTHON_SCRIPT_FILE"
+      --region "$REGION"
+      --instance-type "$INSTANCE_TYPE"
+      --instance-count "$INSTANCE_COUNT"
+      --start-date "$START_DATE"
+      --duration-hours "$DURATION_HOURS"
+    )
+    if [[ "${DRY_RUN,,}" == "true" ]]; then
+      ARGS+=(--dry-run)
+    fi
+    # Run the command
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "${ARGS[@]}"
   workingDirectory: modules/python
   env:
     REGION: ${{ parameters.region }}
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s//modules/python python3 cloud/aws/managers/capacity_reservation_manager.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/cloud/aws/managers/capacity_reservation_manager.py
     INSTANCE_TYPE: ${{ parameters.instance_type }}
     INSTANCE_COUNT: ${{ parameters.instance_count }}
     START_DATE: ${{ parameters.start_date }}

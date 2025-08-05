@@ -10,7 +10,9 @@ The module follows the telescope project patterns and integrates with boto3 for 
 """
 
 import logging
+import argparse
 from datetime import datetime
+
 from typing import Dict, List, Optional
 
 import boto3
@@ -332,10 +334,7 @@ class CapacityReservationManager:
         }
 
 
-if __name__ == "__main__":
-    import argparse
-    from datetime import datetime
-    
+def main():    
     # Set up command line argument parsing
     parser = argparse.ArgumentParser(description='AWS Capacity Reservation Manager - Find and Purchase Capacity Blocks')
     parser.add_argument('--region', '-r', default='us-east-2', help='AWS region (default: us-east-2)')
@@ -365,7 +364,7 @@ if __name__ == "__main__":
         )
         
         if not offerings:
-            logger.info("No capacity block offerings found for the specified criteria.")
+            logger.error("No capacity block offerings found for the specified criteria.")
             exit(1)
         
         # Sort by price (ascending) to get the cheapest option
@@ -417,4 +416,7 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error("Error: %s", e)
         exit(1)
-    
+
+
+if __name__ == "__main__":
+    main()
