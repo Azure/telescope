@@ -1,14 +1,15 @@
 name: job-scheduling
 
-{{$job_count := DefaultParam .CL2_JOBS 20000}}
-{{$qps := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 800}}
+{{$jobs := DefaultParam .CL2_JOBS 1000}}
+{{$namespaces := DefaultParam .CL2_NAMESPACES 10}}
+{{$qps := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$replicas_per_namespace := DivideInt $jobs $namespaces}}
+{{$pod_startup_latency_threshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
+{{$job_template_path := DefaultParam .CL2_JOB_TEMPLATE_PATH "job_template.yaml"}}
 
 namespace:
-  number: 1
-  prefix: job-scheduling
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
-  enableExistingNamespaces: false
+  number: {{$namespaces}}
+  prefix: test
 
 tuningSets:
 - name: Uniform{{$qps}}qps
@@ -18,6 +19,17 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: start
+          labelSelector: group=job-scheduling
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group=job-scheduling
+          threshold: {{$pod_startup_latency_threshold}}
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
@@ -31,21 +43,19 @@ steps:
           labelSelector: group=job-scheduling
           timeout: 3h
 
-{{range $i := Loop $job_count}}
-  - name: Create job {{$i}}
+  - name: Create jobs
     phases:
     - namespaceRange:
           min: 1
-          max: 1
-      replicasPerNamespace: 1
+          max: {{$namespaces}}
+      replicasPerNamespace: {{$replicas_per_namespace}}
       tuningSet: Uniform{{$qps}}qps
       objectBundle:
-      - basename: test-job-{{$i}}
-        objectTemplatePath: job_template.yaml
+      - basename: test
+        objectTemplatePath: {{$job_template_path}}
         templateFillMap:
           Group: job-scheduling
-{{end}}
-       
+
   - name: Waiting for jobs to be finished
     measurements:
     - Identifier: WaitForFinishedJobs
@@ -55,6 +65,16 @@ steps:
         timeout: 3h
   - name: Collect measurements
     measurements:
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: gather
+          timeout: 3h
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather
+          timeout: 3h
       - Identifier: JobLifecycleLatency
         Method: JobLifecycleLatency
         Params:
