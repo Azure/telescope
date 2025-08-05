@@ -125,7 +125,7 @@ stages:
 
 - stage: aws_euwest1_medium
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wenesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
