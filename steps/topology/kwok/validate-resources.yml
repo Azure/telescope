@@ -1,0 +1,42 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }}
+
+  - template: /steps/engine/clusterloader2/job_controller/validate.yml
+    parameters:
+      desired_nodes: 2
+      node_label: default
+  - template: /steps/engine/clusterloader2/job_controller/validate.yml
+    parameters:
+      desired_nodes: 1
+      node_label: kwok
+
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
+        --action create \
+        --node-count $NODE_COUNT
+    workingDirectory: modules/python
+    env:
+      KWOK_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kwok/kwok.py
+    displayName: "Create KWOK Nodes"
+
+  - script: |
+      set -eo pipefail
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
+      --action validate \
+      --node-count $NODE_COUNT
+    workingDirectory: modules/python
+    env:
+      KWOK_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kwok/kwok.py
+    displayName: "Validate KWOK Nodes"

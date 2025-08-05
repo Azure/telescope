@@ -1,0 +1,26 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: automatic
+    region: ${{ parameters.regions[0] }}
+    alias: automatic
+
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/azure/install-kubelogin.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.regions[0] }}
+
+- template: /steps/topology/cluster-automatic/aks-store-demo-python.yml
+  parameters:
+    cluster_context: automatic
+    action: deploy
+    namespace: default

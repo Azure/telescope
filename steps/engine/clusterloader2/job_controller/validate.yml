@@ -1,13 +1,24 @@
 parameters:
 - name: desired_nodes
   type: number
+- name: node_label
+  type: string
 - name: operation_timeout_in_minutes
   type: number
   default: 20
 steps:
-- template: /steps/common/validate_node_count.yml@self
-  parameters:
-    desired_nodes: ${{ parameters.desired_nodes }}
-    operation_timeout_in_minutes: ${{ parameters.operation_timeout_in_minutes }}
-    python_script_file: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
-    node_label: "default"
+- script: |
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
+    --node_count $DESIRED_NODES \
+    --operation_timeout_in_minutes $VALIDATION_TIMEOUT \
+    --node_label $NODE_LABEL
+  workingDirectory: modules/python
+  timeoutInMinutes: ${{ parameters.operation_timeout_in_minutes }}
+  displayName: "Validate node count with label ${{ parameters.node_label }}"
+  env:
+    DESIRED_NODES: ${{ parameters.desired_nodes }}
+    VALIDATION_TIMEOUT: ${{ parameters.operation_timeout_in_minutes }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
+    NODE_LABEL: ${{ parameters.node_label }}
