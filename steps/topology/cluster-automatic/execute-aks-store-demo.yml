@@ -11,7 +11,7 @@ parameters:
 
 steps:
 - task: Bash@3
-  displayName: 'Letting demo running for configurable duration'
+  displayName: 'Letting demo run for configurable duration'
   inputs:
     targetType: 'inline'
     script: |

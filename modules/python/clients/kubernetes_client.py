@@ -1,5 +1,6 @@
 """Kubernetes client for managing cluster operations and resources."""  # pylint: disable=too-many-lines
 import time
+from typing import Optional
 import os
 import uuid
 import glob
@@ -745,11 +746,12 @@ class KubernetesClient:
             )
             return False
 
-    def apply_manifest_from_url(self, manifest_url):
+    def apply_manifest_from_url(self, manifest_url, namespace: Optional[str] = None):
         """
         Apply a Kubernetes manifest from a URL using Kubernetes Python client API.
 
         :param manifest_url: URL of the manifest to apply
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
@@ -764,16 +766,47 @@ class KubernetesClient:
                 if not manifest:  # Skip empty documents
                     continue
 
-                self._apply_single_manifest(manifest)
+                self._apply_single_manifest(manifest, namespace=namespace)
 
             logger.info("Successfully applied manifest from %s", manifest_url)
         except Exception as e:
             raise Exception(f"Error applying manifest from {manifest_url}: {str(e)}") from e
 
+    def delete_manifest_from_url(self, manifest_url, ignore_not_found: bool = True, namespace: Optional[str] = None):
+        """
+        Delete a Kubernetes manifest from a URL using Kubernetes Python client API.
+        Equivalent to 'kubectl delete -f <url>'
+
+        :param manifest_url: URL of the manifest to delete
+        :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
+        :param namespace: Optional namespace to override the manifest namespace
+        :return: None
+        """
+        try:
+            # Fetch the manifest content from the URL
+            response = requests.get(manifest_url, timeout=30)
+            response.raise_for_status()
+
+            # Parse YAML content (can contain multiple documents)
+            manifests = list(yaml.safe_load_all(response.text))
+
+            # Delete manifests in reverse order (to handle dependencies)
+            manifests.reverse()
+
+            for manifest in manifests:
+                if not manifest:  # Skip empty documents
+                    continue
+
+                self._delete_single_manifest(manifest, ignore_not_found=ignore_not_found, namespace=namespace)
+
+            logger.info("Successfully deleted manifest from %s", manifest_url)
+        except Exception as e:
+            raise Exception(f"Error deleting manifest from {manifest_url}: {str(e)}") from e
+
     def _load_manifests_from_sources(self, manifest_path: str = None, manifest_dict: dict = None):
         """
         Load manifests from various sources (file, directory, or dictionary).
-        
+
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :return: Tuple of (manifests_list, sources_list)
@@ -825,12 +858,13 @@ class KubernetesClient:
 
         return manifests, sources
 
-    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None):
+    def apply_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, namespace: Optional[str] = None):
         """
         Apply Kubernetes manifest(s) from file path, folder path, or dictionary.
-        
+
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
@@ -838,14 +872,15 @@ class KubernetesClient:
             manifests_to_apply, applied_sources = self._load_manifests_from_sources(manifest_path, manifest_dict)
 
             # Apply all manifests
-            logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}")
+            namespace_info = f" in namespace '{namespace}'" if namespace else ""
+            logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}{namespace_info}")
 
             for i, manifest in enumerate(manifests_to_apply):
                 if not manifest:  # Skip empty documents
                     continue
 
                 logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
-                self._apply_single_manifest(manifest=manifest)
+                self._apply_single_manifest(manifest=manifest, namespace=namespace)
 
             logger.info(f"Successfully applied {len(manifests_to_apply)} manifest(s)")
 
@@ -853,14 +888,15 @@ class KubernetesClient:
             logger.error(f"Error applying manifest(s): {str(e)}")
             raise e
 
-    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, ignore_not_found: bool = True):
+    def delete_manifest_from_file(self, manifest_path: str = None, manifest_dict: dict = None, ignore_not_found: bool = True, namespace: Optional[str] = None):
         """
         Delete Kubernetes manifest(s) from file path, folder path, or dictionary.
         Equivalent to 'kubectl delete -f <file/folder>'
-        
+
         :param manifest_path: Path to YAML manifest file or folder containing manifest files
         :param manifest_dict: Dictionary containing the manifest
         :param ignore_not_found: If True, don't raise error if resource doesn't exist (equivalent to --ignore-not-found)
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
@@ -869,14 +905,15 @@ class KubernetesClient:
 
             # Delete all manifests in reverse order (to handle dependencies)
             manifests_to_delete.reverse()
-            logger.info(f"Deleting {len(manifests_to_delete)} manifest(s) from: {', '.join(deleted_sources)}")
+            namespace_info = f" in namespace '{namespace}'" if namespace else ""
+            logger.info(f"Deleting {len(manifests_to_delete)} manifest(s) from: {', '.join(deleted_sources)}{namespace_info}")
 
             for i, manifest in enumerate(manifests_to_delete):
                 if not manifest:  # Skip empty documents
                     continue
 
                 logger.info(f"Deleting manifest {i+1}/{len(manifests_to_delete)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
-                self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found)
+                self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found, namespace=namespace)
 
             logger.info(f"Successfully deleted {len(manifests_to_delete)} manifest(s)")
 
@@ -889,7 +926,7 @@ class KubernetesClient:
         """
         Wait for a Kubernetes resource to meet a specific condition.
         Equivalent to 'kubectl wait --for=condition=<wait_condition_type> <resource> --timeout=<timeout> -n <namespace>'
-        
+
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param wait_condition_type: Condition type to wait for (e.g., 'available', 'ready', 'progressing')
         :param namespace: Namespace where the resource is located
@@ -963,7 +1000,7 @@ class KubernetesClient:
                                  namespace: str, wait_all: bool) -> bool:
         """
         Check if a specific resource condition is met.
-        
+
         :param resource_type: Type of resource (e.g., 'deployment', 'pod', 'service')
         :param resource_name: Name of specific resource (None if checking all)
         :param condition_type: Condition type to check (e.g., 'available', 'ready', 'progressing')
@@ -1025,16 +1062,18 @@ class KubernetesClient:
 
         return False
 
-    def _apply_single_manifest(self, manifest):
+    def _apply_single_manifest(self, manifest, namespace=None):
         """
         Apply a single Kubernetes manifest using the appropriate API client.
 
         :param manifest: Dictionary representing a Kubernetes resource
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
             kind = manifest.get("kind")
-            namespace = manifest.get("metadata", {}).get("namespace")
+            # Use provided namespace or fall back to manifest namespace
+            namespace = namespace or manifest.get("metadata", {}).get("namespace")
             name = manifest.get("metadata", {}).get("name")
             logger.info("Applying manifest %s %s in namespace %s", kind, name, namespace)
 
@@ -1165,17 +1204,19 @@ class KubernetesClient:
             else:
                 raise Exception(f"Error creating {kind}: {str(e)}") from e
 
-    def _delete_single_manifest(self, manifest, ignore_not_found: bool = True):
+    def _delete_single_manifest(self, manifest, ignore_not_found: bool = True, namespace: Optional[str] = None):
         """
         Delete a single Kubernetes manifest using the appropriate API client.
 
         :param manifest: Dictionary representing a Kubernetes resource
         :param ignore_not_found: If True, don't raise error if resource doesn't exist
+        :param namespace: Optional namespace to override the manifest namespace
         :return: None
         """
         try:
             kind = manifest.get("kind")
-            namespace = manifest.get("metadata", {}).get("namespace")
+            # Use provided namespace or fall back to manifest namespace
+            namespace = namespace or manifest.get("metadata", {}).get("namespace")
             resource_name = manifest.get("metadata", {}).get("name")
 
             if not resource_name:
@@ -1368,3 +1409,49 @@ class KubernetesClient:
             time.sleep(1)
         logger.error("NVIDIA GPU device plugin verification timed out.")
         return False
+
+    def patch_deployment(self, name, namespace, node_selector=None, tolerations=None):
+        """
+        Patch a deployment with node selector and tolerations.
+
+        :param name: Name of the deployment to patch
+        :param namespace: Namespace of the deployment
+        :param node_selector: Dictionary of node selector labels (e.g., {"kwok": "true"})
+        :param tolerations: List of toleration dictionaries
+        :return: None
+        """
+        try:
+            # Construct the patch body
+            patch_body = {
+                "spec": {
+                    "template": {
+                        "spec": {}
+                    }
+                }
+            }
+
+            # Add node selector if provided
+            if node_selector:
+                patch_body["spec"]["template"]["spec"]["nodeSelector"] = node_selector
+
+            # Add tolerations if provided
+            if tolerations:
+                patch_body["spec"]["template"]["spec"]["tolerations"] = tolerations
+
+            logger.info(f"Patching deployment {name} in namespace {namespace}")
+            logger.info(f"Patch body: {patch_body}")
+
+            # Patch the deployment
+            self.app.patch_namespaced_deployment(
+                name=name,
+                namespace=namespace,
+                body=patch_body
+            )
+            logger.info(f"Successfully patched deployment {name}")
+
+        except client.rest.ApiException as e:
+            logger.error(f"Error patching deployment {name}: {str(e)}")
+            raise Exception(f"Error patching deployment {name}: {str(e)}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error patching deployment {name}: {str(e)}")
+            raise Exception(f"Unexpected error patching deployment {name}: {str(e)}") from e

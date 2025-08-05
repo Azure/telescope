@@ -25,7 +25,7 @@ variables:
 stages:
 - stage: azure_northeurope_small
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -35,7 +35,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         small:
           node_count: 200
@@ -50,7 +50,7 @@ stages:
 
 - stage: azure_northeurope_medium
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 PM on Mondays and Wenesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -60,7 +60,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         medium:
           node_count: 1000
@@ -75,7 +75,7 @@ stages:
 
 - stage: azure_northeurope_high
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -85,7 +85,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         high:
           node_count: 2000
@@ -100,7 +100,7 @@ stages:
 
 - stage: aws_euwest1_small
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -110,7 +110,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         small:
           node_count: 200
@@ -125,7 +125,7 @@ stages:
 
 - stage: aws_euwest1_medium
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 PM on Mondays and Wenesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -135,7 +135,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         medium:
           node_count: 1000
@@ -150,7 +150,7 @@ stages:
 
 - stage: aws_euwest1_high
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.ScheduleName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -160,7 +160,7 @@ stages:
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: job_controller
+      topology: kwok
       matrix:
         high:
           node_count: 2000

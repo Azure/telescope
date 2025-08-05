@@ -25,20 +25,13 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name                 = "prompool"
-        node_count           = 1
-        auto_scaling_enabled = false
-        vm_size              = "Standard_D64_v3"
-        max_pods             = 110
-        node_labels          = { "prometheus" = "true" }
-      },
-      {
         name                 = "kwokpool"
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D64_v3"
         max_pods             = 110
         node_labels          = { "kwok" = "true" }
+        node_taints          = ["kwok=true:NoSchedule"]
       }
     ]
     kubernetes_version = "1.33"
