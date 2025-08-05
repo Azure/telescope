@@ -1,12 +1,13 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id           = string
-    region           = string
-    creation_time    = string
-    user_data_path   = optional(string, "")
-    k8s_machine_type = optional(string, null)
-    ena_express      = optional(bool, null)
+    run_id                  = string
+    region                  = string
+    creation_time           = string
+    user_data_path          = optional(string, "")
+    k8s_machine_type        = optional(string, null)
+    ena_express             = optional(bool, null)
+    capacity_reservation_id = optional(string, null)
   })
 
   validation {

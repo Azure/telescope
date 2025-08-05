@@ -119,6 +119,18 @@ variables {
         }
       }]
       }, {
+      # Node group with capacity reservation but no id
+      name           = "ng-with-capacity-reservation-no-id"
+      ami_type       = "AL2023_x86_64_STANDARD"
+      instance_types = ["m5.large"]
+      capacity_type  = "CAPACITY_BLOCK"
+      min_size       = 1
+      max_size       = 2
+      desired_size   = 1
+      capacity_reservation_specification = {
+        capacity_reservation_preference = "capacity-reservations-only"
+      }
+      }, {
       # Node group with spot instances
       name           = "ng-with-spot-instances"
       ami_type       = "AL2023_x86_64_STANDARD"
@@ -362,3 +374,66 @@ run "global_ena_express_setting" {
   }
 }
 
+# Test global capacity_reservation_id setting that overrides node group configuration
+run "global_capacity_reservation_id_override" {
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "us-east-1",
+      "creation_time" : timestamp(),
+      "capacity_reservation_id" : "cr-global-override-12345"
+    }
+  }
+
+  command = plan
+
+  # Verify that global capacity_reservation_id overrides the node group setting
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-capacity-reservation"].capacity_reservation_specification[0].capacity_reservation_target[0].capacity_reservation_id == "cr-global-override-12345"
+    error_message = "Expected global capacity_reservation_id to override node group configuration"
+  }
+
+  # Verify that the capacity reservation preference is still respected from node group config
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-capacity-reservation"].capacity_reservation_specification[0].capacity_reservation_preference == "capacity-reservations-only"
+    error_message = "Expected capacity_reservation_preference to remain from node group config"
+  }
+
+  # Verify that resource group ARN is still null (not affected by global override)
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-capacity-reservation"].capacity_reservation_specification[0].capacity_reservation_target[0].capacity_reservation_resource_group_arn == null
+    error_message = "Expected capacity_reservation_resource_group_arn to remain null"
+  }
+}
+
+# Test global capacity_reservation_id setting that overrides node group configuration
+run "global_capacity_reservation_id_override_for_no_id" {
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "us-east-1",
+      "creation_time" : timestamp(),
+      "capacity_reservation_id" : "cr-global-override-12345"
+    }
+  }
+
+  command = plan
+
+  # Verify that global capacity_reservation_id overrides the node group setting
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-capacity-reservation-no-id"].capacity_reservation_specification[0].capacity_reservation_target[0].capacity_reservation_id == "cr-global-override-12345"
+    error_message = "Expected global capacity_reservation_id to override node group configuration"
+  }
+
+  # Verify that the capacity reservation preference is still respected from node group config
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-capacity-reservation-no-id"].capacity_reservation_specification[0].capacity_reservation_preference == "capacity-reservations-only"
+    error_message = "Expected capacity_reservation_preference to remain from node group config"
+  }
+
+  # Verify that resource group ARN is still null (not affected by global override)
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-capacity-reservation-no-id"].capacity_reservation_specification[0].capacity_reservation_target[0].capacity_reservation_resource_group_arn == null
+    error_message = "Expected capacity_reservation_resource_group_arn to remain null"
+  }
+}

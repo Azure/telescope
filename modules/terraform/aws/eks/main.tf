@@ -275,10 +275,10 @@ resource "aws_launch_template" "launch_template" {
       capacity_reservation_preference = capacity_reservation_specification.value.capacity_reservation_preference
 
       dynamic "capacity_reservation_target" {
-        for_each = capacity_reservation_specification.value.capacity_reservation_target != null ? [capacity_reservation_specification.value.capacity_reservation_target] : []
+        for_each = (capacity_reservation_specification.value.capacity_reservation_target != null || var.capacity_reservation_id != null) ? [capacity_reservation_specification.value.capacity_reservation_target] : []
         content {
-          capacity_reservation_id                 = capacity_reservation_target.value.capacity_reservation_id
-          capacity_reservation_resource_group_arn = capacity_reservation_target.value.capacity_reservation_resource_group_arn
+          capacity_reservation_id                 = var.capacity_reservation_id != null ? var.capacity_reservation_id : try(capacity_reservation_target.value.capacity_reservation_id, null)
+          capacity_reservation_resource_group_arn = try(capacity_reservation_target.value.capacity_reservation_resource_group_arn, null)
         }
       }
     }

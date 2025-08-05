@@ -32,6 +32,12 @@ variable "ena_express" {
   default     = null
 }
 
+variable "capacity_reservation_id" {
+  description = "The capacity reservation ID. This replaces the value under eks_managed_node_groups"
+  type        = string
+  default     = null
+}
+
 variable "eks_config" {
   type = object({
     role                      = string
