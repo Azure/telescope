@@ -26,10 +26,9 @@ stages:
               credential_type: service_connection
           - script: |
               set -e
-              if [ -f "$(Pipeline.Workspace)/s/modules/python/requirements.txt" ]; then
-                pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-              fi
+              pip3 install -r requirements.txt
             displayName: "Install Dependencies"
+            workingDirectory: modules/python
           - template: /steps/cloud/aws/capacity-reservation.yml
             parameters:
               region: $(AWS_REGION)
