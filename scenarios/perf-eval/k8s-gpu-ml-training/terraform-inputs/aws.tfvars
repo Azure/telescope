@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "k8s-gpu-ml-training"
-deletion_delay = "24h"
+deletion_delay = "72h"
 owner          = "aks"
 
 network_config_list = [
@@ -54,7 +54,14 @@ network_config_list = [
       }
     ]
     sg_rules = {
-      ingress = []
+      ingress = [
+        {
+          from_port  = 22
+          to_port    = 22
+          protocol   = "tcp"
+          cidr_block = "0.0.0.0/0"
+        }
+      ]
       egress = [
         {
           from_port  = 0
@@ -81,8 +88,33 @@ eks_config_list = [{
       max_size       = 2
       desired_size   = 2
       capacity_type  = "ON_DEMAND"
+    },
+    {
+      name = "user"
+      # ami_type       = "AL2023_x86_64_NVIDIA"
+      ami_type = "AL2_x86_64_GPU"
+      # instance_types = ["g6.48xlarge"]
+      instance_types = ["p4d.24xlarge"]
+      min_size       = 1
+      max_size       = 2
+      desired_size   = 1
+      capacity_type  = "CAPACITY_BLOCK"
+      capacity_reservation_specification = {
+        capacity_reservation_preference = "capacity-reservations-only"
+      }
+      instance_market_options = {
+        market_type = "capacity-block"
+      }
+      network_interfaces = {
+        delete_on_termination = true
+        interface_type        = "efa"
+      }
     }
   ]
-  eks_addons         = []
-  kubernetes_version = "1.33"
+  eks_addons = [
+    {
+      name = "vpc-cni"
+    }
+  ]
+  kubernetes_version = "1.32"
 }]
