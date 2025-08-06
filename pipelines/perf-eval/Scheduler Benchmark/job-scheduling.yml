@@ -44,7 +44,7 @@ stages:
           scale_timeout: "30m"
           cl2_config_file: config.yaml
       max_parallel: 1
-      timeout_in_minutes: 180
+      timeout_in_minutes: 60
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -69,7 +69,7 @@ stages:
           scale_timeout: "45m"
           cl2_config_file: config.yaml
       max_parallel: 1
-      timeout_in_minutes: 270
+      timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -94,7 +94,7 @@ stages:
           scale_timeout: "1h"
           cl2_config_file: config.yaml
       max_parallel: 1
-      timeout_in_minutes: 360
+      timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -119,7 +119,7 @@ stages:
           scale_timeout: "30m"
           cl2_config_file: config.yaml
       max_parallel: 1
-      timeout_in_minutes: 180
+      timeout_in_minutes: 60
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -144,7 +144,7 @@ stages:
           scale_timeout: "45m"
           cl2_config_file: config.yaml
       max_parallel: 1
-      timeout_in_minutes: 270
+      timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -169,6 +169,6 @@ stages:
           scale_timeout: "1h"
           cl2_config_file: config.yaml
       max_parallel: 1
-      timeout_in_minutes: 360
+      timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false

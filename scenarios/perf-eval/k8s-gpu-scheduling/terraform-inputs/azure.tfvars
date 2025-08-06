@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "k8s-gpu-scheduling"
-deletion_delay = "1h"
+deletion_delay = "2h"
 owner          = "aks"
 
 aks_config_list = [

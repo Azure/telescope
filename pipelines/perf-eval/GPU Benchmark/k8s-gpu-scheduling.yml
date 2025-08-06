@@ -46,7 +46,7 @@ stages:
           node_gpu: 8
           job_template_path: gpu_job_template.yaml
       max_parallel: 1
-      timeout_in_minutes: 180
+      timeout_in_minutes: 60
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -73,7 +73,7 @@ stages:
           node_gpu: 8
           job_template_path: gpu_job_template.yaml
       max_parallel: 1
-      timeout_in_minutes: 270
+      timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
 
@@ -100,6 +100,6 @@ stages:
           node_gpu: 8
           job_template_path: gpu_job_template.yaml
       max_parallel: 1
-      timeout_in_minutes: 360
+      timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
