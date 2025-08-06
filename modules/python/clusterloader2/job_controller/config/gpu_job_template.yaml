@@ -33,6 +33,6 @@ spec:
         command: ["sh", "-c", "echo Job is running; sleep 5; echo Job done!"]
         resources:
           requests:
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 8
           limits:
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: 8
