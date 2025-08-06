@@ -1,12 +1,13 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id           = string
-    region           = string
-    creation_time    = string
-    user_data_path   = optional(string, "")
-    k8s_machine_type = optional(string, null)
-    ena_express      = optional(bool, null)
+    run_id                  = string
+    region                  = string
+    creation_time           = string
+    user_data_path          = optional(string, "")
+    k8s_machine_type        = optional(string, null)
+    ena_express             = optional(bool, null)
+    capacity_reservation_id = optional(string, null)
   })
 
   validation {
@@ -138,6 +139,28 @@ variable "eks_config_list" {
           volume_type           = optional(string, null)
         })
       })), [])
+      capacity_reservation_specification = optional(object({
+        capacity_reservation_preference = optional(string)
+        capacity_reservation_target = optional(object({
+          capacity_reservation_id                 = optional(string)
+          capacity_reservation_resource_group_arn = optional(string)
+        }))
+      }), null)
+      instance_market_options = optional(object({
+        market_type = optional(string)
+        spot_options = optional(object({
+          block_duration_minutes         = optional(number)
+          instance_interruption_behavior = optional(string)
+          max_price                      = optional(string)
+          spot_instance_type             = optional(string)
+          valid_until                    = optional(string)
+        }))
+      }), null)
+      network_interfaces = optional(object({
+        associate_public_ip_address = optional(bool)
+        delete_on_termination       = optional(bool)
+        interface_type              = optional(string)
+      }), null)
     }))
     eks_addons = list(object({
       name            = string
