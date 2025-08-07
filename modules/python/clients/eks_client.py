@@ -698,80 +698,57 @@ class EKSClient:
             "Progressive scaling from %s to %s nodes in steps of %s", current_count, target_count, step_size
         )
 
-        metadata = base_metadata.copy()
-        metadata["progressive_scaling"] = True
-        with self._get_operation_context()(
-            operation_type, "aws", metadata, result_dir=self.result_dir
-        ) as op:
-            try:
-                steps = []
-                if target_count > current_count:
-                    # Scaling up
-                    for count in range(
-                        current_count + step_size, target_count + 1, step_size
-                    ):
-                        steps.append(min(count, target_count))
-                    if steps[-1] != target_count:
-                        steps.append(target_count)
-                else:
-                    # Scaling down
-                    for count in range(
-                        current_count - step_size, target_count - 1, -step_size
-                    ):
-                        steps.append(max(count, target_count))
-                    if steps[-1] != target_count:
-                        steps.append(target_count)
 
+        try:
+            steps = []
+            if target_count > current_count:
+                # Scaling up
+                for count in range(
+                    current_count + step_size, target_count + 1, step_size
+                ):
+                    steps.append(min(count, target_count))
+                if steps[-1] != target_count:
+                    steps.append(target_count)
+            else:
+                # Scaling down
+                for count in range(
+                    current_count - step_size, target_count - 1, -step_size
+                ):
+                    steps.append(max(count, target_count))
+                if steps[-1] != target_count:
+                    steps.append(target_count)
+
+            logger.info(
+                "Progressive scaling steps: %s -> %s", current_count, ' -> '.join(map(str, steps))
+            )
+
+            current_node_group = None
+            for i, step_count in enumerate(steps):
                 logger.info(
-                    "Progressive scaling steps: %s -> %s", current_count, ' -> '.join(map(str, steps))
+                    "Progressive scaling step %s/%s: scaling to %s nodes", i + 1, len(steps), step_count
                 )
 
-                current_node_group = None
-                label_selector = f"nodegroup-name={node_group_name}"
-                for i, step_count in enumerate(steps):
-                    logger.info(
-                        "Progressive scaling step %s/%s: scaling to %s nodes", i + 1, len(steps), step_count
-                    )
-
-                    # Scale to this step
-                    current_node_group = self.scale_node_group(
-                        node_group_name=node_group_name,
-                        node_count=step_count,
-                        cluster_name=cluster_name,
-                        progressive=False,  # Avoid recursive progressive scaling
-                        gpu_node_group=gpu_node_group,
-                    )
-
-                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                        node_count=step_count,
-                        operation_timeout_in_minutes=self.operation_timeout_minutes,
-                        label_selector=label_selector,
-                    )
-
-                    # Small delay between steps
-                    if i < len(steps) - 1:
-                        time.sleep(10)
-
-                    op.add_metadata("vm_size", self.vm_size)
-                    op.add_metadata(
-                        "ready_nodes", len(ready_nodes) if ready_nodes else 0
-                    )
-
-                    op.add_metadata(
-                    "nodepool_info",
-                    self.get_node_group(node_group_name, self.cluster_name))
-                    op.add_metadata(
-                        "cluster_info", self.get_cluster_data(self.cluster_name)
-                    )
-
-                logger.info(
-                    "Progressive scaling completed. Final count: %s", target_count
+                # Scale to this step
+                current_node_group = self.scale_node_group(
+                    node_group_name=node_group_name,
+                    node_count=step_count,
+                    cluster_name=cluster_name,
+                    progressive=False,  # Avoid recursive progressive scaling
+                    gpu_node_group=gpu_node_group,
                 )
-                return current_node_group
 
-            except Exception as e:
-                logger.error("Progressive scaling failed: %s", e)
-                raise
+                # Small delay between steps
+                if i < len(steps) - 1:
+                    time.sleep(10)
+
+            logger.info(
+                "Progressive scaling completed. Final count: %s", target_count
+            )
+            return current_node_group
+
+        except Exception as e:
+            logger.error("Progressive scaling failed: %s", e)
+            raise
 
     def _wait_for_node_group_active(self, node_group_name: str, cluster_name: str):
         """

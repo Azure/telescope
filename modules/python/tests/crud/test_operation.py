@@ -19,13 +19,14 @@ class TestOperation(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment"""
-        self.test_operation = Operation("test_operation")
+        self.test_operation = Operation("test_operation", "test_cloud")
 
     def test_operation_initialization(self):
         """Test Operation initialization with default values"""
-        op = Operation("test_op")
+        op = Operation("test_op", "test_cloud")
 
         self.assertEqual(op.name, "test_op")
+        self.assertEqual(op.cloud, "test_cloud")
         self.assertIsNone(op.start_timestamp)
         self.assertIsNone(op.end_timestamp)
         self.assertIsNone(op.duration)
@@ -38,9 +39,10 @@ class TestOperation(unittest.TestCase):
     def test_operation_initialization_with_metadata(self):
         """Test Operation initialization with metadata"""
         metadata = {"key": "value", "count": 42}
-        op = Operation("test_op", metadata)
+        op = Operation("test_op", "test_cloud", metadata)
 
         self.assertEqual(op.name, "test_op")
+        self.assertEqual(op.cloud, "test_cloud")
         self.assertEqual(op.metadata, metadata)
 
     @mock.patch("crud.operation.datetime")

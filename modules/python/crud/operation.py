@@ -26,7 +26,7 @@ class Operation:
     duration, success status, error messages, and additional metadata.
     """
 
-    def __init__(self, name: str, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, cloud: str, metadata: Optional[Dict[str, Any]] = None):
         """
         Initialize a new Operation with a name and optional metadata.
 
@@ -35,6 +35,7 @@ class Operation:
             metadata: Optional dictionary of metadata to associate with the operation.
         """
         self.name = name
+        self.cloud = cloud
         self.start_timestamp = None
         self.end_timestamp = None
         self.duration = None
@@ -190,7 +191,7 @@ class OperationContext:
             result_dir: Optional directory to save operation results to. If provided, operation data
                         will be automatically saved to a file when the context exits.
         """
-        self.operation = Operation(name, metadata)
+        self.operation = Operation(name, cloud, metadata)
         self.result_dir = result_dir
         self.cloud = cloud
 
