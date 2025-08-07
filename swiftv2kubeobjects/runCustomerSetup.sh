@@ -10,13 +10,15 @@
 
 set -ex
 sub=9b8218f9-902a-4d20-a65c-e98acec5362f
-RG="sv2-perf-infra-customer"
+LOCATION="uksouth"
+RG="sv2-perf-cust-$LOCATION"
 CLUSTER="ping-target"
-LOCATION="eastus2euap"
+
 
 # create RG
 echo "Create RG"
 date=$(date -d "+3 month" +"%Y-%m-%d")
+az account set -s $sub
 az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 # create customer vnet
@@ -76,7 +78,7 @@ az aks get-credentials --resource-group $RG --name $CLUSTER --overwrite-existing
 kubectl apply -f ./nginx-deployment.yaml
 
 
-ACR_NAME="sv2perfacr"
+ACR_NAME="sv2perfacr$LOCATION"
 IMAGE_NAME="nicolaka/netshoot"
 ACR_IMAGE_NAME="netshoot:latest"
 SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"

@@ -150,7 +150,7 @@ create_aks_cluster() {
 
     # Create the AKS cluster with the specified parameters
     az aks create -n ${cluster_name} -g ${resource_group} \
-        -s Standard_D8_v3 -c 5 \
+        -s Standard_D4_v3 -c 5 \
         --os-sku Ubuntu \
         -l ${location} \
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
