@@ -53,7 +53,7 @@ class KWOK(ABC):
         )
 
         # Patch kwok-controller deployment with node selector and toleration
-        node_selector = {"user": "true"}
+        node_selector = {"kwok": "true"}
         tolerations = [{
             "key": "kwok",
             "value": "true",
