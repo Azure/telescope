@@ -45,6 +45,7 @@ stages:
           cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
+          enable_dra: false
           job_template_path: gpu/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 60
@@ -73,6 +74,7 @@ stages:
           cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
+          enable_dra: false
           job_template_path: gpu/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
@@ -101,6 +103,7 @@ stages:
           cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
+          enable_dra: false
           job_template_path: gpu/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
