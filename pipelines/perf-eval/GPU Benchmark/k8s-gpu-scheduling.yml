@@ -109,6 +109,8 @@ stages:
 
 - stage: azure_eastus2_dra_small
   dependsOn: []
+  variables:
+  - group: DRA-Enabled
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
@@ -137,6 +139,8 @@ stages:
 
 - stage: azure_eastus2_dra_medium
   dependsOn: []
+  variables:
+  - group: DRA-Enabled
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
@@ -165,6 +169,8 @@ stages:
 
 - stage: azure_eastus2_dra_high
   dependsOn: []
+  variables:
+  - group: DRA-Enabled
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
