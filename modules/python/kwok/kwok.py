@@ -34,23 +34,23 @@ class KWOK(ABC):
                          f"download/{kwok_release}/kwok.yaml")
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                               f"download/{kwok_release}/stage-fast.yaml")
-        # execute_with_retries(
-        #     self.k8s_client.apply_manifest_from_url,
-        #     kwok_yaml_url
-        # )
-        # execute_with_retries(
-        #     self.k8s_client.apply_manifest_from_url,
-        #     stage_fast_yaml_url
-        # )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            kwok_yaml_url
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            stage_fast_yaml_url
+        )
         # Replace KWOK configuration configmap
-        # execute_with_retries(
-        #     self.k8s_client.delete_manifest_from_file,
-        #     "kwok/config/kwok-config.yaml"
-        # )
-        # execute_with_retries(
-        #     self.k8s_client.apply_manifest_from_file,
-        #     "kwok/config/kwok-config.yaml"
-        # )
+        execute_with_retries(
+            self.k8s_client.delete_manifest_from_file,
+            "kwok/config/kwok-config.yaml"
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_file,
+            "kwok/config/kwok-config.yaml"
+        )
 
         # Patch kwok-controller deployment with node selector and toleration
         node_selector = {"user": "true"}
@@ -64,7 +64,7 @@ class KWOK(ABC):
             "kwok-controller",
             "kube-system",
             node_selector,
-            # tolerations
+            tolerations
         )
 
         if enable_metrics:
