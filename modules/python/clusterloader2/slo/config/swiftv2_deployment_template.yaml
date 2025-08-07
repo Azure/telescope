@@ -1,8 +1,3 @@
-{{$CpuRequest := DefaultParam .CpuRequest "5m"}}
-{{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,9 +13,6 @@ spec:
       name: {{.Name}}
   strategy:
     type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 20%
-      maxSurge: 20%
   template:
     metadata:
       labels:
@@ -43,22 +35,12 @@ spec:
         ports:
         resources:
           requests:
-            cpu: {{$CpuRequest}}
-            memory: {{$MemoryRequest}}
             acn.azure.com/vnet-nic: "1"
           limits:
             acn.azure.com/vnet-nic: "1"
       # Add not-ready/unreachable tolerations for 15 minutes so that node
       # failure doesn't trigger pod deletion.
       tolerations:
-      - key: "node.kubernetes.io/not-ready"
-        operator: "Exists"
-        effect: "NoExecute"
-        tolerationSeconds: 900
-      - key: "node.kubernetes.io/unreachable"
-        operator: "Exists"
-        effect: "NoExecute"
-        tolerationSeconds: 900
       - key: "slo"
         operator: "Equal"
         value: "true"
