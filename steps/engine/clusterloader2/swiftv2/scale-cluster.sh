@@ -104,7 +104,7 @@ function list_vm_status() {
     fi
 }
 
-# Repair failed VMs by reimaging them with retry logic
+# Delete failed VMs and wait for new ones to be provisioned
 function repair_failed_vms() {
     local vmss_name=$1
     local node_rg=$2
@@ -113,7 +113,7 @@ function repair_failed_vms() {
     local retry_delay=30
     
     if [ -z "$vmss_name" ] || [ -z "$node_rg" ]; then
-        log_info "No VMSS information available for repair"
+        log_info "No VMSS information available for VM cleanup"
         return 0
     fi
     
@@ -142,48 +142,133 @@ function repair_failed_vms() {
         --query "[?provisioningState=='Failed'].{InstanceId:instanceId,ProvisioningState:provisioningState,Statuses:instanceView.statuses[?code=='ProvisioningState/failed/OSProvisioningTimedOut' || contains(code,'failed')].{Code:code,Message:message}}" \
         --output table 2>/dev/null || log_warning "Unable to retrieve detailed failure information"
     
-    # Reimage each failed instance with retry logic
+    # Count the number of failed instances to track replacements
+    local failed_count=0
+    for instance_id in $all_failed_instances; do
+        if [ -n "$instance_id" ]; then
+            failed_count=$((failed_count + 1))
+        fi
+    done
+    
+    if [ $failed_count -eq 0 ]; then
+        log_info "No valid failed instances to delete"
+        return 0
+    fi
+    
+    log_info "Deleting $failed_count failed VM instances to trigger replacement..."
+    
+    # Delete each failed instance with retry logic
+    local deleted_instances=""
     for instance_id in $all_failed_instances; do
         if [ -n "$instance_id" ]; then
             local retry_count=0
-            local reimage_success=false
+            local delete_success=false
             
-            while [ $retry_count -lt $max_retries ] && [ "$reimage_success" = false ]; do
+            while [ $retry_count -lt $max_retries ] && [ "$delete_success" = false ]; do
                 retry_count=$((retry_count + 1))
                 
                 if [ $retry_count -gt 1 ]; then
-                    log_info "Retry attempt $retry_count/$max_retries for VM instance '$instance_id'"
+                    log_info "Retry attempt $retry_count/$max_retries for deleting VM instance '$instance_id'"
                     log_info "Waiting $retry_delay seconds before retry..."
                     sleep $retry_delay
                 else
-                    log_info "Reimaging VM instance '$instance_id' in VMSS '$vmss_name' (attempt $retry_count/$max_retries)..."
+                    log_info "Deleting failed VM instance '$instance_id' from VMSS '$vmss_name' (attempt $retry_count/$max_retries)..."
                 fi
                 
-                # Reimage with timeout (don't wait for completion)
-                if timeout 300 az vmss reimage \
+                # Delete instance with timeout
+                if timeout 180 az vmss delete-instances \
                     --name "$vmss_name" \
                     --resource-group "$node_rg" \
-                    --instance-id "$instance_id" \
+                    --instance-ids "$instance_id" \
                     --no-wait 2>/dev/null; then
-                    log_info "Successfully initiated reimage for VM instance '$instance_id'"
-                    reimage_success=true
+                    log_info "Successfully initiated deletion for VM instance '$instance_id'"
+                    delete_success=true
+                    deleted_instances="$deleted_instances $instance_id"
                 else
                     local exit_code=$?
                     if [ $retry_count -lt $max_retries ]; then
-                        log_warning "Reimage attempt $retry_count failed for instance '$instance_id' (exit code: $exit_code), will retry..."
+                        log_warning "Delete attempt $retry_count failed for instance '$instance_id' (exit code: $exit_code), will retry..."
                     else
-                        log_warning "All $max_retries reimage attempts failed for instance '$instance_id' (exit code: $exit_code)"
+                        log_warning "All $max_retries delete attempts failed for instance '$instance_id' (exit code: $exit_code)"
                     fi
                 fi
             done
             
-            if [ "$reimage_success" = false ]; then
-                log_warning "Failed to reimage VM instance '$instance_id' after $max_retries attempts, continuing with other instances..."
+            if [ "$delete_success" = false ]; then
+                log_warning "Failed to delete VM instance '$instance_id' after $max_retries attempts, continuing with other instances..."
             fi
         fi
     done
     
-    log_info "Reimage operations completed for all failed instances"
+    if [ -n "$deleted_instances" ]; then
+        log_info "Successfully initiated deletion for instances:$deleted_instances"
+        log_info "Waiting for VMSS to provision replacement instances..."
+        
+        # Wait for replacement instances to be created and reach running state
+        wait_for_vmss_replacement "$vmss_name" "$node_rg" "$nodepool" $failed_count
+    else
+        log_warning "No instances were successfully deleted"
+    fi
+    
+    log_info "VM deletion and replacement operations completed for all failed instances"
+}
+
+# Wait for VMSS to provision replacement instances after deletion
+function wait_for_vmss_replacement() {
+    local vmss_name=$1
+    local node_rg=$2
+    local nodepool=$3
+    local expected_replacements=$4
+    local max_wait_time=1800  # 30 minutes
+    local check_interval=60   # 1 minute
+    local elapsed=0
+    
+    log_info "Waiting for $expected_replacements replacement VM instances to be provisioned..."
+    
+    while [ $elapsed -lt $max_wait_time ]; do
+        # Check current instance count and their states
+        local instance_info
+        instance_info=$(az vmss list-instances \
+            --name "$vmss_name" \
+            --resource-group "$node_rg" \
+            --query "[].{InstanceId:instanceId,ProvisioningState:provisioningState,PowerState:instanceView.statuses[1].displayStatus}" \
+            --output json 2>/dev/null || echo "[]")
+        
+        local total_instances=$(echo "$instance_info" | jq length)
+        local running_instances=$(echo "$instance_info" | jq '[.[] | select(.ProvisioningState=="Succeeded" and (.PowerState=="VM running" or .PowerState==null))] | length')
+        local creating_instances=$(echo "$instance_info" | jq '[.[] | select(.ProvisioningState=="Creating")] | length')
+        local failed_instances=$(echo "$instance_info" | jq '[.[] | select(.ProvisioningState=="Failed")] | length')
+        
+        log_info "VMSS instance status - Total: $total_instances, Running: $running_instances, Creating: $creating_instances, Failed: $failed_instances (elapsed: ${elapsed}s)"
+        
+        # Check if we have sufficient healthy instances
+        if [ $running_instances -gt 0 ] && [ $failed_instances -eq 0 ] && [ $creating_instances -eq 0 ]; then
+            log_info "All replacement instances are now running successfully"
+            return 0
+        elif [ $failed_instances -gt 0 ]; then
+            log_warning "Detected $failed_instances new failed instances during replacement"
+            # Don't return error here as we'll handle it in the outer loop
+        fi
+        
+        # Show detailed status for troubleshooting if taking longer than expected
+        if [ $elapsed -gt 600 ] && [ $((elapsed % 300)) -eq 0 ]; then
+            log_info "Detailed instance status after $((elapsed / 60)) minutes:"
+            echo "$instance_info" | jq -r '.[] | "\(.InstanceId): \(.ProvisioningState) - \(.PowerState // "Unknown")"' | head -10
+        fi
+        
+        sleep $check_interval
+        elapsed=$((elapsed + check_interval))
+    done
+    
+    log_warning "Timeout waiting for VMSS replacement instances after $((max_wait_time / 60)) minutes"
+    log_info "Final VMSS instance status:"
+    az vmss list-instances \
+        --name "$vmss_name" \
+        --resource-group "$node_rg" \
+        --query "[].{InstanceId:instanceId,ProvisioningState:provisioningState,PowerState:instanceView.statuses[1].displayStatus}" \
+        --output table 2>/dev/null || log_warning "Unable to retrieve final VMSS status"
+    
+    return 1
 }
 
 # Verify that all nodes in a nodepool are ready in Kubernetes
@@ -432,18 +517,18 @@ function main() {
     
     # Check if VM repair is needed based on total ready node count
     if is_vm_repair_needed "$aks_name" "$aks_rg" "$total_required_nodes"; then
-        log_info "Insufficient ready nodes detected. Performing VM repair and verification..."
+        log_info "Insufficient ready nodes detected. Performing failed VM cleanup and replacement..."
         
         # Process each nodepool for VM repair
         for nodepool in $usernodepools; do
-            log_info "=== Repairing VMs for nodepool: '$nodepool' ==="
+            log_info "=== Cleaning up failed VMs for nodepool: '$nodepool' ==="
             
             # List VM status and get VMSS info
             local vmss_info
             vmss_info=$(list_vm_status "$nodepool" "$aks_name" "$aks_rg")
             IFS=':' read -r vmss_name node_rg <<< "$vmss_info"
             
-            # Repair any failed VMs
+            # Delete any failed VMs to trigger replacement
             repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
             
             # Verify all nodes are ready in Kubernetes
@@ -451,16 +536,16 @@ function main() {
                 log_warning "Node readiness verification failed for nodepool '$nodepool', but continuing..."
             fi
             
-            log_info "Completed VM repair for nodepool '$nodepool'"
+            log_info "Completed failed VM cleanup for nodepool '$nodepool'"
         done
         
-        # Final check after repairs
-        log_info "Verifying node count after VM repairs..."
+        # Final check after cleanup and replacement
+        log_info "Verifying node count after VM cleanup and replacement..."
         local final_ready_nodes
         final_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
         log_info "Final ready node count: $final_ready_nodes (required: $total_required_nodes)"
     else
-        log_info "Sufficient ready nodes available. Skipping VM repair operations."
+        log_info "Sufficient ready nodes available. Skipping failed VM cleanup operations."
     fi
     
     # Verify total healthy node count meets requirements
