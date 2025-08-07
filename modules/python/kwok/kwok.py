@@ -150,7 +150,7 @@ class Node(KWOK):
                         resource_slice_template
                     )
 
-                    print(f"Successfully created {self.node_count} virtual nodes.")
+            print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
