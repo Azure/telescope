@@ -5,4 +5,4 @@ metadata:
 spec:
   selectors:
   - cel:
-      expression:  device.driver == 'gpu.nvidia.com' && device.attributes['gpu.nvidia.com'].type == 'gpu'
+      expression: device.driver == 'gpu.nvidia.com' && device.attributes['gpu.nvidia.com'].type == 'gpu'
