@@ -312,8 +312,9 @@ def main():
     )
     parser.add_argument(
         "--enable-dra",
-        action="store_true",
-        help="Enable Dynamic Resource Allocation (DRA) by applying device-class.yaml, resource-claim-template.yaml, and resource-slice.yaml manifests.",
+        type=bool,
+        default=False,
+        help="Enable Dynamic Resource Allocation (DRA).",
     )
     parser.add_argument(
         "--action",
