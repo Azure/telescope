@@ -110,6 +110,7 @@ class Operation:
         """
         return {
             "name": self.name,
+            "cloud": self.cloud,
             "start_timestamp": self.start_timestamp,
             "end_timestamp": self.end_timestamp,
             "duration": self.duration,
