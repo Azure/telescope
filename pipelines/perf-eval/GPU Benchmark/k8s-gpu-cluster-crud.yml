@@ -122,7 +122,7 @@ stages:
               pool_name: a100nodepool
               vm_size: p4d.24xlarge
               create_node_count: 0
-              scale_node_count: 2
+              scale_node_count: 1
               scale_step_size: 1
               step_time_out: 1200
               step_wait_time: 30
