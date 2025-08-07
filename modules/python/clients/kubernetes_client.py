@@ -657,10 +657,7 @@ class KubernetesClient:
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
 
                 # Get GPU count for this node
-                gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
-                if gpu_count == 0:
-                    logger.warning(f"Node {node_name} has no GPUs allocated, skipping")
-                    continue
+                gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "1"))
 
                 logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
 
