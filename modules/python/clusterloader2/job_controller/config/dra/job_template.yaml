@@ -20,8 +20,6 @@ spec:
                 operator: In
                 values:
                 - kwok
-      # A taint was added to an automatically created Node.
-      # You can remove taints of Node or add this tolerations.
       tolerations:
       - key: "kwok.x-k8s.io/node"
         operator: "Equal"
@@ -31,8 +29,6 @@ spec:
       - image: busybox
         name: {{.Name}}
         command: ["sh", "-c", "echo Job is running; sleep 5; echo Job done!"]
-        resources:
-          requests:
-            nvidia.com/gpu: 8
-          limits:
-            nvidia.com/gpu: 8
+      resourceClaims:
+      - name: gpu
+        resourceClaimTemplateName: gpu-0

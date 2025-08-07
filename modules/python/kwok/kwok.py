@@ -34,26 +34,26 @@ class KWOK(ABC):
                          f"download/{kwok_release}/kwok.yaml")
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                               f"download/{kwok_release}/stage-fast.yaml")
-        execute_with_retries(
-            self.k8s_client.apply_manifest_from_url,
-            kwok_yaml_url
-        )
-        execute_with_retries(
-            self.k8s_client.apply_manifest_from_url,
-            stage_fast_yaml_url
-        )
+        # execute_with_retries(
+        #     self.k8s_client.apply_manifest_from_url,
+        #     kwok_yaml_url
+        # )
+        # execute_with_retries(
+        #     self.k8s_client.apply_manifest_from_url,
+        #     stage_fast_yaml_url
+        # )
         # Replace KWOK configuration configmap
-        execute_with_retries(
-            self.k8s_client.delete_manifest_from_file,
-            "kwok/config/kwok-config.yaml"
-        )
-        execute_with_retries(
-            self.k8s_client.apply_manifest_from_file,
-            "kwok/config/kwok-config.yaml"
-        )
+        # execute_with_retries(
+        #     self.k8s_client.delete_manifest_from_file,
+        #     "kwok/config/kwok-config.yaml"
+        # )
+        # execute_with_retries(
+        #     self.k8s_client.apply_manifest_from_file,
+        #     "kwok/config/kwok-config.yaml"
+        # )
 
         # Patch kwok-controller deployment with node selector and toleration
-        node_selector = {"kwok": "true"}
+        node_selector = {"user": "true"}
         tolerations = [{
             "key": "kwok",
             "value": "true",
@@ -64,7 +64,7 @@ class KWOK(ABC):
             "kwok-controller",
             "kube-system",
             node_selector,
-            tolerations
+            # tolerations
         )
 
         if enable_metrics:
@@ -97,6 +97,7 @@ class Node(KWOK):
     node_memory: str = "256Gi"
     node_pods: str = "110"
     node_gpu: str = "0"
+    enable_dra: bool = False
 
     def create(self):
         try:
@@ -105,9 +106,17 @@ class Node(KWOK):
 
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
+            # Apply DRA manifests once if enabled
+            if self.enable_dra:
+                execute_with_retries(
+                    self.k8s_client.apply_manifest_from_file,
+                    "kwok/config/device-class.yaml"
+                )
+
             for i in range(self.node_count):
+                node_name = f"kwok-node-{i}"
                 replacements = {
-                    "node_name": f"kwok-node-{i}",
+                    "node_name": node_name,
                     "node_ip": self._generate_node_ip(i),
                     "node_cpu": self.node_cpu,
                     "node_memory": self.node_memory,
@@ -122,7 +131,26 @@ class Node(KWOK):
                     kwok_template,
                 )
 
-            print(f"Successfully created {self.node_count} virtual nodes.")
+                # Apply resource slice for each node if DRA is enabled
+                if self.enable_dra:
+                    resource_slice_name = f"kwok-resource-slice-{i}"
+                    print(f"Creating resource slice {resource_slice_name} for node {node_name}")
+
+                    replacements = {
+                        "resource_slice_name": resource_slice_name,
+                        "node_name": node_name
+                    }
+
+                    resource_slice_template = self.k8s_client.create_template(
+                        "kwok/config/resource-slice.yaml", replacements
+                    )
+
+                    execute_with_retries(
+                        self.k8s_client.create_resource_slice,
+                        resource_slice_template
+                    )
+
+                    print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
@@ -179,6 +207,19 @@ class Node(KWOK):
                 self.k8s_client.delete_node,
                 node_name
             )
+
+            # Delete resource slice for each node if DRA was enabled
+            if self.enable_dra:
+                resource_slice_name = f"kwok-resource-slice-{i}"
+                print(f"Deleting resource slice: {resource_slice_name}")
+                try:
+                    execute_with_retries(
+                        self.k8s_client.delete_resource_slice,
+                        resource_slice_name
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not delete resource slice {resource_slice_name}: {e}")
+
         print(f"Successfully deleted {self.node_count} nodes.")
 
     def _validate_node_status(self, node):
@@ -270,6 +311,11 @@ def main():
         help="Enable metrics simulation by applying metrics-usage.yaml.",
     )
     parser.add_argument(
+        "--enable-dra",
+        action="store_true",
+        help="Enable Dynamic Resource Allocation (DRA) by applying device-class.yaml, resource-claim-template.yaml, and resource-slice.yaml manifests.",
+    )
+    parser.add_argument(
         "--action",
         choices=["create", "validate", "tear_down"],
         required=True,
@@ -287,6 +333,7 @@ def main():
         node_gpu=args.node_gpu,
         kwok_release=args.kwok_release,
         enable_metrics=args.enable_metrics,
+        enable_dra=args.enable_dra,
     )
     if args.action == "create":
         node.create()

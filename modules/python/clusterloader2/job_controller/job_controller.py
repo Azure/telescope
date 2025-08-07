@@ -26,6 +26,8 @@ class JobController(ClusterLoader2Base):
     job_count: int = 1000
     job_throughput: int = -1
     job_template_path: str = ""
+    job_gpu: int = 0
+    dra_enabled: bool = False
     node_label: str = ""
     cl2_image: str = ""
     cl2_config_dir: str = ""
@@ -48,6 +50,8 @@ class JobController(ClusterLoader2Base):
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
             "CL2_JOB_TEMPLATE_PATH": self.job_template_path,
+            "CL2_JOB_GPU": self.job_gpu,
+            "CL2_ENABLE_RESOURCE_CLAIMS": self.dra_enabled,
         }
         if self.prometheus_enabled:
             config["CL2_PROMETHEUS_TOLERATE_MASTER"] = True
@@ -104,6 +108,8 @@ class JobController(ClusterLoader2Base):
             "job_count": self.job_count,
             "job_throughput": self.job_throughput,
             "job_template_path": self.job_template_path,
+            "job_gpu": self.job_gpu,
+            "dra_enabled": self.dra_enabled,
             "provider": provider,
         }
 
@@ -136,6 +142,16 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+        )
+        parser.add_argument(
+            "--job_gpu", type=int, default=0, help="Number of GPUs per job"
+        )
+        parser.add_argument(
+            "--dra-enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable DRA. Must be either True or False",
         )
         parser.add_argument(
             "--prometheus_enabled",
@@ -216,6 +232,9 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+        )
+        parser.add_argument(
+            "--job_gpu", type=int, default=0, help="Number of GPUs per job"
         )
 
 

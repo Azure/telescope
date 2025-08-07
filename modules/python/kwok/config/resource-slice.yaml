@@ -1,0 +1,211 @@
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: {{resource_slice_name}}
+spec:
+  devices:
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 3
+      minor:
+        int: 3
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-e73906b9-5763-b9b8-5d5e-cc0ba3b01bba
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-3
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 4
+      minor:
+        int: 4
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-fe0d729e-eb4c-ddcd-cbdc-3f2af59e9949
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-4
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 5
+      minor:
+        int: 5
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-36952cc0-5eae-ae0b-462c-a001c115a8d5
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-5
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 6
+      minor:
+        int: 6
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-6d72ea1e-527c-9e59-8a51-f1177c0373a6
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-6
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 7
+      minor:
+        int: 7
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-57624f3e-5727-7e8b-5524-b16431997e44
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-7
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 0
+      minor:
+        int: 0
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-cbfcbb00-8338-7ba3-e2bf-494025718dfd
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-0
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 1
+      minor:
+        int: 1
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-23f78f27-2c68-80dc-cb69-722aed09647a
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-1
+  - attributes:
+      architecture:
+        string: Ampere
+      brand:
+        string: Nvidia
+      cudaComputeCapability:
+        version: 8.0.0
+      cudaDriverVersion:
+        version: 12.8.0
+      driverVersion:
+        version: 570.148.8
+      index:
+        int: 2
+      minor:
+        int: 2
+      productName:
+        string: NVIDIA A100-SXM4-40GB
+      type:
+        string: gpu
+      uuid:
+        string: GPU-23b6f005-0548-ae27-2b75-a17eb69114a3
+    capacity:
+      memory:
+        value: 40Gi
+    name: gpu-2
+  driver: gpu.nvidia.com
+  nodeName: {{node_name}}
+  pool:
+    name: {{node_name}}
+    resourceSliceCount: 8

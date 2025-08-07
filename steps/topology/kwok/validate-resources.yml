@@ -26,7 +26,8 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
         --action create \
         --node-count $NODE_COUNT \
-        --node-gpu ${NODE_GPU:-"0"}
+        --node-gpu ${NODE_GPU:-"0"} \
+        --enable-dra ${ENABLE_DRA:-"False"}
 
     workingDirectory: modules/python
     env:

@@ -18,6 +18,7 @@ steps:
         --job_template_path ${JOB_TEMPLATE_PATH:-job_template.yaml} \
         --operation_timeout $SCALE_TIMEOUT \
         --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
+        --dra-enabled ${ENABLE_DRA:-False} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
