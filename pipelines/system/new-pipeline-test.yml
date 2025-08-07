@@ -66,65 +66,65 @@ stages:
           ssh_key_enabled: false
           base_run_id: $(BASE_RUN_ID)
 
-  - stage: dynamicres_burst
-    displayName: 'Dynamic Burst'
-    dependsOn: generate_base_run_id
-    variables:
-      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
-    jobs:
-      - template: /pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
-        parameters:
-          cloud: azure
-          regions:
-            - $(LOCATION)
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: swiftv2-ds-churn
-          max_parallel: 1
-          timeout_in_minutes: 2160
-          credential_type: service_connection
-          ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+  # - stage: dynamicres_burst
+  #   displayName: 'Dynamic Burst'
+  #   dependsOn: generate_base_run_id
+  #   variables:
+  #     BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
+  #   jobs:
+  #     - template: /pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
+  #       parameters:
+  #         cloud: azure
+  #         regions:
+  #           - $(LOCATION)
+  #         engine: clusterloader2
+  #         engine_input:
+  #           image: "ghcr.io/azure/clusterloader2:v20250311"
+  #         topology: swiftv2-ds-churn
+  #         max_parallel: 1
+  #         timeout_in_minutes: 2160
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
+  #         base_run_id: $(BASE_RUN_ID)
 
-  - stage: staticres_gradual
-    displayName: 'Static Gradual'
-    dependsOn: generate_base_run_id
-    variables:
-      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
-    jobs:
-      - template: /pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
-        parameters:
-          cloud: azure
-          regions:
-            - $(LOCATION)
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: swiftv2-ds-churn
-          max_parallel: 1
-          timeout_in_minutes: 2160
-          credential_type: service_connection
-          ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+  # - stage: staticres_gradual
+  #   displayName: 'Static Gradual'
+  #   dependsOn: generate_base_run_id
+  #   variables:
+  #     BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
+  #   jobs:
+  #     - template: /pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
+  #       parameters:
+  #         cloud: azure
+  #         regions:
+  #           - $(LOCATION)
+  #         engine: clusterloader2
+  #         engine_input:
+  #           image: "ghcr.io/azure/clusterloader2:v20250311"
+  #         topology: swiftv2-ds-churn
+  #         max_parallel: 1
+  #         timeout_in_minutes: 2160
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
+  #         base_run_id: $(BASE_RUN_ID)
 
-  - stage: staticres_burst
-    displayName: 'Static Burst'
-    dependsOn: generate_base_run_id
-    variables:
-      BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
-    jobs:
-      - template: /pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
-        parameters:
-          cloud: azure
-          regions:
-            - $(LOCATION)
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: swiftv2-ds-churn
-          max_parallel: 1
-          timeout_in_minutes: 2160
-          credential_type: service_connection
-          ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+  # - stage: staticres_burst
+  #   displayName: 'Static Burst'
+  #   dependsOn: generate_base_run_id
+  #   variables:
+  #     BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
+  #   jobs:
+  #     - template: /pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
+  #       parameters:
+  #         cloud: azure
+  #         regions:
+  #           - $(LOCATION)
+  #         engine: clusterloader2
+  #         engine_input:
+  #           image: "ghcr.io/azure/clusterloader2:v20250311"
+  #         topology: swiftv2-ds-churn
+  #         max_parallel: 1
+  #         timeout_in_minutes: 2160
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
+  #         base_run_id: $(BASE_RUN_ID)
