@@ -28,7 +28,7 @@ steps:
       CMD="$CMD --action create"
       CMD="$CMD --node-count $NODE_COUNT"
       CMD="$CMD --node-gpu ${NODE_GPU:-\"0\"}"
-      if [ "$ENABLE_DRA" = "true" ]; then
+      if [ "$ENABLE_DRA" = true ]; then
         CMD="$CMD --enable-dra"
       fi
 
