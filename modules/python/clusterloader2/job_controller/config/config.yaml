@@ -6,6 +6,9 @@ name: job-scheduling
 {{$replicas_per_namespace := DivideInt $jobs $namespaces}}
 {{$pod_startup_latency_threshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
 {{$job_template_path := DefaultParam .CL2_JOB_TEMPLATE_PATH "job_template.yaml"}}
+{{$job_gpu := DefaultParam .CL2_JOB_GPU 0}}
+{{$enable_resource_claims := DefaultParam .CL2_ENABLE_RESOURCE_CLAIMS false}}
+{{$resource_claim_template_path := DefaultParam .CL2_RESOURCE_CLAIM_TEMPLATE_PATH "dra/resource-claim-template.yaml"}}
 
 namespace:
   number: {{$namespaces}}
@@ -43,6 +46,19 @@ steps:
           labelSelector: group=job-scheduling
           timeout: 3h
 
+  {{if $enable_resource_claims}}
+  - name: Create resource claim templates
+    phases:
+    - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+      replicasPerNamespace: 1
+      tuningSet: Uniform{{$qps}}qps
+      objectBundle:
+      - basename: gpu
+        objectTemplatePath: {{$resource_claim_template_path}}
+  {{end}}
+
   - name: Create jobs
     phases:
     - namespaceRange:
@@ -55,6 +71,7 @@ steps:
         objectTemplatePath: {{$job_template_path}}
         templateFillMap:
           Group: job-scheduling
+          JobGPU: {{$job_gpu}}
 
   - name: Waiting for jobs to be finished
     measurements:

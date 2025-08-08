@@ -43,6 +43,7 @@ stages:
           job_count: 2000
           scale_timeout: "30m"
           cl2_config_file: config.yaml
+          job_template_path: base/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 60
       credential_type: service_connection
@@ -68,6 +69,7 @@ stages:
           job_count: 10000
           scale_timeout: "45m"
           cl2_config_file: config.yaml
+          job_template_path: base/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
@@ -93,6 +95,7 @@ stages:
           job_count: 20000
           scale_timeout: "1h"
           cl2_config_file: config.yaml
+          job_template_path: base/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
@@ -118,6 +121,7 @@ stages:
           job_count: 2000
           scale_timeout: "30m"
           cl2_config_file: config.yaml
+          job_template_path: base/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 60
       credential_type: service_connection
@@ -143,6 +147,7 @@ stages:
           job_count: 10000
           scale_timeout: "45m"
           cl2_config_file: config.yaml
+          job_template_path: base/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
@@ -168,6 +173,7 @@ stages:
           job_count: 20000
           scale_timeout: "1h"
           cl2_config_file: config.yaml
+          job_template_path: base/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection

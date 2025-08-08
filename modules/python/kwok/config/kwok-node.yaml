@@ -15,6 +15,7 @@ metadata:
     node-role.kubernetes.io/agent: ""
     type: kwok
 spec:
+  providerID: "kwok://{{node_name}}"
   unschedulable: false
   taints: # Avoid scheduling actual running pods to fake Node
     - effect: NoSchedule

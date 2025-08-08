@@ -11,12 +11,12 @@
 ### Python Module
 
 ```bash
-# Navigate to Python modules directory
-pushd modules/python
-
 # Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
+
+# Navigate to Python modules directory
+pushd modules/python
 
 # Install dependencies
 pip install -r requirements.txt

@@ -1185,6 +1185,28 @@ class KubernetesClient:
                     plural="nicclusterpolicies",
                     body=manifest
                 )
+            elif kind == "ResourceSlice":
+                # ResourceSlice is a cluster-scoped resource for Dynamic Resource Allocation (DRA)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="resourceslices",
+                    body=manifest
+                )
+            elif kind == "DeviceClass":
+                # DeviceClass is a cluster-scoped resource for Dynamic Resource Allocation (DRA)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.create_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="deviceclasses",
+                    body=manifest
+                )
             else:
                 logger.warning("Unsupported resource kind: %s. Skipping...", kind)
 
@@ -1339,6 +1361,30 @@ class KubernetesClient:
                     name=resource_name,
                     body=delete_options
                 )
+            elif kind == "ResourceSlice":
+                # ResourceSlice is a cluster-scoped resource for Dynamic Resource Allocation (DRA)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="resourceslices",
+                    name=resource_name,
+                    body=delete_options
+                )
+            elif kind == "DeviceClass":
+                # DeviceClass is a cluster-scoped resource for Dynamic Resource Allocation (DRA)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.delete_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="deviceclasses",
+                    name=resource_name,
+                    body=delete_options
+                )
             else:
                 logger.warning("Unsupported resource kind for deletion: %s. Skipping...", kind)
 
@@ -1354,6 +1400,65 @@ class KubernetesClient:
         except Exception as e:
             resource_name = manifest.get('metadata', {}).get('name')
             raise Exception(f"Error deleting {kind}/{resource_name}: {str(e)}") from e
+
+    def create_resource_slice(self, template):
+        """
+        Create a ResourceSlice in the Kubernetes cluster using the provided YAML template.
+        ResourceSlice is a cluster-scoped resource for Dynamic Resource Allocation (DRA).
+
+        :param template: YAML template for the ResourceSlice.
+        :return: Name of the created ResourceSlice.
+        """
+        try:
+            resource_slice_obj = yaml.safe_load(template)
+            if resource_slice_obj["kind"] != "ResourceSlice":
+                raise ValueError("The provided YAML template does not define a ResourceSlice resource.")
+
+            api_version = resource_slice_obj.get("apiVersion", "")
+            group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+            custom_api = client.CustomObjectsApi()
+
+            response = custom_api.create_cluster_custom_object(
+                group=group,
+                version=version,
+                plural="resourceslices",
+                body=resource_slice_obj
+            )
+            return response['metadata']['name']
+        except yaml.YAMLError as e:
+            raise Exception(f"Error parsing ResourceSlice template: {str(e)}") from e
+        except client.rest.ApiException as e:
+            if e.status == 409:  # ResourceSlice already exists
+                resource_name = resource_slice_obj["metadata"]["name"]
+                logger.info(f"ResourceSlice '{resource_name}' already exists.")
+                return resource_name
+            raise Exception(f"Error creating ResourceSlice: {str(e)}") from e
+
+    def delete_resource_slice(self, resource_slice_name):
+        """
+        Delete a ResourceSlice by name.
+        ResourceSlice is a cluster-scoped resource for Dynamic Resource Allocation (DRA).
+
+        :param resource_slice_name: Name of the ResourceSlice to delete.
+        :return: None
+        """
+        try:
+            custom_api = client.CustomObjectsApi()
+            delete_options = client.V1DeleteOptions()
+
+            custom_api.delete_cluster_custom_object(
+                group="resource.k8s.io",
+                version="v1beta2",
+                plural="resourceslices",
+                name=resource_slice_name,
+                body=delete_options
+            )
+            logger.info(f"ResourceSlice '{resource_slice_name}' deleted successfully.")
+        except client.rest.ApiException as e:
+            if e.status == 404:  # ResourceSlice not found
+                logger.info(f"ResourceSlice '{resource_slice_name}' not found.")
+            else:
+                raise Exception(f"Error deleting ResourceSlice '{resource_slice_name}': {str(e)}") from e
 
     def install_gpu_device_plugin(self, namespace="kube-system"):
         """

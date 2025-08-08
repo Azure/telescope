@@ -23,10 +23,15 @@ steps:
 
   - script: |
       set -eo pipefail
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE \
-        --action create \
-        --node-count $NODE_COUNT \
-        --node-gpu ${NODE_GPU:-"0"}
+
+      CMD="PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE"
+      CMD="$CMD --action create"
+      CMD="$CMD --node-count $NODE_COUNT"
+      CMD="$CMD --node-gpu ${NODE_GPU:-\"0\"}"
+      if [ "$ENABLE_DRA" = "True" ]; then
+        CMD="$CMD --enable-dra"
+      fi
+      eval $CMD
 
     workingDirectory: modules/python
     env:
