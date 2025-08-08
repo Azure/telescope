@@ -5,7 +5,6 @@ on:
     # Run daily at 4 PM EST
     - cron: '0 16 * * *'
 
-
 env:
   STALE_DAYS: 300
   GH_PAT: ${{ secrets.GH_PAT }}
