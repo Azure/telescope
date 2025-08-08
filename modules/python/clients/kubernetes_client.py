@@ -657,9 +657,9 @@ class KubernetesClient:
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
                 logger.info(f"Node allocatable resources: {node.status.allocatable}")
 
-                # Check if the node has GPUs allocated for every 1 second till it finds a node with GPUs with a time out of 60 seconds
+                # Check if the node has GPUs allocated values
                 start_time = time.time()
-                while "nvidia.com/gpu" not in node.status.allocatable and time.time() < start_time + 60:
+                while "nvidia.com/gpu" not in node.status.allocatable and time.time() < start_time + 120:
                     logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
                     time.sleep(1)
                 gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
@@ -668,7 +668,7 @@ class KubernetesClient:
 
                 # Skip nodes with no GPUs
                 if gpu_count == 0:
-                    logger.info(f"Skipping node {node_name} as it has no GPUs")
+                    logger.warning(f"Skipping node {node_name} as it has no GPUs")
                     continue
 
                 # Create pod spec with node selector
