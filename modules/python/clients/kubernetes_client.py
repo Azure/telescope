@@ -654,7 +654,7 @@ class KubernetesClient:
             for node in nodes:
                 pod_name = f"gpu-verify-{uuid.uuid4()}"
                 node_name = node.metadata.name
-                logger.info(f"Verifying NVIDIA drivers on node {node_name}")                
+                logger.info(f"Verifying NVIDIA drivers on node {node_name}")
 
                 # Check if the node has GPUs allocated values
                 start_time = time.time()

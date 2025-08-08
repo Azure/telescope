@@ -615,8 +615,6 @@ class TestEKSClient(unittest.TestCase):
         with self.assertRaises(ClientError):
             eks_client.delete_node_group("test-ng")
 
-    # NOTE: Progressive scaling tests moved to scale_node_group with progressive=True
-
     def test_eks_client_initialization_failure(self):
         """Test EKS client initialization failure"""
         # Setup - mock boto3 to raise exception
@@ -1143,7 +1141,7 @@ class TestEKSClient(unittest.TestCase):
                 "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
                 "status": "ACTIVE",
             },  # After step 1
-             {
+            {
                 "scalingConfig": {"desiredSize": 4, "minSize": 1, "maxSize": 10},
                 "status": "ACTIVE",
             },
@@ -1158,7 +1156,7 @@ class TestEKSClient(unittest.TestCase):
             {
                 "scalingConfig": {"desiredSize": 6, "minSize": 1, "maxSize": 10},
                 "status": "ACTIVE",
-            }
+            },
         ]
 
         # Mock ready nodes for each step
@@ -1610,7 +1608,9 @@ class TestEKSClient(unittest.TestCase):
         }
 
         # Mock launch template and node group responses
-        self.mock_ec2.describe_capacity_reservations.return_value = mock_reservation_response
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
         self.mock_ec2.create_launch_template.return_value = {
             "LaunchTemplate": {"LaunchTemplateId": "lt-subnet-filter-123"}
         }
@@ -1623,7 +1623,7 @@ class TestEKSClient(unittest.TestCase):
         # Execute
         result = eks_client.create_node_group(
             node_group_name="test-subnet-filter-ng",
-            instance_type="p3.2xlarge", 
+            instance_type="p3.2xlarge",
             node_count=1,
             gpu_node_group=True,
             capacity_type="CAPACITY_BLOCK",
@@ -1631,7 +1631,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        
+
         # Check that node group was created with only the subnet in us-west-2a
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)
@@ -1667,7 +1667,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        
+
         # Check that node group was created with all subnets
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)
@@ -1693,7 +1693,9 @@ class TestEKSClient(unittest.TestCase):
             ]
         }
 
-        self.mock_ec2.describe_capacity_reservations.return_value = mock_reservation_response
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
         self.mock_ec2.create_launch_template.return_value = {
             "LaunchTemplate": {"LaunchTemplateId": "lt-no-subnet-123"}
         }
@@ -1709,7 +1711,10 @@ class TestEKSClient(unittest.TestCase):
             )
 
         # Verify error message mentions the missing subnet
-        self.assertIn("No subnets available in capacity reservation AZ us-west-2c", str(context.exception))
+        self.assertIn(
+            "No subnets available in capacity reservation AZ us-west-2c",
+            str(context.exception),
+        )
 
     def test_capacity_reservation_return_format_with_az(self):
         """Test that _get_capacity_reservation_id returns both reservation_id and availability_zone"""
@@ -1730,13 +1735,15 @@ class TestEKSClient(unittest.TestCase):
             ]
         }
 
-        self.mock_ec2.describe_capacity_reservations.return_value = mock_reservation_response
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
 
         # Execute
         result = eks_client._get_capacity_reservation_id(
             instance_type="p3.2xlarge",
             count=2,
-            availability_zones=["us-west-2a", "us-west-2b"]
+            availability_zones=["us-west-2a", "us-west-2b"],
         )
 
         # Verify return format
@@ -1765,14 +1772,16 @@ class TestEKSClient(unittest.TestCase):
             ]
         }
 
-        self.mock_ec2.describe_capacity_reservations.return_value = mock_reservation_response
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
 
         # Execute with logging capture
         with self.assertLogs("clients.eks_client", level="WARNING") as log:
             result = eks_client._get_capacity_reservation_id(
                 instance_type="p3.2xlarge",
                 count=3,  # Request more than available
-                availability_zones=["us-west-2a", "us-west-2b"]
+                availability_zones=["us-west-2a", "us-west-2b"],
             )
 
             # Verify still returns the reservation
@@ -1781,7 +1790,10 @@ class TestEKSClient(unittest.TestCase):
 
             # Verify warning was logged
             log_messages = " ".join(log.output)
-            self.assertIn("Capacity reservation has only 1 instances available, but 3 were requested", log_messages)
+            self.assertIn(
+                "Capacity reservation has only 1 instances available, but 3 were requested",
+                log_messages,
+            )
 
     def test_capacity_reservation_multiple_subnets_same_az(self):
         """Test subnet filtering when multiple subnets exist in the same AZ"""
@@ -1795,7 +1807,10 @@ class TestEKSClient(unittest.TestCase):
                 "Subnets": [
                     {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a"},
                     {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b"},
-                    {"SubnetId": "subnet-789", "AvailabilityZone": "us-west-2a"},  # Another in same AZ
+                    {
+                        "SubnetId": "subnet-789",
+                        "AvailabilityZone": "us-west-2a",
+                    },  # Another in same AZ
                 ]
             }
 
@@ -1829,7 +1844,9 @@ class TestEKSClient(unittest.TestCase):
                 ]
             }
 
-            mock_ec2.describe_capacity_reservations.return_value = mock_reservation_response
+            mock_ec2.describe_capacity_reservations.return_value = (
+                mock_reservation_response
+            )
             mock_ec2.create_launch_template.return_value = {
                 "LaunchTemplate": {"LaunchTemplateId": "lt-multi-subnet-123"}
             }
@@ -1855,12 +1872,14 @@ class TestEKSClient(unittest.TestCase):
 
                 # Verify
                 self.assertTrue(result)
-                
+
                 # Check that node group was created with both subnets in us-west-2a
                 create_call = mock_eks.create_nodegroup.call_args[1]
                 self.assertIn("subnets", create_call)
                 # Should contain both subnets in us-west-2a
-                self.assertEqual(sorted(create_call["subnets"]), ["subnet-123", "subnet-789"])
+                self.assertEqual(
+                    sorted(create_call["subnets"]), ["subnet-123", "subnet-789"]
+                )
 
     def test_capacity_reservation_non_capacity_block_no_filtering(self):
         """Test that subnet filtering is not applied for non-CAPACITY_BLOCK types"""
@@ -1888,10 +1907,10 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        
+
         # Check that capacity reservation lookup was NOT called
         self.mock_ec2.describe_capacity_reservations.assert_not_called()
-        
+
         # Check that all subnets were used
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)

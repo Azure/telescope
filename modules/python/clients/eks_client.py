@@ -152,7 +152,11 @@ class EKSClient:
                     )
                     # get k8s version and set it in the client
                     self.k8s_version = details["cluster"].get("version")
-                    logger.info("Kubernetes version for cluster %s: %s", cluster_name, self.k8s_version)
+                    logger.info(
+                        "Kubernetes version for cluster %s: %s",
+                        cluster_name,
+                        self.k8s_version,
+                    )
                     return cluster_name
             raise Exception("No EKS cluster found with run_id: " + run_id)
         except Exception as e:
@@ -310,14 +314,16 @@ class EKSClient:
         ) as op:
             try:
                 logger.info(
-                    "Creating node group '%s' with %s nodes", node_group_name, node_count
+                    "Creating node group '%s' with %s nodes",
+                    node_group_name,
+                    node_count,
                 )
                 logger.info("Instance types: %s", instance_type)
                 logger.info("Capacity type: %s", capacity_type)
 
                 # Initialize subnet filtering - will be updated if capacity reservation is found
                 filtered_subnets = self.subnets  # Default to all subnets
-                
+
                 # Prepare node group creation parameters
                 # instanceTypes will be added to launch template
                 create_params = {
@@ -332,7 +338,9 @@ class EKSClient:
                     "subnets": filtered_subnets,
                     "capacityType": capacity_type,
                     "nodeRole": self.node_role_arn,
-                    "amiType": self.get_ami_type_with_k8s_version(gpu_node_group=gpu_node_group),
+                    "amiType": self.get_ami_type_with_k8s_version(
+                        gpu_node_group=gpu_node_group
+                    ),
                     "labels": {
                         "cluster-name": self.cluster_name,
                         "nodegroup-name": node_group_name,
@@ -347,10 +355,11 @@ class EKSClient:
                 # Check for capacity reservation if requested
                 reservation_info = None
                 reservation_id = None
-                
+
                 if capacity_type == "CAPACITY_BLOCK":
                     logger.info(
-                        "Checking for capacity reservation for node group '%s'", node_group_name
+                        "Checking for capacity reservation for node group '%s'",
+                        node_group_name,
                     )
 
                     reservation_info = self._get_capacity_reservation_id(
@@ -362,28 +371,34 @@ class EKSClient:
                     if reservation_info:
                         reservation_id = reservation_info["reservation_id"]
                         reservation_az = reservation_info["availability_zone"]
-                        
+
                         # Filter subnets to only use the subnet in the capacity reservation AZ
                         filtered_subnets = []
                         for i, subnet_id in enumerate(self.subnets):
                             if self.subnet_azs[i] == reservation_az:
                                 filtered_subnets.append(subnet_id)
-                        
+
                         logger.info(
-                            "Found capacity reservation %s in AZ %s, using filtered subnets: %s", 
-                            reservation_id, reservation_az, filtered_subnets
+                            "Found capacity reservation %s in AZ %s, using filtered subnets: %s",
+                            reservation_id,
+                            reservation_az,
+                            filtered_subnets,
                         )
-                        
+
                         if not filtered_subnets:
                             logger.error(
-                                "No subnets found in AZ %s for capacity reservation %s", 
-                                reservation_az, reservation_id
+                                "No subnets found in AZ %s for capacity reservation %s",
+                                reservation_az,
+                                reservation_id,
                             )
-                            raise Exception(f"No subnets available in capacity reservation AZ {reservation_az}")
+                            raise Exception(
+                                f"No subnets available in capacity reservation AZ {reservation_az}"
+                            )
                     else:
                         logger.warning(
-                            "No capacity reservation found for %s in %s, using all subnets", 
-                            instance_type, self.subnet_azs
+                            "No capacity reservation found for %s in %s, using all subnets",
+                            instance_type,
+                            self.subnet_azs,
                         )
 
                 # Update create_params with the filtered subnets
@@ -421,7 +436,9 @@ class EKSClient:
                         )
                 except Exception as e:
                     logger.error("Failed to create launch template: %s", e)
-                    raise Exception(f"Failed to create launch template: {str(e)}") from e
+                    raise Exception(
+                        f"Failed to create launch template: {str(e)}"
+                    ) from e
 
                 # Create the node group with the parameters
                 response = self.eks.create_nodegroup(**create_params)
@@ -430,7 +447,7 @@ class EKSClient:
                 node_group = response["nodegroup"]
 
                 logger.info(
-                    "Node group creation initiated. Status: %s", node_group['status']
+                    "Node group creation initiated. Status: %s", node_group["status"]
                 )
                 label_selector = f"nodegroup-name={node_group_name}"
 
@@ -442,14 +459,17 @@ class EKSClient:
                 )
 
                 logger.info(
-                    "All %s nodes in node group '%s' are ready", len(ready_nodes), node_group_name
+                    "All %s nodes in node group '%s' are ready",
+                    len(ready_nodes),
+                    node_group_name,
                 )
 
                 # Verify NVIDIA drivers if this is a GPU node pool
                 pod_logs = None
                 if gpu_node_group and node_count > 0:
                     logger.info(
-                        "Verifying NVIDIA drivers for GPU node pool '%s'", node_group_name
+                        "Verifying NVIDIA drivers for GPU node pool '%s'",
+                        node_group_name,
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
@@ -523,10 +543,15 @@ class EKSClient:
         else:
             # No change in node count, return the node pool as is
             logger.info(
-                "Node pool %s already has %s nodes. No scaling needed.", node_group_name, node_count
+                "Node pool %s already has %s nodes. No scaling needed.",
+                node_group_name,
+                node_count,
             )
         logger.info(
-            "Scaling node group '%s' from %s to %s nodes", node_group_name, current_count, node_count
+            "Scaling node group '%s' from %s to %s nodes",
+            node_group_name,
+            current_count,
+            node_count,
         )
 
         if progressive and abs(node_count - current_count) > scale_step_size:
@@ -536,8 +561,6 @@ class EKSClient:
                 node_count,
                 scale_step_size,
                 cluster_name,
-                metadata,
-                operation_type,
                 gpu_node_group,
             )
 
@@ -568,7 +591,9 @@ class EKSClient:
                 except ClientError as e:
                     if e.response["Error"]["Code"] == "ResourceNotFoundException":
                         logger.error(
-                            "Node group '%s' not found in cluster '%s'", node_group_name, cluster_name
+                            "Node group '%s' not found in cluster '%s'",
+                            node_group_name,
+                            cluster_name,
                         )
                     else:
                         logger.error(
@@ -600,7 +625,9 @@ class EKSClient:
                 )
 
                 logger.info(
-                    "Node group '%s' scaled successfully to %s nodes", node_group_name, node_count
+                    "Node group '%s' scaled successfully to %s nodes",
+                    node_group_name,
+                    node_count,
                 )
 
                 pod_logs = None
@@ -608,7 +635,8 @@ class EKSClient:
                 # and only when reaching the final target (not intermediate steps)
                 if gpu_node_group and operation_type == "scale_up" and node_count > 0:
                     logger.info(
-                        "Verifying NVIDIA drivers for GPU node pool '%s' after reaching final target", node_group_name
+                        "Verifying NVIDIA drivers for GPU node pool '%s' after reaching final target",
+                        node_group_name,
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
@@ -656,7 +684,9 @@ class EKSClient:
             metadata["ami_type"] = node_group.get("amiType")
         except Exception as e:
             logger.warning(
-                "Could not retrieve node group '%s' info before deletion: %s", node_group_name, e
+                "Could not retrieve node group '%s' info before deletion: %s",
+                node_group_name,
+                e,
             )
 
         with self._get_operation_context()(
@@ -676,7 +706,9 @@ class EKSClient:
                 if hasattr(self, "launch_template_id") and self.launch_template_id:
                     # If a launch template was created, delete it
                     logger.info(
-                        "Deleting launch template %s for node group %s", self.launch_template_id, node_group_name
+                        "Deleting launch template %s for node group %s",
+                        self.launch_template_id,
+                        node_group_name,
                     )
                     self._delete_launch_template()
 
@@ -703,8 +735,6 @@ class EKSClient:
         target_count: int,
         step_size: int,
         cluster_name: str,
-        base_metadata: Dict,
-        operation_type: str,
         gpu_node_group: bool = False,
     ) -> Dict:
         """
@@ -716,17 +746,17 @@ class EKSClient:
             target_count: Target number of nodes
             step_size: Number of nodes to add/remove in each step
             cluster_name: The name of the EKS cluster
-            base_metadata: Base metadata for operation tracking
-            operation_type: Type of scaling operation (scale_up, scale_down)
             gpu_node_group: Whether this is a GPU-enabled node group
 
         Returns:
             The final node group object
         """
         logger.info(
-            "Progressive scaling from %s to %s nodes in steps of %s", current_count, target_count, step_size
+            "Progressive scaling from %s to %s nodes in steps of %s",
+            current_count,
+            target_count,
+            step_size,
         )
-
 
         try:
             steps = []
@@ -748,13 +778,18 @@ class EKSClient:
                     steps.append(target_count)
 
             logger.info(
-                "Progressive scaling steps: %s -> %s", current_count, ' -> '.join(map(str, steps))
+                "Progressive scaling steps: %s -> %s",
+                current_count,
+                " -> ".join(map(str, steps)),
             )
 
             current_node_group = None
             for i, step_count in enumerate(steps):
                 logger.info(
-                    "Progressive scaling step %s/%s: scaling to %s nodes", i + 1, len(steps), step_count
+                    "Progressive scaling step %s/%s: scaling to %s nodes",
+                    i + 1,
+                    len(steps),
+                    step_count,
                 )
 
                 # Scale to this step
@@ -770,9 +805,7 @@ class EKSClient:
                 if i < len(steps) - 1:
                     time.sleep(10)
 
-            logger.info(
-                "Progressive scaling completed. Final count: %s", target_count
-            )
+            logger.info("Progressive scaling completed. Final count: %s", target_count)
             return current_node_group
 
         except Exception as e:
@@ -807,7 +840,9 @@ class EKSClient:
             logger.info("Node group '%s' is now active", node_group_name)
         except WaiterError as e:
             logger.error(
-                "Timeout waiting for node group '%s' to become active: %s", node_group_name, e
+                "Timeout waiting for node group '%s' to become active: %s",
+                node_group_name,
+                e,
             )
             raise
 
@@ -839,7 +874,9 @@ class EKSClient:
             logger.info("Node group '%s' has been deleted", node_group_name)
         except WaiterError as e:
             logger.error(
-                "Timeout waiting for node group '%s' to be deleted: %s", node_group_name, e
+                "Timeout waiting for node group '%s' to be deleted: %s",
+                node_group_name,
+                e,
             )
             raise
 
@@ -860,7 +897,9 @@ class EKSClient:
         try:
             # First, try to find a reservation with our run_id tag
             logger.info(
-                "Looking for capacity reservations for %s in %s", instance_type, availability_zones
+                "Looking for capacity reservations for %s in %s",
+                instance_type,
+                availability_zones,
             )
 
             response = self.ec2.describe_capacity_reservations(
@@ -881,24 +920,30 @@ class EKSClient:
                 available_count = reservation["AvailableInstanceCount"]
 
                 logger.info(
-                    "Found existing capacity reservation: %s in AZ %s with %s available instances out of %s total", 
-                    reservation_id, reservation_az, available_count, current_count
+                    "Found existing capacity reservation: %s in AZ %s with %s available instances out of %s total",
+                    reservation_id,
+                    reservation_az,
+                    available_count,
+                    current_count,
                 )
 
                 if available_count < count:
                     logger.warning(
-                        "Capacity reservation has only %s instances available, but %s were requested", 
-                        available_count, count
+                        "Capacity reservation has only %s instances available, but %s were requested",
+                        available_count,
+                        count,
                     )
 
                 return {
                     "reservation_id": reservation_id,
-                    "availability_zone": reservation_az
+                    "availability_zone": reservation_az,
                 }
 
             # No existing reservation found
             logger.error(
-                "No existing capacity reservation found for %s in %s", instance_type, availability_zones
+                "No existing capacity reservation found for %s in %s",
+                instance_type,
+                availability_zones,
             )
             return None
 
@@ -931,7 +976,9 @@ class EKSClient:
         """
         try:
             logger.info(
-                "Creating launch template '%s' for node group '%s'", name, node_group_name
+                "Creating launch template '%s' for node group '%s'",
+                name,
+                node_group_name,
             )
             # Prepare launch template data
             launch_template_data = {}
@@ -960,7 +1007,9 @@ class EKSClient:
             if deletion_due_time_env:
                 deletion_due_time = deletion_due_time_env
             else:
-                deletion_due_time = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                deletion_due_time = (datetime.now() + timedelta(hours=2)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
 
             # Prepare standard tags
             tags = [
@@ -1009,14 +1058,18 @@ class EKSClient:
 
             launch_template_id = response["LaunchTemplate"]["LaunchTemplateId"]
             logger.info(
-                "Created launch template ID: %s for node group %s", launch_template_id, node_group_name
+                "Created launch template ID: %s for node group %s",
+                launch_template_id,
+                node_group_name,
             )
             self.launch_template_id = launch_template_id
             return launch_template_id
 
         except Exception as e:
             logger.error(
-                "Failed to create launch template for node group %s: %s", node_group_name, str(e)
+                "Failed to create launch template for node group %s: %s",
+                node_group_name,
+                str(e),
             )
             raise
 
@@ -1063,7 +1116,9 @@ class EKSClient:
 
         except Exception as e:
             logger.error(
-                "Error creating launch template for node group %s: %s", node_group_name, str(e)
+                "Error creating launch template for node group %s: %s",
+                node_group_name,
+                str(e),
             )
             sys.exit(1)
 
@@ -1089,12 +1144,15 @@ class EKSClient:
             return True
         except ClientError as e:
             logger.error(
-                "Failed to delete launch template %s: %s", self.launch_template_id, str(e)
+                "Failed to delete launch template %s: %s",
+                self.launch_template_id,
+                str(e),
             )
             raise
 
     def get_ami_type_with_k8s_version(
-        self, gpu_node_group: bool = False,
+        self,
+        gpu_node_group: bool = False,
     ) -> str:
         """
         Get the appropriate AMI type based on the Kubernetes version and whether it's a GPU node group.
@@ -1109,14 +1167,18 @@ class EKSClient:
             ValueError: If k8s_version is None or cannot be parsed
         """
         if self.k8s_version is None:
-            raise ValueError("Kubernetes version is not set. Cannot determine AMI type.")
+            raise ValueError(
+                "Kubernetes version is not set. Cannot determine AMI type."
+            )
 
         try:
-            logger.info("Determining AMI type for Kubernetes version: %s", self.k8s_version)
+            logger.info(
+                "Determining AMI type for Kubernetes version: %s", self.k8s_version
+            )
 
             # Normalize version for semver comparison
             clean_version = self.k8s_version.strip()
-            if '.' not in clean_version or len(clean_version.split('.')) == 2:
+            if "." not in clean_version or len(clean_version.split(".")) == 2:
                 clean_version = f"{clean_version}.0"
 
             # Use semver to compare with 1.33.0
@@ -1136,11 +1198,17 @@ class EKSClient:
                 else:
                     ami_type = "AL2023_x86_64_STANDARD"
 
-            logger.info("Selected AMI type: %s for k8s version %s (GPU: %s)",
-                       ami_type, self.k8s_version, gpu_node_group)
+            logger.info(
+                "Selected AMI type: %s for k8s version %s (GPU: %s)",
+                ami_type,
+                self.k8s_version,
+                gpu_node_group,
+            )
             return ami_type
 
         except Exception as e:
-            error_msg = f"Invalid Kubernetes version format '{self.k8s_version}': {str(e)}"
+            error_msg = (
+                f"Invalid Kubernetes version format '{self.k8s_version}': {str(e)}"
+            )
             logger.error(error_msg)
             raise ValueError(error_msg) from e

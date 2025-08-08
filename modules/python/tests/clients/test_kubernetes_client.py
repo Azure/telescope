@@ -1943,7 +1943,7 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertIn("gpu-node-1", result)
         self.assertTrue(result["gpu-node-1"]["device_status"])
         mock_sleep.assert_called()
-        
+
         # Verify that the pod was created with all 8 GPUs requested
         pod_spec = mock_create_pod.call_args[1]['body']
         gpu_limits = pod_spec.spec.containers[0].resources.limits["nvidia.com/gpu"]
