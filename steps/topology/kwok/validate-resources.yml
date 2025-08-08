@@ -24,6 +24,7 @@ steps:
   - script: |
       set -eo pipefail
 
+      echo "ENABLE_DRA"
       CMD="PYTHONPATH=$PYTHONPATH:$(pwd) python3 $KWOK_SCRIPT_FILE"
       CMD="$CMD --action create"
       CMD="$CMD --node-count $NODE_COUNT"
@@ -31,7 +32,7 @@ steps:
       if [ "$ENABLE_DRA" = true ]; then
         CMD="$CMD --enable-dra"
       fi
-
+      echo $CMD
       eval $CMD
 
     workingDirectory: modules/python
