@@ -109,6 +109,7 @@ class NodePoolCRUD:
             result = self.eks_client.scale_node_group(
                 node_group_name=node_pool_name,
                 node_count=node_count,
+                target_count=node_count,
                 gpu_node_group=gpu_node_pool,
                 progressive=progressive,
                 scale_step_size=scale_step_size,
