@@ -2405,7 +2405,7 @@ spec:
 
         # Call the method with namespace override
         self.client.delete_manifest_from_url(
-            "https://example.com/manifest.yaml", 
+            "https://example.com/manifest.yaml",
             namespace="override-namespace"
         )
 
@@ -4804,7 +4804,7 @@ spec:
             },
             {
                 "apiVersion": "v1",
-                "kind": "Service", 
+                "kind": "Service",
                 "metadata": {"name": "test-service", "namespace": "original-ns"},
                 "spec": {"ports": [{"port": 80}]}
             }
@@ -4904,7 +4904,7 @@ spec:
         """Test that _delete_single_manifest uses namespace priority correctly."""
         # Test manifest with original namespace
         manifest_dict = {
-            "apiVersion": "v1", 
+            "apiVersion": "v1",
             "kind": "Secret",
             "metadata": {
                 "name": "test-secret",
@@ -5307,6 +5307,284 @@ spec:
             body=expected_patch_body
         )
 
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_success(self, mock_create_custom_object):
+        """Test successful creation of ResourceSlice."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: test-resource-slice
+spec:
+  nodeName: kwok-node-0
+  resources:
+  - name: example.com/gpu
+    resourceType: integer
+    capacity: "4"
+"""
+        expected_response = {
+            'metadata': {
+                'name': 'test-resource-slice'
+            }
+        }
+        mock_create_custom_object.return_value = expected_response
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'test-resource-slice')
+        mock_create_custom_object.assert_called_once_with(
+            group="resource.k8s.io",
+            version="v1beta2",
+            plural="resourceslices",
+            body={
+                'apiVersion': 'resource.k8s.io/v1beta2',
+                'kind': 'ResourceSlice',
+                'metadata': {'name': 'test-resource-slice'},
+                'spec': {
+                    'nodeName': 'kwok-node-0',
+                    'resources': [{
+                        'name': 'example.com/gpu',
+                        'resourceType': 'integer',
+                        'capacity': '4'
+                    }]
+                }
+            }
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_already_exists(self, mock_create_custom_object):
+        """Test creating ResourceSlice that already exists (409 conflict)."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: existing-resource-slice
+spec:
+  nodeName: kwok-node-1
+"""
+        # Mock 409 conflict error
+        api_exception = client.rest.ApiException(status=409, reason="Conflict")
+        mock_create_custom_object.side_effect = api_exception
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'existing-resource-slice')
+        mock_create_custom_object.assert_called_once()
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_other_api_exception(self, mock_create_custom_object):
+        """Test creating ResourceSlice with API exception other than 409."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: test-resource-slice
+"""
+        # Mock 403 forbidden error
+        api_exception = client.rest.ApiException(status=403, reason="Forbidden")
+        mock_create_custom_object.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.create_resource_slice(template)
+
+        self.assertIn("Error creating ResourceSlice", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+
+    def test_create_resource_slice_invalid_kind(self):
+        """Test creating ResourceSlice with wrong kind."""
+        # Setup
+        template = """
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+"""
+
+        # Execute & Verify
+        with self.assertRaises(ValueError) as context:
+            self.client.create_resource_slice(template)
+
+        self.assertIn("The provided YAML template does not define a ResourceSlice resource", str(context.exception))
+
+    def test_create_resource_slice_yaml_error(self):
+        """Test creating ResourceSlice with invalid YAML."""
+        # Setup
+        template = "invalid: [unclosed yaml"
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.create_resource_slice(template)
+
+        self.assertIn("Error parsing ResourceSlice template", str(context.exception))
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_with_core_api_version(self, mock_create_custom_object):
+        """Test creating ResourceSlice with core API version (no group)."""
+        # Setup
+        template = """
+apiVersion: v1beta2
+kind: ResourceSlice
+metadata:
+  name: core-resource-slice
+"""
+        expected_response = {
+            'metadata': {
+                'name': 'core-resource-slice'
+            }
+        }
+        mock_create_custom_object.return_value = expected_response
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'core-resource-slice')
+        mock_create_custom_object.assert_called_once_with(
+            group="",
+            version="v1beta2",
+            plural="resourceslices",
+            body=unittest.mock.ANY
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    def test_delete_resource_slice_success(self, mock_delete_custom_object):
+        """Test successful deletion of ResourceSlice."""
+        # Setup
+        resource_slice_name = "test-resource-slice"
+        mock_delete_custom_object.return_value = None
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify
+        mock_delete_custom_object.assert_called_once_with(
+            group="resource.k8s.io",
+            version="v1beta2",
+            plural="resourceslices",
+            name=resource_slice_name,
+            body=unittest.mock.ANY
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    @patch('clients.kubernetes_client.logger')
+    def test_delete_resource_slice_not_found(self, mock_logger, mock_delete_custom_object):
+        """Test deleting ResourceSlice that doesn't exist (404)."""
+        # Setup
+        resource_slice_name = "nonexistent-resource-slice"
+        # Mock 404 not found error
+        api_exception = client.rest.ApiException(status=404, reason="Not Found")
+        mock_delete_custom_object.side_effect = api_exception
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify
+        mock_delete_custom_object.assert_called_once()
+        mock_logger.info.assert_called_with(
+            f"ResourceSlice '{resource_slice_name}' not found."
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    def test_delete_resource_slice_other_api_exception(self, mock_delete_custom_object):
+        """Test deleting ResourceSlice with API exception other than 404."""
+        # Setup
+        resource_slice_name = "failing-resource-slice"
+        # Mock 403 forbidden error
+        api_exception = client.rest.ApiException(status=403, reason="Forbidden")
+        mock_delete_custom_object.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.delete_resource_slice(resource_slice_name)
+
+        self.assertIn(f"Error deleting ResourceSlice '{resource_slice_name}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    @patch('clients.kubernetes_client.logger')
+    def test_delete_resource_slice_logs_success(self, mock_logger, mock_delete_custom_object):
+        """Test that successful ResourceSlice deletion is logged."""
+        # Setup
+        resource_slice_name = "success-resource-slice"
+        mock_delete_custom_object.return_value = None
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify
+        mock_delete_custom_object.assert_called_once()
+        mock_logger.info.assert_called_with(
+            f"ResourceSlice '{resource_slice_name}' deleted successfully."
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_with_complex_template(self, mock_create_custom_object):
+        """Test creating ResourceSlice with complex template including multiple resources."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: complex-resource-slice
+  labels:
+    app: test-app
+  annotations:
+    description: "Test resource slice"
+spec:
+  nodeName: kwok-node-0
+  resources:
+  - name: example.com/gpu
+    resourceType: integer
+    capacity: "8"
+  - name: example.com/memory
+    resourceType: memory
+    capacity: "32Gi"
+"""
+        expected_response = {
+            'metadata': {
+                'name': 'complex-resource-slice'
+            }
+        }
+        mock_create_custom_object.return_value = expected_response
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'complex-resource-slice')
+
+        # Verify the call was made with correct parameters
+        call_args = mock_create_custom_object.call_args
+        body = call_args[1]['body']
+        self.assertEqual(body['metadata']['name'], 'complex-resource-slice')
+        self.assertEqual(body['metadata']['labels']['app'], 'test-app')
+        self.assertEqual(body['spec']['nodeName'], 'kwok-node-0')
+        self.assertEqual(len(body['spec']['resources']), 2)
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    def test_delete_resource_slice_with_delete_options(self, mock_delete_custom_object):
+        """Test that delete_resource_slice passes correct V1DeleteOptions."""
+        # Setup
+        resource_slice_name = "delete-options-test"
+        mock_delete_custom_object.return_value = None
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify delete options were passed
+        call_args = mock_delete_custom_object.call_args
+        delete_options = call_args[1]['body']
+        self.assertIsInstance(delete_options, client.V1DeleteOptions)
 
 
 if __name__ == '__main__':
