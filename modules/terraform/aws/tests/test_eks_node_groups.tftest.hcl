@@ -120,8 +120,8 @@ run "valid_launch_template_ena_express" {
 
   # ena express null
   assert {
-    condition     = length(module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces[0].ena_srd_specification) == 0
-    error_message = "Error. Expected ena_srd_enabled empty in the launch template ena srd specification"
+    condition     = length(module.eks["eks_name"].eks_node_groups_launch_template["my_scenario-ng"].network_interfaces) == 0
+    error_message = "Error. Expected no network interfaces"
   }
 
   # ena express enabled

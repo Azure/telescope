@@ -15,6 +15,7 @@ steps:
         --node_count $NODE_COUNT \
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
+        --job_template_path ${JOB_TEMPLATE_PATH:-job_template.yaml} \
         --operation_timeout $SCALE_TIMEOUT \
         --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml

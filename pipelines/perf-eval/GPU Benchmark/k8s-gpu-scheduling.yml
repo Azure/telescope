@@ -20,10 +20,10 @@ schedules:
   always: true
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: job-scheduling
+  SCENARIO_NAME: k8s-gpu-scheduling
 
 stages:
-- stage: azure_northeurope_small
+- stage: azure_eastus2_small
   dependsOn: []
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
@@ -31,7 +31,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - northeurope
+      - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -39,16 +39,18 @@ stages:
       matrix:
         small:
           node_count: 200
-          job_throughput: 100
           job_count: 2000
+          job_throughput: 100
           scale_timeout: "30m"
           cl2_config_file: config.yaml
+          node_gpu: 8
+          job_template_path: gpu_job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 60
       credential_type: service_connection
       ssh_key_enabled: false
 
-- stage: azure_northeurope_medium
+- stage: azure_eastus2_medium
   dependsOn: []
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
@@ -56,7 +58,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - northeurope
+      - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -68,12 +70,14 @@ stages:
           job_count: 10000
           scale_timeout: "45m"
           cl2_config_file: config.yaml
+          node_gpu: 8
+          job_template_path: gpu_job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
 
-- stage: azure_northeurope_high
+- stage: azure_eastus2_high
   dependsOn: []
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
@@ -81,7 +85,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - northeurope
+      - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -93,81 +97,8 @@ stages:
           job_count: 20000
           scale_timeout: "1h"
           cl2_config_file: config.yaml
-      max_parallel: 1
-      timeout_in_minutes: 120
-      credential_type: service_connection
-      ssh_key_enabled: false
-
-- stage: aws_euwest1_small
-  dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-      cloud: aws
-      regions:
-      - eu-west-1
-      engine: clusterloader2
-      engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: kwok
-      matrix:
-        small:
-          node_count: 200
-          job_throughput: 100
-          job_count: 2000
-          scale_timeout: "30m"
-          cl2_config_file: config.yaml
-      max_parallel: 1
-      timeout_in_minutes: 60
-      credential_type: service_connection
-      ssh_key_enabled: false
-
-- stage: aws_euwest1_medium
-  dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-      cloud: aws
-      regions:
-      - eu-west-1
-      engine: clusterloader2
-      engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: kwok
-      matrix:
-        medium:
-          node_count: 1000
-          job_throughput: 500
-          job_count: 10000
-          scale_timeout: "45m"
-          cl2_config_file: config.yaml
-      max_parallel: 1
-      timeout_in_minutes: 120
-      credential_type: service_connection
-      ssh_key_enabled: false
-
-- stage: aws_euwest1_high
-  dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
-  jobs:
-  - template: /jobs/competitive-test.yml
-    parameters:
-      cloud: aws
-      regions:
-      - eu-west-1
-      engine: clusterloader2
-      engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20250513"
-      topology: kwok
-      matrix:
-        high:
-          node_count: 2000
-          job_throughput: 800
-          job_count: 20000
-          scale_timeout: "1h"
-          cl2_config_file: config.yaml
+          node_gpu: 8
+          job_template_path: gpu_job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
