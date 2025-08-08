@@ -655,6 +655,7 @@ class KubernetesClient:
                 pod_name = f"gpu-verify-{uuid.uuid4()}"
                 node_name = node.metadata.name
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
+                logger.info(f"Node allocatable resources: {node.status.allocatable}")
 
                 # Get GPU count for this node
                 gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "1"))
