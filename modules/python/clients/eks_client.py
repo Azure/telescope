@@ -315,6 +315,9 @@ class EKSClient:
                 logger.info("Instance types: %s", instance_type)
                 logger.info("Capacity type: %s", capacity_type)
 
+                # Initialize subnet filtering - will be updated if capacity reservation is found
+                filtered_subnets = self.subnets  # Default to all subnets
+                
                 # Prepare node group creation parameters
                 # instanceTypes will be added to launch template
                 create_params = {
@@ -326,7 +329,7 @@ class EKSClient:
                         + 1,  # AWS requires maxSize to be atleast 1
                         "desiredSize": node_count,
                     },
-                    "subnets": self.subnets,
+                    "subnets": filtered_subnets,
                     "capacityType": capacity_type,
                     "nodeRole": self.node_role_arn,
                     "amiType": self.get_ami_type_with_k8s_version(gpu_node_group=gpu_node_group),
@@ -342,23 +345,49 @@ class EKSClient:
                 )
 
                 # Check for capacity reservation if requested
+                reservation_info = None
                 reservation_id = None
+                
                 if capacity_type == "CAPACITY_BLOCK":
                     logger.info(
                         "Checking for capacity reservation for node group '%s'", node_group_name
                     )
 
-                    res_id = self._get_capacity_reservation_id(
+                    reservation_info = self._get_capacity_reservation_id(
                         instance_type=instance_type,
                         count=node_count,
                         availability_zones=self.subnet_azs,
                     )
 
-                    if res_id:
-                        reservation_id = res_id
+                    if reservation_info:
+                        reservation_id = reservation_info["reservation_id"]
+                        reservation_az = reservation_info["availability_zone"]
+                        
+                        # Filter subnets to only use the subnet in the capacity reservation AZ
+                        filtered_subnets = []
+                        for i, subnet_id in enumerate(self.subnets):
+                            if self.subnet_azs[i] == reservation_az:
+                                filtered_subnets.append(subnet_id)
+                        
                         logger.info(
-                            "Found capacity reservation %s in AZ %s", reservation_id, self.subnet_azs
+                            "Found capacity reservation %s in AZ %s, using filtered subnets: %s", 
+                            reservation_id, reservation_az, filtered_subnets
                         )
+                        
+                        if not filtered_subnets:
+                            logger.error(
+                                "No subnets found in AZ %s for capacity reservation %s", 
+                                reservation_az, reservation_id
+                            )
+                            raise Exception(f"No subnets available in capacity reservation AZ {reservation_az}")
+                    else:
+                        logger.warning(
+                            "No capacity reservation found for %s in %s, using all subnets", 
+                            instance_type, self.subnet_azs
+                        )
+
+                # Update create_params with the filtered subnets
+                create_params["subnets"] = filtered_subnets
 
                 try:
                     launch_template = self._create_launch_template(
@@ -816,7 +845,7 @@ class EKSClient:
 
     def _get_capacity_reservation_id(
         self, instance_type: str, count: int, availability_zones: List
-    ) -> Optional[str]:
+    ) -> Optional[Dict]:
         """
         Find an existing capacity reservation for the specified instance type.
 
@@ -826,7 +855,7 @@ class EKSClient:
             availability_zones: List of AZ's where to look for the reservation
 
         Returns:
-            The ID of the capacity reservation or None if not found
+            Dictionary with reservation_id and availability_zone, or None if not found
         """
         try:
             # First, try to find a reservation with our run_id tag
@@ -847,12 +876,13 @@ class EKSClient:
             if run_id_reservations:
                 reservation = run_id_reservations[0]
                 reservation_id = reservation["CapacityReservationId"]
+                reservation_az = reservation["AvailabilityZone"]
                 current_count = reservation["TotalInstanceCount"]
                 available_count = reservation["AvailableInstanceCount"]
 
                 logger.info(
-                    "Found existing capacity reservation with matching run_id: %s with %s available instances out of %s total", 
-                    reservation_id, available_count, current_count
+                    "Found existing capacity reservation: %s in AZ %s with %s available instances out of %s total", 
+                    reservation_id, reservation_az, available_count, current_count
                 )
 
                 if available_count < count:
@@ -861,7 +891,10 @@ class EKSClient:
                         available_count, count
                     )
 
-                return reservation_id
+                return {
+                    "reservation_id": reservation_id,
+                    "availability_zone": reservation_az
+                }
 
             # No existing reservation found
             logger.error(

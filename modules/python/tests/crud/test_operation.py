@@ -164,6 +164,7 @@ class TestOperation(unittest.TestCase):
         # Verify
         expected = {
             "name": "test_operation",
+            "cloud": "test_cloud",
             "start_timestamp": "2023-01-01T12:00:00Z",
             "end_timestamp": "2023-01-01T12:01:30Z",
             "duration": 90.0,

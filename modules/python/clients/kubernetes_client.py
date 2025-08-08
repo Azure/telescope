@@ -666,6 +666,11 @@ class KubernetesClient:
 
                 logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
 
+                # Skip nodes with no GPUs
+                if gpu_count == 0:
+                    logger.info(f"Skipping node {node_name} as it has no GPUs")
+                    continue
+
                 # Create pod spec with node selector
                 pod = client.V1Pod(
                     metadata=client.V1ObjectMeta(name=pod_name),
