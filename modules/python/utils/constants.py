@@ -12,4 +12,4 @@ class CommandConstants:
 
 @dataclass(frozen=True)
 class UrlConstants:
-    NVIDIA_GPU_DEVICE_PLUGIN_YAML = "https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.1/deployments/static/nvidia-device-plugin.yml"
+    NVIDIA_GPU_DEVICE_PLUGIN_YAML = "https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.3/nvidia-device-plugin.yml"

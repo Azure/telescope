@@ -1373,14 +1373,7 @@ class KubernetesClient:
         try:
             # Load the DaemonSet YAML from the official NVIDIA repository
             logger.info("Installing NVIDIA GPU device plugin...")
-            response = requests.get(UrlConstants.NVIDIA_GPU_DEVICE_PLUGIN_YAML, timeout=30)
-            response.raise_for_status()  # Raise an error for bad responses
-            daemonset_yaml = yaml.safe_load(response.text)
-
-            # Create the DaemonSet in the specified namespace
-            self.app.create_namespaced_daemon_set(
-                body=daemonset_yaml, namespace=namespace
-            )
+            self.apply_manifest_from_url(UrlConstants.NVIDIA_GPU_DEVICE_PLUGIN_YAML, namespace=namespace)
             logger.info("NVIDIA GPU device plugin installed successfully.")
         except Exception as e:
             logger.error(f"Error installing NVIDIA GPU device plugin: {str(e)}")
