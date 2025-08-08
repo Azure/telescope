@@ -8,7 +8,6 @@ name: deployment-churn
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "120s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
-{{$location := DefaultParam .CL2_LOCATION ""}}
 
 namespace:
   number: 1
