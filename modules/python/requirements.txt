@@ -1,8 +1,13 @@
 docker==7.1.0
-kubernetes==31.0.0
+kubernetes==33.1.0
 pylint==3.3.4
 pytest==8.3.5
 pytest-cov==6.1.1
 numpy==2.2.5
 azure-mgmt-containerservice==34.2.0
 azure-identity==1.23.0
+boto3==1.35.36
+botocore==1.35.36
+semver==3.0.4
+requests==2.32.4
+pyyaml==6.0.2

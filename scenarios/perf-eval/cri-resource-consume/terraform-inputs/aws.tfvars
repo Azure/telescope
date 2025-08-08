@@ -63,7 +63,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "default"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.4xlarge"]
       min_size       = 3
       max_size       = 3
@@ -72,7 +72,7 @@ eks_config_list = [{
     },
     {
       name           = "prompool"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.4xlarge"]
       min_size       = 1
       max_size       = 1
@@ -82,7 +82,7 @@ eks_config_list = [{
     },
     {
       name           = "userpool0"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.4xlarge"]
       min_size       = 10
       max_size       = 10
@@ -118,5 +118,5 @@ eks_config_list = [{
       name = "kube-proxy"
     }
   ]
-  kubernetes_version = "1.31"
+  kubernetes_version = "1.32"
 }]

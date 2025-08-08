@@ -25,6 +25,9 @@ class JobController(ClusterLoader2Base):
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
+    job_template_path: str = ""
+    job_gpu: int = 0
+    dra_enabled: bool = False
     node_label: str = ""
     cl2_image: str = ""
     cl2_config_dir: str = ""
@@ -39,7 +42,6 @@ class JobController(ClusterLoader2Base):
     run_url: str = ""
     result_file: str = ""
     test_type: str = "default-config"
-    start_timestamp: str = ""
 
     def configure_clusterloader2(self):
         config = {
@@ -47,7 +49,16 @@ class JobController(ClusterLoader2Base):
             "CL2_OPERATION_TIMEOUT": self.operation_timeout,
             "CL2_JOBS": self.job_count,
             "CL2_LOAD_TEST_THROUGHPUT": self.job_throughput,
+            "CL2_JOB_TEMPLATE_PATH": self.job_template_path,
+            "CL2_JOB_GPU": self.job_gpu,
+            "CL2_ENABLE_RESOURCE_CLAIMS": self.dra_enabled,
         }
+        if self.prometheus_enabled:
+            config["CL2_PROMETHEUS_TOLERATE_MASTER"] = True
+            config["CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR"] = 100.0
+            config["CL2_PROMETHEUS_MEMORY_SCALE_FACTOR"] = 100.0
+            config["CL2_PROMETHEUS_CPU_SCALE_FACTOR"] = 30.0
+            config["CL2_PROMETHEUS_NODE_SELECTOR"] = "\"prometheus: \\\"true\\\"\""
         self.write_cl2_override_file(logger, self.cl2_override_file, config)
 
     def validate_clusterloader2(self):
@@ -94,9 +105,11 @@ class JobController(ClusterLoader2Base):
             "run_id": self.run_id,
             "run_url": self.run_url,
             "test_type": self.test_type,
-            "start_timestamp": self.start_timestamp,
             "job_count": self.job_count,
             "job_throughput": self.job_throughput,
+            "job_template_path": self.job_template_path,
+            "job_gpu": self.job_gpu,
+            "dra_enabled": self.dra_enabled,
             "provider": provider,
         }
 
@@ -126,6 +139,26 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--job_throughput", type=int, default=-1, help="Job throughput"
+        )
+        parser.add_argument(
+            "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+        )
+        parser.add_argument(
+            "--job_gpu", type=int, default=0, help="Number of GPUs per job"
+        )
+        parser.add_argument(
+            "--dra-enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable DRA. Must be either True or False",
+        )
+        parser.add_argument(
+            "--prometheus_enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable Prometheus scraping. Must be either True or False",
         )
 
     @staticmethod
@@ -188,16 +221,20 @@ class JobController(ClusterLoader2Base):
         parser.add_argument(
             "--test_type",
             type=str,
-            nargs="?",
             default="default-config",
             help="Description of test type",
         )
-        parser.add_argument("--start_timestamp", type=str, help="Test start timestamp")
         parser.add_argument(
             "--job_count", type=int, default=1000, help="Number of jobs to run"
         )
         parser.add_argument(
             "--job_throughput", type=int, default=-1, help="Job throughput"
+        )
+        parser.add_argument(
+            "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+        )
+        parser.add_argument(
+            "--job_gpu", type=int, default=0, help="Number of GPUs per job"
         )
 
 

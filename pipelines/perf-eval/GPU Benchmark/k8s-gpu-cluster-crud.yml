@@ -77,3 +77,57 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 180
+
+  - stage: aws_H100_gpu_test
+    dependsOn: []
+    condition: and(eq(variables['Build.Reason'], 'Manual'), eq(variables['RUN_AWS'], 'true'))
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-1
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            h100_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: h100nodepool
+              vm_size: p5.48xlarge
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 1200
+              step_wait_time: 30
+              capacity_type: CAPACITY_BLOCK
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
+  - stage: aws_A100_gpu_test
+    dependsOn: []
+    condition: and(eq(variables['Build.Reason'], 'Manual'), eq(variables['RUN_AWS'], 'true'))
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: aws
+          regions:
+            - us-east-1
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            A100_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: a100nodepool
+              vm_size: p4d.24xlarge
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 1200
+              step_wait_time: 30
+              capacity_type: CAPACITY_BLOCK
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180

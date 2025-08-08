@@ -27,7 +27,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 class TestKubernetesClient(unittest.TestCase):
-    """Unit tests for the KubernetesClient class covering node, pod, PVC, service, 
+    """Unit tests for the KubernetesClient class covering node, pod, PVC, service,
        and GPU plugin operations.
     """
     @patch('kubernetes.config.load_kube_config')
@@ -204,6 +204,17 @@ class TestKubernetesClient(unittest.TestCase):
 
         # Verify it's the expected type (AppsV1Api)
         self.assertEqual(type(result).__name__, 'AppsV1Api')
+
+    def test_get_api_client_returns_api_attribute(self):
+        """ Test that get_api_client returns the api attribute from the client."""
+        # Execute
+        result = self.client.get_api_client()
+
+        # Verify - the result should be the same object as client.api
+        self.assertIs(result, self.client.api)
+
+        # Verify it's the expected type (AppsV1Api)
+        self.assertEqual(type(result).__name__, 'CoreV1Api')
 
     @patch('kubernetes.client.CoreV1Api.read_node')
     def test_describe_node(self, mock_read_node):
@@ -662,9 +673,23 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertEqual(mock_logger.error.call_count, 2)
 
         # Verify specific error messages
-        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
-        self.assertTrue(any("Error deleting PVC 'pvc-1'" in call for call in error_calls))
-        self.assertTrue(any("Error deleting PVC 'pvc-2'" in call for call in error_calls))
+        error_calls = mock_logger.error.call_args_list
+
+        # Check that we have the expected error messages for both PVCs
+        pvc1_found = False
+        pvc2_found = False
+
+        for call in error_calls:
+            if call.args and len(call.args) >= 2:
+                # Format the message like the logger would
+                formatted_msg = call.args[0] % call.args[1:] if len(call.args) > 1 else call.args[0]
+                if "Error deleting PVC 'pvc-1'" in formatted_msg:
+                    pvc1_found = True
+                if "Error deleting PVC 'pvc-2'" in formatted_msg:
+                    pvc2_found = True
+
+        self.assertTrue(pvc1_found, "Expected error message for pvc-1 not found")
+        self.assertTrue(pvc2_found, "Expected error message for pvc-2 not found")
 
     @patch('kubernetes.client.StorageV1Api.list_volume_attachment')
     def test_get_volume_attachments_success(self, mock_list_volume_attachment):
@@ -1216,6 +1241,166 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertGreaterEqual(mock_get_ready_pods.call_count, 1)
         mock_sleep.assert_called()
 
+    @patch("clients.kubernetes_client.KubernetesClient.wait_for_pods_ready")
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_labeled_pods_ready_success(
+        self, mock_get_pods, mock_wait_for_pods
+    ):
+        """Test waiting for labeled pods to be ready - success case."""
+        label_selector = "app=test-app"
+        namespace = "test-namespace"
+        timeout_in_minutes = 5
+
+        # Mock pods found with the label selector
+        mock_pods = ["pod1", "pod2", "pod3"]
+        mock_get_pods.return_value = mock_pods
+        mock_wait_for_pods.return_value = None
+
+        # Execute
+        self.client.wait_for_labeled_pods_ready(
+            label_selector=label_selector,
+            namespace=namespace,
+            timeout_in_minutes=timeout_in_minutes,
+        )
+
+        # Verify
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+        mock_wait_for_pods.assert_called_once_with(
+            pod_count=3,
+            operation_timeout_in_minutes=timeout_in_minutes,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_labeled_pods_ready_no_pods_found(self, mock_get_pods):
+        """Test waiting for labeled pods when no pods are found with the selector."""
+        label_selector = "app=nonexistent-app"
+        namespace = "test-namespace"
+
+        # Mock no pods found
+        mock_get_pods.return_value = []
+
+        # Execute and verify exception
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_labeled_pods_ready(
+                label_selector=label_selector, namespace=namespace
+            )
+
+        expected_message = (
+            f"No pods found with selector '{label_selector}' in namespace '{namespace}'"
+        )
+        self.assertEqual(str(context.exception), expected_message)
+
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @patch("clients.kubernetes_client.KubernetesClient.wait_for_pods_ready")
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_labeled_pods_ready_wait_fails(
+        self, mock_get_pods, mock_wait_for_pods
+    ):
+        """Test waiting for labeled pods when wait_for_pods_ready fails."""
+        label_selector = "app=failing-app"
+        namespace = "test-namespace"
+
+        # Mock pods found
+        mock_pods = ["pod1", "pod2"]
+        mock_get_pods.return_value = mock_pods
+
+        # Mock wait_for_pods_ready raising an exception
+        expected_error = "Only 1 pods are ready, expected 2 pods!"
+        mock_wait_for_pods.side_effect = Exception(expected_error)
+
+        # Execute and verify exception is propagated
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_labeled_pods_ready(
+                label_selector=label_selector, namespace=namespace
+            )
+
+        self.assertEqual(str(context.exception), expected_error)
+
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+        mock_wait_for_pods.assert_called_once_with(
+            pod_count=2,
+            operation_timeout_in_minutes=5,
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_success(self, mock_get_pods, mock_sleep):
+        """Test wait_for_pods_completed when all pods complete successfully."""
+        label_selector = "app=test"
+        namespace = "default"
+        pod1 = self._create_pod(
+            namespace="default",
+            name="pod1",
+            phase="Pending",
+        )
+        pod2 = self._create_pod(
+            namespace="default",
+            name="pod2",
+            phase="Succeeded",
+        )
+        pod3 = self._create_pod(
+            namespace="default",
+            name="pod3",
+            phase="Succeeded",
+        )
+        mock_get_pods.side_effect = [
+            [pod1, pod2, pod3],
+            [pod2, pod3],
+        ]
+        result = self.client.wait_for_pods_completed(
+            label_selector, namespace, timeout=1
+        )
+        self.assertEqual(result, [pod2, pod3])
+        self.assertGreaterEqual(mock_get_pods.call_count, 2)
+        mock_sleep.assert_called()
+
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_timeout(self, mock_get_pods, mock_sleep):
+        """Test wait_for_pods_completed raises exception on timeout."""
+        label_selector = "app=test"
+        namespace = "default"
+        pod1 = self._create_pod(
+            namespace="default",
+            name="pod1",
+            phase="Pending",
+        )
+        mock_get_pods.return_value = [pod1]
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_pods_completed(label_selector, namespace, timeout=0.01)
+        self.assertIn(
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete",
+            str(context.exception),
+        )
+        mock_sleep.assert_called()
+
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_no_pods(self, mock_get_pods):
+        """Test wait_for_pods_completed raises exception if no pods found."""
+        label_selector = "app=none"
+        namespace = "default"
+        mock_get_pods.return_value = []
+        with self.assertRaises(Exception) as context:
+            self.client.wait_for_pods_completed(label_selector, namespace, timeout=1)
+        self.assertIn(
+            f"No pods found with label '{label_selector}' in namespace '{namespace}'.",
+            str(context.exception),
+        )
+        mock_get_pods.assert_called_once_with(
+            namespace=namespace, label_selector=label_selector
+        )
+
     @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
     def test_wait_for_job_completed_success(self, mock_read_job):
         """Test waiting for job completion when job succeeds."""
@@ -1310,7 +1495,6 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
         self.assertEqual(context.exception.__cause__.status, 404)
         mock_read_job.assert_called()
-
 
     @patch('kubernetes.client.BatchV1Api.read_namespaced_job')
     def test_wait_for_job_completed_unexpected_api_exception(
@@ -1687,7 +1871,7 @@ class TestKubernetesClient(unittest.TestCase):
 
         # Mock DaemonSet that never becomes ready
         mock_daemonset = MagicMock()
-        mock_daemonset.status.number_available = 1
+        mock_daemonset.status.number_ready = 1
         mock_daemonset.status.desired_number_scheduled = 2  # Never matches
         mock_app.return_value = mock_daemonset
 
@@ -1717,7 +1901,7 @@ class TestKubernetesClient(unittest.TestCase):
 
         # Mock successful DaemonSet
         mock_daemonset = MagicMock()
-        mock_daemonset.status.number_available = 3
+        mock_daemonset.status.number_ready = 3
         mock_daemonset.status.desired_number_scheduled = 3  # Matches - success
         mock_app.return_value = mock_daemonset
 
@@ -1734,9 +1918,11 @@ class TestKubernetesClient(unittest.TestCase):
     @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")
     @patch("kubernetes.client.CoreV1Api.read_namespaced_pod")
     @patch("kubernetes.client.CoreV1Api.create_namespaced_pod")
+    @patch("clients.kubernetes_client.KubernetesClient.describe_node")
     def test_verify_nvidia_smi_success(
         self,
-        _mock_create_pod,
+        mock_describe_node,
+        mock_create_pod,
         mock_read_pod,
         _mock_delete_pod,
         mock_get_logs,
@@ -1745,6 +1931,10 @@ class TestKubernetesClient(unittest.TestCase):
         """Test successful nvidia-smi verification."""
         node = MagicMock()
         node.metadata.name = "gpu-node-1"
+        node.status.allocatable = {"nvidia.com/gpu": "8"}
+
+        # Mock describe_node to return the node with GPU allocation
+        mock_describe_node.return_value = node
 
         # Simulate pod status: first Pending, then Succeeded
         mock_read_pod.side_effect = [
@@ -1759,19 +1949,32 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertTrue(result["gpu-node-1"]["device_status"])
         mock_sleep.assert_called()
 
+        # Verify that the pod was created with all 8 GPUs requested
+        pod_spec = mock_create_pod.call_args[1]['body']
+        gpu_limits = pod_spec.spec.containers[0].resources.limits["nvidia.com/gpu"]
+        self.assertEqual(gpu_limits, "8")
 
     @patch("clients.kubernetes_client.KubernetesClient.get_pod_logs")
     @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")
     @patch("kubernetes.client.CoreV1Api.read_namespaced_pod")
     @patch("kubernetes.client.CoreV1Api.create_namespaced_pod")
+    @patch("clients.kubernetes_client.KubernetesClient.describe_node")
     def test_verify_nvidia_smi_failure(
-        self, _mock_create_pod, mock_read_pod, mock_delete_pod, mock_get_logs
+        self, mock_describe_node, _mock_create_pod, mock_read_pod, mock_delete_pod, mock_get_logs
     ):
         """Test nvidia-smi verification failure."""
         node = MagicMock()
         node.metadata.name = "gpu-node-2"
+        node.status.allocatable = {"nvidia.com/gpu": "4"}
 
-        mock_read_pod.return_value.status.phase = "Succeeded"
+        # Mock describe_node to return the node with GPU allocation
+        mock_describe_node.return_value = node
+
+        # Create a proper mock for read_namespaced_pod with status.phase
+        mock_pod_status = MagicMock()
+        mock_pod_status.status = MagicMock()
+        mock_pod_status.status.phase = "Succeeded"
+        mock_read_pod.return_value = mock_pod_status
         mock_get_logs.return_value = "Some unrelated output"
 
         result = self.client.verify_nvidia_smi_on_node([node])
@@ -1786,14 +1989,23 @@ class TestKubernetesClient(unittest.TestCase):
     )
     @patch("kubernetes.client.CoreV1Api.read_namespaced_pod")
     @patch("kubernetes.client.CoreV1Api.create_namespaced_pod")
+    @patch("clients.kubernetes_client.KubernetesClient.describe_node")
     def test_verify_nvidia_smi_delete_pod_fails(
-        self, _mock_create_pod, mock_read_pod, mock_delete_pod, mock_get_logs
+        self, mock_describe_node, _mock_create_pod, mock_read_pod, mock_delete_pod, mock_get_logs
     ):
         """Test nvidia-smi verification when pod deletion fails."""
         node = MagicMock()
         node.metadata.name = "gpu-node-3"
+        node.status.allocatable = {"nvidia.com/gpu": "2"}
 
-        mock_read_pod.return_value.status.phase = "Succeeded"
+        # Mock describe_node to return the node with GPU allocation
+        mock_describe_node.return_value = node
+
+        # Create a proper mock for read_namespaced_pod with status.phase
+        mock_pod_status = MagicMock()
+        mock_pod_status.status = MagicMock()
+        mock_pod_status.status.phase = "Succeeded"
+        mock_read_pod.return_value = mock_pod_status
         mock_get_logs.return_value = "NVIDIA-SMI GPU driver info"
 
         result = self.client.verify_nvidia_smi_on_node([node])
@@ -1805,13 +2017,31 @@ class TestKubernetesClient(unittest.TestCase):
         "kubernetes.client.CoreV1Api.create_namespaced_pod",
         side_effect=Exception("API failure")
     )
-    def test_verify_nvidia_smi_general_exception(self, _mock_create_pod):
+    @patch("clients.kubernetes_client.KubernetesClient.describe_node")
+    def test_verify_nvidia_smi_general_exception(self, mock_describe_node, _mock_create_pod):
         """Test nvidia-smi verification with general exception."""
         node = MagicMock()
         node.metadata.name = "gpu-node-4"
+        node.status.allocatable = {"nvidia.com/gpu": "1"}
+
+        # Mock describe_node to return the node with GPU allocation
+        mock_describe_node.return_value = node
 
         result = self.client.verify_nvidia_smi_on_node([node])
         self.assertFalse(result)
+
+    @patch("clients.kubernetes_client.KubernetesClient.describe_node")
+    def test_verify_nvidia_smi_no_gpu_nodes(self, mock_describe_node):
+        """Test nvidia-smi verification skips nodes with no GPUs."""
+        node = MagicMock()
+        node.metadata.name = "cpu-only-node"
+        node.status.allocatable = {"nvidia.com/gpu": "0"}
+
+        # Mock describe_node to return the node with no GPUs
+        mock_describe_node.return_value = node
+
+        result = self.client.verify_nvidia_smi_on_node([node])
+        self.assertEqual(result, {})  # Should return empty dict as no nodes processed
 
     @patch("kubernetes.client.AppsV1Api.create_namespaced_daemon_set")
     @patch("requests.get")
@@ -1876,6 +2106,3486 @@ spec: {}
             namespace='default',
             field_selector="spec.nodeName=node-1"
         )
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_success_single_document(self, mock_apply_single,
+                                                            mock_requests_get):
+        """Test successful application of a single manifest document from URL."""
+        # Mock successful HTTP response
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.apply_manifest_from_url("https://example.com/manifest.yaml")
+
+        # Verify HTTP request
+        mock_requests_get.assert_called_once_with("https://example.com/manifest.yaml", timeout=30)
+        mock_response.raise_for_status.assert_called_once()
+
+        # Verify manifest application
+        mock_apply_single.assert_called_once()
+        applied_manifest = mock_apply_single.call_args[0][0]
+        self.assertEqual(applied_manifest['kind'], 'Namespace')
+        self.assertEqual(applied_manifest['metadata']['name'], 'test-namespace')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_success_multiple_documents(self, mock_apply_single,
+                                                               mock_requests_get):
+        """Test successful application of multiple manifest documents from URL."""
+        # Mock successful HTTP response with multiple YAML documents
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: test-namespace
+spec:
+  selector:
+    app: test-app
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.apply_manifest_from_url("https://example.com/multi-manifest.yaml")
+
+        # Verify HTTP request
+        mock_requests_get.assert_called_once_with(
+            "https://example.com/multi-manifest.yaml", timeout=30)
+
+        # Verify both manifests were applied
+        self.assertEqual(mock_apply_single.call_count, 2)
+
+        # Check first manifest (Namespace)
+        first_manifest = mock_apply_single.call_args_list[0][0][0]
+        self.assertEqual(first_manifest['kind'], 'Namespace')
+        self.assertEqual(first_manifest['metadata']['name'], 'test-namespace')
+
+        # Check second manifest (Service)
+        second_manifest = mock_apply_single.call_args_list[1][0][0]
+        self.assertEqual(second_manifest['kind'], 'Service')
+        self.assertEqual(second_manifest['metadata']['name'], 'test-service')
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_http_404_error(self, mock_requests_get):
+        """Test handling of HTTP 404 error when fetching manifest."""
+        # Mock HTTP 404 error
+        mock_requests_get.side_effect = requests.exceptions.HTTPError(
+            "404 Client Error: Not Found")
+
+        # Verify exception is raised
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/nonexistent.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/nonexistent.yaml", str(context.exception))
+        self.assertIn("404 Client Error", str(context.exception))
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_http_timeout(self, mock_requests_get):
+        """Test handling of HTTP timeout when fetching manifest."""
+        # Mock HTTP timeout
+        mock_requests_get.side_effect = requests.exceptions.Timeout("Request timed out")
+
+        # Verify exception is raised
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/slow-manifest.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/slow-manifest.yaml", str(context.exception))
+        self.assertIn("Request timed out", str(context.exception))
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_yaml_parse_error(self, mock_requests_get):
+        """Test handling of YAML parsing errors."""
+        # Mock successful HTTP response with invalid YAML
+        mock_response = MagicMock()
+        mock_response.text = """
+invalid: yaml: content:
+  - missing
+    closing bracket
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Verify exception is raised for invalid YAML
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/invalid.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/invalid.yaml", str(context.exception))
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_empty_documents(self, mock_apply_single,
+                                                    mock_requests_get):
+        """Test handling of empty YAML documents."""
+        # Mock successful HTTP response with empty documents
+        mock_response = MagicMock()
+        mock_response.text = """
+---
+# Empty document
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+---
+# Another empty document
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.apply_manifest_from_url(
+            "https://example.com/manifest-with-empty.yaml")
+
+        # Verify only non-empty manifest was applied
+        mock_apply_single.assert_called_once()
+        applied_manifest = mock_apply_single.call_args[0][0]
+        self.assertEqual(applied_manifest['kind'], 'Namespace')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_apply_single_manifest_exception(
+            self, mock_apply_single, mock_requests_get):
+        """Test handling of exceptions during single manifest application."""
+        # Mock successful HTTP response
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Mock _apply_single_manifest to raise an exception
+        mock_apply_single.side_effect = Exception("Failed to create resource")
+
+        # Verify exception is propagated
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_url("https://example.com/manifest.yaml")
+
+        self.assertIn("Error applying manifest from "
+                     "https://example.com/manifest.yaml", str(context.exception))
+        self.assertIn("Failed to create resource", str(context.exception))
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._delete_single_manifest')
+    def test_delete_manifest_from_url_success_single_document(self, mock_delete_single,
+                                                             mock_requests_get):
+        """Test successful deletion of a single manifest from URL."""
+        # Mock HTTP response
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 1
+"""
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.delete_manifest_from_url("https://example.com/manifest.yaml")
+
+        # Verify HTTP request was made with correct URL and timeout
+        mock_requests_get.assert_called_once_with("https://example.com/manifest.yaml", timeout=30)
+        mock_response.raise_for_status.assert_called_once()
+
+        # Verify _delete_single_manifest was called once
+        mock_delete_single.assert_called_once()
+
+        # Verify the manifest passed to _delete_single_manifest
+        call_args = mock_delete_single.call_args
+        manifest = call_args[0][0]
+        self.assertEqual(manifest['kind'], 'Deployment')
+        self.assertEqual(manifest['metadata']['name'], 'test-deployment')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._delete_single_manifest')
+    def test_delete_manifest_from_url_success_multiple_documents(self, mock_delete_single,
+                                                                mock_requests_get):
+        """Test successful deletion of multiple manifests from URL."""
+        # Mock HTTP response with multiple YAML documents
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: default
+spec:
+  type: LoadBalancer
+"""
+        mock_requests_get.return_value = mock_response
+
+        # Call the method
+        self.client.delete_manifest_from_url("https://example.com/multi-manifest.yaml")
+
+        # Verify HTTP request was made
+        mock_requests_get.assert_called_once_with("https://example.com/multi-manifest.yaml", timeout=30)
+        mock_response.raise_for_status.assert_called_once()
+
+        # Verify _delete_single_manifest was called twice (for Service first, then Deployment - reverse order)
+        self.assertEqual(mock_delete_single.call_count, 2)
+
+        # Verify first call was for Service (reverse order)
+        first_call = mock_delete_single.call_args_list[0]
+        first_manifest = first_call[0][0]
+        self.assertEqual(first_manifest['kind'], 'Service')
+        self.assertEqual(first_manifest['metadata']['name'], 'test-service')
+
+        # Verify second call was for Deployment
+        second_call = mock_delete_single.call_args_list[1]
+        second_manifest = second_call[0][0]
+        self.assertEqual(second_manifest['kind'], 'Deployment')
+        self.assertEqual(second_manifest['metadata']['name'], 'test-deployment')
+
+    @patch('requests.get')
+    def test_delete_manifest_from_url_http_404_error(self, mock_requests_get):
+        """Test delete_manifest_from_url with HTTP 404 error."""
+        # Mock HTTP 404 error
+        mock_requests_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
+
+        # Verify exception is raised
+        with self.assertRaises(Exception) as context:
+            self.client.delete_manifest_from_url("https://example.com/nonexistent.yaml")
+
+        self.assertIn("Error deleting manifest from "
+                     "https://example.com/nonexistent.yaml", str(context.exception))
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._delete_single_manifest')
+    def test_delete_manifest_from_url_with_namespace_override(self, mock_delete_single,
+                                                             mock_requests_get):
+        """Test delete_manifest_from_url with namespace parameter."""
+        # Mock HTTP response
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 1
+"""
+        mock_requests_get.return_value = mock_response
+
+        # Call the method with namespace override
+        self.client.delete_manifest_from_url(
+            "https://example.com/manifest.yaml",
+            namespace="override-namespace"
+        )
+
+        # Verify _delete_single_manifest was called with namespace override
+        mock_delete_single.assert_called_once()
+        call_args = mock_delete_single.call_args
+        self.assertEqual(call_args[1]['namespace'], 'override-namespace')
+
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_apply_single_manifest_namespace(self, mock_create_namespace):
+        """Test _apply_single_manifest with Namespace resource."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_namespace.assert_called_once_with(body=manifest)
+
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_deployment')
+    def test_apply_single_manifest_deployment(self, mock_create_deployment):
+        """Test _apply_single_manifest with Deployment resource."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_deployment.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    def test_apply_single_manifest_deployment_no_namespace(self):
+        """Test _apply_single_manifest with Deployment missing namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment"},
+            "spec": {}
+        }
+
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertEqual(str(context.exception), "Deployment requires a namespace")
+
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_daemon_set')
+    def test_apply_single_manifest_daemonset(self, mock_create_daemonset):
+        """Test _apply_single_manifest with DaemonSet resource."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "DaemonSet",
+            "metadata": {"name": "test-daemonset", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_daemonset.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_stateful_set')
+    def test_apply_single_manifest_statefulset(self, mock_create_statefulset):
+        """Test _apply_single_manifest with StatefulSet resource."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_statefulset.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    def test_apply_single_manifest_statefulset_no_namespace(self):
+        """Test _apply_single_manifest with StatefulSet missing namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset"},
+            "spec": {}
+        }
+
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertEqual(str(context.exception), "StatefulSet requires a namespace")
+
+    @patch('kubernetes.client.CoreV1Api.create_namespaced_service')
+    def test_apply_single_manifest_service(self, mock_create_service):
+        """Test _apply_single_manifest with Service resource."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_service.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    @patch('kubernetes.client.RbacAuthorizationV1Api.create_cluster_role')
+    def test_apply_single_manifest_cluster_role(self, mock_create_cluster_role):
+        """Test _apply_single_manifest with ClusterRole resource."""
+        manifest = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": "test-cluster-role"},
+            "rules": []
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_cluster_role.assert_called_once_with(body=manifest)
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_apply_single_manifest_kwok_stage(self, mock_create_custom_object):
+        """Test _apply_single_manifest with KWOK Stage custom resource."""
+        manifest = {
+            "apiVersion": "kwok.x-k8s.io/v1alpha1",
+            "kind": "Stage",
+            "metadata": {"name": "test-stage"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="kwok.x-k8s.io",
+            version="v1alpha1",
+            plural="stages",
+            body=manifest
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_namespaced_custom_object')
+    def test_apply_single_manifest_mpi_job(self, mock_create_custom_object):
+        """Test _apply_single_manifest with MPIJob custom resource."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job", "namespace": "kubeflow"},
+            "spec": {
+                "slotsPerWorker": 1,
+                "runPolicy": {},
+                "mpiReplicaSpecs": {}
+            }
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="kubeflow.org",
+            version="v2beta1",
+            namespace="kubeflow",
+            plural="mpijobs",
+            body=manifest
+        )
+
+    def test_apply_single_manifest_mpi_job_no_namespace(self):
+        """Test _apply_single_manifest with MPIJob missing namespace."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job"},
+            "spec": {}
+        }
+
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertEqual(str(context.exception), "MPIJob requires a namespace")
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_apply_single_manifest_node_feature_rule(self, mock_create_custom_object):
+        """Test _apply_single_manifest with NodeFeatureRule custom resource."""
+        manifest = {
+            "apiVersion": "nfd.k8s-sigs.io/v1alpha1",
+            "kind": "NodeFeatureRule",
+            "metadata": {"name": "test-node-feature-rule"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="nfd.k8s-sigs.io",
+            version="v1alpha1",
+            plural="nodefeaturerules",
+            body=manifest
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_apply_single_manifest_nic_cluster_policy(self, mock_create_custom_object):
+        """Test _apply_single_manifest with NicClusterPolicy custom resource."""
+        manifest = {
+            "apiVersion": "mellanox.com/v1alpha1",
+            "kind": "NicClusterPolicy",
+            "metadata": {"name": "nic-cluster-policy"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_custom_object.assert_called_once_with(
+            group="mellanox.com",
+            version="v1alpha1",
+            plural="nicclusterpolicies",
+            body=manifest
+        )
+
+    @patch('clients.kubernetes_client.logger')
+    def test_apply_single_manifest_unsupported_kind(self, mock_logger):
+        """Test _apply_single_manifest with unsupported resource kind."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "UnsupportedResource",
+            "metadata": {"name": "test-resource"}
+        }
+
+        # Should not raise an exception, just log a warning
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_logger.warning.assert_called_once_with(
+            "Unsupported resource kind: %s. Skipping...", "UnsupportedResource")
+
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_apply_single_manifest_resource_already_exists(self, mock_create_namespace):
+        """Test _apply_single_manifest when resource already exists (409 conflict)."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "existing-namespace"}
+        }
+
+        # Mock 409 conflict error (resource already exists)
+        api_exception = ApiException(status=409, reason="Conflict")
+        mock_create_namespace.side_effect = api_exception
+
+        # Should not raise an exception, just log and continue
+        with patch('clients.kubernetes_client.logger') as mock_logger:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+            expected_calls = [
+                mock.call("Applying manifest %s %s in namespace %s", "Namespace", "existing-namespace", None),
+                mock.call("Resource %s/%s already exists, skipping creation", "Namespace", "existing-namespace")
+            ]
+            mock_logger.info.assert_has_calls(expected_calls)
+
+    @patch('kubernetes.client.CoreV1Api.create_namespace')
+    def test_apply_single_manifest_api_exception_non_409(self, mock_create_namespace):
+        """Test _apply_single_manifest with API exception other than 409."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+
+        # Mock 403 forbidden error
+        api_exception = ApiException(status=403, reason="Forbidden")
+        mock_create_namespace.side_effect = api_exception
+
+        # Should raise an exception
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest)
+
+        self.assertIn("Error creating Namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_manifest_path_success(self, mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with manifest_path - success case"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        # Mock YAML content
+        yaml_content = """
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: test-namespace
+spec:
+  selector:
+    app: test-app
+  ports:
+    - port: 80
+      targetPort: 8080
+"""
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "test-namespace"
+            },
+            "spec": {
+                "selector": {"app": "test-app"},
+                "ports": [{"port": 80, "targetPort": 8080}]
+            }
+        }
+
+        mock_open_file.return_value.read.return_value = yaml_content
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_service.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/manifest.yaml")
+
+            # Verify file was opened correctly
+            mock_open_file.assert_called_once_with("/path/to/manifest.yaml", 'r', encoding='utf-8')
+            mock_yaml_load.assert_called_once()
+
+            # Verify API was called correctly
+            mock_api.create_namespaced_service.assert_called_once_with(
+                namespace="test-namespace",
+                body=manifest_dict
+            )
+
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_manifest_dict_success(self, mock_open_file, mock_yaml_load):
+        """Test apply_manifest_from_file with manifest_dict - success case"""
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "test-namespace"
+            },
+            "spec": {
+                "replicas": 3,
+                "selector": {"matchLabels": {"app": "test-app"}},
+                "template": {
+                    "metadata": {"labels": {"app": "test-app"}},
+                    "spec": {"containers": [{"name": "test-container", "image": "nginx:latest"}]}
+                }
+            }
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call the method with manifest_dict
+            self.client.apply_manifest_from_file(manifest_dict=manifest_dict)
+
+            # Verify file operations were not called
+            mock_open_file.assert_not_called()
+            mock_yaml_load.assert_not_called()
+
+            # Verify API was called correctly
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="test-namespace",
+                body=manifest_dict
+            )
+
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_no_parameters_error(self, mock_open_file):
+        """Test apply_manifest_from_file with no parameters - should raise ValueError"""
+        # Call without parameters should raise ValueError
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file()
+
+        self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
+        mock_open_file.assert_not_called()
+
+    @patch('os.path.isfile')
+    @patch('os.path.isdir')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_file_not_found_error(self, mock_open_file, mock_isdir, mock_isfile):
+        """Test apply_manifest_from_file with file not found error"""
+        # Mock file and directory existence checks to return False (file doesn't exist)
+        mock_isfile.return_value = False
+        mock_isdir.return_value = False
+
+        # Call should raise FileNotFoundError
+        with self.assertRaises(FileNotFoundError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/nonexistent/path.yaml")
+
+        self.assertIn("Path does not exist", str(context.exception))
+        # Verify open was not called since we check file existence first
+        mock_open_file.assert_not_called()
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_yaml_parse_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with YAML parsing error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        # Mock YAML parsing error
+        mock_yaml_load.side_effect = Exception("Invalid YAML content")
+
+        # Call should raise Exception
+        with self.assertRaises(Exception) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/invalid.yaml")
+
+        self.assertIn("Invalid YAML content", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_configmap_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with ConfigMap resource"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-configmap",
+                "namespace": "test-namespace"
+            },
+            "data": {
+                "config.yaml": "key: value",
+                "app.properties": "setting=enabled"
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_config_map.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/configmap.yaml")
+
+            # Verify API was called correctly
+            mock_api.create_namespaced_config_map.assert_called_once_with(
+                namespace="test-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_secret_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with Secret resource"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name": "test-secret",
+                "namespace": "test-namespace"
+            },
+            "type": "Opaque",
+            "data": {
+                "username": "dGVzdA==",  # base64 encoded "test"
+                "password": "cGFzcw=="   # base64 encoded "pass"
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_secret.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/secret.yaml")
+
+            # Verify API was called correctly
+            mock_api.create_namespaced_secret.assert_called_once_with(
+                namespace="test-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with Namespace resource (cluster-scoped)"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {
+                "name": "test-namespace",
+                "labels": {
+                    "environment": "test"
+                }
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespace.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/namespace.yaml")
+
+            # Verify API was called correctly
+            mock_api.create_namespace.assert_called_once_with(body=manifest_dict)
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_cluster_role_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with ClusterRole resource"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {
+                "name": "test-cluster-role"
+            },
+            "rules": [
+                {
+                    "apiGroups": [""],
+                    "resources": ["pods"],
+                    "verbs": ["get", "list", "watch"]
+                }
+            ]
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the RBAC API client
+        with patch('kubernetes.client.RbacAuthorizationV1Api') as mock_rbac_api_class:
+            mock_rbac_api = mock_rbac_api_class.return_value
+            mock_rbac_api.create_cluster_role.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/clusterrole.yaml")
+
+            # Verify API was called correctly
+            mock_rbac_api.create_cluster_role.assert_called_once_with(body=manifest_dict)
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_unsupported_resource_warning(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with unsupported resource type - should log warning"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "custom.io/v1",
+            "kind": "UnsupportedResource",
+            "metadata": {
+                "name": "test-unsupported"
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Call the method - should not raise exception, just log warning
+        with patch('clients.kubernetes_client.logger') as mock_logger:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/unsupported.yaml")
+
+            # Verify warning was logged
+            mock_logger.warning.assert_called_once_with(
+                "Unsupported resource kind: %s. Skipping...",
+                "UnsupportedResource"
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_api_exception_409_conflict(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with API exception 409 (resource already exists)"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "test-namespace"
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock API exception with 409 status (conflict - resource already exists)
+        api_exception = ApiException(status=409, reason="Conflict")
+
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_service.side_effect = api_exception
+
+            # Should not raise exception, just log info
+            with patch('clients.kubernetes_client.logger') as mock_logger:
+                self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
+
+                # Verify info was logged about resource already existing
+                mock_logger.info.assert_any_call(
+                    "Resource %s/%s already exists, skipping creation",
+                    "Service", "test-service"
+                )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_api_exception_other_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with API exception other than 409"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "test-namespace"
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock API exception with 403 status (forbidden)
+        api_exception = ApiException(status=403, reason="Forbidden")
+
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_service.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
+
+            self.assertIn("Error creating Service", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_deployment_success(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with deployment manifest - success case"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "test-namespace"
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/deployment.yaml")
+
+            # Verify API was called correctly
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="test-namespace",
+                body=manifest_dict
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_deployment_success(self, mock_time):
+        """Test wait_for_condition for deployment - success case"""
+        # Mock time progression - provide enough values to avoid StopIteration
+        mock_time.side_effect = [0, 0, 1, 2, 2]  # start_time, timeout check, loop check, success, elapsed
+
+        # Mock deployment with available condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True"),
+            MagicMock(type="Progressing", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):  # Mock sleep to speed up test
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            # Test successful wait
+            result = self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="available",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_app.read_namespaced_deployment.assert_called_with(
+                name="test-deployment",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_deployment_timeout(self, mock_time):
+        """Test wait_for_condition for deployment - timeout case"""
+        # Mock time progression to simulate timeout - provide enough values
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]  # start_time, timeout calc, loop checks, timeout, elapsed
+
+        # Mock deployment with unavailable condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="False"),
+            MagicMock(type="Progressing", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):  # Mock sleep to speed up test
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            # Test timeout
+            result = self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="available",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_all_deployments_success(self, mock_time):
+        """Test wait_for_condition for all deployments - success case"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]  # start_time, timeout check, loop check, success, elapsed
+
+        # Mock multiple deployments, all available
+        mock_deployment1 = MagicMock()
+        mock_deployment1.status.conditions = [MagicMock(type="Available", status="True")]
+        mock_deployment2 = MagicMock()
+        mock_deployment2.status.conditions = [MagicMock(type="Available", status="True")]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):  # Mock sleep to speed up test
+            mock_app.list_namespaced_deployment.return_value.items = [mock_deployment1, mock_deployment2]
+
+            result = self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name=None,  # No specific name = all deployments
+                wait_condition_type="available",
+                namespace="test-namespace",
+                timeout_seconds=5,
+                wait_all=True
+            )
+
+            self.assertTrue(result)
+
+    def test_wait_for_condition_unsupported_resource_type(self):
+        """Test wait_for_condition with unsupported resource type"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="pod",
+                resource_name="test",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("Resource type 'pod' is not supported", str(context.exception))
+
+    @patch('time.time')
+    def test_wait_for_condition_resource_not_found(self, mock_time):
+        """Test wait_for_condition when resource is not found"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]  # start_time, timeout calc, loop checks, timeout, elapsed
+
+        # Mock 404 error (resource not found)
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="nonexistent",
+                wait_condition_type="available",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    def test_wait_for_condition_invalid_condition_type(self):
+        """Test wait_for_condition with invalid condition type"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="invalid_condition",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("Invalid condition 'invalid_condition' for resource type 'deployment'", str(context.exception))
+        self.assertIn("Valid conditions: available, progressing, replicafailure, ready", str(context.exception))
+
+    def test_wait_for_condition_empty_condition(self):
+        """Test wait_for_condition with empty condition"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type="",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("wait_condition_type must be a non-empty string", str(context.exception))
+
+    def test_wait_for_condition_none_condition(self):
+        """Test wait_for_condition with None condition"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="deployment",
+                resource_name="test-deployment",
+                wait_condition_type=None,
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("wait_condition_type must be a non-empty string", str(context.exception))
+
+    def test_wait_for_condition_valid_condition_types(self):
+        """Test wait_for_condition with various valid condition types"""
+        valid_conditions = [
+            "available",
+            "ready",
+            "progressing",
+            "replicafailure"
+        ]
+
+        # Mock deployment with all conditions to make tests pass quickly
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True"),
+            MagicMock(type="Ready", status="True"),
+            MagicMock(type="Progressing", status="True"),
+            MagicMock(type="ReplicaFailure", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.time', side_effect=[0, 0, 1, 2, 2] * len(valid_conditions)), \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            for condition in valid_conditions:
+                with self.subTest(condition=condition):
+                    result = self.client.wait_for_condition(
+                        resource_type="deployment",
+                        resource_name="test-deployment",
+                        wait_condition_type=condition,
+                        namespace="test-namespace",
+                        timeout_seconds=5
+                    )
+                    self.assertTrue(result)
+
+    def test_wait_for_condition_case_insensitive(self):
+        """Test wait_for_condition with different case conditions"""
+        case_variations = [
+            "Available",
+            "AVAILABLE",
+            "available",
+            "aVaiLaBle"
+        ]
+
+        # Mock deployment with available condition
+        mock_deployment = MagicMock()
+        mock_deployment.status.conditions = [
+            MagicMock(type="Available", status="True")
+        ]
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.time', side_effect=[0, 0, 1, 2, 2] * len(case_variations)), \
+             patch('time.sleep'):
+            mock_app.read_namespaced_deployment.return_value = mock_deployment
+
+            for condition in case_variations:
+                with self.subTest(condition=condition):
+                    result = self.client.wait_for_condition(
+                        resource_type="deployment",
+                        resource_name="test-deployment",
+                        wait_condition_type=condition,
+                        namespace="test-namespace",
+                        timeout_seconds=5
+                    )
+                    self.assertTrue(result)
+
+    # Tests for the enhanced apply_manifest_from_file method with folder support
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('glob.glob')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_folder_success(self, mock_open_file, mock_yaml_load, mock_glob, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with folder path - success case"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = True
+        mock_glob.return_value = [
+            "/path/to/manifests/01-namespace.yaml",
+            "/path/to/manifests/02-service.yaml",
+            "/path/to/manifests/subdir/03-deployment.yml"
+        ]
+
+        # Mock YAML content for different files
+        namespace_manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        # Mock yaml.safe_load_all to return different content for each file
+        mock_yaml_load.side_effect = [
+            [namespace_manifest],
+            [service_manifest],
+            [deployment_manifest]
+        ]
+
+        # Mock the API clients
+        with patch.object(self.client, 'api') as mock_api, \
+             patch.object(self.client, 'app') as mock_app:
+            mock_api.create_namespace.return_value = None
+            mock_api.create_namespaced_service.return_value = None
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify glob was called correctly
+            expected_calls = [
+                mock.call('/path/to/manifests/**/*.yaml', recursive=True),
+                mock.call('/path/to/manifests/**/*.yml', recursive=True)
+            ]
+            mock_glob.assert_has_calls(expected_calls)
+
+            # Verify files were opened
+            self.assertEqual(mock_open_file.call_count, 3)
+
+            # Verify API calls were made
+            mock_api.create_namespace.assert_called_once()
+            mock_api.create_namespaced_service.assert_called_once()
+            mock_app.create_namespaced_deployment.assert_called_once()
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('glob.glob')
+    def test_apply_manifest_from_file_folder_no_yaml_files(self, mock_glob, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with folder path - no YAML files found"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = True
+        mock_glob.return_value = []  # No files found
+
+        # Call the method and expect ValueError
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/empty/manifests")
+
+        self.assertIn("No YAML files found in directory", str(context.exception))
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('glob.glob')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_folder_with_multi_doc_yaml(self, _mock_open_file, mock_yaml_load,
+                                                               mock_glob, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with folder containing multi-document YAML files"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/multi-doc.yaml"]
+
+        # Mock multi-document YAML content
+        manifest1 = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+        manifest2 = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {"name": "test-secret", "namespace": "test-namespace"},
+            "data": {"password": "dGVzdA=="}
+        }
+
+        # Mock yaml.safe_load_all to return multiple documents
+        mock_yaml_load.return_value = [manifest1, None, manifest2]  # Include None to test filtering
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_config_map.return_value = None
+            mock_api.create_namespaced_secret.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify API calls were made for both non-None documents
+            mock_api.create_namespaced_config_map.assert_called_once()
+            mock_api.create_namespaced_secret.assert_called_once()
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('glob.glob')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_folder_with_deployment(self, _mock_open_file, mock_yaml_load,
+                                                               mock_glob, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with folder containing deployment"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml"]
+
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [deployment_manifest]
+
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify deployment was created
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="test-namespace",
+                body=deployment_manifest
+            )
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('glob.glob')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_folder_duplicate_files_removed(self, mock_open_file, mock_yaml_load,
+                                                                   mock_glob, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file removes duplicate files from glob results"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = True
+        # Mock glob to return duplicates (simulating recursive pattern overlap)
+        mock_glob.side_effect = [
+            ["/path/to/manifests/test.yaml", "/path/to/manifests/test.yaml"],  # Duplicates
+            []  # No .yml files
+        ]
+
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespace.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify file was opened only once (duplicates removed)
+            mock_open_file.assert_called_once_with("/path/to/manifests/test.yaml", 'r', encoding='utf-8')
+
+            # Verify API call was made only once
+            mock_api.create_namespace.assert_called_once()
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    def test_apply_manifest_from_file_path_not_exists(self, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with non-existent path"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = False
+
+        # Call the method and expect FileNotFoundError
+        with self.assertRaises(FileNotFoundError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/nonexistent")
+
+        self.assertIn("Path does not exist", str(context.exception))
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_single_file_multi_doc(self, _mock_open_file, mock_yaml_load,
+                                                          mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with single file containing multiple documents"""
+        # Setup mocks
+        mock_isfile.return_value = True
+        mock_isdir.return_value = False
+
+        # Mock multi-document YAML content
+        manifest1 = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "test-namespace"}
+        }
+        manifest2 = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+
+        mock_yaml_load.return_value = [manifest1, manifest2]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespace.return_value = None
+            mock_api.create_namespaced_config_map.return_value = None
+
+            # Call the method
+            self.client.apply_manifest_from_file(manifest_path="/path/to/multi-doc.yaml")
+
+            # Verify both manifests were applied
+            mock_api.create_namespace.assert_called_once()
+            mock_api.create_namespaced_config_map.assert_called_once()
+
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    @patch('glob.glob')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_combined_sources(self, _mock_open_file, mock_yaml_load,
+                                                     mock_glob, mock_isfile, mock_isdir):
+        """Test apply_manifest_from_file with both folder and dictionary"""
+        # Setup mocks
+        mock_isfile.return_value = False
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/service.yaml"]
+
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        config_manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+
+        mock_yaml_load.return_value = [service_manifest]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_service.return_value = None
+            mock_api.create_namespaced_config_map.return_value = None
+
+            # Call the method with both folder and dictionary
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/manifests",
+                manifest_dict=config_manifest
+            )
+
+            # Verify both manifests were applied
+            mock_api.create_namespaced_service.assert_called_once()
+            mock_api.create_namespaced_config_map.assert_called_once()
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_deployment_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with deployment manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/deployment.yaml")
+
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_service_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with service manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
+
+        self.assertIn("Service requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_statefulset_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with StatefulSet manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {
+                "name": "test-statefulset"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/statefulset.yaml")
+
+        self.assertIn("StatefulSet requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_configmap_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with ConfigMap manifest missing namespace - should raise error"""
+        # Mock file existence check
+        mock_isfile.return_value = True
+
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-configmap"
+                # Missing namespace
+            }
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Should raise ValueError for missing namespace
+        with self.assertRaises(ValueError) as context:
+            self.client.apply_manifest_from_file(manifest_path="/path/to/configmap.yaml")
+
+        self.assertIn("ConfigMap requires a namespace", str(context.exception))
+
+    @patch('os.path.isfile')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_delete_manifest_from_file_single_file(self, mock_yaml_load, mock_file, mock_isfile):
+        """Test deleting a single manifest file."""
+        mock_isfile.return_value = True
+
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Mock the API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.return_value = None
+
+            # Call the method
+            self.client.delete_manifest_from_file(manifest_path="/path/to/manifest.yaml")
+
+            # Verify the file was opened and parsed
+            mock_file.assert_called_once_with("/path/to/manifest.yaml", 'r', encoding='utf-8')
+            mock_yaml_load.assert_called_once()
+
+            # Verify the deployment was deleted
+            mock_app.delete_namespaced_deployment.assert_called_once_with(
+                name="test-deployment",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    @patch('os.path.isdir')
+    @patch('glob.glob')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_delete_manifest_from_file_directory(self, mock_yaml_load, _mock_file, mock_glob, mock_isdir):
+        """Test deleting manifests from a directory."""
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml", "/path/to/manifests/service.yaml"]
+
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        # Return different manifests for each file
+        mock_yaml_load.side_effect = [[deployment_manifest], [service_manifest]]
+
+        # Mock both API clients
+        with patch.object(self.client, 'app') as mock_app, \
+             patch.object(self.client, 'api') as mock_api:
+
+            mock_app.delete_namespaced_deployment.return_value = None
+            mock_api.delete_namespaced_service.return_value = None
+
+            # Call the method
+            self.client.delete_manifest_from_file(manifest_path="/path/to/manifests")
+
+            # Verify glob was called to find YAML files
+            self.assertEqual(mock_glob.call_count, 2)  # Called for *.yaml and *.yml
+
+            # Verify both manifests were deleted (in reverse order)
+            mock_api.delete_namespaced_service.assert_called_once()
+            mock_app.delete_namespaced_deployment.assert_called_once()
+
+    def test_delete_manifest_from_file_dict_only(self):
+        """Test deleting a manifest from dictionary only."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_config_map.return_value = None
+
+            # Call the method
+            self.client.delete_manifest_from_file(manifest_dict=manifest)
+
+            # Verify the configmap was deleted
+            mock_api.delete_namespaced_config_map.assert_called_once_with(
+                name="test-configmap",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_manifest_from_file_missing_namespace_error(self):
+        """Test deleting manifest that requires namespace but doesn't have one."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment"},  # No namespace specified
+            "spec": {"replicas": 1}
+        }
+
+        # Should raise Exception (wrapping ValueError) since Deployment requires namespace
+        with self.assertRaises(Exception) as context:
+            self.client.delete_manifest_from_file(manifest_dict=manifest)
+
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    def test_delete_manifest_from_file_ignore_not_found(self):
+        """Test deleting manifest with ignore_not_found=True when resource doesn't exist."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the API client to raise 404 error
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.side_effect = ApiException(status=404, reason="Not Found")
+
+            # Call the method with ignore_not_found=True (default)
+            try:
+                self.client.delete_manifest_from_file(manifest_dict=manifest, ignore_not_found=True)
+            except Exception as e:
+                self.fail(f"Method should not raise exception when ignore_not_found=True: {e}")
+
+            # Verify the deployment deletion was attempted
+            mock_app.delete_namespaced_deployment.assert_called_once()
+
+    def test_delete_manifest_from_file_not_ignore_not_found(self):
+        """Test deleting manifest with ignore_not_found=False when resource doesn't exist."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the API client to raise 404 error
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.side_effect = ApiException(status=404, reason="Not Found")
+
+            # Call the method with ignore_not_found=False
+            with self.assertRaises(Exception):
+                self.client.delete_manifest_from_file(manifest_dict=manifest, ignore_not_found=False)
+
+            # Verify the deployment deletion was attempted
+            mock_app.delete_namespaced_deployment.assert_called_once()
+
+    def test_delete_single_manifest_deployment(self):
+        """Test deleting a single deployment manifest."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_deployment.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_app.delete_namespaced_deployment.assert_called_once_with(
+                name="test-deployment",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_statefulset(self):
+        """Test deleting a single StatefulSet manifest."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.delete_namespaced_stateful_set.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_app.delete_namespaced_stateful_set.assert_called_once_with(
+                name="test-statefulset",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_statefulset_no_namespace(self):
+        """Test _delete_single_manifest with StatefulSet missing namespace."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {"name": "test-statefulset"},
+            "spec": {}
+        }
+
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+        self.assertIn("StatefulSet requires a namespace", str(context.exception))
+
+    def test_delete_single_manifest_service(self):
+        """Test deleting a single service manifest."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "test-namespace"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_service.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_api.delete_namespaced_service.assert_called_once_with(
+                name="test-service",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_cluster_scoped(self):
+        """Test deleting a cluster-scoped resource (ClusterRole)."""
+        manifest = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": "test-clusterrole"},
+            "rules": []
+        }
+
+        with patch('clients.kubernetes_client.client.RbacAuthorizationV1Api') as mock_rbac_api_class:
+            mock_rbac_api = mock_rbac_api_class.return_value
+            mock_rbac_api.delete_cluster_role.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_rbac_api.delete_cluster_role.assert_called_once_with(
+                name="test-clusterrole",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_unsupported_kind(self):
+        """Test deleting an unsupported resource kind."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "UnsupportedKind",
+            "metadata": {"name": "test-resource", "namespace": "test-namespace"}
+        }
+
+        # Should log warning but not raise exception
+        try:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+        except Exception as e:
+            self.fail(f"Method should not raise exception for unsupported kind: {e}")
+
+    def test_delete_single_manifest_no_name(self):
+        """Test deleting a manifest without a resource name."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"namespace": "test-namespace"},  # No name
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Should return early without calling delete
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+            mock_app.delete_namespaced_deployment.assert_not_called()
+
+    def test_delete_single_manifest_mpi_job(self):
+        """Test deleting a single MPIJob custom resource."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job", "namespace": "kubeflow"},
+            "spec": {
+                "slotsPerWorker": 1,
+                "runPolicy": {},
+                "mpiReplicaSpecs": {}
+            }
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_namespaced_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_namespaced_custom_object.assert_called_once_with(
+                group="kubeflow.org",
+                version="v2beta1",
+                namespace="kubeflow",
+                plural="mpijobs",
+                name="test-mpi-job",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_mpi_job_no_namespace(self):
+        """Test deleting MPIJob without namespace raises error."""
+        manifest = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {"name": "test-mpi-job"},
+            "spec": {}
+        }
+
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+        self.assertIn("MPIJob requires a namespace", str(context.exception))
+
+    def test_delete_single_manifest_node_feature_rule(self):
+        """Test deleting a single NodeFeatureRule custom resource."""
+        manifest = {
+            "apiVersion": "nfd.k8s-sigs.io/v1alpha1",
+            "kind": "NodeFeatureRule",
+            "metadata": {"name": "test-node-feature-rule"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="nfd.k8s-sigs.io",
+                version="v1alpha1",
+                plural="nodefeaturerules",
+                name="test-node-feature-rule",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_nic_cluster_policy(self):
+        """Test deleting a single NicClusterPolicy custom resource."""
+        manifest = {
+            "apiVersion": "mellanox.com/v1alpha1",
+            "kind": "NicClusterPolicy",
+            "metadata": {"name": "nic-cluster-policy"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="mellanox.com",
+                version="v1alpha1",
+                plural="nicclusterpolicies",
+                name="nic-cluster-policy",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_kwok_stage(self):
+        """Test deleting a single KWOK Stage custom resource."""
+        manifest = {
+            "apiVersion": "kwok.x-k8s.io/v1alpha1",
+            "kind": "Stage",
+            "metadata": {"name": "test-stage"},
+            "spec": {}
+        }
+
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.delete_cluster_custom_object.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_custom_api.delete_cluster_custom_object.assert_called_once_with(
+                group="kwok.x-k8s.io",
+                version="v1alpha1",
+                plural="stages",
+                name="test-stage",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_api_exception_404_ignore_not_found_true(self):
+        """Test delete with 404 error when ignore_not_found=True."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 404 not found error
+            api_exception = ApiException(status=404, reason="Not Found")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should not raise an exception, just log and continue
+            with patch('clients.kubernetes_client.logger') as mock_logger:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest, ignore_not_found=True)
+                mock_logger.info.assert_called_once_with(
+                    "Resource %s/%s not found, skipping deletion",
+                    "Deployment", "test-deployment"
+                )
+
+    def test_delete_single_manifest_api_exception_404_ignore_not_found_false(self):
+        """Test delete with 404 error when ignore_not_found=False."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 404 not found error
+            api_exception = ApiException(status=404, reason="Not Found")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest, ignore_not_found=False)
+
+            self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
+
+    def test_delete_single_manifest_api_exception_non_404(self):
+        """Test delete with API exception other than 404."""
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        with patch.object(self.client, 'app') as mock_app:
+            # Mock 403 forbidden error
+            api_exception = ApiException(status=403, reason="Forbidden")
+            mock_app.delete_namespaced_deployment.side_effect = api_exception
+
+            # Should raise an exception
+            with self.assertRaises(Exception) as context:
+                # pylint: disable=protected-access
+                self.client._delete_single_manifest(manifest)
+
+            self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
+
+    def test_delete_manifest_from_file_no_arguments(self):
+        """Test calling delete_manifest_from_file without any arguments."""
+        with self.assertRaises(ValueError) as context:
+            self.client.delete_manifest_from_file()
+
+        self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
+
+    @patch('os.path.exists')
+    def test_delete_manifest_from_file_nonexistent_path(self, mock_exists):
+        """Test deleting from a non-existent file path."""
+        mock_exists.return_value = False
+
+        with self.assertRaises(FileNotFoundError):
+            self.client.delete_manifest_from_file(manifest_path="/nonexistent/path")
+
+    # Test helper methods
+    @patch('os.path.isfile')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_load_manifests_from_sources_single_file(self, mock_yaml_load, _mock_file, mock_isfile):
+        """Test loading manifests from a single file."""
+        mock_isfile.return_value = True
+
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Call the helper method
+        # pylint: disable=protected-access
+        manifests, sources = self.client._load_manifests_from_sources(manifest_path="/path/to/manifest.yaml")
+
+        # Verify results
+        self.assertEqual(len(manifests), 1)
+        self.assertEqual(manifests[0], manifest)
+        self.assertEqual(sources, ["file: /path/to/manifest.yaml"])
+
+    @patch('os.path.isdir')
+    @patch('glob.glob')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_load_manifests_from_sources_directory(self, mock_yaml_load, _mock_file, mock_glob, mock_isdir):
+        """Test loading manifests from a directory."""
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml"]
+
+        manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "test-namespace"},
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest]
+
+        # Call the helper method
+        # pylint: disable=protected-access
+        manifests, sources = self.client._load_manifests_from_sources(manifest_path="/path/to/manifests")
+
+        # Verify results
+        self.assertEqual(len(manifests), 1)
+        self.assertEqual(manifests[0], manifest)
+        self.assertEqual(sources, ["directory: /path/to/manifests (1 files)"])
+
+    def test_load_manifests_from_sources_dictionary(self):
+        """Test loading manifests from a dictionary."""
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": "test-configmap", "namespace": "test-namespace"},
+            "data": {"key": "value"}
+        }
+
+        # Call the helper method
+        # pylint: disable=protected-access
+        manifests, sources = self.client._load_manifests_from_sources(manifest_dict=manifest)
+
+        # Verify results
+        self.assertEqual(len(manifests), 1)
+        self.assertEqual(manifests[0], manifest)
+        self.assertEqual(sources, ["dictionary"])
+
+    def test_load_manifests_from_sources_no_sources(self):
+        """Test loading manifests with no sources provided."""
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._load_manifests_from_sources()
+
+        self.assertIn("At least one of manifest_path or manifest_dict must be provided", str(context.exception))
+
+    # Tests for namespace override functionality
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_namespace_override_deployment(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter overriding deployment manifest namespace."""
+        mock_isfile.return_value = True
+
+        # Deployment manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/deployment.yaml",
+                namespace="override-namespace"
+            )
+
+            # Verify deployment was created with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_namespace_override_service(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter overriding service manifest namespace."""
+        mock_isfile.return_value = True
+
+        # Service manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "original-namespace"
+            },
+            "spec": {"selector": {"app": "test"}}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_service.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/service.yaml",
+                namespace="override-namespace"
+            )
+
+            # Verify service was created with override namespace
+            mock_api.create_namespaced_service.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_with_namespace_override_statefulset(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter overriding StatefulSet manifest namespace."""
+        mock_isfile.return_value = True
+
+        # StatefulSet manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {
+                "name": "test-statefulset",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_stateful_set.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/statefulset.yaml",
+                namespace="override-namespace"
+            )
+
+            # Verify StatefulSet was created with override namespace
+            mock_app.create_namespaced_stateful_set.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_manifest_from_file_with_namespace_override_manifest_dict(self):
+        """Test apply_manifest_from_file with namespace override using manifest_dict."""
+        # ConfigMap manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-configmap",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "value"}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.create_namespaced_config_map.return_value = None
+
+            # Call with namespace override using manifest_dict
+            self.client.apply_manifest_from_file(
+                manifest_dict=manifest_dict,
+                namespace="override-namespace"
+            )
+
+            # Verify ConfigMap was created with override namespace
+            mock_api.create_namespaced_config_map.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_override_missing_namespace_in_manifest(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter when manifest has no namespace."""
+        mock_isfile.return_value = True
+
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call with namespace parameter
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/deployment.yaml",
+                namespace="provided-namespace"
+            )
+
+            # Verify deployment was created with provided namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="provided-namespace",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_override_mpi_job(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace override for MPIJob custom resource."""
+        mock_isfile.return_value = True
+
+        # MPIJob manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "kubeflow.org/v2beta1",
+            "kind": "MPIJob",
+            "metadata": {
+                "name": "test-mpi-job",
+                "namespace": "original-namespace"
+            },
+            "spec": {"slotsPerWorker": 1}
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the CustomObjects API client
+        with patch('clients.kubernetes_client.client.CustomObjectsApi') as mock_custom_api_class:
+            mock_custom_api = mock_custom_api_class.return_value
+            mock_custom_api.create_namespaced_custom_object.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/mpijob.yaml",
+                namespace="override-namespace"
+            )
+
+            # Verify MPIJob was created with override namespace
+            mock_custom_api.create_namespaced_custom_object.assert_called_once_with(
+                group="kubeflow.org",
+                version="v2beta1",
+                namespace="override-namespace",
+                plural="mpijobs",
+                body=manifest_dict
+            )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_apply_manifest_from_file_namespace_override_cluster_scoped_resource(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test apply_manifest_from_file with namespace parameter for cluster-scoped resource (should be ignored)."""
+        mock_isfile.return_value = True
+
+        # ClusterRole manifest (cluster-scoped, no namespace)
+        manifest_dict = {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {
+                "name": "test-cluster-role"
+            },
+            "rules": []
+        }
+
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the RBAC API client
+        with patch('clients.kubernetes_client.client.RbacAuthorizationV1Api') as mock_rbac_api_class:
+            mock_rbac_api = mock_rbac_api_class.return_value
+            mock_rbac_api.create_cluster_role.return_value = None
+
+            # Call with namespace parameter (should be ignored for cluster-scoped resource)
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/clusterrole.yaml",
+                namespace="should-be-ignored"
+            )
+
+            # Verify ClusterRole was created without namespace (cluster-scoped)
+            mock_rbac_api.create_cluster_role.assert_called_once_with(body=manifest_dict)
+
+    @patch('os.path.isdir')
+    @patch('glob.glob')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load_all')
+    def test_apply_manifest_from_file_namespace_override_multiple_manifests(self, mock_yaml_load, _mock_open_file, mock_glob, mock_isdir):
+        """Test apply_manifest_from_file with namespace override for multiple manifests."""
+        mock_isdir.return_value = True
+        mock_glob.return_value = ["/path/to/manifests/deployment.yaml", "/path/to/manifests/service.yaml"]
+
+        # Multiple manifests with different original namespaces
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "test-deployment", "namespace": "original-namespace-1"},
+            "spec": {"replicas": 1}
+        }
+
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "test-service", "namespace": "original-namespace-2"},
+            "spec": {"selector": {"app": "test"}, "ports": [{"port": 80}]}
+        }
+
+        # Return different manifests for each file
+        mock_yaml_load.side_effect = [[deployment_manifest], [service_manifest]]
+
+        # Mock both API clients
+        with patch.object(self.client, 'app') as mock_app, \
+             patch.object(self.client, 'api') as mock_api:
+
+            mock_app.create_namespaced_deployment.return_value = None
+            mock_api.create_namespaced_service.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_file(
+                manifest_path="/path/to/manifests",
+                namespace="global-override-namespace"
+            )
+
+            # Verify both manifests were applied with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="global-override-namespace",
+                body=deployment_manifest
+            )
+            mock_api.create_namespaced_service.assert_called_once_with(
+                namespace="global-override-namespace",
+                body=service_manifest
+            )
+
+    @patch('requests.get')
+    def test_apply_manifest_from_url_with_namespace_override(self, mock_get):
+        """Test apply_manifest_from_url with namespace parameter."""
+        # Mock successful HTTP response
+        mock_response = mock.MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.text = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: original-namespace
+spec:
+  replicas: 1
+"""
+        mock_get.return_value = mock_response
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call with namespace override
+            self.client.apply_manifest_from_url(
+                manifest_url="http://example.com/manifest.yaml",
+                namespace="override-namespace"
+            )
+
+            # Verify deployment was created with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once()
+            call_args = mock_app.create_namespaced_deployment.call_args
+            self.assertEqual(call_args[1]['namespace'], "override-namespace")
+
+    def test_apply_single_manifest_with_namespace_parameter(self):
+        """Test _apply_single_manifest with namespace parameter directly."""
+        # Deployment manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest with namespace override
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace="override-namespace")
+
+            # Verify deployment was created with override namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="override-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_single_manifest_namespace_priority(self):
+        """Test _apply_single_manifest namespace parameter takes priority over manifest namespace."""
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest with namespace parameter
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace="provided-namespace")
+
+            # Verify deployment was created with provided namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="provided-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_single_manifest_fallback_to_manifest_namespace(self):
+        """Test _apply_single_manifest falls back to manifest namespace when parameter is None."""
+        # Deployment manifest with namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "manifest-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest without namespace parameter
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace=None)
+
+            # Verify deployment was created with manifest namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="manifest-namespace",
+                body=manifest_dict
+            )
+
+    def test_apply_single_manifest_no_namespace_anywhere_raises_error(self):
+        """Test _apply_single_manifest raises error when no namespace is provided anywhere."""
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Call _apply_single_manifest without namespace parameter
+        with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
+            self.client._apply_single_manifest(manifest_dict, namespace=None)
+
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    # Tests for delete_manifest_from_file with namespace override functionality
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_with_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file with namespace override parameter."""
+        mock_isfile.return_value = True
+
+        # Mock YAML content - deployment with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with namespace override
+            self.client.delete_manifest_from_file(
+                manifest_path="test.yaml",
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called with override namespace
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_without_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file without namespace override parameter."""
+        mock_isfile.return_value = True
+
+        # Mock YAML content - service with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": "test-service",
+                "namespace": "original-namespace"
+            },
+            "spec": {"ports": [{"port": 80}]}
+        }
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file without namespace override
+            self.client.delete_manifest_from_file(manifest_path="test.yaml")
+
+        # Verify _delete_single_manifest was called without namespace override
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=True,
+            namespace=None
+        )
+
+    def test_delete_manifest_from_file_with_namespace_override_manifest_dict(self):
+        """Test delete_manifest_from_file with namespace override using manifest_dict."""
+        # ConfigMap manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-config",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "value"}
+        }
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with namespace override using manifest_dict
+            self.client.delete_manifest_from_file(
+                manifest_dict=manifest_dict,
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called with override namespace
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_multiple_manifests_with_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file with multiple manifests and namespace override."""
+        mock_isfile.return_value = True
+
+        # Mock YAML content with multiple manifests
+        manifests = [
+            {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {"name": "test-deployment", "namespace": "original-ns"},
+                "spec": {"replicas": 1}
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Service",
+                "metadata": {"name": "test-service", "namespace": "original-ns"},
+                "spec": {"ports": [{"port": 80}]}
+            }
+        ]
+        mock_yaml_load.return_value = manifests
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with namespace override
+            self.client.delete_manifest_from_file(
+                manifest_path="test.yaml",
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called for each manifest with override namespace
+        # Note: manifests are deleted in reverse order
+        self.assertEqual(mock_delete.call_count, 2)
+
+        # Check calls (reverse order)
+        mock_delete.assert_any_call(
+            manifest=manifests[1],  # Service (reversed)
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+        mock_delete.assert_any_call(
+            manifest=manifests[0],  # Deployment (reversed)
+            ignore_not_found=True,
+            namespace="override-namespace"
+        )
+
+    @patch('os.path.isfile')
+    @patch('yaml.safe_load_all')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_delete_manifest_from_file_ignore_not_found_with_namespace_override(self, _mock_open_file, mock_yaml_load, mock_isfile):
+        """Test delete_manifest_from_file with ignore_not_found=False and namespace override."""
+        mock_isfile.return_value = True
+
+        # Mock YAML content - StatefulSet with original namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "metadata": {
+                "name": "test-statefulset",
+                "namespace": "original-namespace"
+            },
+            "spec": {"replicas": 1}
+        }
+        mock_yaml_load.return_value = [manifest_dict]
+
+        # Mock the _delete_single_manifest method to capture calls
+        with patch.object(self.client, '_delete_single_manifest') as mock_delete:
+            # Call delete_manifest_from_file with ignore_not_found=False and namespace override
+            self.client.delete_manifest_from_file(
+                manifest_path="test.yaml",
+                ignore_not_found=False,
+                namespace="override-namespace"
+            )
+
+        # Verify _delete_single_manifest was called with correct parameters
+        mock_delete.assert_called_once_with(
+            manifest=manifest_dict,
+            ignore_not_found=False,
+            namespace="override-namespace"
+        )
+
+    def test_delete_single_manifest_with_namespace_parameter(self):
+        """Test _delete_single_manifest with namespace parameter."""
+        # ConfigMap manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "test-config",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "value"}
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_config_map.return_value = None
+
+            # Call _delete_single_manifest with namespace parameter
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(
+                manifest=manifest_dict,
+                namespace="override-namespace"
+            )
+
+            # Verify config map was deleted with override namespace
+            mock_api.delete_namespaced_config_map.assert_called_once()
+            call_args = mock_api.delete_namespaced_config_map.call_args
+            self.assertEqual(call_args[1]['namespace'], "override-namespace")
+            self.assertEqual(call_args[1]['name'], "test-config")
+
+    def test_delete_single_manifest_namespace_priority(self):
+        """Test that _delete_single_manifest uses namespace priority correctly."""
+        # Test manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name": "test-secret",
+                "namespace": "original-namespace"
+            },
+            "data": {"key": "dmFsdWU="}
+        }
+
+        # Test with namespace override - should use override
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_secret.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(
+                manifest=manifest_dict,
+                namespace="override-namespace"
+            )
+
+            # Check that the override namespace was used
+            mock_api.delete_namespaced_secret.assert_called_once()
+            call_args = mock_api.delete_namespaced_secret.call_args
+            self.assertEqual(call_args[1]['namespace'], "override-namespace")
+
+        # Reset the mock
+        mock_api.reset_mock()
+
+        # Test without namespace override - should use manifest namespace
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_secret.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest=manifest_dict, namespace=None)
+
+            # Check that the manifest namespace was used
+            mock_api.delete_namespaced_secret.assert_called_once()
+            call_args = mock_api.delete_namespaced_secret.call_args
+            self.assertEqual(call_args[1]['namespace'], "original-namespace")
+
+    def test_delete_single_manifest_fallback_to_manifest_namespace(self):
+        """Test _delete_single_manifest falls back to manifest namespace when no override provided."""
+        # ServiceAccount manifest with original namespace
+        manifest_dict = {
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {
+                "name": "test-sa",
+                "namespace": "manifest-namespace"
+            }
+        }
+
+        # Mock the API client
+        with patch.object(self.client, 'api') as mock_api:
+            mock_api.delete_namespaced_service_account.return_value = None
+
+            # Call _delete_single_manifest without namespace parameter
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest_dict, namespace=None)
+
+            # Verify service account was deleted with manifest namespace
+            mock_api.delete_namespaced_service_account.assert_called_once()
+            call_args = mock_api.delete_namespaced_service_account.call_args
+            self.assertEqual(call_args[1]['namespace'], "manifest-namespace")
+            self.assertEqual(call_args[1]['name'], "test-sa")
+
+    def test_delete_single_manifest_no_namespace_anywhere_raises_error(self):
+        """Test _delete_single_manifest raises error when no namespace is provided anywhere."""
+        # Deployment manifest without namespace
+        manifest_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "test-deployment"
+                # No namespace in manifest
+            },
+            "spec": {"replicas": 1}
+        }
+
+        # Call _delete_single_manifest without namespace parameter
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest_dict, namespace=None)
+
+        self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
+        self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_node_selector_only(self, mock_patch_deployment):
+        """Test patching deployment with node selector only."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {"kwok": "true", "zone": "us-west-1"}
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_tolerations_only(self, mock_patch_deployment):
+        """Test patching deployment with tolerations only."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        tolerations = [
+            {
+                "key": "kwok",
+                "operator": "Equal",
+                "value": "true",
+                "effect": "NoSchedule"
+            },
+            {
+                "key": "example.com/special",
+                "operator": "Exists",
+                "effect": "NoExecute"
+            }
+        ]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            tolerations=tolerations
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_both_node_selector_and_tolerations(self, mock_patch_deployment):
+        """Test patching deployment with both node selector and tolerations."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {"environment": "production", "instance-type": "large"}
+        tolerations = [
+            {
+                "key": "dedicated",
+                "operator": "Equal",
+                "value": "production",
+                "effect": "NoSchedule"
+            }
+        ]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector,
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_with_neither_node_selector_nor_tolerations(self, mock_patch_deployment):
+        """Test patching deployment with neither node selector nor tolerations."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace
+        )
+
+        # Verify - should still patch with empty spec
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {}
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_api_exception(self, mock_patch_deployment):
+        """Test patch_deployment when API exception occurs."""
+        # Setup
+        deployment_name = "failing-deployment"
+        namespace = "test-namespace"
+        node_selector = {"kwok": "true"}
+
+        # Mock API exception
+        api_exception = client.rest.ApiException(
+            status=403,
+            reason="Forbidden"
+        )
+        mock_patch_deployment.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.patch_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                node_selector=node_selector
+            )
+
+        # Verify exception message
+        self.assertIn(f"Error patching deployment {deployment_name}", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+
+        # Verify API was called
+        mock_patch_deployment.assert_called_once()
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_unexpected_exception(self, mock_patch_deployment):
+        """Test patch_deployment when unexpected exception occurs."""
+        # Setup
+        deployment_name = "error-deployment"
+        namespace = "test-namespace"
+        tolerations = [{"key": "test", "operator": "Exists"}]
+
+        # Mock unexpected exception
+        mock_patch_deployment.side_effect = ValueError("Unexpected error")
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.patch_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                tolerations=tolerations
+            )
+
+        # Verify exception message
+        self.assertIn(f"Unexpected error patching deployment {deployment_name}", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, ValueError)
+
+        # Verify API was called
+        mock_patch_deployment.assert_called_once()
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_success_with_complex_tolerations(self, mock_patch_deployment):
+        """Test patch_deployment success with complex tolerations."""
+        # Setup
+        deployment_name = "complex-deployment"
+        namespace = "kube-system"
+        node_selector = {"node-role.kubernetes.io/master": ""}
+        tolerations = [
+            {
+                "key": "node-role.kubernetes.io/master",
+                "operator": "Exists",
+                "effect": "NoSchedule"
+            },
+            {
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "effect": "NoExecute",
+                "tolerationSeconds": 300
+            },
+            {
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "effect": "NoExecute",
+                "tolerationSeconds": 300
+            }
+        ]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector,
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_empty_node_selector(self, mock_patch_deployment):
+        """Test patch_deployment with empty node selector."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {}  # Empty dict
+        tolerations = [{"key": "test", "operator": "Exists"}]
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify - empty node selector should NOT be included (falsy value)
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "tolerations": tolerations
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
+    def test_patch_deployment_empty_tolerations(self, mock_patch_deployment):
+        """Test patch_deployment with empty tolerations list."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        node_selector = {"kwok": "true"}
+        tolerations = []  # Empty list
+
+        # Execute
+        self.client.patch_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            node_selector=node_selector,
+            tolerations=tolerations
+        )
+
+        # Verify - empty tolerations should NOT be included (falsy value)
+        expected_patch_body = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "nodeSelector": node_selector
+                    }
+                }
+            }
+        }
+        mock_patch_deployment.assert_called_once_with(
+            name=deployment_name,
+            namespace=namespace,
+            body=expected_patch_body
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_success(self, mock_create_custom_object):
+        """Test successful creation of ResourceSlice."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: test-resource-slice
+spec:
+  nodeName: kwok-node-0
+  resources:
+  - name: example.com/gpu
+    resourceType: integer
+    capacity: "4"
+"""
+        expected_response = {
+            'metadata': {
+                'name': 'test-resource-slice'
+            }
+        }
+        mock_create_custom_object.return_value = expected_response
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'test-resource-slice')
+        mock_create_custom_object.assert_called_once_with(
+            group="resource.k8s.io",
+            version="v1beta2",
+            plural="resourceslices",
+            body={
+                'apiVersion': 'resource.k8s.io/v1beta2',
+                'kind': 'ResourceSlice',
+                'metadata': {'name': 'test-resource-slice'},
+                'spec': {
+                    'nodeName': 'kwok-node-0',
+                    'resources': [{
+                        'name': 'example.com/gpu',
+                        'resourceType': 'integer',
+                        'capacity': '4'
+                    }]
+                }
+            }
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_already_exists(self, mock_create_custom_object):
+        """Test creating ResourceSlice that already exists (409 conflict)."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: existing-resource-slice
+spec:
+  nodeName: kwok-node-1
+"""
+        # Mock 409 conflict error
+        api_exception = client.rest.ApiException(status=409, reason="Conflict")
+        mock_create_custom_object.side_effect = api_exception
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'existing-resource-slice')
+        mock_create_custom_object.assert_called_once()
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_other_api_exception(self, mock_create_custom_object):
+        """Test creating ResourceSlice with API exception other than 409."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: test-resource-slice
+"""
+        # Mock 403 forbidden error
+        api_exception = client.rest.ApiException(status=403, reason="Forbidden")
+        mock_create_custom_object.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.create_resource_slice(template)
+
+        self.assertIn("Error creating ResourceSlice", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+
+    def test_create_resource_slice_invalid_kind(self):
+        """Test creating ResourceSlice with wrong kind."""
+        # Setup
+        template = """
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+"""
+
+        # Execute & Verify
+        with self.assertRaises(ValueError) as context:
+            self.client.create_resource_slice(template)
+
+        self.assertIn("The provided YAML template does not define a ResourceSlice resource", str(context.exception))
+
+    def test_create_resource_slice_yaml_error(self):
+        """Test creating ResourceSlice with invalid YAML."""
+        # Setup
+        template = "invalid: [unclosed yaml"
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.create_resource_slice(template)
+
+        self.assertIn("Error parsing ResourceSlice template", str(context.exception))
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_with_core_api_version(self, mock_create_custom_object):
+        """Test creating ResourceSlice with core API version (no group)."""
+        # Setup
+        template = """
+apiVersion: v1beta2
+kind: ResourceSlice
+metadata:
+  name: core-resource-slice
+"""
+        expected_response = {
+            'metadata': {
+                'name': 'core-resource-slice'
+            }
+        }
+        mock_create_custom_object.return_value = expected_response
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'core-resource-slice')
+        mock_create_custom_object.assert_called_once_with(
+            group="",
+            version="v1beta2",
+            plural="resourceslices",
+            body=unittest.mock.ANY
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    def test_delete_resource_slice_success(self, mock_delete_custom_object):
+        """Test successful deletion of ResourceSlice."""
+        # Setup
+        resource_slice_name = "test-resource-slice"
+        mock_delete_custom_object.return_value = None
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify
+        mock_delete_custom_object.assert_called_once_with(
+            group="resource.k8s.io",
+            version="v1beta2",
+            plural="resourceslices",
+            name=resource_slice_name,
+            body=unittest.mock.ANY
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    @patch('clients.kubernetes_client.logger')
+    def test_delete_resource_slice_not_found(self, mock_logger, mock_delete_custom_object):
+        """Test deleting ResourceSlice that doesn't exist (404)."""
+        # Setup
+        resource_slice_name = "nonexistent-resource-slice"
+        # Mock 404 not found error
+        api_exception = client.rest.ApiException(status=404, reason="Not Found")
+        mock_delete_custom_object.side_effect = api_exception
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify
+        mock_delete_custom_object.assert_called_once()
+        mock_logger.info.assert_called_with(
+            f"ResourceSlice '{resource_slice_name}' not found."
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    def test_delete_resource_slice_other_api_exception(self, mock_delete_custom_object):
+        """Test deleting ResourceSlice with API exception other than 404."""
+        # Setup
+        resource_slice_name = "failing-resource-slice"
+        # Mock 403 forbidden error
+        api_exception = client.rest.ApiException(status=403, reason="Forbidden")
+        mock_delete_custom_object.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.delete_resource_slice(resource_slice_name)
+
+        self.assertIn(f"Error deleting ResourceSlice '{resource_slice_name}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    @patch('clients.kubernetes_client.logger')
+    def test_delete_resource_slice_logs_success(self, mock_logger, mock_delete_custom_object):
+        """Test that successful ResourceSlice deletion is logged."""
+        # Setup
+        resource_slice_name = "success-resource-slice"
+        mock_delete_custom_object.return_value = None
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify
+        mock_delete_custom_object.assert_called_once()
+        mock_logger.info.assert_called_with(
+            f"ResourceSlice '{resource_slice_name}' deleted successfully."
+        )
+
+    @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
+    def test_create_resource_slice_with_complex_template(self, mock_create_custom_object):
+        """Test creating ResourceSlice with complex template including multiple resources."""
+        # Setup
+        template = """
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  name: complex-resource-slice
+  labels:
+    app: test-app
+  annotations:
+    description: "Test resource slice"
+spec:
+  nodeName: kwok-node-0
+  resources:
+  - name: example.com/gpu
+    resourceType: integer
+    capacity: "8"
+  - name: example.com/memory
+    resourceType: memory
+    capacity: "32Gi"
+"""
+        expected_response = {
+            'metadata': {
+                'name': 'complex-resource-slice'
+            }
+        }
+        mock_create_custom_object.return_value = expected_response
+
+        # Execute
+        result = self.client.create_resource_slice(template)
+
+        # Verify
+        self.assertEqual(result, 'complex-resource-slice')
+
+        # Verify the call was made with correct parameters
+        call_args = mock_create_custom_object.call_args
+        body = call_args[1]['body']
+        self.assertEqual(body['metadata']['name'], 'complex-resource-slice')
+        self.assertEqual(body['metadata']['labels']['app'], 'test-app')
+        self.assertEqual(body['spec']['nodeName'], 'kwok-node-0')
+        self.assertEqual(len(body['spec']['resources']), 2)
+
+    @patch('kubernetes.client.CustomObjectsApi.delete_cluster_custom_object')
+    def test_delete_resource_slice_with_delete_options(self, mock_delete_custom_object):
+        """Test that delete_resource_slice passes correct V1DeleteOptions."""
+        # Setup
+        resource_slice_name = "delete-options-test"
+        mock_delete_custom_object.return_value = None
+
+        # Execute
+        self.client.delete_resource_slice(resource_slice_name)
+
+        # Verify delete options were passed
+        call_args = mock_delete_custom_object.call_args
+        delete_options = call_args[1]['body']
+        self.assertIsInstance(delete_options, client.V1DeleteOptions)
+
 
 if __name__ == '__main__':
     unittest.main()

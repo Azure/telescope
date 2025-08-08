@@ -15,6 +15,7 @@ metadata:
     node-role.kubernetes.io/agent: ""
     type: kwok
 spec:
+  providerID: "kwok://{{node_name}}"
   unschedulable: false
   taints: # Avoid scheduling actual running pods to fake Node
     - effect: NoSchedule
@@ -25,13 +26,15 @@ status:
     - type: InternalIP
       address: {{node_ip}}
   allocatable:
-    cpu: 32
-    memory: 256Gi
-    pods: 110
+    cpu: {{node_cpu}}
+    memory: {{node_memory}}
+    pods: {{node_pods}}
+    nvidia.com/gpu: {{node_gpu}}
   capacity:
-    cpu: 32
-    memory: 256Gi
-    pods: 110
+    cpu: {{node_cpu}}
+    memory: {{node_memory}}
+    pods: {{node_pods}}
+    nvidia.com/gpu: {{node_gpu}}
   conditions:
     - type: "Ready"
       status: "True"

@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "job-scheduling"
-deletion_delay = "1h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -62,9 +62,9 @@ eks_config_list = [{
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
-      name           = "idle"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.large"]
+      name           = "default"
+      ami_type       = "AL2023_x86_64_STANDARD"
+      instance_types = ["m4.2xlarge"]
       min_size       = 2
       max_size       = 2
       desired_size   = 2
@@ -74,16 +74,23 @@ eks_config_list = [{
       }
     },
     {
-      name           = "virtualnodes"
-      ami_type       = "AL2_x86_64"
-      instance_types = ["m4.2xlarge"]
-      min_size       = 3
-      max_size       = 3
-      desired_size   = 3
+      name           = "kwokpool"
+      ami_type       = "AL2023_x86_64_STANDARD"
+      instance_types = ["m4.16xlarge"]
+      min_size       = 1
+      max_size       = 1
+      desired_size   = 1
       capacity_type  = "ON_DEMAND"
       labels = {
-        "default" = "true"
+        "kwok" = "true"
       }
+      taints = [
+        {
+          key    = "kwok"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      ]
     }
   ]
 
@@ -92,5 +99,5 @@ eks_config_list = [{
       name = "coredns"
     }
   ]
-  kubernetes_version = "1.32"
+  kubernetes_version = "1.33"
 }]

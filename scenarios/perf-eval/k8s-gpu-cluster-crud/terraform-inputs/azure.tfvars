@@ -8,6 +8,7 @@ aks_cli_config_list = [
     role                          = "gpu"
     aks_name                      = "gpu-cluster"
     sku_tier                      = "standard"
+    kubernetes_version            = "1.33"
     use_aks_preview_cli_extension = true
     default_node_pool = {
       name       = "system"

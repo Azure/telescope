@@ -18,6 +18,9 @@
     },
     "ena_express" : {
       "type": "boolean"
+    },
+    "capacity_reservation_id" : {
+      "type": "string"
     }
   },
   "required": [

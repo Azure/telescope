@@ -1,21 +1,24 @@
+"""KWOK (Kubernetes WithOut Kubelet) - Virtual Node/Pod Simulator."""
 import argparse
-import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import requests
 
 from clients.kubernetes_client import KubernetesClient
+from utils.retries import execute_with_retries
 
 
 @dataclass
 class KWOK(ABC):
+    """Abstract base class for KWOK (Kubernetes WithOut Kubelet) components."""
     kwok_repo: str = "kubernetes-sigs/kwok"
     kwok_release: str = None
     enable_metrics: bool = False
     k8s_client: KubernetesClient = KubernetesClient()
 
     def fetch_latest_release(self):
+        """Fetch the latest KWOK release version from GitHub."""
         response = requests.get(
             f"https://api.github.com/repos/{self.kwok_repo}/releases/latest", timeout=10
         )
@@ -26,31 +29,75 @@ class KWOK(ABC):
     # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
     # to simulate resource usage for nodes, pods, and containers.
     def apply_kwok_manifests(self, kwok_release, enable_metrics):
-        kwok_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/kwok.yaml"
-        stage_fast_yaml_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/stage-fast.yaml"
-        subprocess.run(["kubectl", "apply", "-f", kwok_yaml_url], check=True)
-        subprocess.run(["kubectl", "apply", "-f", stage_fast_yaml_url], check=True)
+        """Apply KWOK manifests to set up the environment and enable metrics if requested."""
+        kwok_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                         f"download/{kwok_release}/kwok.yaml")
+        stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                              f"download/{kwok_release}/stage-fast.yaml")
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            kwok_yaml_url
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            stage_fast_yaml_url
+        )
+        # Replace KWOK configuration configmap
+        execute_with_retries(
+            self.k8s_client.delete_manifest_from_file,
+            "kwok/config/kwok-config.yaml"
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_file,
+            "kwok/config/kwok-config.yaml"
+        )
+
+        # Patch kwok-controller deployment with node selector and toleration
+        node_selector = {"kwok": "true"}
+        tolerations = [{
+            "key": "kwok",
+            "value": "true",
+            "effect": "NoSchedule"
+        }]
+        execute_with_retries(
+            self.k8s_client.patch_deployment,
+            "kwok-controller",
+            "kube-system",
+            node_selector,
+            tolerations
+        )
+
         if enable_metrics:
-            metrics_usage_url = f"https://github.com/{self.kwok_repo}/releases/download/{kwok_release}/metrics-usage.yaml"
-            subprocess.run(["kubectl", "apply", "-f", metrics_usage_url], check=True)
+            metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                               f"download/{kwok_release}/metrics-usage.yaml")
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_url,
+                metrics_usage_url
+            )
 
     @abstractmethod
     def create(self):
-        pass
+        """Create KWOK resources."""
 
     @abstractmethod
     def validate(self):
-        pass
+        """Validate KWOK resources are working correctly."""
 
     @abstractmethod
     def tear_down(self):
-        pass
+        """Clean up and remove KWOK resources."""
 
 
 @dataclass
 class Node(KWOK):
+    """KWOK Node implementation for creating and managing virtual Kubernetes nodes."""
     node_manifest_path: str = "kwok/config/kwok-node.yaml"
     node_count: int = 1
+    node_cpu: str = "32"
+    node_memory: str = "256Gi"
+    node_pods: str = "110"
+    node_gpu: str = "0"
+    enable_dra: bool = False
 
     def create(self):
         try:
@@ -59,20 +106,58 @@ class Node(KWOK):
 
             self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
+            # Apply DRA manifests once if enabled
+            if self.enable_dra:
+                execute_with_retries(
+                    self.k8s_client.apply_manifest_from_file,
+                    "kwok/config/device-class.yaml"
+                )
+
             for i in range(self.node_count):
-                node_ip = self._generate_node_ip(i)
-                replacements = {"node_name": f"kwok-node-{i}", "node_ip": node_ip}
+                node_name = f"kwok-node-{i}"
+                replacements = {
+                    "node_name": node_name,
+                    "node_ip": self._generate_node_ip(i),
+                    "node_cpu": self.node_cpu,
+                    "node_memory": self.node_memory,
+                    "node_pods": self.node_pods,
+                    "node_gpu": self.node_gpu
+                }
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
-                self.k8s_client.create_node(kwok_template)
+                execute_with_retries(
+                    self.k8s_client.create_node,
+                    kwok_template,
+                )
+
+                # Apply resource slice for each node if DRA is enabled
+                if self.enable_dra:
+                    resource_slice_name = f"kwok-resource-slice-{i}"
+                    print(f"Creating resource slice {resource_slice_name} for node {node_name}")
+
+                    replacements = {
+                        "resource_slice_name": resource_slice_name,
+                        "node_name": node_name
+                    }
+
+                    resource_slice_template = self.k8s_client.create_template(
+                        "kwok/config/resource-slice.yaml", replacements
+                    )
+
+                    execute_with_retries(
+                        self.k8s_client.create_resource_slice,
+                        resource_slice_template
+                    )
 
             print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
     def validate(self):
-        ready_nodes = self.k8s_client.get_nodes()
+        ready_nodes = execute_with_retries(
+            self.k8s_client.get_nodes
+        )
         kwok_nodes = [
             node
             for node in ready_nodes
@@ -82,7 +167,8 @@ class Node(KWOK):
 
         if len(kwok_nodes) < self.node_count:
             raise RuntimeError(
-                f"Validation failed: Expected at least {self.node_count} KWOK nodes, but found {len(kwok_nodes)}."
+                f"Validation failed: Expected at least {self.node_count} KWOK nodes, "
+                f"but found {len(kwok_nodes)}."
             )
 
         for node in kwok_nodes:
@@ -96,6 +182,7 @@ class Node(KWOK):
                 ) from e
 
         print(f"Validation completed for {self.node_count} KWOK nodes.")
+
 
     def _generate_node_ip(self, index, base_ip=(10, 0, 0, 10)):
         """Generate a valid IPv4 address, rolling over octets as needed."""
@@ -116,7 +203,23 @@ class Node(KWOK):
         for i in range(self.node_count):
             node_name = f"kwok-node-{i}"
             print(f"Deleting node: {node_name}")
-            self.k8s_client.delete_node(node_name)
+            execute_with_retries(
+                self.k8s_client.delete_node,
+                node_name
+            )
+
+            # Delete resource slice for each node if DRA was enabled
+            if self.enable_dra:
+                resource_slice_name = f"kwok-resource-slice-{i}"
+                print(f"Deleting resource slice: {resource_slice_name}")
+                try:
+                    execute_with_retries(
+                        self.k8s_client.delete_resource_slice,
+                        resource_slice_name
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not delete resource slice {resource_slice_name}: {e}")
+
         print(f"Successfully deleted {self.node_count} nodes.")
 
     def _validate_node_status(self, node):
@@ -128,8 +231,8 @@ class Node(KWOK):
             print(f"Node {node.metadata.name} is Ready.")
         else:
             raise RuntimeError(
-                f"Node {node.metadata.name} is NOT Ready."
-                f"Condition: {ready_condition.status if ready_condition else 'No Ready condition found'}"
+                f"Node {node.metadata.name} is NOT Ready. "
+                f"Condition: {ready_condition.status if ready_condition else 'No condition found'}"
             )
 
     def _validate_node_schedulable(self, node):
@@ -148,13 +251,15 @@ class Node(KWOK):
 
         if not allocatable or not capacity:
             raise RuntimeError(
-                f"Node {node.metadata.name} is missing resource information (allocatable or capacity)."
+                f"Node {node.metadata.name} is missing resource information "
+                f"(allocatable or capacity)."
             )
         print(f"Node {node.metadata.name} Allocatable: {allocatable}")
         print(f"Node {node.metadata.name} Capacity: {capacity}")
 
 
 def main():
+    """Main function to handle command-line arguments and execute KWOK operations."""
     parser = argparse.ArgumentParser(
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
     )
@@ -171,6 +276,30 @@ def main():
         help="Path to the node manifest YAML template.",
     )
     parser.add_argument(
+        "--node-cpu",
+        type=str,
+        default="32",
+        help="CPU capacity and allocatable for each node (default: 32).",
+    )
+    parser.add_argument(
+        "--node-memory",
+        type=str,
+        default="256Gi",
+        help="Memory capacity and allocatable for each node (default: 256Gi).",
+    )
+    parser.add_argument(
+        "--node-pods",
+        type=str,
+        default="110",
+        help="Pod capacity and allocatable for each node (default: 110).",
+    )
+    parser.add_argument(
+        "--node-gpu",
+        type=str,
+        default="0",
+        help="GPU (nvidia.com/gpu) capacity and allocatable for each node (default: 0).",
+    )
+    parser.add_argument(
         "--kwok-release",
         type=str,
         default="",
@@ -180,6 +309,11 @@ def main():
         "--enable-metrics",
         action="store_true",
         help="Enable metrics simulation by applying metrics-usage.yaml.",
+    )
+    parser.add_argument(
+        "--enable-dra",
+        action="store_true",
+        help="Enable Dynamic Resource Allocation (DRA).",
     )
     parser.add_argument(
         "--action",
@@ -193,8 +327,13 @@ def main():
     node = Node(
         node_manifest_path=args.node_manifest_path,
         node_count=args.node_count,
+        node_cpu=args.node_cpu,
+        node_memory=args.node_memory,
+        node_pods=args.node_pods,
+        node_gpu=args.node_gpu,
         kwok_release=args.kwok_release,
         enable_metrics=args.enable_metrics,
+        enable_dra=args.enable_dra,
     )
     if args.action == "create":
         node.create()
