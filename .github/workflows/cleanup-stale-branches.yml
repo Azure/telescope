@@ -1,9 +1,10 @@
 name: Cleanup Stale Branches
 
 on:
-  push:
-    branches:
-      - sumanth/cleanup-stale-branches
+  schedule:
+    # Run daily at 4 PM EST
+    - cron: '0 16 * * *'
+
 
 env:
   STALE_DAYS: 300
@@ -52,20 +53,19 @@ jobs:
               # Check if branch is stale
               if [ $BRANCH_AGE -gt $STALE_THRESHOLD ]; then
                 echo "Branch '$BRANCH' is stale (last commit was $(($BRANCH_AGE / 86400)) days ago)"
-                
+
                 # Configure Git with proper authentication using the PAT
                 git config --global user.name "GitHub Actions"
                 git config --global user.email "actions@github.com"
-                
+
                 # Create a remote URL with the PAT embedded
                 REPO_URL=$(git config --get remote.origin.url)
                 REPO_NAME=$(echo "$REPO_URL" | sed 's/.*github.com[\/:]//g' | sed 's/\.git$//g')
                 AUTH_URL="https://$GH_PAT@github.com/${REPO_NAME}.git"
-                
+
                 # Delete the branch using the configured authentication
                 echo "Deleting stale branch: $BRANCH"
                 git remote set-url origin "$AUTH_URL"
                 git push origin --delete $BRANCH
               fi
             done
-
