@@ -1,6 +1,7 @@
 import subprocess
 import argparse
 import json
+import os
 import re
 from datetime import datetime, timezone
 from typing import Dict, Any
@@ -19,6 +20,9 @@ def _install_operator(
     chart_version: str,
     operator_name: str,
     config_dir: str,
+    namespace: str,
+    repo_name: str = "nvidia",
+    repo_url: str = "https://helm.ngc.nvidia.com/nvidia",
 ) -> None:
     """
     Install NVIDIA GPU Network Operator using Helm
@@ -30,7 +34,7 @@ def _install_operator(
     # Add NVIDIA Helm repository
     logger.info("Adding NVIDIA Helm repository")
     subprocess.run(
-        ["helm", "repo", "add", "nvidia", "https://helm.ngc.nvidia.com/nvidia"],
+        ["helm", "repo", "add", repo_name, repo_url],
         check=True,
     )
     # Update Helm repositories
@@ -43,16 +47,21 @@ def _install_operator(
         "helm",
         "install",
         operator_name,
-        f"nvidia/{operator_name}",
+        f"{repo_name}/{operator_name}",
         "--create-namespace",
         "--namespace",
-        operator_name,
+        namespace,
         "--version",
         chart_version,
-        "--values",
-        value_file,
         "--atomic",
     ]
+
+    # Add values file if it exists
+    if os.path.exists(value_file):
+        command.extend(["--values", value_file])
+        logger.info(f"Using values file: {value_file}")
+    else:
+        logger.info(f"Values file not found: {value_file}, proceeding without custom values")
 
     # Execute Helm install
     logger.info(f"Executing: {' '.join(command)}")
@@ -89,6 +98,7 @@ def install_network_operator(
         chart_version=chart_version,
         operator_name="network-operator",
         config_dir=config_dir,
+        namespace="network-operator",
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
@@ -128,7 +138,10 @@ def install_gpu_operator(
         config_dir: Directory containing custom configuration files
     """
     _install_operator(
-        chart_version=chart_version, operator_name="gpu-operator", config_dir=config_dir
+        chart_version=chart_version,
+        operator_name="gpu-operator",
+        config_dir=config_dir,
+        namespace="gpu-operator",
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
@@ -234,6 +247,31 @@ def _create_topology_configmap(
         raise
 
 
+def _install_efa_device_plugin(
+    config_dir: str,
+    version: str,
+) -> None:
+    """Install the EFA device plugin for EKS clusters.
+    Args:
+        config_dir: Directory containing custom configuration files
+        version: Version of the EFA device plugin to install
+    """
+    _install_operator(
+        chart_version=version,
+        operator_name="efa-device-plugin",
+        config_dir=config_dir,
+        namespace="kube-system",
+        repo_name="aws",
+        repo_url="https://aws.github.io/eks-charts",
+    )
+    execute_with_retries(
+        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        label_selector="app.kubernetes.io/name=aws-efa-k8s-device-plugin",
+        namespace="kube-system",
+        timeout_in_minutes=10,
+    )
+
+
 def execute(
     provider: str,
     config_dir: str,
@@ -255,8 +293,7 @@ def execute(
     nccl_file = f"{config_dir}/nccl-tests/mpijob.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nccl_file)
     pods = execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_pods_completed,
-        label_selector="component=launcher"
+        KUBERNETES_CLIENT.wait_for_pods_completed, label_selector="component=launcher"
     )
     pod_name = pods[0].metadata.name
     raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)

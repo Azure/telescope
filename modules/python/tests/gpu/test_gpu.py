@@ -15,6 +15,7 @@ from gpu.gpu import (
     install_mpi_operator,
     configure,
     _create_topology_configmap,
+    _install_efa_device_plugin,
     execute,
     _parse_nccl_test_results,
     collect,
@@ -43,15 +44,18 @@ class TestGPU(unittest.TestCase):
         self.test_cloud_info = "azure"
         self.test_run_url = "https://test-url.com"
 
+    @patch("os.path.exists")
     @patch("subprocess.run")
-    def test_install_operator_success(self, mock_subprocess):
-        """Test successful operator installation via Helm."""
+    def test_install_operator_success_with_values_file(self, mock_subprocess, mock_exists):
+        """Test successful operator installation via Helm when values file exists."""
         mock_subprocess.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
 
         _install_operator(
             chart_version=self.test_chart_version,
             operator_name=self.test_operator_name,
             config_dir=self.test_config_dir,
+            namespace=self.test_operator_name,
         )
 
         # Verify subprocess calls
@@ -72,14 +76,55 @@ class TestGPU(unittest.TestCase):
                     self.test_operator_name,
                     "--version",
                     self.test_chart_version,
+                    "--atomic",
                     "--values",
                     f"{self.test_config_dir}/{self.test_operator_name}/values.yaml",
+                ],
+                check=True,
+            ),
+        ]
+        mock_subprocess.assert_has_calls(expected_calls)
+        mock_exists.assert_called_once_with(f"{self.test_config_dir}/{self.test_operator_name}/values.yaml")
+
+    @patch("os.path.exists")
+    @patch("subprocess.run")
+    def test_install_operator_success_without_values_file(self, mock_subprocess, mock_exists):
+        """Test successful operator installation via Helm when values file doesn't exist."""
+        mock_subprocess.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = False
+
+        _install_operator(
+            chart_version=self.test_chart_version,
+            operator_name=self.test_operator_name,
+            config_dir=self.test_config_dir,
+            namespace=self.test_operator_name,
+        )
+
+        # Verify subprocess calls
+        expected_calls = [
+            call(
+                ["helm", "repo", "add", "nvidia", "https://helm.ngc.nvidia.com/nvidia"],
+                check=True,
+            ),
+            call(["helm", "repo", "update"], check=True),
+            call(
+                [
+                    "helm",
+                    "install",
+                    self.test_operator_name,
+                    f"nvidia/{self.test_operator_name}",
+                    "--create-namespace",
+                    "--namespace",
+                    self.test_operator_name,
+                    "--version",
+                    self.test_chart_version,
                     "--atomic",
                 ],
                 check=True,
             ),
         ]
         mock_subprocess.assert_has_calls(expected_calls)
+        mock_exists.assert_called_once_with(f"{self.test_config_dir}/{self.test_operator_name}/values.yaml")
 
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     def test_verify_rdma_success(self, mock_k8s_client):
@@ -117,6 +162,7 @@ class TestGPU(unittest.TestCase):
             chart_version=self.test_chart_version,
             operator_name="network-operator",
             config_dir=self.test_config_dir,
+            namespace="network-operator",
         )
 
         # Verify execute_with_retries is called 3 times for the wait operations
@@ -139,6 +185,7 @@ class TestGPU(unittest.TestCase):
             chart_version=self.test_chart_version,
             operator_name="gpu-operator",
             config_dir=self.test_config_dir,
+            namespace="gpu-operator",
         )
 
         # Verify execute_with_retries is called 3 times for the wait operations
@@ -155,6 +202,31 @@ class TestGPU(unittest.TestCase):
 
         expected_url = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{self.test_chart_version}/deploy/v2beta1/mpi-operator.yaml"
         mock_k8s_client.apply_manifest_from_url.assert_called_once_with(expected_url)
+        # Verify execute_with_retries is called once for the wait operation
+        _mock_execute_with_retries.assert_called_once()
+
+    @patch("gpu.gpu.execute_with_retries")
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
+    @patch("gpu.gpu._install_operator")
+    def test_install_efa_device_plugin_success(
+        self, mock_install, _mock_k8s_client, _mock_execute_with_retries
+    ):
+        """Test successful EFA device plugin installation."""
+        _mock_execute_with_retries.return_value = None
+
+        _install_efa_device_plugin(
+            config_dir=self.test_config_dir, version=self.test_chart_version
+        )
+
+        mock_install.assert_called_once_with(
+            chart_version=self.test_chart_version,
+            operator_name="efa-device-plugin",
+            config_dir=self.test_config_dir,
+            namespace="kube-system",
+            repo_name="aws",
+            repo_url="https://aws.github.io/eks-charts",
+        )
+
         # Verify execute_with_retries is called once for the wait operation
         _mock_execute_with_retries.assert_called_once()
 
