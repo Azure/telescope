@@ -635,7 +635,7 @@ class EKSClient:
                 pod_logs = None
                 # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                 # and only when reaching the final target (not intermediate steps)
-                if gpu_node_group and operation_type == "scale_up" and node_count > 0 & node_count == target_count:
+                if gpu_node_group and operation_type == "scale_up" and node_count > 0 and node_count == target_count:
                     logger.info(
                         "Verifying NVIDIA drivers for GPU node pool '%s' after reaching final target",
                         node_group_name,
