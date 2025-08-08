@@ -16,7 +16,7 @@ if [[ -f "$(dirname "$0")/shared-config.sh" ]]; then
     source "$(dirname "$0")/shared-config.sh"
 else
     # Fallback to direct configuration
-    SUB=${SUB:-9b8218f9-902a-4d20-a65c-e98acec5362f}
+    CUST_SUB=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
     LOCATION=${LOCATION:-"uksouth"}
     RG="sv2-perf-cust-$LOCATION"
     custVnetName=custvnet
@@ -32,11 +32,10 @@ custScaleDelSubnet=${CUST_SCALE_DEL_SUBNET:-"scaledel"}
 
 CLUSTER="ping-target"
 
-
 # create RG
 echo "Create RG"
 date=$(date -d "+3 month" +"%Y-%m-%d")
-az account set -s $SUB
+az account set -s $CUST_SUB
 az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 # create customer vnet
@@ -53,7 +52,7 @@ az network vnet create -n ${custVnetName} -g ${RG} --address-prefixes ${custVnet
 az network vnet subnet create --resource-group $RG --vnet-name $custVnetName --name $custScaleDelSubnet --address-prefixes $custScaleDelSubnetCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
 for attempt in $(seq 1 5); do
     echo "Attempting to delegate $custScaleDelSubnet using subnetdelegator command: $attempt/5"
-    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F$SUB%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custScaleDelSubnet'" /dev/null && break || echo "Command failed, retrying..."
+    script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X PUT http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F$CUST_SUB%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$custVnetName%2Fsubnets%2F$custScaleDelSubnet'" /dev/null && break || echo "Command failed, retrying..."
     sleep 30
 done
 
@@ -142,5 +141,5 @@ az role assignment create \
   --assignee-object-id $cPID \
   --assignee-principal-type ServicePrincipal \
   --role "Managed Identity Operator" \
-  --scope /subscriptions/$SUB/resourcegroups/$RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$SHARED_KUBELET_IDENTITY_NAME
+  --scope /subscriptions/$CUST_SUB/resourcegroups/$RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$SHARED_KUBELET_IDENTITY_NAME
 

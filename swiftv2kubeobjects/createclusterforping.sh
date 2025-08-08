@@ -18,7 +18,7 @@ else
     # Fallback to direct configuration (should match runCustomerSetup.sh values)
     custVnetName=custvnet
     custScaleDelSubnet="scaledel"
-    custSub=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
+    CUST_SUB=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
     custRG="sv2-perf-cust-${LOCATION:-uksouth}"
 fi
 
@@ -301,7 +301,7 @@ fi
 
 export custVnetGUID=$(az network vnet show --name ${CUST_VNET_NAME:-$custVnetName} --resource-group ${CUST_RG:-$custRG} --query resourceGuid --output tsv)
 export custSubnetResourceId=$(az network vnet subnet show --name ${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet} --vnet-name ${CUST_VNET_NAME:-$custVnetName} --resource-group ${CUST_RG:-$custRG} --query id --output tsv)
-export custSubnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/${CUST_RG:-$custRG}/providers/Microsoft.Network/virtualNetworks/${CUST_VNET_NAME:-$custVnetName}/subnets/${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet}?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+export custSubnetGUID=$(az rest --method get --url "/subscriptions/${CUST_SUB}/resourceGroups/${CUST_RG:-$custRG}/providers/Microsoft.Network/virtualNetworks/${CUST_VNET_NAME:-$custVnetName}/subnets/${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet}?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
