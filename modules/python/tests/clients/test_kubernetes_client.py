@@ -1921,12 +1921,12 @@ class TestKubernetesClient(unittest.TestCase):
     @patch("clients.kubernetes_client.KubernetesClient.describe_node")
     def test_verify_nvidia_smi_success(
         self,
-        mock_sleep,
-        mock_get_logs,
-        _mock_delete_pod,
-        mock_read_pod,
+        mock_describe_node,
         mock_create_pod,
-        mock_describe_node
+        mock_read_pod,
+        _mock_delete_pod,
+        mock_get_logs,
+        mock_sleep
     ):
         """Test successful nvidia-smi verification."""
         node = MagicMock()
