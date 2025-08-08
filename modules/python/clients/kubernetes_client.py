@@ -655,10 +655,12 @@ class KubernetesClient:
                 pod_name = f"gpu-verify-{uuid.uuid4()}"
                 node_name = node.metadata.name
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
+                node = self.describe_node(node_name)
 
                 # Check if the node has GPUs allocated values
                 start_time = time.time()
                 while "nvidia.com/gpu" not in node.status.allocatable and time.time() < start_time + 600:
+                    node = self.describe_node(node_name)
                     logger.info(f"Node allocatable resources: {node.status.allocatable}")
                     logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
                     time.sleep(1)
