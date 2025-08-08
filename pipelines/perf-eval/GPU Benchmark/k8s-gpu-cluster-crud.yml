@@ -86,7 +86,7 @@ stages:
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            - us-east-1
           topology: k8s-crud-gpu
           engine: crud
           matrix:
