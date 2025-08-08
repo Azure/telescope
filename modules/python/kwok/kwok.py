@@ -312,8 +312,7 @@ def main():
     )
     parser.add_argument(
         "--enable-dra",
-        type=bool,
-        default=False,
+        action="store_true",
         help="Enable Dynamic Resource Allocation (DRA).",
     )
     parser.add_argument(
