@@ -389,7 +389,7 @@ class TestEKSClient(unittest.TestCase):
         self.mock_k8s.wait_for_nodes_ready.return_value = ["node1", "node2", "node3"]
 
         # Execute
-        result = eks_client.scale_node_group("test-ng", 3)
+        result = eks_client.scale_node_group("test-ng", 3, 3)
 
         # Verify
         self.assertTrue(result)
@@ -425,7 +425,7 @@ class TestEKSClient(unittest.TestCase):
         ]
 
         # Execute - scale to 5 nodes (higher than current maxSize of 3)
-        result = eks_client.scale_node_group("test-ng", 5)
+        result = eks_client.scale_node_group("test-ng", 5, 5)
 
         # Verify maxSize was increased
         self.assertTrue(result)
@@ -453,7 +453,7 @@ class TestEKSClient(unittest.TestCase):
         self.mock_k8s.wait_for_nodes_ready.return_value = ["node1", "node2", "node3"]
 
         # Execute - scale to same size
-        result = eks_client.scale_node_group("test-ng", 3)
+        result = eks_client.scale_node_group("test-ng", 3, 3)
 
         # Verify update was called (the method does call AWS API even for same size)
         self.assertTrue(result)
@@ -481,7 +481,7 @@ class TestEKSClient(unittest.TestCase):
 
             # Execute
             eks_client.scale_node_group(
-                "test-ng", 8, progressive=True, scale_step_size=2
+                "test-ng", 8, 8, progressive=True, scale_step_size=2
             )
 
             # Verify progressive scaling was called
@@ -517,7 +517,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Execute and verify exception
         with self.assertRaises(ClientError):
-            eks_client.scale_node_group("nonexistent-ng", 3)
+            eks_client.scale_node_group("nonexistent-ng", 3, 3)
 
     def test_delete_node_group_success(self):
         """Test successful node group deletion"""
@@ -946,7 +946,7 @@ class TestEKSClient(unittest.TestCase):
 
             # Execute - scale from 1 to 10 (> step size of 5)
             result = eks_client.scale_node_group(
-                "test-ng", 10, progressive=True, scale_step_size=5
+                "test-ng", 10, 10, progressive=True, scale_step_size=5
             )
 
             # Verify progressive scaling was called
@@ -977,7 +977,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Execute and verify exception is raised
         with self.assertRaises(WaiterError):
-            eks_client.scale_node_group("test-ng", 4)
+            eks_client.scale_node_group("test-ng", 4, 4)
 
     def test_delete_node_group_with_launch_template_deletion_failure(self):
         """Test node group deletion when launch template deletion fails"""
@@ -1170,7 +1170,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Call progressive scaling (from 2 to 6 nodes with step size 2)
         result = eks_client.scale_node_group(
-            node_group_name="test-ng", node_count=6, progressive=True, scale_step_size=2
+            node_group_name="test-ng", node_count=6, target_count=6, progressive=True, scale_step_size=2
         )
 
         self.assertTrue(result)
@@ -1273,7 +1273,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Call scale operation which will use serialization for metadata
         result = eks_client.scale_node_group(
-            node_group_name="test-serialize-ng", node_count=1
+            node_group_name="test-serialize-ng", node_count=1, target_count=1
         )
 
         self.assertTrue(result)

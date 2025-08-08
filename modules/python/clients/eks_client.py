@@ -499,6 +499,7 @@ class EKSClient:
         self,
         node_group_name: str,
         node_count: int,
+        target_count: int,
         cluster_name: Optional[str] = None,
         gpu_node_group: bool = False,
         progressive: bool = False,
@@ -510,6 +511,7 @@ class EKSClient:
         Args:
             node_group_name: The name of the node group
             node_count: The desired number of nodes
+            target_count: The target number of nodes
             cluster_name: The name of the EKS cluster (optional)
             gpu_node_group: Whether this is a GPU-enabled node group (default: False)
             progressive: Whether to scale progressively in steps (default: False)
@@ -633,7 +635,7 @@ class EKSClient:
                 pod_logs = None
                 # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                 # and only when reaching the final target (not intermediate steps)
-                if gpu_node_group and operation_type == "scale_up" and node_count > 0:
+                if gpu_node_group and operation_type == "scale_up" and node_count > 0 & node_count == target_count:
                     logger.info(
                         "Verifying NVIDIA drivers for GPU node pool '%s' after reaching final target",
                         node_group_name,
@@ -796,6 +798,7 @@ class EKSClient:
                 current_node_group = self.scale_node_group(
                     node_group_name=node_group_name,
                     node_count=step_count,
+                    target_count=target_count,
                     cluster_name=cluster_name,
                     progressive=False,  # Avoid recursive progressive scaling
                     gpu_node_group=gpu_node_group,
