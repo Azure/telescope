@@ -648,10 +648,9 @@ class TestCapacityReservationManagerMain(unittest.TestCase):
         # Verify sys.exit was called with code 1 (may be called multiple times due to error handling)
         mock_exit.assert_called_with(1)
 
-    @mock.patch("cloud.aws.managers.capacity_reservation_manager.CapacityReservationManager")
     @mock.patch("argparse.ArgumentParser.parse_args")
     @mock.patch("sys.exit")
-    def test_main_invalid_date_format(self, mock_exit, mock_parse_args, mock_manager_class):
+    def test_main_invalid_date_format(self, mock_exit, mock_parse_args):
         """Test main function with invalid date format"""
         # Mock arguments with invalid date
         mock_args = mock.MagicMock()
