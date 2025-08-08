@@ -39,7 +39,6 @@ steps:
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "${ARGS[@]}"
   displayName: 'Execute K8s CRUD Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
-  continueOnError: true
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
     VM_SIZE: ${{ parameters.vm_size }}
