@@ -26,7 +26,7 @@ spec:
       nodeSelector:
         slo: "true"
       containers:
-      - image: sv2perfacr.azurecr.io/netshoot:latest
+      - image: sv2perfacr{{.Location}}.azurecr.io/netshoot:latest
         command: ["sleep", "infinity"]
         imagePullPolicy: IfNotPresent
         securityContext:

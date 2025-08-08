@@ -86,6 +86,13 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
+        # Surface image registry location for templates (e.g., sv2perfacr<location>.azurecr.io)
+        # Prefer REGION env if present; fallback to LOCATION for compatibility with scripts
+        location = os.environ.get("REGION") or os.environ.get("LOCATION")
+        if location:
+            # Normalize to lowercase as ACR names are lowercase
+            file.write(f"CL2_LOCATION: {location.lower()}\n")
+
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")

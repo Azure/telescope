@@ -7,8 +7,6 @@ CLUSTER="large"
 SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
 K8S_VER=1.30
 NODEPOOLS=1
-SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
-SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
 
 # Source shared configuration if available
 if [[ -f "$(dirname "$0")/shared-config.sh" ]]; then
@@ -16,10 +14,13 @@ if [[ -f "$(dirname "$0")/shared-config.sh" ]]; then
     source "$(dirname "$0")/shared-config.sh"
 else
     # Fallback to direct configuration (should match runCustomerSetup.sh values)
-    custVnetName=custvnet
-    custScaleDelSubnet="scaledel"
+    CUST_VNET_NAME=custvnet
+    CUST_SCALE_DEL_SUBNET="scaledel"
     CUST_SUB=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
-    custRG="sv2-perf-cust-${LOCATION:-uksouth}"
+    CUST_RG="sv2-perf-cust-${LOCATION:-uksouth}"
+    ACR_NAME="sv2perfacr$LOCATION"
+    SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
+    SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
 fi
 
 # Get target user node count from environment variable (used only for buffer pool calculation)
@@ -299,9 +300,9 @@ fi
 
 # customer vnet (created using runCustomerSetup.sh manually)
 
-export custVnetGUID=$(az network vnet show --name ${CUST_VNET_NAME:-$custVnetName} --resource-group ${CUST_RG:-$custRG} --query resourceGuid --output tsv)
-export custSubnetResourceId=$(az network vnet subnet show --name ${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet} --vnet-name ${CUST_VNET_NAME:-$custVnetName} --resource-group ${CUST_RG:-$custRG} --query id --output tsv)
-export custSubnetGUID=$(az rest --method get --url "/subscriptions/${CUST_SUB}/resourceGroups/${CUST_RG:-$custRG}/providers/Microsoft.Network/virtualNetworks/${CUST_VNET_NAME:-$custVnetName}/subnets/${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet}?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+export custVnetGUID=$(az network vnet show --name ${CUST_VNET_NAME} --resource-group ${CUST_RG} --query resourceGuid --output tsv)
+export custSubnetResourceId=$(az network vnet subnet show --name ${CUST_SCALE_DEL_SUBNET} --vnet-name ${CUST_VNET_NAME} --resource-group ${CUST_RG} --query id --output tsv)
+export custSubnetGUID=$(az rest --method get --url "/subscriptions/${CUST_SUB}/resourceGroups/${CUST_RG}/providers/Microsoft.Network/virtualNetworks/${CUST_VNET_NAME}/subnets/${CUST_SCALE_DEL_SUBNET}?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
