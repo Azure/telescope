@@ -9,10 +9,18 @@ K8S_VER=1.30
 NODEPOOLS=1
 SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
 SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
-custVnetName=custvnet
-custScaleDelSubnet="scaledel"
-custSub=9b8218f9-902a-4d20-a65c-e98acec5362f
-custRG="sv2-perf-infra-customer"
+
+# Source shared configuration if available
+if [[ -f "$(dirname "$0")/shared-config.sh" ]]; then
+    echo "Loading shared configuration..."
+    source "$(dirname "$0")/shared-config.sh"
+else
+    # Fallback to direct configuration (should match runCustomerSetup.sh values)
+    custVnetName=custvnet
+    custScaleDelSubnet="scaledel"
+    custSub=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
+    custRG="sv2-perf-cust-${LOCATION:-uksouth}"
+fi
 
 # Get target user node count from environment variable (used only for buffer pool calculation)
 TARGET_USER_NODE_COUNT=$NODES_PER_NODEPOOL
@@ -130,19 +138,19 @@ create_aks_cluster() {
     echo "Creating AKS cluster: $cluster_name in resource group: $resource_group"
     
     # Get the kubelet identity ID from the shared infrastructure resource group
-    local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group $custRG --query id -o tsv)
+    local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group ${CUST_RG:-$custRG} --query id -o tsv)
     
     if [ -z "$kubelet_identity_id" ]; then
-        echo "ERROR: Failed to get kubelet identity ID from resource group $custRG"
+        echo "ERROR: Failed to get kubelet identity ID from resource group ${CUST_RG:-$custRG}"
         exit 1
     fi
     
     echo "Using kubelet identity: $kubelet_identity_id"
 
-    local control_plane_identity_id=$(az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group $custRG --query id -o tsv)
+    local control_plane_identity_id=$(az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group ${CUST_RG:-$custRG} --query id -o tsv)
 
     if [ -z "$control_plane_identity_id" ]; then
-        echo "ERROR: Failed to get control plane identity ID from resource group $custRG"
+        echo "ERROR: Failed to get control plane identity ID from resource group ${CUST_RG:-$custRG}"
         exit 1
     fi
 
@@ -291,9 +299,9 @@ fi
 
 # customer vnet (created using runCustomerSetup.sh manually)
 
-export custVnetGUID=$(az network vnet show --name $custVnetName --resource-group $custRG --query resourceGuid --output tsv)
-export custSubnetResourceId=$(az network vnet subnet show --name $custScaleDelSubnet --vnet-name $custVnetName --resource-group $custRG --query id --output tsv)
-export custSubnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/$custRG/providers/Microsoft.Network/virtualNetworks/$custVnetName/subnets/$custScaleDelSubnet?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+export custVnetGUID=$(az network vnet show --name ${CUST_VNET_NAME:-$custVnetName} --resource-group ${CUST_RG:-$custRG} --query resourceGuid --output tsv)
+export custSubnetResourceId=$(az network vnet subnet show --name ${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet} --vnet-name ${CUST_VNET_NAME:-$custVnetName} --resource-group ${CUST_RG:-$custRG} --query id --output tsv)
+export custSubnetGUID=$(az rest --method get --url "/subscriptions/${custSub}/resourceGroups/${CUST_RG:-$custRG}/providers/Microsoft.Network/virtualNetworks/${CUST_VNET_NAME:-$custVnetName}/subnets/${CUST_SCALE_DEL_SUBNET:-$custScaleDelSubnet}?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 
