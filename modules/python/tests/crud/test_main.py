@@ -647,6 +647,7 @@ class TestMainFunctionIntegration(unittest.TestCase):
 
         # Operation should complete successfully (no exit call in normal flow)
 
+    @mock.patch("sys.exit")
     @mock.patch("crud.main.logger")
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -655,6 +656,7 @@ class TestMainFunctionIntegration(unittest.TestCase):
         mock_azure_crud_class,
         mock_operation_context,  # pylint: disable=unused-argument
         mock_logger,  # pylint: disable=unused-argument
+        mock_exit,
     ):
         """Test main function when operation returns False"""
         # Setup
@@ -678,8 +680,9 @@ class TestMainFunctionIntegration(unittest.TestCase):
         with mock.patch("sys.argv", test_args):
             main()  # Use the imported main function
 
-        # Verify error is logged but no sys.exit in normal flow
+        # Verify error is logged and sys.exit is called with code 1
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
+        mock_exit.assert_called_with(1)
 
     @mock.patch("sys.exit")
     @mock.patch("crud.main.logger")
@@ -1245,10 +1248,11 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
         """Clean up after tests"""
         shutil.rmtree(self.test_dir)
 
+    @mock.patch("sys.exit")
     @mock.patch("crud.main.logger")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_operation_returns_explicit_exit_code(
-        self, mock_azure_crud_class, mock_logger
+        self, mock_azure_crud_class, mock_logger, mock_exit
     ):
         """Test main function when operation returns explicit exit code"""
         # Setup - simulate function returning explicit exit code (integer)
@@ -1277,8 +1281,9 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
             ):
                 main()
 
-        # Should log error with the specific exit code
+        # Should log error with the specific exit code and call sys.exit
         mock_logger.error.assert_called_with("Operation failed with exit code: 42")
+        mock_exit.assert_called_with(42)
 
     @mock.patch("crud.main.logger")
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -1313,9 +1318,10 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
         # Should log success
         mock_logger.info.assert_called_with("Operation completed successfully")
 
+    @mock.patch("sys.exit")
     @mock.patch("crud.main.logger")
     @mock.patch("crud.main.AzureNodePoolCRUD")
-    def test_main_operation_returns_false(self, mock_azure_crud_class, mock_logger):
+    def test_main_operation_returns_false(self, mock_azure_crud_class, mock_logger, mock_exit):
         """Test main function when operation returns False (failure)"""
         # Setup
         mock_node_pool_crud = mock.MagicMock()
@@ -1343,8 +1349,9 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
             ):
                 main()
 
-        # Should log error
+        # Should log error and call sys.exit
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
+        mock_exit.assert_called_with(1)
 
 
 if __name__ == "__main__":

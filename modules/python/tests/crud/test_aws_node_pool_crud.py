@@ -158,6 +158,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         self.mock_eks_client.scale_node_group.assert_called_once_with(
             node_group_name=node_group_name,
             node_count=target_count,
+            target_count=target_count,
             gpu_node_group=False,
             progressive=False,
             scale_step_size=1,
@@ -191,6 +192,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         self.mock_eks_client.scale_node_group.assert_called_once_with(
             node_group_name=node_group_name,
             node_count=target_count,
+            target_count=target_count,
             gpu_node_group=False,
             progressive=True,
             scale_step_size=scale_step_size,
@@ -441,6 +443,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
         self.mock_eks_client.scale_node_group.assert_called_once_with(
             node_group_name=node_group_name,
             node_count=target_count,
+            target_count=target_count,
             gpu_node_group=True,
             progressive=False,
             scale_step_size=1,

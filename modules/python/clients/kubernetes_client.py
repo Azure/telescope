@@ -655,6 +655,23 @@ class KubernetesClient:
                 pod_name = f"gpu-verify-{uuid.uuid4()}"
                 node_name = node.metadata.name
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
+                node = self.describe_node(node_name)
+
+                # Check if the node has GPUs allocated values
+                start_time = time.time()
+                while "nvidia.com/gpu" not in node.status.allocatable and time.time() < start_time + 600:
+                    node = self.describe_node(node_name)
+                    logger.info(f"Node allocatable resources: {node.status.allocatable}")
+                    logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
+                    time.sleep(1)
+                gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
+
+                logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
+
+                # Skip nodes with no GPUs
+                if gpu_count == 0:
+                    logger.warning(f"Skipping node {node_name} as it has no GPUs")
+                    continue
 
                 # Create pod spec with node selector
                 pod = client.V1Pod(
@@ -666,7 +683,7 @@ class KubernetesClient:
                                 image="nvidia/cuda:12.2.0-base-ubuntu20.04",
                                 command=["/bin/bash", "-c", "nvidia-smi"],
                                 resources=client.V1ResourceRequirements(
-                                    limits={"nvidia.com/gpu": "1"}
+                                    limits={"nvidia.com/gpu": str(gpu_count)}
                                 ),
                             )
                         ],
@@ -1468,14 +1485,7 @@ class KubernetesClient:
         try:
             # Load the DaemonSet YAML from the official NVIDIA repository
             logger.info("Installing NVIDIA GPU device plugin...")
-            response = requests.get(UrlConstants.NVIDIA_GPU_DEVICE_PLUGIN_YAML, timeout=30)
-            response.raise_for_status()  # Raise an error for bad responses
-            daemonset_yaml = yaml.safe_load(response.text)
-
-            # Create the DaemonSet in the specified namespace
-            self.app.create_namespaced_daemon_set(
-                body=daemonset_yaml, namespace=namespace
-            )
+            self.apply_manifest_from_url(UrlConstants.NVIDIA_GPU_DEVICE_PLUGIN_YAML, namespace=namespace)
             logger.info("NVIDIA GPU device plugin installed successfully.")
         except Exception as e:
             logger.error(f"Error installing NVIDIA GPU device plugin: {str(e)}")
