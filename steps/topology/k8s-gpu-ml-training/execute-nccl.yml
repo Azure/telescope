@@ -1,0 +1,16 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: regions
+    type: object
+    default: {}
+
+steps:
+  - template: /steps/engine/nccl/execute.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      vm_size: $(VM_SIZE)
