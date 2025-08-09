@@ -4,9 +4,10 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement, str2bool
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
+from utils.common import str2bool
 
 setup_logging()
 logger = get_logger(__name__)

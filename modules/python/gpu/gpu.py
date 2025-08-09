@@ -8,6 +8,7 @@ from typing import Dict, Any
 import requests
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
+from utils.common import str2bool
 from clients.kubernetes_client import KubernetesClient, client
 
 # Configure logging
@@ -23,6 +24,7 @@ def _install_operator(
     namespace: str,
     repo_name: str = "nvidia",
     repo_url: str = "https://helm.ngc.nvidia.com/nvidia",
+    extra_args: list = None,
 ) -> None:
     """
     Install NVIDIA GPU Network Operator using Helm
@@ -30,6 +32,11 @@ def _install_operator(
     Args:
         chart_version: Specific chart version to install
         config_dir: Directory containing custom configuration files
+        repo_name: Helm repository name
+        repo_url: Helm repository URL
+        namespace: Kubernetes namespace
+        operator_name: Name of the operator
+        extra_args: Optional list of extra arguments to pass to helm install (e.g., ['--set', 'key=value'])
     """
     # Add NVIDIA Helm repository
     logger.info("Adding NVIDIA Helm repository")
@@ -61,7 +68,14 @@ def _install_operator(
         command.extend(["--values", value_file])
         logger.info(f"Using values file: {value_file}")
     else:
-        logger.info(f"Values file not found: {value_file}, proceeding without custom values")
+        logger.info(
+            f"Values file not found: {value_file}, proceeding without custom values"
+        )
+
+    # Add extra arguments if provided
+    if extra_args:
+        command.extend(extra_args)
+        logger.info(f"Adding extra arguments: {' '.join(extra_args)}")
 
     # Execute Helm install
     logger.info(f"Executing: {' '.join(command)}")
@@ -129,6 +143,8 @@ def install_network_operator(
 def install_gpu_operator(
     chart_version: str,
     config_dir: str,
+    install_driver: bool,
+    enable_nfd: bool,
 ) -> None:
     """
     Install NVIDIA GPU Operator using Helm
@@ -142,6 +158,7 @@ def install_gpu_operator(
         operator_name="gpu-operator",
         config_dir=config_dir,
         namespace="gpu-operator",
+        extra_args=["--set", f"nfd.enabled={enable_nfd}"],
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
@@ -149,12 +166,13 @@ def install_gpu_operator(
         namespace="gpu-operator",
         timeout_in_minutes=10,
     )
-    execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
-        label_selector="app.kubernetes.io/component=nvidia-driver",
-        namespace="gpu-operator",
-        timeout_in_minutes=10,
-    )
+    if install_driver:
+        execute_with_retries(
+            KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+            label_selector="app.kubernetes.io/component=nvidia-driver",
+            namespace="gpu-operator",
+            timeout_in_minutes=10,
+        )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_completed,
         label_selector="app=nvidia-cuda-validator",
@@ -185,7 +203,10 @@ def install_mpi_operator(
 def configure(
     network_operator_version: str,
     gpu_operator_version: str,
+    gpu_install_driver: bool,
+    gpu_enable_nfd: bool,
     mpi_operator_version: str,
+    efa_operator_version: str,
     config_dir: str,
 ) -> None:
     """
@@ -197,12 +218,22 @@ def configure(
         mpi_operator_version: Version of the MPI operator
         config_dir: Directory containing custom configuration files
     """
+    if efa_operator_version:
+        install_efa_operator(
+            config_dir=config_dir,
+            version=efa_operator_version,
+        )
     if network_operator_version:
         install_network_operator(
             chart_version=network_operator_version, config_dir=config_dir
         )
     if gpu_operator_version:
-        install_gpu_operator(chart_version=gpu_operator_version, config_dir=config_dir)
+        install_gpu_operator(
+            chart_version=gpu_operator_version,
+            config_dir=config_dir,
+            install_driver=gpu_install_driver,
+            enable_nfd=gpu_enable_nfd,
+        )
     if mpi_operator_version:
         install_mpi_operator(chart_version=mpi_operator_version)
 
@@ -247,7 +278,7 @@ def _create_topology_configmap(
         raise
 
 
-def _install_efa_device_plugin(
+def install_efa_operator(
     config_dir: str,
     version: str,
 ) -> None:
@@ -258,7 +289,7 @@ def _install_efa_device_plugin(
     """
     _install_operator(
         chart_version=version,
-        operator_name="efa-device-plugin",
+        operator_name="aws-efa-k8s-device-plugin",
         config_dir=config_dir,
         namespace="kube-system",
         repo_name="aws",
@@ -266,7 +297,7 @@ def _install_efa_device_plugin(
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
-        label_selector="app.kubernetes.io/name=aws-efa-k8s-device-plugin",
+        label_selector="name=aws-efa-k8s-device-plugin",
         namespace="kube-system",
         timeout_in_minutes=10,
     )
@@ -290,7 +321,7 @@ def execute(
     if provider.lower() == "azure":
         _create_topology_configmap(vm_size=vm_size)
 
-    nccl_file = f"{config_dir}/nccl-tests/mpijob.yaml"
+    nccl_file = f"{config_dir}/nccl-tests/aws-mpijob.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nccl_file)
     pods = execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_completed, label_selector="component=launcher"
@@ -504,6 +535,13 @@ def main():
         "configure", help="Install all required operators (Network, GPU, and MPI)"
     )
     configure_parser.add_argument(
+        "--efa_operator_version",
+        type=str,
+        required=False,
+        default="",
+        help="Version of the EFA device plugin to install",
+    )
+    configure_parser.add_argument(
         "--network_operator_version",
         type=str,
         required=False,
@@ -516,6 +554,22 @@ def main():
         required=False,
         default="",
         help="Version of the GPU operator to install",
+    )
+    configure_parser.add_argument(
+        "--gpu_install_driver",
+        type=str2bool,
+        choices=[True, False],
+        default=True,
+        required=False,
+        help="Install NVIDIA driver as part of GPU operator installation",
+    )
+    configure_parser.add_argument(
+        "--gpu_enable_nfd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        required=False,
+        help="Enable NVIDIA GPU feature discovery (NFD)",
     )
     configure_parser.add_argument(
         "--mpi_operator_version",
@@ -580,8 +634,11 @@ def main():
     # Execute based on command
     if args.command == "configure":
         configure(
+            efa_operator_version=args.efa_operator_version,
             network_operator_version=args.network_operator_version,
             gpu_operator_version=args.gpu_operator_version,
+            gpu_install_driver=args.gpu_install_driver,
+            gpu_enable_nfd=args.gpu_enable_nfd,
             mpi_operator_version=args.mpi_operator_version,
             config_dir=args.config_dir,
         )
