@@ -22,7 +22,7 @@ pushd modules/python
 pip install -r requirements.txt
 
 # Run tests with coverage (minimum 70% required)
-pytest --cov=. --cov-report=term-missing --cov-fail-under=70
+pytest --cov=. --cov-report=term-missing --cov-fail-under=80
 
 # Run specific test module
 pytest tests/clients/test_aks_client.py -v
@@ -36,7 +36,7 @@ pytest tests/iperf3/ -v   # Network performance tests
 popd
 
 # Run lint
- pylint --rcfile=.pylintrc --ignore=site-packages modules/python
+pylint --rcfile=.pylintrc --ignore=site-packages modules/python
 
 # Deactivate virtual environment
 deactivate

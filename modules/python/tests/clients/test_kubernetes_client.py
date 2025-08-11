@@ -4996,7 +4996,6 @@ spec:
         # Setup
         deployment_name = "test-deployment"
         namespace = "test-namespace"
-        
         # Create mock deployment
         mock_deployment = V1Deployment(
             metadata=V1ObjectMeta(
@@ -5090,7 +5089,6 @@ spec:
         # Setup - simulating kwok-controller deployment
         deployment_name = "kwok-controller"
         namespace = "kube-system"
-        
         # Create mock kwok-controller deployment
         mock_deployment = V1Deployment(
             metadata=V1ObjectMeta(
@@ -5125,7 +5123,6 @@ spec:
         # Setup
         deployment_name = "no-status-deployment"
         namespace = "test-namespace"
-        
         # Create mock deployment without status
         mock_deployment = V1Deployment(
             metadata=V1ObjectMeta(

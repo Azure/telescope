@@ -228,7 +228,7 @@ class TestAllInOneAKSStoreDemo(unittest.TestCase):
         assert manifests == expected
 
     @patch('aks_store_demo.aks_store_demo.KubernetesClient')
-    def test_get_manifest_urls_with_custom_tag(self, mock_k8s_client):
+    def test_get_manifest_urls_with_custom_tag(self, mock_k8s_client): #pylint: disable=unused-argument
         """Test that get_manifest_urls uses custom tag correctly."""
         demo_with_custom_tag = AllInOneAKSStoreDemo(tag="1.5.0")
         manifests = demo_with_custom_tag.get_manifest_urls()
