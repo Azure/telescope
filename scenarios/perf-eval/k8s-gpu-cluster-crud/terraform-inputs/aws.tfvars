@@ -19,7 +19,7 @@ network_config_list = [
       {
         name                    = "gpu-subnet-2"
         cidr_block              = "10.1.0.0/17"
-        zone_suffix             = "b"
+        zone_suffix             = "f"
         map_public_ip_on_launch = true
       },
       {
