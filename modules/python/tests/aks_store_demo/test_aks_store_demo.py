@@ -4,8 +4,10 @@ from dataclasses import dataclass
 import unittest
 from unittest.mock import Mock, patch, call
 
-from aks_store_demo.aks_store_demo import AKSStoreDemo, AllInOneAKSStoreDemo, main
-from clients.kubernetes_client import KubernetesClient
+# Mock kubernetes config before importing
+with patch('kubernetes.config.load_kube_config'):
+    from aks_store_demo.aks_store_demo import AKSStoreDemo, AllInOneAKSStoreDemo, main
+    from clients.kubernetes_client import KubernetesClient
 
 
 class TestAKSStoreDemo(unittest.TestCase):
@@ -217,7 +219,7 @@ class TestAllInOneAKSStoreDemo(unittest.TestCase):
             {
                 "url": "https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/2.0.0/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
-                "resource_type": "deployment", 
+                "resource_type": "deployment",
                 "resource_name": None,
                 "timeout": 1200
             }
@@ -225,7 +227,8 @@ class TestAllInOneAKSStoreDemo(unittest.TestCase):
 
         assert manifests == expected
 
-    def test_get_manifest_urls_with_custom_tag(self):
+    @patch('aks_store_demo.aks_store_demo.KubernetesClient')
+    def test_get_manifest_urls_with_custom_tag(self, mock_k8s_client):
         """Test that get_manifest_urls uses custom tag correctly."""
         demo_with_custom_tag = AllInOneAKSStoreDemo(tag="1.5.0")
         manifests = demo_with_custom_tag.get_manifest_urls()
@@ -234,7 +237,7 @@ class TestAllInOneAKSStoreDemo(unittest.TestCase):
             {
                 "url": "https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/1.5.0/aks-store-all-in-one.yaml",
                 "wait_condition_type": "available",
-                "resource_type": "deployment", 
+                "resource_type": "deployment",
                 "resource_name": None,
                 "timeout": 1200
             }

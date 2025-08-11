@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from clusterloader2.job_controller.job_controller import JobController
+# Mock kubernetes config before importing
+with patch('kubernetes.config.load_kube_config'):
+    from clusterloader2.job_controller.job_controller import JobController
 
 
 # pylint: disable=protected-access
@@ -32,15 +34,17 @@ class TestJobControllerBenchmark(unittest.TestCase):
             os.close(fd)
             os.remove(tmp_path)
 
-    @patch("clients.kubernetes_client.KubernetesClient.wait_for_nodes_ready")
-    def test_validate_clusterloader2(self, mock_wait_for_nodes_ready):
+    @patch("clusterloader2.job_controller.job_controller.KubernetesClient")
+    def test_validate_clusterloader2(self, mock_kube_client_class):
+        mock_kube_client_instance = mock_kube_client_class.return_value
         benchmark = JobController(
             node_count=2,
             operation_timeout_in_minutes=600,
             node_label="role=worker",
         )
         benchmark.validate_clusterloader2()
-        mock_wait_for_nodes_ready.assert_called_once_with(2, 600, "role=worker")
+        mock_kube_client_class.assert_called_once()
+        mock_kube_client_instance.wait_for_nodes_ready.assert_called_once_with(2, 600, "role=worker")
 
     @patch("clusterloader2.job_controller.job_controller.run_cl2_command")
     def test_execute_clusterloader2(self, mock_run_cl2_command):

@@ -3,16 +3,17 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-from kubernetes import client, config
-from kwok.kwok import Node
+# Mock kubernetes config before importing
+with patch('kubernetes.config.load_kube_config'):
+    from kwok.kwok import Node
 
 
 def make_mock_node(name, **kwargs):
     """Create a mock Kubernetes node for testing.
-    
+
     Args:
         name: Node name
-        **kwargs: Optional node properties (ready, allocatable, capacity, 
+        **kwargs: Optional node properties (ready, allocatable, capacity,
                  unschedulable, taints, annotations)
     """
     ready = kwargs.get('ready', True)
@@ -38,50 +39,8 @@ def make_mock_node(name, **kwargs):
     return node
 
 
-def mock_apply_kwok_manifests(kwok_release, enable_metrics):
-    """
-    Mock function to simulate the application of Kubernetes manifests for testing purposes.
-
-    Args:
-        kwok_release (str): The release version of KWOK for which manifests are applied.
-        enable_metrics (bool): If True, applies additional metrics-related manifests.
-
-    Returns:
-        None: This function does not return any value.
-    """
-    # Mock the k8s_client.apply_manifest_from_url calls instead of kubectl subprocess calls
-    kwok_yaml_url = (f"https://github.com/kubernetes-sigs/kwok/releases/"
-                     f"download/{kwok_release}/kwok.yaml")
-    stage_fast_yaml_url = (f"https://github.com/kubernetes-sigs/kwok/releases/"
-                          f"download/{kwok_release}/stage-fast.yaml")
-
-    # In a real test, these would be mocked k8s_client calls
-    # For this mock, we just simulate the behavior without actual API calls
-    print(f"Mock applying manifest from {kwok_yaml_url}")
-    print(f"Mock applying manifest from {stage_fast_yaml_url}")
-
-    if enable_metrics:
-        metrics_usage_url = (f"https://github.com/kubernetes-sigs/kwok/releases/"
-                            f"download/{kwok_release}/metrics-usage.yaml")
-        print(f"Mock applying manifest from {metrics_usage_url}")
-
-
 class TestNodeIntegration(unittest.TestCase):
     """Test class for KWOK node integration tests."""
-
-    @classmethod
-    def setUpClass(cls):
-        """
-        Set up a Kubernetes cluster before running the tests.
-        """
-        # Load the Kubernetes configuration (assumes a cluster is already running)
-        try:
-            config.load_kube_config()
-            cls.core_v1_api = client.CoreV1Api()
-            print("Kubernetes cluster is accessible.")
-        except Exception as e:
-            raise RuntimeError(f"Failed to access Kubernetes cluster: {e}") from e
-
     def setUp(self):
         """
         Set up the environment for each test.
@@ -91,17 +50,30 @@ class TestNodeIntegration(unittest.TestCase):
         template_path = os.path.join(current_dir, "..", "..", "kwok", "config", "kwok-node.yaml")
         template_path = os.path.normpath(template_path)
 
-        # Initialize the Node instance with correct template path
+        # Mock the Kubernetes client and core API
+        self.mock_k8s_client = MagicMock()
+        self.core_v1_api = MagicMock()
+
+        # Initialize the Node instance with correct template path and mock client
         self.node = Node(
             node_count=2,
             kwok_release="v0.7.0",
             enable_metrics=True,
-            node_manifest_path=template_path
+            node_manifest_path=template_path,
+            k8s_client=self.mock_k8s_client,
+            node_gpu="8",
+            enable_dra=True
         )
 
-    @patch("kwok.kwok.Node.apply_kwok_manifests", side_effect=mock_apply_kwok_manifests)
+    @patch("kwok.kwok.Node.apply_kwok_manifests")
     def test_create_nodes(self, mock_apply):
         """Test creating KWOK nodes."""
+        # Setup additional mocks for DRA functionality
+        self.mock_k8s_client.apply_manifest_from_file.return_value = None
+        self.mock_k8s_client.create_template.return_value = "mock_template"
+        self.mock_k8s_client.create_node.return_value = None
+        self.mock_k8s_client.create_resource_slice.return_value = None
+
         try:
             self.node.create()
             print("Nodes created successfully.")
@@ -110,6 +82,26 @@ class TestNodeIntegration(unittest.TestCase):
                 self.node.kwok_release,
                 self.node.enable_metrics
             )
+
+            # Verify DRA-specific calls were made
+            self.mock_k8s_client.apply_manifest_from_file.assert_called_with(
+                "kwok/config/device-class.yaml"
+            )
+
+            # Verify create_resource_slice was called for each node
+            expected_calls = 2  # node_count = 2
+            self.assertEqual(
+                self.mock_k8s_client.create_resource_slice.call_count,
+                expected_calls,
+                f"Expected {expected_calls} resource slice calls, got {self.mock_k8s_client.create_resource_slice.call_count}"
+            )
+
+            # Mock the nodes for verification
+            mock_nodes = [
+                make_mock_node(name=f"kwok-node-{i}", ready=True)
+                for i in range(2)
+            ]
+            self.core_v1_api.list_node.return_value.items = mock_nodes
 
             # Verify the number of nodes in the cluster
             nodes = self.core_v1_api.list_node().items
@@ -129,9 +121,24 @@ class TestNodeIntegration(unittest.TestCase):
         """
         Test the deletion of KWOK nodes from the cluster.
         """
+        # Setup additional mocks for DRA functionality
+        self.mock_k8s_client.delete_node.return_value = None
+        self.mock_k8s_client.delete_resource_slice.return_value = None
+
         try:
             self.node.tear_down()
             print("Nodes deleted successfully.")
+
+            # Verify delete_resource_slice was called for each node (since DRA is enabled)
+            expected_calls = 2  # node_count = 2
+            self.assertEqual(
+                self.mock_k8s_client.delete_resource_slice.call_count,
+                expected_calls,
+                f"Expected {expected_calls} resource slice deletion calls, got {self.mock_k8s_client.delete_resource_slice.call_count}"
+            )
+
+            # Mock empty node list after deletion
+            self.core_v1_api.list_node.return_value.items = []
 
             # Verify the number of nodes in the cluster
             nodes = self.core_v1_api.list_node().items
@@ -147,108 +154,133 @@ class TestNodeIntegration(unittest.TestCase):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             self.fail(f"Node deletion failed: {exc}")
 
-    class TestNodeValidation(unittest.TestCase):
-        """Test class for KWOK node validation tests."""
-        def setUp(self):
-            """
-            Set up the environment for each test.
-            """
-            # Get the absolute path to the template file
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            template_path = os.path.join(current_dir, "..", "..", "kwok", "config", "kwok-node.yaml")
-            template_path = os.path.normpath(template_path)
-            self.mock_k8s_client = MagicMock()
-            self.node = Node(
-                node_count=2,
-                k8s_client=self.mock_k8s_client,
-                node_manifest_path=template_path
+
+
+class TestNodeValidation(unittest.TestCase):
+    """Test class for KWOK node validation tests."""
+    def setUp(self):
+        """
+        Set up the environment for each test.
+        """
+        # Get the absolute path to the template file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(current_dir, "..", "..", "kwok", "config", "kwok-node.yaml")
+        template_path = os.path.normpath(template_path)
+        self.mock_k8s_client = MagicMock()
+        self.node = Node(
+            node_count=2,
+            k8s_client=self.mock_k8s_client,
+            node_manifest_path=template_path,
+            node_gpu="8",
+            enable_dra=True
+        )
+
+    def test_validate_success(self):
+        """
+        Test that validation succeeds when the correct number of KWOK nodes is present.
+        """
+        # Mock deployment for kwok-controller validation
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
+
+        # Mock nodes for validation
+        mock_nodes = [
+            make_mock_node(
+                name=f"kwok-node-{i}",
+                ready=True,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
             )
+            for i in range(2)
+        ]
+        self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
-        def test_validate_success(self):
-            """
-            Test that validation succeeds when the correct number of KWOK nodes is present.
-            """
-            mock_nodes = [
-                make_mock_node(
-                    name=f"kwok-node-{i}",
-                    ready=True,
-                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                )
-                for i in range(2)
-            ]
-            self.mock_k8s_client.get_nodes.return_value = mock_nodes
+        try:
+            self.node.validate()
+            print("Validation succeeded.")
+        except RuntimeError as e:
+            self.fail(f"Validation failed unexpectedly: {e}")
 
-            try:
-                self.node.validate()
-                print("Validation succeeded.")
-            except RuntimeError as e:
-                self.fail(f"Validation failed unexpectedly: {e}")
+    def test_validate_insufficient_nodes(self):
+        """
+        Test that validation fails when fewer KWOK nodes are present than expected.
+        """
+        # Mock deployment for kwok-controller validation
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
 
-        def test_validate_insufficient_nodes(self):
-            """
-            Test that validation fails when fewer KWOK nodes are present than expected.
-            """
-            mock_nodes = [
-                make_mock_node(
-                    name=f"kwok-node-{i}",
-                    ready=True,
-                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                )
-                for i in range(1)  # Only one node, but node_count=2
-            ]
-            self.mock_k8s_client.get_nodes.return_value = mock_nodes
+        mock_nodes = [
+            make_mock_node(
+                name=f"kwok-node-{i}",
+                ready=True,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            )
+            for i in range(1)  # Only one node, but node_count=2
+        ]
+        self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
-            with self.assertRaises(RuntimeError) as context:
-                self.node.validate()
-            self.assertIn("Expected at least 2 KWOK nodes", str(context.exception))
+        with self.assertRaises(RuntimeError) as context:
+            self.node.validate()
+        self.assertIn("Expected at least 2 KWOK nodes", str(context.exception))
 
-        def test_validate_node_not_ready(self):
-            """
-            Test that validation fails when a node's status is not "Ready".
-            """
-            mock_nodes = [
-                make_mock_node(
-                    name="kwok-node-0",
-                    ready=False,
-                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                ),
-                make_mock_node(
-                    name="kwok-node-1",
-                    ready=True,
-                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                ),
-            ]
-            self.mock_k8s_client.get_nodes.return_value = mock_nodes
+    def test_validate_node_not_ready(self):
+        """
+        Test that validation fails when a node's status is not "Ready".
+        """
+        # Mock deployment for kwok-controller validation
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
 
-            with self.assertRaises(RuntimeError):
-                self.node.validate()
+        mock_nodes = [
+            make_mock_node(
+                name="kwok-node-0",
+                ready=False,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+            make_mock_node(
+                name="kwok-node-1",
+                ready=True,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+        ]
+        self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
-        def test_validate_missing_resources(self):
-            """
-            Test that validation fails when a node is missing resource information.
-            """
-            mock_nodes = [
-                make_mock_node(
-                    name="kwok-node-0",
-                    ready=True,
-                    allocatable=None,
-                    capacity=None,
-                ),
-                make_mock_node(
-                    name="kwok-node-1",
-                    ready=True,
-                    allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                    capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
-                ),
-            ]
-            self.mock_k8s_client.get_nodes.return_value = mock_nodes
+        with self.assertRaises(RuntimeError):
+            self.node.validate()
 
-            with self.assertRaises(RuntimeError):
-                self.node.validate()
+    def test_validate_missing_resources(self):
+        """
+        Test that validation fails when a node is missing resource information.
+        """
+        # Mock deployment for kwok-controller validation
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
+
+        mock_nodes = [
+            make_mock_node(
+                name="kwok-node-0",
+                ready=True,
+                allocatable=None,
+                capacity=None,
+            ),
+            make_mock_node(
+                name="kwok-node-1",
+                ready=True,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+        ]
+        self.mock_k8s_client.get_nodes.return_value = mock_nodes
+
+        with self.assertRaises(RuntimeError):
+            self.node.validate()
 
 
 if __name__ == "__main__":
