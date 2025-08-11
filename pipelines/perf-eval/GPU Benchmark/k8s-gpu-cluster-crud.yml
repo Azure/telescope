@@ -7,12 +7,12 @@ schedules:
       include:
         - main
     always: true
-  - cron: "30 */6 * * *"
-    displayName: "At 30 minute past every 6th hour"
-    branches:
-      include:
-        - main
-    always: true
+  # - cron: "30 */6 * * *"
+  #   displayName: "At 30 minute past every 6th hour"
+  #   branches:
+  #     include:
+  #       - main
+  #   always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
