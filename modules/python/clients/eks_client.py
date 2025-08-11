@@ -276,6 +276,7 @@ class EKSClient:
         node_group_name: str,
         instance_type: str,
         node_count: int = 0,
+        max_node_count: int = 1,
         gpu_node_group: bool = False,
         capacity_type: str = "ON_DEMAND",
     ) -> Any:
@@ -331,8 +332,7 @@ class EKSClient:
                     "nodegroupName": node_group_name,
                     "scalingConfig": {
                         "minSize": node_count,
-                        "maxSize": node_count
-                        + 1,  # AWS requires maxSize to be atleast 1
+                        "maxSize": max_node_count,
                         "desiredSize": node_count,
                     },
                     "subnets": filtered_subnets,
@@ -364,7 +364,7 @@ class EKSClient:
 
                     reservation_info = self._get_capacity_reservation_id(
                         instance_type=instance_type,
-                        count=node_count,
+                        target_count=max_node_count,
                         availability_zones=self.subnet_azs,
                     )
 
@@ -884,7 +884,7 @@ class EKSClient:
             raise
 
     def _get_capacity_reservation_id(
-        self, instance_type: str, count: int, availability_zones: List
+        self, instance_type: str, target_count: int, availability_zones: List
     ) -> Optional[Dict]:
         """
         Find an existing capacity reservation for the specified instance type.
@@ -915,11 +915,10 @@ class EKSClient:
 
             run_id_reservations = response.get("CapacityReservations", [])
 
-            if run_id_reservations:
-                reservation = run_id_reservations[0]
+            for reservation in run_id_reservations:
                 reservation_id = reservation["CapacityReservationId"]
                 reservation_az = reservation["AvailabilityZone"]
-                current_count = reservation["TotalInstanceCount"]
+                total_count = reservation["TotalInstanceCount"]
                 available_count = reservation["AvailableInstanceCount"]
 
                 logger.info(
@@ -927,15 +926,16 @@ class EKSClient:
                     reservation_id,
                     reservation_az,
                     available_count,
-                    current_count,
+                    total_count,
                 )
 
-                if available_count < count:
+                if available_count < target_count:
                     logger.warning(
                         "Capacity reservation has only %s instances available, but %s were requested",
                         available_count,
-                        count,
+                        target_count,
                     )
+                    continue
 
                 return {
                     "reservation_id": reservation_id,

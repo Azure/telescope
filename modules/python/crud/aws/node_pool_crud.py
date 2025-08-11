@@ -48,6 +48,7 @@ class NodePoolCRUD:
         node_pool_name,
         vm_size=None,
         node_count=0,
+        max_node_count=1,
         gpu_node_pool=False,
     ):
         """
@@ -71,6 +72,7 @@ class NodePoolCRUD:
                 node_group_name=node_pool_name,
                 instance_type=vm_size,
                 node_count=node_count,
+                max_node_count=max_node_count,
                 gpu_node_group=gpu_node_pool,
                 capacity_type=self.capacity_type,
             )
@@ -189,6 +191,7 @@ class NodePoolCRUD:
                 node_pool_name=node_pool_name,
                 vm_size=vm_size,
                 node_count=node_count,
+                max_node_count=target_count,
                 gpu_node_pool=gpu_node_pool,
             )
             results["create"] = create_result
