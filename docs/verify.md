@@ -21,7 +21,7 @@ pushd modules/python
 # Install dependencies
 pip install -r requirements.txt
 
-# Run tests with coverage (minimum 70% required)
+# Run tests with coverage (minimum 80% required)
 pytest --cov=. --cov-report=term-missing --cov-fail-under=80
 
 # Run specific test module
