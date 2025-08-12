@@ -348,9 +348,6 @@ class EKSClient:
                         "scenario": f"{get_env_vars('SCENARIO_TYPE')}-{get_env_vars('SCENARIO_NAME')}",
                     },
                 }
-                logger.info(
-                    "Creating launch template for node group '%s'", node_group_name
-                )
 
                 # Check for capacity reservation if requested
                 reservation_info = None
@@ -978,11 +975,6 @@ class EKSClient:
             The ID of the created launch template
         """
         try:
-            logger.info(
-                "Creating launch template '%s' for node group '%s'",
-                name,
-                node_group_name,
-            )
             # Prepare launch template data
             launch_template_data = {}
             launch_template_data["InstanceType"] = instance_type
@@ -1015,14 +1007,15 @@ class EKSClient:
                 }
             ]
             instance_details = self.describe_instance_types([instance_type])
-            max_nic_count = instance_details[0].get("NetworkInfo", {}).get(
-                "MaximumNetworkInterfaces", 1)
 
+            max_nic = instance_details[0].get("NetworkInfo", {}).get(
+                "MaximumNetworkCards", 1)
             network_interfaces = []
-            for i in range(max_nic_count):
+            for i in range(max_nic):
                 network_interfaces.append(
-                    {
-                        "DeviceIndex": i,
+                    {   
+                        "NetworkCardIndex": i,                
+                        "DeviceIndex": 0 if i == 0 else 1,
                         "InterfaceType": "efa",
                         "AssociatePublicIpAddress": False,
                         "DeleteOnTermination": True,

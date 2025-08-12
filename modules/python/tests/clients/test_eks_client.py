@@ -1961,7 +1961,7 @@ class TestEKSClient(unittest.TestCase):
                 {
                     "InstanceType": "t3.medium",
                     "NetworkInfo": {
-                        "MaximumNetworkInterfaces": 3,
+                        "MaximumNetworkCards": 3,
                         "NetworkPerformance": "Up to 5 Gigabit"
                     },
                     "VCpuInfo": {"DefaultVCpus": 2},
@@ -1981,7 +1981,7 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(result, mock_response["InstanceTypes"])
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["InstanceType"], "t3.medium")
-        self.assertEqual(result[0]["NetworkInfo"]["MaximumNetworkInterfaces"], 3)
+        self.assertEqual(result[0]["NetworkInfo"]["MaximumNetworkCards"], 3)
 
     def test_describe_instance_types_multiple_instances(self):
         """Test describe_instance_types with multiple instance types"""
@@ -1993,11 +1993,11 @@ class TestEKSClient(unittest.TestCase):
             "InstanceTypes": [
                 {
                     "InstanceType": "t3.medium",
-                    "NetworkInfo": {"MaximumNetworkInterfaces": 3}
+                    "NetworkInfo": {"MaximumNetworkCards": 3}
                 },
                 {
                     "InstanceType": "p3.2xlarge",
-                    "NetworkInfo": {"MaximumNetworkInterfaces": 4}
+                    "NetworkInfo": {"MaximumNetworkCards": 4}
                 }
             ]
         }
@@ -2104,7 +2104,7 @@ class TestEKSClient(unittest.TestCase):
             "InstanceTypes": [
                 {
                     "InstanceType": "t3.medium",
-                    "NetworkInfo": {"MaximumNetworkInterfaces": 1}
+                    "NetworkInfo": {"MaximumNetworkCards": 1}
                 }
             ]
         }
@@ -2144,7 +2144,9 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(len(network_interfaces), 1)
 
         nic = network_interfaces[0]
+        self.assertEqual(nic["NetworkCardIndex"], 0)  # First interface should have NetworkCardIndex 0
         self.assertEqual(nic["DeviceIndex"], 0)
+        self.assertEqual(nic["InterfaceType"], "efa")
         self.assertFalse(nic["AssociatePublicIpAddress"])
         self.assertTrue(nic["DeleteOnTermination"])
 
@@ -2158,7 +2160,7 @@ class TestEKSClient(unittest.TestCase):
             "InstanceTypes": [
                 {
                     "InstanceType": "p3.2xlarge",
-                    "NetworkInfo": {"MaximumNetworkInterfaces": 4}
+                    "NetworkInfo": {"MaximumNetworkCards": 4}
                 }
             ]
         }
@@ -2199,7 +2201,11 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify each NIC configuration
         for i, nic in enumerate(network_interfaces):
+            # NetworkCardIndex logic: 0 for first interface, 1 for all others
+            expected_network_card_index = 0 if i == 0 else 1
+            self.assertEqual(nic["NetworkCardIndex"], expected_network_card_index)
             self.assertEqual(nic["DeviceIndex"], i)
+            self.assertEqual(nic["InterfaceType"], "efa")
             self.assertFalse(nic["AssociatePublicIpAddress"])
             self.assertTrue(nic["DeleteOnTermination"])
 
@@ -2248,17 +2254,17 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(len(network_interfaces), 1)
 
     def test_launch_template_network_interfaces_missing_max_nics(self):
-        """Test launch template handles missing MaximumNetworkInterfaces gracefully"""
+        """Test launch template handles missing MaximumNetworkCards gracefully"""
         # Setup
         eks_client = EKSClient()
 
-        # Mock describe_instance_types response without MaximumNetworkInterfaces
+        # Mock describe_instance_types response without MaximumNetworkCards
         self.mock_ec2.describe_instance_types.return_value = {
             "InstanceTypes": [
                 {
                     "InstanceType": "t3.medium",
                     "NetworkInfo": {
-                        # MaximumNetworkInterfaces is missing
+                        # MaximumNetworkCards is missing
                         "NetworkPerformance": "Up to 5 Gigabit"
                     }
                 }
@@ -2305,7 +2311,7 @@ class TestEKSClient(unittest.TestCase):
                 {
                     "InstanceType": "c5.xlarge",
                     "NetworkInfo": {
-                        "MaximumNetworkInterfaces": 4,
+                        "MaximumNetworkCards": 4,
                         "NetworkPerformance": "Up to 10 Gigabit"
                     },
                     "VCpuInfo": {"DefaultVCpus": 4},
@@ -2359,7 +2365,11 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify all NICs have correct configuration
         for i, nic in enumerate(network_interfaces):
+            # NetworkCardIndex logic: 0 for first interface, 1 for all others
+            expected_network_card_index = 0 if i == 0 else 1
+            self.assertEqual(nic["NetworkCardIndex"], expected_network_card_index)
             self.assertEqual(nic["DeviceIndex"], i)
+            self.assertEqual(nic["InterfaceType"], "efa")
             self.assertFalse(nic["AssociatePublicIpAddress"])
             self.assertTrue(nic["DeleteOnTermination"])
 
