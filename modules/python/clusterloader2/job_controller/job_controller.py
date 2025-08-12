@@ -176,6 +176,13 @@ class JobController(ClusterLoader2Base):
             default=None,
             help="Node label selectors to filter nodes (e.g., 'kubernetes.io/role=worker')",
         )
+        parser.add_argument(
+            "--dra-enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable DRA. Must be either True or False",
+        )
 
     @staticmethod
     def add_execute_subparser_arguments(parser):
@@ -235,6 +242,13 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--job_gpu", type=int, default=0, help="Number of GPUs per job"
+        )
+        parser.add_argument(
+            "--dra-enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable DRA. Must be either True or False",
         )
 
 
