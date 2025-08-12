@@ -1013,7 +1013,7 @@ class EKSClient:
             network_interfaces = []
             for i in range(max_nic):
                 network_interfaces.append(
-                    {   
+                    {
                         "NetworkCardIndex": i,                
                         "DeviceIndex": 0 if i == 0 else 1,
                         "InterfaceType": "efa",
@@ -1236,7 +1236,7 @@ class EKSClient:
             )
             logger.error(error_msg)
             raise ValueError(error_msg) from e
-            
+
     def describe_instance_types(
         self, instance_types: List[str]
     ) -> List[Dict]:
