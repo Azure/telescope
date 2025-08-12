@@ -1369,7 +1369,7 @@ class TestEKSClient(unittest.TestCase):
         # Setup
         eks_client = EKSClient()
 
-        # Mock capacity reservation response
+        # Mock capacity reservation response with full capacity available
         mock_reservation_response = {
             "CapacityReservations": [
                 {
@@ -1378,7 +1378,7 @@ class TestEKSClient(unittest.TestCase):
                     "AvailabilityZone": "us-west-2a",
                     "State": "active",
                     "TotalInstanceCount": 4,
-                    "AvailableInstanceCount": 2,
+                    "AvailableInstanceCount": 4,  # Full capacity available
                 }
             ]
         }
@@ -1593,7 +1593,7 @@ class TestEKSClient(unittest.TestCase):
         # Setup
         eks_client = EKSClient()
 
-        # Mock capacity reservation in us-west-2a
+        # Mock capacity reservation in us-west-2a with full capacity available
         mock_reservation_response = {
             "CapacityReservations": [
                 {
@@ -1602,7 +1602,7 @@ class TestEKSClient(unittest.TestCase):
                     "AvailabilityZone": "us-west-2a",
                     "State": "active",
                     "TotalInstanceCount": 4,
-                    "AvailableInstanceCount": 2,
+                    "AvailableInstanceCount": 4,  # Full capacity available
                 }
             ]
         }
@@ -1679,7 +1679,7 @@ class TestEKSClient(unittest.TestCase):
         # Setup
         eks_client = EKSClient()
 
-        # Mock capacity reservation in us-west-2c (not in our subnet list)
+        # Mock capacity reservation in us-west-2c (not in our subnet list) but with full capacity
         mock_reservation_response = {
             "CapacityReservations": [
                 {
@@ -1688,7 +1688,7 @@ class TestEKSClient(unittest.TestCase):
                     "AvailabilityZone": "us-west-2c",  # No subnet in this AZ
                     "State": "active",
                     "TotalInstanceCount": 4,
-                    "AvailableInstanceCount": 2,
+                    "AvailableInstanceCount": 4,  # Full capacity available
                 }
             ]
         }
@@ -1700,7 +1700,7 @@ class TestEKSClient(unittest.TestCase):
             "LaunchTemplate": {"LaunchTemplateId": "lt-no-subnet-123"}
         }
 
-        # Execute and verify exception
+        # Execute and verify exception is raised because no subnets in reservation AZ
         with self.assertRaises(Exception) as context:
             eks_client.create_node_group(
                 node_group_name="test-no-subnet-ng",
@@ -1730,7 +1730,7 @@ class TestEKSClient(unittest.TestCase):
                     "AvailabilityZone": "us-west-2b",
                     "State": "active",
                     "TotalInstanceCount": 4,
-                    "AvailableInstanceCount": 3,
+                    "AvailableInstanceCount": 4,  # Full capacity available
                 }
             ]
         }
@@ -1742,7 +1742,7 @@ class TestEKSClient(unittest.TestCase):
         # Execute
         result = eks_client._get_capacity_reservation_id(
             instance_type="p3.2xlarge",
-            count=2,
+            target_count=2,
             availability_zones=["us-west-2a", "us-west-2b"],
         )
 
@@ -1758,7 +1758,7 @@ class TestEKSClient(unittest.TestCase):
         # Setup
         eks_client = EKSClient()
 
-        # Mock capacity reservation with insufficient capacity
+        # Mock capacity reservation with insufficient capacity (available < target_count)
         mock_reservation_response = {
             "CapacityReservations": [
                 {
@@ -1767,7 +1767,7 @@ class TestEKSClient(unittest.TestCase):
                     "AvailabilityZone": "us-west-2a",
                     "State": "active",
                     "TotalInstanceCount": 4,
-                    "AvailableInstanceCount": 1,  # Less than requested
+                    "AvailableInstanceCount": 2,  # Less than target_count (3)
                 }
             ]
         }
@@ -1780,20 +1780,54 @@ class TestEKSClient(unittest.TestCase):
         with self.assertLogs("clients.eks_client", level="WARNING") as log:
             result = eks_client._get_capacity_reservation_id(
                 instance_type="p3.2xlarge",
-                count=3,  # Request more than available
+                target_count=3,  # Request more than available (2)
                 availability_zones=["us-west-2a", "us-west-2b"],
             )
 
-            # Verify still returns the reservation
-            self.assertIsNotNone(result)
-            self.assertEqual(result["reservation_id"], "cr-insufficient-123")
+            # Verify returns None when insufficient capacity
+            self.assertIsNone(result)
 
             # Verify warning was logged
             log_messages = " ".join(log.output)
             self.assertIn(
-                "Capacity reservation has only 1 instances available, but 3 were requested",
+                "Capacity reservation has only 2 instances available, but 3 were requested",
                 log_messages,
             )
+
+    def test_capacity_reservation_full_capacity_available(self):
+        """Test successful capacity reservation when full capacity is available"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock capacity reservation with full capacity available
+        mock_reservation_response = {
+            "CapacityReservations": [
+                {
+                    "CapacityReservationId": "cr-full-capacity-123",
+                    "InstanceType": "p3.2xlarge",
+                    "AvailabilityZone": "us-west-2a",
+                    "State": "active",
+                    "TotalInstanceCount": 4,
+                    "AvailableInstanceCount": 4,  # Full capacity available
+                }
+            ]
+        }
+
+        self.mock_ec2.describe_capacity_reservations.return_value = (
+            mock_reservation_response
+        )
+
+        # Execute
+        result = eks_client._get_capacity_reservation_id(
+            instance_type="p3.2xlarge",
+            target_count=2,
+            availability_zones=["us-west-2a", "us-west-2b"],
+        )
+
+        # Verify returns the reservation
+        self.assertIsNotNone(result)
+        self.assertEqual(result["reservation_id"], "cr-full-capacity-123")
+        self.assertEqual(result["availability_zone"], "us-west-2a")
 
     def test_capacity_reservation_multiple_subnets_same_az(self):
         """Test subnet filtering when multiple subnets exist in the same AZ"""
@@ -1830,7 +1864,7 @@ class TestEKSClient(unittest.TestCase):
                 "nodegroup": {"nodeRole": "arn:aws:iam::123456789012:role/eksNodeRole"}
             }
 
-            # Mock capacity reservation in us-west-2a
+            # Mock capacity reservation in us-west-2a with full capacity available
             mock_reservation_response = {
                 "CapacityReservations": [
                     {
@@ -1839,7 +1873,7 @@ class TestEKSClient(unittest.TestCase):
                         "AvailabilityZone": "us-west-2a",
                         "State": "active",
                         "TotalInstanceCount": 4,
-                        "AvailableInstanceCount": 2,
+                        "AvailableInstanceCount": 4,  # Full capacity available
                     }
                 ]
             }
