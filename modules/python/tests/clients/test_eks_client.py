@@ -2086,7 +2086,7 @@ class TestEKSClient(unittest.TestCase):
 
         block_device = block_devices[0]
         self.assertEqual(block_device["DeviceName"], "/dev/xvda")
-        
+
         ebs_config = block_device["Ebs"]
         self.assertEqual(ebs_config["Iops"], 5000)
         self.assertEqual(ebs_config["Throughput"], 200)
@@ -2128,7 +2128,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        
+
         # Verify describe_instance_types was called
         self.mock_ec2.describe_instance_types.assert_called_once_with(
             InstanceTypes=["t3.medium"]
@@ -2184,7 +2184,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        
+
         # Verify describe_instance_types was called
         self.mock_ec2.describe_instance_types.assert_called_once_with(
             InstanceTypes=["p3.2xlarge"]
@@ -2202,9 +2202,9 @@ class TestEKSClient(unittest.TestCase):
         # Verify each NIC configuration
         for i, nic in enumerate(network_interfaces):
             # NetworkCardIndex logic: 0 for first interface, 1 for all others
-            expected_network_card_index = 0 if i == 0 else 1
-            self.assertEqual(nic["NetworkCardIndex"], expected_network_card_index)
-            self.assertEqual(nic["DeviceIndex"], i)
+            expected_device_index = 0 if i == 0 else 1
+            self.assertEqual(nic["NetworkCardIndex"], i)
+            self.assertEqual(nic["DeviceIndex"], expected_device_index)
             self.assertEqual(nic["InterfaceType"], "efa")
             self.assertFalse(nic["AssociatePublicIpAddress"])
             self.assertTrue(nic["DeleteOnTermination"])
@@ -2339,7 +2339,7 @@ class TestEKSClient(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
-        
+
         # Verify describe_instance_types was called
         self.mock_ec2.describe_instance_types.assert_called_once_with(
             InstanceTypes=["c5.xlarge"]
@@ -2366,9 +2366,9 @@ class TestEKSClient(unittest.TestCase):
         # Verify all NICs have correct configuration
         for i, nic in enumerate(network_interfaces):
             # NetworkCardIndex logic: 0 for first interface, 1 for all others
-            expected_network_card_index = 0 if i == 0 else 1
-            self.assertEqual(nic["NetworkCardIndex"], expected_network_card_index)
-            self.assertEqual(nic["DeviceIndex"], i)
+            expected_device_index = 0 if i == 0 else 1
+            self.assertEqual(nic["NetworkCardIndex"], i)
+            self.assertEqual(nic["DeviceIndex"], expected_device_index)
             self.assertEqual(nic["InterfaceType"], "efa")
             self.assertFalse(nic["AssociatePublicIpAddress"])
             self.assertTrue(nic["DeleteOnTermination"])
