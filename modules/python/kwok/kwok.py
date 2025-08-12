@@ -157,7 +157,7 @@ class Node(KWOK):
     def validate(self):
         execute_with_retries(
             self._validate_kwok_controller,
-            max_retries=10,
+            max_retries=30,
         )
 
         execute_with_retries(

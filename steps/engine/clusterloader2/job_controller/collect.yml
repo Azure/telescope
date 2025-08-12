@@ -24,7 +24,8 @@ steps:
         --run_id $RUN_ID \
         --run_url $RUN_URL \
         --result_file $TEST_RESULTS_FILE \
-        --dra-enabled $ENABLE_DRA
+        --dra-enabled $ENABLE_DRA \
+        --job-gpu $JOB_GPU
     workingDirectory: modules/python
     env:
       CLOUD: ${{ parameters.cloud }}
