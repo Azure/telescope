@@ -332,7 +332,7 @@ class EKSClient:
                     "nodegroupName": node_group_name,
                     "scalingConfig": {
                         "minSize": node_count,
-                        "maxSize": max_node_count,
+                        "maxSize": max(max_node_count, 1),
                         "desiredSize": node_count,
                     },
                     "subnets": filtered_subnets,
