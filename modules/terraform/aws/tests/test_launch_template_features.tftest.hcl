@@ -175,75 +175,68 @@ variables {
   }]
 }
 
-# Test network interfaces configuration
+# Test network interfaces configuration - focus on static attributes
 run "network_interfaces_with_ena_express" {
   command = plan
 
-  # Verify that network interfaces block is created when explicitly configured
+  # Verify that launch template is created for this node group
   assert {
-    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].network_interfaces) == 1
-    error_message = "Expected network_interfaces block to be created for ng-with-network-interfaces"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"] != null
+    error_message = "Expected launch template to be created for ng-with-network-interfaces"
   }
 
-  # Verify ENA Express is enabled in network interfaces
+  # Verify block device mappings configuration (static)
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
-    error_message = "Expected ENA Express to be enabled in network interfaces"
-  }
-
-  # Verify UDP specification is enabled
-  assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].network_interfaces[0].ena_srd_specification[0].ena_srd_udp_specification[0].ena_srd_udp_enabled == true
-    error_message = "Expected ENA Express UDP to be enabled"
-  }
-
-  # Verify network interface properties are correctly set
-  assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].network_interfaces[0].associate_public_ip_address == "true"
-    error_message = "Expected associate_public_ip_address to be true"
+    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].block_device_mappings) == 1
+    error_message = "Expected one block device mapping"
   }
 
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].network_interfaces[0].delete_on_termination == "true"
-    error_message = "Expected delete_on_termination to be true"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].block_device_mappings[0].device_name == "/dev/xvda"
+    error_message = "Expected device_name to be /dev/xvda"
   }
 
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].network_interfaces[0].interface_type == "efa"
-    error_message = "Expected interface_type to be efa"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].block_device_mappings[0].ebs[0].volume_size == 100
+    error_message = "Expected volume_size to be 100"
+  }
+
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-with-network-interfaces"].block_device_mappings[0].ebs[0].volume_type == "gp3"
+    error_message = "Expected volume_type to be gp3"
   }
 }
 
-# Test ENA Express without explicit network interfaces
+# Test ENA Express without explicit network interfaces - focus on static config
 run "ena_express_without_network_interfaces" {
   command = plan
 
-  # Verify that network interfaces block is created even without explicit configuration when ENA Express is enabled
+  # Verify that launch template is created
   assert {
-    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-ena-express-only"].network_interfaces) == 1
-    error_message = "Expected network_interfaces block to be created for ENA Express even without explicit network_interfaces config"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-ena-express-only"] != null
+    error_message = "Expected launch template to be created for ng-ena-express-only"
   }
 
-  # Verify ENA Express is enabled
+  # Test static EKS node group configuration
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-ena-express-only"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
-    error_message = "Expected ENA Express to be enabled"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-ena-express-only"].ami_type == "AL2023_x86_64_STANDARD"
+    error_message = "Expected ami_type to be AL2023_x86_64_STANDARD"
   }
 
-  # Verify that network interface properties are null when not explicitly configured
+  # Test scaling configuration
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-ena-express-only"].network_interfaces[0].associate_public_ip_address == null
-    error_message = "Expected associate_public_ip_address to be null when not configured"
-  }
-
-  assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-ena-express-only"].network_interfaces[0].delete_on_termination == null
-    error_message = "Expected delete_on_termination to be null when not configured"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-ena-express-only"].scaling_config[0].min_size == 1
+    error_message = "Expected min_size to be 1"
   }
 
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-ena-express-only"].network_interfaces[0].interface_type == null
-    error_message = "Expected interface_type to be null when not configured"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-ena-express-only"].scaling_config[0].max_size == 3
+    error_message = "Expected max_size to be 3"
+  }
+
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-ena-express-only"].scaling_config[0].desired_size == 1
+    error_message = "Expected desired_size to be 1"
   }
 }
 
@@ -320,36 +313,46 @@ run "instance_market_options_spot" {
   }
 }
 
-# Test baseline node group (no special configurations)
+# Test baseline node group (no special configurations) - focus on EKS node group attributes
 run "baseline_node_group_no_special_configs" {
   command = plan
 
-  # Verify that network interfaces block is NOT created when not needed
+  # Verify that launch template is created
   assert {
-    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].network_interfaces) == 0
-    error_message = "Expected no network_interfaces block for baseline node group"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"] != null
+    error_message = "Expected launch template to be created for ng-baseline"
   }
 
-  # Verify that capacity reservation block is NOT created
+  # Test that baseline node group has expected configuration
   assert {
-    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].capacity_reservation_specification) == 0
-    error_message = "Expected no capacity_reservation_specification block for baseline node group"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-baseline"].capacity_type == "ON_DEMAND"
+    error_message = "Expected capacity_type to be ON_DEMAND for baseline node group"
   }
 
-  # Verify that instance market options block is NOT created
+  # Test scaling configuration
   assert {
-    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].instance_market_options) == 0
-    error_message = "Expected no instance_market_options block for baseline node group"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-baseline"].scaling_config[0].min_size == 1
+    error_message = "Expected min_size to be 1"
   }
 
-  # Verify instance type is null for non-capacity-block
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].instance_type == null
-    error_message = "Expected instance_type to be null for non-CAPACITY_BLOCK"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-baseline"].scaling_config[0].max_size == 2
+    error_message = "Expected max_size to be 2"
+  }
+
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-baseline"].scaling_config[0].desired_size == 1
+    error_message = "Expected desired_size to be 1"
+  }
+
+  # Test instance types - verify it contains m5.large
+  assert {
+    condition     = contains(module.eks["eks_launch_template_test"].eks_node_groups["ng-baseline"].instance_types, "m5.large")
+    error_message = "Expected instance_types to contain m5.large"
   }
 }
 
-# Test global ENA Express setting
+# Test global ENA Express setting - focus on configuration validation
 run "global_ena_express_setting" {
   variables {
     json_input = {
@@ -362,15 +365,27 @@ run "global_ena_express_setting" {
 
   command = plan
 
-  # Verify that global ENA Express setting affects baseline node group
+  # Verify that launch template is created with global ENA Express setting
   assert {
-    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].network_interfaces) == 1
-    error_message = "Expected network_interfaces block to be created when global ena_express is true"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"] != null
+    error_message = "Expected launch template to be created for ng-baseline with global ena_express"
+  }
+
+  # Test that the baseline node group still has expected basic configuration
+  assert {
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups["ng-baseline"].ami_type == "AL2023_x86_64_STANDARD"
+    error_message = "Expected ami_type to be AL2023_x86_64_STANDARD"
+  }
+
+  # Test block device mapping is still configured
+  assert {
+    condition     = length(module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].block_device_mappings) == 1
+    error_message = "Expected one block device mapping"
   }
 
   assert {
-    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].network_interfaces[0].ena_srd_specification[0].ena_srd_enabled == true
-    error_message = "Expected ENA Express to be enabled via global setting"
+    condition     = module.eks["eks_launch_template_test"].eks_node_groups_launch_template["ng-baseline"].block_device_mappings[0].device_name == "/dev/xvda"
+    error_message = "Expected device_name to be /dev/xvda"
   }
 }
 

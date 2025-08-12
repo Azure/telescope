@@ -11,9 +11,9 @@ aks_cli_config_list = [
     kubernetes_version            = "1.33"
     use_aks_preview_cli_extension = true
     default_node_pool = {
-      name       = "system"
+      name       = "default"
       node_count = 2
-      vm_size    = "Standard_D4s_v4"
+      vm_size    = "Standard_D16s_v4"
     }
 
     optional_parameters = [
