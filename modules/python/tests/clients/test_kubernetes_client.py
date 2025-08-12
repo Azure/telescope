@@ -14,7 +14,7 @@ from kubernetes.client.models import (
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
     V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition,
     V1Service, V1ServiceStatus, V1LoadBalancerStatus, V1LoadBalancerIngress, V1NodeSystemInfo,
-    V1PodList
+    V1PodList, V1Deployment, V1DeploymentStatus
 )
 from kubernetes.client.rest import ApiException
 
@@ -4989,6 +4989,158 @@ spec:
 
         self.assertIn("Error deleting Deployment/test-deployment", str(context.exception))
         self.assertIn("Deployment requires a namespace", str(context.exception))
+
+    @patch('kubernetes.client.AppsV1Api.read_namespaced_deployment')
+    def test_get_deployment_success(self, mock_read_deployment):
+        """Test get_deployment method successfully retrieves a deployment."""
+        # Setup
+        deployment_name = "test-deployment"
+        namespace = "test-namespace"
+        # Create mock deployment
+        mock_deployment = V1Deployment(
+            metadata=V1ObjectMeta(
+                name=deployment_name,
+                namespace=namespace
+            ),
+            status=V1DeploymentStatus(
+                available_replicas=1,
+                ready_replicas=1,
+                replicas=1
+            )
+        )
+        mock_read_deployment.return_value = mock_deployment
+
+        # Execute
+        result = self.client.get_deployment(deployment_name, namespace)
+
+        # Verify
+        mock_read_deployment.assert_called_once_with(name=deployment_name, namespace=namespace)
+        self.assertEqual(result, mock_deployment)
+        self.assertEqual(result.metadata.name, deployment_name)
+        self.assertEqual(result.metadata.namespace, namespace)
+        self.assertEqual(result.status.available_replicas, 1)
+
+    @patch('kubernetes.client.AppsV1Api.read_namespaced_deployment')
+    def test_get_deployment_not_found(self, mock_read_deployment):
+        """Test get_deployment method when deployment is not found (404 error)."""
+        # Setup
+        deployment_name = "nonexistent-deployment"
+        namespace = "test-namespace"
+
+        # Mock 404 exception
+        mock_read_deployment.side_effect = client.rest.ApiException(
+            status=404,
+            reason="Not Found"
+        )
+
+        # Execute
+        result = self.client.get_deployment(deployment_name, namespace)
+
+        # Verify
+        mock_read_deployment.assert_called_once_with(name=deployment_name, namespace=namespace)
+        self.assertIsNone(result)
+
+    @patch('kubernetes.client.AppsV1Api.read_namespaced_deployment')
+    def test_get_deployment_other_api_exception(self, mock_read_deployment):
+        """Test get_deployment method when API exception other than 404 occurs."""
+        # Setup
+        deployment_name = "forbidden-deployment"
+        namespace = "test-namespace"
+
+        # Mock 403 forbidden exception
+        api_exception = client.rest.ApiException(
+            status=403,
+            reason="Forbidden"
+        )
+        mock_read_deployment.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.get_deployment(deployment_name, namespace)
+
+        # Verify exception message and cause
+        self.assertIn(f"Error getting deployment '{deployment_name}' from namespace '{namespace}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+        mock_read_deployment.assert_called_once_with(name=deployment_name, namespace=namespace)
+
+    @patch('kubernetes.client.AppsV1Api.read_namespaced_deployment')
+    def test_get_deployment_unexpected_exception(self, mock_read_deployment):
+        """Test get_deployment method when unexpected exception occurs."""
+        # Setup
+        deployment_name = "error-deployment"
+        namespace = "test-namespace"
+
+        # Mock unexpected exception
+        mock_read_deployment.side_effect = ValueError("Unexpected error")
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.get_deployment(deployment_name, namespace)
+
+        # Verify exception message and cause
+        self.assertIn(f"Unexpected error getting deployment '{deployment_name}' from namespace '{namespace}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, ValueError)
+        mock_read_deployment.assert_called_once_with(name=deployment_name, namespace=namespace)
+
+    @patch('kubernetes.client.AppsV1Api.read_namespaced_deployment')
+    def test_get_deployment_kwok_controller_scenario(self, mock_read_deployment):
+        """Test get_deployment method specifically for kwok-controller deployment scenario."""
+        # Setup - simulating kwok-controller deployment
+        deployment_name = "kwok-controller"
+        namespace = "kube-system"
+        # Create mock kwok-controller deployment
+        mock_deployment = V1Deployment(
+            metadata=V1ObjectMeta(
+                name=deployment_name,
+                namespace=namespace,
+                labels={"app": "kwok-controller"}
+            ),
+            status=V1DeploymentStatus(
+                available_replicas=1,
+                ready_replicas=1,
+                replicas=1,
+                updated_replicas=1
+            )
+        )
+        mock_read_deployment.return_value = mock_deployment
+
+        # Execute
+        result = self.client.get_deployment(deployment_name, namespace)
+
+        # Verify
+        mock_read_deployment.assert_called_once_with(name=deployment_name, namespace=namespace)
+        self.assertEqual(result, mock_deployment)
+        self.assertEqual(result.metadata.name, "kwok-controller")
+        self.assertEqual(result.metadata.namespace, "kube-system")
+        self.assertEqual(result.status.available_replicas, 1)
+        self.assertEqual(result.status.ready_replicas, 1)
+        self.assertEqual(result.status.replicas, 1)
+
+    @patch('kubernetes.client.AppsV1Api.read_namespaced_deployment')
+    def test_get_deployment_empty_status(self, mock_read_deployment):
+        """Test get_deployment method with deployment that has no status."""
+        # Setup
+        deployment_name = "no-status-deployment"
+        namespace = "test-namespace"
+        # Create mock deployment without status
+        mock_deployment = V1Deployment(
+            metadata=V1ObjectMeta(
+                name=deployment_name,
+                namespace=namespace
+            ),
+            status=None  # No status
+        )
+        mock_read_deployment.return_value = mock_deployment
+
+        # Execute
+        result = self.client.get_deployment(deployment_name, namespace)
+
+        # Verify
+        mock_read_deployment.assert_called_once_with(name=deployment_name, namespace=namespace)
+        self.assertEqual(result, mock_deployment)
+        self.assertEqual(result.metadata.name, deployment_name)
+        self.assertIsNone(result.status)
 
     @patch('kubernetes.client.AppsV1Api.patch_namespaced_deployment')
     def test_patch_deployment_with_node_selector_only(self, mock_patch_deployment):

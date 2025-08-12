@@ -2,7 +2,9 @@ import unittest
 import json
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock, mock_open
-from fio.fio import validate, execute, collect, main
+# Mock kubernetes config before importing
+with patch('kubernetes.config.load_kube_config'):
+    from fio.fio import validate, execute, collect, main
 
 class TestFio(unittest.TestCase):
     def setUp(self):

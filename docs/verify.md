@@ -12,8 +12,8 @@
 
 ```bash
 # Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Navigate to Python modules directory
 pushd modules/python
@@ -21,11 +21,8 @@ pushd modules/python
 # Install dependencies
 pip install -r requirements.txt
 
-# Create kwok cluster for kwok tests
-kwokctl create cluster --name kwok-test
-
-# Run tests with coverage (minimum 70% required)
-pytest --cov=. --cov-report=term-missing --cov-fail-under=70
+# Run tests with coverage (minimum 80% required)
+pytest --cov=. --cov-report=term-missing --cov-fail-under=80
 
 # Run specific test module
 pytest tests/clients/test_aks_client.py -v
@@ -35,14 +32,11 @@ pytest tests/clients/ -v  # Client tests
 pytest tests/crud/ -v     # CRUD operation tests
 pytest tests/iperf3/ -v   # Network performance tests
 
-# Delete kwok cluster
-kwokctl delete cluster --name kwok-test
-
 # Go back to root directory
 popd
 
 # Run lint
- pylint --rcfile=.pylintrc --ignore=site-packages modules/python
+pylint --rcfile=.pylintrc --ignore=site-packages modules/python
 
 # Deactivate virtual environment
 deactivate

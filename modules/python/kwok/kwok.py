@@ -155,9 +155,38 @@ class Node(KWOK):
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
     def validate(self):
-        ready_nodes = execute_with_retries(
-            self.k8s_client.get_nodes
+        execute_with_retries(
+            self._validate_kwok_controller,
+            max_retries=10,
         )
+
+        execute_with_retries(
+            self._validate_kwok_nodes
+        )
+
+    def _validate_kwok_controller(self):
+        """Validate that kwok-controller deployment is running with 1 available replica."""
+        deployment = self.k8s_client.get_deployment(
+            "kwok-controller",
+            "kube-system"
+        )
+
+        if not deployment:
+            raise RuntimeError("kwok-controller deployment not found in kube-system namespace")
+
+        available_replicas = deployment.status.available_replicas or 0
+        if available_replicas != 1:
+            raise RuntimeError(
+                f"kwok-controller deployment validation failed: "
+                f"Expected 1 available replica, but found {available_replicas}"
+            )
+
+        print("kwok-controller deployment is running with 1 available replica.")
+
+
+    def _validate_kwok_nodes(self):
+        ready_nodes = self.k8s_client.get_nodes()
+
         kwok_nodes = [
             node
             for node in ready_nodes

@@ -1517,6 +1517,28 @@ class KubernetesClient:
         logger.error("NVIDIA GPU device plugin verification timed out.")
         return False
 
+    def get_deployment(self, name, namespace):
+        """
+        Get a deployment by name from the specified namespace.
+
+        :param name: Name of the deployment to retrieve
+        :param namespace: Namespace where the deployment is located
+        :return: Deployment object if found, None if not found
+        """
+        try:
+            deployment = self.app.read_namespaced_deployment(name=name, namespace=namespace)
+            logger.info(f"Retrieved deployment '{name}' from namespace '{namespace}'")
+            return deployment
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.info(f"Deployment '{name}' not found in namespace '{namespace}'")
+                return None
+            logger.error(f"Error getting deployment '{name}' from namespace '{namespace}': {str(e)}")
+            raise Exception(f"Error getting deployment '{name}' from namespace '{namespace}': {str(e)}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error getting deployment '{name}' from namespace '{namespace}': {str(e)}")
+            raise Exception(f"Unexpected error getting deployment '{name}' from namespace '{namespace}': {str(e)}") from e
+
     def patch_deployment(self, name, namespace, node_selector=None, tolerations=None):
         """
         Patch a deployment with node selector and tolerations.

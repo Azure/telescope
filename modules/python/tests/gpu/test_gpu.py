@@ -7,19 +7,21 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock, mock_open, call
 import requests
-from gpu.gpu import (
-    _install_operator,
-    _verify_rdma,
-    install_network_operator,
-    install_gpu_operator,
-    install_mpi_operator,
-    configure,
-    _create_topology_configmap,
-    execute,
-    _parse_nccl_test_results,
-    collect,
-    main,
-)
+# Mock kubernetes config before importing
+with patch('kubernetes.config.load_kube_config'):
+    from gpu.gpu import (
+        _install_operator,
+        _verify_rdma,
+        install_network_operator,
+        install_gpu_operator,
+        install_mpi_operator,
+        configure,
+        _create_topology_configmap,
+        execute,
+        _parse_nccl_test_results,
+        collect,
+        main,
+    )
 from utils.logger_config import setup_logging, get_logger
 
 # Configure logging
