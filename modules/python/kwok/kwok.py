@@ -42,17 +42,38 @@ class KWOK(ABC):
             self.k8s_client.apply_manifest_from_url,
             stage_fast_yaml_url
         )
-        # Replace KWOK configuration configmap
+        self._replace_config_map()
+        self._patch_deployment()
+        if enable_metrics:
+            metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                               f"download/{kwok_release}/metrics-usage.yaml")
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_url,
+                metrics_usage_url
+            )
+
+    def _replace_config_map(self):
+        """Replace KWOK configuration configmap."""
+        # Delete the configmap if it exists, then verify deletion
         execute_with_retries(
             self.k8s_client.delete_manifest_from_file,
-            "kwok/config/kwok-config.yaml"
+            "kwok/config/kwok-config.yaml",
         )
+        execute_with_retries(self._assert_config_map_absent)
+        # Re-apply the configmap manifest
         execute_with_retries(
             self.k8s_client.apply_manifest_from_file,
             "kwok/config/kwok-config.yaml"
         )
 
-        # Patch kwok-controller deployment with node selector and toleration
+    def _assert_config_map_absent(self):
+        """Assert that the KWOK configmap is absent from kube-system namespace."""
+        config_map = self.k8s_client.get_config_map("kwok", "kube-system")
+        if config_map:
+            raise RuntimeError("KWOK configmap still exists in kube-system namespace.")
+
+    def _patch_deployment(self):
+        """Patch kwok-controller deployment with node selector and toleration"""
         node_selector = {"kwok": "true"}
         tolerations = [{
             "key": "kwok",
@@ -66,14 +87,6 @@ class KWOK(ABC):
             node_selector,
             tolerations
         )
-
-        if enable_metrics:
-            metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
-                               f"download/{kwok_release}/metrics-usage.yaml")
-            execute_with_retries(
-                self.k8s_client.apply_manifest_from_url,
-                metrics_usage_url
-            )
 
     @abstractmethod
     def create(self):
@@ -156,13 +169,25 @@ class Node(KWOK):
 
     def validate(self):
         execute_with_retries(
+            self._validate_config_map,
+        )
+
+        execute_with_retries(
             self._validate_kwok_controller,
-            max_retries=30,
         )
 
         execute_with_retries(
             self._validate_kwok_nodes
         )
+
+    def _validate_config_map(self):
+        "Validate that kwok configmap exists"
+        config_map = self.k8s_client.get_config_map(
+            "kwok",
+            "kube-system"
+        )
+        if not config_map:
+            raise RuntimeError("kwok config map not found in kube-system namespace")
 
     def _validate_kwok_controller(self):
         """Validate that kwok-controller deployment is running with 1 available replica."""
