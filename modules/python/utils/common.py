@@ -1,6 +1,7 @@
 import re
 import os
 import json
+import argparse
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
@@ -61,3 +62,12 @@ def get_env_vars(name: str):
     if var is None:
         raise RuntimeError(f"Environment variable `{name}` not set")
     return var
+
+def str2bool(val):
+    if isinstance(val, bool):
+        return val
+    if val.lower() in ("true", "yes", "1"):
+        return True
+    if val.lower() in ("false", "no", "0"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")

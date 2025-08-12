@@ -261,27 +261,52 @@ class KubernetesClient:
             time.sleep(10)
         raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
-    def wait_for_pods_ready(self, pod_count, operation_timeout_in_minutes, namespace="default", label_selector=None):
+    def wait_for_pods_ready(self, operation_timeout_in_minutes, namespace="default", pod_count=None, label_selector=None):
         """
         Waits for a specific number of pods with a given label to be ready within a specified timeout.
         Raises an exception if the expected number of pods are not ready within the timeout.
 
         :param label_selector: The label to filter pods.
-        :param pod_count: The expected number of pods to be ready.
         :param operation_timeout_in_minutes: The timeout in minutes to wait for the pods to be ready.
+        :param pod_count: The expected number of pods to be ready. If not provided, it will dynamically fetch the count of pods with the specified label on each iteration.
         :param namespace: The namespace to filter pods.
-        :return: None
+        :return: List of ready pods
         """
         pods = []
         timeout = time.time() + (operation_timeout_in_minutes * 60)
-        logger.info(f"Validating {pod_count} pods with label {label_selector} are ready.")
+
+        # If pod_count is provided, use it for logging
+        if pod_count is not None:
+            logger.info(f"Validating {pod_count} pods with label {label_selector} are ready.")
+        else:
+            logger.info(f"Validating all pods with label {label_selector} are ready (dynamic count).")
+
         while time.time() < timeout:
+            # Get current expected pod count
+            current_pod_count = pod_count
+            if current_pod_count is None:
+                labelled_pods = self.get_pods_by_namespace(
+                    namespace=namespace, label_selector=label_selector
+                )
+                current_pod_count = len(labelled_pods)
+                if current_pod_count == 0:
+                    raise Exception(f"No pods found with selector '{label_selector}' in namespace '{namespace}'")
+
             pods = self.get_ready_pods_by_namespace(namespace=namespace, label_selector=label_selector)
-            if len(pods) == pod_count:
+            if len(pods) == current_pod_count:
                 return pods
-            logger.info(f"Waiting for {pod_count} pods to be ready.")
+            logger.info(f"Waiting for {current_pod_count} pods to be ready. Currently {len(pods)} pods are ready.")
             time.sleep(10)
-        raise Exception(f"Only {len(pods)} pods are ready, expected {pod_count} pods!")
+
+        # Final count for error message
+        final_expected_count = pod_count
+        if final_expected_count is None:
+            labelled_pods = self.get_pods_by_namespace(
+                namespace=namespace, label_selector=label_selector
+            )
+            final_expected_count = len(labelled_pods)
+
+        raise Exception(f"Only {len(pods)} pods are ready, expected {final_expected_count} pods!")
 
     def wait_for_labeled_pods_ready(self, label_selector: str, namespace: str = "default", timeout_in_minutes: int = 5) -> None:
         """

@@ -73,6 +73,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=False,
             capacity_type="ON_DEMAND",
         )
@@ -107,6 +108,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=True,
             capacity_type="ON_DEMAND",
         )
@@ -373,6 +375,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=False,
             capacity_type="ON_DEMAND",
         )
@@ -413,6 +416,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=False,
             capacity_type="SPOT",
         )
@@ -609,6 +613,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=False,
             capacity_type="ON_DEMAND",
         )
@@ -654,6 +659,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=True,
             capacity_type="CAPACITY_BLOCK",
         )
@@ -696,6 +702,7 @@ class TestAWSNodePoolCRUD(unittest.TestCase):  # pylint: disable=too-many-public
             node_group_name=node_group_name,
             instance_type=instance_type,
             node_count=node_count,
+            max_node_count=1,
             gpu_node_group=False,
             capacity_type="ON_DEMAND",
         )

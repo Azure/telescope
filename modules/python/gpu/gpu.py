@@ -91,10 +91,10 @@ def install_network_operator(
         config_dir=config_dir,
     )
     execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        KUBERNETES_CLIENT.wait_for_pods_ready,
         label_selector="app.kubernetes.io/instance=network-operator",
         namespace="network-operator",
-        timeout_in_minutes=5,
+        operation_timeout_in_minutes=5,
     )
 
     nfd_file = f"{config_dir}/network-operator/node-feature-discovery.yaml"
@@ -102,16 +102,16 @@ def install_network_operator(
     nic_file = f"{config_dir}/network-operator/nic-cluster-policy.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nic_file)
     execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        KUBERNETES_CLIENT.wait_for_pods_ready,
         label_selector="nvidia.com/ofed-driver=",
         namespace="network-operator",
-        timeout_in_minutes=5,
+        operation_timeout_in_minutes=5,
     )
     execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        KUBERNETES_CLIENT.wait_for_pods_ready,
         label_selector="app=rdma-shared-dp",
         namespace="network-operator",
-        timeout_in_minutes=5,
+        operation_timeout_in_minutes=5,
     )
     _verify_rdma()
 
@@ -131,16 +131,16 @@ def install_gpu_operator(
         chart_version=chart_version, operator_name="gpu-operator", config_dir=config_dir
     )
     execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        KUBERNETES_CLIENT.wait_for_pods_ready,
         label_selector="app.kubernetes.io/managed-by=gpu-operator",
         namespace="gpu-operator",
-        timeout_in_minutes=10,
+        operation_timeout_in_minutes=10,
     )
     execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        KUBERNETES_CLIENT.wait_for_pods_ready,
         label_selector="app.kubernetes.io/component=nvidia-driver",
         namespace="gpu-operator",
-        timeout_in_minutes=10,
+        operation_timeout_in_minutes=10,
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_completed,
@@ -162,10 +162,10 @@ def install_mpi_operator(
     mpi_file = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{chart_version}/deploy/v2beta1/mpi-operator.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_url(mpi_file)
     execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_labeled_pods_ready,
+        KUBERNETES_CLIENT.wait_for_pods_ready,
         label_selector="app.kubernetes.io/name=mpi-operator",
         namespace="mpi-operator",
-        timeout_in_minutes=5,
+        operation_timeout_in_minutes=5,
     )
 
 

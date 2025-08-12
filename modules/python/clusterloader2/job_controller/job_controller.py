@@ -9,9 +9,9 @@ from clusterloader2.utils import (
     parse_xml_to_json,
     process_cl2_reports,
     run_cl2_command,
-    str2bool,
 )
 from utils.logger_config import get_logger, setup_logging
+from utils.common import str2bool
 
 setup_logging()
 logger = get_logger(__name__)
