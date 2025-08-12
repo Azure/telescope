@@ -1202,37 +1202,45 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertIn("Only 1 nodes are ready, expected 2 nodes!", str(context.exception))
         mock_sleep.assert_called()
 
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_pods_by_namespace')
     @patch("time.sleep", return_value=None)
-    def test_wait_for_pods_ready(self, mock_sleep, mock_get_ready_pods):
+    def test_wait_for_pods_ready(self, mock_sleep, mock_get_ready_pods, mock_get_pods):
         """Test waiting for pods to be ready."""
+        mock_get_pods.side_effect = [["pod1", "pod2"], ["pod1", "pod2"]]
         mock_get_ready_pods.side_effect = [[], ["pod1", "pod2"]]
         pod_count = 2
         timeout = 0.01
         namespace = "default"
 
-        pods = self.client.wait_for_pods_ready(pod_count, timeout, namespace)
+        pods = self.client.wait_for_pods_ready(
+            pod_count=pod_count,
+            operation_timeout_in_minutes=timeout,
+            namespace=namespace,
+        )
 
         self.assertEqual(len(pods), pod_count)
         self.assertEqual(mock_get_ready_pods.call_count, 2)
         mock_sleep.assert_called()
 
+    @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_pods_by_namespace')
     @patch('time.sleep', return_value=None)
     def test_wait_for_pods_ready_raises_exception_on_timeout(
-        self, mock_sleep, mock_get_ready_pods
+        self, mock_sleep, mock_get_ready_pods, mock_get_pods
     ):
         """Test that wait_for_pods_ready raises an exception if the expected number
         of pods are not ready in time."""
-        mock_get_ready_pods.return_value = ["pod1"]
+        mock_get_pods.return_value = ["pod1", "pod2"]  # Labeled pods exist
+        mock_get_ready_pods.return_value = ["pod1"]    # Only one is ready
 
         pod_count = 2
         timeout_minutes = 0.001  # Very short timeout to trigger exception quickly
 
         with self.assertRaises(Exception) as context:
             self.client.wait_for_pods_ready(
-                pod_count,
-                timeout_minutes,
+                pod_count=pod_count,
+                operation_timeout_in_minutes=timeout_minutes,
                 namespace="default",
                 label_selector="app=test"
             )
