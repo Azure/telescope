@@ -1002,6 +1002,34 @@ class EKSClient:
                         "CapacityReservationId": reservation_id
                     }
                 }
+            launch_template_data["BlockDeviceMappings"] = [
+                {
+                    "DeviceName": "/dev/xvda",
+                    "Ebs": {
+                        "Iops": 5000,
+                        "Throughput": 200,
+                        "VolumeSize": 1024,
+                        "VolumeType": "gp3",
+                        "DeleteOnTermination": True,
+                    },
+                }
+            ]
+            instance_details = self.describe_instance_types([instance_type])
+            max_nic_count = instance_details[0].get("NetworkInfo", {}).get(
+                "MaximumNetworkInterfaces", 1)
+
+            network_interfaces = []
+            for i in range(max_nic_count):
+                network_interfaces.append(
+                    {
+                        "DeviceIndex": i,
+                        "InterfaceType": "efa",
+                        "AssociatePublicIpAddress": False,
+                        "DeleteOnTermination": True,
+                    }
+                )
+
+            launch_template_data["NetworkInterfaces"] = network_interfaces
 
             # Get additional tags for the launch template
             scenario_name = os.environ.get("SCENARIO_NAME", "unknown")
@@ -1215,3 +1243,22 @@ class EKSClient:
             )
             logger.error(error_msg)
             raise ValueError(error_msg) from e
+            
+    def describe_instance_types(
+        self, instance_types: List[str]
+    ) -> List[Dict]:
+        """
+        Describe multiple EC2 instance types.
+
+        Args:
+            instance_types: List of EC2 instance type names
+
+        Returns:
+            List of dictionaries with instance type details
+        """
+        try:
+            response = self.ec2.describe_instance_types(InstanceTypes=instance_types)
+            return response.get("InstanceTypes", [])
+        except ClientError as e:
+            logger.error("Failed to describe instance types: %s", str(e))
+            raise
