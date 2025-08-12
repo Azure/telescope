@@ -19,8 +19,8 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
         podgroup: {{.PodGroup}}
-        kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: {{.pniName}}
+        # kubernetes.azure.com/pod-network: pn100
+        # kubernetes.azure.com/pod-network-instance: {{.pniName}}
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
