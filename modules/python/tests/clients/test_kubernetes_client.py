@@ -14,7 +14,7 @@ from kubernetes.client.models import (
     V1VolumeAttachment, V1VolumeAttachmentStatus, V1VolumeAttachmentSpec, V1VolumeAttachmentSource,
     V1PodStatus, V1Pod, V1PodSpec, V1Namespace, V1PodCondition,
     V1Service, V1ServiceStatus, V1LoadBalancerStatus, V1LoadBalancerIngress, V1NodeSystemInfo,
-    V1PodList, V1Deployment, V1DeploymentStatus
+    V1PodList, V1Deployment, V1DeploymentStatus, V1ConfigMap
 )
 from kubernetes.client.rest import ApiException
 
@@ -5745,6 +5745,181 @@ spec:
         call_args = mock_delete_custom_object.call_args
         delete_options = call_args[1]['body']
         self.assertIsInstance(delete_options, client.V1DeleteOptions)
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_success(self, mock_read_config_map):
+        """Test successful retrieval of a ConfigMap."""
+        # Setup
+        config_map_name = "test-config"
+        namespace = "test-namespace"
+
+        # Create mock ConfigMap
+        mock_config_map = V1ConfigMap(
+            metadata=V1ObjectMeta(
+                name=config_map_name,
+                namespace=namespace
+            ),
+            data={
+                "config.yaml": "key: value",
+                "app.properties": "setting=enabled"
+            }
+        )
+        mock_read_config_map.return_value = mock_config_map
+
+        # Execute
+        result = self.client.get_config_map(config_map_name, namespace)
+
+        # Verify
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+        self.assertEqual(result, mock_config_map)
+        self.assertEqual(result.metadata.name, config_map_name)
+        self.assertEqual(result.metadata.namespace, namespace)
+        self.assertEqual(result.data["config.yaml"], "key: value")
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_not_found(self, mock_read_config_map):
+        """Test get_config_map when ConfigMap is not found (404 error)."""
+        # Setup
+        config_map_name = "nonexistent-config"
+        namespace = "test-namespace"
+
+        # Mock 404 exception
+        mock_read_config_map.side_effect = client.rest.ApiException(
+            status=404,
+            reason="Not Found"
+        )
+
+        # Execute
+        result = self.client.get_config_map(config_map_name, namespace)
+
+        # Verify
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+        self.assertIsNone(result)
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_api_exception_403(self, mock_read_config_map):
+        """Test get_config_map when API exception other than 404 occurs (403 Forbidden)."""
+        # Setup
+        config_map_name = "forbidden-config"
+        namespace = "test-namespace"
+
+        # Mock 403 forbidden exception
+        api_exception = client.rest.ApiException(
+            status=403,
+            reason="Forbidden"
+        )
+        mock_read_config_map.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.get_config_map(config_map_name, namespace)
+
+        # Verify exception message and cause
+        self.assertIn(f"Error getting ConfigMap '{config_map_name}' from namespace '{namespace}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 403)
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_api_exception_500(self, mock_read_config_map):
+        """Test get_config_map when API exception 500 occurs."""
+        # Setup
+        config_map_name = "error-config"
+        namespace = "test-namespace"
+
+        # Mock 500 internal server error exception
+        api_exception = client.rest.ApiException(
+            status=500,
+            reason="Internal Server Error"
+        )
+        mock_read_config_map.side_effect = api_exception
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.get_config_map(config_map_name, namespace)
+
+        # Verify exception message and cause
+        self.assertIn(f"Error getting ConfigMap '{config_map_name}' from namespace '{namespace}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, client.rest.ApiException)
+        self.assertEqual(context.exception.__cause__.status, 500)
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_unexpected_exception(self, mock_read_config_map):
+        """Test get_config_map when unexpected exception occurs."""
+        # Setup
+        config_map_name = "error-config"
+        namespace = "test-namespace"
+
+        # Mock unexpected exception
+        mock_read_config_map.side_effect = ValueError("Unexpected error")
+
+        # Execute & Verify
+        with self.assertRaises(Exception) as context:
+            self.client.get_config_map(config_map_name, namespace)
+
+        # Verify exception message and cause
+        self.assertIn(f"Unexpected error getting ConfigMap '{config_map_name}' from namespace '{namespace}'", str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, ValueError)
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_with_empty_data(self, mock_read_config_map):
+        """Test get_config_map with ConfigMap that has empty data."""
+        # Setup
+        config_map_name = "empty-config"
+        namespace = "test-namespace"
+
+        # Create mock ConfigMap with empty data
+        mock_config_map = V1ConfigMap(
+            metadata=V1ObjectMeta(
+                name=config_map_name,
+                namespace=namespace
+            ),
+            data={}
+        )
+        mock_read_config_map.return_value = mock_config_map
+
+        # Execute
+        result = self.client.get_config_map(config_map_name, namespace)
+
+        # Verify
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+        self.assertEqual(result, mock_config_map)
+        self.assertEqual(result.metadata.name, config_map_name)
+        self.assertEqual(result.data, {})
+
+    @patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
+    def test_get_config_map_with_labels_and_annotations(self, mock_read_config_map):
+        """Test get_config_map with ConfigMap that has labels and annotations."""
+        # Setup
+        config_map_name = "labeled-config"
+        namespace = "test-namespace"
+
+        # Create mock ConfigMap with labels and annotations
+        mock_config_map = V1ConfigMap(
+            metadata=V1ObjectMeta(
+                name=config_map_name,
+                namespace=namespace,
+                labels={"app": "test-app", "version": "1.0"},
+                annotations={"description": "Test configuration"}
+            ),
+            data={
+                "database.url": "mysql://localhost:3306/testdb",
+                "cache.enabled": "true"
+            }
+        )
+        mock_read_config_map.return_value = mock_config_map
+
+        # Execute
+        result = self.client.get_config_map(config_map_name, namespace)
+
+        # Verify
+        mock_read_config_map.assert_called_once_with(name=config_map_name, namespace=namespace)
+        self.assertEqual(result, mock_config_map)
+        self.assertEqual(result.metadata.labels["app"], "test-app")
+        self.assertEqual(result.metadata.annotations["description"], "Test configuration")
+        self.assertEqual(result.data["database.url"], "mysql://localhost:3306/testdb")
 
 
 if __name__ == '__main__':

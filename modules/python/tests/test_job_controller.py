@@ -41,6 +41,7 @@ class TestJobControllerBenchmark(unittest.TestCase):
             node_count=2,
             operation_timeout_in_minutes=600,
             node_label="role=worker",
+            dra_enabled=True,
         )
         benchmark.validate_clusterloader2()
         mock_kube_client_class.assert_called_once()
@@ -133,6 +134,7 @@ class TestJobControllerParser(unittest.TestCase):
         self.assertIn("node_count", validate_args)
         self.assertIn("operation_timeout_in_minutes", validate_args)
         self.assertIn("node_label", validate_args)
+        self.assertIn("dra_enabled", validate_args)
 
         # Test that execute subparser has expected arguments
         execute_parser = subparsers_action.choices["execute"]
@@ -158,6 +160,7 @@ class TestJobControllerParser(unittest.TestCase):
         self.assertIn("test_type", collect_args)
         self.assertIn("job_count", collect_args)
         self.assertIn("job_throughput", collect_args)
+        self.assertIn("dra_enabled", collect_args)
 
 
 if __name__ == "__main__":

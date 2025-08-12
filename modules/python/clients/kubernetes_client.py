@@ -1609,3 +1609,24 @@ class KubernetesClient:
         except Exception as e:
             logger.error(f"Unexpected error patching deployment {name}: {str(e)}")
             raise Exception(f"Unexpected error patching deployment {name}: {str(e)}") from e
+
+    def get_config_map(self, name, namespace):
+        """
+        Get a ConfigMap by name from the specified namespace.
+
+        :param name: Name of the ConfigMap to retrieve
+        :param namespace: Namespace where the ConfigMap is located
+        :return: ConfigMap object if found, None if not found
+        """
+        try:
+            config_map = self.api.read_namespaced_config_map(name=name, namespace=namespace)
+            return config_map
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.info(f"ConfigMap '{name}' not found in namespace '{namespace}'")
+                return None
+            logger.error(f"Error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}")
+            raise Exception(f"Error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}")
+            raise Exception(f"Unexpected error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}") from e
