@@ -3,7 +3,8 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, get_measurement,run_cl2_command, str2bool
+from clusterloader2.utils import parse_xml_to_json, get_measurement,run_cl2_command
+from utils.common import str2bool
 
 def configure_clusterloader2(
     number_of_groups,
