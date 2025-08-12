@@ -19,13 +19,13 @@ steps:
         --node_count $NODE_COUNT \
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
+        --dra_enabled ${ENABLE_DRA:-False} \
+        --job_gpu ${JOB_GPU:-0} \
         --cl2_report_dir $CL2_REPORT_DIR \
         --cloud_info "$CLOUD_INFO" \
         --run_id $RUN_ID \
         --run_url $RUN_URL \
-        --result_file $TEST_RESULTS_FILE \
-        --dra-enabled $ENABLE_DRA \
-        --job-gpu $JOB_GPU
+        --result_file $TEST_RESULTS_FILE
     workingDirectory: modules/python
     env:
       CLOUD: ${{ parameters.cloud }}
