@@ -56,6 +56,10 @@ locals {
 
   addons_policy_arns  = flatten([for addon in local.eks_addons_map : addon.policy_arns if can(addon.policy_arns)])
   service_account_map = { for addon in local.eks_addons_map : addon.name => addon.service_account if try(addon.service_account, null) != null }
+  num_network_cards_map = {
+    for node_group in var.eks_config.eks_managed_node_groups :
+    node_group.name => data.aws_ec2_instance_type.this[node_group.name].maximum_network_cards
+  }
 }
 
 data "aws_subnets" "subnets" {
@@ -111,6 +115,14 @@ data "aws_iam_policy_document" "cw_put_metrics" {
 
     resources = ["*"]
   }
+}
+
+data "aws_ec2_instance_type" "this" {
+  for_each = local.eks_node_group_map
+
+  region = var.region
+
+  instance_type = try(element(each.value.instance_types, 0), "")
 }
 
 resource "aws_iam_policy" "cw_policy" {
@@ -227,10 +239,14 @@ resource "aws_launch_template" "launch_template" {
   user_data = var.user_data_path != "" ? filebase64("${var.user_data_path}/${local.role}-userdata.sh") : null
 
   dynamic "network_interfaces" {
-    for_each = each.value.network_interfaces != null ? [each.value.network_interfaces] : (
+    for_each = each.value.network_interfaces != null ? range(
+      local.num_network_cards_map[each.value.name]
+      ) : (
       var.ena_express != null || each.value.ena_express != null
-    ) ? [{}] : []
+    ) ? [0] : []
     content {
+      device_index       = network_interfaces.value == 0 ? 0 : 1
+      network_card_index = network_interfaces.value
       dynamic "ena_srd_specification" {
         for_each = (
           var.ena_express != null || each.value.ena_express != null
@@ -242,9 +258,9 @@ resource "aws_launch_template" "launch_template" {
           }
         }
       }
-      associate_public_ip_address = try(network_interfaces.value.associate_public_ip_address, null)
-      delete_on_termination       = try(network_interfaces.value.delete_on_termination, null)
-      interface_type              = try(network_interfaces.value.interface_type, null)
+      associate_public_ip_address = try(each.value.network_interfaces.associate_public_ip_address, null)
+      delete_on_termination       = try(each.value.network_interfaces.delete_on_termination, null)
+      interface_type              = try(each.value.network_interfaces.interface_type, null)
     }
   }
 
