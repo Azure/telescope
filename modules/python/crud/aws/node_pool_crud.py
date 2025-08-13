@@ -8,6 +8,7 @@ both direct and progressive scaling operations and handles GPU-enabled node grou
 
 import logging
 import time
+import sys
 
 from clients.eks_client import EKSClient
 from utils.logger_config import get_logger, setup_logging
@@ -80,6 +81,7 @@ class NodePoolCRUD:
             return result
         except Exception as e:
             logger.error(f"Failed to create node group '{node_pool_name}': {str(e)}")
+            sys.exit(1)  # Exit with error code
             return False
 
     def scale_node_pool(
