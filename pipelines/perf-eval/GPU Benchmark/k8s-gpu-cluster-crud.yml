@@ -25,7 +25,7 @@ schedules:
     branches:
       include:
         - main
-    always: true    
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
