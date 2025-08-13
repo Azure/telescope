@@ -1065,7 +1065,11 @@ class EKSClient:
             # Add capacity reservation tag if applicable
             if reservation_id:
                 tags.append({"Key": "capacity_reservation_id", "Value": reservation_id})
-
+            logger.info(
+                "Creating launch template '%s' for node group '%s'",
+                name,
+                node_group_name,
+            )
             # Create launch template with comprehensive tags
             response = self.ec2.create_launch_template(
                 LaunchTemplateName=name,
