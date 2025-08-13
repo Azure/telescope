@@ -1639,7 +1639,7 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(create_call["subnets"], ["subnet-123"])
 
     def test_capacity_reservation_subnet_filtering_no_reservation(self):
-        """Test that all subnets are used when no capacity reservation is found"""
+        """Test that system exits when no capacity reservation is found for CAPACITY_BLOCK"""
         # Setup
         eks_client = EKSClient()
 
@@ -1656,14 +1656,15 @@ class TestEKSClient(unittest.TestCase):
         self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
         self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
 
-        # Execute
-        result = eks_client.create_node_group(
-            node_group_name="test-no-reservation-ng",
-            instance_type="p3.2xlarge",
-            node_count=1,
-            gpu_node_group=True,
-            capacity_type="CAPACITY_BLOCK",
-        )
+        # Execute and expect SystemExit
+        with self.assertRaises(SystemExit) as context:
+            eks_client.create_node_group(
+                node_group_name="test-no-reservation-ng",
+                instance_type="p3.2xlarge",
+                node_count=1,
+                gpu_node_group=True,
+                capacity_type="CAPACITY_BLOCK",
+            )
 
         # Verify
         self.assertTrue(result)

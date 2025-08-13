@@ -402,6 +402,7 @@ class EKSClient:
                             instance_type,
                             self.subnet_azs,
                         )
+                        sys.exit(1)  # Exit if no reservation found
 
                 # Update create_params with the filtered subnets
                 create_params["subnets"] = filtered_subnets
