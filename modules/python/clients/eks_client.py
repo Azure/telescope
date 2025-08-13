@@ -175,12 +175,17 @@ class EKSClient:
                 {"Name": "tag:run_id", "Values": [self.run_id]},
             ]
         )
-        logger.debug(response)
-        self.subnets = [subnet["SubnetId"] for subnet in response["Subnets"]]
-        self.subnet_azs = [subnet["AvailabilityZone"] for subnet in response["Subnets"]]
-        logger.info("Subnets: %s", self.subnets)
-        logger.info("Subnet Availability Zones: %s", self.subnet_azs)
-        if self.subnets == []:
+        logger.debug(response["Subnets"])
+        self.subnet_map = []
+        for subnet in response["Subnets"]:
+             self.subnet_map.append({
+                "SubnetId": subnet["SubnetId"],
+                "AvailabilityZone": subnet["AvailabilityZone"],
+                "publicSubnet": subnet.get("MapPublicIpOnLaunch", False),
+            })                
+        self.subnet_azs = list(set([subnet["AvailabilityZone"] for subnet in response["Subnets"]]))
+        logger.info("Subnets: %s", self.subnet_map)
+        if self.subnet_map == []:
             raise Exception("No subnets found for run_id: " + self.run_id)
 
     def _load_node_role_arn(self):
@@ -323,7 +328,7 @@ class EKSClient:
                 logger.info("Capacity type: %s", capacity_type)
 
                 # Initialize subnet filtering - will be updated if capacity reservation is found
-                filtered_subnets = self.subnets  # Default to all subnets
+                filtered_subnets = []
 
                 # Prepare node group creation parameters
                 # instanceTypes will be added to launch template
@@ -371,9 +376,9 @@ class EKSClient:
 
                         # Filter subnets to only use the subnet in the capacity reservation AZ
                         filtered_subnets = []
-                        for i, subnet_id in enumerate(self.subnets):
-                            if self.subnet_azs[i] == reservation_az:
-                                filtered_subnets.append(subnet_id)
+                        for subnet_info in self.subnet_map:
+                            if subnet_info["AvailabilityZone"] == reservation_az and not subnet_info["publicSubnet"]:
+                                filtered_subnets.append(subnet_info["SubnetId"])
 
                         logger.info(
                             "Found capacity reservation %s in AZ %s, using filtered subnets: %s",
