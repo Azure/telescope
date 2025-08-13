@@ -13,13 +13,19 @@ schedules:
       include:
         - main
     always: true
-    # AWS GPU Cluster CRUD Test
-  - cron: "30 0-23/1 20 * *"
+    # AWS GPU Cluster CRUD Test (20th 8:00 AM EST to 21st 8:00 AM EST)Based on Capacity Reservation time slot
+  - cron: "0 13-23 20 * *"
     displayName: "20th of every month for every 1 hr"
     branches:
       include:
         - main
     always: true
+  - cron: "0 0-12 21 * *"
+    displayName: "21th of every month for every 1 hr"
+    branches:
+      include:
+        - main
+    always: true    
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
@@ -90,6 +96,7 @@ stages:
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
+        eq(variables['Build.CronSchedule.DisplayName'], '21th of every month for every 1 hr'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
@@ -121,6 +128,7 @@ stages:
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
+        eq(variables['Build.CronSchedule.DisplayName'], '21th of every month for every 1 hr'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
