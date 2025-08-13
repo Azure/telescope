@@ -1664,7 +1664,7 @@ class TestEKSClient(unittest.TestCase):
                 node_count=1,
                 gpu_node_group=True,
                 capacity_type="CAPACITY_BLOCK",
-            )   
+            )
 
     def test_capacity_reservation_subnet_filtering_no_matching_subnet(self):
         """Test error when capacity reservation AZ has no matching subnet"""
