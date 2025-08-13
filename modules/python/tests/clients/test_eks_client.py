@@ -769,9 +769,9 @@ class TestEKSClient(unittest.TestCase):
             eks_client = EKSClient()
 
             # Verify
-            self.assertEqual(len(eks_client.subnets), 3)
+            self.assertEqual(len(eks_client.subnet_map), 3)
             self.assertEqual(len(eks_client.subnet_azs), 3)
-            self.assertIn("subnet-123", eks_client.subnets)
+            self.assertIn("subnet-123", [s["SubnetId"] for s in eks_client.subnet_map])
             self.assertIn("us-west-2a", eks_client.subnet_azs)
 
     def test_load_node_role_arn_success(self):
@@ -1668,11 +1668,11 @@ class TestEKSClient(unittest.TestCase):
         # Verify
         self.assertTrue(result)
 
-        # Check that node group was created with all subnets
+        # Check that node group was created with empty subnets when no reservation found
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)
-        # Should contain both subnets when no reservation is found
-        self.assertEqual(create_call["subnets"], ["subnet-123", "subnet-456"])
+        # Should contain empty list when no reservation is found for CAPACITY_BLOCK
+        self.assertEqual(create_call["subnets"], [])
 
     def test_capacity_reservation_subnet_filtering_no_matching_subnet(self):
         """Test error when capacity reservation AZ has no matching subnet"""
@@ -1945,10 +1945,10 @@ class TestEKSClient(unittest.TestCase):
         # Check that capacity reservation lookup was NOT called
         self.mock_ec2.describe_capacity_reservations.assert_not_called()
 
-        # Check that all subnets were used
+        # Check that all subnets were used (should be empty for non-CAPACITY_BLOCK)
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)
-        self.assertEqual(create_call["subnets"], ["subnet-123", "subnet-456"])
+        self.assertEqual(create_call["subnets"], [])
 
     def test_describe_instance_types_success(self):
         """Test successful describe_instance_types operation"""
