@@ -17,10 +17,10 @@ from gpu.gpu import (
     configure,
     _create_topology_configmap,
     execute,
-        _parse_nccl_test_results,
-        collect,
-        main,
-    )
+    _parse_nccl_test_results,
+    collect,
+    main,
+)
 from utils.logger_config import setup_logging, get_logger
 
 # Configure logging
@@ -33,6 +33,7 @@ class TestGPU(unittest.TestCase):
     NCCL testing, and result parsing.
     """
 
+    @patch("kubernetes.config.load_kube_config")
     def setUp(self):
         """Set up test fixtures before each test method."""
         self.mock_kubernetes_client = MagicMock()
@@ -46,7 +47,9 @@ class TestGPU(unittest.TestCase):
 
     @patch("os.path.exists")
     @patch("subprocess.run")
-    def test_install_operator_success_with_values_file(self, mock_subprocess, mock_exists):
+    def test_install_operator_success_with_values_file(
+        self, mock_subprocess, mock_exists
+    ):
         """Test successful operator installation via Helm when values file exists."""
         mock_subprocess.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
@@ -56,6 +59,7 @@ class TestGPU(unittest.TestCase):
             operator_name=self.test_operator_name,
             config_dir=self.test_config_dir,
             namespace=self.test_operator_name,
+            extra_args=["--set", "key=value"],
         )
 
         # Verify subprocess calls
@@ -79,16 +83,22 @@ class TestGPU(unittest.TestCase):
                     "--atomic",
                     "--values",
                     f"{self.test_config_dir}/{self.test_operator_name}/values.yaml",
+                    "--set",
+                    "key=value",
                 ],
                 check=True,
             ),
         ]
         mock_subprocess.assert_has_calls(expected_calls)
-        mock_exists.assert_called_once_with(f"{self.test_config_dir}/{self.test_operator_name}/values.yaml")
+        mock_exists.assert_called_once_with(
+            f"{self.test_config_dir}/{self.test_operator_name}/values.yaml"
+        )
 
     @patch("os.path.exists")
     @patch("subprocess.run")
-    def test_install_operator_success_without_values_file(self, mock_subprocess, mock_exists):
+    def test_install_operator_success_without_values_file(
+        self, mock_subprocess, mock_exists
+    ):
         """Test successful operator installation via Helm when values file doesn't exist."""
         mock_subprocess.return_value = MagicMock(returncode=0)
         mock_exists.return_value = False
@@ -124,7 +134,9 @@ class TestGPU(unittest.TestCase):
             ),
         ]
         mock_subprocess.assert_has_calls(expected_calls)
-        mock_exists.assert_called_once_with(f"{self.test_config_dir}/{self.test_operator_name}/values.yaml")
+        mock_exists.assert_called_once_with(
+            f"{self.test_config_dir}/{self.test_operator_name}/values.yaml"
+        )
 
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     def test_verify_rdma_success(self, mock_k8s_client):
@@ -181,7 +193,7 @@ class TestGPU(unittest.TestCase):
             chart_version=self.test_chart_version,
             config_dir=self.test_config_dir,
             install_driver=True,
-            enable_nfd=False,
+            enable_nfd=True,
         )
 
         mock_install.assert_called_once_with(
@@ -190,16 +202,19 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
             namespace="gpu-operator",
             extra_args=[
-                "--set", "nfd.enabled=False",
-            ]
+                "--set",
+                "nfd.enabled=True",
+            ],
         )
 
-        # Verify execute_with_retries is called 3 times for the wait operations
-        self.assertEqual(_mock_execute_with_retries.call_count, 3)
+        # Verify execute_with_retries is called 4 times for the wait operations
+        self.assertEqual(_mock_execute_with_retries.call_count, 4)
 
     @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
-    def test_install_mpi_operator_success(self, mock_k8s_client, _mock_execute_with_retries):
+    def test_install_mpi_operator_success(
+        self, mock_k8s_client, _mock_execute_with_retries
+    ):
         """Test successful MPI operator installation."""
         mock_k8s_client.apply_manifest_from_url.return_value = None
         _mock_execute_with_retries.return_value = None
@@ -271,7 +286,9 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_only_gpu_operator(self, mock_network, mock_gpu, mock_mpi, mock_efa):
+    def test_configure_only_gpu_operator(
+        self, mock_network, mock_gpu, mock_mpi, mock_efa
+    ):
         """Test configure function that installs only GPU operator when only its version is provided."""
         configure(
             efa_operator_version="",
@@ -297,7 +314,9 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_both_network_and_mpi_operator(self, mock_network, mock_gpu, mock_mpi, mock_efa):
+    def test_configure_both_network_and_mpi_operator(
+        self, mock_network, mock_gpu, mock_mpi, mock_efa
+    ):
         """Test configure function that installs both Network and MPI operators when their versions are provided."""
         configure(
             efa_operator_version="",
@@ -366,16 +385,19 @@ class TestGPU(unittest.TestCase):
     @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._create_topology_configmap")
-    def test_execute_azure_provider(self, mock_topology, mock_k8s_client, _mock_execute_with_retries):
+    def test_execute_azure_provider(
+        self, mock_topology, mock_k8s_client, _mock_execute_with_retries
+    ):
         """Test execute function with Azure provider."""
         mock_pod = MagicMock()
         mock_pod.metadata.name = "test-pod"
         _mock_execute_with_retries.return_value = [mock_pod]
         mock_k8s_client.get_pod_logs.return_value = b"test logs content"
+        provider = "azure"
 
         with patch("builtins.open", mock_open()) as mock_file:
             execute(
-                provider="azure",
+                provider=provider,
                 config_dir=self.test_config_dir,
                 result_dir=self.test_result_dir,
                 vm_size=self.test_vm_size,
@@ -383,7 +405,38 @@ class TestGPU(unittest.TestCase):
 
             mock_topology.assert_called_once_with(vm_size=self.test_vm_size)
             mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
-                f"{self.test_config_dir}/nccl-tests/aws-mpijob.yaml"
+                f"{self.test_config_dir}/nccl-tests/{provider}-mpijob.yaml"
+            )
+            # Verify execute_with_retries is called once for waiting for pods
+            _mock_execute_with_retries.assert_called_once()
+            mock_file.assert_called_once_with(
+                f"{self.test_result_dir}/raw.log", "w", encoding="utf-8"
+            )
+
+    @patch("gpu.gpu.execute_with_retries")
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
+    @patch("gpu.gpu._create_topology_configmap")
+    def test_execute_aws_provider(
+        self, mock_topology, mock_k8s_client, _mock_execute_with_retries
+    ):
+        """Test execute function with AWS provider."""
+        mock_pod = MagicMock()
+        mock_pod.metadata.name = "test-pod"
+        _mock_execute_with_retries.return_value = [mock_pod]
+        mock_k8s_client.get_pod_logs.return_value = b"test logs content"
+        provider = "aws"
+
+        with patch("builtins.open", mock_open()) as mock_file:
+            execute(
+                provider=provider,
+                config_dir=self.test_config_dir,
+                result_dir=self.test_result_dir,
+                vm_size=self.test_vm_size,
+            )
+
+            mock_topology.assert_not_called()
+            mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
+                f"{self.test_config_dir}/nccl-tests/{provider}-mpijob.yaml"
             )
             # Verify execute_with_retries is called once for waiting for pods
             _mock_execute_with_retries.assert_called_once()

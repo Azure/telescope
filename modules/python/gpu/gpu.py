@@ -328,7 +328,7 @@ def execute(
     if provider.lower() == "azure":
         _create_topology_configmap(vm_size=vm_size)
 
-    nccl_file = f"{config_dir}/nccl-tests/aws-mpijob.yaml"
+    nccl_file = f"{config_dir}/nccl-tests/{provider}-mpijob.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nccl_file)
     pods = execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_completed, label_selector="component=launcher"
