@@ -21,7 +21,7 @@ schedules:
         - main
     always: true
   - cron: "0 0-12 21 * *"
-    displayName: "21th of every month for every 1 hr"
+    displayName: "21st of every month for every 1 hr"
     branches:
       include:
         - main
@@ -96,7 +96,7 @@ stages:
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
-        eq(variables['Build.CronSchedule.DisplayName'], '21th of every month for every 1 hr'),
+        eq(variables['Build.CronSchedule.DisplayName'], '21st of every month for every 1 hr'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
@@ -128,7 +128,7 @@ stages:
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
-        eq(variables['Build.CronSchedule.DisplayName'], '21th of every month for every 1 hr'),
+        eq(variables['Build.CronSchedule.DisplayName'], '21st of every month for every 1 hr'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
