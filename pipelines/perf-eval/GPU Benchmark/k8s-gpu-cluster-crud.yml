@@ -13,6 +13,19 @@ schedules:
       include:
         - main
     always: true
+    # AWS GPU Cluster CRUD Test (20th 8:00 AM EST to 21st 8:00 AM EST)Based on Capacity Reservation time slot
+  - cron: "0 13-23 20 * *"
+    displayName: "20th of every month for every 1 hr"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 0-12 21 * *"
+    displayName: "21st of every month for every 1 hr"
+    branches:
+      include:
+        - main
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-gpu-cluster-crud
@@ -80,7 +93,12 @@ stages:
 
   - stage: aws_H100_gpu_test
     dependsOn: []
-    condition: and(eq(variables['Build.Reason'], 'Manual'), eq(variables['RUN_AWS'], 'true'))
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
+        eq(variables['Build.CronSchedule.DisplayName'], '21st of every month for every 1 hr'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -107,7 +125,12 @@ stages:
 
   - stage: aws_A100_gpu_test
     dependsOn: []
-    condition: and(eq(variables['Build.Reason'], 'Manual'), eq(variables['RUN_AWS'], 'true'))
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
+        eq(variables['Build.CronSchedule.DisplayName'], '21st of every month for every 1 hr'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
