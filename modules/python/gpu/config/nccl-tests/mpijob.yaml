@@ -45,7 +45,7 @@ spec:
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
                     /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
-                      -e 8g \
+                      -e 8G \
                       -f 2 \
                       -g 1 \
                       -n 40
