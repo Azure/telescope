@@ -7,17 +7,16 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock, mock_open, call
 import requests
-# Mock kubernetes config before importing
-with patch('kubernetes.config.load_kube_config'):
-    from gpu.gpu import (
-        _install_operator,
-        _verify_rdma,
-        install_network_operator,
-        install_gpu_operator,
-        install_mpi_operator,
-        configure,
-        _create_topology_configmap,
-        execute,
+from gpu.gpu import (
+    _install_operator,
+    _verify_rdma,
+    install_network_operator,
+    install_gpu_operator,
+    install_mpi_operator,
+    install_efa_operator,
+    configure,
+    _create_topology_configmap,
+    execute,
         _parse_nccl_test_results,
         collect,
         main,
@@ -45,15 +44,18 @@ class TestGPU(unittest.TestCase):
         self.test_cloud_info = "azure"
         self.test_run_url = "https://test-url.com"
 
+    @patch("os.path.exists")
     @patch("subprocess.run")
-    def test_install_operator_success(self, mock_subprocess):
-        """Test successful operator installation via Helm."""
+    def test_install_operator_success_with_values_file(self, mock_subprocess, mock_exists):
+        """Test successful operator installation via Helm when values file exists."""
         mock_subprocess.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
 
         _install_operator(
             chart_version=self.test_chart_version,
             operator_name=self.test_operator_name,
             config_dir=self.test_config_dir,
+            namespace=self.test_operator_name,
         )
 
         # Verify subprocess calls
@@ -74,14 +76,55 @@ class TestGPU(unittest.TestCase):
                     self.test_operator_name,
                     "--version",
                     self.test_chart_version,
+                    "--atomic",
                     "--values",
                     f"{self.test_config_dir}/{self.test_operator_name}/values.yaml",
+                ],
+                check=True,
+            ),
+        ]
+        mock_subprocess.assert_has_calls(expected_calls)
+        mock_exists.assert_called_once_with(f"{self.test_config_dir}/{self.test_operator_name}/values.yaml")
+
+    @patch("os.path.exists")
+    @patch("subprocess.run")
+    def test_install_operator_success_without_values_file(self, mock_subprocess, mock_exists):
+        """Test successful operator installation via Helm when values file doesn't exist."""
+        mock_subprocess.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = False
+
+        _install_operator(
+            chart_version=self.test_chart_version,
+            operator_name=self.test_operator_name,
+            config_dir=self.test_config_dir,
+            namespace=self.test_operator_name,
+        )
+
+        # Verify subprocess calls
+        expected_calls = [
+            call(
+                ["helm", "repo", "add", "nvidia", "https://helm.ngc.nvidia.com/nvidia"],
+                check=True,
+            ),
+            call(["helm", "repo", "update"], check=True),
+            call(
+                [
+                    "helm",
+                    "install",
+                    self.test_operator_name,
+                    f"nvidia/{self.test_operator_name}",
+                    "--create-namespace",
+                    "--namespace",
+                    self.test_operator_name,
+                    "--version",
+                    self.test_chart_version,
                     "--atomic",
                 ],
                 check=True,
             ),
         ]
         mock_subprocess.assert_has_calls(expected_calls)
+        mock_exists.assert_called_once_with(f"{self.test_config_dir}/{self.test_operator_name}/values.yaml")
 
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     def test_verify_rdma_success(self, mock_k8s_client):
@@ -119,6 +162,7 @@ class TestGPU(unittest.TestCase):
             chart_version=self.test_chart_version,
             operator_name="network-operator",
             config_dir=self.test_config_dir,
+            namespace="network-operator",
         )
 
         # Verify execute_with_retries is called 3 times for the wait operations
@@ -134,13 +178,20 @@ class TestGPU(unittest.TestCase):
         _mock_execute_with_retries.return_value = None
 
         install_gpu_operator(
-            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+            chart_version=self.test_chart_version,
+            config_dir=self.test_config_dir,
+            install_driver=True,
+            enable_nfd=False,
         )
 
         mock_install.assert_called_once_with(
             chart_version=self.test_chart_version,
             operator_name="gpu-operator",
             config_dir=self.test_config_dir,
+            namespace="gpu-operator",
+            extra_args=[
+                "--set", "nfd.enabled=False",
+            ]
         )
 
         # Verify execute_with_retries is called 3 times for the wait operations
@@ -160,74 +211,128 @@ class TestGPU(unittest.TestCase):
         # Verify execute_with_retries is called once for the wait operation
         _mock_execute_with_retries.assert_called_once()
 
+    @patch("gpu.gpu.execute_with_retries")
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
+    @patch("gpu.gpu._install_operator")
+    def test_install_efa_operator_success(
+        self, mock_install, _mock_k8s_client, _mock_execute_with_retries
+    ):
+        """Test successful EFA device plugin installation."""
+        _mock_execute_with_retries.return_value = None
+
+        install_efa_operator(
+            config_dir=self.test_config_dir, version=self.test_chart_version
+        )
+
+        mock_install.assert_called_once_with(
+            chart_version=self.test_chart_version,
+            operator_name="aws-efa-k8s-device-plugin",
+            config_dir=self.test_config_dir,
+            namespace="kube-system",
+            repo_name="aws",
+            repo_url="https://aws.github.io/eks-charts",
+        )
+
+        # Verify execute_with_retries is called once for the wait operation
+        _mock_execute_with_retries.assert_called_once()
+
+    @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_all_operators(self, mock_network, mock_gpu, mock_mpi):
+    def test_configure_all_operators(self, mock_network, mock_gpu, mock_mpi, mock_efa):
         """Test configure function that installs all operators when all versions are provided."""
         configure(
+            efa_operator_version=self.test_chart_version,
             network_operator_version=self.test_chart_version,
             gpu_operator_version=self.test_chart_version,
+            gpu_install_driver=True,
+            gpu_enable_nfd=False,
             mpi_operator_version=self.test_chart_version,
             config_dir=self.test_config_dir,
         )
 
+        mock_efa.assert_called_once_with(
+            config_dir=self.test_config_dir,
+            version=self.test_chart_version,
+        )
         mock_network.assert_called_once_with(
             chart_version=self.test_chart_version, config_dir=self.test_config_dir
         )
         mock_gpu.assert_called_once_with(
-            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+            chart_version=self.test_chart_version,
+            config_dir=self.test_config_dir,
+            install_driver=True,
+            enable_nfd=False,
         )
         mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
 
+    @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_only_gpu_operator(self, mock_network, mock_gpu, mock_mpi):
+    def test_configure_only_gpu_operator(self, mock_network, mock_gpu, mock_mpi, mock_efa):
         """Test configure function that installs only GPU operator when only its version is provided."""
         configure(
+            efa_operator_version="",
             network_operator_version="",
             gpu_operator_version=self.test_chart_version,
+            gpu_install_driver=True,
+            gpu_enable_nfd=False,
             mpi_operator_version="",
             config_dir=self.test_config_dir,
         )
 
+        mock_efa.assert_not_called()
         mock_network.assert_not_called()
         mock_gpu.assert_called_once_with(
-            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+            chart_version=self.test_chart_version,
+            config_dir=self.test_config_dir,
+            install_driver=True,
+            enable_nfd=False,
         )
         mock_mpi.assert_not_called()
 
+    @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_both_network_and_mpi_operator(self, mock_network, mock_gpu, mock_mpi):
+    def test_configure_both_network_and_mpi_operator(self, mock_network, mock_gpu, mock_mpi, mock_efa):
         """Test configure function that installs both Network and MPI operators when their versions are provided."""
         configure(
+            efa_operator_version="",
             network_operator_version=self.test_chart_version,
             gpu_operator_version="",
+            gpu_install_driver=True,
+            gpu_enable_nfd=False,
             mpi_operator_version=self.test_chart_version,
             config_dir=self.test_config_dir,
         )
 
+        mock_efa.assert_not_called()
         mock_network.assert_called_once_with(
             chart_version=self.test_chart_version, config_dir=self.test_config_dir
         )
         mock_gpu.assert_not_called()
         mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
 
+    @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_no_operators(self, mock_network, mock_gpu, mock_mpi):
+    def test_configure_no_operators(self, mock_network, mock_gpu, mock_mpi, mock_efa):
         """Test configure function that installs no operators when no versions are provided."""
         configure(
+            efa_operator_version="",
             network_operator_version="",
             gpu_operator_version="",
+            gpu_install_driver=True,
+            gpu_enable_nfd=False,
             mpi_operator_version="",
             config_dir=self.test_config_dir,
         )
 
+        mock_efa.assert_not_called()
         mock_network.assert_not_called()
         mock_gpu.assert_not_called()
         mock_mpi.assert_not_called()
@@ -278,7 +383,7 @@ class TestGPU(unittest.TestCase):
 
             mock_topology.assert_called_once_with(vm_size=self.test_vm_size)
             mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
-                f"{self.test_config_dir}/nccl-tests/mpijob.yaml"
+                f"{self.test_config_dir}/nccl-tests/aws-mpijob.yaml"
             )
             # Verify execute_with_retries is called once for waiting for pods
             _mock_execute_with_retries.assert_called_once()
@@ -363,8 +468,11 @@ class TestGPU(unittest.TestCase):
         """Test main function with configure command."""
         mock_args.return_value = MagicMock(
             command="configure",
+            efa_operator_version="0.5.0",
             network_operator_version="1.0.0",
             gpu_operator_version="2.0.0",
+            gpu_install_driver=True,
+            gpu_enable_nfd=False,
             mpi_operator_version="3.0.0",
             config_dir=self.test_config_dir,
         )
@@ -372,8 +480,11 @@ class TestGPU(unittest.TestCase):
         main()
 
         mock_configure.assert_called_once_with(
+            efa_operator_version="0.5.0",
             network_operator_version="1.0.0",
             gpu_operator_version="2.0.0",
+            gpu_install_driver=True,
+            gpu_enable_nfd=False,
             mpi_operator_version="3.0.0",
             config_dir=self.test_config_dir,
         )

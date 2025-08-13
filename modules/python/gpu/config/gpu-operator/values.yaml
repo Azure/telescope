@@ -1,7 +1,4 @@
-nfd:
-  enabled: false # Disabled; Network Operator already deploys NFD
 driver:
-  # This needs that the OFED driver is installed on the nodes.
   rdma:
     enabled: true # Enables RDMA for GPUDirect support
 migManager:
