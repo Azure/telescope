@@ -1007,6 +1007,9 @@ class EKSClient:
                 }
             ]
             instance_details = self.describe_instance_types([instance_type])
+            if not instance_details:
+                logger.error("Instance type %s not found", instance_type)
+                raise ValueError(f"Instance type {instance_type} not found")
 
             max_nic = instance_details[0].get("NetworkInfo", {}).get(
                 "MaximumNetworkCards", 1)
@@ -1014,7 +1017,7 @@ class EKSClient:
             for i in range(max_nic):
                 network_interfaces.append(
                     {
-                        "NetworkCardIndex": i,                
+                        "NetworkCardIndex": i,
                         "DeviceIndex": 0 if i == 0 else 1,
                         "InterfaceType": "efa",
                         "AssociatePublicIpAddress": False,
