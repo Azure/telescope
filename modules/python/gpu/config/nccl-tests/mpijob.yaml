@@ -44,11 +44,11 @@ spec:
                     -x NCCL_TOPO_FILE=/opt/nvidia-topology/topo.xml \
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
                     /opt/nccl_tests/build/all_reduce_perf \
-                      -c 0 \
                       -b 8 \
-                      -e 16G \
+                      -e 8g \
                       -f 2 \
-                      -g 1
+                      -g 1 \
+                      -n 40
     Worker:
       replicas: 2
       template:
