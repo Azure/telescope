@@ -178,14 +178,14 @@ class EKSClient:
         logger.debug(response["Subnets"])
         self.subnet_map = []
         for subnet in response["Subnets"]:
-             self.subnet_map.append({
+            self.subnet_map.append({
                 "SubnetId": subnet["SubnetId"],
                 "AvailabilityZone": subnet["AvailabilityZone"],
                 "publicSubnet": subnet.get("MapPublicIpOnLaunch", False),
-            })                
-        self.subnet_azs = list(set([subnet["AvailabilityZone"] for subnet in response["Subnets"]]))
+            })
+        self.subnet_azs = list({subnet["AvailabilityZone"] for subnet in response["Subnets"]})
         logger.info("Subnets: %s", self.subnet_map)
-        if self.subnet_map == []:
+        if not self.subnet_map:
             raise Exception("No subnets found for run_id: " + self.run_id)
 
     def _load_node_role_arn(self):

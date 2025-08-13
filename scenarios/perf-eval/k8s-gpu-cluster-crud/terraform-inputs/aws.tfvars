@@ -58,7 +58,7 @@ network_config_list = [
         cidr_block       = "0.0.0.0/0"
         nat_gateway_name = "nat-gateway"
       },
-            {
+      {
         name             = "private-rt-2"
         cidr_block       = "0.0.0.0/0"
         nat_gateway_name = "nat-gateway-2"
