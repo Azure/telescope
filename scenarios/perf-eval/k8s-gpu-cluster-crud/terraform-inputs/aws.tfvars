@@ -24,7 +24,7 @@ network_config_list = [
       {
         name                    = "gpu-private-subnet-3"
         cidr_block              = "10.0.96.0/19"
-        zone_suffix             = "d"
+        zone_suffix             = "f"
         map_public_ip_on_launch = false
       },
       {
@@ -42,7 +42,7 @@ network_config_list = [
       {
         name                    = "gpu-public-subnet-3"
         cidr_block              = "10.0.2.0/24"
-        zone_suffix             = "d"
+        zone_suffix             = "f"
         map_public_ip_on_launch = true
       }
     ]
