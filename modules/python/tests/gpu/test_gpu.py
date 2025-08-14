@@ -7,20 +7,23 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock, mock_open, call
 import requests
-from gpu.gpu import (
-    _install_operator,
-    _verify_rdma,
-    install_network_operator,
-    install_gpu_operator,
-    install_mpi_operator,
-    install_efa_operator,
-    configure,
-    _create_topology_configmap,
-    execute,
-    _parse_nccl_test_results,
-    collect,
-    main,
-)
+
+# Mock kubernetes config before importing
+with patch("kubernetes.config.load_kube_config"):
+    from gpu.gpu import (
+        _install_operator,
+        _verify_rdma,
+        install_network_operator,
+        install_gpu_operator,
+        install_mpi_operator,
+        install_efa_operator,
+        configure,
+        _create_topology_configmap,
+        execute,
+        _parse_nccl_test_results,
+        collect,
+        main,
+    )
 from utils.logger_config import setup_logging, get_logger
 
 # Configure logging
@@ -33,7 +36,6 @@ class TestGPU(unittest.TestCase):
     NCCL testing, and result parsing.
     """
 
-    @patch("kubernetes.config.load_kube_config")
     def setUp(self):
         """Set up test fixtures before each test method."""
         self.mock_kubernetes_client = MagicMock()
@@ -203,7 +205,7 @@ class TestGPU(unittest.TestCase):
             namespace="gpu-operator",
             extra_args=[
                 "--set",
-                "nfd.enabled=True",
+                "nfd.enabled=true",
             ],
         )
 

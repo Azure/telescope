@@ -38,8 +38,8 @@ def _install_operator(
         operator_name: Name of the operator
         extra_args: Optional list of extra arguments to pass to helm install (e.g., ['--set', 'key=value'])
     """
-    # Add NVIDIA Helm repository
-    logger.info("Adding NVIDIA Helm repository")
+    # Add Helm repository
+    logger.info(f"Adding Helm repository: {repo_name} ({repo_url})")
     subprocess.run(
         ["helm", "repo", "add", repo_name, repo_url],
         check=True,
@@ -158,7 +158,7 @@ def install_gpu_operator(
         operator_name="gpu-operator",
         config_dir=config_dir,
         namespace="gpu-operator",
-        extra_args=["--set", f"nfd.enabled={enable_nfd}"],
+        extra_args=["--set", f"nfd.enabled={str(enable_nfd).lower()}"],
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_ready,

@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "k8s-gpu-cluster-crud"
-deletion_delay = "72h"
+deletion_delay = "2h"
 owner          = "aks"
 
 network_config_list = [
@@ -36,13 +36,13 @@ network_config_list = [
       {
         name                    = "gpu-public-subnet-2"
         cidr_block              = "10.0.1.0/24"
-        zone_suffix             = "c"
+        zone_suffix             = "f"
         map_public_ip_on_launch = true
       },
       {
         name                    = "gpu-public-subnet-3"
         cidr_block              = "10.0.2.0/24"
-        zone_suffix             = "f"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       }
     ]
@@ -56,17 +56,7 @@ network_config_list = [
       {
         name             = "private-rt"
         cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = "nat-gateway"
-      },
-      {
-        name             = "private-rt-2"
-        cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = "nat-gateway-2"
-      },
-      {
-        name             = "private-rt-3"
-        cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = "nat-gateway-3"
+        nat_gateway_name = "nat-gateway" # Routes through NAT for outbound traffic
       }
     ],
     route_table_associations = [
@@ -93,38 +83,16 @@ network_config_list = [
       {
         name             = "gpu-private-rt-assoc-2"
         subnet_name      = "gpu-private-subnet-2"
-        route_table_name = "private-rt-2"
+        route_table_name = "private-rt"
       },
       {
         name             = "gpu-private-rt-assoc-3"
         subnet_name      = "gpu-private-subnet-3"
-        route_table_name = "private-rt-3"
+        route_table_name = "private-rt"
       }
     ]
     sg_rules = {
-      ingress = [
-        # Allow HTTPS traffic for EKS API server communication
-        {
-          from_port  = 443
-          to_port    = 443
-          protocol   = "tcp"
-          cidr_block = "10.0.0.0/16"
-        },
-        # Allow kubelet API communication
-        {
-          from_port  = 10250
-          to_port    = 10250
-          protocol   = "tcp"
-          cidr_block = "10.0.0.0/16"
-        },
-        # Allow node-to-node communication
-        {
-          from_port  = 0
-          to_port    = 65535
-          protocol   = "tcp"
-          cidr_block = "10.0.0.0/16"
-        }
-      ]
+      ingress = []
       egress = [
         {
           from_port  = 0
@@ -137,12 +105,6 @@ network_config_list = [
     nat_gateway_public_ips = [
       {
         name = "nat-gateway-pip"
-      },
-      {
-        name = "nat-gateway-pip-2"
-      },
-      {
-        name = "nat-gateway-pip-3"
       }
     ]
     nat_gateways = [
@@ -150,88 +112,43 @@ network_config_list = [
         name           = "nat-gateway"
         public_ip_name = "nat-gateway-pip"
         subnet_name    = "gpu-public-subnet-1"
-      },
-      {
-        name           = "nat-gateway-2"
-        public_ip_name = "nat-gateway-pip-2"
-        subnet_name    = "gpu-public-subnet-2"
-      },
-      {
-        name           = "nat-gateway-3"
-        public_ip_name = "nat-gateway-pip-3"
-        subnet_name    = "gpu-public-subnet-3"
       }
     ]
   }
 ]
 
-eks_config_list = [
-  {
-    role     = "gpu"
-    eks_name = "gpu-cluster"
-    vpc_name = "gpu-vpc"
-    policy_arns = [
-      "AmazonEKSClusterPolicy",
-      "AmazonEKSVPCResourceController",
-      "AmazonEKSWorkerNodePolicy",
-      "AmazonEKS_CNI_Policy",
-      "AmazonEC2ContainerRegistryReadOnly",
-      "AmazonSSMManagedInstanceCore"
-    ]
-    eks_managed_node_groups = [
-      {
-        name           = "default"
-        ami_type       = "AL2023_x86_64_STANDARD"
-        instance_types = ["m5.4xlarge"]
-        subnet_names   = ["gpu-public-subnet-1", "gpu-public-subnet-2", "gpu-public-subnet-3"]
-        min_size       = 2
-        max_size       = 2
-        desired_size   = 2
-        capacity_type  = "ON_DEMAND"
-        network_interfaces = {
-          associate_public_ip_address = true
-          delete_on_termination       = true
-        }
-      },
-      {
-        name           = "user"
-        ami_type       = "AL2023_x86_64_NVIDIA"
-        instance_types = ["p4d.24xlarge"]
-        subnet_names   = ["gpu-private-subnet-2"]
-        min_size       = 2
-        max_size       = 2
-        desired_size   = 2
-        capacity_type  = "CAPACITY_BLOCK"
-        capacity_reservation_specification = {
-          capacity_reservation_preference = "capacity-reservations-only"
-        }
-        instance_market_options = {
-          market_type = "capacity-block"
-        }
-        network_interfaces = {
-          associate_public_ip_address = false
-          delete_on_termination       = true
-          interface_type              = "efa"
-        }
-        block_device_mappings = [
-          {
-            device_name = "/dev/xvda"
-            ebs = {
-              delete_on_termination = true
-              iops                  = 5000
-              throughput            = 200
-              volume_size           = 1024
-              volume_type           = "gp3"
-            }
-          }
-        ]
+eks_config_list = [{
+  role     = "gpu"
+  eks_name = "gpu-cluster"
+  vpc_name = "gpu-vpc"
+  policy_arns = [
+    "AmazonEKSClusterPolicy",
+    "AmazonEKSVPCResourceController",
+    "AmazonEKSWorkerNodePolicy",
+    "AmazonEKS_CNI_Policy",
+    "AmazonEC2ContainerRegistryReadOnly",
+    "AmazonSSMManagedInstanceCore"
+  ]
+  eks_managed_node_groups = [
+    {
+      name           = "default"
+      ami_type       = "AL2023_x86_64_STANDARD"
+      instance_types = ["m5.4xlarge"]
+      subnet_names   = ["gpu-public-subnet-1", "gpu-public-subnet-2", "gpu-public-subnet-3"]
+      min_size       = 2
+      max_size       = 2
+      desired_size   = 2
+      capacity_type  = "ON_DEMAND"
+      network_interfaces = {
+        associate_public_ip_address = true
+        delete_on_termination       = true
       }
-    ]
-    eks_addons = [
-      {
-        name = "vpc-cni"
-      }
-    ]
-    kubernetes_version = "1.33"
-  }
-]
+    }
+  ]
+  eks_addons = [
+    {
+      name = "vpc-cni"
+    }
+  ]
+  kubernetes_version = "1.33"
+}]
