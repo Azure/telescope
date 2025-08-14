@@ -377,7 +377,7 @@ class EKSClient:
                         # Filter subnets to only use the subnet in the capacity reservation AZ
                         filtered_subnets = []
                         for subnet_info in self.subnet_map:
-                            if subnet_info["AvailabilityZone"] == reservation_az and not subnet_info["publicSubnet"]:
+                            if subnet_info["AvailabilityZone"] == reservation_az and subnet_info["publicSubnet"]:
                                 filtered_subnets.append(subnet_info["SubnetId"])
 
                         logger.info(
@@ -1016,20 +1016,19 @@ class EKSClient:
             if not instance_details:
                 logger.error("Instance type %s not found", instance_type)
                 raise ValueError(f"Instance type {instance_type} not found")
-
-            max_nic = instance_details[0].get("NetworkInfo", {}).get(
-                "MaximumNetworkCards", 1)
+            # TODO to handle multiple network cards if needed
+            # max_nic = instance_details[0].get("NetworkInfo", {}).get(
+            #     "MaximumNetworkCards", 1)
             network_interfaces = []
-            for i in range(max_nic):
-                network_interfaces.append(
-                    {
-                        "NetworkCardIndex": i,
-                        "DeviceIndex": 0 if i == 0 else 1,
-                        "InterfaceType": "efa",
-                        "AssociatePublicIpAddress": False,
-                        "DeleteOnTermination": True,
-                    }
-                )
+            network_interfaces.append(
+                {
+                    "NetworkCardIndex": 0,
+                    "DeviceIndex": 0 ,
+                    "InterfaceType": "efa",
+                    "AssociatePublicIpAddress": True,
+                    "DeleteOnTermination": True,
+                }
+            )
 
             launch_template_data["NetworkInterfaces"] = network_interfaces
 
