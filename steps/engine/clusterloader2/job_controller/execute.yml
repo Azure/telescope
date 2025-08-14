@@ -26,7 +26,6 @@ steps:
         --cl2_image ${CL2_IMAGE} \
         --cl2_config_dir ${CL2_CONFIG_DIR} \
         --cl2_report_dir $CL2_REPORT_DIR \
-        --cl2_config_file $CL2_CONFIG_FILE \
         --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD
@@ -40,6 +39,5 @@ steps:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/job_controller.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/config
-      CL2_CONFIG_FILE: ${CL2_CONFIG_DIR}/config.yaml
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/job_controller/report
     displayName: "Run Benchmark"
