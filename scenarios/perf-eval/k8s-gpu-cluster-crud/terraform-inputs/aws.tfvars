@@ -36,13 +36,13 @@ network_config_list = [
       {
         name                    = "gpu-public-subnet-2"
         cidr_block              = "10.0.1.0/24"
-        zone_suffix             = "f"
+        zone_suffix             = "c"
         map_public_ip_on_launch = true
       },
       {
         name                    = "gpu-public-subnet-3"
         cidr_block              = "10.0.2.0/24"
-        zone_suffix             = "c"
+        zone_suffix             = "f"
         map_public_ip_on_launch = true
       }
     ]
@@ -56,7 +56,17 @@ network_config_list = [
       {
         name             = "private-rt"
         cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = "nat-gateway" # Routes through NAT for outbound traffic
+        nat_gateway_name = "nat-gateway"
+      },
+      {
+        name             = "private-rt-2"
+        cidr_block       = "0.0.0.0/0"
+        nat_gateway_name = "nat-gateway-2"
+      },
+      {
+        name             = "private-rt-3"
+        cidr_block       = "0.0.0.0/0"
+        nat_gateway_name = "nat-gateway-3"
       }
     ],
     route_table_associations = [
@@ -83,12 +93,12 @@ network_config_list = [
       {
         name             = "gpu-private-rt-assoc-2"
         subnet_name      = "gpu-private-subnet-2"
-        route_table_name = "private-rt"
+        route_table_name = "private-rt-2"
       },
       {
         name             = "gpu-private-rt-assoc-3"
         subnet_name      = "gpu-private-subnet-3"
-        route_table_name = "private-rt"
+        route_table_name = "private-rt-3"
       }
     ]
     sg_rules = {
@@ -105,6 +115,12 @@ network_config_list = [
     nat_gateway_public_ips = [
       {
         name = "nat-gateway-pip"
+      },
+      {
+        name = "nat-gateway-pip-2"
+      },
+      {
+        name = "nat-gateway-pip-3"
       }
     ]
     nat_gateways = [
@@ -112,6 +128,16 @@ network_config_list = [
         name           = "nat-gateway"
         public_ip_name = "nat-gateway-pip"
         subnet_name    = "gpu-public-subnet-1"
+      },
+      {
+        name           = "nat-gateway-2"
+        public_ip_name = "nat-gateway-pip-2"
+        subnet_name    = "gpu-public-subnet-2"
+      },
+      {
+        name           = "nat-gateway-3"
+        public_ip_name = "nat-gateway-pip-3"
+        subnet_name    = "gpu-public-subnet-3"
       }
     ]
   }

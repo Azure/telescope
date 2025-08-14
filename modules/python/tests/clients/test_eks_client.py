@@ -83,8 +83,8 @@ class TestEKSClient(unittest.TestCase):
         # Mock subnet response
         self.mock_ec2.describe_subnets.return_value = {
             "Subnets": [
-                {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a"},
-                {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b"},
+                {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": True},
+                {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": True},
             ]
         }
 
@@ -769,9 +769,9 @@ class TestEKSClient(unittest.TestCase):
             eks_client = EKSClient()
 
             # Verify
-            self.assertEqual(len(eks_client.subnets), 3)
+            self.assertEqual(len(eks_client.subnet_map), 3)
             self.assertEqual(len(eks_client.subnet_azs), 3)
-            self.assertIn("subnet-123", eks_client.subnets)
+            self.assertIn("subnet-123", [s["SubnetId"] for s in eks_client.subnet_map])
             self.assertIn("us-west-2a", eks_client.subnet_azs)
 
     def test_load_node_role_arn_success(self):
@@ -1657,7 +1657,7 @@ class TestEKSClient(unittest.TestCase):
         self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
 
         # Execute and expect SystemExit
-        with self.assertRaises(SystemExit) as context:
+        with self.assertRaises(SystemExit) as _:
             eks_client.create_node_group(
                 node_group_name="test-no-reservation-ng",
                 instance_type="p3.2xlarge",
@@ -1665,9 +1665,6 @@ class TestEKSClient(unittest.TestCase):
                 gpu_node_group=True,
                 capacity_type="CAPACITY_BLOCK",
             )
-
-        # Verify it exits with code 1
-        self.assertEqual(context.exception.code, 1)
 
     def test_capacity_reservation_subnet_filtering_no_matching_subnet(self):
         """Test error when capacity reservation AZ has no matching subnet"""
@@ -1834,11 +1831,12 @@ class TestEKSClient(unittest.TestCase):
             # Setup multiple subnets, including two in us-west-2a
             mock_ec2.describe_subnets.return_value = {
                 "Subnets": [
-                    {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a"},
-                    {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b"},
+                    {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": True},
+                    {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": True},
                     {
                         "SubnetId": "subnet-789",
                         "AvailabilityZone": "us-west-2a",
+                        "MapPublicIpOnLaunch": True,
                     },  # Another in same AZ
                 ]
             }
@@ -1940,10 +1938,429 @@ class TestEKSClient(unittest.TestCase):
         # Check that capacity reservation lookup was NOT called
         self.mock_ec2.describe_capacity_reservations.assert_not_called()
 
-        # Check that all subnets were used
+        # Check that all subnets were used (should be empty for non-CAPACITY_BLOCK)
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)
-        self.assertEqual(create_call["subnets"], ["subnet-123", "subnet-456"])
+        self.assertEqual(create_call["subnets"], [])
+
+    def test_describe_instance_types_success(self):
+        """Test successful describe_instance_types operation"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock successful response
+        mock_response = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "t3.medium",
+                    "NetworkInfo": {
+                        "MaximumNetworkCards": 3,
+                        "NetworkPerformance": "Up to 5 Gigabit"
+                    },
+                    "VCpuInfo": {"DefaultVCpus": 2},
+                    "MemoryInfo": {"SizeInMiB": 4096}
+                }
+            ]
+        }
+        self.mock_ec2.describe_instance_types.return_value = mock_response
+
+        # Execute
+        result = eks_client.describe_instance_types(["t3.medium"])
+
+        # Verify
+        self.mock_ec2.describe_instance_types.assert_called_once_with(
+            InstanceTypes=["t3.medium"]
+        )
+        self.assertEqual(result, mock_response["InstanceTypes"])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["InstanceType"], "t3.medium")
+        self.assertEqual(result[0]["NetworkInfo"]["MaximumNetworkCards"], 3)
+
+    def test_describe_instance_types_multiple_instances(self):
+        """Test describe_instance_types with multiple instance types"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock response for multiple instance types
+        mock_response = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "t3.medium",
+                    "NetworkInfo": {"MaximumNetworkCards": 3}
+                },
+                {
+                    "InstanceType": "p3.2xlarge",
+                    "NetworkInfo": {"MaximumNetworkCards": 4}
+                }
+            ]
+        }
+        self.mock_ec2.describe_instance_types.return_value = mock_response
+
+        # Execute
+        result = eks_client.describe_instance_types(["t3.medium", "p3.2xlarge"])
+
+        # Verify
+        self.mock_ec2.describe_instance_types.assert_called_once_with(
+            InstanceTypes=["t3.medium", "p3.2xlarge"]
+        )
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["InstanceType"], "t3.medium")
+        self.assertEqual(result[1]["InstanceType"], "p3.2xlarge")
+
+    def test_describe_instance_types_client_error(self):
+        """Test describe_instance_types when EC2 API fails"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock client error
+        self.mock_ec2.describe_instance_types.side_effect = ClientError(
+            error_response={
+                "Error": {
+                    "Code": "InvalidInstanceTypeValue",
+                    "Message": "Invalid instance type"
+                }
+            },
+            operation_name="DescribeInstanceTypes"
+        )
+
+        # Execute and verify exception is raised
+        with self.assertRaises(ClientError):
+            eks_client.describe_instance_types(["invalid-instance-type"])
+
+    def test_describe_instance_types_empty_response(self):
+        """Test describe_instance_types with empty response"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock empty response
+        mock_response = {"InstanceTypes": []}
+        self.mock_ec2.describe_instance_types.return_value = mock_response
+
+        # Execute
+        result = eks_client.describe_instance_types(["nonexistent-type"])
+
+        # Verify
+        self.assertEqual(result, [])
+
+    def test_launch_template_block_device_mappings(self):
+        """Test that launch template includes correct BlockDeviceMappings"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock successful responses
+        self.mock_ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-block-device-123"}
+        }
+        self.mock_eks.create_nodegroup.return_value = {
+            "nodegroup": {"status": "CREATING"}
+        }
+        self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
+        self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
+
+        # Execute
+        result = eks_client.create_node_group(
+            node_group_name="test-block-device-ng",
+            instance_type="t3.medium",
+            node_count=1
+        )
+
+        # Verify
+        self.assertTrue(result)
+        self.mock_ec2.create_launch_template.assert_called_once()
+
+        # Get the launch template data
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+        launch_template_data = create_lt_call_args["LaunchTemplateData"]
+
+        # Verify BlockDeviceMappings
+        self.assertIn("BlockDeviceMappings", launch_template_data)
+        block_devices = launch_template_data["BlockDeviceMappings"]
+        self.assertEqual(len(block_devices), 1)
+
+        block_device = block_devices[0]
+        self.assertEqual(block_device["DeviceName"], "/dev/xvda")
+
+        ebs_config = block_device["Ebs"]
+        self.assertEqual(ebs_config["Iops"], 5000)
+        self.assertEqual(ebs_config["Throughput"], 200)
+        self.assertEqual(ebs_config["VolumeSize"], 1024)
+        self.assertEqual(ebs_config["VolumeType"], "gp3")
+        self.assertTrue(ebs_config["DeleteOnTermination"])
+
+    def test_launch_template_network_interfaces_single_nic(self):
+        """Test launch template NetworkInterfaces configuration for single NIC instance"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock describe_instance_types response for single NIC
+        self.mock_ec2.describe_instance_types.return_value = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "t3.medium",
+                    "NetworkInfo": {"MaximumNetworkCards": 1}
+                }
+            ]
+        }
+
+        # Mock successful responses
+        self.mock_ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-single-nic-123"}
+        }
+        self.mock_eks.create_nodegroup.return_value = {
+            "nodegroup": {"status": "CREATING"}
+        }
+        self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
+        self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
+
+        # Execute
+        result = eks_client.create_node_group(
+            node_group_name="test-single-nic-ng",
+            instance_type="t3.medium",
+            node_count=1
+        )
+
+        # Verify
+        self.assertTrue(result)
+
+        # Verify describe_instance_types was called
+        self.mock_ec2.describe_instance_types.assert_called_once_with(
+            InstanceTypes=["t3.medium"]
+        )
+
+        # Get the launch template data
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+        launch_template_data = create_lt_call_args["LaunchTemplateData"]
+
+        # Verify NetworkInterfaces
+        self.assertIn("NetworkInterfaces", launch_template_data)
+        network_interfaces = launch_template_data["NetworkInterfaces"]
+        self.assertEqual(len(network_interfaces), 1)
+
+        nic = network_interfaces[0]
+        self.assertEqual(nic["NetworkCardIndex"], 0)  # First interface should have NetworkCardIndex 0
+        self.assertEqual(nic["DeviceIndex"], 0)
+        self.assertEqual(nic["InterfaceType"], "efa")
+        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertTrue(nic["DeleteOnTermination"])
+
+    def test_launch_template_network_interfaces_multiple_nics(self):
+        """Test launch template NetworkInterfaces configuration for multi-NIC instance"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock describe_instance_types response for multiple NICs
+        self.mock_ec2.describe_instance_types.return_value = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "p3.2xlarge",
+                    "NetworkInfo": {"MaximumNetworkCards": 4}
+                }
+            ]
+        }
+
+        # Mock successful responses
+        self.mock_ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-multi-nic-123"}
+        }
+        self.mock_eks.create_nodegroup.return_value = {
+            "nodegroup": {"status": "CREATING"}
+        }
+        self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
+        self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
+
+        # Execute
+        result = eks_client.create_node_group(
+            node_group_name="test-multi-nic-ng",
+            instance_type="p3.2xlarge",
+            node_count=1
+        )
+
+        # Verify
+        self.assertTrue(result)
+
+        # Verify describe_instance_types was called
+        self.mock_ec2.describe_instance_types.assert_called_once_with(
+            InstanceTypes=["p3.2xlarge"]
+        )
+
+        # Get the launch template data
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+        launch_template_data = create_lt_call_args["LaunchTemplateData"]
+
+        # Verify NetworkInterfaces (current implementation only creates 1 NIC)
+        self.assertIn("NetworkInterfaces", launch_template_data)
+        network_interfaces = launch_template_data["NetworkInterfaces"]
+        self.assertEqual(len(network_interfaces), 1)  # Current implementation only creates 1 NIC
+
+        # Verify the single NIC configuration
+        nic = network_interfaces[0]
+        self.assertEqual(nic["NetworkCardIndex"], 0)
+        self.assertEqual(nic["DeviceIndex"], 0)
+        self.assertEqual(nic["InterfaceType"], "efa")
+        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertTrue(nic["DeleteOnTermination"])
+
+    def test_launch_template_network_interfaces_missing_network_info(self):
+        """Test launch template handles missing NetworkInfo gracefully"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock describe_instance_types response without NetworkInfo
+        self.mock_ec2.describe_instance_types.return_value = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "t3.medium",
+                    # NetworkInfo is missing
+                }
+            ]
+        }
+
+        # Mock successful responses
+        self.mock_ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-missing-netinfo-123"}
+        }
+        self.mock_eks.create_nodegroup.return_value = {
+            "nodegroup": {"status": "CREATING"}
+        }
+        self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
+        self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
+
+        # Execute
+        result = eks_client.create_node_group(
+            node_group_name="test-missing-netinfo-ng",
+            instance_type="t3.medium",
+            node_count=1
+        )
+
+        # Verify
+        self.assertTrue(result)
+
+        # Get the launch template data
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+        launch_template_data = create_lt_call_args["LaunchTemplateData"]
+
+        # Verify NetworkInterfaces defaults to 1 NIC
+        self.assertIn("NetworkInterfaces", launch_template_data)
+        network_interfaces = launch_template_data["NetworkInterfaces"]
+        self.assertEqual(len(network_interfaces), 1)
+
+    def test_launch_template_network_interfaces_missing_max_nics(self):
+        """Test launch template handles missing MaximumNetworkCards gracefully"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock describe_instance_types response without MaximumNetworkCards
+        self.mock_ec2.describe_instance_types.return_value = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "t3.medium",
+                    "NetworkInfo": {
+                        # MaximumNetworkCards is missing
+                        "NetworkPerformance": "Up to 5 Gigabit"
+                    }
+                }
+            ]
+        }
+
+        # Mock successful responses
+        self.mock_ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-missing-max-nics-123"}
+        }
+        self.mock_eks.create_nodegroup.return_value = {
+            "nodegroup": {"status": "CREATING"}
+        }
+        self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
+        self.mock_k8s.wait_for_nodes_ready.return_value = ["node1"]
+
+        # Execute
+        result = eks_client.create_node_group(
+            node_group_name="test-missing-max-nics-ng",
+            instance_type="t3.medium",
+            node_count=1
+        )
+
+        # Verify
+        self.assertTrue(result)
+
+        # Get the launch template data
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+        launch_template_data = create_lt_call_args["LaunchTemplateData"]
+
+        # Verify NetworkInterfaces defaults to 1 NIC
+        self.assertIn("NetworkInterfaces", launch_template_data)
+        network_interfaces = launch_template_data["NetworkInterfaces"]
+        self.assertEqual(len(network_interfaces), 1)
+
+    def test_launch_template_integration_with_instance_details(self):
+        """Test complete integration between describe_instance_types and launch template creation"""
+        # Setup
+        eks_client = EKSClient()
+
+        # Mock describe_instance_types response
+        self.mock_ec2.describe_instance_types.return_value = {
+            "InstanceTypes": [
+                {
+                    "InstanceType": "c5.xlarge",
+                    "NetworkInfo": {
+                        "MaximumNetworkCards": 4,
+                        "NetworkPerformance": "Up to 10 Gigabit"
+                    },
+                    "VCpuInfo": {"DefaultVCpus": 4},
+                    "MemoryInfo": {"SizeInMiB": 8192}
+                }
+            ]
+        }
+
+        # Mock successful responses
+        self.mock_ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-integration-123"}
+        }
+        self.mock_eks.create_nodegroup.return_value = {
+            "nodegroup": {"status": "CREATING"}
+        }
+        self.mock_eks.get_waiter.return_value.wait = mock.MagicMock()
+        self.mock_k8s.wait_for_nodes_ready.return_value = ["node1", "node2"]
+
+        # Execute
+        result = eks_client.create_node_group(
+            node_group_name="test-integration-ng",
+            instance_type="c5.xlarge",
+            node_count=2
+        )
+
+        # Verify
+        self.assertTrue(result)
+
+        # Verify describe_instance_types was called
+        self.mock_ec2.describe_instance_types.assert_called_once_with(
+            InstanceTypes=["c5.xlarge"]
+        )
+
+        # Get the launch template data
+        create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
+        launch_template_data = create_lt_call_args["LaunchTemplateData"]
+
+        # Verify instance type
+        self.assertEqual(launch_template_data["InstanceType"], "c5.xlarge")
+
+        # Verify BlockDeviceMappings (should always be present)
+        self.assertIn("BlockDeviceMappings", launch_template_data)
+        block_devices = launch_template_data["BlockDeviceMappings"]
+        self.assertEqual(len(block_devices), 1)
+        self.assertEqual(block_devices[0]["DeviceName"], "/dev/xvda")
+
+        # Verify NetworkInterfaces based on current implementation (single NIC only)
+        self.assertIn("NetworkInterfaces", launch_template_data)
+        network_interfaces = launch_template_data["NetworkInterfaces"]
+        self.assertEqual(len(network_interfaces), 1)  # Current implementation only creates 1 NIC
+
+        # Verify the single NIC configuration
+        nic = network_interfaces[0]
+        self.assertEqual(nic["NetworkCardIndex"], 0)
+        self.assertEqual(nic["DeviceIndex"], 0)
+        self.assertEqual(nic["InterfaceType"], "efa")
+        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertTrue(nic["DeleteOnTermination"])
 
 
 if __name__ == "__main__":

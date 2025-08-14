@@ -175,12 +175,17 @@ class EKSClient:
                 {"Name": "tag:run_id", "Values": [self.run_id]},
             ]
         )
-        logger.debug(response)
-        self.subnets = [subnet["SubnetId"] for subnet in response["Subnets"]]
-        self.subnet_azs = [subnet["AvailabilityZone"] for subnet in response["Subnets"]]
-        logger.info("Subnets: %s", self.subnets)
-        logger.info("Subnet Availability Zones: %s", self.subnet_azs)
-        if self.subnets == []:
+        logger.debug(response["Subnets"])
+        self.subnet_map = []
+        for subnet in response["Subnets"]:
+            self.subnet_map.append({
+                "SubnetId": subnet["SubnetId"],
+                "AvailabilityZone": subnet["AvailabilityZone"],
+                "publicSubnet": subnet.get("MapPublicIpOnLaunch", False),
+            })
+        self.subnet_azs = list({subnet["AvailabilityZone"] for subnet in response["Subnets"]})
+        logger.info("Subnets: %s", self.subnet_map)
+        if not self.subnet_map:
             raise Exception("No subnets found for run_id: " + self.run_id)
 
     def _load_node_role_arn(self):
@@ -323,7 +328,7 @@ class EKSClient:
                 logger.info("Capacity type: %s", capacity_type)
 
                 # Initialize subnet filtering - will be updated if capacity reservation is found
-                filtered_subnets = self.subnets  # Default to all subnets
+                filtered_subnets = []
 
                 # Prepare node group creation parameters
                 # instanceTypes will be added to launch template
@@ -348,9 +353,6 @@ class EKSClient:
                         "scenario": f"{get_env_vars('SCENARIO_TYPE')}-{get_env_vars('SCENARIO_NAME')}",
                     },
                 }
-                logger.info(
-                    "Creating launch template for node group '%s'", node_group_name
-                )
 
                 # Check for capacity reservation if requested
                 reservation_info = None
@@ -374,9 +376,9 @@ class EKSClient:
 
                         # Filter subnets to only use the subnet in the capacity reservation AZ
                         filtered_subnets = []
-                        for i, subnet_id in enumerate(self.subnets):
-                            if self.subnet_azs[i] == reservation_az:
-                                filtered_subnets.append(subnet_id)
+                        for subnet_info in self.subnet_map:
+                            if subnet_info["AvailabilityZone"] == reservation_az and subnet_info["publicSubnet"]:
+                                filtered_subnets.append(subnet_info["SubnetId"])
 
                         logger.info(
                             "Found capacity reservation %s in AZ %s, using filtered subnets: %s",
@@ -979,11 +981,6 @@ class EKSClient:
             The ID of the created launch template
         """
         try:
-            logger.info(
-                "Creating launch template '%s' for node group '%s'",
-                name,
-                node_group_name,
-            )
             # Prepare launch template data
             launch_template_data = {}
             launch_template_data["InstanceType"] = instance_type
@@ -1003,6 +1000,37 @@ class EKSClient:
                         "CapacityReservationId": reservation_id
                     }
                 }
+            launch_template_data["BlockDeviceMappings"] = [
+                {
+                    "DeviceName": "/dev/xvda",
+                    "Ebs": {
+                        "Iops": 5000,
+                        "Throughput": 200,
+                        "VolumeSize": 1024,
+                        "VolumeType": "gp3",
+                        "DeleteOnTermination": True,
+                    },
+                }
+            ]
+            instance_details = self.describe_instance_types([instance_type])
+            if not instance_details:
+                logger.error("Instance type %s not found", instance_type)
+                raise ValueError(f"Instance type {instance_type} not found")
+            # TODO to handle multiple network cards if needed
+            # max_nic = instance_details[0].get("NetworkInfo", {}).get(
+            #     "MaximumNetworkCards", 1)
+            network_interfaces = []
+            network_interfaces.append(
+                {
+                    "NetworkCardIndex": 0,
+                    "DeviceIndex": 0 ,
+                    "InterfaceType": "efa",
+                    "AssociatePublicIpAddress": True,
+                    "DeleteOnTermination": True,
+                }
+            )
+
+            launch_template_data["NetworkInterfaces"] = network_interfaces
 
             # Get additional tags for the launch template
             scenario_name = os.environ.get("SCENARIO_NAME", "unknown")
@@ -1045,7 +1073,11 @@ class EKSClient:
             # Add capacity reservation tag if applicable
             if reservation_id:
                 tags.append({"Key": "capacity_reservation_id", "Value": reservation_id})
-
+            logger.info(
+                "Creating launch template '%s' for node group '%s'",
+                name,
+                node_group_name,
+            )
             # Create launch template with comprehensive tags
             response = self.ec2.create_launch_template(
                 LaunchTemplateName=name,
@@ -1216,3 +1248,22 @@ class EKSClient:
             )
             logger.error(error_msg)
             raise ValueError(error_msg) from e
+
+    def describe_instance_types(
+        self, instance_types: List[str]
+    ) -> List[Dict]:
+        """
+        Describe multiple EC2 instance types.
+
+        Args:
+            instance_types: List of EC2 instance type names
+
+        Returns:
+            List of dictionaries with instance type details
+        """
+        try:
+            response = self.ec2.describe_instance_types(InstanceTypes=instance_types)
+            return response.get("InstanceTypes", [])
+        except ClientError as e:
+            logger.error("Failed to describe instance types: %s", str(e))
+            raise
