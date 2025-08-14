@@ -99,6 +99,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "node_pool_name": args.node_pool_name,
                 "vm_size": args.vm_size,
                 "node_count": args.node_count,
+                "max_node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
             }
 

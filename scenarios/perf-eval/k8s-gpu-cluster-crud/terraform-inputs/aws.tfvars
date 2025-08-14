@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "k8s-gpu-cluster-crud"
-deletion_delay = "2h"
+deletion_delay = "72h"
 owner          = "aks"
 
 network_config_list = [
