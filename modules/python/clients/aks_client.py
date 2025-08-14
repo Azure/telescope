@@ -446,6 +446,14 @@ class AKSClient:
                 op.name = operation_type
                 op.add_metadata("vm_size", self.vm_size)
                 op.add_metadata("current_count", current_count)
+                op.add_metadata("node_pool_name", node_pool_name)
+                op.add_metadata(
+                    "nodepool_info",                   
+                        self.get_node_pool(node_pool_name, cluster_name).as_dict()
+                )
+                op.add_metadata(
+                    "cluster_info", self.get_cluster_data(cluster_name)
+                )
 
                 # For direct scaling, update the node count
                 node_pool.count = node_count
@@ -485,14 +493,6 @@ class AKSClient:
                     op.add_metadata("nvidia_driver_logs", pod_logs)
                 # Record node readiness info
                 op.add_metadata("ready_nodes", len(ready_nodes))
-                op.add_metadata("node_pool_name", node_pool_name)
-                op.add_metadata(
-                    "nodepool_info",                   
-                        self.get_node_pool(node_pool_name, cluster_name).as_dict()
-                )
-                op.add_metadata(
-                    "cluster_info", self.get_cluster_data(cluster_name)
-                )
 
                 return True
 
@@ -551,6 +551,11 @@ class AKSClient:
                 logger.info(
                     f"Deleting node pool {node_pool_name} from cluster {cluster_name}"
                 )
+                # Add node pool name to operation metadata
+                op.add_metadata("node_pool_name", node_pool_name)
+                op.add_metadata(
+                    "cluster_info",self.get_cluster_data(cluster_name)
+                )
                 # Always use no-wait for the Azure operation
                 operation = self.aks_client.agent_pools.begin_delete(
                     resource_group_name=self.resource_group,
@@ -561,12 +566,6 @@ class AKSClient:
                 logger.info("Waiting for node pool deletion to complete...")
                 operation.result()  # Wait for completion
                 logger.info(f"Node pool {node_pool_name} deleted successfully")
-
-                # Add node pool name to operation metadata
-                op.add_metadata("node_pool_name", node_pool_name)
-                op.add_metadata(
-                    "cluster_info",self.get_cluster_data(cluster_name)
-                )
 
                 return True
 
