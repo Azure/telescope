@@ -9,6 +9,7 @@ import requests
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
 from utils.common import str2bool
+from utils.constants import UrlConstants
 from clients.kubernetes_client import KubernetesClient, client
 
 # Configure logging
@@ -23,7 +24,7 @@ def _install_operator(
     config_dir: str,
     namespace: str,
     repo_name: str = "nvidia",
-    repo_url: str = "https://helm.ngc.nvidia.com/nvidia",
+    repo_url: str = UrlConstants.NVIDIA_HELM_REPO_URL,
     extra_args: list = None,
 ) -> None:
     """
@@ -300,7 +301,7 @@ def install_efa_operator(
         config_dir=config_dir,
         namespace="kube-system",
         repo_name="aws",
-        repo_url="https://aws.github.io/eks-charts",
+        repo_url=UrlConstants.EKS_CHARTS_REPO_URL,
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_ready,
