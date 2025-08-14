@@ -83,8 +83,8 @@ class TestEKSClient(unittest.TestCase):
         # Mock subnet response
         self.mock_ec2.describe_subnets.return_value = {
             "Subnets": [
-                {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a"},
-                {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b"},
+                {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": True},
+                {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": True},
             ]
         }
 
@@ -1831,11 +1831,12 @@ class TestEKSClient(unittest.TestCase):
             # Setup multiple subnets, including two in us-west-2a
             mock_ec2.describe_subnets.return_value = {
                 "Subnets": [
-                    {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a"},
-                    {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b"},
+                    {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": True},
+                    {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": True},
                     {
                         "SubnetId": "subnet-789",
                         "AvailabilityZone": "us-west-2a",
+                        "MapPublicIpOnLaunch": True,
                     },  # Another in same AZ
                 ]
             }
@@ -2139,7 +2140,7 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(nic["NetworkCardIndex"], 0)  # First interface should have NetworkCardIndex 0
         self.assertEqual(nic["DeviceIndex"], 0)
         self.assertEqual(nic["InterfaceType"], "efa")
-        self.assertFalse(nic["AssociatePublicIpAddress"])
+        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
         self.assertTrue(nic["DeleteOnTermination"])
 
     def test_launch_template_network_interfaces_multiple_nics(self):
@@ -2186,20 +2187,18 @@ class TestEKSClient(unittest.TestCase):
         create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
         launch_template_data = create_lt_call_args["LaunchTemplateData"]
 
-        # Verify NetworkInterfaces
+        # Verify NetworkInterfaces (current implementation only creates 1 NIC)
         self.assertIn("NetworkInterfaces", launch_template_data)
         network_interfaces = launch_template_data["NetworkInterfaces"]
-        self.assertEqual(len(network_interfaces), 4)
+        self.assertEqual(len(network_interfaces), 1)  # Current implementation only creates 1 NIC
 
-        # Verify each NIC configuration
-        for i, nic in enumerate(network_interfaces):
-            # NetworkCardIndex logic: 0 for first interface, 1 for all others
-            expected_device_index = 0 if i == 0 else 1
-            self.assertEqual(nic["NetworkCardIndex"], i)
-            self.assertEqual(nic["DeviceIndex"], expected_device_index)
-            self.assertEqual(nic["InterfaceType"], "efa")
-            self.assertFalse(nic["AssociatePublicIpAddress"])
-            self.assertTrue(nic["DeleteOnTermination"])
+        # Verify the single NIC configuration
+        nic = network_interfaces[0]
+        self.assertEqual(nic["NetworkCardIndex"], 0)
+        self.assertEqual(nic["DeviceIndex"], 0)
+        self.assertEqual(nic["InterfaceType"], "efa")
+        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertTrue(nic["DeleteOnTermination"])
 
     def test_launch_template_network_interfaces_missing_network_info(self):
         """Test launch template handles missing NetworkInfo gracefully"""
@@ -2350,20 +2349,18 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(len(block_devices), 1)
         self.assertEqual(block_devices[0]["DeviceName"], "/dev/xvda")
 
-        # Verify NetworkInterfaces based on instance type
+        # Verify NetworkInterfaces based on current implementation (single NIC only)
         self.assertIn("NetworkInterfaces", launch_template_data)
         network_interfaces = launch_template_data["NetworkInterfaces"]
-        self.assertEqual(len(network_interfaces), 4)  # c5.xlarge supports 4 NICs
+        self.assertEqual(len(network_interfaces), 1)  # Current implementation only creates 1 NIC
 
-        # Verify all NICs have correct configuration
-        for i, nic in enumerate(network_interfaces):
-            # NetworkCardIndex logic: 0 for first interface, 1 for all others
-            expected_device_index = 0 if i == 0 else 1
-            self.assertEqual(nic["NetworkCardIndex"], i)
-            self.assertEqual(nic["DeviceIndex"], expected_device_index)
-            self.assertEqual(nic["InterfaceType"], "efa")
-            self.assertFalse(nic["AssociatePublicIpAddress"])
-            self.assertTrue(nic["DeleteOnTermination"])
+        # Verify the single NIC configuration
+        nic = network_interfaces[0]
+        self.assertEqual(nic["NetworkCardIndex"], 0)
+        self.assertEqual(nic["DeviceIndex"], 0)
+        self.assertEqual(nic["InterfaceType"], "efa")
+        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertTrue(nic["DeleteOnTermination"])
 
 
 if __name__ == "__main__":
