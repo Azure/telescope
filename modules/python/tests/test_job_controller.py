@@ -55,7 +55,6 @@ class TestJobControllerBenchmark(unittest.TestCase):
             cl2_config_dir="config_dir",
             cl2_report_dir="report_dir",
             provider="aws",
-            cl2_config_file="config.yaml",
             prometheus_enabled=True,
             scrape_containerd=True,
         )
@@ -66,7 +65,6 @@ class TestJobControllerBenchmark(unittest.TestCase):
             "config_dir",
             "report_dir",
             "aws",
-            cl2_config_file="config.yaml",
             overrides=True,
             enable_prometheus=True,
             scrape_containerd=True,
@@ -142,7 +140,6 @@ class TestJobControllerParser(unittest.TestCase):
         self.assertIn("cl2_image", execute_args)
         self.assertIn("cl2_config_dir", execute_args)
         self.assertIn("cl2_report_dir", execute_args)
-        self.assertIn("cl2_config_file", execute_args)
         self.assertIn("kubeconfig", execute_args)
         self.assertIn("provider", execute_args)
         self.assertIn("prometheus_enabled", execute_args)
