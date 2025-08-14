@@ -448,7 +448,7 @@ class AKSClient:
                 op.add_metadata("current_count", current_count)
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
-                    "nodepool_info",                   
+                    "nodepool_info",
                         self.get_node_pool(node_pool_name, cluster_name).as_dict()
                 )
                 op.add_metadata(
@@ -554,7 +554,7 @@ class AKSClient:
                 # Add node pool name to operation metadata
                 op.add_metadata("node_pool_name", node_pool_name)
                 op.add_metadata(
-                    "cluster_info",self.get_cluster_data(cluster_name)
+                    "cluster_info", self.get_cluster_data(cluster_name)
                 )
                 # Always use no-wait for the Azure operation
                 operation = self.aks_client.agent_pools.begin_delete(
