@@ -42,7 +42,6 @@ stages:
           job_count: 2000
           job_throughput: 100
           scale_timeout: "30m"
-          cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
           enable_dra: false
@@ -71,7 +70,6 @@ stages:
           job_throughput: 500
           job_count: 10000
           scale_timeout: "45m"
-          cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
           enable_dra: false
@@ -100,7 +98,6 @@ stages:
           job_throughput: 800
           job_count: 20000
           scale_timeout: "1h"
-          cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
           enable_dra: false
@@ -131,7 +128,6 @@ stages:
           job_count: 2000
           job_throughput: 100
           scale_timeout: "30m"
-          cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
           enable_dra: true
@@ -162,7 +158,6 @@ stages:
           job_throughput: 500
           job_count: 10000
           scale_timeout: "45m"
-          cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
           enable_dra: true
@@ -193,7 +188,6 @@ stages:
           job_throughput: 800
           job_count: 20000
           scale_timeout: "1h"
-          cl2_config_file: config.yaml
           node_gpu: 8
           job_gpu: 8
           enable_dra: true

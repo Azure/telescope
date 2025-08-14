@@ -20,6 +20,14 @@ tuningSets:
     qps: {{$qps}}
 
 steps:
+  - name: Log - jobs={{$jobs}}, namespaces={{$namespaces}}, job_template_path={{$job_template_path}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        action: start
+        duration: 1ms
+
   - name: Start measurements
     measurements:
       - Identifier: SchedulingThroughput
