@@ -661,6 +661,14 @@ class AKSClient:
                 )
 
                 try:
+                    # Add additional metadata to this step's operation
+                    op.add_metadata(
+                        "nodepool_info",                      
+                            self.get_node_pool(node_pool_name, cluster_name).as_dict()
+                    )
+                    op.add_metadata(
+                        "cluster_info", self.get_cluster_data(cluster_name)
+                    )
                     node_pool.count = step  # Update node count in the node pool object
                     result = self.aks_client.agent_pools.begin_create_or_update(
                         resource_group_name=self.resource_group,
@@ -684,14 +692,6 @@ class AKSClient:
                         op.add_metadata("error", "Scaling operation returned None")
                         return None
 
-                    # Add additional metadata to this step's operation
-                    op.add_metadata(
-                        "nodepool_info",                      
-                            self.get_node_pool(node_pool_name, cluster_name).as_dict()
-                    )
-                    op.add_metadata(
-                        "cluster_info", self.get_cluster_data(cluster_name)
-                    )
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
                     )
