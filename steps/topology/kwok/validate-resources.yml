@@ -12,10 +12,11 @@ steps:
       role: client
       region: ${{ parameters.regions[0] }}
 
-  - template: /steps/engine/clusterloader2/job_controller/validate.yml
-    parameters:
-      desired_nodes: 2
-      node_label: default
+  # TODO: add back when default label is supported by Azure CLI module
+  # - template: /steps/engine/clusterloader2/job_controller/validate.yml
+  #   parameters:
+  #     desired_nodes: 2
+  #     node_label: default
   - template: /steps/engine/clusterloader2/job_controller/validate.yml
     parameters:
       desired_nodes: 1
