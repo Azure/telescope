@@ -10,6 +10,7 @@ aks_cli_config_list = [
     sku_tier                      = "standard"
     kubernetes_version            = "1.33"
     use_aks_preview_private_build = true
+    use_custom_configurations     = true
     default_node_pool = {
       name       = "default"
       node_count = 2
