@@ -56,6 +56,9 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
+              gpu_install_driver: true
+              gpu_operator_version: "v25.3.1"
+              gpu_enable_nfd: false
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
