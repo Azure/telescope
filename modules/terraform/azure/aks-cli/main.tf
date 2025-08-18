@@ -18,6 +18,7 @@ locals {
     )
   )
 
+
   aks_custom_headers_flags = (
     length(var.aks_cli_config.aks_custom_headers) == 0 ?
     "" :
@@ -51,6 +52,15 @@ locals {
       "%s %s",
       "--assign-identity", azurerm_user_assigned_identity.userassignedidentity[0].id,
     )
+  )
+
+  custom_configurations = (
+    var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
+    format(
+      "--custom-configuration %s",
+      var.aks_cli_custom_config_path
+    ) :
+    ""
   )
 
   default_node_pool_parameters = (
