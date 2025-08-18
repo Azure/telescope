@@ -82,6 +82,7 @@ locals {
     "--tier", var.aks_cli_config.sku_tier,
     "--tags", join(" ", local.tags_list),
     local.aks_custom_headers_flags,
+    local.custom_configurations,
     "--no-ssh-key",
     local.kubernetes_version,
     local.optional_parameters,
