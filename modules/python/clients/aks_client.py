@@ -312,7 +312,7 @@ class AKSClient:
                     "mode": "User",
                     "os_disk_type": "Managed",
                     "gpu_profile": {
-                        "driver": "none" if gpu_node_pool else "Install",
+                        "driver": "None" if gpu_node_pool else "Install",
                     },
                 }
 
