@@ -43,7 +43,7 @@ aks_cli_config_list = [
       },
       {
         name = "custom-configuration"
-        value = "../../../scenarios/perf-eval/job-scheduling/terraform-inputs/custom-configuration.json"
+        value = "../../../scenarios/perf-eval/job-scheduling/config/custom-configuration.json"
       }
     ]
   }
