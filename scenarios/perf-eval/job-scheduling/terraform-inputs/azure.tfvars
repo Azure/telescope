@@ -5,10 +5,10 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role                  = "client"
-    aks_name              = "job-scheduling"
-    sku_tier              = "standard"
-    kubernetes_version    = "1.33"
+    role                          = "client"
+    aks_name                      = "job-scheduling"
+    sku_tier                      = "standard"
+    kubernetes_version            = "1.33"
     use_aks_preview_private_build = true
     default_node_pool = {
       name       = "default"
@@ -42,7 +42,7 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
-        name = "custom-configuration"
+        name  = "custom-configuration"
         value = "../../../scenarios/perf-eval/job-scheduling/config/custom-configuration.json"
       }
     ]
