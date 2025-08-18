@@ -958,6 +958,40 @@ class EKSClient:
             logger.error("Failed to find capacity reservation: %s", str(e))
             return None
 
+    def _check_launch_template_exists(self, template_name: str) -> Optional[str]:
+        """
+        Check if a launch template with the given name already exists.
+
+        Args:
+            template_name: Name of the launch template to check
+
+        Returns:
+            Launch template ID if it exists, None otherwise
+        """
+        try:
+            response = self.ec2.describe_launch_templates(
+                LaunchTemplateNames=[template_name]
+            )
+            launch_templates = response.get("LaunchTemplates", [])
+            if launch_templates:
+                template_id = launch_templates[0]["LaunchTemplateId"]
+                logger.info(
+                    "Found existing launch template '%s' with ID: %s",
+                    template_name,
+                    template_id,
+                )
+                return template_id
+            return None
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "InvalidLaunchTemplateName.NotFoundException":
+                logger.debug("Launch template '%s' does not exist", template_name)
+                return None
+            else:
+                logger.error(
+                    "Error checking launch template existence: %s", str(e)
+                )
+                raise
+
     def _create_default_launch_template(
         self,
         name: str,
@@ -969,6 +1003,7 @@ class EKSClient:
     ) -> str:
         """
         Creates a launch template with standard configuration and all necessary tags.
+        Checks for existing launch template with the same name before creating.
 
         Args:
             name: Name of the launch template
@@ -982,6 +1017,17 @@ class EKSClient:
             The ID of the created launch template
         """
         try:
+            # Check if launch template already exists
+            existing_template_id = self._check_launch_template_exists(name)
+            if existing_template_id:
+                logger.info(
+                    "Using existing launch template '%s' with ID: %s for node group '%s'",
+                    name,
+                    existing_template_id,
+                    node_group_name,
+                )
+                self.launch_template_id = existing_template_id
+                return existing_template_id
             # Prepare launch template data
             launch_template_data = {}
             launch_template_data["InstanceType"] = instance_type
