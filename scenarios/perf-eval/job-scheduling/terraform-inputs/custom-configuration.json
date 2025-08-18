@@ -1,6 +1,7 @@
 {
     "kubernetesConfigurations": {
         "kube-controller-manager": {
+            "image": "upstream.azurecr.io/oss/kubernetes/kube-controller-manager:v1.33.2",
             "config": {
                 "--terminated-pod-gc-threshold": 12500
             }
