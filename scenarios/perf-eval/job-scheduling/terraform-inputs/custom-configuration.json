@@ -1,0 +1,9 @@
+{
+    "kubernetesConfigurations": {
+        "kube-controller-manager": {
+            "config": {
+                "--terminated-pod-gc-threshold": 12500
+            }
+        }
+    }
+}
