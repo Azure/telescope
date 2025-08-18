@@ -26,6 +26,15 @@ steps:
         AKS_CUSTOM_HEADERS=$(printf '%s\n' "${aks_custom_headers_array[@]}" | jq -R . | jq -s .)
       fi
 
+      # Check if AKS_CLI_CUSTOM_CONFIG is set
+      if [ -z "$(AKS_CLI_CUSTOM_CONFIG)" ]; then
+        echo "Custom configuration not provided, using default values."
+      else
+        AKS_CUSTOM_CONFIG=$(echo $AKS_CLI_CUSTOM_CONFIG | jq -c .)
+        mkdir -p $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/config
+        echo $AKS_CUSTOM_CONFIG > $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/config/aks_custom_config.json
+      fi
+
       regional_config=$REGIONAL_CONFIG
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then

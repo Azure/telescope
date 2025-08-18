@@ -22,6 +22,8 @@ locals {
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
+
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
@@ -103,10 +105,11 @@ module "aks" {
 module "aks-cli" {
   for_each = local.aks_cli_config_map
 
-  source              = "./aks-cli"
-  resource_group_name = local.run_id
-  location            = local.region
-  aks_cli_config      = each.value
-  tags                = local.tags
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
+  source                     = "./aks-cli"
+  resource_group_name        = local.run_id
+  location                   = local.region
+  aks_cli_config             = each.value
+  tags                       = local.tags
+  subnet_id                  = try(local.all_subnets[each.value.subnet_name], null)
+  aks_cli_custom_config_path = local.aks_cli_custom_config_path
 }

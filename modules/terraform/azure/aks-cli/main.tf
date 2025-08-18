@@ -18,6 +18,7 @@ locals {
     )
   )
 
+
   aks_custom_headers_flags = (
     length(var.aks_cli_config.aks_custom_headers) == 0 ?
     "" :
@@ -53,6 +54,15 @@ locals {
     )
   )
 
+  custom_configurations = (
+    var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
+    format(
+      "--custom-configuration %s",
+      var.aks_cli_custom_config_path
+    ) :
+    ""
+  )
+
   default_node_pool_parameters = (
     var.aks_cli_config.default_node_pool == null ? [] : [
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
@@ -72,6 +82,7 @@ locals {
     "--tier", var.aks_cli_config.sku_tier,
     "--tags", join(" ", local.tags_list),
     local.aks_custom_headers_flags,
+    local.custom_configurations,
     "--no-ssh-key",
     local.kubernetes_version,
     local.optional_parameters,
