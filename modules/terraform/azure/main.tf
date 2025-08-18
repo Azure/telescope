@@ -105,11 +105,11 @@ module "aks" {
 module "aks-cli" {
   for_each = local.aks_cli_config_map
 
-  source              = "./aks-cli"
-  resource_group_name = local.run_id
-  location            = local.region
-  aks_cli_config      = each.value
-  tags                = local.tags
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
+  source                     = "./aks-cli"
+  resource_group_name        = local.run_id
+  location                   = local.region
+  aks_cli_config             = each.value
+  tags                       = local.tags
+  subnet_id                  = try(local.all_subnets[each.value.subnet_name], null)
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
 }
