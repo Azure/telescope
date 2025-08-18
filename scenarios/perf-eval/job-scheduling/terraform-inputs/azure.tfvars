@@ -42,6 +42,10 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
+        name  = "nodepool-labels"
+        value = "default=true"
+      },
+      {
         name  = "custom-configuration"
         value = "../../../scenarios/perf-eval/job-scheduling/config/custom-configuration.json"
       }
