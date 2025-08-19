@@ -6,9 +6,9 @@ metadata:
   labels:
     app: nccl-tests
 spec:
+  slotsPerWorker: {{slots_per_worker}}
   runPolicy:
     cleanPodPolicy: Running
-  slotsPerWorker: 8
   mpiReplicaSpecs:
     Launcher:
       replicas: 1
@@ -39,7 +39,7 @@ spec:
                 - name: OMPI_ALLOW_RUN_AS_ROOT_CONFIRM
                   value: "1"
                 - name: NUMBER_OF_PROCESSES
-                  value: "16"
+                  value: "{{number_of_processes}}"
               command:
                 - /bin/bash
                 - -c
@@ -65,7 +65,7 @@ spec:
                       -g 1 \
                       -n 40
     Worker:
-      replicas: 2
+      replicas: {{replicas}}
       template:
         metadata:
           labels:
@@ -78,15 +78,11 @@ spec:
               imagePullPolicy: IfNotPresent
               resources:
                 limits:
-                  nvidia.com/gpu: 8
-                  hugepages-2Mi: 5120Mi
-                  vpc.amazonaws.com/efa: 1
-                  memory: 32000Mi
+                  nvidia.com/gpu: {{gpu_allocatable}}
+                  vpc.amazonaws.com/efa: {{efa_allocatable}}
                 requests:
-                  nvidia.com/gpu: 8
-                  hugepages-2Mi: 5120Mi
-                  vpc.amazonaws.com/efa: 1
-                  memory: 32000Mi
+                  nvidia.com/gpu: {{gpu_allocatable}}
+                  vpc.amazonaws.com/efa: {{efa_allocatable}}
               volumeMounts:
                 - name: shmem
                   mountPath: /dev/shm

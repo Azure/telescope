@@ -6,7 +6,7 @@ metadata:
   labels:
     app: nccl-tests
 spec:
-  slotsPerWorker: 8
+  slotsPerWorker: {{slots_per_worker}}
   runPolicy:
     cleanPodPolicy: Running
   mpiReplicaSpecs:
@@ -29,7 +29,7 @@ spec:
                 - name: OMPI_ALLOW_RUN_AS_ROOT_CONFIRM
                   value: "1"
                 - name: NUMBER_OF_PROCESSES
-                  value: "16"
+                  value: "{{number_of_processes}}"
               command:
                 - /bin/bash
                 - -c
@@ -50,7 +50,7 @@ spec:
                       -g 1 \
                       -n 40
     Worker:
-      replicas: 2
+      replicas: {{replicas}}
       template:
         metadata:
           labels:
@@ -63,10 +63,10 @@ spec:
               imagePullPolicy: IfNotPresent
               resources:
                 limits:
-                  nvidia.com/gpu: 8
+                  nvidia.com/gpu: {{gpu_allocatable}}
                   rdma/shared_ib: 1
                 requests:
-                  nvidia.com/gpu: 8
+                  nvidia.com/gpu: {{gpu_allocatable}}
                   rdma/shared_ib: 1
               securityContext:
                 capabilities:

@@ -351,6 +351,7 @@ class EKSClient:
                         "nodegroup-name": node_group_name,
                         "run_id": self.run_id,
                         "scenario": f"{get_env_vars('SCENARIO_TYPE')}-{get_env_vars('SCENARIO_NAME')}",
+                        "gpu": "true" if gpu_node_group else "false"
                     },
                 }
                 logger.info("Node group creation parameters: %s", create_params)
