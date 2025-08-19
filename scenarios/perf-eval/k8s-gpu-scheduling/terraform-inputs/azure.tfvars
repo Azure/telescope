@@ -7,7 +7,7 @@ aks_cli_config_list = [
   {
     role                          = "client"
     aks_name                      = "gpi-scheduling"
-    sku_tier                      = "standard"
+    sku_tier                      = "Standard"
     kubernetes_version            = "1.33"
     use_aks_preview_private_build = true
     use_custom_configurations     = true
