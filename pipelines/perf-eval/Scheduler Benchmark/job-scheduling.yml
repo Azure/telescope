@@ -23,7 +23,7 @@ variables:
   SCENARIO_NAME: job-scheduling
 
 stages:
-- stage: azure_northeurope_small
+- stage: azure_small
   dependsOn: []
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
@@ -31,7 +31,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - northeurope
+      - westus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -49,7 +49,7 @@ stages:
       credential_type: service_connection
       ssh_key_enabled: false
 
-- stage: azure_northeurope_medium
+- stage: azure_medium
   dependsOn: []
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
@@ -57,7 +57,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - northeurope
+      - westus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -75,7 +75,7 @@ stages:
       credential_type: service_connection
       ssh_key_enabled: false
 
-- stage: azure_northeurope_high
+- stage: azure_high
   dependsOn: []
   condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
@@ -83,7 +83,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - northeurope
+      - westus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
