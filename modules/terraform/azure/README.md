@@ -16,13 +16,13 @@ Set environment variables for a specific test scenario. In this guide, we'll use
 Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=cri-resource-consume
+SCENARIO_NAME=job-scheduling
 OWNER=$(whoami)
 RUN_ID=$(date +%s)
 CLOUD=azure
 REGION=eastus2
-SKU_TIER=Free
-KUBERNETES_VERSION=1.31
+SKU_TIER=standard
+KUBERNETES_VERSION=1.33
 NETWORK_POLICY=cilium
 NETWORK_DATAPLANE=cilium
 TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
