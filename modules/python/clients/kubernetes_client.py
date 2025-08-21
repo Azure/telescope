@@ -1630,3 +1630,20 @@ class KubernetesClient:
         except Exception as e:
             logger.error(f"Unexpected error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}")
             raise Exception(f"Unexpected error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}") from e
+
+    def patch_config_map(self, name, namespace, body):
+        """
+        Patch a ConfigMap in the specified namespace.
+
+        :param name: Name of the ConfigMap to patch
+        :param namespace: Namespace of the ConfigMap
+        :param body: Patch body (JSON-compatible dictionary)
+        :return: None
+        """
+        try:
+            self.api.patch_namespaced_config_map(name=name, namespace=namespace, body=body)
+            logger.info(f"Successfully patched ConfigMap '{name}' in namespace '{namespace}'")
+        except client.rest.ApiException as e:
+            raise Exception(f"Error patching ConfigMap '{name}' in namespace '{namespace}': {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Unexpected error patching ConfigMap '{name}' in namespace '{namespace}': {str(e)}") from e

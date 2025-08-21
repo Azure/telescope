@@ -22,6 +22,7 @@ import json
 import boto3
 from botocore.exceptions import ClientError, WaiterError
 import semver
+import yaml
 
 # Local imports
 from utils.logger_config import get_logger, setup_logging
@@ -98,6 +99,15 @@ class EKSClient:
         self.launch_template_id = None
         self.k8s_version = None
 
+        # Initialize Kubernetes client if provided or if kubeconfig is available
+        try:
+            self.k8s_client = KubernetesClient(config_file=kube_config_file)
+            logger.info("Kubernetes client initialized successfully")
+        except Exception as e:
+            logger.warning("Failed to initialize Kubernetes client: %s", str(e))
+            self.k8s_client = None
+        logger.info("EKS client initialized successfully")
+
         try:
             self.eks = boto3.client("eks", region_name=self.region)
             # Initialize the EC2 client for the VPC configuration
@@ -111,20 +121,13 @@ class EKSClient:
                 self.cluster_name,
             )
             self._load_subnet_ids()
-            self._load_node_role_arn()
+            # self._load_node_role_arn()
+            self._create_node_role_arn()
+            self._update_aws_auth()
 
         except Exception as e:
             logger.error("Initialization failed: %s", e)
             raise
-
-        # Initialize Kubernetes client if provided or if kubeconfig is available
-        try:
-            self.k8s_client = KubernetesClient(config_file=kube_config_file)
-            logger.info("Kubernetes client initialized successfully")
-        except Exception as e:
-            logger.warning("Failed to initialize Kubernetes client: %s", str(e))
-            self.k8s_client = None
-        logger.info("EKS client initialized successfully")
 
     def _get_cluster_name_by_run_id(self, run_id: str) -> Optional[str]:
         """
@@ -202,14 +205,174 @@ class EKSClient:
                 # Get the first node group's role as template
                 first_ng = response["nodegroups"][0]
                 ng_info = self.get_node_group(first_ng)
-                self.node_role_arn = ng_info["nodeRole"]
+                node_role_arn = ng_info["nodeRole"]
                 logger.info(
                     "Found node role ARN from existing node group: %s",
-                    self.node_role_arn,
+                    node_role_arn,
                 )
-                return
+                return node_role_arn
         except Exception as e:
             logger.warning("Could not find existing node group role: %s", e)
+
+    def _create_node_role_arn(self):
+        """
+        Create a new IAM role for EKS node groups based on an existing node group role.
+        First loads an existing role to get its properties, then creates a duplicate role
+        with the same attributes (trust policy, attached policies, etc.).
+
+        Returns:
+            str: The ARN of the created role
+
+        Raises:
+            Exception: If role creation fails or no existing role is found to duplicate
+        """
+        # First try to load an existing role to use as a template
+        existing_role_arn = self._load_node_role_arn()
+
+        # Extract role name from ARN for getting role details
+        existing_role_name = existing_role_arn.split("/")[-1]
+
+        # Create a new role name
+        new_role_name = f"eks-node-role-{self.cluster_name}"
+
+        # Truncate role name if too long (AWS limit is 64 characters)
+        if len(new_role_name) > 64:
+            new_role_name = new_role_name[:64]
+
+        try:
+            # Get the existing role details to duplicate
+            logger.info("Getting details of existing role: %s", existing_role_name)
+            existing_role_response = self.iam.get_role(RoleName=existing_role_name)
+            existing_role = existing_role_response["Role"]
+
+            # Get the trust policy from the existing role
+            trust_policy_document = existing_role["AssumeRolePolicyDocument"]
+
+            # Get attached policies from the existing role
+            logger.info(
+                "Getting attached policies for existing role: %s", existing_role_name
+            )
+            attached_policies_response = self.iam.list_attached_role_policies(
+                RoleName=existing_role_name
+            )
+            attached_policies = attached_policies_response["AttachedPolicies"]
+
+            # Get inline policies from the existing role
+            inline_policies_response = self.iam.list_role_policies(
+                RoleName=existing_role_name
+            )
+            inline_policies = inline_policies_response["PolicyNames"]
+
+            # Get tags from the existing role (if any)
+            tags = existing_role.get("Tags", [])
+
+            # Create the new IAM role with the same trust policy
+            logger.info("Creating duplicate IAM role: %s", new_role_name)
+            logger.info("Using trust policy from existing role: %s", existing_role_name)
+
+            try:
+                # Check for role existence before creating
+                response = self.iam.get_role(RoleName=new_role_name)
+                logger.info("Role already exists: %s", response["Role"]["Arn"])
+                self.node_role_arn = response["Role"]["Arn"]
+                return
+            except self.iam.exceptions.NoSuchEntityException:
+                pass
+
+            response = self.iam.create_role(
+                RoleName=new_role_name,
+                AssumeRolePolicyDocument=json.dumps(trust_policy_document),
+                Description=f"Duplicate of {existing_role_name} for EKS node groups in cluster {self.cluster_name}",
+                Tags=tags,
+            )
+
+            self.node_role_arn = response["Role"]["Arn"]
+            logger.info("Created duplicate IAM role with ARN: %s", self.node_role_arn)
+
+            # Attach the same managed policies
+            logger.info(
+                "Attaching %d managed policies from existing role",
+                len(attached_policies),
+            )
+            for policy in attached_policies:
+                policy_arn = policy["PolicyArn"]
+                logger.info(
+                    "Attaching policy %s to new role %s", policy_arn, new_role_name
+                )
+                self.iam.attach_role_policy(
+                    RoleName=new_role_name, PolicyArn=policy_arn
+                )
+
+            # Copy inline policies if any exist
+            if inline_policies:
+                logger.info(
+                    "Copying %d inline policies from existing role",
+                    len(inline_policies),
+                )
+                for policy_name in inline_policies:
+                    # Get the inline policy document
+                    policy_response = self.iam.get_role_policy(
+                        RoleName=existing_role_name, PolicyName=policy_name
+                    )
+                    policy_document = policy_response["PolicyDocument"]
+
+                    # Put the same inline policy on the new role
+                    logger.info("Copying inline policy %s to new role", policy_name)
+                    self.iam.put_role_policy(
+                        RoleName=new_role_name,
+                        PolicyName=policy_name,
+                        PolicyDocument=json.dumps(policy_document),
+                    )
+
+            logger.info(
+                "Successfully created duplicate node role: %s", self.node_role_arn
+            )
+            logger.info(
+                "Duplicate role has %d managed policies and %d inline policies",
+                len(attached_policies),
+                len(inline_policies),
+            )
+
+        except Exception as e:
+            raise Exception(f"Failed to create duplicate IAM role for EKS node groups: {str(e)}") from e
+
+    def _update_aws_auth(self):
+        """
+        Update the AWS Auth ConfigMap to include the new node role.
+        This uses the Kubernetes API to manage the aws-auth ConfigMap in the kube-system namespace.
+        """
+        try:
+            # Get the current AWS Auth ConfigMap from kube-system namespace
+            config_map = self.k8s_client.get_config_map(
+                name="aws-auth",
+                namespace="kube-system"
+            )
+
+            # Replace the entire mapRoles with just our new node role
+            new_role = {
+                "rolearn": self.node_role_arn,
+                "username": "system:node:{{SessionName}}",
+                "groups": [
+                    "system:bootstrappers",
+                    "system:nodes"
+                ]
+            }
+
+            # Replace the entire mapRoles list with just our role
+            map_roles = [new_role]
+            updated_map_roles_yaml = yaml.dump(map_roles, default_flow_style=False)
+            config_map.data["mapRoles"] = updated_map_roles_yaml
+
+            # Apply the updated ConfigMap
+            logger.info("Updating aws-auth ConfigMap with new content: %s", config_map)
+            self.k8s_client.patch_config_map(
+                name="aws-auth",
+                namespace="kube-system",
+                body=config_map
+            )
+
+        except Exception as e:
+            raise Exception(f"Failed to update AWS Auth ConfigMap: {str(e)}") from e
 
     def get_cluster_data(self, cluster_name: Optional[str] = None) -> Dict:
         """
@@ -354,7 +517,6 @@ class EKSClient:
                         "gpu": "true" if gpu_node_group else "false"
                     },
                 }
-                logger.info("Node group creation parameters: %s", create_params)
 
                 # Check for capacity reservation if requested
                 reservation_info = None
@@ -409,86 +571,87 @@ class EKSClient:
                 # Update create_params with the filtered subnets
                 create_params["subnets"] = filtered_subnets
 
-                try:
-                    launch_template = self._create_launch_template(
-                        node_group_name=node_group_name,
-                        instance_type=instance_type,
-                        reservation_id=reservation_id,  # Will be None if not found
-                        gpu_node_group=gpu_node_group,
-                        capacity_type=capacity_type,
-                    )
+                logger.info("Node group creation parameters: %s", create_params)
+                # try:
+                #     launch_template = self._create_launch_template(
+                #         node_group_name=node_group_name,
+                #         instance_type=instance_type,
+                #         reservation_id=reservation_id,  # Will be None if not found
+                #         gpu_node_group=gpu_node_group,
+                #         capacity_type=capacity_type,
+                #     )
 
-                    # Add launch template to node group creation parameters
-                    create_params["launchTemplate"] = {
-                        "id": launch_template["id"],
-                        "version": str(launch_template["version"]),
-                    }
+                #     # Add launch template to node group creation parameters
+                #     create_params["launchTemplate"] = {
+                #         "id": launch_template["id"],
+                #         "version": str(launch_template["version"]),
+                #     }
 
-                    if reservation_id:
-                        op.add_metadata("capacity_reservation_id", reservation_id)
-                    op.add_metadata("launch_template_id", launch_template["id"])
+                #     if reservation_id:
+                #         op.add_metadata("capacity_reservation_id", reservation_id)
+                #     op.add_metadata("launch_template_id", launch_template["id"])
 
-                    if reservation_id:
-                        logger.info(
-                            "Using launch template %s with capacity reservation %s",
-                            launch_template["id"],
-                            reservation_id,
-                        )
-                    else:
-                        logger.info(
-                            "Using launch template %s",
-                            launch_template["id"],
-                        )
-                except Exception as e:
-                    logger.error("Failed to create launch template: %s", e)
-                    raise Exception(
-                        f"Failed to create launch template: {str(e)}"
-                    ) from e
+                #     if reservation_id:
+                #         logger.info(
+                #             "Using launch template %s with capacity reservation %s",
+                #             launch_template["id"],
+                #             reservation_id,
+                #         )
+                #     else:
+                #         logger.info(
+                #             "Using launch template %s",
+                #             launch_template["id"],
+                #         )
+                # except Exception as e:
+                #     logger.error("Failed to create launch template: %s", e)
+                #     raise Exception(
+                #         f"Failed to create launch template: {str(e)}"
+                #     ) from e
 
-                # Create the node group with the parameters
-                response = self.eks.create_nodegroup(**create_params)
+                # # Create the node group with the parameters
+                # response = self.eks.create_nodegroup(**create_params)
 
-                self._wait_for_node_group_active(node_group_name, self.cluster_name)
-                node_group = response["nodegroup"]
+                # self._wait_for_node_group_active(node_group_name, self.cluster_name)
+                # node_group = response["nodegroup"]
 
-                logger.info(
-                    "Node group creation initiated. Status: %s", node_group["status"]
-                )
-                label_selector = f"nodegroup-name={node_group_name}"
+                # logger.info(
+                #     "Node group creation initiated. Status: %s", node_group["status"]
+                # )
+                # label_selector = f"nodegroup-name={node_group_name}"
 
-                # Wait for nodes to be ready
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
-                )
+                # # Wait for nodes to be ready
+                # ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                #     node_count=node_count,
+                #     operation_timeout_in_minutes=self.operation_timeout_minutes,
+                #     label_selector=label_selector,
+                # )
 
-                logger.info(
-                    "All %s nodes in node group '%s' are ready",
-                    len(ready_nodes),
-                    node_group_name,
-                )
+                # logger.info(
+                #     "All %s nodes in node group '%s' are ready",
+                #     len(ready_nodes),
+                #     node_group_name,
+                # )
 
-                # Verify NVIDIA drivers if this is a GPU node pool
-                pod_logs = None
-                if gpu_node_group and node_count > 0:
-                    logger.info(
-                        "Verifying NVIDIA drivers for GPU node pool '%s'",
-                        node_group_name,
-                    )
-                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
-                    op.add_metadata("nvidia_driver_logs", pod_logs)
+                # # Verify NVIDIA drivers if this is a GPU node pool
+                # pod_logs = None
+                # if gpu_node_group and node_count > 0:
+                #     logger.info(
+                #         "Verifying NVIDIA drivers for GPU node pool '%s'",
+                #         node_group_name,
+                #     )
+                #     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                #     op.add_metadata("nvidia_driver_logs", pod_logs)
 
-                # Add additional metadata
-                op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
-                op.add_metadata("node_pool_name", node_group_name)
-                op.add_metadata(
-                    "nodepool_info",
-                    self.get_node_group(node_group_name, self.cluster_name),
-                )
-                op.add_metadata(
-                    "cluster_info", self.get_cluster_data(self.cluster_name)
-                )
+                # # Add additional metadata
+                # op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
+                # op.add_metadata("node_pool_name", node_group_name)
+                # op.add_metadata(
+                #     "nodepool_info",
+                #     self.get_node_group(node_group_name, self.cluster_name),
+                # )
+                # op.add_metadata(
+                #     "cluster_info", self.get_cluster_data(self.cluster_name)
+                # )
                 return True
 
             except Exception as e:
