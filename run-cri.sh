@@ -8,9 +8,9 @@ init_vars() {
     SCENARIO_TYPE=perf-eval
     SCENARIO_NAME=cri-resource-consume
     OWNER=$(whoami)
-    RUN_ID=32633-dbb72cb6-fa09-5b75-bf70-9a218c54fc1a
+    RUN_ID=$(date +%s)
     CLOUD=azure
-    REGION=swedencentral
+    REGION=eastus
     KUBERNETES_VERSION=1.31
     NETWORK_POLICY=cilium
     NETWORK_DATAPLANE=cilium
@@ -21,20 +21,6 @@ init_vars() {
     K8S_OS_DISK_TYPE=Ephemeral # if not set, value defined in tfvars file will be used, only available for Azure currently
     SYSTEM_NODE_POOL=${SYSTEM_NODE_POOL:-null}
     USER_NODE_POOL=${USER_NODE_POOL:-null}
-}
-
-setup_cluster() {
-    $AZ login
-
-    $AZ account set --subscription c0d4b923-b5ea-4f8f-9b56-5390a9bf2248 # Telescope Open Source
-    export ARM_SUBSCRIPTION_ID=$($AZ account show --query id -o tsv | tr -d '\r')
-
-    $AZ group create --name $RUN_ID \
-        --location $REGION \
-        --tags  "run_id=$RUN_ID" \
-                "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" \
-                "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-                "deletion_due_time=$(date -u -d '+2 hour' +'%Y-%m-%dT%H:%M:%SZ')"
 
     INPUT_JSON=$(jq -n \
     --arg run_id $RUN_ID \
@@ -60,17 +46,47 @@ setup_cluster() {
         aks_cli_user_node_pool: $aks_cli_user_node_pool
     }' | jq 'with_entries(select(.value != null and .value != ""))')
 
-    cd $TERRAFORM_MODULES_DIR
+}
+
+setup_cluster() {
+    $AZ login
+
+    $AZ account set --subscription c0d4b923-b5ea-4f8f-9b56-5390a9bf2248 # Telescope Open Source
+    export ARM_SUBSCRIPTION_ID=$($AZ account show --query id -o tsv | tr -d '\r')
+
+    $AZ group create --name $RUN_ID \
+        --location $REGION \
+        --tags  "run_id=$RUN_ID" \
+                "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" \
+                "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+                "deletion_due_time=$(date -u -d '+2 hour' +'%Y-%m-%dT%H:%M:%SZ')"
+
+    pushd $TERRAFORM_MODULES_DIR
     terraform init
     terraform plan -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
     terraform apply -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-    cd -
+    popd -
 }
 
 teardown_cluster() {
-    cd $TERRAFORM_MODULES_DIR
+    pushd $TERRAFORM_MODULES_DIR
     terraform destroy -var json_input=$(echo $INPUT_JSON | jq -c .) -var-file $TERRAFORM_INPUT_FILE
-    cd -    
+    popd -    
+}
+
+teardown_resource_group() {
+    $AZ group delete --name $RUN_ID -y
+}
+
+setup_resource_group() {
+    $AZ group create \
+        --name $RUN_ID \
+        --location $REGION \
+        --tags "run_id=$RUN_ID" \
+               "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" \
+               "owner=${OWNER}" \
+               "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+               "deletion_due_time=$(date -u -d '+2 hour' +'%Y-%m-%dT%H:%M:%SZ')"
 }
 
 cri_resource_consume() {
@@ -194,7 +210,9 @@ main() {
         teardown_cluster
     fi
     if [[ "$test_cri_flag" == "1" ]]; then
+        setup_resource_group
         cri_resource_consume
+        teardown_resource_group
     fi
 }
 
