@@ -392,41 +392,41 @@ def main():
             )
             sys.exit(1)
 
-        # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
-        if args.gpu_node_pool and args.cloud in ["azure", "aws"]:
-            logger.info("GPU node pool is enabled")
-            with OperationContext(
-                "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir
-            ) as op:
-                # Get the appropriate client based on cloud provider
-                if args.cloud == "azure":
-                    k8s_client = node_pool_crud.aks_client.k8s_client
-                elif args.cloud == "aws":
-                    k8s_client = node_pool_crud.eks_client.k8s_client
-                else:
-                    logger.error(
-                        f"GPU plugin installation not supported for cloud provider: {args.cloud}"
-                    )
-                    op.success = False
-                    sys.exit(1)
+        # # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
+        # if args.gpu_node_pool and args.cloud in ["azure", "aws"]:
+        #     logger.info("GPU node pool is enabled")
+        #     with OperationContext(
+        #         "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir
+        #     ) as op:
+        #         # Get the appropriate client based on cloud provider
+        #         if args.cloud == "azure":
+        #             k8s_client = node_pool_crud.aks_client.k8s_client
+        #         elif args.cloud == "aws":
+        #             k8s_client = node_pool_crud.eks_client.k8s_client
+        #         else:
+        #             logger.error(
+        #                 f"GPU plugin installation not supported for cloud provider: {args.cloud}"
+        #             )
+        #             op.success = False
+        #             sys.exit(1)
 
-                if k8s_client:
-                    k8s_client.install_gpu_device_plugin()
-                    valid = k8s_client.verify_gpu_device_plugin()
-                    if not valid:
-                        logger.error("GPU device plugin verification failed")
-                        op.success = False
-                    else:
-                        logger.info(
-                            "GPU device plugin installed and verified successfully"
-                        )
-                else:
-                    logger.warning(
-                        "Kubernetes client not available - skipping GPU plugin installation"
-                    )
-                    logger.info(
-                        "Make sure to install GPU device plugin manually if needed"
-                    )
+        #         if k8s_client:
+        #             k8s_client.install_gpu_device_plugin()
+        #             valid = k8s_client.verify_gpu_device_plugin()
+        #             if not valid:
+        #                 logger.error("GPU device plugin verification failed")
+        #                 op.success = False
+        #             else:
+        #                 logger.info(
+        #                     "GPU device plugin installed and verified successfully"
+        #                 )
+        #         else:
+        #             logger.warning(
+        #                 "Kubernetes client not available - skipping GPU plugin installation"
+        #             )
+        #             logger.info(
+        #                 "Make sure to install GPU device plugin manually if needed"
+        #             )
 
         # Execute the function associated with the selected command
         operation_result = args.func(node_pool_crud, args)

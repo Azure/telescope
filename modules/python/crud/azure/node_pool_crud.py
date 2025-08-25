@@ -7,10 +7,12 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 """
 
 import logging
+import os
 import time
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
+from gpu.gpu import configure
 
 # Configure logging
 setup_logging()
@@ -217,6 +219,30 @@ class NodePoolCRUD:
                 logger.error(error_msg)
                 errors.append(error_msg)
                 # Continue to scale down and delete to clean up resources
+            else:
+                # If this is a GPU node pool and scale up was successful, configure GPU setup
+                if gpu_node_pool:
+                    logger.info("GPU node pool scaled successfully, configuring GPU setup...")
+                    try:
+                        # Get the config directory path relative to the GPU module
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        gpu_config_dir = os.path.join(current_dir, "..", "gpu", "config")
+                        
+                        # Call the configure function from gpu.py to set up GPU operators
+                        configure(
+                            network_operator_version="",  # Add appropriate version if needed
+                            gpu_operator_version="v23.9.1",  # Default GPU operator version
+                            gpu_install_driver=True,
+                            gpu_enable_nfd=False,
+                            mpi_operator_version="",  # Add appropriate version if needed
+                            efa_operator_version="",  # Add appropriate version if needed
+                            config_dir=gpu_config_dir
+                        )
+                        logger.info("GPU setup configuration completed successfully")
+                    except Exception as e:
+                        error_msg = f"GPU setup configuration failed for '{node_pool_name}': {str(e)}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
 
             logger.info(f"Waiting {step_wait_time} seconds before scaling down...")
             time.sleep(step_wait_time)
