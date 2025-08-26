@@ -53,9 +53,6 @@ def configure_clusterloader2(
     cilium_enabled,
     scrape_containerd,
     service_test,
-    num_cnps,
-    num_ccnps,
-    dualstack,
     override_file):
 
     steps = node_count // node_per_step
@@ -225,10 +222,6 @@ def main():
                                   help="Whether to scrape containerd metrics. Must be either True or False")
     parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
-    parser_configure.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-    parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
-    parser_configure.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -270,7 +263,7 @@ def main():
         configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
                                  args.repeats, args.operation_timeout, args.provider,
                                  args.cilium_enabled, args.scrape_containerd,
-                                 args.service_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+                                 args.service_test, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout)
     elif args.command == "execute":
