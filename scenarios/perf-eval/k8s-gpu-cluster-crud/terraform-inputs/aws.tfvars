@@ -54,9 +54,9 @@ network_config_list = [
         nat_gateway_name = null
       },
       {
-        name             = "private-rt"
+        name             = "private-rt-1"
         cidr_block       = "0.0.0.0/0"
-        nat_gateway_name = "nat-gateway"
+        nat_gateway_name = "nat-gateway-1"
       },
       {
         name             = "private-rt-2"
@@ -71,7 +71,7 @@ network_config_list = [
     ],
     route_table_associations = [
       {
-        name             = "gpu-public-rt-assoc"
+        name             = "gpu-public-rt-assoc-1"
         subnet_name      = "gpu-public-subnet-1"
         route_table_name = "internet-rt"
       },
@@ -88,7 +88,7 @@ network_config_list = [
       {
         name             = "gpu-private-rt-assoc-1"
         subnet_name      = "gpu-private-subnet-1"
-        route_table_name = "private-rt"
+        route_table_name = "private-rt-1"
       },
       {
         name             = "gpu-private-rt-assoc-2"
@@ -114,7 +114,7 @@ network_config_list = [
     }
     nat_gateway_public_ips = [
       {
-        name = "nat-gateway-pip"
+        name = "nat-gateway-pip-1"
       },
       {
         name = "nat-gateway-pip-2"
@@ -125,8 +125,8 @@ network_config_list = [
     ]
     nat_gateways = [
       {
-        name           = "nat-gateway"
-        public_ip_name = "nat-gateway-pip"
+        name           = "nat-gateway-1"
+        public_ip_name = "nat-gateway-pip-1"
         subnet_name    = "gpu-public-subnet-1"
       },
       {
