@@ -201,18 +201,18 @@ class EKSClient:
         try:
             # Try to find existing node groups to get the role
             response = self.eks.list_nodegroups(clusterName=self.cluster_name)
-            if response["nodegroups"]:
-                # Get the first node group's role as template
-                first_ng = response["nodegroups"][0]
-                ng_info = self.get_node_group(first_ng)
-                node_role_arn = ng_info["nodeRole"]
-                logger.info(
-                    "Found node role ARN from existing node group: %s",
-                    node_role_arn,
-                )
-                return node_role_arn
+            if not response["nodegroups"]:
+                raise Exception("No node groups found for cluster: " + self.cluster_name)
+            first_ng = response["nodegroups"][0]
+            ng_info = self.get_node_group(first_ng)
+            node_role_arn = ng_info["nodeRole"]
+            logger.info(
+                "Found node role ARN from existing node group: %s",
+                node_role_arn,
+            )
+            return node_role_arn
         except Exception as e:
-            logger.warning("Could not find existing node group role: %s", e)
+            raise Exception(f"Could not find existing node group role: {e}") from e
 
     def _create_node_role_arn(self):
         """
@@ -337,7 +337,7 @@ class EKSClient:
                     principalArn=self.node_role_arn
                 )
                 logger.info("Access entry already exists: %s", response['accessEntry']['accessEntryArn'])
-                return
+                return self._serialize_aws_response(response["accessEntry"])
             except self.eks.exceptions.ResourceNotFoundException:
                 pass
 
@@ -1130,11 +1130,10 @@ class EKSClient:
             if e.response["Error"]["Code"] == "InvalidLaunchTemplateName.NotFoundException":
                 logger.debug("Launch template '%s' does not exist", template_name)
                 return None
-            else:
-                logger.error(
-                    "Error checking launch template existence: %s", str(e)
-                )
-                raise
+            logger.error(
+                "Error checking launch template existence: %s", str(e)
+            )
+            raise
 
     def _create_default_launch_template(
         self,

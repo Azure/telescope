@@ -7,32 +7,8 @@ import unittest
 from unittest import mock
 import os
 from datetime import datetime, timedelta
+from botocore.exceptions import ClientError, WaiterError
 from clients.eks_client import EKSClient
-
-
-# Mock botocore exceptions to avoid import issues in test environment
-class MockClientError(Exception):
-    """Mock implementation of boto3 ClientError for testing"""
-
-    def __init__(self, error_response, operation_name):
-        self.response = error_response
-        self.operation_name = operation_name
-        super().__init__(f"{operation_name}: {error_response}")
-
-
-class MockWaiterError(Exception):
-    """Mock implementation of boto3 WaiterError for testing"""
-
-    def __init__(self, name, reason, last_response):
-        self.name = name
-        self.reason = reason
-        self.last_response = last_response
-        super().__init__(f"{name}: {reason}")
-
-
-# Use mock exceptions instead of real ones
-ClientError = MockClientError
-WaiterError = MockWaiterError
 
 
 class TestEKSClient(unittest.TestCase):
@@ -74,17 +50,18 @@ class TestEKSClient(unittest.TestCase):
 
         # Mock EC2 client for subnets and launch templates
         self.mock_ec2 = mock.MagicMock()
+        self.mock_iam = mock.MagicMock()
         mock_boto3.client.side_effect = lambda service, **kwargs: {
             "eks": self.mock_eks,
             "ec2": self.mock_ec2,
-            "iam": mock.MagicMock(),
+            "iam": self.mock_iam,
         }.get(service, mock.MagicMock())
 
         # Mock subnet response
         self.mock_ec2.describe_subnets.return_value = {
             "Subnets": [
-                {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": True},
-                {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": True},
+                {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": False},
+                {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": False},
             ]
         }
 
@@ -93,6 +70,42 @@ class TestEKSClient(unittest.TestCase):
         self.mock_eks.describe_nodegroup.return_value = {
             "nodegroup": {"nodeRole": "arn:aws:iam::123456789012:role/eksNodeRole"}
         }
+
+        # Mock IAM responses for role creation
+        self.mock_iam.get_role.return_value = {
+            "Role": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": {"Service": "ec2.amazonaws.com"},
+                        "Action": "sts:AssumeRole"
+                    }]
+                },
+                "Tags": [],
+                "Arn": "arn:aws:iam::123456789012:role/eks-node-role-test-cluster-123"
+            }
+        }
+        self.mock_iam.list_attached_role_policies.return_value = {
+            "AttachedPolicies": [
+                {"PolicyName": "AmazonEKSWorkerNodePolicy", "PolicyArn": "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"}
+            ]
+        }
+        self.mock_iam.list_role_policies.return_value = {"PolicyNames": []}
+        self.mock_iam.create_role.return_value = {
+            "Role": {"Arn": "arn:aws:iam::123456789012:role/eks-node-role-test-cluster-123"}
+        }
+
+        # Mock launch template responses - by default, no existing templates
+        self.mock_ec2.describe_launch_templates.side_effect = ClientError(
+            error_response={
+                "Error": {
+                    "Code": "InvalidLaunchTemplateName.NotFoundException",
+                    "Message": "Template not found",
+                }
+            },
+            operation_name="DescribeLaunchTemplates",
+        )
 
         # Mock Kubernetes client
         self.k8s_patcher = mock.patch("clients.eks_client.KubernetesClient")
@@ -667,8 +680,11 @@ class TestEKSClient(unittest.TestCase):
         # Setup
         self.mock_eks.list_nodegroups.return_value = {"nodegroups": []}
 
-        # Execute - should not raise exception
-        EKSClient()
+        # Execute - should raise exception for no existing node groups
+        with self.assertRaises(Exception) as context:
+            EKSClient()
+
+        self.assertIn("Could not find existing node group role:", str(context.exception))
 
     def test_get_operation_context(self):
         """Test operation context retrieval"""
@@ -779,10 +795,9 @@ class TestEKSClient(unittest.TestCase):
         # This is already tested implicitly in setUp, but we'll test explicitly
         eks_client = EKSClient()
 
-        # Verify role ARN was loaded
-        self.assertEqual(
-            eks_client.node_role_arn, "arn:aws:iam::123456789012:role/eksNodeRole"
-        )
+        # Verify role ARN was created based on the cluster name
+        expected_role_arn = "arn:aws:iam::123456789012:role/eks-node-role-test-cluster-123"
+        self.assertEqual(eks_client.node_role_arn, expected_role_arn)
 
     def test_get_cluster_data_with_exception_handling(self):
         """Test cluster data retrieval with unexpected exception"""
@@ -1831,8 +1846,8 @@ class TestEKSClient(unittest.TestCase):
             # Setup multiple subnets, including two in us-west-2a
             mock_ec2.describe_subnets.return_value = {
                 "Subnets": [
-                    {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": True},
-                    {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": True},
+                    {"SubnetId": "subnet-123", "AvailabilityZone": "us-west-2a", "MapPublicIpOnLaunch": False},
+                    {"SubnetId": "subnet-456", "AvailabilityZone": "us-west-2b", "MapPublicIpOnLaunch": False},
                     {
                         "SubnetId": "subnet-789",
                         "AvailabilityZone": "us-west-2a",
@@ -1905,10 +1920,10 @@ class TestEKSClient(unittest.TestCase):
                 self.assertIn("subnets", create_call)
                 # Should contain both subnets in us-west-2a
                 self.assertEqual(
-                    sorted(create_call["subnets"]), ["subnet-123", "subnet-789"]
+                    sorted(create_call["subnets"]), ["subnet-123"]
                 )
 
-    def test_capacity_reservation_non_capacity_block_no_filtering(self):
+    def test_capacity_reservation_non_capacity_block_all_private_filtering(self):
         """Test that subnet filtering is not applied for non-CAPACITY_BLOCK types"""
         # Setup
         eks_client = EKSClient()
@@ -1941,7 +1956,7 @@ class TestEKSClient(unittest.TestCase):
         # Check that all subnets were used (should be empty for non-CAPACITY_BLOCK)
         create_call = self.mock_eks.create_nodegroup.call_args[1]
         self.assertIn("subnets", create_call)
-        self.assertEqual(create_call["subnets"], [])
+        self.assertEqual(create_call["subnets"], ["subnet-123", "subnet-456"])
 
     def test_describe_instance_types_success(self):
         """Test successful describe_instance_types operation"""
@@ -2140,7 +2155,7 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(nic["NetworkCardIndex"], 0)  # First interface should have NetworkCardIndex 0
         self.assertEqual(nic["DeviceIndex"], 0)
         self.assertEqual(nic["InterfaceType"], "efa")
-        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertFalse(nic["AssociatePublicIpAddress"])  # Should be False for private subnets
         self.assertTrue(nic["DeleteOnTermination"])
 
     def test_launch_template_network_interfaces_multiple_nics(self):
@@ -2187,17 +2202,17 @@ class TestEKSClient(unittest.TestCase):
         create_lt_call_args = self.mock_ec2.create_launch_template.call_args[1]
         launch_template_data = create_lt_call_args["LaunchTemplateData"]
 
-        # Verify NetworkInterfaces (current implementation only creates 1 NIC)
+        # Verify NetworkInterfaces based on MaximumNetworkCards
         self.assertIn("NetworkInterfaces", launch_template_data)
         network_interfaces = launch_template_data["NetworkInterfaces"]
-        self.assertEqual(len(network_interfaces), 1)  # Current implementation only creates 1 NIC
+        self.assertEqual(len(network_interfaces), 4)  # Should match MaximumNetworkCards
 
-        # Verify the single NIC configuration
+        # Verify the first NIC configuration
         nic = network_interfaces[0]
         self.assertEqual(nic["NetworkCardIndex"], 0)
         self.assertEqual(nic["DeviceIndex"], 0)
         self.assertEqual(nic["InterfaceType"], "efa")
-        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertFalse(nic["AssociatePublicIpAddress"])  # Should be False for private subnets
         self.assertTrue(nic["DeleteOnTermination"])
 
     def test_launch_template_network_interfaces_missing_network_info(self):
@@ -2349,17 +2364,16 @@ class TestEKSClient(unittest.TestCase):
         self.assertEqual(len(block_devices), 1)
         self.assertEqual(block_devices[0]["DeviceName"], "/dev/xvda")
 
-        # Verify NetworkInterfaces based on current implementation (single NIC only)
         self.assertIn("NetworkInterfaces", launch_template_data)
         network_interfaces = launch_template_data["NetworkInterfaces"]
-        self.assertEqual(len(network_interfaces), 1)  # Current implementation only creates 1 NIC
+        self.assertEqual(len(network_interfaces), 4)
 
-        # Verify the single NIC configuration
+        # Verify the first NIC configuration
         nic = network_interfaces[0]
         self.assertEqual(nic["NetworkCardIndex"], 0)
         self.assertEqual(nic["DeviceIndex"], 0)
         self.assertEqual(nic["InterfaceType"], "efa")
-        self.assertTrue(nic["AssociatePublicIpAddress"])  # Updated to match the implementation
+        self.assertFalse(nic["AssociatePublicIpAddress"])  # Should be False for private subnets
         self.assertTrue(nic["DeleteOnTermination"])
 
 
