@@ -14,7 +14,8 @@ POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "StatelessPodStartupLatency_PodStartupLatency_": "StatelessPodStartupLatency_PodStartupLatency",
 }
 NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus",
-                           "InClusterNetworkLatency", "NetworkProgrammingLatency"]
+                           "InClusterNetworkLatency", 
+                           "NetworkProgrammingLatency"]
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
 NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
@@ -105,6 +106,7 @@ def get_measurement(file_path):
         group_name = file_name.split("_")[1]
         return SCHEDULING_THROUGHPUT_PREFIX, group_name
     return None, None
+
 
 def process_cl2_reports(cl2_report_dir, template):
     content = ""
