@@ -330,7 +330,7 @@ class KubernetesClient:
             label_selector=label_selector,
         )
 
-    def wait_for_pods_completed(self, label_selector, namespace="default", timeout=300):
+    def wait_for_pods_completed(self, label_selector, namespace="default", timeout=300, pod_count=None):
         """
         Waits for pods with a specific label to complete successfully their execution within a specified timeout.
         Raises an exception if the pods do not complete within the timeout.
@@ -340,27 +340,28 @@ class KubernetesClient:
         :param timeout: The timeout in seconds to wait for the pod to complete (default: 300 seconds).
         :return: None
         """
+        # If pod_count is provided, use it for logging
+        if pod_count is not None:
+            logger.info(f"Waiting for {pod_count} pod(s) with label {label_selector}in namespace '{namespace}' to complete")
+        else:
+            logger.info(f"Waiting for pods with label '{label_selector}' in namespace '{namespace}' to complete")
         start_time = time.time()
         while time.time() - start_time < timeout:
-            logger.info(
-                f"Waiting for pods with label '{label_selector}' in namespace '{namespace}' to complete..."
-            )
             pods = self.get_pods_by_namespace(
-                namespace=namespace, label_selector=label_selector
-            )
+                    namespace=namespace, label_selector=label_selector
+                )
             if not pods:
-                raise Exception(f"No pods found with label '{label_selector}' in namespace '{namespace}'.")
-            all_completed = True
+                raise Exception(f"No pods found with selector '{label_selector}' in namespace '{namespace}'")
+            current_pod_count = pod_count
+            if current_pod_count is None:
+                current_pod_count = len(pods)
+            completed_pods = []
             for pod in pods:
                 logger.info(f"Pod '{pod.metadata.name}' status: {pod.status.phase}")
-                if pod.status.phase != "Succeeded":
-                    all_completed = False
-                    break
-            if all_completed:
-                logger.info(
-                    f"All pods with label '{label_selector}' in namespace '{namespace}' have completed successfully."
-                )
-                return pods
+                if pod.status.phase == "Succeeded":
+                    completed_pods.append(pod)
+                if len(completed_pods) == current_pod_count:
+                    return completed_pods
             sleep_time = 10
             logger.info(f"Waiting for {sleep_time} seconds before checking pod status again.")
             time.sleep(sleep_time)

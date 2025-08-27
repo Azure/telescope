@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 from typing import Dict, Any
+import yaml
 import requests
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
@@ -311,6 +312,43 @@ def install_efa_operator(
     )
 
 
+def _get_gpu_node_count_and_allocatable() -> tuple[int, int]:
+    """
+    Get the number of GPU nodes and the allocatable GPU resource per node, assuming each node has the same amount of GPU allocatable.
+
+    Returns:
+        tuple[int, int]: A tuple containing the number of GPU nodes and the allocatable GPU resources per node.
+    """
+    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="nvidia.com/gpu.present=true")
+    if len(nodes) == 0:
+        raise RuntimeError("No GPU nodes found in the cluster")
+    gpu_node_count = len(nodes)
+
+    gpu_allocatable = int(nodes[0].status.allocatable.get("nvidia.com/gpu", 0))
+    if gpu_allocatable <= 0:
+        raise RuntimeError("No allocatable GPU resources found on the GPU nodes")
+
+    return gpu_node_count, gpu_allocatable
+
+
+def _get_efa_allocatable() -> int:
+    """
+    Get the allocatable efa resources from the EKS nodes, assuming each node has the same amount of efa allocatable.
+
+    Returns:
+        int: The number of allocatable EFA resources.
+    """
+    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="nvidia.com/gpu.present=true")
+    if len(nodes) == 0:
+        raise RuntimeError("No GPU nodes found in the cluster")
+
+    efa_allocatable = int(nodes[0].status.allocatable.get("vpc.amazonaws.com/efa", 0))
+    if efa_allocatable <= 0:
+        raise RuntimeError("No allocatable EFA resources found on the GPU nodes")
+
+    return efa_allocatable
+
+
 def execute(
     provider: str,
     config_dir: str,
@@ -326,13 +364,29 @@ def execute(
         result_dir:
         vm_size: Type of the machine (e.g., "ndv4", "ndv5")
     """
+    gpu_node_count, gpu_allocatable = _get_gpu_node_count_and_allocatable()
+    replacements = {
+        "slots_per_worker": gpu_allocatable,
+        "number_of_processes": gpu_node_count * gpu_allocatable,
+        "replicas": gpu_node_count,
+        "gpu_allocatable": gpu_allocatable,
+    }
     if provider.lower() == "azure":
         _create_topology_configmap(vm_size=vm_size)
 
+    if provider.lower() == "aws":
+        efa_allocatable = _get_efa_allocatable()
+        replacements["efa_allocatable"] = efa_allocatable
+
     nccl_file = f"{config_dir}/nccl-tests/{provider}-mpijob.yaml"
-    KUBERNETES_CLIENT.apply_manifest_from_file(nccl_file)
+    logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
+    nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
+    nccl_dict = yaml.safe_load(nccl_template)
+    KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     pods = execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_pods_completed, label_selector="component=launcher"
+        KUBERNETES_CLIENT.wait_for_pods_completed,
+        label_selector="component=launcher",
+        pod_count=1,
     )
     pod_name = pods[0].metadata.name
     raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
