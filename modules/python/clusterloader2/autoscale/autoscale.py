@@ -220,11 +220,39 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir)
+        override_config_clusterloader2(
+            args.cpu_per_node,
+            args.node_count,
+            args.pod_count,
+            args.scale_up_timeout,
+            args.scale_down_timeout,
+            args.loop_count,
+            args.node_label_selector,
+            args.node_selector,
+            args.cl2_override_file,
+            args.warmup_deployment,
+            args.cl2_config_dir,
+        )
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(
+            args.cl2_image,
+            args.cl2_config_dir,
+            args.cl2_report_dir,
+            args.kubeconfig,
+            args.provider,
+        )
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(
+            args.cpu_per_node,
+            args.capacity_type,
+            args.node_count,
+            args.pod_count,
+            args.cl2_report_dir,
+            args.cloud_info,
+            args.run_id,
+            args.run_url,
+            args.result_file,
+        )
 
 if __name__ == "__main__":
     main()
