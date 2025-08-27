@@ -1,6 +1,6 @@
 # Overview
 
-The CRUD module provides comprehensive node pool management operations for Kubernetes clusters across multiple cloud providers (Azure, AWS, GCP). It supports creating, scaling, deleting node pools, and collecting benchmark results from CRUD operations.
+The CRUD module provides comprehensive node pool management operations for Kubernetes clusters across multiple cloud providers (Azure, AWS). It supports creating, scaling, deleting node pools, and collecting benchmark results from CRUD operations.
 
 ## Prerequisite
 
@@ -18,34 +18,37 @@ The CRUD module provides comprehensive node pool management operations for Kuber
 
 ## Define Variables
 
+### Common Variables
 ```bash
 pushd modules/python
 PYTHON_SCRIPT_FILE=crud/main.py
-VM_SIZE=Standard_NC40ads_H100_v5
 CREATE_NODE_COUNT=0
 SCALE_NODE_COUNT=2
 SCALE_STEP_SIZE=1
-NODE_POOL_NAME=h100nodepool
-CLOUD="azure"  # "aws"
 STEP_TIME_OUT=600
 RESULT_DIR=/tmp/${RUN_ID}
 GPU_NODE_POOL=True
 STEP_WAIT_TIME=30
-
-mkdir -p $RESULT_DIR
-
-# Common Export variables
 export RUN_ID=$RUN_ID
 export SCENARIO_TYPE=$SCENARIO_TYPE
 export SCENARIO_NAME=$SCENARIO_NAME
-
-# Azure Export Variables
+```
+### Azure Variables
+```bash
+NODE_POOL_NAME=h100nodepool
+VM_SIZE=Standard_NC40ads_H100_v5
+CLOUD="azure"
 export REGION="australiaeast"
 export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-# AWS Export Variables
-export AWS_DEFAULT_REGION=us-east-1
 ```
-
+### AWS Variables
+```bash
+NODE_POOL_NAME=a100nodepool
+VM_SIZE=p4d.24xlarge
+export AWS_DEFAULT_REGION="us-east-1"
+CAPACITY_TYPE="CAPACITY_BLOCK"
+```
+mkdir -p $RESULT_DIR
 ## Create Node Pool
 
 Create a new node pool in your Kubernetes cluster:
@@ -58,14 +61,11 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
   --vm-size $VM_SIZE \
   --node-count $CREATE_NODE_COUNT \
   --step-timeout $STEP_TIME_OUT \
-  ${GPU_NODE_POOL:+--gpu-node-pool} \
-  --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
+  ${GPU_NODE_POOL:+--gpu-node-pool}
+  --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}" 
 ```
 
 ## Scale Up Node Pool
-
-Scale an existing node pool to a target count:
-
 ```bash
 
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
@@ -81,11 +81,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
 ```
 
 ## Scale Down Node Pool
-
-Scale an existing node pool to a target count:
-
 ```bash
-
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
   --cloud $CLOUD \
   --run-id $RUN_ID \
@@ -94,8 +90,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
   --target-count $CREATE_NODE_COUNT \
   --scale-step-size $SCALE_STEP_SIZE \
   --step-wait-time $STEP_WAIT_TIME \
-  --step-timeout $STEP_TIME_OUT \
   ${GPU_NODE_POOL:+--gpu-node-pool}
+  --step-timeout $STEP_TIME_OUT
 ```
 
 ## Delete Node Pool
@@ -139,26 +135,5 @@ Collect and process benchmark results from JSON files:
 export RESULT_DIR=/tmp/${RUN_ID}
 export RUN_URL="https://example.com/pipeline/run"
 
-
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 crud/main.py collect
 ```
-
-## AWS-Specific Options
-
-For AWS deployments, you can specify capacity type:
-
-```bash
-CAPACITY_TYPE="SPOT"  # or "ON_DEMAND", "CAPACITY_BLOCK"
-
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 crud/main.py create \
-  --cloud aws \
-  --run-id $RUN_ID \
-  --result-dir $RESULT_DIR \
-  --node-pool-name $NODE_POOL_NAME \
-  --vm-size "t3.medium" \
-  --node-count $NODE_COUNT \
-  --capacity-type $CAPACITY_TYPE \
-  --step-timeout 600
-```
-
-
