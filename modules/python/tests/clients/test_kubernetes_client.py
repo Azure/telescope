@@ -1343,14 +1343,14 @@ class TestKubernetesClient(unittest.TestCase):
 
     @patch("time.sleep", return_value=None)
     @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
-    def test_wait_for_pods_completed_success(self, mock_get_pods, mock_sleep):
+    def test_wait_for_pods_completed_success(self, mock_get_pods, _mock_sleep):
         """Test wait_for_pods_completed when all pods complete successfully."""
         label_selector = "app=test"
         namespace = "default"
         pod1 = self._create_pod(
             namespace="default",
             name="pod1",
-            phase="Pending",
+            phase="Succeeded",
         )
         pod2 = self._create_pod(
             namespace="default",
@@ -1362,16 +1362,15 @@ class TestKubernetesClient(unittest.TestCase):
             name="pod3",
             phase="Succeeded",
         )
+        # First call returns pods that are not all completed, second call returns all completed
         mock_get_pods.side_effect = [
-            [pod1, pod2, pod3],
-            [pod2, pod3],
+            [pod1, pod2, pod3],  # All pods found and completed
         ]
         result = self.client.wait_for_pods_completed(
             label_selector, namespace, timeout=1
         )
-        self.assertEqual(result, [pod2, pod3])
-        self.assertGreaterEqual(mock_get_pods.call_count, 2)
-        mock_sleep.assert_called()
+        self.assertEqual(result, [pod1, pod2, pod3])
+        mock_get_pods.assert_called_with(namespace=namespace, label_selector=label_selector)
 
     @patch("time.sleep", return_value=None)
     @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
@@ -1388,7 +1387,7 @@ class TestKubernetesClient(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             self.client.wait_for_pods_completed(label_selector, namespace, timeout=0.01)
         self.assertIn(
-            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete",
+            f"Pods with label '{label_selector}' in namespace '{namespace}' did not complete within 0.01 seconds",
             str(context.exception),
         )
         mock_sleep.assert_called()
@@ -1402,12 +1401,73 @@ class TestKubernetesClient(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             self.client.wait_for_pods_completed(label_selector, namespace, timeout=1)
         self.assertIn(
-            f"No pods found with label '{label_selector}' in namespace '{namespace}'.",
+            f"No pods found with selector '{label_selector}' in namespace '{namespace}'",
             str(context.exception),
         )
         mock_get_pods.assert_called_once_with(
             namespace=namespace, label_selector=label_selector
         )
+
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_with_pod_count(self, mock_get_pods, _mock_sleep):
+        """Test wait_for_pods_completed with specific pod_count parameter."""
+        label_selector = "app=test"
+        namespace = "default"
+        pod1 = self._create_pod(
+            namespace="default",
+            name="pod1",
+            phase="Succeeded",
+        )
+        pod2 = self._create_pod(
+            namespace="default",
+            name="pod2",
+            phase="Succeeded",
+        )
+        pod3 = self._create_pod(
+            namespace="default",
+            name="pod3",
+            phase="Pending",
+        )
+        mock_get_pods.return_value = [pod1, pod2, pod3]
+
+        # Wait for only 2 pods to complete (pod_count=2)
+        result = self.client.wait_for_pods_completed(
+            label_selector, namespace, timeout=1, pod_count=2
+        )
+        self.assertEqual(result, [pod1, pod2])
+        mock_get_pods.assert_called_with(namespace=namespace, label_selector=label_selector)
+
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pods_by_namespace")
+    def test_wait_for_pods_completed_early_return_logic(self, mock_get_pods, mock_sleep):
+        """Test wait_for_pods_completed returns when expected count is reached in single iteration."""
+        label_selector = "app=test"
+        namespace = "default"
+        pod1 = self._create_pod(
+            namespace="default",
+            name="pod1",
+            phase="Succeeded",
+        )
+        pod2 = self._create_pod(
+            namespace="default",
+            name="pod2",
+            phase="Succeeded",
+        )
+        pod3 = self._create_pod(
+            namespace="default",
+            name="pod3",
+            phase="Pending",
+        )
+        mock_get_pods.return_value = [pod1, pod2, pod3]
+
+        # This should return when exactly 2 pods are completed, even if there's a 3rd pending pod
+        result = self.client.wait_for_pods_completed(
+            label_selector, namespace, timeout=1, pod_count=2
+        )
+        self.assertEqual(result, [pod1, pod2])
+        # Should not call sleep since it returns immediately
+        mock_sleep.assert_not_called()
 
     @patch("kubernetes.client.BatchV1Api.read_namespaced_job")
     def test_wait_for_job_completed_success(self, mock_read_job):
