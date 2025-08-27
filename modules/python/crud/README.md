@@ -54,44 +54,44 @@ mkdir -p $RESULT_DIR
 Create a new node pool in your Kubernetes cluster:
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
-  --cloud $CLOUD \
-  --run-id $RUN_ID \
-  --result-dir "$RESULT_DIR" \
-  --node-pool-name "$NODE_POOL_NAME" \
-  --vm-size $VM_SIZE \
-  --node-count $CREATE_NODE_COUNT \
-  --step-timeout $STEP_TIME_OUT \
-  ${GPU_NODE_POOL:+--gpu-node-pool}
-  --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}" 
+    --cloud $CLOUD \
+    --run-id $RUN_ID \
+    --result-dir "$RESULT_DIR" \
+    --node-pool-name "$NODE_POOL_NAME" \
+    --vm-size $VM_SIZE \
+    --node-count $CREATE_NODE_COUNT \
+    --step-timeout $STEP_TIME_OUT \
+    ${GPU_NODE_POOL:+--gpu-node-pool}
+    --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 ```
 
 ## Scale Up Node Pool
 ```bash
 
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
-  --cloud $CLOUD \
-  --run-id $RUN_ID \
-  --result-dir $RESULT_DIR \
-  --node-pool-name $NODE_POOL_NAME \
-  --target-count $SCALE_NODE_COUNT \
-  --scale-step-size $SCALE_STEP_SIZE \
-  --step-wait-time $STEP_WAIT_TIME \
-  --step-timeout $STEP_TIME_OUT \
-  ${GPU_NODE_POOL:+--gpu-node-pool}
+    --cloud $CLOUD \
+    --run-id $RUN_ID \
+    --result-dir $RESULT_DIR \
+    --node-pool-name $NODE_POOL_NAME \
+    --target-count $SCALE_NODE_COUNT \
+    --scale-step-size $SCALE_STEP_SIZE \
+    --step-wait-time $STEP_WAIT_TIME \
+    --step-timeout $STEP_TIME_OUT \
+    ${GPU_NODE_POOL:+--gpu-node-pool}
 ```
 
 ## Scale Down Node Pool
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
-  --cloud $CLOUD \
-  --run-id $RUN_ID \
-  --result-dir $RESULT_DIR \
-  --node-pool-name $NODE_POOL_NAME \
-  --target-count $CREATE_NODE_COUNT \
-  --scale-step-size $SCALE_STEP_SIZE \
-  --step-wait-time $STEP_WAIT_TIME \
-  ${GPU_NODE_POOL:+--gpu-node-pool}
-  --step-timeout $STEP_TIME_OUT
+    --cloud $CLOUD \
+    --run-id $RUN_ID \
+    --result-dir $RESULT_DIR \
+    --node-pool-name $NODE_POOL_NAME \
+    --target-count $CREATE_NODE_COUNT \
+    --scale-step-size $SCALE_STEP_SIZE \
+    --step-wait-time $STEP_WAIT_TIME \
+    --step-timeout $STEP_TIME_OUT \
+    ${GPU_NODE_POOL:+--gpu-node-pool}
 ```
 
 ## Delete Node Pool
@@ -100,11 +100,11 @@ Delete an existing node pool:
 
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE delete \
-  --cloud $CLOUD \
-  --run-id $RUN_ID \
-  --result-dir $RESULT_DIR \
-  --node-pool-name $NODE_POOL_NAME \
-  --step-timeout $STEP_TIME_OUT
+    --cloud $CLOUD \
+    --run-id $RUN_ID \
+    --result-dir $RESULT_DIR \
+    --node-pool-name $NODE_POOL_NAME \
+    --step-timeout $STEP_TIME_OUT
 ```
 
 ## Complete Lifecycle (All Operations)
@@ -114,16 +114,17 @@ Run the complete node pool lifecycle - create, scale up, scale down, and delete:
 ```bash
 
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE all \
-  --cloud $CLOUD \
-  --run-id $RUN_ID \
-  --result-dir $RESULT_DIR \
-  --node-pool-name $NODE_POOL_NAME \
-  --vm-size $VM_SIZE \
-  --node-count $CREATE_NODE_COUNT \
-  --target-count $SCALE_NODE_COUNT \
-  --scale-step-size $SCALE_STEP_SIZE \
-  --step-wait-time $STEP_WAIT_TIME \
-  --step-timeout 600
+    --cloud $CLOUD \
+    --run-id $RUN_ID \
+    --result-dir $RESULT_DIR \
+    --node-pool-name $NODE_POOL_NAME \
+    --vm-size $VM_SIZE \
+    --node-count $CREATE_NODE_COUNT \
+    --target-count $SCALE_NODE_COUNT \
+    --scale-step-size $SCALE_STEP_SIZE \
+    --step-wait-time $STEP_WAIT_TIME \
+    --step-timeout $STEP_TIME_OUT \
+    ${GPU_NODE_POOL:+--gpu-node-pool}
 ```
 
 ## Collect Benchmark Results
@@ -135,5 +136,5 @@ Collect and process benchmark results from JSON files:
 export RESULT_DIR=/tmp/${RUN_ID}
 export RUN_URL="https://example.com/pipeline/run"
 
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 crud/main.py collect
+PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect
 ```
