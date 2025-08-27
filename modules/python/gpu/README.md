@@ -7,7 +7,7 @@ The example below installs 3 operatiors: network operator, gpu operator, and mpi
 ```bash
 pushd modules/python
 EFA_OPERATOR_VERSION="v0.5.7" # Set for AWS only
-NETWORK_OPERATOR_VERSION="v25.4.0"
+NETWORK_OPERATOR_VERSION="v25.4.0" # Do not set for AWS
 GPU_OPERATOR_VERSION="v25.3.1"
 GPU_INSTALL_DRIVER=True # False for AWS
 GPU_ENABLE_NFD=False # True for AWS

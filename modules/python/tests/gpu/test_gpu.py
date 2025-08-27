@@ -6,6 +6,7 @@ import unittest
 import os
 import tempfile
 from unittest.mock import patch, MagicMock, mock_open, call
+import unittest.mock
 import requests
 
 # Mock kubernetes config before importing
@@ -13,6 +14,8 @@ with patch("kubernetes.config.load_kube_config"):
     from gpu.gpu import (
         _install_operator,
         _verify_rdma,
+        _get_gpu_node_count_and_allocatable,
+        _get_efa_allocatable,
         install_network_operator,
         install_gpu_operator,
         install_mpi_operator,
@@ -384,13 +387,26 @@ class TestGPU(unittest.TestCase):
         with self.assertRaises(requests.RequestException):
             _create_topology_configmap(vm_size=self.test_vm_size)
 
+    @patch("yaml.safe_load")
     @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._create_topology_configmap")
     def test_execute_azure_provider(
-        self, mock_topology, mock_k8s_client, _mock_execute_with_retries
+        self, mock_topology, mock_k8s_client, _mock_execute_with_retries, mock_yaml
     ):
         """Test execute function with Azure provider."""
+        # Mock GPU nodes
+        mock_node = MagicMock()
+        mock_node.status.allocatable = {"nvidia.com/gpu": "2"}
+        mock_k8s_client.get_nodes.return_value = [
+            mock_node,
+            mock_node,
+        ]  # 2 nodes with 2 GPUs each
+
+        # Mock template creation and YAML loading
+        mock_k8s_client.create_template.return_value = "mocked template content"
+        mock_yaml.return_value = {"kind": "MPIJob", "metadata": {"name": "test"}}
+
         mock_pod = MagicMock()
         mock_pod.metadata.name = "test-pod"
         _mock_execute_with_retries.return_value = [mock_pod]
@@ -407,7 +423,7 @@ class TestGPU(unittest.TestCase):
 
             mock_topology.assert_called_once_with(vm_size=self.test_vm_size)
             mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
-                f"{self.test_config_dir}/nccl-tests/{provider}-mpijob.yaml"
+                manifest_dict=unittest.mock.ANY
             )
             # Verify execute_with_retries is called once for waiting for pods
             _mock_execute_with_retries.assert_called_once()
@@ -415,13 +431,29 @@ class TestGPU(unittest.TestCase):
                 f"{self.test_result_dir}/raw.log", "w", encoding="utf-8"
             )
 
+    @patch("yaml.safe_load")
     @patch("gpu.gpu.execute_with_retries")
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu._create_topology_configmap")
     def test_execute_aws_provider(
-        self, mock_topology, mock_k8s_client, _mock_execute_with_retries
+        self, mock_topology, mock_k8s_client, _mock_execute_with_retries, mock_yaml
     ):
         """Test execute function with AWS provider."""
+        # Mock GPU nodes with EFA resources
+        mock_node = MagicMock()
+        mock_node.status.allocatable = {
+            "nvidia.com/gpu": "2",
+            "vpc.amazonaws.com/efa": "1",
+        }
+        mock_k8s_client.get_nodes.return_value = [
+            mock_node,
+            mock_node,
+        ]  # 2 nodes with 2 GPUs and 1 EFA each
+
+        # Mock template creation and YAML loading
+        mock_k8s_client.create_template.return_value = "mocked template content"
+        mock_yaml.return_value = {"kind": "MPIJob", "metadata": {"name": "test"}}
+
         mock_pod = MagicMock()
         mock_pod.metadata.name = "test-pod"
         _mock_execute_with_retries.return_value = [mock_pod]
@@ -438,7 +470,7 @@ class TestGPU(unittest.TestCase):
 
             mock_topology.assert_not_called()
             mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
-                f"{self.test_config_dir}/nccl-tests/{provider}-mpijob.yaml"
+                manifest_dict=unittest.mock.ANY
             )
             # Verify execute_with_retries is called once for waiting for pods
             _mock_execute_with_retries.assert_called_once()
@@ -609,6 +641,123 @@ class TestGPU(unittest.TestCase):
         _mock_configure.assert_not_called()
         _mock_execute.assert_not_called()
         _mock_collect.assert_not_called()
+
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
+    def test_get_gpu_node_count_and_allocatable(self, mock_k8s_client):
+        """Test GPU node count and allocatable retrieval with various scenarios."""
+
+        # Test Case 1: Success with multiple nodes
+        mock_node1 = MagicMock()
+        mock_node1.status.allocatable = {"nvidia.com/gpu": "4"}
+        mock_node2 = MagicMock()
+        mock_node2.status.allocatable = {"nvidia.com/gpu": "4"}
+        mock_k8s_client.get_nodes.return_value = [mock_node1, mock_node2]
+
+        node_count, gpu_allocatable = _get_gpu_node_count_and_allocatable()
+        self.assertEqual(node_count, 2)
+        self.assertEqual(gpu_allocatable, 4)
+
+        # Test Case 2: Success with single node
+        mock_node = MagicMock()
+        mock_node.status.allocatable = {"nvidia.com/gpu": "8"}
+        mock_k8s_client.get_nodes.return_value = [mock_node]
+
+        node_count, gpu_allocatable = _get_gpu_node_count_and_allocatable()
+        self.assertEqual(node_count, 1)
+        self.assertEqual(gpu_allocatable, 8)
+
+        # Test Case 3: No GPU nodes found
+        mock_k8s_client.get_nodes.return_value = []
+        with self.assertRaises(RuntimeError) as context:
+            _get_gpu_node_count_and_allocatable()
+        self.assertEqual(str(context.exception), "No GPU nodes found in the cluster")
+
+        # Test Case 4: Nodes with no GPU resources
+        mock_node_no_gpu = MagicMock()
+        mock_node_no_gpu.status.allocatable = {"cpu": "4", "memory": "16Gi"}
+        mock_k8s_client.get_nodes.return_value = [mock_node_no_gpu]
+        with self.assertRaises(RuntimeError) as context:
+            _get_gpu_node_count_and_allocatable()
+        self.assertEqual(
+            str(context.exception),
+            "No allocatable GPU resources found on the GPU nodes",
+        )
+
+        # Test Case 5: Nodes with zero GPU resources
+        mock_node_zero_gpu = MagicMock()
+        mock_node_zero_gpu.status.allocatable = {"nvidia.com/gpu": "0"}
+        mock_k8s_client.get_nodes.return_value = [mock_node_zero_gpu]
+        with self.assertRaises(RuntimeError) as context:
+            _get_gpu_node_count_and_allocatable()
+        self.assertEqual(
+            str(context.exception),
+            "No allocatable GPU resources found on the GPU nodes",
+        )
+
+        # Verify all calls used the correct label selector
+        for node_call in mock_k8s_client.get_nodes.call_args_list:
+            self.assertEqual(node_call[1]["label_selector"], "nvidia.com/gpu.present=true")
+
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
+    def test_get_efa_allocatable(self, mock_k8s_client):
+        """Test EFA allocatable retrieval with various scenarios."""
+
+        # Test Case 1: Success with EFA resources
+        mock_node_efa = MagicMock()
+        mock_node_efa.status.allocatable = {
+            "nvidia.com/gpu": "4",
+            "vpc.amazonaws.com/efa": "2",
+        }
+        mock_k8s_client.get_nodes.return_value = [mock_node_efa]
+
+        efa_allocatable = _get_efa_allocatable()
+        self.assertEqual(efa_allocatable, 2)
+
+        # Test Case 2: Single EFA resource
+        mock_node_single_efa = MagicMock()
+        mock_node_single_efa.status.allocatable = {
+            "nvidia.com/gpu": "8",
+            "vpc.amazonaws.com/efa": "1",
+        }
+        mock_k8s_client.get_nodes.return_value = [mock_node_single_efa]
+
+        efa_allocatable = _get_efa_allocatable()
+        self.assertEqual(efa_allocatable, 1)
+
+        # Test Case 3: No GPU nodes found
+        mock_k8s_client.get_nodes.return_value = []
+        with self.assertRaises(RuntimeError) as context:
+            _get_efa_allocatable()
+        self.assertEqual(str(context.exception), "No GPU nodes found in the cluster")
+
+        # Test Case 4: Nodes with no EFA resources
+        mock_node_no_efa = MagicMock()
+        mock_node_no_efa.status.allocatable = {"nvidia.com/gpu": "4", "cpu": "16"}
+        mock_k8s_client.get_nodes.return_value = [mock_node_no_efa]
+        with self.assertRaises(RuntimeError) as context:
+            _get_efa_allocatable()
+        self.assertEqual(
+            str(context.exception),
+            "No allocatable EFA resources found on the GPU nodes",
+        )
+
+        # Test Case 5: Nodes with zero EFA resources
+        mock_node_zero_efa = MagicMock()
+        mock_node_zero_efa.status.allocatable = {
+            "nvidia.com/gpu": "4",
+            "vpc.amazonaws.com/efa": "0",
+        }
+        mock_k8s_client.get_nodes.return_value = [mock_node_zero_efa]
+        with self.assertRaises(RuntimeError) as context:
+            _get_efa_allocatable()
+        self.assertEqual(
+            str(context.exception),
+            "No allocatable EFA resources found on the GPU nodes",
+        )
+
+        # Verify all calls used the correct label selector
+        for node_call in mock_k8s_client.get_nodes.call_args_list:
+            self.assertEqual(node_call[1]["label_selector"], "nvidia.com/gpu.present=true")
 
 
 if __name__ == "__main__":
