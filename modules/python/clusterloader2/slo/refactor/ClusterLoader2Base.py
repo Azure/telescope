@@ -2,9 +2,11 @@ import argparse
 from abc import ABC, abstractmethod
 from enum import Enum
 
+
 def private(func):
     """Empty decorator to mark methods as private (for notation only)."""
     return func
+
 
 class ClusterLoader2Base(ABC):
     class ArgsParser(ABC):
@@ -96,4 +98,3 @@ class ClusterLoader2Base(ABC):
             self.runner.collect()
         else:
             self.args_parser.print_help()            
-

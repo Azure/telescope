@@ -2,6 +2,7 @@ from xml.dom import minidom
 import json
 import os
 import docker
+from logging import Logger
 from clients.docker_client import DockerClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -24,9 +25,22 @@ SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX = "SchedulingThroughputPrometheus"
 SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
 
 
-def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
-                    enable_exec_service=False, scrape_kubelets=False,
-                    scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False):
+def run_cl2_command(
+    kubeconfig,
+    cl2_image,
+    cl2_config_dir,
+    cl2_report_dir,
+    provider,
+    cl2_config_file="config.yaml",
+    overrides=False,
+    enable_prometheus=False,
+    tear_down_prometheus=True,
+    enable_exec_service=False,
+    scrape_kubelets=False,
+    scrape_containerd=False,
+    scrape_ksm=False,
+    scrape_metrics_server=False,
+):
     docker_client = DockerClient()
 
     command = f"""--provider={provider} --v=2
@@ -70,13 +84,16 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         exit_code = result['StatusCode']
         if exit_code != 0:
             logger.error(
-                f"clusterloader2 exited with a non-zero status code {exit_code}. Make sure to check the logs to confirm whether the error is expected!")
+                f"clusterloader2 exited with a non-zero status code {exit_code}."
+                " Make sure to check the logs to confirm whether the error is expected!")
     except docker.errors.ContainerError as e:
         logger.error(
             f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
 
 
-def get_measurement(file_path):
+def get_measurement(
+    file_path,
+):
     file_name = os.path.basename(file_path)
     for file_prefix, measurement in POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP.items():
         if file_name.startswith(file_prefix):
@@ -108,7 +125,10 @@ def get_measurement(file_path):
     return None, None
 
 
-def process_cl2_reports(cl2_report_dir, template):
+def process_cl2_reports(
+    cl2_report_dir,
+    template,
+):
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
@@ -141,7 +161,10 @@ def process_cl2_reports(cl2_report_dir, template):
     return content
 
 
-def parse_xml_to_json(file_path, indent=0):
+def parse_xml_to_json(
+    file_path,
+    indent=0,
+) -> dict:
     with open(file_path, 'r', encoding='utf-8') as file:
         xml_content = file.read()
 
@@ -194,3 +217,29 @@ def parse_xml_to_json(file_path, indent=0):
     # Convert the result dictionary to JSON
     json_result = json.dumps(result, indent=indent)
     return json_result
+
+
+def write_to_file(
+    filename: str,
+    content: str,
+    logger: Logger=None,
+):
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(content)
+    
+    with open(filename, "r", encoding="utf-8") as file:
+        if logger:
+            logger.info(f"Content of file {filename}:\n{file.read()}")
+
+
+def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
+    details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    json_data = json.loads(details)
+    testsuites = json_data["testsuites"]
+
+    if testsuites:
+        status = "success" if testsuites[0]["failures"] == 0 else "failure"
+    else:
+        raise Exception(f"No testsuites found in the report! Raw data: {details}")
+    
+    return status, testsuites
