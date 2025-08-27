@@ -14,29 +14,49 @@ steps:
 - script: |
     set -eo pipefail
 
-    ARGS=(
-      "$PYTHON_SCRIPT_FILE"
-      all
-      --cloud "$CLOUD"
-      --run-id "$RUN_ID"
-      --node-pool-name "$POOL_NAME"
-      --node-count "$CREATE_NODE_COUNT"
-      --target-count "$SCALE_NODE_COUNT"
-      --vm-size "$VM_SIZE"
+    # Create Node Pool
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" create \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
+      --vm-size "$VM_SIZE" \
+      --node-count "$CREATE_NODE_COUNT" \
+      --step-timeout "$STEP_TIME_OUT" \
+      ${GPU_NODE_POOL:+--gpu-node-pool} \
+      --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
+
+    # Scale Up Node Pool
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
+      --target-count "$SCALE_NODE_COUNT" \
+      --scale-step-size "$SCALE_STEP_SIZE" \
+      --step-wait-time "$STEP_WAIT_TIME" \
+      --step-timeout "$STEP_TIME_OUT" \
+      ${GPU_NODE_POOL:+--gpu-node-pool}
+
+    # Scale Down Node Pool
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
+      --target-count "$CREATE_NODE_COUNT" \
+      --scale-step-size "$SCALE_STEP_SIZE" \
+      --step-wait-time "$STEP_WAIT_TIME" \
+      --step-timeout "$STEP_TIME_OUT" \
+      ${GPU_NODE_POOL:+--gpu-node-pool}
+
+    # Delete Node Pool
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" delete \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
       --step-timeout "$STEP_TIME_OUT"
-      --result-dir "$RESULT_DIR"
-      --scale-step-size "$SCALE_STEP_SIZE"
-      --step-wait-time "$STEP_WAIT_TIME"
-      --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"  # Default to ON_DEMAND if not set
-    )
-
-    # Conditionally add gpu-node
-    if [[ "${GPU_NODE_POOL,,}" == "true" ]]; then
-      ARGS+=(--gpu-node-pool)
-    fi
-
-    # Run the command
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "${ARGS[@]}"
   displayName: 'Execute K8s CRUD Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:

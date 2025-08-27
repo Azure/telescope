@@ -31,16 +31,19 @@ STEP_TIME_OUT=600
 RESULT_DIR=/tmp/${RUN_ID}
 GPU_NODE_POOL=True
 STEP_WAIT_TIME=30
-REGION="australiaeast"  # or your cloud region
 
 mkdir -p $RESULT_DIR
 
-# export AWS_DEFAULT_REGION=us-east-1 # Uncomment and set for AWS
+# Common Export variables
 export RUN_ID=$RUN_ID
 export SCENARIO_TYPE=$SCENARIO_TYPE
 export SCENARIO_NAME=$SCENARIO_NAME
-export REGION="eastus"  # for azure
+
+# Azure Export Variables
+export REGION="australiaeast"
 export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+# AWS Export Variables
+export AWS_DEFAULT_REGION=us-east-1
 ```
 
 ## Create Node Pool
@@ -54,8 +57,9 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
   --node-pool-name "$NODE_POOL_NAME" \
   --vm-size $VM_SIZE \
   --node-count $CREATE_NODE_COUNT \
-  --step-timeout 600 \
-  --gpu-node-pool  # Include this flag for GPU node pools
+  --step-timeout $STEP_TIME_OUT \
+  ${GPU_NODE_POOL:+--gpu-node-pool} \
+  --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 ```
 
 ## Scale Up Node Pool
@@ -72,7 +76,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
   --target-count $SCALE_NODE_COUNT \
   --scale-step-size $SCALE_STEP_SIZE \
   --step-wait-time $STEP_WAIT_TIME \
-  --step-timeout 600
+  --step-timeout $STEP_TIME_OUT \
+  ${GPU_NODE_POOL:+--gpu-node-pool}
 ```
 
 ## Scale Down Node Pool
@@ -89,7 +94,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
   --target-count $CREATE_NODE_COUNT \
   --scale-step-size $SCALE_STEP_SIZE \
   --step-wait-time $STEP_WAIT_TIME \
-  --step-timeout 600
+  --step-timeout $STEP_TIME_OUT \
+  ${GPU_NODE_POOL:+--gpu-node-pool}
 ```
 
 ## Delete Node Pool
@@ -102,7 +108,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE delete \
   --run-id $RUN_ID \
   --result-dir $RESULT_DIR \
   --node-pool-name $NODE_POOL_NAME \
-  --step-timeout 600
+  --step-timeout $STEP_TIME_OUT
 ```
 
 ## Complete Lifecycle (All Operations)
@@ -155,34 +161,4 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 crud/main.py create \
   --step-timeout 600
 ```
 
-## Common Arguments
 
-All node pool operations support these common arguments:
-
-- `--cloud`: Cloud provider (`azure`, `aws`, `gcp`)
-- `--run-id`: Unique run identifier (required)
-- `--result-dir`: Directory to save results (default: current directory)
-- `--kube-config`: Path to kubeconfig file (optional)
-- `--step-timeout`: Timeout for each operation in seconds (default: 600)
-- `--gpu-node-pool`: Flag for GPU-enabled node pools
-- `--capacity-type`: AWS/Azure capacity type (`ON_DEMAND`, `SPOT`, `CAPACITY_BLOCK`)
-
-## Progressive Scaling
-
-The scale and all operations support progressive scaling, where nodes are added/removed in steps:
-
-- `--scale-step-size`: Number of nodes to add/remove per step (default: 1)
-- `--step-wait-time`: Wait time between scaling steps in seconds (default: 30)
-
-Progressive scaling is automatically enabled when `scale-step-size` is different from the target count.
-
-## GPU Support
-
-When using `--gpu-node-pool`, the module automatically:
-1. Installs the GPU device plugin
-2. Verifies the plugin installation
-3. Configures the node pool for GPU workloads
-
-Example VM sizes for GPU workloads:
-- **Azure**: `Standard_NC6s_v3`, `Standard_ND40rs_v2`
-- **AWS**: `p3.2xlarge`, `g4dn.xlarge`
