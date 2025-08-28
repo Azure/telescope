@@ -578,7 +578,6 @@ def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None
                 "result": nccl_result,
                 "cloud_info": cloud_info
             },
-            "result": nccl_result,
             "run_id": run_id,
             "run_url": run_url,
         }
