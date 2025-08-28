@@ -18,3 +18,20 @@ steps:
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
     REGION: ${{ parameters.region }}
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+- script: |
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+      --result_dir $RESULT_DIR \
+      --run_id $RUN_ID \
+      --run_url $RUN_URL \
+      --cloud_info "$CLOUD_INFO"
+  displayName: 'Collect nccl-tests result for ${{ parameters.cloud }}'
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
+    RESULT_DIR: $(TEST_RESULTS_DIR)
+    RUN_ID: $(RUN_ID)
+    RUN_URL: $(RUN_URL)

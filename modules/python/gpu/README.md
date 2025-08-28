@@ -46,6 +46,7 @@ CLOUD_INFO=$CLOUD
 RUN_URL="https://example.com"
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
   --result_dir $RESULT_DIR \
+  --run_id $RUN_ID \
   --run_url $RUN_URL \
   --cloud_info "$CLOUD_INFO"
 ```

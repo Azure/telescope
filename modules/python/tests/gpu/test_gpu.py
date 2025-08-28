@@ -49,6 +49,7 @@ class TestGPU(unittest.TestCase):
         self.test_vm_size = "ndv4"
         self.test_cloud_info = "azure"
         self.test_run_url = "https://test-url.com"
+        self.test_run_id = "123456789"
 
     @patch("os.path.exists")
     @patch("subprocess.run")
@@ -535,13 +536,14 @@ class TestGPU(unittest.TestCase):
 
         collect(
             result_dir=self.test_result_dir,
+            run_id=self.test_run_id,
             run_url=self.test_run_url,
             cloud_info=self.test_cloud_info,
         )
 
         mock_parse.assert_called_once_with(f"{self.test_result_dir}/raw.log")
         mock_file.assert_called_once_with(
-            f"{self.test_result_dir}/results.json", "w", encoding="utf-8"
+            f"{self.test_result_dir}/results.json", "a", encoding="utf-8"
         )
         mock_json_dump.assert_called_once()
 
@@ -612,6 +614,7 @@ class TestGPU(unittest.TestCase):
         mock_args.return_value = MagicMock(
             command="collect",
             result_dir=self.test_result_dir,
+            run_id=self.test_run_id,
             run_url=self.test_run_url,
             cloud_info=self.test_cloud_info,
         )
@@ -620,6 +623,7 @@ class TestGPU(unittest.TestCase):
 
         mock_collect.assert_called_once_with(
             result_dir=self.test_result_dir,
+            run_id=self.test_run_id,
             run_url=self.test_run_url,
             cloud_info=self.test_cloud_info,
         )

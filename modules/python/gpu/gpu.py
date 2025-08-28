@@ -552,12 +552,13 @@ def _parse_nccl_test_results(log_file_path: str) -> Dict[str, Any]:
         raise
 
 
-def collect(result_dir: str, run_url: str, cloud_info: str) -> None:
+def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None:
     """
     Collect and parse NCCL test results, saving them to a JSON file.
 
     Args:
         result_dir: Directory where the raw log file and results will be stored.
+        run_id: RUN_ID associated with the NCCL test run.
         run_url: URL associated with the NCCL test run.
         cloud_info: Information about the cloud environment where the test was run.
     """
@@ -569,11 +570,16 @@ def collect(result_dir: str, run_url: str, cloud_info: str) -> None:
 
         result = {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "cloud_info": cloud_info,
+            "operation_info": {
+                "test_type": "rdma",
+                "result": nccl_result,
+                "cloud_info": cloud_info
+            },
             "result": nccl_result,
+            "run_id": run_id,
             "run_url": run_url,
         }
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(output_file, "a", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         logger.info(f"NCCL test results saved to {output_file}")
@@ -687,6 +693,7 @@ def main():
         required=True,
         help="Path to the NCCL test result directory",
     )
+    collect_parser.add_argument("--run_id", type=str, help="Run ID")
     collect_parser.add_argument("--run_url", type=str, help="Run URL")
     collect_parser.add_argument("--cloud_info", type=str, help="Cloud information")
 
@@ -714,6 +721,7 @@ def main():
     elif args.command == "collect":
         collect(
             result_dir=args.result_dir,
+            run_id=args.run_id,
             run_url=args.run_url,
             cloud_info=args.cloud_info,
         )

@@ -10,15 +10,16 @@ The CRUD module provides comprehensive node pool management operations for Kuber
 
 ## Supported Operations
 
-- **create**: Create a new node pool
-- **scale**: Scale an existing node pool up or down
-- **delete**: Delete an existing node pool  
-- **all**: Run complete lifecycle (create → scale up → scale down → delete)
-- **collect**: Collect and process benchmark results
+* **create**: Create a new node pool
+* **scale**: Scale an existing node pool up or down
+* **delete**: Delete an existing node pool  
+* **all**: Run complete lifecycle (create → scale up → scale down → delete)
+* **collect**: Collect and process benchmark results
 
 ## Define Variables
 
 ### Common Variables
+
 ```bash
 pushd modules/python
 PYTHON_SCRIPT_FILE=crud/main.py
@@ -32,8 +33,12 @@ STEP_WAIT_TIME=30
 export RUN_ID=$RUN_ID
 export SCENARIO_TYPE=$SCENARIO_TYPE
 export SCENARIO_NAME=$SCENARIO_NAME
+
+mkdir -p $RESULT_DIR
 ```
+
 ### Azure Variables
+
 ```bash
 NODE_POOL_NAME=h100nodepool
 VM_SIZE=Standard_NC40ads_H100_v5
@@ -41,17 +46,21 @@ CLOUD="azure"
 export REGION="australiaeast"
 export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 ```
+
 ### AWS Variables
+
 ```bash
 NODE_POOL_NAME=a100nodepool
 VM_SIZE=p4d.24xlarge
-export AWS_DEFAULT_REGION="us-east-1"
+CLOUD="aws"
 CAPACITY_TYPE="CAPACITY_BLOCK"
+export AWS_DEFAULT_REGION="us-east-1"
 ```
-mkdir -p $RESULT_DIR
+
 ## Create Node Pool
 
 Create a new node pool in your Kubernetes cluster:
+
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
     --cloud $CLOUD \
@@ -61,11 +70,12 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
     --vm-size $VM_SIZE \
     --node-count $CREATE_NODE_COUNT \
     --step-timeout $STEP_TIME_OUT \
+    --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}" \
     ${GPU_NODE_POOL:+--gpu-node-pool}
-    --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 ```
 
 ## Scale Up Node Pool
+
 ```bash
 
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
@@ -81,6 +91,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
 ```
 
 ## Scale Down Node Pool
+
 ```bash
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
     --cloud $CLOUD \
