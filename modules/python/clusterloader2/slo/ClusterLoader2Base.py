@@ -10,29 +10,34 @@ def private(func):
 
 class ClusterLoader2Base(ABC):
     class ArgsParser(ABC):
+        _parser: argparse.ArgumentParser
+        _subparsers: argparse.ArgumentParser
+
+        def __init__(self, description: str):
+            self._parser = argparse.ArgumentParser(description=description)
+            self._subparsers = self._parser.add_subparsers(dest="command")
+
         @abstractmethod
-        def add_configure_args(self):
+        def add_configure_args(self, parser):
             pass
 
         @abstractmethod
-        def add_validate_args(self):
+        def add_validate_args(self, parser):
             pass
 
         @abstractmethod
-        def add_execute_args(self):
+        def add_execute_args(self, parser):
             pass
 
         @abstractmethod
-        def add_collect_args(self):
+        def add_collect_args(self, parser):
             pass
-
-        @abstractmethod
+      
         def parse(self) -> argparse.Namespace:
-            pass
+            return self._parser.parse_args()
 
-        @abstractmethod
         def print_help(self):
-            pass
+            self._parser.print_help()
 
     class Runner(ABC):
         @abstractmethod
@@ -69,30 +74,36 @@ class ClusterLoader2Base(ABC):
 
     def parse_arguments(self) -> argparse.Namespace:
         # Sub-command for configuring clusterloader2
-        self.args_parser.add_configure_args()
+        parser_configure = self.args_parser._subparsers.add_parser("configure", help="Override CL2 config file")
+        self.args_parser.add_configure_args(parser_configure)
 
         # Sub-command for validating clusterloader2's cluster setup
-        self.args_parser.add_validate_args()
+        parser_validate = self.args_parser._subparsers.add_parser("validate", help="Validate cluster setup")
+        self.args_parser.add_validate_args(parser_validate)
 
         # Sub-command for executing tests using clusterloader2
-        self.args_parser.add_execute_args()
+        parser_execute = self.args_parser._subparsers.add_parser("execute", help="Execute scale up operation")
+        self.args_parser.add_execute_args(parser_execute)
 
         # Sub-command for collecting clusterloader2's results
-        self.args_parser.add_collect_args()
+        parser_collect = self.args_parser._subparsers.add_parser("collect", help="Collect scale up data")
+        self.args_parser.add_collect_args(parser_collect)
         
         return self.args_parser.parse()
 
-    def perform(self, args: argparse.Namespace):
+    def perform(self):
+        args = self.parse_arguments()
         args_dict = vars(args)
         command = args_dict.pop("command")
 
-        if command == ClusterLoader2Base.Command.CONFIGURE:
-            self.runner.configure()
-        elif command == ClusterLoader2Base.Command.VALIDATE:
-            self.runner.validate()
-        elif command == ClusterLoader2Base.Command.EXECUTE:
-            self.runner.execute()
-        elif command == ClusterLoader2Base.Command.COLLECT:
-            self.runner.collect()
+        if command == ClusterLoader2Base.Command.CONFIGURE.value:
+            self.runner.configure(**args_dict)
+        elif command == ClusterLoader2Base.Command.VALIDATE.value:
+            self.runner.validate(**args_dict)
+        elif command == ClusterLoader2Base.Command.EXECUTE.value:
+            self.runner.execute(**args_dict)
+        elif command == ClusterLoader2Base.Command.COLLECT.value:
+            self.runner.collect(**args_dict)
         else:
+            print(f"I can't recognize `{command}`\n")
             self.args_parser.print_help()            

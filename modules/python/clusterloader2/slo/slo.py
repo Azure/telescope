@@ -1,6 +1,7 @@
 import argparse
 import time
 from datetime import datetime, timezone
+import json
 
 from utils.common import str2bool
 from clusterloader2.slo.ClusterLoader2Base import ClusterLoader2Base
@@ -33,17 +34,10 @@ CPU_CAPACITY = {
 
 
 class SloArgsParser(ClusterLoader2Base.ArgsParser):
-    _parser: argparse.ArgumentParser
-    _subparsers: argparse.ArgumentParser
-
     def __init__(self):
-        super().__init__()
-        self._parser = argparse.ArgumentParser(description="SLO Kubernetes resources.")
-        self._subparsers = self._parser.add_subparsers(dest="command")
+        super().__init__("SLO Kubernetes resources.")
 
-    def add_configure_args(self):
-        # Sub-command for configure_clusterloader2
-        parser_configure = self._subparsers.add_parser("configure", help="Override CL2 config file")
+    def add_configure_args(self, parser_configure):
         parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
         parser_configure.add_argument("node_count", type=int, help="Number of nodes")
         parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
@@ -57,13 +51,11 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
                                         help="Whether service test is running. Must be either True or False")
         parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
-    def add_validate_args(self):
-        parser_validate = self._subparsers.add_parser("validate", help="Validate cluster setup")
+    def add_validate_args(self, parser_validate):
         parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
         parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
         
-    def add_execute_args(self):
-        parser_execute = self._subparsers.add_parser("execute", help="Execute scale up operation")
+    def add_execute_args(self, parser_execute):
         parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
         parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
         parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
@@ -73,8 +65,7 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser_execute.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                     help="Whether to scrape containerd metrics. Must be either True or False")        
 
-    def add_collect_args(self):
-        parser_collect = self._subparsers.add_parser("collect", help="Collect scale up data")
+    def add_collect_args(self, parser_collect):
         parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
         parser_collect.add_argument("node_count", type=int, help="Number of nodes")
         parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
@@ -88,36 +79,42 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser_collect.add_argument("result_file", type=str, help="Path to the result file")
         parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
                                     help="Description of test type")
-        
-    def parse(self) -> argparse.Namespace:
-        return self._parser.parse_args()
-
-    def print_help(self):
-        self._parser.print_help()
 
 
 class SloRunner(ClusterLoader2Base.Runner):
-    _args: argparse.Namespace
-
-    def __init__(self, args: argparse.Namespace):
-        super.__init__()
-        self._args = args
-
-    def configure(self):
-        steps = self._args.node_count // self._args.node_per_step
-        throughput, nodes_per_namespace, pods_per_node, cpu_request = self.calculate_config()
+    def configure(
+        self,
+        cpu_per_node: int,
+        node_count: int,
+        node_per_step: int,
+        max_pods: int,
+        repeats: int,
+        operation_timeout: str,
+        provider: str,
+        scrape_containerd: bool,
+        service_test: bool,
+        cl2_override_file: str,
+    ):
+        steps = node_count // node_per_step
+        throughput, nodes_per_namespace, pods_per_node, cpu_request = self.calculate_config(
+            node_count,
+            service_test,
+            max_pods,
+            provider,
+            cpu_per_node
+        )
 
         config = {
-            f"CL2_NODES": f"{self._args.node_count}",
+            f"CL2_NODES": f"{node_count}",
             f"CL2_LOAD_TEST_THROUGHPUT": f"{throughput}",
             f"CL2_NODES_PER_NAMESPACE": f"{nodes_per_namespace}",
-            f"CL2_NODES_PER_STEP": f"{self._args.node_per_step}",
+            f"CL2_NODES_PER_STEP": f"{node_per_step}",
             f"CL2_PODS_PER_NODE": f"{pods_per_node}",
             f"CL2_DEPLOYMENT_SIZE": f"{pods_per_node}",
             f"CL2_LATENCY_POD_CPU": f"{cpu_request}",
-            f"CL2_REPEATS": f"{self._args.repeats}",
+            f"CL2_REPEATS": f"{repeats}",
             f"CL2_STEPS": f"{steps}",
-            f"CL2_OPERATION_TIMEOUT": f"{self._args.operation_timeout}",
+            f"CL2_OPERATION_TIMEOUT": f"{operation_timeout}",
             "CL2_PROMETHEUS_TOLERATE_MASTER": "true",
             "CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR": "100.0",
             "CL2_PROMETHEUS_MEMORY_SCALE_FACTOR": "100.0",
@@ -126,27 +123,29 @@ class SloRunner(ClusterLoader2Base.Runner):
             "CL2_POD_STARTUP_LATENCY_THRESHOLD": "3m",
         }
 
-        if self._args.scrape_containerd:
+        if scrape_containerd:
             config.update({
-                f"CL2_SCRAPE_CONTAINERD": str(self._args.scrape_containerd).lower(),
+                f"CL2_SCRAPE_CONTAINERD": str(scrape_containerd).lower(),
                 "CONTAINERD_SCRAPE_INTERVAL": "5m",
             })
 
-        if self._args.service_test:
+        if service_test:
             config.update({ "CL2_SERVICE_TEST:" "true" })
         else:
             config.update({ "CL2_SERVICE_TEST:" "false" })
 
         write_to_file(
             logger=None,
-            filename=self._args.override_file,
+            filename=cl2_override_file,
             content="\n".join([f"{k}: {v}" for k, v in config.items()])
         )
     
-    def validate(self):
-        node_count = self._args.node_count
-        operation_timeout = getattr(self._args, 'operation_timeout', 10)
-        
+    def validate(
+        self,
+        node_count: int,
+        operation_timeout: int,
+    ):
+       
         kube_client = KubernetesClient()
         ready_node_count = 0
         timeout = time.time() + (operation_timeout * 60)
@@ -161,60 +160,93 @@ class SloRunner(ClusterLoader2Base.Runner):
         if ready_node_count != node_count:
             raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
-    def execute(self):
-        overrides=True
-        enable_prometheus=True
-        
+    def execute(
+        self,
+        cl2_image: str,
+        cl2_config_dir: str,
+        cl2_report_dir: str,
+        cl2_config_file: str,
+        kubeconfig: str,
+        provider: str,
+        scrape_containerd: bool,
+    ):
         run_cl2_command(
-            self._args.kubeconfig, 
-            self._args.cl2_image, 
-            self._args.cl2_config_dir, 
-            self._args.cl2_report_dir, 
-            self._args.provider,
-            cl2_config_file=self._args.cl2_config_file, 
-            overrides=overrides, 
-            enable_prometheus=enable_prometheus,
-            scrape_containerd=self._args.scrape_containerd
+            kubeconfig, 
+            cl2_image, 
+            cl2_config_dir, 
+            cl2_report_dir, 
+            provider,
+            cl2_config_file=cl2_config_file, 
+            overrides=True, 
+            enable_prometheus=True,
+            scrape_containerd=scrape_containerd
         )
 
-    def collect(self):
-        status, _ = parse_test_results(self._args.cl2_report_dir)
+    def collect(
+        self,
+        cpu_per_node: int,
+        node_count: int,
+        max_pods: int,
+        repeats: int,
+        cl2_report_dir: str,
+        cloud_info: str,
+        run_id: str,
+        run_url: str,
+        service_test: bool,
+        result_file: str,
+        test_type: str,
+    ):
+        status, _ = parse_test_results(cl2_report_dir)
+        provider = json.loads(cloud_info)["cloud"]
 
-        _, _, pods_per_node, _ = self.calculate_config()
-        pod_count = self._args.node_count * pods_per_node
+        _, _, pods_per_node, _ = self.calculate_config(
+            node_count,
+            service_test,
+            max_pods,
+            provider,
+            cpu_per_node,
+        )
+        pod_count = node_count * pods_per_node
 
         # TODO: Expose optional parameter to include test details
         template = {
             "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            "cpu_per_node": self._args.cpu_per_node,
-            "node_count": self._args.node_count,
+            "cpu_per_node": cpu_per_node,
+            "node_count": node_count,
             "pod_count": pod_count,
-            "churn_rate": self._args.repeats,
+            "churn_rate": repeats,
             "status": status,
             "group": None,
             "measurement": None,
             "result": None,
             # "test_details": details,
-            "cloud_info": self._args.cloud_info,
-            "run_id": self._args.run_id,
-            "run_url": self._args.run_url,
-            "test_type": self._args.test_type,
+            "cloud_info": cloud_info,
+            "run_id": run_id,
+            "run_url": run_url,
+            "test_type": test_type,
         }
 
-        content = process_cl2_reports(self._args.cl2_report_dir, template)
+        content = process_cl2_reports(cl2_report_dir, template)
 
         write_to_file(
-            filename=self._args.result_file,
+            filename=result_file,
             content=content
         )
 
-    def calculate_config(self):
+    def calculate_config(
+        self,
+        node_count: int,
+        service_test: str,
+        max_pods: int,
+        provider: str,
+        cpu_per_node: int,
+    ):
         throughput = 100
-        nodes_per_namespace = min(self._args.node_count, DEFAULT_NODES_PER_NAMESPACE)
+        nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
         pods_per_node = DEFAULT_PODS_PER_NODE
-        if self._args.service_test:
-            pods_per_node = self._args.max_pods
+        if service_test:
+            pods_per_node = max_pods
 
         # Different cloud has different reserved values and number of daemonsets
         # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -222,8 +254,8 @@ class SloRunner(ClusterLoader2Base.Runner):
         #   https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
         # For Azure, see: 
         #   https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
-        capacity = CPU_CAPACITY[self._args.provider]
-        cpu_request = (self._args.cpu_per_node * 1000 * capacity) // pods_per_node
+        capacity = CPU_CAPACITY[provider]
+        cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
         cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
         return throughput, nodes_per_namespace, pods_per_node, cpu_request
@@ -233,7 +265,7 @@ class Slo(ClusterLoader2Base):
     def __init__(self):
         super().__init__()
         self._args_parser = SloArgsParser()
-        self._runner = None
+        self._runner = SloRunner()
 
     @property
     def args_parser(self):
@@ -241,12 +273,8 @@ class Slo(ClusterLoader2Base):
 
     @property
     def runner(self):
-        if self._runner is None:
-            self._runner = SloRunner(self.parse_arguments())
         return self._runner
 
 
 if __name__ == "__main__":  
-    slo = Slo()
-    args = slo.parse_arguments()
-    slo.perform(args)
+    Slo().perform()
