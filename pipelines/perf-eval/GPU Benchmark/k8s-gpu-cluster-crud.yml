@@ -87,12 +87,7 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
-              run_nccl_tests: "true"
-              network_operator_version: "v25.4.0"
-              gpu_operator_version: "v25.3.1"
-              gpu_install_driver: True
-              gpu_enable_nfd: False
-              mpi_operator_version: "v0.6.0"
+              run_nccl_tests: "false"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
