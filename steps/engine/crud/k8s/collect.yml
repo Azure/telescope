@@ -30,6 +30,8 @@ steps:
       --run_url $RUN_URL \
       --cloud_info "$CLOUD_INFO"
   displayName: 'Collect nccl-tests result for ${{ parameters.cloud }}'
+  workingDirectory: modules/python
+  condition: eq(variables.run_nccl_tests, 'true')
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
     RESULT_DIR: $(TEST_RESULTS_DIR)
