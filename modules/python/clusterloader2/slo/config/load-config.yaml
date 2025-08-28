@@ -40,11 +40,6 @@ name: load-config
 {{$smallDeploymentPods := SubtractInt $podsPerNamespace (MultiplyInt $bigDeploymentsPerNamespace $BIG_GROUP_SIZE)}}
 {{$smallDeploymentsPerNamespace := DivideInt $smallDeploymentPods $SMALL_GROUP_SIZE}}
 
-# CNP & CCNP Test
-{{$CNPS_PER_NAMESPACE := DefaultParam .CL2_CNPS_PER_NAMESPACE 0}}
-{{$CCNPS := DefaultParam .CL2_CCNPS 0}}
-{{$DUALSTACK := DefaultParam .CL2_DUALSTACK false}}
-
 # QPS
 # We use RandomizedTimeLimitedLoad for load QPS.
 # Specifically, we aim to create/delete LOAD_TEST_THROUGHPUT/DELETE_TEST_THROUGHPUT pods per second, on average.
