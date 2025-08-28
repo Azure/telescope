@@ -67,7 +67,6 @@ class ClusterLoader2Base(ABC):
     def runner(self) -> Runner:
         pass
 
-    @abstractmethod
     def parse_arguments(self) -> argparse.Namespace:
         # Sub-command for configuring clusterloader2
         self.args_parser.add_configure_args()
@@ -83,7 +82,6 @@ class ClusterLoader2Base(ABC):
         
         return self.args_parser.parse()
 
-    @abstractmethod
     def perform(self, args: argparse.Namespace):
         args_dict = vars(args)
         command = args_dict.pop("command")
