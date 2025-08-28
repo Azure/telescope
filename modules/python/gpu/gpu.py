@@ -227,6 +227,9 @@ def configure(
         mpi_operator_version: Version of the MPI operator
         config_dir: Directory containing custom configuration files
     """
+    # Temporary workaround until health check is integrated with crud
+    KUBERNETES_CLIENT.uninstall_gpu_device_plugin()
+
     if efa_operator_version:
         install_efa_operator(
             config_dir=config_dir,

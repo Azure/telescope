@@ -1517,6 +1517,20 @@ class KubernetesClient:
             logger.error(f"Error installing NVIDIA GPU device plugin: {str(e)}")
             raise e
 
+    def uninstall_gpu_device_plugin(self, namespace="kube-system"):
+        """
+        Uninstall the NVIDIA GPU device plugin in the specified namespace.
+        """
+        try:
+            logger.info("Uninstalling NVIDIA GPU device plugin...")
+            self.app.delete_namespaced_daemon_set(
+                name="nvidia-device-plugin-daemonset", namespace=namespace
+            )
+            logger.info("NVIDIA GPU device plugin uninstalled successfully.")
+        except Exception as e:
+            logger.error(f"Error uninstalling NVIDIA GPU device plugin: {str(e)}")
+            raise e
+
     # verify device plugin and return logs for success and error case
     def verify_gpu_device_plugin(self, namespace="kube-system", timeout=100):
         """

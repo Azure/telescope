@@ -257,11 +257,12 @@ class TestGPU(unittest.TestCase):
         # Verify execute_with_retries is called once for the wait operation
         _mock_execute_with_retries.assert_called_once()
 
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_all_operators(self, mock_network, mock_gpu, mock_mpi, mock_efa):
+    def test_configure_all_operators(self, mock_network, mock_gpu, mock_mpi, mock_efa, mock_k8s_client):
         """Test configure function that installs all operators when all versions are provided."""
         configure(
             efa_operator_version=self.test_chart_version,
@@ -273,6 +274,7 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
         )
 
+        mock_k8s_client.uninstall_gpu_device_plugin.assert_called_once()
         mock_efa.assert_called_once_with(
             config_dir=self.test_config_dir,
             version=self.test_chart_version,
@@ -288,12 +290,13 @@ class TestGPU(unittest.TestCase):
         )
         mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
 
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
     def test_configure_only_gpu_operator(
-        self, mock_network, mock_gpu, mock_mpi, mock_efa
+        self, mock_network, mock_gpu, mock_mpi, mock_efa, mock_k8s_client
     ):
         """Test configure function that installs only GPU operator when only its version is provided."""
         configure(
@@ -306,6 +309,7 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
         )
 
+        mock_k8s_client.uninstall_gpu_device_plugin.assert_called_once()
         mock_efa.assert_not_called()
         mock_network.assert_not_called()
         mock_gpu.assert_called_once_with(
@@ -316,12 +320,13 @@ class TestGPU(unittest.TestCase):
         )
         mock_mpi.assert_not_called()
 
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
     def test_configure_both_network_and_mpi_operator(
-        self, mock_network, mock_gpu, mock_mpi, mock_efa
+        self, mock_network, mock_gpu, mock_mpi, mock_efa, mock_k8s_client
     ):
         """Test configure function that installs both Network and MPI operators when their versions are provided."""
         configure(
@@ -334,6 +339,7 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
         )
 
+        mock_k8s_client.uninstall_gpu_device_plugin.assert_called_once()
         mock_efa.assert_not_called()
         mock_network.assert_called_once_with(
             chart_version=self.test_chart_version, config_dir=self.test_config_dir
@@ -341,11 +347,12 @@ class TestGPU(unittest.TestCase):
         mock_gpu.assert_not_called()
         mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
 
+    @patch("gpu.gpu.KUBERNETES_CLIENT")
     @patch("gpu.gpu.install_efa_operator")
     @patch("gpu.gpu.install_mpi_operator")
     @patch("gpu.gpu.install_gpu_operator")
     @patch("gpu.gpu.install_network_operator")
-    def test_configure_no_operators(self, mock_network, mock_gpu, mock_mpi, mock_efa):
+    def test_configure_no_operators(self, mock_network, mock_gpu, mock_mpi, mock_efa, mock_k8s_client):
         """Test configure function that installs no operators when no versions are provided."""
         configure(
             efa_operator_version="",
@@ -357,6 +364,7 @@ class TestGPU(unittest.TestCase):
             config_dir=self.test_config_dir,
         )
 
+        mock_k8s_client.uninstall_gpu_device_plugin.assert_called_once()
         mock_efa.assert_not_called()
         mock_network.assert_not_called()
         mock_gpu.assert_not_called()
