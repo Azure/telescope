@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 
 from utils.common import str2bool
-from modules.python.clusterloader2.slo.refactor.ClusterLoader2Base import ClusterLoader2Base
+from clusterloader2.slo.ClusterLoader2Base import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.utils import (
     run_cl2_command, 
