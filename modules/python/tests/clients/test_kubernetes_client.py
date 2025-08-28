@@ -2149,6 +2149,18 @@ spec: {}
         mock_requests_get.assert_called_once()
         mock_create_ds.assert_not_called()
 
+    @patch("kubernetes.client.AppsV1Api.delete_namespaced_daemon_set")
+    def test_uninstall_gpu_device_plugin_success(self, mock_delete_ds):
+        """
+        Test successful uninstallation of the NVIDIA GPU device plugin.
+        """
+        self.client.uninstall_gpu_device_plugin(namespace="kube-system")
+
+        mock_delete_ds.assert_called_once_with(
+            name="nvidia-device-plugin-daemonset",
+            namespace="kube-system"
+        )
+
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     def test_get_daemonsets_pods_count(self, mock_get_pods_by_namespace):
         """
