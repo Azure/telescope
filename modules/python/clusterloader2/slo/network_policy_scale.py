@@ -11,7 +11,6 @@ def configure_clusterloader2(
     clients_per_group,
     servers_per_group,
     workers_per_client,
-    netpol_type,
     test_duration_secs,
     cilium_enabled,
     cilium_envoy_enabled,
@@ -58,7 +57,6 @@ def configure_clusterloader2(
         file.write(f"CL2_NUMBER_OF_SERVERS_PER_GROUP: {servers_per_group}\n")
         file.write(f"CL2_WORKERS_PER_CLIENT: {workers_per_client}\n")
         file.write(f"CL2_NUMBER_OF_GROUPS: {number_of_groups}\n")
-        file.write(f"CL2_NETWORK_POLICY_TYPE: {netpol_type}\n")
         file.write("CL2_CLIENT_METRICS_GATHERING: true\n")
 
         # Disable non related tests in measurements.yaml
@@ -188,13 +186,6 @@ def main():
         help="Number of workers per client pod",
     )
     parser_configure.add_argument(
-        "--netpol_type",
-        type=str,
-        required=True,
-        choices=["k8s", "cnp", "ccnp"],
-        help="Type of network policy",
-    )
-    parser_configure.add_argument(
         "--test_duration_secs", type=int, required=True, help="Test duration in seconds"
     )
     parser_configure.add_argument(
@@ -276,7 +267,6 @@ def main():
             args.clients_per_group,
             args.servers_per_group,
             args.workers_per_client,
-            args.netpol_type,
             args.test_duration_secs,
             args.cilium_enabled,
             args.cilium_envoy_enabled,
