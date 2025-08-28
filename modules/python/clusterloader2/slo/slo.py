@@ -248,5 +248,5 @@ class Slo(ClusterLoader2Base):
 
 if __name__ == "__main__":  
     slo = Slo()
-    slo.parse_arguments()
-    slo.perform()
+    args = slo.parse_arguments()
+    slo.perform(args)
