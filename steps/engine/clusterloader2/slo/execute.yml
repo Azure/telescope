@@ -21,11 +21,12 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         $CPU_PER_NODE $NODE_COUNT $NODE_PER_STEP ${MAX_PODS:-0} \
-        $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED ${SCRAPE_CONTAINERD:-False} \
-        $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
+        $REPEATS $SCALE_TIMEOUT $CLOUD $CILIUM_ENABLED ${SCRAPE_KUBELETS:-False} ${SCRAPE_CONTAINERD:-False} \
+        $SERVICE_TEST ${NETWORK_TEST:-False} ${NO_OF_NAMESPACES:-1} ${TOTAL_NETWORK_POLICIES:-0} \
+        ${CNP_TEST:-False} ${CCNP_TEST:-False} ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
-        ${HOME}/.kube/config $CLOUD ${SCRAPE_CONTAINERD:-False}
+        ${HOME}/.kube/config $CLOUD ${SCRAPE_KUBELETS:-False} ${SCRAPE_CONTAINERD:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
