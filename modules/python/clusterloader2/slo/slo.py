@@ -8,8 +8,6 @@ from clients.kubernetes_client import KubernetesClient
 from clusterloader2.utils import (
     run_cl2_command, 
     process_cl2_reports,
-    parse_test_results,
-    write_to_file
 )
 from utils.logger_config import get_logger, setup_logging
 
@@ -195,7 +193,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         test_type: str,
         test_status: str,
         test_results: dict,
-    ):
+    ) -> dict:
         provider = json.loads(cloud_info)["cloud"]
 
         _, _, pods_per_node, _ = self.calculate_config(

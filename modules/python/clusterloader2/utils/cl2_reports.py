@@ -1,95 +1,22 @@
-from xml.dom import minidom
-import json
 import os
-import docker
-from logging import Logger
-from clients.docker_client import DockerClient
+import json
+from xml.dom import minidom
+
+from .constants import (
+    POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP,
+    NETWORK_METRIC_PREFIXES,
+    PROM_QUERY_PREFIX,
+    RESOURCE_USAGE_SUMMARY_PREFIX,
+    NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX,
+    JOB_LIFECYCLE_LATENCY_PREFIX,
+    SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX,
+    SCHEDULING_THROUGHPUT_PREFIX,
+)
 from utils.logger_config import get_logger, setup_logging
 
+# Configure logging
 setup_logging()
 logger = get_logger(__name__)
-
-POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
-    "PodStartupLatency_PodStartupLatency_": "PodStartupLatency_PodStartupLatency",
-    "StatefulPodStartupLatency_PodStartupLatency_": "StatefulPodStartupLatency_PodStartupLatency",
-    "StatelessPodStartupLatency_PodStartupLatency_": "StatelessPodStartupLatency_PodStartupLatency",
-}
-NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus",
-                           "InClusterNetworkLatency", 
-                           "NetworkProgrammingLatency"]
-PROM_QUERY_PREFIX = "GenericPrometheusQuery"
-RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
-NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
-JOB_LIFECYCLE_LATENCY_PREFIX = "JobLifecycleLatency"
-SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX = "SchedulingThroughputPrometheus"
-SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
-
-
-def run_cl2_command(
-    kubeconfig,
-    cl2_image,
-    cl2_config_dir,
-    cl2_report_dir,
-    provider,
-    cl2_config_file="config.yaml",
-    overrides=False,
-    enable_prometheus=False,
-    tear_down_prometheus=True,
-    enable_exec_service=False,
-    scrape_kubelets=False,
-    scrape_containerd=False,
-    scrape_ksm=False,
-    scrape_metrics_server=False,
-):
-    docker_client = DockerClient()
-
-    command = f"""--provider={provider} --v=2
---enable-exec-service={enable_exec_service}
---enable-prometheus-server={enable_prometheus}
---prometheus-scrape-kubelets={scrape_kubelets}
---kubeconfig /root/.kube/config
---testconfig /root/perf-tests/clusterloader2/config/{cl2_config_file}
---report-dir /root/perf-tests/clusterloader2/results
---tear-down-prometheus-server={tear_down_prometheus}
---prometheus-scrape-kube-state-metrics={scrape_ksm}
---prometheus-scrape-metrics-server={scrape_metrics_server}"""
-
-    if scrape_containerd:
-        command += f" --prometheus-scrape-containerd={scrape_containerd}"
-
-    if overrides:
-        command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
-
-    volumes = {
-        kubeconfig: {'bind': '/root/.kube/config', 'mode': 'rw'},
-        cl2_config_dir: {'bind': '/root/perf-tests/clusterloader2/config', 'mode': 'rw'},
-        cl2_report_dir: {
-            'bind': '/root/perf-tests/clusterloader2/results', 'mode': 'rw'}
-    }
-
-    if provider == "aws":
-        aws_path = os.path.expanduser("~/.aws/credentials")
-        volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
-
-    logger.info(
-        f"Running clusterloader2 with command: {command} and volumes: {volumes}")
-    try:
-        container = docker_client.run_container(
-            cl2_image, command, volumes, detach=True)
-        for log in container.logs(stream=True):
-            log_line = log.decode('utf-8').rstrip('\n')
-            if log_line:
-                logger.info(log_line)
-        result = container.wait()
-        exit_code = result['StatusCode']
-        if exit_code != 0:
-            logger.error(
-                f"clusterloader2 exited with a non-zero status code {exit_code}."
-                " Make sure to check the logs to confirm whether the error is expected!")
-    except docker.errors.ContainerError as e:
-        logger.error(
-            f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
-
 
 def get_measurement(
     file_path,
@@ -128,7 +55,6 @@ def get_measurement(
 def process_cl2_reports(
     cl2_report_dir: str,
     template: dict,
-    logger: Logger
 ) -> str:
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -220,25 +146,6 @@ def parse_xml_to_json(
     return json_result
 
 
-def write_to_file(
-    filename: str,
-    content: str,
-    logger: Logger=None,
-):
-    parent_dir = os.path.dirname(filename)
-    if not os.path.exists(parent_dir):
-        os.makedirs(parent_dir, exist_ok=True)
-
-    # os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
-
-    with open(filename, "w", encoding="utf-8") as file:
-        file.write(content)
-    
-    with open(filename, "r", encoding="utf-8") as file:
-        if logger:
-            logger.info(f"Content of file {filename}:\n{file.read()}")
-
-
 def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -250,9 +157,3 @@ def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
     return status, testsuites
-
-
-def convert_config_to_str(config_dict: dict) -> str:
-    return '\n'.join([
-        f"{k}" if v is None else f"{k}: {v}" for k, v in config_dict.items()
-    ])

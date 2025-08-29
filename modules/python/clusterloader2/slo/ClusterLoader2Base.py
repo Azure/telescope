@@ -9,10 +9,10 @@ from utils import (
     parse_test_results
 )
 
-
 # Configure logging
 setup_logging()
 logger = get_logger(__name__)
+
 
 class Command(Enum):
     CONFIGURE = "configure"
@@ -137,7 +137,6 @@ class ClusterLoader2Base(ABC):
         if command == Command.CONFIGURE.value:
             config_dict = self.runner.configure(**args_dict)
             write_to_file(
-                logger=logger,
                 filename=args_dict.cl2_override_file,
                 content=convert_config_to_str(config_dict)
             )
@@ -155,7 +154,6 @@ class ClusterLoader2Base(ABC):
             write_to_file(
                 filename=args.result_file,
                 content=result,
-                logger=logger
             )
         else:
             print(f"I can't recognize `{command}`\n")

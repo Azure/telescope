@@ -215,7 +215,6 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
         return process_cl2_reports(
             cl2_report_dir,
             template,
-            logger=logger
         )
 
 
