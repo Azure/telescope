@@ -2,13 +2,25 @@ import argparse
 from abc import ABC, abstractmethod
 from enum import Enum
 
+from utils.logger_config import get_logger, setup_logging
+from utils import (
+    write_to_file,
+    convert_config_to_str,
+    parse_test_results
+)
+
+
+# Configure logging
+setup_logging()
+logger = get_logger(__name__)
+
 class Command(Enum):
     CONFIGURE = "configure"
     VALIDATE = "validate"
     EXECUTE = "execute"
     COLLECT = "collect"
 
-def Ignored(func: function):
+def Ignored(func):
     """A decorator indicating a parameter to be skipped"""
     func.is_ignored = True
     return func
@@ -46,7 +58,7 @@ class ClusterLoader2Base(ABC):
 
     class Runner(ABC):
         @abstractmethod
-        def configure(self):
+        def configure(self) -> dict:
             pass
         
         @abstractmethod
@@ -58,7 +70,7 @@ class ClusterLoader2Base(ABC):
             pass
         
         @abstractmethod
-        def collect(self):
+        def collect(self) -> str:
             pass
     
     @property
@@ -93,25 +105,25 @@ class ClusterLoader2Base(ABC):
     def parse_arguments(self) -> argparse.Namespace:
         # Sub-command for configuring clusterloader2
         self._add_subparser(
-            command=ClusterLoader2Base.Command.CONFIGURE.value,
+            command=Command.CONFIGURE.value,
             description="Override CL2 config file",
         )
 
         # Sub-command for validating clusterloader2's cluster setup
         self._add_subparser(
-            command=ClusterLoader2Base.Command.VALIDATE.value,
+            command=Command.VALIDATE.value,
             description="Validate cluster setup",
         )
 
         # Sub-command for executing tests using clusterloader2
         self._add_subparser(
-            command=ClusterLoader2Base.Command.EXECUTE.value,
+            command=Command.EXECUTE.value,
             description="Execute scale up operation",
         )
 
         # Sub-command for collecting clusterloader2's results
         self._add_subparser(
-            command=ClusterLoader2Base.Command.COLLECT.value,
+            command=Command.COLLECT.value,
             description="Collect scale up data",
         )
 
@@ -122,14 +134,29 @@ class ClusterLoader2Base(ABC):
         args_dict = vars(args)
         command = args_dict.pop("command")
 
-        if command == ClusterLoader2Base.Command.CONFIGURE.value:
-            self.runner.configure(**args_dict)
-        elif command == ClusterLoader2Base.Command.VALIDATE.value:
+        if command == Command.CONFIGURE.value:
+            config_dict = self.runner.configure(**args_dict)
+            write_to_file(
+                logger=logger,
+                filename=args_dict.cl2_override_file,
+                content=convert_config_to_str(config_dict)
+            )
+        elif command == Command.VALIDATE.value:
             self.runner.validate(**args_dict)
-        elif command == ClusterLoader2Base.Command.EXECUTE.value:
+        elif command == Command.EXECUTE.value:
             self.runner.execute(**args_dict)
-        elif command == ClusterLoader2Base.Command.COLLECT.value:
-            self.runner.collect(**args_dict)
+        elif command == Command.COLLECT.value:
+            status, results = parse_test_results(args_dict.cl2_report_dir)
+            result = self.runner.collect(
+                test_status=status, 
+                test_results=results, 
+                **args_dict
+            )
+            write_to_file(
+                filename=args.result_file,
+                content=result,
+                logger=logger
+            )
         else:
             print(f"I can't recognize `{command}`\n")
             self.args_parser.print_help()            

@@ -137,11 +137,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         else:
             config.update({ "CL2_SERVICE_TEST": "false" })
 
-        write_to_file(
-            logger=logger,
-            filename=cl2_override_file,
-            content="\n".join([f"{k}: {v}" for k, v in config.items()])
-        )
+        return config
     
     def validate(
         self,
@@ -197,8 +193,9 @@ class SloRunner(ClusterLoader2Base.Runner):
         service_test: bool,
         result_file: str,
         test_type: str,
+        test_status: str,
+        test_results: dict,
     ):
-        status, _ = parse_test_results(cl2_report_dir)
         provider = json.loads(cloud_info)["cloud"]
 
         _, _, pods_per_node, _ = self.calculate_config(
@@ -217,7 +214,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             "node_count": node_count,
             "pod_count": pod_count,
             "churn_rate": repeats,
-            "status": status,
+            "status": test_status,
             "group": None,
             "measurement": None,
             "result": None,
@@ -228,13 +225,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             "test_type": test_type,
         }
 
-        content = process_cl2_reports(cl2_report_dir, template)
-
-        write_to_file(
-            filename=result_file,
-            content=content,
-            logger=logger
-        )
+        return process_cl2_reports(cl2_report_dir, template)
 
     def calculate_config(
         self,

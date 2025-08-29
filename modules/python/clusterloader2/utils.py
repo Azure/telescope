@@ -225,7 +225,10 @@ def write_to_file(
     content: str,
     logger: Logger=None,
 ):
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    parent_dir = os.path.dirname(filename)
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+
     # os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
 
     with open(filename, "w", encoding="utf-8") as file:
@@ -247,3 +250,9 @@ def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
     
     return status, testsuites
+
+
+def convert_config_to_str(config_dict: dict) -> str:
+    return '\n'.join([
+        f"{k}" if v is None else f"{k}: {v}" for k, v in config_dict.items()
+    ])

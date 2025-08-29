@@ -139,14 +139,8 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
         test_duration_secs: int,
         provider: str,
         cl2_override_file: str,
-    ):
-        # Ensure the directory for override_file exists
-        override_dir = os.path.dirname(cl2_override_file)
-        if not os.path.exists(override_dir):
-            os.makedirs(override_dir, exist_ok=True)
-
-        # Build config as dictionary
-        config_dict = {
+    ) -> str:
+        return {
             "# Prometheus server config": None,
             "CL2_PROMETHEUS_TOLERATE_MASTER": "true",
             "CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR": "100.0",
@@ -166,16 +160,6 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             # This disables non-related tests
             "CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY": "false",
         }
-
-        content = '\n'.join([
-            f"{k}" if v is None else f"{k}: {v}" for k, v in config_dict.items()
-        ])
-
-        write_to_file(
-            filename=cl2_override_file,
-            content=content,
-            logger=logger
-        )
 
     def execute(
         self,
@@ -208,8 +192,9 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
         run_url: str,
         result_file: str,
         test_type: str,
+        test_status: str,
+        test_results: dict,
     ):
-        status, _ = parse_test_results(cl2_report_dir)
         provider = json.loads(cloud_info)["cloud"]
 
         # TODO: Expose optional parameter to include test details
@@ -217,7 +202,7 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "node_count": node_count,
             "pod_count": pod_count,
-            "status": status,
+            "status": test_status,
             "group": None,
             "measurement": None,
             "result": None,
@@ -227,15 +212,9 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             "test_type": test_type,
         }
         
-        content = process_cl2_reports(
+        return process_cl2_reports(
             cl2_report_dir,
             template,
-            logger=logger
-        )
-
-        write_to_file(
-            filename=result_file,
-            content=content,
             logger=logger
         )
 
