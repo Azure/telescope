@@ -8,7 +8,7 @@ init() {
     OWNER=$(whoami)
     RUN_ID=32633-dbb72cb6-fa09-5b75-bf70-9a218c54fc1a
     CLOUD=azure
-    REGION=us-east-1
+    REGION=eastus2
     KUBERNETES_VERSION=1.31
     SKU_TIER=Standard    
     TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
