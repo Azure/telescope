@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import json
 
 from utils.common import str2bool
-from clusterloader2.slo.ClusterLoader2Base import ClusterLoader2Base
+from clusterloader2.slo import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.utils import (
     run_cl2_command, 
@@ -144,7 +144,6 @@ class SloRunner(ClusterLoader2Base.Runner):
         node_count: int,
         operation_timeout: int,
     ):
-       
         kube_client = KubernetesClient()
         ready_node_count = 0
         timeout = time.time() + (operation_timeout * 60)
@@ -152,7 +151,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             ready_nodes = kube_client.get_ready_nodes()
             ready_node_count = len(ready_nodes)
             print(f"Currently {ready_node_count} nodes are ready.")
-            if ready_node_count == node_count:
+            if ready_node_count >= node_count:
                 break
             print(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
