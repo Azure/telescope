@@ -2,11 +2,16 @@ import argparse
 from abc import ABC, abstractmethod
 from enum import Enum
 
+class Command(Enum):
+    CONFIGURE = "configure"
+    VALIDATE = "validate"
+    EXECUTE = "execute"
+    COLLECT = "collect"
 
-def private(func):
-    """Empty decorator to mark methods as private (for notation only)."""
+def Ignored(func: function):
+    """A decorator indicating a parameter to be skipped"""
+    func.is_ignored = True
     return func
-
 
 class ClusterLoader2Base(ABC):
     class ArgsParser(ABC):
@@ -56,12 +61,6 @@ class ClusterLoader2Base(ABC):
         def collect(self):
             pass
     
-    class Command(Enum):
-        CONFIGURE = "configure"
-        VALIDATE = "validate"
-        EXECUTE = "execute"
-        COLLECT = "collect"
-
     @property
     @abstractmethod
     def args_parser(self) -> ArgsParser:
@@ -72,23 +71,50 @@ class ClusterLoader2Base(ABC):
     def runner(self) -> Runner:
         pass
 
+    def _add_subparser(self, command: Command, description: str):
+        subparsers = self.args_parser._subparsers
+        
+        add_args_method = {
+            Command.CONFIGURE.value: self.args_parser.add_configure_args,
+            Command.VALIDATE.value: self.args_parser.add_validate_args,
+            Command.EXECUTE.value: self.args_parser.add_execute_args,
+            Command.COLLECT.value: self.args_parser.add_collect_args,
+        }.get(command)
+
+        if not add_args_method:
+            return
+
+        is_method_ignored = getattr(add_args_method, "is_ignored")
+
+        if not is_method_ignored:
+            parser = subparsers.add_parser(command.value, help=description)
+            add_args_method(parser)
+
     def parse_arguments(self) -> argparse.Namespace:
         # Sub-command for configuring clusterloader2
-        parser_configure = self.args_parser._subparsers.add_parser("configure", help="Override CL2 config file")
-        self.args_parser.add_configure_args(parser_configure)
+        self._add_subparser(
+            command=ClusterLoader2Base.Command.CONFIGURE.value,
+            description="Override CL2 config file",
+        )
 
         # Sub-command for validating clusterloader2's cluster setup
-        parser_validate = self.args_parser._subparsers.add_parser("validate", help="Validate cluster setup")
-        self.args_parser.add_validate_args(parser_validate)
+        self._add_subparser(
+            command=ClusterLoader2Base.Command.VALIDATE.value,
+            description="Validate cluster setup",
+        )
 
         # Sub-command for executing tests using clusterloader2
-        parser_execute = self.args_parser._subparsers.add_parser("execute", help="Execute scale up operation")
-        self.args_parser.add_execute_args(parser_execute)
+        self._add_subparser(
+            command=ClusterLoader2Base.Command.EXECUTE.value,
+            description="Execute scale up operation",
+        )
 
         # Sub-command for collecting clusterloader2's results
-        parser_collect = self.args_parser._subparsers.add_parser("collect", help="Collect scale up data")
-        self.args_parser.add_collect_args(parser_collect)
-        
+        self._add_subparser(
+            command=ClusterLoader2Base.Command.COLLECT.value,
+            description="Collect scale up data",
+        )
+
         return self.args_parser.parse()
 
     def perform(self):

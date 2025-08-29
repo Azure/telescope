@@ -34,7 +34,7 @@ CPU_CAPACITY = {
 
 class SloArgsParser(ClusterLoader2Base.ArgsParser):
     def __init__(self):
-        super().__init__("SLO Kubernetes resources.")
+        super().__init__(description="SLO Kubernetes resources.")
 
     def add_configure_args(self, parser_configure):
         parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
@@ -129,9 +129,9 @@ class SloRunner(ClusterLoader2Base.Runner):
             })
 
         if service_test:
-            config.update({ "CL2_SERVICE_TEST:" "true" })
+            config.update({ "CL2_SERVICE_TEST": "true" })
         else:
-            config.update({ "CL2_SERVICE_TEST:" "false" })
+            config.update({ "CL2_SERVICE_TEST": "false" })
 
         write_to_file(
             logger=None,
@@ -155,7 +155,7 @@ class SloRunner(ClusterLoader2Base.Runner):
                 break
             print(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
-        if ready_node_count != node_count:
+        if ready_node_count < node_count:
             raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
     def execute(

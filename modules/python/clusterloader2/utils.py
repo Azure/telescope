@@ -126,9 +126,10 @@ def get_measurement(
 
 
 def process_cl2_reports(
-    cl2_report_dir,
-    template,
-):
+    cl2_report_dir: str,
+    template: dict,
+    logger: Logger
+) -> str:
     content = ""
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
