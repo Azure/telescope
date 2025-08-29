@@ -4,12 +4,12 @@ init() {
     AZ=/usr/bin/az
 
     SCENARIO_TYPE=perf-eval
-    SCENARIO_NAME=slo-servicediscovery
+    SCENARIO_NAME=cri-resource-consume
     OWNER=$(whoami)
     RUN_ID=32633-dbb72cb6-fa09-5b75-bf70-9a218c54fc1a
     CLOUD=azure
-    REGION=eastus2
-    KUBERNETES_VERSION=1.31
+    REGION=swedencentral
+    KUBERNETES_VERSION="1.30"
     SKU_TIER=Standard    
     TERRAFORM_MODULES_DIR=modules/terraform/$CLOUD
     TERRAFORM_INPUT_FILE=$(pwd)/scenarios/$SCENARIO_TYPE/$SCENARIO_NAME/terraform-inputs/${CLOUD}.tfvars
@@ -23,16 +23,18 @@ init() {
     CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 
     CPU_PER_NODE=4
-    NODE_COUNT=1000
+    NODE_COUNT=10
     NODE_PER_STEP=1000
-    MAX_PODS=20
-    REPEATS=10
-    SCALE_TIMEOUT="15m"
+    MAX_PODS=30
+    REPEATS=1
+    OPERATION_TIMEOUT="3m"
     CILIUM_ENABLED=False
     SCRAPE_CONTAINERD=True
     SERVICE_TEST=True
     CL2_CONFIG_FILE=load-config.yaml
     TOPOLOGY=service-churn
+    DESIRED_NODES=6
+    VALIDATION_TIMEOUT_IN_MINUTES=10
 
     INPUT_JSON=$(jq -n \
     --arg run_id $RUN_ID \
@@ -94,8 +96,6 @@ teardown_cluster() {
 slo_validate() {
     pushd modules/python
 
-    DESIRED_NODES=14
-    VALIDATION_TIMEOUT_IN_MINUTES=10
     PYTHON_SCRIPT_FILE=$(pwd)/clusterloader2/slo/slo.py
 
     python3 $PYTHON_SCRIPT_FILE validate \
@@ -114,9 +114,8 @@ slo_configure_and_execute() {
                                 $NODE_PER_STEP \
                                 ${MAX_PODS:-0} \
                                 $REPEATS \
-                                $SCALE_TIMEOUT \
+                                $OPERATION_TIMEOUT \
                                 $CLOUD \
-                                $CILIUM_ENABLED \
                                 ${SCRAPE_CONTAINERD:-False} \
                                 $SERVICE_TEST \
                                 ${CL2_CONFIG_DIR}/overrides.yaml
