@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 from utils.logger_config import get_logger, setup_logging
-from utils import (
+from clusterloader2.utils import (
     write_to_file,
     convert_config_to_str,
     parse_test_results
@@ -103,25 +103,21 @@ class ClusterLoader2Base(ABC):
             add_args_method(parser)
 
     def parse_arguments(self) -> argparse.Namespace:
-        # Sub-command for configuring clusterloader2
         self._add_subparser(
             command=Command.CONFIGURE.value,
             description="Override CL2 config file",
         )
 
-        # Sub-command for validating clusterloader2's cluster setup
         self._add_subparser(
             command=Command.VALIDATE.value,
             description="Validate cluster setup",
         )
 
-        # Sub-command for executing tests using clusterloader2
         self._add_subparser(
             command=Command.EXECUTE.value,
             description="Execute scale up operation",
         )
 
-        # Sub-command for collecting clusterloader2's results
         self._add_subparser(
             command=Command.COLLECT.value,
             description="Collect scale up data",
