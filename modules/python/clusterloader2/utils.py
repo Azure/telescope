@@ -225,6 +225,9 @@ def write_to_file(
     content: str,
     logger: Logger=None,
 ):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    # os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
+
     with open(filename, "w", encoding="utf-8") as file:
         file.write(content)
     

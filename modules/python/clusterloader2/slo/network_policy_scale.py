@@ -9,7 +9,11 @@ from utils import (
     parse_test_results,
     process_cl2_reports
 )
+from utils.logger_config import get_logger, setup_logging
 
+# Configure logging
+setup_logging()
+logger = get_logger(__name__)
 
 class NetworkPolicyScaleArgsParser(ClusterLoader2Base.ArgsParser):
     def __init__(self):
@@ -169,11 +173,9 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
 
         write_to_file(
             filename=cl2_override_file,
-            content=content
+            content=content,
+            logger=logger
         )
-
-        with open(cl2_override_file, "r", encoding="utf-8") as file:
-            print(f"Content of file {cl2_override_file}:\n{file.read()}")
 
     def execute(
         self,
@@ -207,13 +209,8 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
         result_file: str,
         test_type: str,
     ):
-        status, testsuites = parse_test_results(cl2_report_dir)
+        status, _ = parse_test_results(cl2_report_dir)
         provider = json.loads(cloud_info)["cloud"]
-
-        if testsuites:
-            status = "success" if testsuites[0]["failures"] == 0 else "failure"
-        else:
-            raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
         # TODO: Expose optional parameter to include test details
         template = {
@@ -229,15 +226,18 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             "run_url": run_url,
             "test_type": test_type,
         }
+        
         content = process_cl2_reports(
             cl2_report_dir,
-            template
+            template,
+            logger=logger
         )
 
-        os.makedirs(os.path.dirname(result_file), exist_ok=True)
-        # os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
-        with open(result_file, "w", encoding="utf-8") as file:
-            file.write(content)
+        write_to_file(
+            filename=result_file,
+            content=content,
+            logger=logger
+        )
 
 
 class NetworkPolicyScale(ClusterLoader2Base):

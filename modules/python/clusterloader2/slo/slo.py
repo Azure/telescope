@@ -11,7 +11,11 @@ from clusterloader2.utils import (
     parse_test_results,
     write_to_file
 )
+from utils.logger_config import get_logger, setup_logging
 
+# Configure logging
+setup_logging()
+logger = get_logger(__name__)
 
 DEFAULT_PODS_PER_NODE = 40
 
@@ -134,7 +138,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             config.update({ "CL2_SERVICE_TEST": "false" })
 
         write_to_file(
-            logger=None,
+            logger=logger,
             filename=cl2_override_file,
             content="\n".join([f"{k}: {v}" for k, v in config.items()])
         )
@@ -150,10 +154,10 @@ class SloRunner(ClusterLoader2Base.Runner):
         while time.time() < timeout:
             ready_nodes = kube_client.get_ready_nodes()
             ready_node_count = len(ready_nodes)
-            print(f"Currently {ready_node_count} nodes are ready.")
+            logger.info(f"Currently {ready_node_count} nodes are ready.")
             if ready_node_count >= node_count:
                 break
-            print(f"Waiting for {node_count} nodes to be ready.")
+            logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
         if ready_node_count < node_count:
             raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
@@ -228,7 +232,8 @@ class SloRunner(ClusterLoader2Base.Runner):
 
         write_to_file(
             filename=result_file,
-            content=content
+            content=content,
+            logger=logger
         )
 
     def calculate_config(
