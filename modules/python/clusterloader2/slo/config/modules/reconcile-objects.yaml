@@ -16,6 +16,7 @@
 
 {{$cnp_test:= .cnp_test}}
 {{$ccnp_test:= .ccnp_test}}
+{{$churn_identities:= .churn_identities}}
 
 steps:
 - name: Starting measurement for '{{$actionName}}'
@@ -64,6 +65,12 @@ steps:
   {{else}}
         SvcName: small-service
   {{end}}
+
+  {{if $churn_identities}}
+        churn_identities: {{$churn_identities}}
+  {{end}}
+
+
         Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 

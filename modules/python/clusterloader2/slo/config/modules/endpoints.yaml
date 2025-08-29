@@ -1,0 +1,19 @@
+## Endpoint module provides a module for creating / deleting endpoints.
+
+## Input params
+{{$actionName := .actionName}}
+{{$namespaces := .namespaces}}
+{{$endpointsPerNamespace := .endpointsPerNamespace}}
+
+steps:
+- name: "{{$actionName}} k8s endpoints"
+  phases:
+  - namespaceRange:
+      min: 1
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$endpointsPerNamespace}}
+    tuningSet: Sequence
+    objectBundle:
+    - basename: ciliumendpoint
+      objectTemplatePath: endpoint_template.yaml
+  
