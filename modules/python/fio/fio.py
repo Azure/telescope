@@ -15,6 +15,45 @@ KUBERNETES_CLIENT = KubernetesClient()
 def validate(node_count, operation_timeout_in_minutes=10):
     KUBERNETES_CLIENT.wait_for_nodes_ready(node_count, operation_timeout_in_minutes)
 
+def calculate_pod_startup_latency(pod):
+    """
+    Calculate the pod startup latency by measuring the time difference between
+    pod creation and when it's ready to start containers (PodReadyToStartContainers condition).
+
+    Args:
+        pod: Kubernetes pod object
+
+    Returns:
+        float: Pod startup latency in seconds, or None if conditions not found
+    """
+    try:
+        creation_timestamp = pod.metadata.creation_timestamp
+        if not creation_timestamp:
+            logger.warning(f"Pod {pod.metadata.name} has no creation timestamp")
+            return None
+
+        # Find the PodReadyToStartContainers condition
+        pod_ready_to_start_time = None
+        if pod.status.conditions:
+            for condition in pod.status.conditions:
+                if condition.type == "PodReadyToStartContainers" and condition.status == "True":
+                    pod_ready_to_start_time = condition.last_transition_time
+                    break
+
+        if not pod_ready_to_start_time:
+            logger.warning(f"Pod {pod.metadata.name} does not have PodReadyToStartContainers condition")
+            return None
+
+        # Calculate the difference in seconds
+        startup_latency = (pod_ready_to_start_time - creation_timestamp).total_seconds()
+        logger.info(f"Pod {pod.metadata.name} startup latency: {startup_latency:.3f} seconds")
+
+        return startup_latency
+
+    except Exception as e:
+        logger.error(f"Error calculating pod startup latency for pod {pod.metadata.name}: {str(e)}")
+        return None
+
 def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_name, kustomize_dir, result_dir):
     fio_command = [
     "fio",
@@ -61,6 +100,13 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
     )
     if not pods:
         raise RuntimeError("No pods found for the fio job.")
+
+    # Calculate pod startup latency for the single pod
+    pod_startup_latency = None
+    if pods:
+        pod = pods[0]  # Assume there's always only one pod
+        pod_startup_latency = calculate_pod_startup_latency(pod)
+
     for pod in pods:
         pod_name = pod.metadata.name
         logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
@@ -83,6 +129,7 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
         "runtime": runtime,
         "numjobs": numjobs,
         "storage_name": storage_name,
+        "pod_startup_latency_seconds": pod_startup_latency,
     }
     with open(metadata_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(metadata))
@@ -97,6 +144,7 @@ def collect(vm_size, block_size, iodepth, method, numjobs, file_size, result_dir
         metadata = json.load(f)
 
     job_results = raw_result['jobs'][0]
+
     result = {
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'vm_size': vm_size,
