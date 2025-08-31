@@ -18,13 +18,13 @@ def validate(node_count, operation_timeout_in_minutes=10):
 def calculate_pod_startup_latency(pod):
     """
     Calculate the pod startup latency by measuring the time difference between
-    pod creation and when it's ready to start containers (PodReadyToStartContainers condition).
+    pod creation and when the fio container actually started running.
 
     Args:
         pod: Kubernetes pod object
 
     Returns:
-        float: Pod startup latency in seconds, or None if conditions not found
+        float: Pod startup latency in seconds, or None if container start time not found
     """
     try:
         creation_timestamp = pod.metadata.creation_timestamp
@@ -32,20 +32,21 @@ def calculate_pod_startup_latency(pod):
             logger.warning(f"Pod {pod.metadata.name} has no creation timestamp")
             return None
 
-        # Find the PodReadyToStartContainers condition
-        pod_ready_to_start_time = None
-        if pod.status.conditions:
-            for condition in pod.status.conditions:
-                if condition.type == "PodReadyToStartContainers" and condition.status == "True":
-                    pod_ready_to_start_time = condition.last_transition_time
+        logger.info(f"pod container statuses {pod.status.container_statuses}")
+        # Find the fio container's startedAt timestamp
+        container_started_time = None
+        if pod.status.container_statuses:
+            for container_status in pod.status.container_statuses:
+                if container_status.name == "fio" and container_status.state and container_status.state.terminated:
+                    container_started_time = container_status.state.terminated.started_at
                     break
 
-        if not pod_ready_to_start_time:
-            logger.warning(f"Pod {pod.metadata.name} does not have PodReadyToStartContainers condition")
+        if not container_started_time:
+            logger.warning(f"Pod {pod.metadata.name} does not have fio container startedAt timestamp")
             return None
 
         # Calculate the difference in seconds
-        startup_latency = (pod_ready_to_start_time - creation_timestamp).total_seconds()
+        startup_latency = (container_started_time - creation_timestamp).total_seconds()
         logger.info(f"Pod {pod.metadata.name} startup latency: {startup_latency:.3f} seconds")
 
         return startup_latency
