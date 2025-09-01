@@ -171,6 +171,10 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
             f.write(json.dumps(metadata) + "\n")
             logger.info(f"Metadata saved to {metadata_path}")
 
+        delete_command = f"kustomize build {kustomize_dir}/overlays/{storage_name}/deployment | name={job_name} envsubst | kubectl delete -f -"
+        logger.info(f"Running command: {delete_command}")
+        subprocess.run(delete_command, shell=True, check=True, capture_output=True)
+
 def collect(vm_size, block_size, iodepth, method, numjobs, file_size, result_dir, run_url, cloud_info):
     raw_result_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}.json"
     metadata_path = f"{result_dir}/fio-{block_size}-{iodepth}-{method}-{numjobs}-{file_size}-metadata.json"
