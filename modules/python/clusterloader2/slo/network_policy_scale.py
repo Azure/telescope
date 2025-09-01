@@ -2,12 +2,12 @@ import json
 import os
 
 from datetime import datetime, timezone
-from clusterloader2.utils import run_cl2_command
 from clusterloader2.slo import ClusterLoader2Base, Ignored
-from utils import (
+from clusterloader2.utils import (
     write_to_file, 
     parse_test_results,
-    process_cl2_reports
+    process_cl2_reports,
+    CL2Command
 )
 from utils.logger_config import get_logger, setup_logging
 
@@ -130,7 +130,7 @@ class NetworkPolicyScaleArgsParser(ClusterLoader2Base.ArgsParser):
 
 
 class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
-    def configure(
+    def get_cl2_configure(
         self,
         number_of_groups: int,
         clients_per_group: int,
@@ -139,7 +139,7 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
         test_duration_secs: int,
         provider: str,
         cl2_override_file: str,
-    ) -> str:
+    ) -> dict:
         return {
             "# Prometheus server config": None,
             "CL2_PROMETHEUS_TOLERATE_MASTER": "true",
@@ -161,22 +161,12 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             "CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY": "false",
         }
 
-    def execute(
+    def get_cl2_parameters(
         self,
-        cl2_image: str,
-        cl2_config_dir: str,
-        cl2_report_dir: str,
-        cl2_config_file: str,
-        kubeconfig: str,
-        provider: str,
-    ):
-        run_cl2_command(
-            kubeconfig,
-            cl2_image,
-            cl2_config_dir,
-            cl2_report_dir,
-            provider,
-            cl2_config_file=cl2_config_file,
+        **cli_params
+    ) -> CL2Command.Params:
+        return CL2Command.Params(
+            **cli_params,
             overrides=True,
             enable_prometheus=True,
             scrape_containerd=False
@@ -194,7 +184,7 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
         test_type: str,
         test_status: str,
         test_results: dict,
-    ):
+    ) -> str:
         provider = json.loads(cloud_info)["cloud"]
 
         # TODO: Expose optional parameter to include test details

@@ -7,7 +7,6 @@ from clusterloader2.slo import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.utils import (
     CL2Command,
-    CL2Params,
     process_cl2_reports,
 )
 from utils.logger_config import get_logger, setup_logging
@@ -96,7 +95,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         scrape_containerd: bool,
         service_test: bool,
         cl2_override_file: str,
-    ):
+    ) -> dict:
         steps = node_count // node_per_step
         throughput, nodes_per_namespace, pods_per_node, cpu_request = self.calculate_config(
             node_count,
@@ -182,7 +181,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         test_type: str,
         test_status: str,
         test_results: dict,
-    ) -> dict:
+    ) -> str:
         provider = json.loads(cloud_info)["cloud"]
 
         _, _, pods_per_node, _ = self.calculate_config(
