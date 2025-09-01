@@ -8,7 +8,7 @@ from clusterloader2.base import ClusterLoader2Base
 from clusterloader2.utils import (
     parse_xml_to_json,
     process_cl2_reports,
-    run_cl2_command,
+    CL2Command,
 )
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -67,16 +67,18 @@ class JobController(ClusterLoader2Base):
         )
 
     def execute_clusterloader2(self):
-        run_cl2_command(
-            self.kubeconfig,
-            self.cl2_image,
-            self.cl2_config_dir,
-            self.cl2_report_dir,
-            self.provider,
-            overrides=True,
-            enable_prometheus=self.prometheus_enabled,
-            scrape_containerd=self.scrape_containerd,
-        )
+        CL2Command(
+            cl2_params=CL2Command.Params(
+                kubeconfig=self.kubeconfig,
+                cl2_image=self.cl2_image,
+                cl2_config_dir= self.cl2_config_dir,
+                cl2_report_dir= self.cl2_report_dir,
+                provider= self.provider,
+                overrides=True,
+                enable_prometheus=self.prometheus_enabled,
+                scrape_containerd=self.scrape_containerd,
+            )
+        ).execute()
 
     def collect_clusterloader2(self) -> None:
 

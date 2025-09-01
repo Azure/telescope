@@ -129,12 +129,14 @@ class ClusterLoader2Base(ABC):
     def perform(self):
         args = self.parse_arguments()
         args_dict = vars(args)
-        command = args_dict.pop("command")
+        command = args_dict.pop("command", None)
+
+        print(args_dict)
 
         if command == Command.CONFIGURE.value:
             config_dict = self.runner.get_cl2_configure(**args_dict)
             write_to_file(
-                filename=args_dict.cl2_override_file,
+                filename=args_dict["cl2_override_file"],
                 content=convert_config_to_str(config_dict)
             )
         elif command == Command.VALIDATE.value:
@@ -150,16 +152,16 @@ class ClusterLoader2Base(ABC):
             )
             cl2_cmd.execute()
         elif command == Command.COLLECT.value:
-            status, results = parse_test_results(args_dict.cl2_report_dir)
+            status, results = parse_test_results(args_dict["cl2_report_dir"])
             result = self.runner.collect(
                 test_status=status, 
                 test_results=results, 
                 **args_dict
             )
             write_to_file(
-                filename=args.result_file,
+                filename=args_dict["result_file"],
                 content=result,
             )
         else:
             print(f"I can't recognize `{command}`\n")
-            self.args_parser.print_help()            
+            self.args_parser.print_help()

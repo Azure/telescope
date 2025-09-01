@@ -202,6 +202,7 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
     def validate(self):
         pass
 
+
 class NetworkPolicyScale(ClusterLoader2Base):
     def __init__(self):
         super().__init__()

@@ -3,7 +3,7 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
+from clusterloader2.utils import parse_xml_to_json, CL2Command, get_measurement
 from utils.common import str2bool
 
 DEFAULT_NODES_PER_NAMESPACE = 100
@@ -91,7 +91,18 @@ def configure_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True)
+    CL2Command(
+        cl2_params=CL2Command.Params(
+            kubeconfig=kubeconfig,
+            cl2_image=cl2_image,
+            cl2_config_dir=cl2_config_dir,
+            cl2_report_dir=cl2_report_dir,
+            provider=provider,
+            cl2_config_file=cl2_config_file,
+            overrides=True,
+            enable_prometheus=True
+        )
+    ).execute()
 
 def collect_clusterloader2(
     cl2_report_dir,
