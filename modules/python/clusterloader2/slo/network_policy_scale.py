@@ -1,5 +1,6 @@
 import json
 import os
+import argparse
 
 from datetime import datetime, timezone
 from clusterloader2.slo import ClusterLoader2Base, Ignored
@@ -18,43 +19,39 @@ logger = get_logger(__name__)
 class NetworkPolicyScaleArgsParser(ClusterLoader2Base.ArgsParser):
     def __init__(self):
         super().__init__(description="Network Policy Scale Test")
-    
-    def add_configure_args(self, parser):
-        parser_configure = parser.add_parser(
-            "configure", 
-            help="Configure ClusterLoader2 overrides file"
-        )
-        parser_configure.add_argument(
+
+    def add_configure_args(self, parser: argparse.ArgumentParser):
+        parser.add_argument(
             "--number_of_groups",
             type=int,
             required=True,
             help="Number of network policy groups to create",
         )
-        parser_configure.add_argument(
+        parser.add_argument(
             "--clients_per_group",
             type=int,
             required=True,
             help="Number of client pods per group",
         )
-        parser_configure.add_argument(
+        parser.add_argument(
             "--servers_per_group",
             type=int,
             required=True,
             help="Number of server pods per group",
         )
-        parser_configure.add_argument(
+        parser.add_argument(
             "--workers_per_client",
             type=int,
             required=True,
             help="Number of workers per client pod",
         )
-        parser_configure.add_argument(
+        parser.add_argument(
             "--test_duration_secs", type=int, required=True, help="Test duration in seconds"
         )
-        parser_configure.add_argument(
+        parser.add_argument(
             "--provider", type=str, required=True, help="Cloud provider name"
         )
-        parser_configure.add_argument(
+        parser.add_argument(
             "--cl2_override_file",
             type=str,
             required=True,
@@ -62,65 +59,60 @@ class NetworkPolicyScaleArgsParser(ClusterLoader2Base.ArgsParser):
         )        
 
     @Ignored
-    def add_validate_args(self, parser):
+    def add_validate_args(self, parser: argparse.ArgumentParser):
         pass
 
     def add_execute_args(self, parser):
-        parser_execute = parser.add_parser(
-            "execute", 
-            help="Execute scale up operation"
-        )
-        parser_execute.add_argument(
+        parser.add_argument(
             "--cl2_image", 
             type=str, 
             help="Name of the CL2 image"
         )
-        parser_execute.add_argument(
+        parser.add_argument(
             "--cl2_config_dir", 
             type=str, 
             help="Path to the CL2 config directory"
         )
-        parser_execute.add_argument(
+        parser.add_argument(
             "--cl2_report_dir", 
             type=str, 
             help="Path to the CL2 report directory"
         )
-        parser_execute.add_argument(
+        parser.add_argument(
             "--cl2_config_file", 
             type=str, 
             help="Path to the CL2 config file"
         )
-        parser_execute.add_argument(
+        parser.add_argument(
             "--kubeconfig", 
             type=str, 
             help="Path to the kubeconfig file"
         )
-        parser_execute.add_argument(
+        parser.add_argument(
             "--provider", 
             type=str, 
             help="Cloud provider name"
         )
 
-    def add_collect_args(self, parser):
-        parser_collect = parser.add_parser("collect", help="Collect scale up data")
-        parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
-        parser_collect.add_argument(
+    def add_collect_args(self, parser: argparse.ArgumentParser):
+        parser.add_argument("--node_count", type=int, help="Number of nodes")
+        parser.add_argument(
             "--pod_count",
             type=int,
             nargs="?",
             default=0,
             help="Maximum number of pods per node",
         )
-        parser_collect.add_argument(
+        parser.add_argument(
             "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
         )
-        parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
-        parser_collect.add_argument("--run_id", type=str, help="Run ID")
-        parser_collect.add_argument("--run_url", type=str, help="Run URL")
-        parser_collect.add_argument(
+        parser.add_argument("--cloud_info", type=str, help="Cloud information")
+        parser.add_argument("--run_id", type=str, help="Run ID")
+        parser.add_argument("--run_url", type=str, help="Run URL")
+        parser.add_argument(
             "--result_file", type=str, help="Path to the result file"
         )
-        parser_collect.add_argument(
+        parser.add_argument(
             "--test_type",
             type=str,
             nargs="?",
@@ -207,6 +199,8 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             template,
         )
 
+    def validate(self):
+        pass
 
 class NetworkPolicyScale(ClusterLoader2Base):
     def __init__(self):

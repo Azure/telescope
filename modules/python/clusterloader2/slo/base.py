@@ -23,7 +23,6 @@ class Command(Enum):
     COLLECT = "collect"
 
 def Ignored(func):
-    """A decorator indicating a parameter to be skipped"""
     func.is_ignored = True
     return func
 
@@ -37,19 +36,19 @@ class ClusterLoader2Base(ABC):
             self._subparsers = self._parser.add_subparsers(dest="command")
 
         @abstractmethod
-        def add_configure_args(self, parser):
+        def add_configure_args(self, parser: argparse.ArgumentParser):
             pass
 
         @abstractmethod
-        def add_validate_args(self, parser):
+        def add_validate_args(self, parser: argparse.ArgumentParser):
             pass
 
         @abstractmethod
-        def add_execute_args(self, parser):
+        def add_execute_args(self, parser: argparse.ArgumentParser):
             pass
 
         @abstractmethod
-        def add_collect_args(self, parser):
+        def add_collect_args(self, parser: argparse.ArgumentParser):
             pass
       
         def parse(self) -> argparse.Namespace:
@@ -85,7 +84,7 @@ class ClusterLoader2Base(ABC):
     def runner(self) -> Runner:
         pass
 
-    def _add_subparser(self, command: Command, description: str):
+    def _add_subparser(self, command: str, description: str):
         subparsers = self.args_parser._subparsers
         
         add_args_method = {
@@ -98,10 +97,10 @@ class ClusterLoader2Base(ABC):
         if not add_args_method:
             return
 
-        is_method_ignored = getattr(add_args_method, "is_ignored")
+        is_method_ignored = getattr(add_args_method, "is_ignored", False)
 
         if not is_method_ignored:
-            parser = subparsers.add_parser(command.value, help=description)
+            parser = subparsers.add_parser(command, help=description)
             add_args_method(parser)
 
     def parse_arguments(self) -> argparse.Namespace:
