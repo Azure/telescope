@@ -37,6 +37,49 @@ steps:
       --step-wait-time "$STEP_WAIT_TIME" \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool}
+  displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
+  workingDirectory: modules/python
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+    VM_SIZE: ${{ parameters.vm_size }}
+    CREATE_NODE_COUNT: ${{ parameters.create_node_count }}
+    SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}
+    SCALE_STEP_SIZE: ${{ parameters.scale_step_up_count }}
+    POOL_NAME: ${{ parameters.pool_name }}
+    CLOUD: ${{ parameters.cloud }}
+    STEP_TIME_OUT: ${{ parameters.step_time_out }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
+    STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
+    ${{ if eq(parameters.cloud, 'aws') }}:
+      CAPACITY_TYPE: $(CAPACITY_TYPE)
+- script: |
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+      --efa_operator_version ${EFA_OPERATOR_VERSION:-""} \
+      --network_operator_version ${NETWORK_OPERATOR_VERSION:-""} \
+      --gpu_operator_version ${GPU_OPERATOR_VERSION:-""} \
+      --gpu_install_driver ${GPU_INSTALL_DRIVER:-"True"} \
+      --gpu_enable_nfd ${GPU_ENABLE_NFD:-"False"} \
+      --mpi_operator_version ${MPI_OPERATOR_VERSION:-""} \
+      --config_dir $CONFIG_DIR
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+      --provider $CLOUD \
+      --config_dir $CONFIG_DIR \
+      --result_dir $RESULT_DIR \
+      --vm_size ${VM_SIZE:-""}
+  displayName: 'Execute nccl-tests for ${{ parameters.cloud }}'
+  condition: eq(variables.run_nccl_tests, 'true')
+  workingDirectory: modules/python
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
+    CLOUD: ${{ parameters.cloud }}
+    CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/gpu/config
+    RESULT_DIR: $(TEST_RESULTS_DIR)
+- script: |
+    set -eo pipefail
 
     # Scale Down Node Pool
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
@@ -57,7 +100,8 @@ steps:
       --result-dir "$RESULT_DIR" \
       --node-pool-name "$POOL_NAME" \
       --step-timeout "$STEP_TIME_OUT"
-  displayName: 'Execute K8s CRUD Operations for ${{ parameters.cloud }}'
+  displayName: 'Execute K8s Scale Down & Delete Operations for ${{ parameters.cloud }}'
+  condition: always()
   workingDirectory: modules/python
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
