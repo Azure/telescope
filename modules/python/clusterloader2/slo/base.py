@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import asdict
 from abc import ABC, abstractmethod
 from enum import Enum
 
@@ -6,7 +7,8 @@ from utils.logger_config import get_logger, setup_logging
 from clusterloader2.utils import (
     write_to_file,
     convert_config_to_str,
-    parse_test_results
+    parse_test_results,
+    CL2Command
 )
 
 # Configure logging
@@ -58,7 +60,7 @@ class ClusterLoader2Base(ABC):
 
     class Runner(ABC):
         @abstractmethod
-        def configure(self) -> dict:
+        def get_cl2_configure(self) -> dict:
             pass
         
         @abstractmethod
@@ -66,7 +68,7 @@ class ClusterLoader2Base(ABC):
             pass
         
         @abstractmethod
-        def execute(self):
+        def get_cl2_parameters(self) -> CL2Command.Params:
             pass
         
         @abstractmethod
@@ -131,7 +133,7 @@ class ClusterLoader2Base(ABC):
         command = args_dict.pop("command")
 
         if command == Command.CONFIGURE.value:
-            config_dict = self.runner.configure(**args_dict)
+            config_dict = self.runner.get_cl2_configure(**args_dict)
             write_to_file(
                 filename=args_dict.cl2_override_file,
                 content=convert_config_to_str(config_dict)
@@ -139,7 +141,15 @@ class ClusterLoader2Base(ABC):
         elif command == Command.VALIDATE.value:
             self.runner.validate(**args_dict)
         elif command == Command.EXECUTE.value:
-            self.runner.execute(**args_dict)
+            custom_cl2_params = asdict(self.runner.get_cl2_parameters(**args_dict))
+            merged_params = {
+                **custom_cl2_params,
+                **args_dict
+            }
+            cl2_cmd = CL2Command(
+                cl2_params=CL2Command.Params(**merged_params)
+            )
+            cl2_cmd.execute()
         elif command == Command.COLLECT.value:
             status, results = parse_test_results(args_dict.cl2_report_dir)
             result = self.runner.collect(

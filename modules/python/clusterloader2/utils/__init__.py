@@ -9,10 +9,6 @@ from .constants import (
     SCHEDULING_THROUGHPUT_PREFIX,
 )
 
-from .cl2_command import (
-    run_cl2_command  
-)
-
 from .cl2_reports import (
     get_measurement,
     process_cl2_reports,
@@ -25,6 +21,6 @@ from .common import (
     write_to_file
 )
 
-from .cl2_command import (
-    run_cl2_command
+from .CL2Command import (
+    CL2Command,
 )

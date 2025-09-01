@@ -1,1 +1,1 @@
-from .ClusterLoader2Base import ClusterLoader2Base, Ignored, Command
+from .base import ClusterLoader2Base, Ignored, Command

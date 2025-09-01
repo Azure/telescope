@@ -6,7 +6,8 @@ from utils.common import str2bool
 from clusterloader2.slo import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.utils import (
-    run_cl2_command, 
+    CL2Command,
+    CL2Params,
     process_cl2_reports,
 )
 from utils.logger_config import get_logger, setup_logging
@@ -83,7 +84,7 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
 
 
 class SloRunner(ClusterLoader2Base.Runner):
-    def configure(
+    def get_cl2_configure(
         self,
         cpu_per_node: int,
         node_count: int,
@@ -156,26 +157,14 @@ class SloRunner(ClusterLoader2Base.Runner):
         if ready_node_count < node_count:
             raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
 
-    def execute(
+    def get_cl2_parameters(
         self,
-        cl2_image: str,
-        cl2_config_dir: str,
-        cl2_report_dir: str,
-        cl2_config_file: str,
-        kubeconfig: str,
-        provider: str,
-        scrape_containerd: bool,
-    ):
-        run_cl2_command(
-            kubeconfig, 
-            cl2_image, 
-            cl2_config_dir, 
-            cl2_report_dir, 
-            provider,
-            cl2_config_file=cl2_config_file, 
+        **cli_params
+    ) -> CL2Command.Params:
+        return CL2Command.Params(
+            **cli_params,
             overrides=True, 
             enable_prometheus=True,
-            scrape_containerd=scrape_containerd
         )
 
     def collect(
